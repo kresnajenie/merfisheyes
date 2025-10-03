@@ -38,24 +38,34 @@ export default function RootLayout({
       <body
         className={clsx(
           "min-h-screen text-foreground bg-background font-sans antialiased",
-          fontSans.variable,
+          fontSans.variable
         )}
       >
         <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
           <div className="relative flex flex-col h-screen">
             <Navbar />
-            <main className="container mx-auto max-w-7xl pt-16 px-6 flex-grow">
+            <main className="container mx-auto max-w-9xl pt-16 px-6 flex-grow">
               {children}
             </main>
             <footer className="w-full flex items-center justify-center py-3">
               <Link
                 isExternal
                 className="flex items-center gap-1 text-current"
-                href="https://heroui.com?utm_source=next-app-template"
-                title="heroui.com homepage"
+                href="https://www.linkedin.com/in/ignatius-jenie-1023521b3/"
+                title="linkedin.com kresnajenie"
               >
-                <span className="text-default-600">Powered by</span>
-                <p className="text-primary">HeroUI</p>
+                <span className="text-default-600">Made by</span>
+                <p className="text-primary">Kresna Jenie</p>
+              </Link>
+              <Link
+                isExternal
+                className="flex items-center gap-1 text-current"
+                href="https://b.bintulab.com"
+                title="b.bintulab.com"
+              >
+                <span className="text-default-600"></span>
+                <span className="text-default-600">at</span>
+                <p className="text-primary">Bintu Lab</p>
               </Link>
             </footer>
           </div>
