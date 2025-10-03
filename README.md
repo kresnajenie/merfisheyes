@@ -41,6 +41,16 @@ npm run build
 npm start
 ```
 
+**Low memory servers:** If you encounter SIGBUS errors on servers with limited RAM:
+```bash
+npm run build:low-memory
+```
+
+Or manually set memory limit:
+```bash
+NODE_OPTIONS='--max-old-space-size=2048' npm run build
+```
+
 ## Usage
 
 ### Uploading Data
