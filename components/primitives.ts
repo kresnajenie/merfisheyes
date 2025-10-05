@@ -52,3 +52,7 @@ export const subtitle = tv({
     fullWidth: true,
   },
 });
+
+export const glassButton = tv({
+  base: "glass !bg-[rgba(0,0,0,0.2)] backdrop-blur-[50px]",
+});

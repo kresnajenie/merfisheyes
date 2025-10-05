@@ -2,10 +2,12 @@
 
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/slider";
+import { Tooltip } from "@heroui/tooltip";
 import { useState } from "react";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { VisualizationPanel } from "./visualization-panel";
 import type { VisualizationMode } from "@/lib/stores/visualizationStore";
+import { glassButton } from "@/components/primitives";
 
 export function VisualizationControls() {
   const { mode, setMode, sizeScale, setSizeScale } = useVisualizationStore();
@@ -28,9 +30,9 @@ export function VisualizationControls() {
     <div className="fixed top-20 left-4 z-50 flex flex-col gap-2">
       {/* Celltype Button */}
       <Button
-        className={buttonBaseClass}
+        className={`${buttonBaseClass} ${isPanelOpen && mode === "celltype" ? "" : glassButton()}`}
         color={isPanelOpen && mode === "celltype" ? "primary" : "default"}
-        variant={isPanelOpen && mode === "celltype" ? "shadow" : "flat"}
+        variant={isPanelOpen && mode === "celltype" ? "shadow" : "light"}
         onPress={() => handleModeChange("celltype")}
       >
         Celltype
@@ -38,28 +40,30 @@ export function VisualizationControls() {
 
       {/* Gene Button */}
       <Button
-        className={buttonBaseClass}
+        className={`${buttonBaseClass} ${isPanelOpen && mode === "gene" ? "" : glassButton()}`}
         color={isPanelOpen && mode === "gene" ? "primary" : "default"}
-        variant={isPanelOpen && mode === "gene" ? "shadow" : "flat"}
+        variant={isPanelOpen && mode === "gene" ? "shadow" : "light"}
         onPress={() => handleModeChange("gene")}
       >
         Gene
       </Button>
 
       {/* Dot Size Slider */}
-      <div className="w-14 h-32 bg-content1 rounded-full border-2 border-default-200 shadow-medium p-2 flex flex-col items-center justify-center">
-        <Slider
-          orientation="vertical"
-          size="sm"
-          step={0.1}
-          minValue={0.1}
-          maxValue={3}
-          value={sizeScale}
-          onChange={(value) => setSizeScale(value as number)}
-          className="h-full"
-          aria-label="Dot size"
-        />
-      </div>
+      <Tooltip content="Change dotsize" placement="right">
+        <div className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}>
+          <Slider
+            orientation="vertical"
+            size="sm"
+            step={0.1}
+            minValue={0.1}
+            maxValue={3}
+            value={sizeScale}
+            onChange={(value) => setSizeScale(value as number)}
+            className="h-full"
+            aria-label="Dot size"
+          />
+        </div>
+      </Tooltip>
 
       {/* Visualization Panel */}
       {isPanelOpen && (
