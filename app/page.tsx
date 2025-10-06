@@ -35,7 +35,7 @@ export default function Home() {
             </h1>
             <div className={subtitle({ class: "mt-4 text-center" })}>
               Explore your{" "}
-              <span className="font-bold">.h5ad , MERSCOPE & XENIUM</span>{" "}
+              <span className="font-bold">.h5ad , Merscope & Xenium</span>{" "}
               datasets
             </div>
           </div>
@@ -56,8 +56,8 @@ export default function Home() {
             />
             <FileUpload
               type="merscope"
-              title="MERSCOPE Folder"
-              description="Select MERSCOPE output folder"
+              title="Merscope Folder"
+              description="Select Merscope output folder"
             />
           </div>
         </div>

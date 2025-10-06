@@ -30,6 +30,7 @@ export class XeniumAdapter {
   _genes: string[];
   _exprByGene: Map<string, Float32Array>;
   _cellIndex: Map<string, number>;
+  _onProgress?: (progress: number, message: string) => Promise<void> | void;
 
   constructor() {
     this.files = [];
@@ -49,10 +50,12 @@ export class XeniumAdapter {
     this._cellIndex = new Map();
   }
 
-  async initialize(files: File[]): Promise<void> {
+  async initialize(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<void> {
+    this._onProgress = onProgress;
     this.files = files;
 
     // 1) Load cells table (csv or csv.gz)
+    await this._onProgress?.(10, "Loading cell metadata...");
     this._rows = await this._readTableOneOf(["cells.csv", "cells.csv.gz"]);
     if (!this._rows.length)
       throw new Error("Xenium: cells.csv(.gz) not found or empty");
@@ -61,6 +64,7 @@ export class XeniumAdapter {
     this._obsKeys = Object.keys(this._rows[0] || {});
 
     // Build index: choose a best cell id key and map id -> row idx
+    await this._onProgress?.(20, "Building cell index...");
     const cellIdKey =
       pickFirstPresent(this._rows[0], [
         "cell_id",
@@ -77,6 +81,7 @@ export class XeniumAdapter {
     }
 
     // 3) Try to augment clusters from analysis/clustering CSVs
+    await this._onProgress?.(30, "Loading cluster data...");
     await this._augmentClustersFromAnalysis(cellIdKey);
 
     // 4) If still no cluster column, look for common ones in cells.csv
@@ -122,6 +127,7 @@ export class XeniumAdapter {
 
     // 5) Genes: features, else transcripts
     //    (we'll still build expression from transcripts or cells-wide if possible)
+    await this._onProgress?.(50, "Loading gene features...");
     let feats: RowData[] = [];
     try {
       feats = await this._readTableOneOf([
@@ -145,6 +151,7 @@ export class XeniumAdapter {
     }
 
     // 6) Expression: try transcripts.csv(.gz) (long format) first
+    await this._onProgress?.(70, "Loading gene expression...");
     let gotExpr = false;
     try {
       const tx = await this._readTableOneOf([
@@ -169,6 +176,7 @@ export class XeniumAdapter {
     if (!this._genes.length)
       console.warn("No gene names found (or none usable for expression).");
 
+    await this._onProgress?.(90, "Finalizing dataset...");
     this.metadata = {
       hasPolygons: false,
       hasFeatures: !!this._genes.length,

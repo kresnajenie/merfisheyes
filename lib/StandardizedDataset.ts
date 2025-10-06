@@ -166,17 +166,21 @@ export class StandardizedDataset {
   /**
    * Create StandardizedDataset from H5AD file
    */
-  static async fromH5ad(file: File): Promise<StandardizedDataset> {
+  static async fromH5ad(file: File, onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
     const adapter = new H5adAdapter();
-    await adapter.initialize(file);
+    await adapter.initialize(file, onProgress);
 
     // Load all data through adapter
+    await onProgress?.(92, "Loading spatial coordinates...");
     const spatial = adapter.loadSpatialCoordinates();
     console.log("Spatial data:", spatial);
+    await onProgress?.(94, "Loading embeddings...");
     const embeddings = adapter.loadEmbeddings();
     console.log("Embeddings:", embeddings);
+    await onProgress?.(96, "Loading genes...");
     const genes = await adapter.loadGenes();
     console.log("Genes:", genes.length, "genes loaded");
+    await onProgress?.(98, "Loading clusters...");
     const clusters = await adapter.loadClusters();
     console.log("Clusters:", clusters);
     const dataInfo = adapter.getDatasetInfo();
@@ -209,17 +213,21 @@ export class StandardizedDataset {
   /**
    * Create StandardizedDataset from Xenium files
    */
-  static async fromXenium(files: File[]): Promise<StandardizedDataset> {
+  static async fromXenium(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
     const adapter = new XeniumAdapter();
-    await adapter.initialize(files);
+    await adapter.initialize(files, onProgress);
 
     // Load all data through adapter
+    await onProgress?.(92, "Loading spatial coordinates...");
     const spatial = adapter.loadSpatialCoordinates();
     console.log("Spatial data:", spatial);
+    await onProgress?.(94, "Loading embeddings...");
     const embeddings = adapter.loadEmbeddings();
     console.log("Embeddings:", embeddings);
+    await onProgress?.(96, "Loading genes...");
     const genes = await adapter.loadGenes();
     console.log("Genes:", genes.length, "genes loaded");
+    await onProgress?.(98, "Loading clusters...");
     const clusterData = await adapter.loadClusters();
     console.log("Clusters:", clusterData);
 
@@ -267,13 +275,15 @@ export class StandardizedDataset {
   /**
    * Create StandardizedDataset from MERSCOPE files
    */
-  static async fromMerscope(files: File[]): Promise<StandardizedDataset> {
+  static async fromMerscope(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
     const adapter = new MerscopeAdapter();
-    await adapter.initialize(files);
+    await adapter.initialize(files, onProgress);
 
     // Load all data through adapter
+    await onProgress?.(92, "Loading spatial coordinates...");
     const spatial = adapter.loadSpatialCoordinates();
     console.log("Spatial data:", spatial);
+    await onProgress?.(94, "Loading embeddings...");
     const rawEmbeddings = adapter.loadEmbeddings();
     console.log("Raw embeddings:", rawEmbeddings);
 
@@ -287,8 +297,10 @@ export class StandardizedDataset {
       });
     }
 
+    await onProgress?.(96, "Loading genes...");
     const genes = await adapter.loadGenes();
     console.log("Genes:", genes.length, "genes loaded");
+    await onProgress?.(98, "Loading clusters...");
     const clusterData = await adapter.loadClusters();
     console.log("Clusters:", clusterData);
 
