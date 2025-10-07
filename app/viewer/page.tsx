@@ -11,12 +11,15 @@ import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
+import { Button } from "@heroui/react";
+import { UploadSettingsModal } from "@/components/upload-settings-modal";
 
 function ViewerContent() {
   const searchParams = useSearchParams();
   const { datasets, currentDatasetId, getCurrentDataset } = useDatasetStore();
   const { setSelectedColumn } = useVisualizationStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   useEffect(() => {
     // Check for dataset ID in URL params
@@ -112,6 +115,24 @@ function ViewerContent() {
     <>
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
+
+      {/* Upload button in top right */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          color="primary"
+          onPress={() => setIsUploadModalOpen(true)}
+          size="sm"
+        >
+          Save Dataset
+        </Button>
+      </div>
+
+      {/* Upload settings modal */}
+      <UploadSettingsModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        dataset={dataset}
+      />
     </>
   );
 }
