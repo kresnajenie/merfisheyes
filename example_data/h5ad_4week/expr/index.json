@@ -1,0 +1,2830 @@
+{
+  "version": 2,
+  "created_at": "2025-08-20T23:51:02.619Z",
+  "total_genes": 275,
+  "total_cells": 269928,
+  "chunk_size": 50,
+  "num_chunks": 6,
+  "chunks": [
+    {
+      "id": 0,
+      "filename": "chunk_000.bin.gz",
+      "gene_range": [
+        0,
+        49
+      ],
+      "size_compressed": 52430905,
+      "size_uncompressed": 75062864,
+      "num_genes": 50
+    },
+    {
+      "id": 1,
+      "filename": "chunk_001.bin.gz",
+      "gene_range": [
+        50,
+        99
+      ],
+      "size_compressed": 52549446,
+      "size_uncompressed": 75386688,
+      "num_genes": 50
+    },
+    {
+      "id": 2,
+      "filename": "chunk_002.bin.gz",
+      "gene_range": [
+        100,
+        149
+      ],
+      "size_compressed": 50492281,
+      "size_uncompressed": 72729184,
+      "num_genes": 50
+    },
+    {
+      "id": 3,
+      "filename": "chunk_003.bin.gz",
+      "gene_range": [
+        150,
+        199
+      ],
+      "size_compressed": 49148691,
+      "size_uncompressed": 70475240,
+      "num_genes": 50
+    },
+    {
+      "id": 4,
+      "filename": "chunk_004.bin.gz",
+      "gene_range": [
+        200,
+        249
+      ],
+      "size_compressed": 50532862,
+      "size_uncompressed": 72557880,
+      "num_genes": 50
+    },
+    {
+      "id": 5,
+      "filename": "chunk_005.bin.gz",
+      "gene_range": [
+        250,
+        274
+      ],
+      "size_compressed": 24062041,
+      "size_uncompressed": 34582480,
+      "num_genes": 25
+    }
+  ],
+  "genes": [
+    {
+      "index": 0,
+      "name": "Abhd2",
+      "chunk_id": 0,
+      "position_in_chunk": 0,
+      "mean_expression": 0.8728078653312916,
+      "percent_cells_expressed": 71.14934352864466,
+      "num_nonzero": 192052
+    },
+    {
+      "index": 1,
+      "name": "Acer3",
+      "chunk_id": 0,
+      "position_in_chunk": 1,
+      "mean_expression": 0.5126215288367966,
+      "percent_cells_expressed": 56.12385525028897,
+      "num_nonzero": 151494
+    },
+    {
+      "index": 2,
+      "name": "Acta2",
+      "chunk_id": 0,
+      "position_in_chunk": 2,
+      "mean_expression": 0.5980427545023308,
+      "percent_cells_expressed": 59.85188642897366,
+      "num_nonzero": 161557
+    },
+    {
+      "index": 3,
+      "name": "Actb",
+      "chunk_id": 0,
+      "position_in_chunk": 3,
+      "mean_expression": 3.342638266988041,
+      "percent_cells_expressed": 96.30827479920572,
+      "num_nonzero": 259963
+    },
+    {
+      "index": 4,
+      "name": "Actg1",
+      "chunk_id": 0,
+      "position_in_chunk": 4,
+      "mean_expression": 2.7425360662533036,
+      "percent_cells_expressed": 95.10017486144453,
+      "num_nonzero": 256702
+    },
+    {
+      "index": 5,
+      "name": "Adarb2",
+      "chunk_id": 0,
+      "position_in_chunk": 5,
+      "mean_expression": 1.2175605589280074,
+      "percent_cells_expressed": 78.01561897987611,
+      "num_nonzero": 210586
+    },
+    {
+      "index": 6,
+      "name": "Adcy1",
+      "chunk_id": 0,
+      "position_in_chunk": 6,
+      "mean_expression": 2.4146522518032842,
+      "percent_cells_expressed": 91.12615215909427,
+      "num_nonzero": 245975
+    },
+    {
+      "index": 7,
+      "name": "Adcy2",
+      "chunk_id": 0,
+      "position_in_chunk": 7,
+      "mean_expression": 0.6570574311269692,
+      "percent_cells_expressed": 59.67665451527815,
+      "num_nonzero": 161084
+    },
+    {
+      "index": 8,
+      "name": "Adgrl3",
+      "chunk_id": 0,
+      "position_in_chunk": 8,
+      "mean_expression": 2.2867702358512694,
+      "percent_cells_expressed": 93.67201624136807,
+      "num_nonzero": 252847
+    },
+    {
+      "index": 9,
+      "name": "Agt",
+      "chunk_id": 0,
+      "position_in_chunk": 9,
+      "mean_expression": 1.3076714346282376,
+      "percent_cells_expressed": 73.13320589194156,
+      "num_nonzero": 197407
+    },
+    {
+      "index": 10,
+      "name": "Ahcyl2",
+      "chunk_id": 0,
+      "position_in_chunk": 10,
+      "mean_expression": 1.3822506579834155,
+      "percent_cells_expressed": 84.4773421060431,
+      "num_nonzero": 228028
+    },
+    {
+      "index": 11,
+      "name": "Aif1l",
+      "chunk_id": 0,
+      "position_in_chunk": 11,
+      "mean_expression": 0.6694101247921471,
+      "percent_cells_expressed": 65.02585874751786,
+      "num_nonzero": 175523
+    },
+    {
+      "index": 12,
+      "name": "Aldh1a1",
+      "chunk_id": 0,
+      "position_in_chunk": 12,
+      "mean_expression": 0.39678484777520295,
+      "percent_cells_expressed": 43.546427195400256,
+      "num_nonzero": 117544
+    },
+    {
+      "index": 13,
+      "name": "Aldoc",
+      "chunk_id": 0,
+      "position_in_chunk": 13,
+      "mean_expression": 3.3540501116097428,
+      "percent_cells_expressed": 97.06255001333689,
+      "num_nonzero": 261999
+    },
+    {
+      "index": 14,
+      "name": "Aqp4",
+      "chunk_id": 0,
+      "position_in_chunk": 14,
+      "mean_expression": 1.5303983357827031,
+      "percent_cells_expressed": 86.41860051569307,
+      "num_nonzero": 233268
+    },
+    {
+      "index": 15,
+      "name": "Arx",
+      "chunk_id": 0,
+      "position_in_chunk": 15,
+      "mean_expression": 0.6186752783274577,
+      "percent_cells_expressed": 55.64150440117365,
+      "num_nonzero": 150192
+    },
+    {
+      "index": 16,
+      "name": "Ascl1",
+      "chunk_id": 0,
+      "position_in_chunk": 16,
+      "mean_expression": 0.49504105425333367,
+      "percent_cells_expressed": 53.57613882220444,
+      "num_nonzero": 144617
+    },
+    {
+      "index": 17,
+      "name": "Atp1a2",
+      "chunk_id": 0,
+      "position_in_chunk": 17,
+      "mean_expression": 3.770283702315989,
+      "percent_cells_expressed": 98.07393082599805,
+      "num_nonzero": 264729
+    },
+    {
+      "index": 18,
+      "name": "Atp1b1",
+      "chunk_id": 0,
+      "position_in_chunk": 18,
+      "mean_expression": 3.0829558763311327,
+      "percent_cells_expressed": 95.09017219406657,
+      "num_nonzero": 256675
+    },
+    {
+      "index": 19,
+      "name": "Auts2",
+      "chunk_id": 0,
+      "position_in_chunk": 19,
+      "mean_expression": 1.5092414551939293,
+      "percent_cells_expressed": 83.62155834148366,
+      "num_nonzero": 225718
+    },
+    {
+      "index": 20,
+      "name": "Bcl2",
+      "chunk_id": 0,
+      "position_in_chunk": 20,
+      "mean_expression": 0.6578507545516725,
+      "percent_cells_expressed": 64.66279896861386,
+      "num_nonzero": 174543
+    },
+    {
+      "index": 21,
+      "name": "Bdnf",
+      "chunk_id": 0,
+      "position_in_chunk": 21,
+      "mean_expression": 0.4514273092870993,
+      "percent_cells_expressed": 51.965338905189526,
+      "num_nonzero": 140269
+    },
+    {
+      "index": 22,
+      "name": "Bhlhe22",
+      "chunk_id": 0,
+      "position_in_chunk": 22,
+      "mean_expression": 0.620132391305341,
+      "percent_cells_expressed": 57.13634747043657,
+      "num_nonzero": 154227
+    },
+    {
+      "index": 23,
+      "name": "Bmp2",
+      "chunk_id": 0,
+      "position_in_chunk": 23,
+      "mean_expression": 0.6304823628478458,
+      "percent_cells_expressed": 61.317462434426965,
+      "num_nonzero": 165513
+    },
+    {
+      "index": 24,
+      "name": "Bmp4",
+      "chunk_id": 0,
+      "position_in_chunk": 24,
+      "mean_expression": 0.8905067511237916,
+      "percent_cells_expressed": 72.61529000326013,
+      "num_nonzero": 196009
+    },
+    {
+      "index": 25,
+      "name": "Brinp3",
+      "chunk_id": 0,
+      "position_in_chunk": 25,
+      "mean_expression": 0.22830102096233165,
+      "percent_cells_expressed": 32.87098781897395,
+      "num_nonzero": 88728
+    },
+    {
+      "index": 26,
+      "name": "Bsg",
+      "chunk_id": 0,
+      "position_in_chunk": 26,
+      "mean_expression": 2.552922738086623,
+      "percent_cells_expressed": 94.45185382768739,
+      "num_nonzero": 254952
+    },
+    {
+      "index": 27,
+      "name": "Bsn",
+      "chunk_id": 0,
+      "position_in_chunk": 27,
+      "mean_expression": 2.261584960665227,
+      "percent_cells_expressed": 89.37346255297709,
+      "num_nonzero": 241244
+    },
+    {
+      "index": 28,
+      "name": "Btg2",
+      "chunk_id": 0,
+      "position_in_chunk": 28,
+      "mean_expression": 0.8588240361747884,
+      "percent_cells_expressed": 69.66968969502979,
+      "num_nonzero": 188058
+    },
+    {
+      "index": 29,
+      "name": "C1qa",
+      "chunk_id": 0,
+      "position_in_chunk": 29,
+      "mean_expression": 0.8699415605671745,
+      "percent_cells_expressed": 69.46556118668681,
+      "num_nonzero": 187507
+    },
+    {
+      "index": 30,
+      "name": "C1ql1",
+      "chunk_id": 0,
+      "position_in_chunk": 30,
+      "mean_expression": 0.628931767611397,
+      "percent_cells_expressed": 59.98525532734655,
+      "num_nonzero": 161917
+    },
+    {
+      "index": 31,
+      "name": "C1ql3",
+      "chunk_id": 0,
+      "position_in_chunk": 31,
+      "mean_expression": 0.5599214692259544,
+      "percent_cells_expressed": 49.533949794019144,
+      "num_nonzero": 133706
+    },
+    {
+      "index": 32,
+      "name": "Calb1",
+      "chunk_id": 0,
+      "position_in_chunk": 32,
+      "mean_expression": 0.6738347341473362,
+      "percent_cells_expressed": 61.158901633028066,
+      "num_nonzero": 165085
+    },
+    {
+      "index": 33,
+      "name": "Calb2",
+      "chunk_id": 0,
+      "position_in_chunk": 33,
+      "mean_expression": 1.151918345949962,
+      "percent_cells_expressed": 70.58808274799205,
+      "num_nonzero": 190537
+    },
+    {
+      "index": 34,
+      "name": "Casp3",
+      "chunk_id": 0,
+      "position_in_chunk": 34,
+      "mean_expression": 0.8101008305598426,
+      "percent_cells_expressed": 70.26058800865415,
+      "num_nonzero": 189653
+    },
+    {
+      "index": 35,
+      "name": "Casp9",
+      "chunk_id": 0,
+      "position_in_chunk": 35,
+      "mean_expression": 0.7324238666505909,
+      "percent_cells_expressed": 67.87698941940073,
+      "num_nonzero": 183219
+    },
+    {
+      "index": 36,
+      "name": "Cck",
+      "chunk_id": 0,
+      "position_in_chunk": 36,
+      "mean_expression": 1.344386695007967,
+      "percent_cells_expressed": 75.61275599419103,
+      "num_nonzero": 204100
+    },
+    {
+      "index": 37,
+      "name": "Cd14",
+      "chunk_id": 0,
+      "position_in_chunk": 37,
+      "mean_expression": 0.47989741886654935,
+      "percent_cells_expressed": 53.2830977149462,
+      "num_nonzero": 143826
+    },
+    {
+      "index": 38,
+      "name": "Cd74",
+      "chunk_id": 0,
+      "position_in_chunk": 38,
+      "mean_expression": 0.3147066257188143,
+      "percent_cells_expressed": 41.006490619720815,
+      "num_nonzero": 110688
+    },
+    {
+      "index": 39,
+      "name": "Cdh12",
+      "chunk_id": 0,
+      "position_in_chunk": 39,
+      "mean_expression": 0.28007829143530727,
+      "percent_cells_expressed": 37.6396668741294,
+      "num_nonzero": 101600
+    },
+    {
+      "index": 40,
+      "name": "Cdh13",
+      "chunk_id": 0,
+      "position_in_chunk": 40,
+      "mean_expression": 1.2648936303556633,
+      "percent_cells_expressed": 79.8612963456922,
+      "num_nonzero": 215568
+    },
+    {
+      "index": 41,
+      "name": "Cdh18",
+      "chunk_id": 0,
+      "position_in_chunk": 41,
+      "mean_expression": 0.3672833647281404,
+      "percent_cells_expressed": 44.894194007290835,
+      "num_nonzero": 121182
+    },
+    {
+      "index": 42,
+      "name": "Cdk1",
+      "chunk_id": 0,
+      "position_in_chunk": 42,
+      "mean_expression": 0.27181571652959136,
+      "percent_cells_expressed": 36.81426158086601,
+      "num_nonzero": 99372
+    },
+    {
+      "index": 43,
+      "name": "Cdk4",
+      "chunk_id": 0,
+      "position_in_chunk": 43,
+      "mean_expression": 1.1330244139481978,
+      "percent_cells_expressed": 80.80228801754542,
+      "num_nonzero": 218108
+    },
+    {
+      "index": 44,
+      "name": "Chrdl1",
+      "chunk_id": 0,
+      "position_in_chunk": 44,
+      "mean_expression": 0.6332386746743528,
+      "percent_cells_expressed": 62.45295041640734,
+      "num_nonzero": 168578
+    },
+    {
+      "index": 45,
+      "name": "Clasp1",
+      "chunk_id": 0,
+      "position_in_chunk": 45,
+      "mean_expression": 1.1059038236085068,
+      "percent_cells_expressed": 79.15999822174801,
+      "num_nonzero": 213675
+    },
+    {
+      "index": 46,
+      "name": "Cldn5",
+      "chunk_id": 0,
+      "position_in_chunk": 46,
+      "mean_expression": 0.9543548585876941,
+      "percent_cells_expressed": 68.02814083755668,
+      "num_nonzero": 183627
+    },
+    {
+      "index": 47,
+      "name": "Cnr1",
+      "chunk_id": 0,
+      "position_in_chunk": 47,
+      "mean_expression": 1.4014652984647458,
+      "percent_cells_expressed": 81.40244806022346,
+      "num_nonzero": 219728
+    },
+    {
+      "index": 48,
+      "name": "Cntnap5b",
+      "chunk_id": 0,
+      "position_in_chunk": 48,
+      "mean_expression": 0.6613463572818006,
+      "percent_cells_expressed": 62.52074627308023,
+      "num_nonzero": 168761
+    },
+    {
+      "index": 49,
+      "name": "Cox6a1",
+      "chunk_id": 0,
+      "position_in_chunk": 49,
+      "mean_expression": 2.257031753286289,
+      "percent_cells_expressed": 92.88254645683294,
+      "num_nonzero": 250716
+    },
+    {
+      "index": 50,
+      "name": "Csmd1",
+      "chunk_id": 1,
+      "position_in_chunk": 0,
+      "mean_expression": 1.2723918006575474,
+      "percent_cells_expressed": 77.32951009157998,
+      "num_nonzero": 208734
+    },
+    {
+      "index": 51,
+      "name": "Cspg4",
+      "chunk_id": 1,
+      "position_in_chunk": 1,
+      "mean_expression": 0.8541668339983467,
+      "percent_cells_expressed": 70.06979639014848,
+      "num_nonzero": 189138
+    },
+    {
+      "index": 52,
+      "name": "Cspg5",
+      "chunk_id": 1,
+      "position_in_chunk": 2,
+      "mean_expression": 2.4818673059406122,
+      "percent_cells_expressed": 93.10927358406687,
+      "num_nonzero": 251328
+    },
+    {
+      "index": 53,
+      "name": "Cst3",
+      "chunk_id": 1,
+      "position_in_chunk": 3,
+      "mean_expression": 2.728950317999955,
+      "percent_cells_expressed": 95.28726178832873,
+      "num_nonzero": 257207
+    },
+    {
+      "index": 54,
+      "name": "Dcc",
+      "chunk_id": 1,
+      "position_in_chunk": 4,
+      "mean_expression": 0.8679916830102711,
+      "percent_cells_expressed": 71.80396253815833,
+      "num_nonzero": 193819
+    },
+    {
+      "index": 55,
+      "name": "Dcx",
+      "chunk_id": 1,
+      "position_in_chunk": 5,
+      "mean_expression": 0.5520528674280298,
+      "percent_cells_expressed": 56.46913250940992,
+      "num_nonzero": 152426
+    },
+    {
+      "index": 56,
+      "name": "Dgat2",
+      "chunk_id": 1,
+      "position_in_chunk": 6,
+      "mean_expression": 1.0676317623124199,
+      "percent_cells_expressed": 75.56644734892267,
+      "num_nonzero": 203975
+    },
+    {
+      "index": 57,
+      "name": "Dgkb",
+      "chunk_id": 1,
+      "position_in_chunk": 7,
+      "mean_expression": 1.323862299650222,
+      "percent_cells_expressed": 81.2283275540144,
+      "num_nonzero": 219258
+    },
+    {
+      "index": 58,
+      "name": "Dgkh",
+      "chunk_id": 1,
+      "position_in_chunk": 8,
+      "mean_expression": 0.6245438237605391,
+      "percent_cells_expressed": 58.00880234729261,
+      "num_nonzero": 156582
+    },
+    {
+      "index": 59,
+      "name": "Dlx1",
+      "chunk_id": 1,
+      "position_in_chunk": 9,
+      "mean_expression": 0.818848350423499,
+      "percent_cells_expressed": 65.41596277525858,
+      "num_nonzero": 176576
+    },
+    {
+      "index": 60,
+      "name": "Dlx2",
+      "chunk_id": 1,
+      "position_in_chunk": 10,
+      "mean_expression": 0.8148146109247927,
+      "percent_cells_expressed": 67.22199994072493,
+      "num_nonzero": 181451
+    },
+    {
+      "index": 61,
+      "name": "Dpysl3",
+      "chunk_id": 1,
+      "position_in_chunk": 11,
+      "mean_expression": 1.2325972413524622,
+      "percent_cells_expressed": 79.48045404700513,
+      "num_nonzero": 214540
+    },
+    {
+      "index": 62,
+      "name": "Dsp",
+      "chunk_id": 1,
+      "position_in_chunk": 12,
+      "mean_expression": 0.5525919965031046,
+      "percent_cells_expressed": 58.46447941673335,
+      "num_nonzero": 157812
+    },
+    {
+      "index": 63,
+      "name": "Efna5",
+      "chunk_id": 1,
+      "position_in_chunk": 13,
+      "mean_expression": 0.7221423411047219,
+      "percent_cells_expressed": 66.29804985033046,
+      "num_nonzero": 178957
+    },
+    {
+      "index": 64,
+      "name": "Egfem1",
+      "chunk_id": 1,
+      "position_in_chunk": 14,
+      "mean_expression": 0.38357370517781003,
+      "percent_cells_expressed": 45.57363445066833,
+      "num_nonzero": 123016
+    },
+    {
+      "index": 65,
+      "name": "Eif4a2",
+      "chunk_id": 1,
+      "position_in_chunk": 15,
+      "mean_expression": 1.057023669801791,
+      "percent_cells_expressed": 77.36062950120032,
+      "num_nonzero": 208818
+    },
+    {
+      "index": 66,
+      "name": "Elavl2",
+      "chunk_id": 1,
+      "position_in_chunk": 16,
+      "mean_expression": 0.6605838711583367,
+      "percent_cells_expressed": 63.49582110785098,
+      "num_nonzero": 171393
+    },
+    {
+      "index": 67,
+      "name": "Elavl3",
+      "chunk_id": 1,
+      "position_in_chunk": 17,
+      "mean_expression": 2.1870002621826594,
+      "percent_cells_expressed": 91.28619483714175,
+      "num_nonzero": 246407
+    },
+    {
+      "index": 68,
+      "name": "Elavl4",
+      "chunk_id": 1,
+      "position_in_chunk": 18,
+      "mean_expression": 0.7285419281571883,
+      "percent_cells_expressed": 62.88158323701135,
+      "num_nonzero": 169735
+    },
+    {
+      "index": 69,
+      "name": "Emx1",
+      "chunk_id": 1,
+      "position_in_chunk": 19,
+      "mean_expression": 0.5133460289595111,
+      "percent_cells_expressed": 50.130034675913585,
+      "num_nonzero": 135315
+    },
+    {
+      "index": 70,
+      "name": "Emx2",
+      "chunk_id": 1,
+      "position_in_chunk": 20,
+      "mean_expression": 0.43102745957994876,
+      "percent_cells_expressed": 50.45197237781927,
+      "num_nonzero": 136184
+    },
+    {
+      "index": 71,
+      "name": "Eomes",
+      "chunk_id": 1,
+      "position_in_chunk": 21,
+      "mean_expression": 0.677322239311538,
+      "percent_cells_expressed": 62.625959515129956,
+      "num_nonzero": 169045
+    },
+    {
+      "index": 72,
+      "name": "Erbb4",
+      "chunk_id": 1,
+      "position_in_chunk": 22,
+      "mean_expression": 1.0683344316354337,
+      "percent_cells_expressed": 77.62106932218961,
+      "num_nonzero": 209521
+    },
+    {
+      "index": 73,
+      "name": "Etv4",
+      "chunk_id": 1,
+      "position_in_chunk": 23,
+      "mean_expression": 0.9235596839406277,
+      "percent_cells_expressed": 74.054562698201,
+      "num_nonzero": 199894
+    },
+    {
+      "index": 74,
+      "name": "F3",
+      "chunk_id": 1,
+      "position_in_chunk": 24,
+      "mean_expression": 0.7485083963387784,
+      "percent_cells_expressed": 64.66094662280312,
+      "num_nonzero": 174538
+    },
+    {
+      "index": 75,
+      "name": "Fam107a",
+      "chunk_id": 1,
+      "position_in_chunk": 25,
+      "mean_expression": 1.7964137188844262,
+      "percent_cells_expressed": 88.36875018523457,
+      "num_nonzero": 238532
+    },
+    {
+      "index": 76,
+      "name": "Fam210b",
+      "chunk_id": 1,
+      "position_in_chunk": 26,
+      "mean_expression": 0.5888896194974185,
+      "percent_cells_expressed": 60.770649951098065,
+      "num_nonzero": 164037
+    },
+    {
+      "index": 77,
+      "name": "Fam214a",
+      "chunk_id": 1,
+      "position_in_chunk": 27,
+      "mean_expression": 1.332305594212581,
+      "percent_cells_expressed": 83.52968198927121,
+      "num_nonzero": 225470
+    },
+    {
+      "index": 78,
+      "name": "Fbll1",
+      "chunk_id": 1,
+      "position_in_chunk": 28,
+      "mean_expression": 0.9754580226458952,
+      "percent_cells_expressed": 71.66651847900181,
+      "num_nonzero": 193448
+    },
+    {
+      "index": 79,
+      "name": "Flt1",
+      "chunk_id": 1,
+      "position_in_chunk": 29,
+      "mean_expression": 1.086347911539434,
+      "percent_cells_expressed": 74.14903233454847,
+      "num_nonzero": 200149
+    },
+    {
+      "index": 80,
+      "name": "Fos",
+      "chunk_id": 1,
+      "position_in_chunk": 30,
+      "mean_expression": 0.949210762128725,
+      "percent_cells_expressed": 68.6082955454788,
+      "num_nonzero": 185193
+    },
+    {
+      "index": 81,
+      "name": "Foxa1",
+      "chunk_id": 1,
+      "position_in_chunk": 31,
+      "mean_expression": 0.26497199361052653,
+      "percent_cells_expressed": 36.15075131146083,
+      "num_nonzero": 97581
+    },
+    {
+      "index": 82,
+      "name": "Foxa2",
+      "chunk_id": 1,
+      "position_in_chunk": 32,
+      "mean_expression": 0.38968627421540725,
+      "percent_cells_expressed": 47.56157197474882,
+      "num_nonzero": 128382
+    },
+    {
+      "index": 83,
+      "name": "Foxg1",
+      "chunk_id": 1,
+      "position_in_chunk": 33,
+      "mean_expression": 1.317084246964374,
+      "percent_cells_expressed": 74.34501052132421,
+      "num_nonzero": 200678
+    },
+    {
+      "index": 84,
+      "name": "Frmd4a",
+      "chunk_id": 1,
+      "position_in_chunk": 34,
+      "mean_expression": 1.307234608178537,
+      "percent_cells_expressed": 83.22552680714857,
+      "num_nonzero": 224649
+    },
+    {
+      "index": 85,
+      "name": "Frzb",
+      "chunk_id": 1,
+      "position_in_chunk": 35,
+      "mean_expression": 0.3906192376767809,
+      "percent_cells_expressed": 44.279215198126906,
+      "num_nonzero": 119522
+    },
+    {
+      "index": 86,
+      "name": "Fxyd6",
+      "chunk_id": 1,
+      "position_in_chunk": 36,
+      "mean_expression": 0.832029242918674,
+      "percent_cells_expressed": 68.1837378856584,
+      "num_nonzero": 184047
+    },
+    {
+      "index": 87,
+      "name": "Fxyd7",
+      "chunk_id": 1,
+      "position_in_chunk": 37,
+      "mean_expression": 0.5800538735074419,
+      "percent_cells_expressed": 57.391230253993655,
+      "num_nonzero": 154915
+    },
+    {
+      "index": 88,
+      "name": "Fyn",
+      "chunk_id": 1,
+      "position_in_chunk": 38,
+      "mean_expression": 1.9521522134680918,
+      "percent_cells_expressed": 91.75557926558193,
+      "num_nonzero": 247674
+    },
+    {
+      "index": 89,
+      "name": "Gabbr1",
+      "chunk_id": 1,
+      "position_in_chunk": 39,
+      "mean_expression": 3.3348184142853863,
+      "percent_cells_expressed": 97.05884532171542,
+      "num_nonzero": 261989
+    },
+    {
+      "index": 90,
+      "name": "Gabra1",
+      "chunk_id": 1,
+      "position_in_chunk": 40,
+      "mean_expression": 1.3017000186585446,
+      "percent_cells_expressed": 81.3009395097952,
+      "num_nonzero": 219454
+    },
+    {
+      "index": 91,
+      "name": "Gabra2",
+      "chunk_id": 1,
+      "position_in_chunk": 41,
+      "mean_expression": 0.42620452289911975,
+      "percent_cells_expressed": 49.7814231943333,
+      "num_nonzero": 134374
+    },
+    {
+      "index": 92,
+      "name": "Gad1",
+      "chunk_id": 1,
+      "position_in_chunk": 42,
+      "mean_expression": 2.015752904480958,
+      "percent_cells_expressed": 88.04496013751816,
+      "num_nonzero": 237658
+    },
+    {
+      "index": 93,
+      "name": "Gal",
+      "chunk_id": 1,
+      "position_in_chunk": 43,
+      "mean_expression": 0.1278391712233836,
+      "percent_cells_expressed": 21.248629264100057,
+      "num_nonzero": 57356
+    },
+    {
+      "index": 94,
+      "name": "Gda",
+      "chunk_id": 1,
+      "position_in_chunk": 44,
+      "mean_expression": 0.6916852897554058,
+      "percent_cells_expressed": 59.02351738241309,
+      "num_nonzero": 159321
+    },
+    {
+      "index": 95,
+      "name": "Gfap",
+      "chunk_id": 1,
+      "position_in_chunk": 45,
+      "mean_expression": 2.119057870056149,
+      "percent_cells_expressed": 89.7420793693133,
+      "num_nonzero": 242239
+    },
+    {
+      "index": 96,
+      "name": "Gja1",
+      "chunk_id": 1,
+      "position_in_chunk": 46,
+      "mean_expression": 1.4904844553780736,
+      "percent_cells_expressed": 85.44093239678729,
+      "num_nonzero": 230629
+    },
+    {
+      "index": 97,
+      "name": "Gli1",
+      "chunk_id": 1,
+      "position_in_chunk": 47,
+      "mean_expression": 0.568755217966143,
+      "percent_cells_expressed": 58.35148632227853,
+      "num_nonzero": 157507
+    },
+    {
+      "index": 98,
+      "name": "Gm10076",
+      "chunk_id": 1,
+      "position_in_chunk": 48,
+      "mean_expression": 1.0999722612442584,
+      "percent_cells_expressed": 77.94115467828458,
+      "num_nonzero": 210385
+    },
+    {
+      "index": 99,
+      "name": "Gnb1",
+      "chunk_id": 1,
+      "position_in_chunk": 49,
+      "mean_expression": 3.237137219997916,
+      "percent_cells_expressed": 97.1651699712516,
+      "num_nonzero": 262276
+    },
+    {
+      "index": 100,
+      "name": "Gpc4",
+      "chunk_id": 2,
+      "position_in_chunk": 0,
+      "mean_expression": 0.9269718457819239,
+      "percent_cells_expressed": 73.69557808008061,
+      "num_nonzero": 198925
+    },
+    {
+      "index": 101,
+      "name": "Gpm6a",
+      "chunk_id": 2,
+      "position_in_chunk": 1,
+      "mean_expression": 1.3171467619663042,
+      "percent_cells_expressed": 81.5991671853235,
+      "num_nonzero": 220259
+    },
+    {
+      "index": 102,
+      "name": "Gpr17",
+      "chunk_id": 2,
+      "position_in_chunk": 2,
+      "mean_expression": 0.9573035660979001,
+      "percent_cells_expressed": 71.994754156664,
+      "num_nonzero": 194334
+    },
+    {
+      "index": 103,
+      "name": "Grb14",
+      "chunk_id": 2,
+      "position_in_chunk": 3,
+      "mean_expression": 0.5146954085920263,
+      "percent_cells_expressed": 55.81006786995051,
+      "num_nonzero": 150647
+    },
+    {
+      "index": 104,
+      "name": "Grin2c",
+      "chunk_id": 2,
+      "position_in_chunk": 4,
+      "mean_expression": 1.4716939047674633,
+      "percent_cells_expressed": 83.22515633798643,
+      "num_nonzero": 224648
+    },
+    {
+      "index": 105,
+      "name": "Grp",
+      "chunk_id": 2,
+      "position_in_chunk": 5,
+      "mean_expression": 0.8706144314508372,
+      "percent_cells_expressed": 72.45784060934768,
+      "num_nonzero": 195584
+    },
+    {
+      "index": 106,
+      "name": "H2afz",
+      "chunk_id": 2,
+      "position_in_chunk": 6,
+      "mean_expression": 0.22650551436190897,
+      "percent_cells_expressed": 33.67675824664355,
+      "num_nonzero": 90903
+    },
+    {
+      "index": 107,
+      "name": "Hapln2",
+      "chunk_id": 2,
+      "position_in_chunk": 7,
+      "mean_expression": 0.9937680824774175,
+      "percent_cells_expressed": 69.29107021131561,
+      "num_nonzero": 187036
+    },
+    {
+      "index": 108,
+      "name": "Hdac8",
+      "chunk_id": 2,
+      "position_in_chunk": 8,
+      "mean_expression": 0.8619311179154012,
+      "percent_cells_expressed": 72.70235025636465,
+      "num_nonzero": 196244
+    },
+    {
+      "index": 109,
+      "name": "Hes5",
+      "chunk_id": 2,
+      "position_in_chunk": 9,
+      "mean_expression": 0.4415990666712025,
+      "percent_cells_expressed": 49.897380042085295,
+      "num_nonzero": 134687
+    },
+    {
+      "index": 110,
+      "name": "Hmgn3",
+      "chunk_id": 2,
+      "position_in_chunk": 10,
+      "mean_expression": 0.45898217288171367,
+      "percent_cells_expressed": 53.52797783112534,
+      "num_nonzero": 144487
+    },
+    {
+      "index": 111,
+      "name": "Hopx",
+      "chunk_id": 2,
+      "position_in_chunk": 11,
+      "mean_expression": 0.6611739468414465,
+      "percent_cells_expressed": 63.492116416229514,
+      "num_nonzero": 171383
+    },
+    {
+      "index": 112,
+      "name": "Hs6st3",
+      "chunk_id": 2,
+      "position_in_chunk": 12,
+      "mean_expression": 1.0707832154424024,
+      "percent_cells_expressed": 73.29287810082688,
+      "num_nonzero": 197838
+    },
+    {
+      "index": 113,
+      "name": "Htra1",
+      "chunk_id": 2,
+      "position_in_chunk": 13,
+      "mean_expression": 1.065168432857225,
+      "percent_cells_expressed": 74.02159094276992,
+      "num_nonzero": 199805
+    },
+    {
+      "index": 114,
+      "name": "Htt",
+      "chunk_id": 2,
+      "position_in_chunk": 14,
+      "mean_expression": 1.1025007016670738,
+      "percent_cells_expressed": 78.00969147328176,
+      "num_nonzero": 210570
+    },
+    {
+      "index": 115,
+      "name": "Id3",
+      "chunk_id": 2,
+      "position_in_chunk": 15,
+      "mean_expression": 0.8749071814956491,
+      "percent_cells_expressed": 72.26816039832843,
+      "num_nonzero": 195072
+    },
+    {
+      "index": 116,
+      "name": "Igfbpl1",
+      "chunk_id": 2,
+      "position_in_chunk": 16,
+      "mean_expression": 0.5497769286029593,
+      "percent_cells_expressed": 56.65029192969977,
+      "num_nonzero": 152915
+    },
+    {
+      "index": 117,
+      "name": "Inpp4b",
+      "chunk_id": 2,
+      "position_in_chunk": 17,
+      "mean_expression": 0.7067833663430355,
+      "percent_cells_expressed": 64.94546693933198,
+      "num_nonzero": 175306
+    },
+    {
+      "index": 118,
+      "name": "Insm1",
+      "chunk_id": 2,
+      "position_in_chunk": 18,
+      "mean_expression": 0.8109343625291657,
+      "percent_cells_expressed": 69.3707210811772,
+      "num_nonzero": 187251
+    },
+    {
+      "index": 119,
+      "name": "Junb",
+      "chunk_id": 2,
+      "position_in_chunk": 19,
+      "mean_expression": 1.1839592254727722,
+      "percent_cells_expressed": 72.03698764114876,
+      "num_nonzero": 194448
+    },
+    {
+      "index": 120,
+      "name": "Kcnd2",
+      "chunk_id": 2,
+      "position_in_chunk": 20,
+      "mean_expression": 1.6382308910500618,
+      "percent_cells_expressed": 85.74545804807208,
+      "num_nonzero": 231451
+    },
+    {
+      "index": 121,
+      "name": "Kcng4",
+      "chunk_id": 2,
+      "position_in_chunk": 21,
+      "mean_expression": 0.8225056711483968,
+      "percent_cells_expressed": 61.365252956343916,
+      "num_nonzero": 165642
+    },
+    {
+      "index": 122,
+      "name": "Kif4",
+      "chunk_id": 2,
+      "position_in_chunk": 22,
+      "mean_expression": 0.3309500617023184,
+      "percent_cells_expressed": 43.13372454876856,
+      "num_nonzero": 116430
+    },
+    {
+      "index": 123,
+      "name": "Laptm5",
+      "chunk_id": 2,
+      "position_in_chunk": 23,
+      "mean_expression": 0.8416637264136403,
+      "percent_cells_expressed": 68.50308230342907,
+      "num_nonzero": 184909
+    },
+    {
+      "index": 124,
+      "name": "Lhx3",
+      "chunk_id": 2,
+      "position_in_chunk": 24,
+      "mean_expression": 0.45528062934520797,
+      "percent_cells_expressed": 52.11723126166979,
+      "num_nonzero": 140679
+    },
+    {
+      "index": 125,
+      "name": "Lhx6",
+      "chunk_id": 2,
+      "position_in_chunk": 25,
+      "mean_expression": 0.7769796479386173,
+      "percent_cells_expressed": 68.42046768027029,
+      "num_nonzero": 184686
+    },
+    {
+      "index": 126,
+      "name": "Llgl1",
+      "chunk_id": 2,
+      "position_in_chunk": 26,
+      "mean_expression": 1.608119340515221,
+      "percent_cells_expressed": 87.95901129190005,
+      "num_nonzero": 237426
+    },
+    {
+      "index": 127,
+      "name": "Lockd",
+      "chunk_id": 2,
+      "position_in_chunk": 27,
+      "mean_expression": 0.4820952606843561,
+      "percent_cells_expressed": 53.70950772057734,
+      "num_nonzero": 144977
+    },
+    {
+      "index": 128,
+      "name": "Lpar1",
+      "chunk_id": 2,
+      "position_in_chunk": 28,
+      "mean_expression": 1.026848810913878,
+      "percent_cells_expressed": 74.66250259328413,
+      "num_nonzero": 201535
+    },
+    {
+      "index": 129,
+      "name": "Lrp1b",
+      "chunk_id": 2,
+      "position_in_chunk": 29,
+      "mean_expression": 1.3040985140532364,
+      "percent_cells_expressed": 82.55757090779764,
+      "num_nonzero": 222846
+    },
+    {
+      "index": 130,
+      "name": "Lrrtm4",
+      "chunk_id": 2,
+      "position_in_chunk": 30,
+      "mean_expression": 0.7615007334838017,
+      "percent_cells_expressed": 67.25089653537239,
+      "num_nonzero": 181529
+    },
+    {
+      "index": 131,
+      "name": "Mal",
+      "chunk_id": 2,
+      "position_in_chunk": 31,
+      "mean_expression": 2.147109612503563,
+      "percent_cells_expressed": 88.00457899884414,
+      "num_nonzero": 237549
+    },
+    {
+      "index": 132,
+      "name": "Map3k15",
+      "chunk_id": 2,
+      "position_in_chunk": 32,
+      "mean_expression": 0.2879969513777204,
+      "percent_cells_expressed": 39.513129427106485,
+      "num_nonzero": 106657
+    },
+    {
+      "index": 133,
+      "name": "Mapk4",
+      "chunk_id": 2,
+      "position_in_chunk": 33,
+      "mean_expression": 1.5777324872856378,
+      "percent_cells_expressed": 87.45998933048813,
+      "num_nonzero": 236079
+    },
+    {
+      "index": 134,
+      "name": "Marcks",
+      "chunk_id": 2,
+      "position_in_chunk": 34,
+      "mean_expression": 1.6530930089153546,
+      "percent_cells_expressed": 86.81166829673099,
+      "num_nonzero": 234329
+    },
+    {
+      "index": 135,
+      "name": "Mast4",
+      "chunk_id": 2,
+      "position_in_chunk": 35,
+      "mean_expression": 0.6619799371863916,
+      "percent_cells_expressed": 61.842046768027025,
+      "num_nonzero": 166929
+    },
+    {
+      "index": 136,
+      "name": "Mbp",
+      "chunk_id": 2,
+      "position_in_chunk": 36,
+      "mean_expression": 3.40445108249848,
+      "percent_cells_expressed": 95.83370380249548,
+      "num_nonzero": 258682
+    },
+    {
+      "index": 137,
+      "name": "Mcm2",
+      "chunk_id": 2,
+      "position_in_chunk": 37,
+      "mean_expression": 1.3452674753459712,
+      "percent_cells_expressed": 83.33777896327909,
+      "num_nonzero": 224952
+    },
+    {
+      "index": 138,
+      "name": "Mcu",
+      "chunk_id": 2,
+      "position_in_chunk": 38,
+      "mean_expression": 1.0430709754417227,
+      "percent_cells_expressed": 76.1514181559527,
+      "num_nonzero": 205554
+    },
+    {
+      "index": 139,
+      "name": "Mertk",
+      "chunk_id": 2,
+      "position_in_chunk": 39,
+      "mean_expression": 1.2706479986862989,
+      "percent_cells_expressed": 82.67315728638748,
+      "num_nonzero": 223158
+    },
+    {
+      "index": 140,
+      "name": "Mfge8",
+      "chunk_id": 2,
+      "position_in_chunk": 40,
+      "mean_expression": 1.2625066901066575,
+      "percent_cells_expressed": 79.90130701520405,
+      "num_nonzero": 215676
+    },
+    {
+      "index": 141,
+      "name": "Mgat4c",
+      "chunk_id": 2,
+      "position_in_chunk": 41,
+      "mean_expression": 0.2995602442496498,
+      "percent_cells_expressed": 39.38939272694941,
+      "num_nonzero": 106323
+    },
+    {
+      "index": 142,
+      "name": "Mgl2",
+      "chunk_id": 2,
+      "position_in_chunk": 42,
+      "mean_expression": 0.6434849224907802,
+      "percent_cells_expressed": 62.1354583444474,
+      "num_nonzero": 167721
+    },
+    {
+      "index": 143,
+      "name": "Mki67",
+      "chunk_id": 2,
+      "position_in_chunk": 43,
+      "mean_expression": 0.2424806424746088,
+      "percent_cells_expressed": 35.17456506920364,
+      "num_nonzero": 94946
+    },
+    {
+      "index": 144,
+      "name": "Mrc1",
+      "chunk_id": 2,
+      "position_in_chunk": 44,
+      "mean_expression": 0.3784293885938458,
+      "percent_cells_expressed": 46.024495421001156,
+      "num_nonzero": 124233
+    },
+    {
+      "index": 145,
+      "name": "Mt2",
+      "chunk_id": 2,
+      "position_in_chunk": 45,
+      "mean_expression": 1.044463403694957,
+      "percent_cells_expressed": 77.70294300702409,
+      "num_nonzero": 209742
+    },
+    {
+      "index": 146,
+      "name": "Mtrf1",
+      "chunk_id": 2,
+      "position_in_chunk": 46,
+      "mean_expression": 0.28584553603789953,
+      "percent_cells_expressed": 40.17367594321449,
+      "num_nonzero": 108440
+    },
+    {
+      "index": 147,
+      "name": "Mxd3",
+      "chunk_id": 2,
+      "position_in_chunk": 47,
+      "mean_expression": 0.471314770681934,
+      "percent_cells_expressed": 53.4653685427225,
+      "num_nonzero": 144318
+    },
+    {
+      "index": 148,
+      "name": "Myc",
+      "chunk_id": 2,
+      "position_in_chunk": 48,
+      "mean_expression": 0.9262508497127689,
+      "percent_cells_expressed": 74.14755045789988,
+      "num_nonzero": 200145
+    },
+    {
+      "index": 149,
+      "name": "Myf5",
+      "chunk_id": 2,
+      "position_in_chunk": 49,
+      "mean_expression": 0.8363254473064574,
+      "percent_cells_expressed": 70.78220858895705,
+      "num_nonzero": 191061
+    },
+    {
+      "index": 150,
+      "name": "Myod1",
+      "chunk_id": 3,
+      "position_in_chunk": 0,
+      "mean_expression": 0.3384345613136205,
+      "percent_cells_expressed": 43.918748703357934,
+      "num_nonzero": 118549
+    },
+    {
+      "index": 151,
+      "name": "Nckap5",
+      "chunk_id": 3,
+      "position_in_chunk": 1,
+      "mean_expression": 0.8702813062340115,
+      "percent_cells_expressed": 72.14701698230638,
+      "num_nonzero": 194745
+    },
+    {
+      "index": 152,
+      "name": "Ndst4",
+      "chunk_id": 3,
+      "position_in_chunk": 2,
+      "mean_expression": 0.5316486736394754,
+      "percent_cells_expressed": 55.43367120120921,
+      "num_nonzero": 149631
+    },
+    {
+      "index": 153,
+      "name": "Necab3",
+      "chunk_id": 3,
+      "position_in_chunk": 3,
+      "mean_expression": 1.0994700699940185,
+      "percent_cells_expressed": 73.8122758661569,
+      "num_nonzero": 199240
+    },
+    {
+      "index": 154,
+      "name": "Nell1",
+      "chunk_id": 3,
+      "position_in_chunk": 4,
+      "mean_expression": 1.1089639097805692,
+      "percent_cells_expressed": 77.06944073975282,
+      "num_nonzero": 208032
+    },
+    {
+      "index": 155,
+      "name": "Nes",
+      "chunk_id": 3,
+      "position_in_chunk": 5,
+      "mean_expression": 0.5075639681073171,
+      "percent_cells_expressed": 51.21625025932841,
+      "num_nonzero": 138247
+    },
+    {
+      "index": 156,
+      "name": "Neurod1",
+      "chunk_id": 3,
+      "position_in_chunk": 6,
+      "mean_expression": 0.7947038767258111,
+      "percent_cells_expressed": 62.70301710085653,
+      "num_nonzero": 169253
+    },
+    {
+      "index": 157,
+      "name": "Neurod2",
+      "chunk_id": 3,
+      "position_in_chunk": 7,
+      "mean_expression": 0.9876297356563918,
+      "percent_cells_expressed": 62.83564506090513,
+      "num_nonzero": 169611
+    },
+    {
+      "index": 158,
+      "name": "Neurod4",
+      "chunk_id": 3,
+      "position_in_chunk": 8,
+      "mean_expression": 0.1729544956669437,
+      "percent_cells_expressed": 26.51225511988382,
+      "num_nonzero": 71564
+    },
+    {
+      "index": 159,
+      "name": "Neurod6",
+      "chunk_id": 3,
+      "position_in_chunk": 9,
+      "mean_expression": 0.7017000983466014,
+      "percent_cells_expressed": 63.333555614830615,
+      "num_nonzero": 170955
+    },
+    {
+      "index": 160,
+      "name": "Neurog1",
+      "chunk_id": 3,
+      "position_in_chunk": 10,
+      "mean_expression": 0.4533053966731682,
+      "percent_cells_expressed": 52.22651966450312,
+      "num_nonzero": 140974
+    },
+    {
+      "index": 161,
+      "name": "Neurog2",
+      "chunk_id": 3,
+      "position_in_chunk": 11,
+      "mean_expression": 0.214491335030211,
+      "percent_cells_expressed": 31.691043537535933,
+      "num_nonzero": 85543
+    },
+    {
+      "index": 162,
+      "name": "Nfia",
+      "chunk_id": 3,
+      "position_in_chunk": 12,
+      "mean_expression": 1.8447159754481073,
+      "percent_cells_expressed": 91.21061912806377,
+      "num_nonzero": 246203
+    },
+    {
+      "index": 163,
+      "name": "Ngef",
+      "chunk_id": 3,
+      "position_in_chunk": 13,
+      "mean_expression": 1.7864946338872338,
+      "percent_cells_expressed": 85.24236092587653,
+      "num_nonzero": 230093
+    },
+    {
+      "index": 164,
+      "name": "Nkain2",
+      "chunk_id": 3,
+      "position_in_chunk": 14,
+      "mean_expression": 0.19943121294599056,
+      "percent_cells_expressed": 30.772280015411518,
+      "num_nonzero": 83063
+    },
+    {
+      "index": 165,
+      "name": "Nkain4",
+      "chunk_id": 3,
+      "position_in_chunk": 15,
+      "mean_expression": 0.6314595775762223,
+      "percent_cells_expressed": 63.05681515070686,
+      "num_nonzero": 170208
+    },
+    {
+      "index": 166,
+      "name": "Nmb",
+      "chunk_id": 3,
+      "position_in_chunk": 16,
+      "mean_expression": 0.3711815000607789,
+      "percent_cells_expressed": 46.52351738241309,
+      "num_nonzero": 125580
+    },
+    {
+      "index": 167,
+      "name": "Nnat",
+      "chunk_id": 3,
+      "position_in_chunk": 17,
+      "mean_expression": 1.4206636729082562,
+      "percent_cells_expressed": 81.18053703209745,
+      "num_nonzero": 219129
+    },
+    {
+      "index": 168,
+      "name": "Nog",
+      "chunk_id": 3,
+      "position_in_chunk": 18,
+      "mean_expression": 0.3791233260879658,
+      "percent_cells_expressed": 46.41459944874189,
+      "num_nonzero": 125286
+    },
+    {
+      "index": 169,
+      "name": "Notch3",
+      "chunk_id": 3,
+      "position_in_chunk": 19,
+      "mean_expression": 1.3480177449024873,
+      "percent_cells_expressed": 83.63822945378027,
+      "num_nonzero": 225763
+    },
+    {
+      "index": 170,
+      "name": "Npas3",
+      "chunk_id": 3,
+      "position_in_chunk": 20,
+      "mean_expression": 0.6790481171288101,
+      "percent_cells_expressed": 60.15233691947483,
+      "num_nonzero": 162368
+    },
+    {
+      "index": 171,
+      "name": "Npy2r",
+      "chunk_id": 3,
+      "position_in_chunk": 21,
+      "mean_expression": 0.597290054200846,
+      "percent_cells_expressed": 59.61034053525385,
+      "num_nonzero": 160905
+    },
+    {
+      "index": 172,
+      "name": "Nr3c2",
+      "chunk_id": 3,
+      "position_in_chunk": 22,
+      "mean_expression": 0.8347571049030108,
+      "percent_cells_expressed": 69.85714709107614,
+      "num_nonzero": 188564
+    },
+    {
+      "index": 173,
+      "name": "Nrg3",
+      "chunk_id": 3,
+      "position_in_chunk": 23,
+      "mean_expression": 1.0553460611259116,
+      "percent_cells_expressed": 71.3949645831481,
+      "num_nonzero": 192715
+    },
+    {
+      "index": 174,
+      "name": "Nrgn",
+      "chunk_id": 3,
+      "position_in_chunk": 24,
+      "mean_expression": 2.046544083469933,
+      "percent_cells_expressed": 78.81360955514063,
+      "num_nonzero": 212740
+    },
+    {
+      "index": 175,
+      "name": "Ntf3",
+      "chunk_id": 3,
+      "position_in_chunk": 25,
+      "mean_expression": 0.15156845686684145,
+      "percent_cells_expressed": 24.473192851427047,
+      "num_nonzero": 66060
+    },
+    {
+      "index": 176,
+      "name": "Ntng1",
+      "chunk_id": 3,
+      "position_in_chunk": 26,
+      "mean_expression": 0.6459807992310633,
+      "percent_cells_expressed": 57.294537802673304,
+      "num_nonzero": 154654
+    },
+    {
+      "index": 177,
+      "name": "Ntrk2",
+      "chunk_id": 3,
+      "position_in_chunk": 27,
+      "mean_expression": 2.8865455972184613,
+      "percent_cells_expressed": 96.346803592069,
+      "num_nonzero": 260067
+    },
+    {
+      "index": 178,
+      "name": "Nxph1",
+      "chunk_id": 3,
+      "position_in_chunk": 28,
+      "mean_expression": 0.43264788014739236,
+      "percent_cells_expressed": 48.923046145638835,
+      "num_nonzero": 132057
+    },
+    {
+      "index": 179,
+      "name": "Ogt",
+      "chunk_id": 3,
+      "position_in_chunk": 29,
+      "mean_expression": 0.9672684855282455,
+      "percent_cells_expressed": 74.15088468035921,
+      "num_nonzero": 200154
+    },
+    {
+      "index": 180,
+      "name": "Olig1",
+      "chunk_id": 3,
+      "position_in_chunk": 30,
+      "mean_expression": 2.538847610278021,
+      "percent_cells_expressed": 93.74277585133814,
+      "num_nonzero": 253038
+    },
+    {
+      "index": 181,
+      "name": "Olig2",
+      "chunk_id": 3,
+      "position_in_chunk": 31,
+      "mean_expression": 1.0186410198821294,
+      "percent_cells_expressed": 68.90726415933138,
+      "num_nonzero": 186000
+    },
+    {
+      "index": 182,
+      "name": "Olr1",
+      "chunk_id": 3,
+      "position_in_chunk": 32,
+      "mean_expression": 0.40600877871873736,
+      "percent_cells_expressed": 49.0727156871462,
+      "num_nonzero": 132461
+    },
+    {
+      "index": 183,
+      "name": "Opalin",
+      "chunk_id": 3,
+      "position_in_chunk": 33,
+      "mean_expression": 0.868939456068077,
+      "percent_cells_expressed": 68.4678877330251,
+      "num_nonzero": 184814
+    },
+    {
+      "index": 184,
+      "name": "Opcml",
+      "chunk_id": 3,
+      "position_in_chunk": 34,
+      "mean_expression": 1.2684709180281928,
+      "percent_cells_expressed": 78.30717821048576,
+      "num_nonzero": 211373
+    },
+    {
+      "index": 185,
+      "name": "Padi2",
+      "chunk_id": 3,
+      "position_in_chunk": 35,
+      "mean_expression": 1.2399240191365657,
+      "percent_cells_expressed": 78.86436383035476,
+      "num_nonzero": 212877
+    },
+    {
+      "index": 186,
+      "name": "Pam",
+      "chunk_id": 3,
+      "position_in_chunk": 36,
+      "mean_expression": 1.1333872722164822,
+      "percent_cells_expressed": 77.34877448801161,
+      "num_nonzero": 208786
+    },
+    {
+      "index": 187,
+      "name": "Pax6",
+      "chunk_id": 3,
+      "position_in_chunk": 37,
+      "mean_expression": 0.5882743780870862,
+      "percent_cells_expressed": 59.10983669719333,
+      "num_nonzero": 159554
+    },
+    {
+      "index": 188,
+      "name": "Pde10a",
+      "chunk_id": 3,
+      "position_in_chunk": 38,
+      "mean_expression": 1.3528377263497093,
+      "percent_cells_expressed": 77.62699682878397,
+      "num_nonzero": 209537
+    },
+    {
+      "index": 189,
+      "name": "Pde1a",
+      "chunk_id": 3,
+      "position_in_chunk": 39,
+      "mean_expression": 0.5060343985869462,
+      "percent_cells_expressed": 52.80222874247947,
+      "num_nonzero": 142528
+    },
+    {
+      "index": 190,
+      "name": "Pdgfra",
+      "chunk_id": 3,
+      "position_in_chunk": 40,
+      "mean_expression": 1.022144715660851,
+      "percent_cells_expressed": 76.11585311638659,
+      "num_nonzero": 205458
+    },
+    {
+      "index": 191,
+      "name": "Pex5l",
+      "chunk_id": 3,
+      "position_in_chunk": 41,
+      "mean_expression": 1.6278846646281728,
+      "percent_cells_expressed": 82.3560356835897,
+      "num_nonzero": 222302
+    },
+    {
+      "index": 192,
+      "name": "Plekha1",
+      "chunk_id": 3,
+      "position_in_chunk": 42,
+      "mean_expression": 1.538635520165746,
+      "percent_cells_expressed": 86.69237722651967,
+      "num_nonzero": 234007
+    },
+    {
+      "index": 193,
+      "name": "Plxna1",
+      "chunk_id": 3,
+      "position_in_chunk": 43,
+      "mean_expression": 1.0456236372515924,
+      "percent_cells_expressed": 74.22720132776148,
+      "num_nonzero": 200360
+    },
+    {
+      "index": 194,
+      "name": "Pnoc",
+      "chunk_id": 3,
+      "position_in_chunk": 44,
+      "mean_expression": 0.5555192720814504,
+      "percent_cells_expressed": 58.10771761358584,
+      "num_nonzero": 156849
+    },
+    {
+      "index": 195,
+      "name": "Pou3f2",
+      "chunk_id": 3,
+      "position_in_chunk": 45,
+      "mean_expression": 1.0156294646565007,
+      "percent_cells_expressed": 74.83291840787173,
+      "num_nonzero": 201995
+    },
+    {
+      "index": 196,
+      "name": "Prkg1",
+      "chunk_id": 3,
+      "position_in_chunk": 46,
+      "mean_expression": 0.18809670143400836,
+      "percent_cells_expressed": 27.828902522154053,
+      "num_nonzero": 75118
+    },
+    {
+      "index": 197,
+      "name": "Prom1",
+      "chunk_id": 3,
+      "position_in_chunk": 47,
+      "mean_expression": 0.748133728828372,
+      "percent_cells_expressed": 67.49318336741649,
+      "num_nonzero": 182183
+    },
+    {
+      "index": 198,
+      "name": "Prox1",
+      "chunk_id": 3,
+      "position_in_chunk": 48,
+      "mean_expression": 0.9878657839954443,
+      "percent_cells_expressed": 71.41756320203906,
+      "num_nonzero": 192776
+    },
+    {
+      "index": 199,
+      "name": "Psap",
+      "chunk_id": 3,
+      "position_in_chunk": 49,
+      "mean_expression": 4.186698302006114,
+      "percent_cells_expressed": 98.26101775288225,
+      "num_nonzero": 265234
+    },
+    {
+      "index": 200,
+      "name": "Ptbp1",
+      "chunk_id": 4,
+      "position_in_chunk": 0,
+      "mean_expression": 1.1804465815788274,
+      "percent_cells_expressed": 80.57074479120358,
+      "num_nonzero": 217483
+    },
+    {
+      "index": 201,
+      "name": "Ptbp2",
+      "chunk_id": 4,
+      "position_in_chunk": 1,
+      "mean_expression": 0.9692700905553399,
+      "percent_cells_expressed": 75.84318781304644,
+      "num_nonzero": 204722
+    },
+    {
+      "index": 202,
+      "name": "Ptgds",
+      "chunk_id": 4,
+      "position_in_chunk": 2,
+      "mean_expression": 1.89470075890508,
+      "percent_cells_expressed": 87.77674046412378,
+      "num_nonzero": 236934
+    },
+    {
+      "index": 203,
+      "name": "Pvalb",
+      "chunk_id": 4,
+      "position_in_chunk": 3,
+      "mean_expression": 0.7561169944257861,
+      "percent_cells_expressed": 57.45013485077502,
+      "num_nonzero": 155074
+    },
+    {
+      "index": 204,
+      "name": "Rasl10a",
+      "chunk_id": 4,
+      "position_in_chunk": 4,
+      "mean_expression": 0.6327961554730319,
+      "percent_cells_expressed": 59.256912954565664,
+      "num_nonzero": 159951
+    },
+    {
+      "index": 205,
+      "name": "Rbfox3",
+      "chunk_id": 4,
+      "position_in_chunk": 5,
+      "mean_expression": 1.1967864807558575,
+      "percent_cells_expressed": 72.20592157908776,
+      "num_nonzero": 194904
+    },
+    {
+      "index": 206,
+      "name": "Rbms3",
+      "chunk_id": 4,
+      "position_in_chunk": 6,
+      "mean_expression": 0.4898964444402583,
+      "percent_cells_expressed": 50.20894460745088,
+      "num_nonzero": 135528
+    },
+    {
+      "index": 207,
+      "name": "Reln",
+      "chunk_id": 4,
+      "position_in_chunk": 7,
+      "mean_expression": 0.9988639585802214,
+      "percent_cells_expressed": 72.15035120476571,
+      "num_nonzero": 194754
+    },
+    {
+      "index": 208,
+      "name": "Rest",
+      "chunk_id": 4,
+      "position_in_chunk": 8,
+      "mean_expression": 1.0146747401453902,
+      "percent_cells_expressed": 77.02535490945733,
+      "num_nonzero": 207913
+    },
+    {
+      "index": 209,
+      "name": "Rhcg",
+      "chunk_id": 4,
+      "position_in_chunk": 9,
+      "mean_expression": 0.4000561989736252,
+      "percent_cells_expressed": 48.35326457425684,
+      "num_nonzero": 130519
+    },
+    {
+      "index": 210,
+      "name": "Riiad1",
+      "chunk_id": 4,
+      "position_in_chunk": 10,
+      "mean_expression": 0.36691073743922203,
+      "percent_cells_expressed": 45.84629975400848,
+      "num_nonzero": 123752
+    },
+    {
+      "index": 211,
+      "name": "Robo1",
+      "chunk_id": 4,
+      "position_in_chunk": 11,
+      "mean_expression": 0.8476886447165591,
+      "percent_cells_expressed": 68.37749325746125,
+      "num_nonzero": 184570
+    },
+    {
+      "index": 212,
+      "name": "Rpl38",
+      "chunk_id": 4,
+      "position_in_chunk": 12,
+      "mean_expression": 0.5958215664291726,
+      "percent_cells_expressed": 59.989330488130165,
+      "num_nonzero": 161928
+    },
+    {
+      "index": 213,
+      "name": "Rtn4",
+      "chunk_id": 4,
+      "position_in_chunk": 13,
+      "mean_expression": 1.716747176510589,
+      "percent_cells_expressed": 88.31984825583118,
+      "num_nonzero": 238400
+    },
+    {
+      "index": 214,
+      "name": "S100b",
+      "chunk_id": 4,
+      "position_in_chunk": 14,
+      "mean_expression": 1.2114554059272644,
+      "percent_cells_expressed": 78.19010995524732,
+      "num_nonzero": 211057
+    },
+    {
+      "index": 215,
+      "name": "S1pr3",
+      "chunk_id": 4,
+      "position_in_chunk": 15,
+      "mean_expression": 0.4531971487780535,
+      "percent_cells_expressed": 51.67526155122848,
+      "num_nonzero": 139486
+    },
+    {
+      "index": 216,
+      "name": "Sall3",
+      "chunk_id": 4,
+      "position_in_chunk": 16,
+      "mean_expression": 1.013938590706396,
+      "percent_cells_expressed": 74.97184434367684,
+      "num_nonzero": 202370
+    },
+    {
+      "index": 217,
+      "name": "Scd2",
+      "chunk_id": 4,
+      "position_in_chunk": 17,
+      "mean_expression": 2.40385823301689,
+      "percent_cells_expressed": 93.51938294656352,
+      "num_nonzero": 252435
+    },
+    {
+      "index": 218,
+      "name": "Sdk1",
+      "chunk_id": 4,
+      "position_in_chunk": 18,
+      "mean_expression": 0.45129424534518464,
+      "percent_cells_expressed": 49.58914969917904,
+      "num_nonzero": 133855
+    },
+    {
+      "index": 219,
+      "name": "Sema3a",
+      "chunk_id": 4,
+      "position_in_chunk": 19,
+      "mean_expression": 0.4600298938708188,
+      "percent_cells_expressed": 53.3816425120773,
+      "num_nonzero": 144092
+    },
+    {
+      "index": 220,
+      "name": "Serpinf1",
+      "chunk_id": 4,
+      "position_in_chunk": 20,
+      "mean_expression": 0.37132913501479603,
+      "percent_cells_expressed": 39.680211019234754,
+      "num_nonzero": 107108
+    },
+    {
+      "index": 221,
+      "name": "Serping1",
+      "chunk_id": 4,
+      "position_in_chunk": 21,
+      "mean_expression": 0.6924044079626755,
+      "percent_cells_expressed": 64.8083933493376,
+      "num_nonzero": 174936
+    },
+    {
+      "index": 222,
+      "name": "Sgcd",
+      "chunk_id": 4,
+      "position_in_chunk": 22,
+      "mean_expression": 0.46048563896346306,
+      "percent_cells_expressed": 52.209848552206516,
+      "num_nonzero": 140929
+    },
+    {
+      "index": 223,
+      "name": "Sgcz",
+      "chunk_id": 4,
+      "position_in_chunk": 23,
+      "mean_expression": 0.384430099464837,
+      "percent_cells_expressed": 46.35421297531194,
+      "num_nonzero": 125123
+    },
+    {
+      "index": 224,
+      "name": "Sgk1",
+      "chunk_id": 4,
+      "position_in_chunk": 24,
+      "mean_expression": 1.18626014297044,
+      "percent_cells_expressed": 79.96836193355266,
+      "num_nonzero": 215857
+    },
+    {
+      "index": 225,
+      "name": "Sin3a",
+      "chunk_id": 4,
+      "position_in_chunk": 25,
+      "mean_expression": 0.6819589875621317,
+      "percent_cells_expressed": 66.29656797368187,
+      "num_nonzero": 178953
+    },
+    {
+      "index": 226,
+      "name": "Slc17a6",
+      "chunk_id": 4,
+      "position_in_chunk": 26,
+      "mean_expression": 0.9145405119340081,
+      "percent_cells_expressed": 63.529533801606355,
+      "num_nonzero": 171484
+    },
+    {
+      "index": 227,
+      "name": "Slc1a2",
+      "chunk_id": 4,
+      "position_in_chunk": 27,
+      "mean_expression": 3.533244969751386,
+      "percent_cells_expressed": 97.18776859014255,
+      "num_nonzero": 262337
+    },
+    {
+      "index": 228,
+      "name": "Slc1a3",
+      "chunk_id": 4,
+      "position_in_chunk": 28,
+      "mean_expression": 2.2413594887938113,
+      "percent_cells_expressed": 93.53531312053585,
+      "num_nonzero": 252478
+    },
+    {
+      "index": 229,
+      "name": "Slc2a1",
+      "chunk_id": 4,
+      "position_in_chunk": 29,
+      "mean_expression": 1.7357388323586462,
+      "percent_cells_expressed": 87.49147920927062,
+      "num_nonzero": 236164
+    },
+    {
+      "index": 230,
+      "name": "Slc5a7",
+      "chunk_id": 4,
+      "position_in_chunk": 30,
+      "mean_expression": 0.2510991139682419,
+      "percent_cells_expressed": 31.654737559645536,
+      "num_nonzero": 85445
+    },
+    {
+      "index": 231,
+      "name": "Slco1c1",
+      "chunk_id": 4,
+      "position_in_chunk": 31,
+      "mean_expression": 0.8567099853792417,
+      "percent_cells_expressed": 70.17945526214397,
+      "num_nonzero": 189434
+    },
+    {
+      "index": 232,
+      "name": "Slit2",
+      "chunk_id": 4,
+      "position_in_chunk": 32,
+      "mean_expression": 0.6426883511444151,
+      "percent_cells_expressed": 60.98848581844047,
+      "num_nonzero": 164625
+    },
+    {
+      "index": 233,
+      "name": "Smarca4",
+      "chunk_id": 4,
+      "position_in_chunk": 33,
+      "mean_expression": 2.1137929450008306,
+      "percent_cells_expressed": 91.1105924542841,
+      "num_nonzero": 245933
+    },
+    {
+      "index": 234,
+      "name": "Sorcs1",
+      "chunk_id": 4,
+      "position_in_chunk": 34,
+      "mean_expression": 0.7241992781074326,
+      "percent_cells_expressed": 62.02135384250616,
+      "num_nonzero": 167413
+    },
+    {
+      "index": 235,
+      "name": "Sox10",
+      "chunk_id": 4,
+      "position_in_chunk": 35,
+      "mean_expression": 1.405295577923095,
+      "percent_cells_expressed": 76.787513707359,
+      "num_nonzero": 207271
+    },
+    {
+      "index": 236,
+      "name": "Sox11",
+      "chunk_id": 4,
+      "position_in_chunk": 36,
+      "mean_expression": 0.8976387954288465,
+      "percent_cells_expressed": 72.64048190628613,
+      "num_nonzero": 196077
+    },
+    {
+      "index": 237,
+      "name": "Sox2",
+      "chunk_id": 4,
+      "position_in_chunk": 37,
+      "mean_expression": 1.0164150440362572,
+      "percent_cells_expressed": 75.16856346877687,
+      "num_nonzero": 202901
+    },
+    {
+      "index": 238,
+      "name": "Sox4",
+      "chunk_id": 4,
+      "position_in_chunk": 38,
+      "mean_expression": 1.152607021188338,
+      "percent_cells_expressed": 78.40609347677899,
+      "num_nonzero": 211640
+    },
+    {
+      "index": 239,
+      "name": "Sox9",
+      "chunk_id": 4,
+      "position_in_chunk": 39,
+      "mean_expression": 1.110816147144102,
+      "percent_cells_expressed": 76.21180462938266,
+      "num_nonzero": 205717
+    },
+    {
+      "index": 240,
+      "name": "Spag5",
+      "chunk_id": 4,
+      "position_in_chunk": 40,
+      "mean_expression": 0.5870201687837583,
+      "percent_cells_expressed": 59.03685427225038,
+      "num_nonzero": 159357
+    },
+    {
+      "index": 241,
+      "name": "Spink8",
+      "chunk_id": 4,
+      "position_in_chunk": 41,
+      "mean_expression": 0.3263483491257619,
+      "percent_cells_expressed": 43.617927743694615,
+      "num_nonzero": 117737
+    },
+    {
+      "index": 242,
+      "name": "Sst",
+      "chunk_id": 4,
+      "position_in_chunk": 42,
+      "mean_expression": 0.7167083581409028,
+      "percent_cells_expressed": 57.355294745265404,
+      "num_nonzero": 154818
+    },
+    {
+      "index": 243,
+      "name": "Steap4",
+      "chunk_id": 4,
+      "position_in_chunk": 43,
+      "mean_expression": 0.5412852740646321,
+      "percent_cells_expressed": 57.1926587830829,
+      "num_nonzero": 154379
+    },
+    {
+      "index": 244,
+      "name": "Stox2",
+      "chunk_id": 4,
+      "position_in_chunk": 44,
+      "mean_expression": 1.9671490881869713,
+      "percent_cells_expressed": 91.51884947097003,
+      "num_nonzero": 247035
+    },
+    {
+      "index": 245,
+      "name": "Synpr",
+      "chunk_id": 4,
+      "position_in_chunk": 45,
+      "mean_expression": 0.3156634583109361,
+      "percent_cells_expressed": 41.92969977179099,
+      "num_nonzero": 113180
+    },
+    {
+      "index": 246,
+      "name": "Tac2",
+      "chunk_id": 4,
+      "position_in_chunk": 46,
+      "mean_expression": 0.5532210796509699,
+      "percent_cells_expressed": 59.2280163599182,
+      "num_nonzero": 159873
+    },
+    {
+      "index": 247,
+      "name": "Tardbp",
+      "chunk_id": 4,
+      "position_in_chunk": 47,
+      "mean_expression": 0.9665265012201137,
+      "percent_cells_expressed": 75.35083429655316,
+      "num_nonzero": 203393
+    },
+    {
+      "index": 248,
+      "name": "Tbr1",
+      "chunk_id": 4,
+      "position_in_chunk": 48,
+      "mean_expression": 0.9927578411931168,
+      "percent_cells_expressed": 69.62597433389645,
+      "num_nonzero": 187940
+    },
+    {
+      "index": 249,
+      "name": "Tenm2",
+      "chunk_id": 4,
+      "position_in_chunk": 49,
+      "mean_expression": 1.1580712948798133,
+      "percent_cells_expressed": 74.19348863400612,
+      "num_nonzero": 200269
+    },
+    {
+      "index": 250,
+      "name": "Tfap2c",
+      "chunk_id": 5,
+      "position_in_chunk": 0,
+      "mean_expression": 0.3172057546284746,
+      "percent_cells_expressed": 41.35917726208471,
+      "num_nonzero": 111640
+    },
+    {
+      "index": 251,
+      "name": "Tgfb1",
+      "chunk_id": 5,
+      "position_in_chunk": 1,
+      "mean_expression": 0.621613392554734,
+      "percent_cells_expressed": 60.591713345781095,
+      "num_nonzero": 163554
+    },
+    {
+      "index": 252,
+      "name": "Thrsp",
+      "chunk_id": 5,
+      "position_in_chunk": 2,
+      "mean_expression": 0.7483640501373867,
+      "percent_cells_expressed": 67.91366586645327,
+      "num_nonzero": 183318
+    },
+    {
+      "index": 253,
+      "name": "Thy1",
+      "chunk_id": 5,
+      "position_in_chunk": 3,
+      "mean_expression": 2.940724901818557,
+      "percent_cells_expressed": 95.2435464271954,
+      "num_nonzero": 257089
+    },
+    {
+      "index": 254,
+      "name": "Tmem108",
+      "chunk_id": 5,
+      "position_in_chunk": 4,
+      "mean_expression": 0.6642556788408317,
+      "percent_cells_expressed": 60.666177647372635,
+      "num_nonzero": 163755
+    },
+    {
+      "index": 255,
+      "name": "Tmsb10",
+      "chunk_id": 5,
+      "position_in_chunk": 5,
+      "mean_expression": 0.8662399467374131,
+      "percent_cells_expressed": 70.60290151447794,
+      "num_nonzero": 190577
+    },
+    {
+      "index": 256,
+      "name": "Top2a",
+      "chunk_id": 5,
+      "position_in_chunk": 6,
+      "mean_expression": 0.29103939702122084,
+      "percent_cells_expressed": 38.96409412880472,
+      "num_nonzero": 105175
+    },
+    {
+      "index": 257,
+      "name": "Tpt1",
+      "chunk_id": 5,
+      "position_in_chunk": 7,
+      "mean_expression": 1.1113762358585377,
+      "percent_cells_expressed": 79.04070715153671,
+      "num_nonzero": 213353
+    },
+    {
+      "index": 258,
+      "name": "Trim2",
+      "chunk_id": 5,
+      "position_in_chunk": 8,
+      "mean_expression": 2.380373111401386,
+      "percent_cells_expressed": 93.9217124566551,
+      "num_nonzero": 253521
+    },
+    {
+      "index": 259,
+      "name": "Trps1",
+      "chunk_id": 5,
+      "position_in_chunk": 9,
+      "mean_expression": 0.5847648157599062,
+      "percent_cells_expressed": 60.7850982484218,
+      "num_nonzero": 164076
+    },
+    {
+      "index": 260,
+      "name": "Tshz2",
+      "chunk_id": 5,
+      "position_in_chunk": 10,
+      "mean_expression": 0.9292933369146864,
+      "percent_cells_expressed": 65.71381998162474,
+      "num_nonzero": 177380
+    },
+    {
+      "index": 261,
+      "name": "Unc13a",
+      "chunk_id": 5,
+      "position_in_chunk": 11,
+      "mean_expression": 2.1746659156806505,
+      "percent_cells_expressed": 89.42532823567765,
+      "num_nonzero": 241384
+    },
+    {
+      "index": 262,
+      "name": "Unc13b",
+      "chunk_id": 5,
+      "position_in_chunk": 12,
+      "mean_expression": 0.23650195132619167,
+      "percent_cells_expressed": 34.06871462019502,
+      "num_nonzero": 91961
+    },
+    {
+      "index": 263,
+      "name": "Unc13c",
+      "chunk_id": 5,
+      "position_in_chunk": 13,
+      "mean_expression": 0.7104011445946693,
+      "percent_cells_expressed": 64.91990456714383,
+      "num_nonzero": 175237
+    },
+    {
+      "index": 264,
+      "name": "Unc5c",
+      "chunk_id": 5,
+      "position_in_chunk": 14,
+      "mean_expression": 1.3484054798755678,
+      "percent_cells_expressed": 82.63833318514567,
+      "num_nonzero": 223064
+    },
+    {
+      "index": 265,
+      "name": "Vim",
+      "chunk_id": 5,
+      "position_in_chunk": 15,
+      "mean_expression": 0.6228444297807612,
+      "percent_cells_expressed": 55.26103257164874,
+      "num_nonzero": 149165
+    },
+    {
+      "index": 266,
+      "name": "Vip",
+      "chunk_id": 5,
+      "position_in_chunk": 16,
+      "mean_expression": 0.5236997976489808,
+      "percent_cells_expressed": 55.62001718976912,
+      "num_nonzero": 150134
+    },
+    {
+      "index": 267,
+      "name": "Vnn1",
+      "chunk_id": 5,
+      "position_in_chunk": 17,
+      "mean_expression": 0.3689351812924911,
+      "percent_cells_expressed": 45.61957262677455,
+      "num_nonzero": 123140
+    },
+    {
+      "index": 268,
+      "name": "Vps13c",
+      "chunk_id": 5,
+      "position_in_chunk": 18,
+      "mean_expression": 0.5798025042560729,
+      "percent_cells_expressed": 60.409442518004795,
+      "num_nonzero": 163062
+    },
+    {
+      "index": 269,
+      "name": "Wdr17",
+      "chunk_id": 5,
+      "position_in_chunk": 19,
+      "mean_expression": 0.3068990998275604,
+      "percent_cells_expressed": 41.67333511158532,
+      "num_nonzero": 112488
+    },
+    {
+      "index": 270,
+      "name": "Wfs1",
+      "chunk_id": 5,
+      "position_in_chunk": 20,
+      "mean_expression": 1.437997745617026,
+      "percent_cells_expressed": 84.13428766189503,
+      "num_nonzero": 227102
+    },
+    {
+      "index": 271,
+      "name": "Wipf3",
+      "chunk_id": 5,
+      "position_in_chunk": 21,
+      "mean_expression": 1.102140172101178,
+      "percent_cells_expressed": 68.59236537150647,
+      "num_nonzero": 185150
+    },
+    {
+      "index": 272,
+      "name": "Wnt8b",
+      "chunk_id": 5,
+      "position_in_chunk": 22,
+      "mean_expression": 0.1477622416824274,
+      "percent_cells_expressed": 23.868587178803235,
+      "num_nonzero": 64428
+    },
+    {
+      "index": 273,
+      "name": "Zbtb20",
+      "chunk_id": 5,
+      "position_in_chunk": 23,
+      "mean_expression": 1.621701389817799,
+      "percent_cells_expressed": 87.83416318425654,
+      "num_nonzero": 237089
+    },
+    {
+      "index": 274,
+      "name": "Zfp36l1",
+      "chunk_id": 5,
+      "position_in_chunk": 24,
+      "mean_expression": 0.9822764235930771,
+      "percent_cells_expressed": 72.56231291307311,
+      "num_nonzero": 195866
+    }
+  ],
+  "gene_lookup": {
+    "Abhd2": 0,
+    "Acer3": 1,
+    "Acta2": 2,
+    "Actb": 3,
+    "Actg1": 4,
+    "Adarb2": 5,
+    "Adcy1": 6,
+    "Adcy2": 7,
+    "Adgrl3": 8,
+    "Agt": 9,
+    "Ahcyl2": 10,
+    "Aif1l": 11,
+    "Aldh1a1": 12,
+    "Aldoc": 13,
+    "Aqp4": 14,
+    "Arx": 15,
+    "Ascl1": 16,
+    "Atp1a2": 17,
+    "Atp1b1": 18,
+    "Auts2": 19,
+    "Bcl2": 20,
+    "Bdnf": 21,
+    "Bhlhe22": 22,
+    "Bmp2": 23,
+    "Bmp4": 24,
+    "Brinp3": 25,
+    "Bsg": 26,
+    "Bsn": 27,
+    "Btg2": 28,
+    "C1qa": 29,
+    "C1ql1": 30,
+    "C1ql3": 31,
+    "Calb1": 32,
+    "Calb2": 33,
+    "Casp3": 34,
+    "Casp9": 35,
+    "Cck": 36,
+    "Cd14": 37,
+    "Cd74": 38,
+    "Cdh12": 39,
+    "Cdh13": 40,
+    "Cdh18": 41,
+    "Cdk1": 42,
+    "Cdk4": 43,
+    "Chrdl1": 44,
+    "Clasp1": 45,
+    "Cldn5": 46,
+    "Cnr1": 47,
+    "Cntnap5b": 48,
+    "Cox6a1": 49,
+    "Csmd1": 50,
+    "Cspg4": 51,
+    "Cspg5": 52,
+    "Cst3": 53,
+    "Dcc": 54,
+    "Dcx": 55,
+    "Dgat2": 56,
+    "Dgkb": 57,
+    "Dgkh": 58,
+    "Dlx1": 59,
+    "Dlx2": 60,
+    "Dpysl3": 61,
+    "Dsp": 62,
+    "Efna5": 63,
+    "Egfem1": 64,
+    "Eif4a2": 65,
+    "Elavl2": 66,
+    "Elavl3": 67,
+    "Elavl4": 68,
+    "Emx1": 69,
+    "Emx2": 70,
+    "Eomes": 71,
+    "Erbb4": 72,
+    "Etv4": 73,
+    "F3": 74,
+    "Fam107a": 75,
+    "Fam210b": 76,
+    "Fam214a": 77,
+    "Fbll1": 78,
+    "Flt1": 79,
+    "Fos": 80,
+    "Foxa1": 81,
+    "Foxa2": 82,
+    "Foxg1": 83,
+    "Frmd4a": 84,
+    "Frzb": 85,
+    "Fxyd6": 86,
+    "Fxyd7": 87,
+    "Fyn": 88,
+    "Gabbr1": 89,
+    "Gabra1": 90,
+    "Gabra2": 91,
+    "Gad1": 92,
+    "Gal": 93,
+    "Gda": 94,
+    "Gfap": 95,
+    "Gja1": 96,
+    "Gli1": 97,
+    "Gm10076": 98,
+    "Gnb1": 99,
+    "Gpc4": 100,
+    "Gpm6a": 101,
+    "Gpr17": 102,
+    "Grb14": 103,
+    "Grin2c": 104,
+    "Grp": 105,
+    "H2afz": 106,
+    "Hapln2": 107,
+    "Hdac8": 108,
+    "Hes5": 109,
+    "Hmgn3": 110,
+    "Hopx": 111,
+    "Hs6st3": 112,
+    "Htra1": 113,
+    "Htt": 114,
+    "Id3": 115,
+    "Igfbpl1": 116,
+    "Inpp4b": 117,
+    "Insm1": 118,
+    "Junb": 119,
+    "Kcnd2": 120,
+    "Kcng4": 121,
+    "Kif4": 122,
+    "Laptm5": 123,
+    "Lhx3": 124,
+    "Lhx6": 125,
+    "Llgl1": 126,
+    "Lockd": 127,
+    "Lpar1": 128,
+    "Lrp1b": 129,
+    "Lrrtm4": 130,
+    "Mal": 131,
+    "Map3k15": 132,
+    "Mapk4": 133,
+    "Marcks": 134,
+    "Mast4": 135,
+    "Mbp": 136,
+    "Mcm2": 137,
+    "Mcu": 138,
+    "Mertk": 139,
+    "Mfge8": 140,
+    "Mgat4c": 141,
+    "Mgl2": 142,
+    "Mki67": 143,
+    "Mrc1": 144,
+    "Mt2": 145,
+    "Mtrf1": 146,
+    "Mxd3": 147,
+    "Myc": 148,
+    "Myf5": 149,
+    "Myod1": 150,
+    "Nckap5": 151,
+    "Ndst4": 152,
+    "Necab3": 153,
+    "Nell1": 154,
+    "Nes": 155,
+    "Neurod1": 156,
+    "Neurod2": 157,
+    "Neurod4": 158,
+    "Neurod6": 159,
+    "Neurog1": 160,
+    "Neurog2": 161,
+    "Nfia": 162,
+    "Ngef": 163,
+    "Nkain2": 164,
+    "Nkain4": 165,
+    "Nmb": 166,
+    "Nnat": 167,
+    "Nog": 168,
+    "Notch3": 169,
+    "Npas3": 170,
+    "Npy2r": 171,
+    "Nr3c2": 172,
+    "Nrg3": 173,
+    "Nrgn": 174,
+    "Ntf3": 175,
+    "Ntng1": 176,
+    "Ntrk2": 177,
+    "Nxph1": 178,
+    "Ogt": 179,
+    "Olig1": 180,
+    "Olig2": 181,
+    "Olr1": 182,
+    "Opalin": 183,
+    "Opcml": 184,
+    "Padi2": 185,
+    "Pam": 186,
+    "Pax6": 187,
+    "Pde10a": 188,
+    "Pde1a": 189,
+    "Pdgfra": 190,
+    "Pex5l": 191,
+    "Plekha1": 192,
+    "Plxna1": 193,
+    "Pnoc": 194,
+    "Pou3f2": 195,
+    "Prkg1": 196,
+    "Prom1": 197,
+    "Prox1": 198,
+    "Psap": 199,
+    "Ptbp1": 200,
+    "Ptbp2": 201,
+    "Ptgds": 202,
+    "Pvalb": 203,
+    "Rasl10a": 204,
+    "Rbfox3": 205,
+    "Rbms3": 206,
+    "Reln": 207,
+    "Rest": 208,
+    "Rhcg": 209,
+    "Riiad1": 210,
+    "Robo1": 211,
+    "Rpl38": 212,
+    "Rtn4": 213,
+    "S100b": 214,
+    "S1pr3": 215,
+    "Sall3": 216,
+    "Scd2": 217,
+    "Sdk1": 218,
+    "Sema3a": 219,
+    "Serpinf1": 220,
+    "Serping1": 221,
+    "Sgcd": 222,
+    "Sgcz": 223,
+    "Sgk1": 224,
+    "Sin3a": 225,
+    "Slc17a6": 226,
+    "Slc1a2": 227,
+    "Slc1a3": 228,
+    "Slc2a1": 229,
+    "Slc5a7": 230,
+    "Slco1c1": 231,
+    "Slit2": 232,
+    "Smarca4": 233,
+    "Sorcs1": 234,
+    "Sox10": 235,
+    "Sox11": 236,
+    "Sox2": 237,
+    "Sox4": 238,
+    "Sox9": 239,
+    "Spag5": 240,
+    "Spink8": 241,
+    "Sst": 242,
+    "Steap4": 243,
+    "Stox2": 244,
+    "Synpr": 245,
+    "Tac2": 246,
+    "Tardbp": 247,
+    "Tbr1": 248,
+    "Tenm2": 249,
+    "Tfap2c": 250,
+    "Tgfb1": 251,
+    "Thrsp": 252,
+    "Thy1": 253,
+    "Tmem108": 254,
+    "Tmsb10": 255,
+    "Top2a": 256,
+    "Tpt1": 257,
+    "Trim2": 258,
+    "Trps1": 259,
+    "Tshz2": 260,
+    "Unc13a": 261,
+    "Unc13b": 262,
+    "Unc13c": 263,
+    "Unc5c": 264,
+    "Vim": 265,
+    "Vip": 266,
+    "Vnn1": 267,
+    "Vps13c": 268,
+    "Wdr17": 269,
+    "Wfs1": 270,
+    "Wipf3": 271,
+    "Wnt8b": 272,
+    "Zbtb20": 273,
+    "Zfp36l1": 274
+  }
+}

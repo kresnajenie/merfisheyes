@@ -1,0 +1,81 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Main dataset table
+model Dataset {
+  id           String         @id @db.VarChar(50)
+  fingerprint  String         @unique @db.VarChar(64)
+  title        String?        @db.VarChar(500)
+  numCells     Int            @map("num_cells")
+  numGenes     Int            @map("num_genes")
+  status       DatasetStatus  @default(UPLOADING)
+  manifestUrl  String?        @map("manifest_url") @db.VarChar(1000)
+  errorMessage String?        @map("error_message") @db.Text
+  createdAt    DateTime       @default(now()) @map("created_at")
+  completedAt  DateTime?      @map("completed_at")
+  
+  uploadSessions UploadSession[]
+  
+  @@index([fingerprint])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("datasets")
+}
+
+// Upload session tracking
+model UploadSession {
+  id             String       @id @db.VarChar(50)
+  datasetId      String       @map("dataset_id") @db.VarChar(50)
+  totalFiles     Int          @map("total_files")
+  completedFiles Int          @default(0) @map("completed_files")
+  expiresAt      DateTime     @map("expires_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  
+  dataset Dataset      @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  files   UploadFile[]
+  
+  @@index([datasetId])
+  @@index([expiresAt])
+  @@map("upload_sessions")
+}
+
+// Individual file tracking
+model UploadFile {
+  id              String        @id @default(uuid()) @db.Uuid
+  uploadSessionId String        @map("upload_session_id") @db.VarChar(50)
+  fileKey         String        @map("file_key") @db.VarChar(500)
+  fileSize        BigInt?       @map("file_size")
+  status          FileStatus    @default(PENDING)
+  uploadedAt      DateTime?     @map("uploaded_at")
+  errorMessage    String?       @map("error_message") @db.Text
+  
+  uploadSession UploadSession @relation(fields: [uploadSessionId], references: [id], onDelete: Cascade)
+  
+  @@unique([uploadSessionId, fileKey])
+  @@index([uploadSessionId])
+  @@index([status])
+  @@map("upload_files")
+}
+
+// Enums
+enum DatasetStatus {
+  UPLOADING
+  PROCESSING
+  COMPLETE
+  FAILED
+}
+
+enum FileStatus {
+  PENDING
+  UPLOADING
+  COMPLETE
+  FAILED
+}

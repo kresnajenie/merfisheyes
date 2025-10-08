@@ -1,0 +1,52 @@
+{
+  "version": "2.0",
+  "created_at": "2025-08-20T23:51:34.338Z",
+  "dataset_id": "h5ad_4week_reclustered_empty_celltype_1755733848111_6g8zrxxaj",
+  "name": "4week_reclustered_empty_celltype",
+  "type": "h5ad",
+  "statistics": {
+    "total_cells": 269928,
+    "total_genes": 275,
+    "spatial_dimensions": 2,
+    "available_embeddings": [
+      "pca",
+      "raw",
+      "umap"
+    ],
+    "cluster_count": 91
+  },
+  "files": {
+    "coordinates": [
+      "spatial",
+      "umap",
+      "pca",
+      "raw"
+    ],
+    "expression": {
+      "num_chunks": 6,
+      "chunk_size": 50,
+      "total_genes": 275
+    },
+    "observations": [
+      "celltype",
+      "leiden",
+      "log1p_n_genes_by_counts",
+      "log1p_total_counts",
+      "n_genes_by_counts",
+      "recluster_celltype",
+      "supertype_name",
+      "tag",
+      "total_counts"
+    ],
+    "palettes": [
+      "leiden"
+    ]
+  },
+  "processing": {
+    "chunk_strategy": "adaptive",
+    "compression": "gzip",
+    "sparse_format": true,
+    "created_by": "MERFISH Visualizer",
+    "source_file": "4week_reclustered_empty_celltype.h5ad"
+  }
+}

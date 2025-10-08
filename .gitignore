@@ -105,3 +105,4 @@ storybook-static
 # AI Tools
 .claude/
 .serena/
+/lib/generated/prisma

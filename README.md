@@ -20,6 +20,8 @@ Web-based 3D visualization for spatial transcriptomics data. Supports .h5ad, MER
 - [Tailwind CSS](https://tailwindcss.com/)
 - [Zustand](https://zustand-demo.pmnd.rs/)
 - [React Toastify](https://fkhadra.github.io/react-toastify/)
+- [Prisma](https://www.prisma.io/) - Database ORM
+- [AWS S3](https://aws.amazon.com/s3/) - File storage
 
 ## Getting Started
 
@@ -86,10 +88,34 @@ Drag and drop or click to upload. The viewer loads automatically after processin
 - Required: `cell_metadata.csv` with coordinates
 - Optional: `cell_categories.csv`, `cell_numeric_categories.csv`, `cell_by_gene.csv`
 
+## API Routes
+
+The application provides RESTful API endpoints for dataset upload and management:
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/datasets/check-duplicate/{fingerprint}` | GET | Check if dataset already exists |
+| `/api/datasets/initiate` | POST | Start upload, get presigned S3 URLs |
+| `/api/datasets/{datasetId}/complete` | POST | Mark upload as complete |
+| `/api/datasets/{datasetId}` | GET | Get dataset info + download URLs |
+
+### Upload Flow
+
+1. **Check for duplicates** - `GET /api/datasets/check-duplicate/{fingerprint}`
+2. **Initiate upload** - `POST /api/datasets/initiate` with metadata and file list
+   - Creates database records (Dataset, UploadSession, UploadFile)
+   - Returns presigned S3 URLs for file upload
+3. **Upload files** - Use presigned URLs to upload directly to S3
+4. **Complete upload** - `POST /api/datasets/{datasetId}/complete`
+   - Finalizes the upload session
+   - Sets `completedAt` timestamp and `manifestUrl`
+
 ## Project Structure
 
 ```
 ├── app/                    # Next.js app directory
+│   ├── api/               # API routes
+│   │   └── datasets/      # Dataset management endpoints
 │   ├── viewer/            # 3D visualization page
 │   ├── explore/           # Example datasets page
 │   └── about/             # About page
@@ -104,7 +130,10 @@ Drag and drop or click to upload. The viewer loads automatically after processin
 │   │   └── MerscopeAdapter.ts
 │   ├── stores/           # Zustand state stores
 │   ├── webgl/            # WebGL/Three.js utilities
+│   ├── s3.ts             # S3 client utilities
+│   ├── prisma.ts         # Database client
 │   └── StandardizedDataset.ts
+├── prisma/                # Database schema
 └── public/               # Static assets
 
 ```

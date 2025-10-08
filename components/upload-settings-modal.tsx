@@ -14,6 +14,7 @@ import {
 } from "@heroui/react";
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneChunkProcessor } from "@/lib/utils/GeneChunkProcessor";
+import { generateDatasetFingerprint } from "@/lib/utils/fingerprint";
 import { toast } from "react-toastify";
 
 interface UploadSettingsModalProps {
@@ -35,6 +36,8 @@ export function UploadSettingsModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadMessage, setUploadMessage] = useState("");
 
   const handleUpload = async () => {
     if (!dataset) {
@@ -44,9 +47,31 @@ export function UploadSettingsModal({
 
     setIsProcessing(true);
     setProgress(0);
-    setProgressMessage("Initializing...");
+    setProgressMessage("Generating fingerprint...");
 
     try {
+      // Generate fingerprint
+      const fingerprint = await generateDatasetFingerprint(dataset);
+      console.log("Dataset fingerprint:", fingerprint);
+
+      // Check for duplicates
+      setProgressMessage("Checking for duplicates...");
+      setProgress(5);
+      const duplicateExists = await checkDuplicate(fingerprint);
+
+      if (duplicateExists) {
+        const confirmed = window.confirm(
+          `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`
+        );
+
+        if (!confirmed) {
+          setIsProcessing(false);
+          setProgress(0);
+          setProgressMessage("");
+          return;
+        }
+      }
+
       // Determine chunk size
       const actualChunkSize =
         chunkSize === "auto" ? null : parseInt(customChunkSize);
@@ -57,36 +82,92 @@ export function UploadSettingsModal({
       const { chunks, index } = await processor.processGenes(
         dataset,
         (prog, msg) => {
-          setProgress(prog * 0.7); // Genes take 70% of progress
+          setProgress(5 + prog * 0.35); // Genes take 35% of progress (5-40%)
           setProgressMessage(msg);
         }
       );
 
       // Process coordinates
       setProgressMessage("Processing coordinates...");
-      setProgress(70);
+      setProgress(40);
       const coordinates = await processor.processCoordinates(dataset);
 
-      // Process metadata
-      setProgressMessage("Processing metadata...");
-      setProgress(85);
-      const metadata = await processor.processMetadata(dataset);
+      // Process observations
+      setProgressMessage("Processing observations...");
+      setProgress(45);
+      const observations = await processor.processObservations(dataset);
 
-      // Save all files
-      setProgressMessage("Saving files...");
-      setProgress(90);
-      await saveFiles(datasetName, chunks, index, coordinates, metadata);
+      // Generate dataset ID
+      const datasetId = `${dataset.type}_${datasetName}_${Date.now()}_${fingerprint.substring(0, 9)}`;
+
+      // Create manifest
+      setProgressMessage("Creating manifest...");
+      setProgress(50);
+      const manifestJson = await createManifest(
+        dataset,
+        datasetId,
+        datasetName,
+        chunks,
+        index,
+        coordinates,
+        observations.metadata
+      );
+
+      // Prepare files for upload
+      setProgressMessage("Preparing files for upload...");
+      setProgress(55);
+      const filesToUpload = await prepareFilesForUpload(
+        chunks,
+        index,
+        coordinates,
+        observations.files,
+        observations.metadata,
+        manifestJson
+      );
+
+      // Initiate upload
+      setProgressMessage("Initiating upload...");
+      setProgress(60);
+      const uploadSession = await initiateUpload(
+        fingerprint,
+        datasetName,
+        dataset,
+        filesToUpload
+      );
+
+      // Upload files to S3
+      setUploadMessage("Uploading files to S3...");
+      setUploadProgress(0);
+      await uploadFilesToS3(
+        uploadSession.uploadUrls,
+        filesToUpload,
+        uploadSession.datasetId,
+        uploadSession.uploadId,
+        (prog, msg) => {
+          setUploadProgress(prog);
+          setUploadMessage(msg);
+        }
+      );
+
+      // Complete upload
+      setProgressMessage("Completing upload...");
+      setProgress(95);
+      await completeUpload(uploadSession.datasetId, uploadSession.uploadId);
 
       setProgress(100);
+      setUploadProgress(100);
       setProgressMessage("Complete!");
-      toast.success("Dataset processed and saved successfully!");
+      setUploadMessage("Upload successful!");
+      toast.success("Dataset uploaded successfully!");
 
       setTimeout(() => {
         onClose();
         setIsProcessing(false);
         setProgress(0);
         setProgressMessage("");
-      }, 1000);
+        setUploadProgress(0);
+        setUploadMessage("");
+      }, 1500);
     } catch (error) {
       console.error("Upload processing error:", error);
       toast.error(
@@ -95,6 +176,8 @@ export function UploadSettingsModal({
       setIsProcessing(false);
       setProgress(0);
       setProgressMessage("");
+      setUploadProgress(0);
+      setUploadMessage("");
     }
   };
 
@@ -179,16 +262,34 @@ export function UploadSettingsModal({
             )}
 
             {isProcessing && (
-              <div className="space-y-2">
-                <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-primary h-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium">Processing</p>
+                  <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-primary h-full transition-all duration-300"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-default-500 text-center">
+                    {progressMessage}
+                  </p>
                 </div>
-                <p className="text-xs text-default-500 text-center">
-                  {progressMessage}
-                </p>
+
+                {uploadMessage && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium">Upload</p>
+                    <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-success h-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-default-500 text-center">
+                      {uploadMessage}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -217,40 +318,387 @@ export function UploadSettingsModal({
 }
 
 /**
- * Save all processed files to disk
+ * Create manifest.json
  */
-async function saveFiles(
+async function createManifest(
+  dataset: StandardizedDataset,
+  datasetId: string,
   datasetName: string,
   chunks: any[],
   index: any,
   coordinates: Record<string, Blob>,
-  metadata: Blob
-) {
-  // Create a folder name
-  const folderName = `${datasetName}_${Date.now()}`;
-
-  // Save gene chunks
-  for (const chunk of chunks) {
-    await saveBlob(chunk.data, `${folderName}/genes/${chunk.filename}`);
+  obsMetadata: Record<string, any>
+): Promise<string> {
+  // Determine spatial dimensions
+  let spatialDimensions = 2;
+  if (dataset.spatialCoordinates && dataset.spatialCoordinates.length > 0) {
+    spatialDimensions = dataset.spatialCoordinates[0].length;
   }
 
-  // Save gene index
+  // Get available embeddings
+  const availableEmbeddings: string[] = [];
+  if (dataset.embeddings) {
+    availableEmbeddings.push(...Object.keys(dataset.embeddings));
+  }
+
+  // Count clusters
+  let clusterCount = 0;
+  if (dataset.clusters && dataset.clusters.length > 0) {
+    clusterCount = new Set(dataset.clusters).size;
+  }
+
+  const manifest = {
+    version: "2.0",
+    created_at: new Date().toISOString(),
+    dataset_id: datasetId,
+    name: datasetName,
+    type: dataset.type,
+    statistics: {
+      total_cells: dataset.getPointCount(),
+      total_genes: dataset.genes.length,
+      spatial_dimensions: spatialDimensions,
+      available_embeddings: availableEmbeddings,
+      cluster_count: clusterCount,
+    },
+    files: {
+      coordinates: Object.keys(coordinates),
+      expression: {
+        num_chunks: chunks.length,
+        chunk_size: index.chunk_size,
+        total_genes: dataset.genes.length,
+      },
+      observations: Object.keys(obsMetadata),
+      palettes: [], // TODO: Add palette support
+    },
+    processing: {
+      chunk_strategy: "adaptive",
+      compression: "gzip",
+      sparse_format: true,
+      created_by: "MERFISH Visualizer",
+      source_file: dataset.name || "unknown",
+    },
+  };
+
+  return JSON.stringify(manifest, null, 2);
+}
+
+/**
+ * Save all processed files with proper S3 folder structure
+ */
+async function saveFilesWithStructure(
+  datasetName: string,
+  chunks: any[],
+  index: any,
+  coordinates: Record<string, Blob>,
+  observationFiles: Record<string, Blob>,
+  observationMetadata: Record<string, any>,
+  manifestJson: string
+) {
+  const folderName = `${datasetName}_${Date.now()}`;
+  let fileCount = 0;
+
+  // Save manifest
+  const manifestBlob = new Blob([manifestJson], { type: "application/json" });
+  await saveBlob(manifestBlob, `${folderName}/manifest.json`);
+  fileCount++;
+
+  // Save gene chunks to expr/
+  for (const chunk of chunks) {
+    await saveBlob(chunk.data, `${folderName}/expr/${chunk.filename}`);
+    fileCount++;
+  }
+
+  // Save gene index to expr/
   const indexBlob = new Blob([JSON.stringify(index, null, 2)], {
     type: "application/json",
   });
-  await saveBlob(indexBlob, `${folderName}/genes/index.json`);
+  await saveBlob(indexBlob, `${folderName}/expr/index.json`);
+  fileCount++;
 
-  // Save coordinates
+  // Save coordinates to coords/
   for (const [name, blob] of Object.entries(coordinates)) {
-    await saveBlob(blob, `${folderName}/coordinates/${name}.bin.gz`);
+    await saveBlob(blob, `${folderName}/coords/${name}.bin.gz`);
+    fileCount++;
   }
 
-  // Save metadata
-  await saveBlob(metadata, `${folderName}/metadata.json.gz`);
+  // Save observations to obs/
+  for (const [name, blob] of Object.entries(observationFiles)) {
+    await saveBlob(blob, `${folderName}/obs/${name}.json.gz`);
+    fileCount++;
+  }
+
+  // Save observation metadata to obs/
+  const obsMetadataBlob = new Blob(
+    [JSON.stringify(observationMetadata, null, 2)],
+    { type: "application/json" }
+  );
+  await saveBlob(obsMetadataBlob, `${folderName}/obs/metadata.json`);
+  fileCount++;
+
+  // Create empty palettes folder (placeholder for future)
+  // Note: Browser downloads can't create empty folders, so we skip this
 
   toast.info(
-    `Files saved to downloads folder: ${folderName} (${chunks.length + Object.keys(coordinates).length + 2} files)`
+    `Files saved to downloads folder: ${folderName} (${fileCount} files)`
   );
+}
+
+/**
+ * Check for duplicate dataset
+ */
+async function checkDuplicate(
+  fingerprint: string
+): Promise<{ title: string; createdAt: string } | null> {
+  try {
+    const response = await fetch(
+      `/api/datasets/check-duplicate/${fingerprint}`
+    );
+
+    if (response.status === 404) {
+      return null; // No duplicate
+    }
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.dataset;
+    }
+
+    throw new Error("Failed to check for duplicates");
+  } catch (error) {
+    console.error("Duplicate check error:", error);
+    return null; // Continue on error
+  }
+}
+
+/**
+ * Prepare files for upload with proper structure
+ */
+async function prepareFilesForUpload(
+  chunks: any[],
+  index: any,
+  coordinates: Record<string, Blob>,
+  observationFiles: Record<string, Blob>,
+  observationMetadata: Record<string, any>,
+  manifestJson: string
+): Promise<{ key: string; blob: Blob; size: number; contentType: string }[]> {
+  const files: { key: string; blob: Blob; size: number; contentType: string }[] = [];
+
+  // Manifest
+  const manifestBlob = new Blob([manifestJson], { type: "application/json" });
+  files.push({
+    key: "manifest.json",
+    blob: manifestBlob,
+    size: manifestBlob.size,
+    contentType: "application/json",
+  });
+
+  // Gene chunks
+  for (const chunk of chunks) {
+    files.push({
+      key: `expr/${chunk.filename}`,
+      blob: chunk.data,
+      size: chunk.data.size,
+      contentType: "application/gzip",
+    });
+  }
+
+  // Gene index
+  const indexBlob = new Blob([JSON.stringify(index, null, 2)], {
+    type: "application/json",
+  });
+  files.push({
+    key: "expr/index.json",
+    blob: indexBlob,
+    size: indexBlob.size,
+    contentType: "application/json",
+  });
+
+  // Coordinates
+  for (const [name, blob] of Object.entries(coordinates)) {
+    files.push({
+      key: `coords/${name}.bin.gz`,
+      blob: blob,
+      size: blob.size,
+      contentType: "application/gzip",
+    });
+  }
+
+  // Observations
+  for (const [name, blob] of Object.entries(observationFiles)) {
+    files.push({
+      key: `obs/${name}.json.gz`,
+      blob: blob,
+      size: blob.size,
+      contentType: "application/gzip",
+    });
+  }
+
+  // Observation metadata
+  const obsMetadataBlob = new Blob(
+    [JSON.stringify(observationMetadata, null, 2)],
+    { type: "application/json" }
+  );
+  files.push({
+    key: "obs/metadata.json",
+    blob: obsMetadataBlob,
+    size: obsMetadataBlob.size,
+    contentType: "application/json",
+  });
+
+  return files;
+}
+
+/**
+ * Initiate upload with backend
+ */
+async function initiateUpload(
+  fingerprint: string,
+  title: string,
+  dataset: any,
+  files: { key: string; size: number; contentType: string }[]
+): Promise<{
+  uploadId: string;
+  datasetId: string;
+  uploadUrls: Record<string, string>;
+}> {
+  const response = await fetch("/api/datasets/initiate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fingerprint,
+      metadata: {
+        title,
+        numCells: dataset.getPointCount(),
+        numGenes: dataset.genes.length,
+        platform: dataset.type,
+        description: "",
+      },
+      files: files.map((f) => ({
+        key: f.key,
+        size: f.size,
+        contentType: f.contentType,
+      })),
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to initiate upload");
+  }
+
+  const result = await response.json();
+
+  // Map uploadUrls to presignedUrls for consistency
+  return {
+    uploadId: result.uploadId,
+    datasetId: result.datasetId,
+    uploadUrls: result.uploadUrls,
+  };
+}
+
+/**
+ * Upload files to S3 using presigned URLs
+ */
+async function uploadFilesToS3(
+  uploadUrls: Record<string, string>,
+  files: { key: string; blob: Blob; contentType: string }[],
+  datasetId: string,
+  uploadId: string,
+  onProgress: (progress: number, message: string) => void
+) {
+  const MAX_RETRIES = 3;
+  let completed = 0;
+
+  for (const file of files) {
+    const url = uploadUrls[file.key];
+    if (!url) {
+      console.warn(`No presigned URL for ${file.key}, skipping`);
+      continue;
+    }
+
+    let retries = 0;
+    let success = false;
+
+    while (retries < MAX_RETRIES && !success) {
+      try {
+        // Upload to S3
+        const response = await fetch(url, {
+          method: "PUT",
+          body: file.blob,
+          headers: {
+            "Content-Type": file.contentType || "application/octet-stream",
+          },
+          mode: "cors", // Explicitly set CORS mode
+        });
+
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${response.statusText}`);
+        }
+
+        // Mark file as complete in database
+        await markFileComplete(datasetId, file.key, uploadId);
+
+        success = true;
+        completed++;
+        const progress = (completed / files.length) * 100;
+        onProgress(progress, `Uploaded ${completed}/${files.length} files`);
+      } catch (error) {
+        retries++;
+        if (retries >= MAX_RETRIES) {
+          throw new Error(
+            `Failed to upload ${file.key} after ${MAX_RETRIES} retries: ${error}`
+          );
+        }
+        console.warn(
+          `Retry ${retries}/${MAX_RETRIES} for ${file.key}:`,
+          error
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
+      }
+    }
+  }
+}
+
+/**
+ * Mark a file as complete in the database
+ */
+async function markFileComplete(
+  datasetId: string,
+  fileKey: string,
+  uploadId: string
+): Promise<void> {
+  const response = await fetch(
+    `/api/datasets/${datasetId}/files/${encodeURIComponent(fileKey)}/complete`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadId }),
+    }
+  );
+
+  if (!response.ok) {
+    console.warn(`Failed to mark ${fileKey} as complete in database`);
+    // Don't throw - the file is uploaded to S3, this is just metadata
+  }
+}
+
+/**
+ * Complete upload
+ */
+async function completeUpload(
+  datasetId: string,
+  uploadId: string
+): Promise<void> {
+  const response = await fetch(`/api/datasets/${datasetId}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ uploadId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to complete upload");
+  }
 }
 
 /**
