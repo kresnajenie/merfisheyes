@@ -525,4 +525,45 @@ export class ChunkedDataAdapter {
       clusterCount: this.manifest.statistics.cluster_count,
     };
   }
+
+  /**
+   * Fetch full expression matrix (placeholder for interface compatibility)
+   * For chunked data, we don't load the full matrix at once
+   * Returns null - actual data is fetched per-gene via fetchColumn
+   */
+  fetchFullMatrix(): null {
+    // Don't actually load full matrix for S3 chunked data
+    // This is just for interface compatibility with H5adAdapter
+    return null;
+  }
+
+  /**
+   * Fetch column (gene expression) from matrix by gene index
+   * Uses chunk caching - if the gene's chunk is already loaded, it's instant
+   * @param matrix - Ignored for chunked adapter (always null)
+   * @param geneIndex - Index of the gene in the genes array
+   * @returns Promise with array of expression values for all cells
+   */
+  async fetchColumn(matrix: any, geneIndex: number): Promise<number[]> {
+    if (!this.expressionIndex) {
+      throw new Error("Expression index not loaded");
+    }
+
+    // Get gene info by index
+    const geneInfo = this.expressionIndex.genes[geneIndex];
+    if (!geneInfo) {
+      throw new Error(`Gene at index ${geneIndex} not found`);
+    }
+
+    const geneName = geneInfo.name;
+    console.log(`Fetching column for gene index ${geneIndex}: ${geneName}`);
+
+    // Use the existing fetchGeneExpression which handles chunk caching
+    const result = await this.fetchGeneExpression(geneName);
+    if (result === null) {
+      throw new Error(`Failed to fetch expression data for gene: ${geneName}`);
+    }
+
+    return result;
+  }
 }
