@@ -106,3 +106,5 @@ storybook-static
 .claude/
 .serena/
 /lib/generated/prisma
+
+example_data/
