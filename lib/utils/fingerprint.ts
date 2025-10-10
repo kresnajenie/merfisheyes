@@ -27,24 +27,24 @@ export async function generateDatasetFingerprint(
   parts.push(`genes:${sampledGenes.join(",")}`);
 
   // 3. Sample spatial coordinates (every 5th cell)
-  if (dataset.spatialCoordinates) {
-    const coords = dataset.spatialCoordinates;
+  if (dataset.spatial && dataset.spatial.coordinates) {
+    const coords = dataset.spatial.coordinates;
     const sampledCoords: string[] = [];
 
-    for (let i = 0; i < coords.length; i += 5 * coords[0].length) {
-      const cellCoords = coords.slice(i, i + coords[0].length);
+    for (let i = 0; i < coords.length; i += 5) {
+      const cellCoords = coords[i];
       sampledCoords.push(cellCoords.join(","));
     }
     parts.push(`spatial:${sampledCoords.join(";")}`);
   }
 
   // 4. Sample UMAP coordinates if available (every 5th cell)
-  if (dataset.umapCoordinates) {
-    const coords = dataset.umapCoordinates;
+  if (dataset.embeddings && dataset.embeddings.umap) {
+    const coords = dataset.embeddings.umap;
     const sampledCoords: string[] = [];
 
-    for (let i = 0; i < coords.length; i += 5 * 2) {
-      const cellCoords = coords.slice(i, i + 2);
+    for (let i = 0; i < coords.length; i += 5) {
+      const cellCoords = coords[i];
       sampledCoords.push(cellCoords.join(","));
     }
     parts.push(`umap:${sampledCoords.join(";")}`);
@@ -56,18 +56,20 @@ export async function generateDatasetFingerprint(
     const geneName = dataset.genes[geneIdx];
     const values = await dataset.getGeneExpression(geneName);
 
-    const sampledValues: number[] = [];
-    for (let cellIdx = 0; cellIdx < values.length; cellIdx += 5) {
-      sampledValues.push(values[cellIdx]);
+    if (values) {
+      const sampledValues: number[] = [];
+      for (let cellIdx = 0; cellIdx < values.length; cellIdx += 5) {
+        sampledValues.push(values[cellIdx]);
+      }
+      sampledExpression.push(`${geneName}:${sampledValues.join(",")}`);
     }
-    sampledExpression.push(`${geneName}:${sampledValues.join(",")}`);
   }
   parts.push(`expr:${sampledExpression.join(";")}`);
 
-  // 6. Observation metadata keys (if available)
-  if (dataset.observations && dataset.observations.length > 0) {
-    const obsKeys = dataset.observations.map((obs) => obs.key).sort();
-    parts.push(`obs:${obsKeys.join(",")}`);
+  // 6. Cluster metadata keys (if available)
+  if (dataset.clusters && dataset.clusters.length > 0) {
+    const clusterColumns = dataset.clusters.map((cluster) => cluster.column).sort();
+    parts.push(`clusters:${clusterColumns.join(",")}`);
   }
 
   // Combine all parts and hash

@@ -44,9 +44,7 @@ function ViewerByIdContent() {
       const { ChunkedDataAdapter } = await import(
         "@/lib/adapters/ChunkedDataAdapter"
       );
-      const { StandardizedDataset } = await import(
-        "@/lib/StandardizedDataset"
-      );
+      const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
 
       // Create adapter with dataset ID
       const adapter = new ChunkedDataAdapter(id);
@@ -207,18 +205,6 @@ function ViewerByIdContent() {
     <>
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
-
-      {/* Back button in top right */}
-      <div className="fixed top-4 right-4 z-50">
-        <Button
-          color="default"
-          variant="bordered"
-          onPress={() => router.push("/viewer")}
-          size="sm"
-        >
-          Back to Viewer
-        </Button>
-      </div>
     </>
   );
 }

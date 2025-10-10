@@ -33,15 +33,27 @@ export function UploadSettingsModal({
   const [datasetName, setDatasetName] = useState<string>(
     dataset?.name || "dataset"
   );
+  const [email, setEmail] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [uploadComplete, setUploadComplete] = useState(false);
+  const [uploadedDatasetId, setUploadedDatasetId] = useState<string>("");
+
+  // Email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = emailRegex.test(email);
 
   const handleUpload = async () => {
     if (!dataset) {
       toast.error("No dataset loaded");
+      return;
+    }
+
+    if (!email || !isEmailValid) {
+      toast.error("Please provide a valid email address");
       return;
     }
 
@@ -158,22 +170,15 @@ export function UploadSettingsModal({
       // Complete upload
       setProgressMessage("Completing upload...");
       setProgress(95);
-      await completeUpload(uploadSession.datasetId, uploadSession.uploadId);
+      await completeUpload(uploadSession.datasetId, uploadSession.uploadId, email);
 
       setProgress(100);
       setUploadProgress(100);
       setProgressMessage("Complete!");
       setUploadMessage("Upload successful!");
-      toast.success("Dataset uploaded successfully!");
-
-      setTimeout(() => {
-        onClose();
-        setIsProcessing(false);
-        setProgress(0);
-        setProgressMessage("");
-        setUploadProgress(0);
-        setUploadMessage("");
-      }, 1500);
+      setUploadedDatasetId(uploadSession.datasetId);
+      setUploadComplete(true);
+      setIsProcessing(false);
     } catch (error) {
       console.error("Upload processing error:", error);
       toast.error(
@@ -191,9 +196,29 @@ export function UploadSettingsModal({
     <Modal isOpen={isOpen} onClose={onClose} size="2xl">
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
-          Upload Dataset Settings
+          {uploadComplete ? "Upload Successful!" : "Upload Dataset Settings"}
         </ModalHeader>
         <ModalBody>
+          {uploadComplete ? (
+            <div className="flex flex-col gap-4 text-center py-4">
+              <div className="text-success text-6xl">✓</div>
+              <h3 className="text-xl font-semibold">Upload Successful</h3>
+              <div className="bg-default-100 p-4 rounded-lg">
+                <p className="text-sm mb-2">Here is your dataset link:</p>
+                <a
+                  href={`https://www.merfisheyes.com/viewer/${uploadedDatasetId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline break-all"
+                >
+                  https://www.merfisheyes.com/viewer/{uploadedDatasetId}
+                </a>
+              </div>
+              <p className="text-sm text-default-500">
+                The link has also been sent to your email: <strong>{email}</strong>
+              </p>
+            </div>
+          ) : (
           <div className="flex flex-col gap-4">
             <Input
               label="Dataset Name"
@@ -202,6 +227,19 @@ export function UploadSettingsModal({
               onValueChange={setDatasetName}
               description="Name for the saved files"
               isDisabled={isProcessing}
+            />
+
+            <Input
+              type="email"
+              label="Email"
+              placeholder="Enter your email"
+              value={email}
+              onValueChange={setEmail}
+              description="Get notified when processing is complete"
+              isDisabled={isProcessing}
+              isRequired
+              isInvalid={email.length > 0 && !isEmailValid}
+              errorMessage={email.length > 0 && !isEmailValid ? "Please enter a valid email address" : ""}
             />
 
             <Select
@@ -256,9 +294,7 @@ export function UploadSettingsModal({
                       {Math.ceil(
                         dataset.genes.length /
                           new GeneChunkProcessor(
-                            chunkSize === "auto"
-                              ? null
-                              : parseInt(chunkSize)
+                            chunkSize === "auto" ? null : parseInt(chunkSize)
                           ).determineChunkSize(dataset.genes.length)
                       )}
                     </p>
@@ -299,24 +335,44 @@ export function UploadSettingsModal({
               </div>
             )}
           </div>
+          )}
         </ModalBody>
         <ModalFooter>
-          <Button
-            color="danger"
-            variant="light"
-            onPress={onClose}
-            isDisabled={isProcessing}
-          >
-            Cancel
-          </Button>
-          <Button
-            color="primary"
-            onPress={handleUpload}
-            isLoading={isProcessing}
-            isDisabled={!dataset}
-          >
-            {isProcessing ? "Processing..." : "Process & Save"}
-          </Button>
+          {uploadComplete ? (
+            <Button
+              color="primary"
+              onPress={() => {
+                setUploadComplete(false);
+                setUploadedDatasetId("");
+                setProgress(0);
+                setProgressMessage("");
+                setUploadProgress(0);
+                setUploadMessage("");
+                onClose();
+              }}
+            >
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button
+                color="danger"
+                variant="light"
+                onPress={onClose}
+                isDisabled={isProcessing}
+              >
+                Cancel
+              </Button>
+              <Button
+                color="primary"
+                onPress={handleUpload}
+                isLoading={isProcessing}
+                isDisabled={!dataset || !email || !isEmailValid}
+              >
+                {isProcessing ? "Processing..." : "Process & Save"}
+              </Button>
+            </>
+          )}
         </ModalFooter>
       </ModalContent>
     </Modal>
@@ -337,8 +393,12 @@ async function createManifest(
 ): Promise<string> {
   // Determine spatial dimensions
   let spatialDimensions = 2;
-  if (dataset.spatialCoordinates && dataset.spatialCoordinates.length > 0) {
-    spatialDimensions = dataset.spatialCoordinates[0].length;
+  if (
+    dataset.spatial &&
+    dataset.spatial.coordinates &&
+    dataset.spatial.coordinates.length > 0
+  ) {
+    spatialDimensions = dataset.spatial.coordinates[0].length;
   }
 
   // Get available embeddings
@@ -492,7 +552,12 @@ async function prepareFilesForUpload(
   paletteFiles: Record<string, Blob>,
   manifestJson: string
 ): Promise<{ key: string; blob: Blob; size: number; contentType: string }[]> {
-  const files: { key: string; blob: Blob; size: number; contentType: string }[] = [];
+  const files: {
+    key: string;
+    blob: Blob;
+    size: number;
+    contentType: string;
+  }[] = [];
 
   // Manifest
   const manifestBlob = new Blob([manifestJson], { type: "application/json" });
@@ -670,10 +735,7 @@ async function uploadFilesToS3(
             `Failed to upload ${file.key} after ${MAX_RETRIES} retries: ${error}`
           );
         }
-        console.warn(
-          `Retry ${retries}/${MAX_RETRIES} for ${file.key}:`,
-          error
-        );
+        console.warn(`Retry ${retries}/${MAX_RETRIES} for ${file.key}:`, error);
         await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
       }
     }
@@ -708,7 +770,8 @@ async function markFileComplete(
  */
 async function completeUpload(
   datasetId: string,
-  uploadId: string
+  uploadId: string,
+  email: string
 ): Promise<void> {
   const response = await fetch(`/api/datasets/${datasetId}/complete`, {
     method: "POST",
@@ -719,6 +782,18 @@ async function completeUpload(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || "Failed to complete upload");
+  }
+
+  // Send email notification
+  try {
+    await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, datasetId }),
+    });
+  } catch (error) {
+    console.error('Failed to send email notification:', error);
+    // Don't throw - email notification failure shouldn't fail the upload
   }
 }
 
