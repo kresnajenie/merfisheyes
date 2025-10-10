@@ -97,6 +97,11 @@ export function UploadSettingsModal({
       setProgress(45);
       const observations = await processor.processObservations(dataset);
 
+      // Process palettes
+      setProgressMessage("Processing color palettes...");
+      setProgress(47);
+      const palettes = await processor.processPalettes(dataset);
+
       // Generate dataset ID
       const datasetId = `${dataset.type}_${datasetName}_${Date.now()}_${fingerprint.substring(0, 9)}`;
 
@@ -122,6 +127,7 @@ export function UploadSettingsModal({
         coordinates,
         observations.files,
         observations.metadata,
+        palettes,
         manifestJson
       );
 
@@ -392,6 +398,7 @@ async function saveFilesWithStructure(
   coordinates: Record<string, Blob>,
   observationFiles: Record<string, Blob>,
   observationMetadata: Record<string, any>,
+  paletteFiles: Record<string, Blob>,
   manifestJson: string
 ) {
   const folderName = `${datasetName}_${Date.now()}`;
@@ -435,8 +442,11 @@ async function saveFilesWithStructure(
   await saveBlob(obsMetadataBlob, `${folderName}/obs/metadata.json`);
   fileCount++;
 
-  // Create empty palettes folder (placeholder for future)
-  // Note: Browser downloads can't create empty folders, so we skip this
+  // Save palettes to palettes/
+  for (const [name, blob] of Object.entries(paletteFiles)) {
+    await saveBlob(blob, `${folderName}/palettes/${name}.json`);
+    fileCount++;
+  }
 
   toast.info(
     `Files saved to downloads folder: ${folderName} (${fileCount} files)`
@@ -479,6 +489,7 @@ async function prepareFilesForUpload(
   coordinates: Record<string, Blob>,
   observationFiles: Record<string, Blob>,
   observationMetadata: Record<string, any>,
+  paletteFiles: Record<string, Blob>,
   manifestJson: string
 ): Promise<{ key: string; blob: Blob; size: number; contentType: string }[]> {
   const files: { key: string; blob: Blob; size: number; contentType: string }[] = [];
@@ -544,6 +555,16 @@ async function prepareFilesForUpload(
     size: obsMetadataBlob.size,
     contentType: "application/json",
   });
+
+  // Palettes
+  for (const [name, blob] of Object.entries(paletteFiles)) {
+    files.push({
+      key: `palettes/${name}.json`,
+      blob: blob,
+      size: blob.size,
+      contentType: "application/json",
+    });
+  }
 
   return files;
 }

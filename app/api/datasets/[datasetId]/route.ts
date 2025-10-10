@@ -51,18 +51,19 @@ export async function GET(
 
     // Check if dataset upload is complete
     if (dataset.status !== "COMPLETE") {
+      const statusMessages = {
+        UPLOADING: "Dataset is still being uploaded",
+        PROCESSING: "Dataset is being processed",
+        FAILED: "Dataset upload failed",
+      };
+
       return NextResponse.json(
         {
-          error: "Dataset upload not complete",
+          error: "Dataset not ready",
           status: dataset.status,
-          message:
-            dataset.status === "UPLOADING"
-              ? "Dataset is still being uploaded"
-              : dataset.status === "PROCESSING"
-                ? "Dataset is being processed"
-                : "Dataset upload failed",
+          message: statusMessages[dataset.status as keyof typeof statusMessages] || "Dataset is not available",
         },
-        { status: 409, headers: corsHeaders }
+        { status: 202, headers: corsHeaders } // 202 Accepted - processing not complete
       );
     }
 

@@ -382,6 +382,23 @@ export class MerscopeAdapter {
     return Array.from(this._exprByGene.get(gene)!);
   }
 
+  /**
+   * Fetch full expression matrix (for caching/bulk processing)
+   * Returns gene expression data organized by gene
+   */
+  fetchFullMatrix(): Map<string, Float32Array> {
+    return this._exprByGene;
+  }
+
+  /**
+   * Fetch column from matrix by gene index
+   */
+  fetchColumn(matrix: Map<string, Float32Array>, geneIndex: number): number[] {
+    const gene = this._genes[geneIndex];
+    if (!gene || !matrix.has(gene)) return [];
+    return Array.from(matrix.get(gene)!);
+  }
+
   getObsColumns(): string[] {
     return this._obsKeys;
   }

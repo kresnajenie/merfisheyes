@@ -18,12 +18,18 @@ import h5wasm from "h5wasm";
 export class H5adAdapter {
   h5File: any = null;
   metadata: any = null;
-  private _onProgress?: (progress: number, message: string) => Promise<void> | void;
+  private _onProgress?: (
+    progress: number,
+    message: string
+  ) => Promise<void> | void;
 
   /**
    * Initialize adapter with H5AD file
    */
-  async initialize(file: File, onProgress?: (progress: number, message: string) => Promise<void> | void) {
+  async initialize(
+    file: File,
+    onProgress?: (progress: number, message: string) => Promise<void> | void
+  ) {
     this._onProgress = onProgress;
 
     await this._onProgress?.(10, "Initializing h5wasm...");
@@ -230,11 +236,11 @@ export class H5adAdapter {
     if (!values || values.length === 0) return false;
 
     // Check if values are strings
-    if (typeof values[0] === "string") return true;
+    // if (typeof values[0] === "string") return true;
 
     // Check if numerical values have limited unique values (threshold: 50)
     const uniqueValues = new Set(values);
-    if (uniqueValues.size <= 50) return true;
+    if (uniqueValues.size <= 100) return true;
 
     // If more than 50 unique numerical values, treat as continuous
     return false;
@@ -321,11 +327,24 @@ export class H5adAdapter {
       const uniqueClusters = Array.from(new Set(clusters)).sort();
 
       if (colors && colors.length === uniqueClusters.length) {
-        const palette: Record<string, string> = {};
-        uniqueClusters.forEach((cluster, index) => {
-          palette[cluster] = this.normalizeHexColor(colors[index]);
-        });
-        return palette;
+        // Check if palette has only 1 unique color (e.g., all gray)
+        const uniqueColors = new Set(
+          colors.map((c: any) => this.normalizeHexColor(c))
+        );
+
+        if (uniqueColors.size === 1 && uniqueClusters.length > 1) {
+          // Multiple categories but only 1 color - fall back to default colors
+          console.log(
+            `Palette for ${clusterColumn} has only 1 unique color, using default colors`
+          );
+        } else {
+          // Valid palette - use colors from uns
+          const palette: Record<string, string> = {};
+          uniqueClusters.forEach((cluster, index) => {
+            palette[cluster] = this.normalizeHexColor(colors[index]);
+          });
+          return palette;
+        }
       }
     } catch (error) {
       console.log("No colors found in uns, using default colors");
@@ -374,6 +393,8 @@ export class H5adAdapter {
 
   /**
    * Fetch gene expression data
+   * Note: This method is deprecated in favor of using cached matrix in StandardizedDataset
+   * Kept for backward compatibility
    */
   async fetchGeneExpression(gene: string): Promise<number[] | null> {
     try {
@@ -392,6 +413,14 @@ export class H5adAdapter {
    * Fetch expression matrix
    */
   fetchX(): any {
+    const m = this.h5File.get("X");
+    return m.value;
+  }
+
+  /**
+   * Fetch full expression matrix (for caching/bulk processing)
+   */
+  fetchFullMatrix(): any {
     const m = this.h5File.get("X");
     return m.value;
   }
