@@ -7,7 +7,8 @@ export async function POST(req: NextRequest) {
   try {
     const { email, datasetId } = await req.json();
 
-    const link = `https://www.merfisheyes.com/viewer/${datasetId}`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const link = `${baseUrl}/viewer/${datasetId}`;
 
     const msg = {
       to: email,

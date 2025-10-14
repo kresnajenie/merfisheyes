@@ -170,7 +170,11 @@ export function UploadSettingsModal({
       // Complete upload
       setProgressMessage("Completing upload...");
       setProgress(95);
-      await completeUpload(uploadSession.datasetId, uploadSession.uploadId, email);
+      await completeUpload(
+        uploadSession.datasetId,
+        uploadSession.uploadId,
+        email
+      );
 
       setProgress(100);
       setUploadProgress(100);
@@ -192,6 +196,8 @@ export function UploadSettingsModal({
     }
   };
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="2xl">
       <ModalContent>
@@ -206,135 +212,140 @@ export function UploadSettingsModal({
               <div className="bg-default-100 p-4 rounded-lg">
                 <p className="text-sm mb-2">Here is your dataset link:</p>
                 <a
-                  href={`https://www.merfisheyes.com/viewer/${uploadedDatasetId}`}
+                  href={`${baseUrl}/viewer/${uploadedDatasetId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline break-all"
                 >
-                  https://www.merfisheyes.com/viewer/{uploadedDatasetId}
+                  {baseUrl}/viewer/{uploadedDatasetId}
                 </a>
               </div>
               <p className="text-sm text-default-500">
-                The link has also been sent to your email: <strong>{email}</strong>
+                The link has also been sent to your email:{" "}
+                <strong>{email}</strong>
               </p>
             </div>
           ) : (
-          <div className="flex flex-col gap-4">
-            <Input
-              label="Dataset Name"
-              placeholder="Enter dataset name"
-              value={datasetName}
-              onValueChange={setDatasetName}
-              description="Name for the saved files"
-              isDisabled={isProcessing}
-            />
-
-            <Input
-              type="email"
-              label="Email"
-              placeholder="Enter your email"
-              value={email}
-              onValueChange={setEmail}
-              description="Get notified when processing is complete"
-              isDisabled={isProcessing}
-              isRequired
-              isInvalid={email.length > 0 && !isEmailValid}
-              errorMessage={email.length > 0 && !isEmailValid ? "Please enter a valid email address" : ""}
-            />
-
-            <Select
-              label="Chunk Size"
-              placeholder="Select chunk size"
-              selectedKeys={[chunkSize]}
-              onSelectionChange={(keys) => {
-                const value = Array.from(keys)[0] as string;
-                setChunkSize(value);
-              }}
-              description="Number of genes per chunk (auto-determines based on total genes)"
-              isDisabled={isProcessing}
-            >
-              <SelectItem key="auto">Auto (Recommended)</SelectItem>
-              <SelectItem key="50">50 genes/chunk</SelectItem>
-              <SelectItem key="100">100 genes/chunk</SelectItem>
-              <SelectItem key="150">150 genes/chunk</SelectItem>
-              <SelectItem key="custom">Custom</SelectItem>
-            </Select>
-
-            {chunkSize === "custom" && (
+            <div className="flex flex-col gap-4">
               <Input
-                type="number"
-                label="Custom Chunk Size"
-                placeholder="Enter chunk size"
-                value={customChunkSize}
-                onValueChange={setCustomChunkSize}
-                min="10"
-                max="500"
+                label="Dataset Name"
+                placeholder="Enter dataset name"
+                value={datasetName}
+                onValueChange={setDatasetName}
+                description="Name for the saved files"
                 isDisabled={isProcessing}
               />
-            )}
 
-            {dataset && (
-              <div className="bg-default-100 p-4 rounded-lg">
-                <h4 className="text-sm font-semibold mb-2">Dataset Info</h4>
-                <div className="text-xs space-y-1">
-                  <p>
-                    <span className="font-medium">Genes:</span>{" "}
-                    {dataset.genes.length.toLocaleString()}
-                  </p>
-                  <p>
-                    <span className="font-medium">Cells:</span>{" "}
-                    {dataset.getPointCount().toLocaleString()}
-                  </p>
-                  <p>
-                    <span className="font-medium">Type:</span> {dataset.type}
-                  </p>
-                  {chunkSize !== "custom" && (
+              <Input
+                type="email"
+                label="Email"
+                placeholder="Enter your email"
+                value={email}
+                onValueChange={setEmail}
+                description="Get notified when processing is complete"
+                isDisabled={isProcessing}
+                isRequired
+                isInvalid={email.length > 0 && !isEmailValid}
+                errorMessage={
+                  email.length > 0 && !isEmailValid
+                    ? "Please enter a valid email address"
+                    : ""
+                }
+              />
+
+              <Select
+                label="Chunk Size"
+                placeholder="Select chunk size"
+                selectedKeys={[chunkSize]}
+                onSelectionChange={(keys) => {
+                  const value = Array.from(keys)[0] as string;
+                  setChunkSize(value);
+                }}
+                description="Number of genes per chunk (auto-determines based on total genes)"
+                isDisabled={isProcessing}
+              >
+                <SelectItem key="auto">Auto (Recommended)</SelectItem>
+                <SelectItem key="50">50 genes/chunk</SelectItem>
+                <SelectItem key="100">100 genes/chunk</SelectItem>
+                <SelectItem key="150">150 genes/chunk</SelectItem>
+                <SelectItem key="custom">Custom</SelectItem>
+              </Select>
+
+              {chunkSize === "custom" && (
+                <Input
+                  type="number"
+                  label="Custom Chunk Size"
+                  placeholder="Enter chunk size"
+                  value={customChunkSize}
+                  onValueChange={setCustomChunkSize}
+                  min="10"
+                  max="500"
+                  isDisabled={isProcessing}
+                />
+              )}
+
+              {dataset && (
+                <div className="bg-default-100 p-4 rounded-lg">
+                  <h4 className="text-sm font-semibold mb-2">Dataset Info</h4>
+                  <div className="text-xs space-y-1">
                     <p>
-                      <span className="font-medium">Estimated chunks:</span>{" "}
-                      {Math.ceil(
-                        dataset.genes.length /
-                          new GeneChunkProcessor(
-                            chunkSize === "auto" ? null : parseInt(chunkSize)
-                          ).determineChunkSize(dataset.genes.length)
-                      )}
+                      <span className="font-medium">Genes:</span>{" "}
+                      {dataset.genes.length.toLocaleString()}
                     </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {isProcessing && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <p className="text-xs font-medium">Processing</p>
-                  <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
-                    <div
-                      className="bg-primary h-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
+                    <p>
+                      <span className="font-medium">Cells:</span>{" "}
+                      {dataset.getPointCount().toLocaleString()}
+                    </p>
+                    <p>
+                      <span className="font-medium">Type:</span> {dataset.type}
+                    </p>
+                    {chunkSize !== "custom" && (
+                      <p>
+                        <span className="font-medium">Estimated chunks:</span>{" "}
+                        {Math.ceil(
+                          dataset.genes.length /
+                            new GeneChunkProcessor(
+                              chunkSize === "auto" ? null : parseInt(chunkSize)
+                            ).determineChunkSize(dataset.genes.length)
+                        )}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-xs text-default-500 text-center">
-                    {progressMessage}
-                  </p>
                 </div>
+              )}
 
-                {uploadMessage && (
+              {isProcessing && (
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <p className="text-xs font-medium">Upload</p>
+                    <p className="text-xs font-medium">Processing</p>
                     <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
                       <div
-                        className="bg-success h-full transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
+                        className="bg-primary h-full transition-all duration-300"
+                        style={{ width: `${progress}%` }}
                       />
                     </div>
                     <p className="text-xs text-default-500 text-center">
-                      {uploadMessage}
+                      {progressMessage}
                     </p>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+
+                  {uploadMessage && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium">Upload</p>
+                      <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-success h-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-default-500 text-center">
+                        {uploadMessage}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </ModalBody>
         <ModalFooter>
@@ -786,13 +797,13 @@ async function completeUpload(
 
   // Send email notification
   try {
-    await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    await fetch("/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, datasetId }),
     });
   } catch (error) {
-    console.error('Failed to send email notification:', error);
+    console.error("Failed to send email notification:", error);
     // Don't throw - email notification failure shouldn't fail the upload
   }
 }
