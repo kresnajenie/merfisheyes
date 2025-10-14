@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Navbar as HeroUINavbar,
   NavbarContent,
@@ -14,6 +16,7 @@ import { Input } from "@heroui/input";
 import { link as linkStyles } from "@heroui/theme";
 import NextLink from "next/link";
 import clsx from "clsx";
+import { usePathname } from "next/navigation";
 
 import { siteConfig } from "@/config/site";
 import {
@@ -25,7 +28,12 @@ import {
   Logo,
 } from "@/components/icons";
 
-export const Navbar = () => {
+interface NavbarProps {
+  onUploadClick?: () => void;
+}
+
+export const Navbar = ({ onUploadClick }: NavbarProps) => {
+  const pathname = usePathname();
   const searchInput = (
     <Input
       aria-label="Search"
@@ -48,7 +56,11 @@ export const Navbar = () => {
   );
 
   return (
-    <HeroUINavbar maxWidth="xl" position="sticky" className="w-3/4 mx-auto my-4 rounded-full glass">
+    <HeroUINavbar
+      maxWidth="xl"
+      position="sticky"
+      className="w-3/4 mx-auto my-4 rounded-full glass"
+    >
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
         <NavbarBrand as="li" className="gap-3 max-w-fit">
           <NextLink className="flex justify-start items-center gap-1" href="/">
@@ -78,6 +90,24 @@ export const Navbar = () => {
         className="hidden sm:flex basis-1/5 sm:basis-full"
         justify="end"
       >
+        {/* Show Upload & Save button on /viewer when dataset is loaded */}
+        {pathname === "/viewer" && onUploadClick && (
+          <NavbarItem>
+            <Button color="primary" onPress={onUploadClick}>
+              Upload & Save
+            </Button>
+          </NavbarItem>
+        )}
+
+        {/* Show Back to Viewer button on /viewer/[id] */}
+        {pathname?.startsWith("/viewer/") && pathname !== "/viewer" && (
+          <NavbarItem>
+            <Button as={NextLink} href="/viewer" color="primary" variant="flat">
+              Back to Viewer
+            </Button>
+          </NavbarItem>
+        )}
+
         <NavbarItem className="hidden sm:flex gap-2">
           <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
             <TwitterIcon className="text-default-500" />

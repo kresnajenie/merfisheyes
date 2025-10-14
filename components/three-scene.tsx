@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { Spinner } from "@heroui/react";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloud,
@@ -23,6 +24,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const [isLoadingGene, setIsLoadingGene] = useState(false);
 
   // Get visualization settings from store
   const {
@@ -161,6 +163,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // If no gene selected, fall back to celltype visualization
       if (!selectedGene) {
+        setIsLoadingGene(false);
         const result = updateCelltypeVisualization(
           dataset,
           selectedColumn,
@@ -181,20 +184,25 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         return;
       }
 
-      const result = await updateGeneVisualization(
-        dataset,
-        selectedGene,
-        alphaScale,
-        sizeScale
-      );
-
-      if (result && pointCloudRef.current) {
-        updatePointCloudAttributes(
-          pointCloudRef.current,
-          result.colors,
-          result.sizes,
-          result.alphas
+      try {
+        setIsLoadingGene(true);
+        const result = await updateGeneVisualization(
+          dataset,
+          selectedGene,
+          alphaScale,
+          sizeScale
         );
+
+        if (result && pointCloudRef.current) {
+          updatePointCloudAttributes(
+            pointCloudRef.current,
+            result.colors,
+            result.sizes,
+            result.alphas
+          );
+        }
+      } finally {
+        setIsLoadingGene(false);
       }
     };
 
@@ -245,10 +253,25 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   ]);
 
   return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 w-full h-full"
-      style={{ margin: 0, padding: 0 }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="fixed inset-0 w-full h-full"
+        style={{ margin: 0, padding: 0 }}
+      />
+
+      {/* Loading overlay for gene expression fetching */}
+      {isLoadingGene && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
+          <div className="bg-default-100/90 rounded-lg p-6 shadow-lg flex flex-col items-center gap-3">
+            <Spinner size="lg" color="primary" />
+            <p className="text-sm font-medium">Loading gene expression...</p>
+            {selectedGene && (
+              <p className="text-xs text-default-500">{selectedGene}</p>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -47,6 +47,7 @@ export class StandardizedDataset {
   metadata: Record<string, any>;
   rawData: any;
   adapter: any;
+  matrix: any | null;
 
   constructor({
     id,
@@ -81,6 +82,7 @@ export class StandardizedDataset {
     };
     this.rawData = rawData;
     this.adapter = adapter;
+    this.matrix = null;
 
     this.validateStructure();
   }
@@ -160,7 +162,19 @@ export class StandardizedDataset {
     if (!this.adapter) {
       throw new Error("No adapter available for gene expression data access");
     }
-    return await this.adapter.fetchGeneExpression(gene);
+
+    // Cache matrix for subsequent queries
+    if (!this.matrix) {
+      this.matrix = this.adapter.fetchFullMatrix();
+    }
+
+    // Use cached genes array instead of re-fetching
+    const geneIndex = this.genes.indexOf(gene);
+    if (geneIndex === -1) {
+      return null;
+    }
+
+    return this.adapter.fetchColumn(this.matrix, geneIndex);
   }
 
   /**

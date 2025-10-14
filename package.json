@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "test-prisma": "node --loader ts-node/esm prisma/test-prisma.ts",
     "dev": "next dev --turbopack",
     "build": "NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=4096' next build",
     "build:low-memory": "NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=2048' next build",
@@ -11,6 +12,8 @@
     "lint": "eslint --fix"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.901.0",
+    "@aws-sdk/s3-request-presigner": "^3.901.0",
     "@heroui/accordion": "2.2.23",
     "@heroui/alert": "2.2.26",
     "@heroui/autocomplete": "2.3.28",
@@ -52,10 +55,13 @@
     "@heroui/toast": "2.0.16",
     "@heroui/tooltip": "2.2.23",
     "@heroui/user": "2.2.21",
+    "@prisma/client": "^6.17.0",
     "@react-aria/ssr": "3.9.10",
     "@react-aria/visually-hidden": "3.8.27",
+    "@sendgrid/mail": "^8.1.6",
     "@types/three": "^0.180.0",
     "clsx": "2.1.1",
+    "dotenv": "^17.2.3",
     "framer-motion": "^11.18.2",
     "gsap": "^3.13.0",
     "h5wasm": "^0.8.6",
@@ -73,16 +79,16 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@eslint/compat": "^1.2.0",
     "@next/eslint-plugin-next": "15.3.4",
     "@react-types/shared": "3.30.0",
     "@tailwindcss/postcss": "4.1.11",
-    "@types/node": "20.5.7",
+    "@types/node": "^20.5.7",
     "@types/pako": "^2.0.4",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
     "@typescript-eslint/eslint-plugin": "8.34.1",
     "@typescript-eslint/parser": "8.34.1",
-    "@eslint/compat": "^1.2.0",
     "eslint": "9.25.1",
     "eslint-config-next": "15.3.4",
     "eslint-config-prettier": "9.1.0",
@@ -96,8 +102,11 @@
     "globals": "16.0.0",
     "postcss": "8.5.6",
     "prettier": "3.5.3",
+    "prisma": "^6.17.0",
     "tailwind-variants": "3.1.1",
     "tailwindcss": "4.1.11",
-    "typescript": "5.6.3"
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.6.3"
   }
 }

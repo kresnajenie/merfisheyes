@@ -91,6 +91,11 @@ export class GeneChunkProcessor {
       `Processing ${genes.length} genes into chunks of ${chunkSize}`
     );
 
+    // Load expression matrix once for all chunks
+    onProgress?.(0, "Loading expression matrix...");
+    const matrix = dataset.adapter.fetchFullMatrix();
+    console.log("Expression matrix loaded");
+
     const chunks: ProcessedChunk[] = [];
     const index: GeneChunkIndex = {
       version: 2,
@@ -124,6 +129,7 @@ export class GeneChunkProcessor {
       const chunkData = await this.createChunk(
         dataset,
         genes,
+        matrix,
         startIdx,
         endIdx,
         chunkId,
@@ -134,7 +140,7 @@ export class GeneChunkProcessor {
       const compressed = await this.compress(chunkData.buffer);
 
       chunks.push({
-        filename: `chunk_${chunkId.toString().padStart(3, "0")}.bin.gz`,
+        filename: `chunk_${chunkId.toString().padStart(5, "0")}.bin.gz`,
         data: compressed,
         metadata: chunkData.metadata,
       });
@@ -142,7 +148,7 @@ export class GeneChunkProcessor {
       // Update index
       index.chunks.push({
         id: chunkId,
-        filename: `chunk_${chunkId.toString().padStart(3, "0")}.bin.gz`,
+        filename: `chunk_${chunkId.toString().padStart(5, "0")}.bin.gz`,
         gene_range: [startIdx, endIdx - 1],
         size_compressed: compressed.size,
         size_uncompressed: chunkData.buffer.byteLength,
@@ -179,6 +185,7 @@ export class GeneChunkProcessor {
   private async createChunk(
     dataset: StandardizedDataset,
     geneNames: string[],
+    matrix: any,
     startIdx: number,
     endIdx: number,
     chunkId: number,
@@ -211,8 +218,8 @@ export class GeneChunkProcessor {
       const geneIdx = startIdx + i;
       const geneName = geneNames[geneIdx];
 
-      // Get gene expression data
-      const geneData = await dataset.getGeneExpression(geneName);
+      // Extract gene column from matrix directly
+      const geneData = dataset.adapter.fetchColumn(matrix, geneIdx);
       if (!geneData) {
         throw new Error(`Failed to get expression data for gene: ${geneName}`);
       }
@@ -403,7 +410,63 @@ export class GeneChunkProcessor {
   }
 
   /**
-   * Process metadata
+   * Process observations into separate files
+   */
+  async processObservations(
+    dataset: StandardizedDataset
+  ): Promise<{
+    files: Record<string, Blob>;
+    metadata: Record<string, any>;
+  }> {
+    const files: Record<string, Blob> = {};
+    const metadata: Record<string, any> = {};
+
+    if (!dataset.clusters || dataset.clusters.length === 0) {
+      return { files, metadata };
+    }
+
+    for (const cluster of dataset.clusters) {
+      // Save observation data as compressed JSON
+      const json = JSON.stringify(cluster.values);
+      const compressed = await this.compressText(json);
+      files[cluster.column] = compressed;
+
+      // Add to metadata
+      metadata[cluster.column] = {
+        type: cluster.type || "categorical",
+        filename: `${cluster.column}.json.gz`,
+      };
+    }
+
+    return { files, metadata };
+  }
+
+  /**
+   * Process palettes for categorical columns
+   */
+  async processPalettes(
+    dataset: StandardizedDataset
+  ): Promise<Record<string, Blob>> {
+    const files: Record<string, Blob> = {};
+
+    if (!dataset.clusters || dataset.clusters.length === 0) {
+      return files;
+    }
+
+    for (const cluster of dataset.clusters) {
+      // Only save palettes for categorical columns that have a palette
+      if (cluster.type === "categorical" && cluster.palette) {
+        const json = JSON.stringify(cluster.palette, null, 2);
+        const blob = new Blob([json], { type: "application/json" });
+        files[cluster.column] = blob;
+      }
+    }
+
+    return files;
+  }
+
+  /**
+   * Process metadata for obs/metadata.json
    */
   async processMetadata(dataset: StandardizedDataset): Promise<Blob> {
     const metadata = {
