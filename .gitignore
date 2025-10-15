@@ -108,3 +108,5 @@ storybook-static
 /lib/generated/prisma
 
 example_data/
+
+deploy.sh
