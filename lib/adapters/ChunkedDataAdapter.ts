@@ -225,11 +225,16 @@ export class ChunkedDataAdapter {
   /**
    * Load clusters and color palettes
    */
-  async loadClusters() {
+  async loadClusters(): Promise<Array<{
+    column: string;
+    type: string;
+    values: any[];
+    palette: Record<string, string>;
+  }> | null> {
     console.log("Loading clusters...");
 
     try {
-      // Use cached observation metadata to find cluster column
+      // Use cached observation metadata to load all cluster columns
       if (!this.obsMetadata) {
         throw new Error("Observation metadata not loaded");
       }
@@ -238,79 +243,52 @@ export class ChunkedDataAdapter {
         Object.keys(this.obsMetadata)
       );
 
-      // Find cluster column (prioritize leiden, then celltype, etc.)
-      const preferredColumns = ["leiden", "celltype", "cluster", "clusters", "cell_type"];
-      let clusterColumn = null;
+      const availableColumns = Object.keys(this.obsMetadata);
 
-      for (const preferred of preferredColumns) {
-        if (
-          Object.keys(this.obsMetadata).some(
-            (col) => col.toLowerCase() === preferred
-          )
-        ) {
-          clusterColumn = Object.keys(this.obsMetadata).find(
-            (col) => col.toLowerCase() === preferred
-          );
-          break;
-        }
+      if (availableColumns.length === 0) {
+        console.warn("No observation columns found");
+        return null;
       }
 
-      // If no preferred column found, use the first available column
-      if (!clusterColumn) {
-        const availableColumns = Object.keys(this.obsMetadata);
-        if (availableColumns.length > 0) {
-          clusterColumn = availableColumns[0];
-          console.warn(`No preferred cluster columns found, using first available: ${clusterColumn}`);
-        } else {
-          console.warn("No observation columns found");
-          return null;
-        }
-      }
+      // Load all cluster columns
+      const clusters = [];
 
-      console.log("Using cluster column:", clusterColumn);
-
-      // Load cluster values
-      const clusterValues = await this.fetchCompressedJSON(
-        `obs/${clusterColumn}.json.gz`
-      );
-
-      // Load color palette - try multiple possible palette names
-      let palette: Record<string, string> = {};
-      const possiblePaletteNames = [
-        clusterColumn,
-        "leiden",
-        "celltype",
-        "clusters",
-      ];
-      let paletteLoaded = false;
-
-      for (const paletteName of possiblePaletteNames) {
+      for (const columnName of availableColumns) {
         try {
-          palette = await this.fetchJSON(`palettes/${paletteName}.json`);
-          console.log(`Loaded palette from: palettes/${paletteName}.json`);
-          paletteLoaded = true;
-          break;
-        } catch (error) {
-          // Continue to next palette name
-          console.log(
-            `Palette palettes/${paletteName}.json not found, trying next...`
+          console.log(`Loading cluster column: ${columnName}`);
+
+          // Load cluster values
+          const clusterValues = await this.fetchCompressedJSON(
+            `obs/${columnName}.json.gz`
           );
+
+          // Load color palette for this column
+          let palette: Record<string, string> = {};
+          try {
+            palette = await this.fetchJSON(`palettes/${columnName}.json`);
+            console.log(`Loaded palette from: palettes/${columnName}.json`);
+          } catch (error) {
+            // Fall back to default colors if palette not found
+            console.log(
+              `Palette palettes/${columnName}.json not found, generating default colors`
+            );
+            palette = this.generateDefaultPalette(clusterValues);
+          }
+
+          clusters.push({
+            column: columnName,
+            type: this.obsMetadata[columnName].type || "categorical",
+            values: clusterValues,
+            palette: palette,
+          });
+        } catch (error) {
+          console.warn(`Failed to load cluster column ${columnName}:`, error);
+          // Continue loading other columns even if one fails
         }
       }
 
-      if (!paletteLoaded) {
-        console.warn("No palette files found, generating default colors");
-        palette = this.generateDefaultPalette(clusterValues);
-      }
-
-      return [
-        {
-          column: clusterColumn,
-          type: this.obsMetadata[clusterColumn].type || "categorical",
-          values: clusterValues,
-          palette: palette,
-        },
-      ];
+      console.log(`Successfully loaded ${clusters.length} cluster columns`);
+      return clusters.length > 0 ? clusters : null;
     } catch (error) {
       console.error("Failed to load clusters:", error);
       return null;

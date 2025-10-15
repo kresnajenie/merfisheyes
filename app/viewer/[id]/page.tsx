@@ -40,60 +40,16 @@ function ViewerByIdContent() {
 
       console.log("Loading dataset from server:", id);
 
-      // Import adapter dynamically
-      const { ChunkedDataAdapter } = await import(
-        "@/lib/adapters/ChunkedDataAdapter"
-      );
+      // Import StandardizedDataset
       const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
 
-      // Create adapter with dataset ID
-      const adapter = new ChunkedDataAdapter(id);
-
-      // Initialize adapter (fetches URLs and loads manifest/index)
-      await adapter.initialize();
-      console.log("Adapter initialized");
-
-      // Load spatial coordinates
-      const spatial = await adapter.loadSpatialCoordinates();
-      console.log("Loaded spatial coordinates:", spatial.coordinates.length);
-
-      // Load embeddings
-      const embeddings = await adapter.loadEmbeddings();
-      console.log("Loaded embeddings:", Object.keys(embeddings));
-
-      // Load genes
-      const genes = await adapter.loadGenes();
-      console.log("Loaded genes:", genes.length);
-
-      // Load clusters
-      const clusters = await adapter.loadClusters();
-      console.log("Loaded clusters:", clusters);
-
-      // Get dataset info
-      const dataInfo = adapter.getDatasetInfo();
-      console.log("Dataset info:", dataInfo);
-
-      // Create StandardizedDataset
-      const standardizedDataset = new StandardizedDataset({
-        id: dataInfo.id,
-        name: dataInfo.name,
-        type: dataInfo.type,
-        spatial: {
-          coordinates: spatial.coordinates,
-          dimensions: spatial.dimensions,
-        },
-        embeddings: embeddings,
-        genes: genes,
-        clusters: clusters,
-        metadata: {
-          numCells: dataInfo.numCells,
-          numGenes: dataInfo.numGenes,
-          spatialDimensions: dataInfo.spatialDimensions,
-          availableEmbeddings: dataInfo.availableEmbeddings,
-          clusterCount: dataInfo.clusterCount,
-        },
-        adapter: adapter,
-      });
+      // Load dataset using fromS3 method
+      const standardizedDataset = await StandardizedDataset.fromS3(
+        id,
+        (progress, message) => {
+          console.log(`${progress}%: ${message}`);
+        }
+      );
 
       console.log("StandardizedDataset created:", standardizedDataset);
 

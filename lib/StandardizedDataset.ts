@@ -1,6 +1,7 @@
 import { H5adAdapter } from "./adapters/H5adAdapter";
 import { XeniumAdapter } from "./adapters/XeniumAdapter";
 import { MerscopeAdapter } from "./adapters/MerscopeAdapter";
+import { ChunkedDataAdapter } from "./adapters/ChunkedDataAdapter";
 import { normalizeCoordinates } from "./utils/coordinates";
 
 interface SpatialData {
@@ -355,6 +356,65 @@ export class StandardizedDataset {
         numGenes: dataInfo.numGenes,
       },
       rawData: files,
+      adapter: adapter,
+    });
+  }
+
+  /**
+   * Create StandardizedDataset from S3 chunked data
+   */
+  static async fromS3(datasetId: string, onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
+    const adapter = new ChunkedDataAdapter(datasetId);
+
+    // Initialize adapter (fetches URLs and loads manifest/index)
+    await onProgress?.(10, "Initializing adapter...");
+    await adapter.initialize();
+    console.log("Adapter initialized");
+
+    // Load spatial coordinates
+    await onProgress?.(30, "Loading spatial coordinates...");
+    const spatial = await adapter.loadSpatialCoordinates();
+    console.log("Loaded spatial coordinates:", spatial.coordinates.length);
+
+    // Load embeddings
+    await onProgress?.(50, "Loading embeddings...");
+    const embeddings = await adapter.loadEmbeddings();
+    console.log("Loaded embeddings:", Object.keys(embeddings));
+
+    // Load genes
+    await onProgress?.(70, "Loading genes...");
+    const genes = await adapter.loadGenes();
+    console.log("Loaded genes:", genes.length);
+
+    // Load clusters
+    await onProgress?.(90, "Loading clusters...");
+    const clusters = await adapter.loadClusters();
+    console.log("Loaded clusters:", clusters);
+
+    // Get dataset info
+    const dataInfo = adapter.getDatasetInfo();
+    console.log("Dataset info:", dataInfo);
+
+    await onProgress?.(100, "Dataset loaded successfully");
+
+    return new StandardizedDataset({
+      id: dataInfo.id,
+      name: dataInfo.name,
+      type: dataInfo.type,
+      spatial: {
+        coordinates: spatial.coordinates,
+        dimensions: spatial.dimensions,
+      },
+      embeddings: embeddings,
+      genes: genes,
+      clusters: clusters,
+      metadata: {
+        numCells: dataInfo.numCells,
+        numGenes: dataInfo.numGenes,
+        spatialDimensions: dataInfo.spatialDimensions,
+        availableEmbeddings: dataInfo.availableEmbeddings,
+        clusterCount: dataInfo.clusterCount,
+      },
       adapter: adapter,
     });
   }
