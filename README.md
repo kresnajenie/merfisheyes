@@ -1,4 +1,4 @@
-# MERFISH Eyes
+# MERFISHEYES
 
 Web-based 3D visualization platform for spatial transcriptomics data. Supports both **single cell** and **single molecule** datasets.
 
@@ -237,7 +237,7 @@ Pull requests welcome.
 
 ## Acknowledgments
 
-Built at the Bintu Lab, Stanford University.
+Built at the Bogdan Bintu Lab, UCSD.
 
 ## License
 
