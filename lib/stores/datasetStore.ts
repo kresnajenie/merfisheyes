@@ -1,17 +1,20 @@
 import { create } from "zustand";
 import type { StandardizedDataset } from "../StandardizedDataset";
+import type { SingleMoleculeDataset } from "../SingleMoleculeDataset";
+
+type Dataset = StandardizedDataset | SingleMoleculeDataset;
 
 interface DatasetState {
-  datasets: Map<string, StandardizedDataset>;
+  datasets: Map<string, Dataset>;
   currentDatasetId: string | null;
   isLoading: boolean;
   error: string | null;
 
   // Actions
-  addDataset: (dataset: StandardizedDataset) => void;
+  addDataset: (dataset: Dataset) => void;
   removeDataset: (id: string) => void;
   setCurrentDataset: (id: string | null) => void;
-  getCurrentDataset: () => StandardizedDataset | null;
+  getCurrentDataset: () => Dataset | null;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -24,7 +27,7 @@ export const useDatasetStore = create<DatasetState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  addDataset: (dataset: StandardizedDataset) => {
+  addDataset: (dataset: Dataset) => {
     set((state) => {
       const newDatasets = new Map(state.datasets);
       newDatasets.set(dataset.id, dataset);

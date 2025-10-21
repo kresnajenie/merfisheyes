@@ -218,15 +218,26 @@ export class H5adAdapter {
 
   /**
    * Load gene list
+   * Tries multiple common column names: _index, gene, genes
    */
   async loadGenes(): Promise<string[]> {
-    try {
-      const varIndex = await this.fetchVar("_index");
-      return varIndex || [];
-    } catch (error) {
-      console.warn("Failed to load genes:", error);
-      return [];
+    const possibleColumns = ["_index", "gene", "genes"];
+
+    for (const columnName of possibleColumns) {
+      try {
+        console.log(`[H5adAdapter] Trying to load genes from var['${columnName}']`);
+        const varIndex = await this.fetchVar(columnName);
+        if (varIndex && varIndex.length > 0) {
+          console.log(`[H5adAdapter] ✅ Successfully loaded ${varIndex.length} genes from var['${columnName}']`);
+          return varIndex;
+        }
+      } catch (error) {
+        console.warn(`[H5adAdapter] Column '${columnName}' not found in var, trying next...`);
+      }
     }
+
+    console.error("[H5adAdapter] Failed to load genes from any known column");
+    return [];
   }
 
   /**

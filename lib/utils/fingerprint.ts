@@ -1,4 +1,5 @@
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
+import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 
 /**
  * Generate a content-based fingerprint for a dataset
@@ -71,6 +72,41 @@ export async function generateDatasetFingerprint(
     const clusterColumns = dataset.clusters.map((cluster) => cluster.column).sort();
     parts.push(`clusters:${clusterColumns.join(",")}`);
   }
+
+  // Combine all parts and hash
+  const combined = parts.join("|");
+  return await hashString(combined);
+}
+
+/**
+ * Generate a content-based fingerprint for a single molecule dataset
+ * Based on: gene names + per-gene molecule counts
+ *
+ * Uses gene names and molecule counts to uniquely identify the dataset
+ */
+export async function generateSingleMoleculeFingerprint(
+  dataset: SingleMoleculeDataset
+): Promise<string> {
+  const parts: string[] = [];
+
+  // 1. Dataset structure
+  parts.push(`molecules:${dataset.getMoleculeCount()}`);
+  parts.push(`genes:${dataset.uniqueGenes.length}`);
+  parts.push(`type:${dataset.type}`);
+  parts.push(`dimensions:${dataset.dimensions}`);
+
+  // 2. Gene names (sorted for consistency)
+  const sortedGenes = [...dataset.uniqueGenes].sort();
+  parts.push(`gene_names:${sortedGenes.join(",")}`);
+
+  // 3. Per-gene molecule counts (sorted by gene name for consistency)
+  const geneCounts: string[] = [];
+  for (const gene of sortedGenes) {
+    const coords = dataset.getCoordinatesByGene(gene);
+    const moleculeCount = coords.length / dataset.dimensions; // coordinates are flat array
+    geneCounts.push(`${gene}:${moleculeCount}`);
+  }
+  parts.push(`gene_counts:${geneCounts.join(";")}`);
 
   // Combine all parts and hash
   const combined = parts.join("|");

@@ -1,5 +1,3 @@
-// app/api/datasets/initiate/route.ts
-// OR src/app/api/datasets/initiate/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generatePresignedUploadUrl } from "@/lib/s3";
@@ -15,15 +13,16 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-interface InitiateUploadRequest {
+interface InitiateSingleMoleculeUploadRequest {
   fingerprint: string;
   metadata: {
     title?: string;
-    numCells: number;
+    numMolecules: number;
     numGenes: number;
     platform?: string;
     description?: string;
   };
+  manifest: any; // The manifest JSON to store
   files: Array<{
     key: string;
     size: number;
@@ -33,40 +32,41 @@ interface InitiateUploadRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    const body: InitiateUploadRequest = await request.json();
-    const { fingerprint, metadata, files } = body;
+    const body: InitiateSingleMoleculeUploadRequest = await request.json();
+    const { fingerprint, metadata, manifest, files } = body;
 
     // Validate required fields
-    if (!fingerprint || !metadata || !files || files.length === 0) {
+    if (!fingerprint || !metadata || !manifest || !files || files.length === 0) {
       return NextResponse.json(
-        { error: "Missing required fields: fingerprint, metadata, or files" },
+        { error: "Missing required fields: fingerprint, metadata, manifest, or files" },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    if (!metadata.numCells || !metadata.numGenes) {
+    if (!metadata.numMolecules || !metadata.numGenes) {
       return NextResponse.json(
-        { error: "metadata.numCells and metadata.numGenes are required" },
+        { error: "metadata.numMolecules and metadata.numGenes are required" },
         { status: 400, headers: corsHeaders }
       );
     }
 
     // Generate IDs
-    const datasetId = `ds_${nanoid(10)}`;
+    const datasetId = `sm_${nanoid(10)}`;
     const uploadId = `up_${nanoid(10)}`;
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
-    // Start transaction
+    // Start transaction with extended timeout for many files
     const result = await prisma.$transaction(async (tx) => {
       // 1. Create dataset record
       const dataset = await tx.dataset.create({
         data: {
           id: datasetId,
           fingerprint,
-          title: metadata.title || "Untitled Dataset",
-          numCells: metadata.numCells,
+          title: metadata.title || "Untitled Single Molecule Dataset",
+          numCells: metadata.numMolecules, // Store molecule count in numCells field
           numGenes: metadata.numGenes,
-          datasetType: "single_cell",
+          datasetType: "single_molecule",
+          manifestJson: manifest,
           status: "UPLOADING",
         },
       });
@@ -114,6 +114,8 @@ export async function POST(request: NextRequest) {
         uploadSession,
         uploadUrls,
       };
+    }, {
+      timeout: 60000, // 60 second timeout for large datasets with many genes
     });
 
     // Return success response
@@ -129,7 +131,7 @@ export async function POST(request: NextRequest) {
       { headers: corsHeaders }
     );
   } catch (error: any) {
-    console.error("Initiate upload error:", error);
+    console.error("Initiate single molecule upload error:", error);
 
     // Handle unique constraint violation (duplicate fingerprint)
     if (error.code === "P2002" && error.meta?.target?.includes("fingerprint")) {

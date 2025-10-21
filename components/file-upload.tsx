@@ -3,22 +3,40 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import * as Comlink from "comlink";
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
+import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 
 type UploadType = "h5ad" | "xenium" | "merscope";
+
+// Map UploadType to MoleculeDatasetType for single molecule datasets
+const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
+  h5ad: "custom",
+  xenium: "xenium",
+  merscope: "merscope",
+};
 
 interface FileUploadProps {
   type: UploadType;
   title: string;
   description: string;
+  singleMolecule?: boolean;
 }
 
-export function FileUpload({ type, title, description }: FileUploadProps) {
+export function FileUpload({ type, title, description, singleMolecule = false }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
-  const { addDataset, setLoading, setError } = useDatasetStore();
+
+  // Use appropriate store based on singleMolecule mode
+  const cellStore = useDatasetStore();
+  const smStore = useSingleMoleculeStore();
+
+  const { setLoading, setError } = singleMolecule ? smStore : cellStore;
   const router = useRouter();
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -59,55 +77,103 @@ export function FileUpload({ type, title, description }: FileUploadProps) {
       setProgress(0);
       setProgressMessage("Starting...");
 
-      const onProgress = async (prog: number, msg: string) => {
+      const onProgress = (prog: number, msg: string) => {
+        console.log(`[FileUpload] Progress: ${prog}% - ${msg}`);
         setProgress(prog);
         setProgressMessage(msg);
-        // Yield to allow React to re-render
-        await new Promise(resolve => setTimeout(resolve, 0));
       };
 
-      let dataset: StandardizedDataset;
+      let dataset: StandardizedDataset | SingleMoleculeDataset;
 
-      if (type === "h5ad") {
+      if (singleMolecule) {
+        // Single molecule mode - expects single parquet/csv file
         const file = files[0];
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+
         toast.info(`Processing ${file.name}...`);
-        console.log("=== Starting H5AD file processing ===");
+        console.log("=== Starting Single Molecule file processing (in worker) ===");
         console.log("File:", file.name, "Size:", file.size, "bytes");
-        dataset = await StandardizedDataset.fromH5ad(file, onProgress);
-      } else if (type === "xenium") {
-        toast.info(`Processing Xenium folder (${files.length} files)...`);
-        console.log("=== Starting Xenium folder processing ===");
-        console.log("Files:", files.length);
-        dataset = await StandardizedDataset.fromXenium(files, onProgress);
+        console.log("File extension:", fileExtension);
+        console.log("Dataset type:", type, "→", UPLOAD_TYPE_TO_PARQUET_TYPE[type]);
+
+        const parquetDatasetType = UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+
+        // Get singleton worker instance
+        const workerApi = await getSingleMoleculeWorker();
+
+        // Wrap progress callback with Comlink.proxy for cross-thread communication
+        const proxiedProgress = Comlink.proxy(onProgress);
+
+        // Parse file in web worker
+        let serializedData;
+        if (fileExtension === 'parquet') {
+          serializedData = await workerApi.parseParquet(file, parquetDatasetType, proxiedProgress);
+        } else if (fileExtension === 'csv') {
+          serializedData = await workerApi.parseCSV(file, parquetDatasetType, proxiedProgress);
+        } else {
+          throw new Error(`Unsupported file type: .${fileExtension}. Only .parquet and .csv files are supported.`);
+        }
+
+        // Reconstruct dataset from serialized data
+        dataset = SingleMoleculeDataset.fromSerializedData(serializedData);
+
+        console.log("=== Single Molecule Dataset created successfully (from worker) ===");
+        console.log("Dataset ID:", dataset.id);
+        console.log("Dataset name:", dataset.name);
+        console.log("Dataset type:", dataset.type);
+        console.log("Molecule count:", dataset.getMoleculeCount());
+        console.log("Gene count:", dataset.genes.length);
+        console.log("Spatial dimensions:", dataset.dimensions);
+        console.log("Scaling factor:", dataset.scalingFactor);
+        console.log("Summary:", dataset.getSummary());
       } else {
-        // merscope
-        toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
-        console.log("=== Starting MERSCOPE folder processing ===");
-        console.log("Files:", files.length);
-        dataset = await StandardizedDataset.fromMerscope(files, onProgress);
+        // Single cell mode - original behavior
+        if (type === "h5ad") {
+          const file = files[0];
+          toast.info(`Processing ${file.name}...`);
+          console.log("=== Starting H5AD file processing ===");
+          console.log("File:", file.name, "Size:", file.size, "bytes");
+          dataset = await StandardizedDataset.fromH5ad(file, onProgress);
+        } else if (type === "xenium") {
+          toast.info(`Processing Xenium folder (${files.length} files)...`);
+          console.log("=== Starting Xenium folder processing ===");
+          console.log("Files:", files.length);
+          dataset = await StandardizedDataset.fromXenium(files, onProgress);
+        } else {
+          // merscope
+          toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
+          console.log("=== Starting MERSCOPE folder processing ===");
+          console.log("Files:", files.length);
+          dataset = await StandardizedDataset.fromMerscope(files, onProgress);
+        }
+
+        console.log("=== Dataset created successfully ===");
+        console.log("Dataset ID:", dataset.id);
+        console.log("Dataset name:", dataset.name);
+        console.log("Dataset type:", dataset.type);
+        console.log("Point count:", (dataset as StandardizedDataset).getPointCount());
+        console.log("Gene count:", dataset.genes.length);
+        console.log("Spatial dimensions:", (dataset as StandardizedDataset).spatial.dimensions);
+        console.log("Available embeddings:", Object.keys((dataset as StandardizedDataset).embeddings));
+        console.log("Cluster info:", (dataset as StandardizedDataset).clusters);
+        console.log("Summary:", dataset.getSummary());
       }
 
-      console.log("=== Dataset created successfully ===");
-      console.log("Dataset ID:", dataset.id);
-      console.log("Dataset name:", dataset.name);
-      console.log("Dataset type:", dataset.type);
-      console.log("Point count:", dataset.getPointCount());
-      console.log("Gene count:", dataset.genes.length);
-      console.log("Spatial dimensions:", dataset.spatial.dimensions);
-      console.log("Available embeddings:", Object.keys(dataset.embeddings));
-      console.log("Cluster info:", dataset.clusters);
-      console.log("Summary:", dataset.getSummary());
-
-      // Add to Zustand store
+      // Add to appropriate Zustand store
       setProgress(100);
       setProgressMessage("Complete!");
-      addDataset(dataset);
+
+      if (singleMolecule) {
+        smStore.addDataset(dataset as SingleMoleculeDataset);
+      } else {
+        cellStore.addDataset(dataset as StandardizedDataset);
+      }
 
       toast.success(`Dataset loaded successfully!`);
       setLoading(false);
 
-      // Navigate to viewer page
-      router.push("/viewer");
+      // Navigate to appropriate viewer page
+      router.push(singleMolecule ? "/sm-viewer" : "/viewer");
     } catch (error) {
       console.error(`Error processing ${type} data:`, error);
       const errorMessage =
@@ -124,8 +190,20 @@ export function FileUpload({ type, title, description }: FileUploadProps) {
     document.getElementById(`file-input-${type}`)?.click();
   };
 
-  const isFolder = type === "xenium" || type === "merscope";
-  const { isLoading } = useDatasetStore();
+  const isFolder = !singleMolecule && (type === "xenium" || type === "merscope");
+
+  // Get isLoading from appropriate store
+  const cellIsLoading = useDatasetStore((state) => state.isLoading);
+  const smIsLoading = useSingleMoleculeStore((state) => state.isLoading);
+  const isLoading = singleMolecule ? smIsLoading : cellIsLoading;
+
+  // Determine accepted file types
+  const getAcceptedFileTypes = () => {
+    if (singleMolecule) {
+      return ".parquet,.csv";
+    }
+    return type === "h5ad" ? ".h5ad" : ".csv,.tsv,.txt";
+  };
 
   return (
     <div className="w-full">
@@ -151,7 +229,7 @@ export function FileUpload({ type, title, description }: FileUploadProps) {
           multiple={isFolder}
           className="hidden"
           onChange={handleFileInput}
-          accept={type === "h5ad" ? ".h5ad" : ".csv,.tsv,.txt"}
+          accept={getAcceptedFileTypes()}
           {...(isFolder
             ? { webkitdirectory: "", directory: "" }
             : {})}
