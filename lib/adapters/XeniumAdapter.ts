@@ -221,23 +221,7 @@ export class XeniumAdapter {
       }
     }
 
-    // 7) Fallback: derive genes/expr from cells.csv if it contains wide gene columns
-    if (!gotExpr) {
-      const maybeWide = detectWideGeneColumns(this._rows[0], this._genes);
-      if (maybeWide.geneCols.length) {
-        const estimatedCells = this._rows.length;
-        const estimatedGenes = maybeWide.geneCols.length;
-        const estimatedEntries = estimatedCells * estimatedGenes;
-        if (estimatedEntries > 5e7) {
-          console.warn(
-            `[XeniumAdapter] Skipping cells.csv wide gene ingestion (${estimatedGenes} genes × ${estimatedCells} cells ≈ ${estimatedEntries.toLocaleString()} entries).`
-          );
-        } else {
-          await this._ingestFromCellsWide(maybeWide.geneCols);
-          gotExpr = this._genes.length > 0 && this._exprByGene.size > 0;
-        }
-      }
-    }
+    // 7) Fallback: disabled to avoid huge allocations from cells.csv wide columns
 
     this._applyGeneFilters();
 
@@ -1195,7 +1179,11 @@ async function extractRelevantArchives(files: File[]): Promise<File[]> {
         const isBarcodesTsv =
           /cell_feature_matrix\//.test(pathLower) &&
           /barcodes\.tsv(\.gz)?$/.test(pathLower);
-        if (!isClusterCsv && !isFeatureTsv && !isBarcodesTsv) continue;
+        const isMatrixMtx =
+          /cell_feature_matrix\//.test(pathLower) &&
+          /matrix\.mtx(\.gz)?$/.test(pathLower);
+        if (!isClusterCsv && !isFeatureTsv && !isBarcodesTsv && !isMatrixMtx)
+          continue;
 
         const blob = new File([entry.data], entry.name, {
           type: "text/plain",
