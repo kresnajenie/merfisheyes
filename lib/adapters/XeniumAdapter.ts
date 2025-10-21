@@ -600,16 +600,18 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
 }
 
 function normalizeRow(row: RowData, headers: string[]): RowData {
-  const normalized: RowData = {};
-  const keys = headers.length ? headers : Object.keys(row || {});
+  if (!row) return {};
+  const keys = headers.length ? headers : Object.keys(row);
   const lookup = buildRowKeyLookup(row);
   for (const key of keys) {
     if (!key) continue;
-    const sourceKey = lookup.get(key) ?? key;
-    const value = row ? row[sourceKey] : undefined;
-    normalized[key] = value ?? "";
+    const sourceKey = lookup.get(key);
+    if (sourceKey && sourceKey !== key) {
+      row[key] = row[sourceKey];
+    }
+    if (row[key] == null) row[key] = "";
   }
-  return normalized;
+  return row;
 }
 
 function ensureHeaders(
