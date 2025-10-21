@@ -99,6 +99,15 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
           </NavbarItem>
         )}
 
+        {/* Show Upload & Save button on /sm-viewer when dataset is loaded */}
+        {pathname === "/sm-viewer" && onUploadClick && (
+          <NavbarItem>
+            <Button color="primary" onPress={onUploadClick}>
+              Upload & Save
+            </Button>
+          </NavbarItem>
+        )}
+
         {/* Show Back to Viewer button on /viewer/[id] */}
         {pathname?.startsWith("/viewer/") && pathname !== "/viewer" && (
           <NavbarItem>

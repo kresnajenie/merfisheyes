@@ -1,0 +1,183 @@
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
+import { SingleMoleculeControls } from "@/components/single-molecule-controls";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import LightRays from "@/components/react-bits/LightRays";
+import { subtitle, title } from "@/components/primitives";
+import { Button, Spinner } from "@heroui/react";
+
+function SingleMoleculeViewerByIdContent() {
+  const params = useParams();
+  const router = useRouter();
+  const { addDataset } = useSingleMoleculeStore();
+  // const { selectGene } = useSingleMoleculeVisualizationStore();
+  const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const datasetId = params.id as string;
+
+  useEffect(() => {
+    if (!datasetId) {
+      setError("No dataset ID provided");
+      setIsLoading(false);
+      return;
+    }
+
+    loadDatasetFromServer(datasetId);
+  }, [datasetId]);
+
+  const loadDatasetFromServer = async (id: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      console.log("Loading single molecule dataset from S3:", id);
+
+      // Import SingleMoleculeDataset
+      const { SingleMoleculeDataset } = await import(
+        "@/lib/SingleMoleculeDataset"
+      );
+
+      // Load dataset using fromS3 method with lazy loading
+      const smDataset = await SingleMoleculeDataset.fromS3(
+        id,
+        (progress, message) => {
+          console.log(`${progress}%: ${message}`);
+        }
+      );
+
+      console.log(
+        "SingleMoleculeDataset loaded from S3:",
+        smDataset.getSummary()
+      );
+
+      // Store dataset in both local state and global store
+      setDataset(smDataset);
+      addDataset(smDataset);
+      console.log("Dataset added to singleMoleculeStore");
+
+      // Auto-select first 5 genes for visualization (if available)
+      const genesToSelect = smDataset.uniqueGenes.slice(0, 5);
+      // genesToSelect.forEach((gene) => selectGene(gene));
+      console.log("Auto-selected genes:", genesToSelect);
+
+      setIsLoading(false);
+    } catch (err) {
+      console.error("Error loading single molecule dataset:", err);
+      setError(err instanceof Error ? err.message : "Failed to load dataset");
+      setIsLoading(false);
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <>
+        <div className="fixed inset-0 w-full h-full z-0">
+          <LightRays
+            raysOrigin="top-left"
+            raysColor="#667eea"
+            rayLength={10}
+            raysSpeed={0.8}
+            lightSpread={1.0}
+            pulsating={false}
+            mouseInfluence={0.1}
+          />
+        </div>
+        <div className="fixed inset-0 w-full h-full z-0">
+          <LightRays
+            raysOrigin="top-right"
+            raysColor="#764ba2"
+            rayLength={10}
+            raysSpeed={0.8}
+            lightSpread={1.0}
+            pulsating={false}
+            mouseInfluence={0.1}
+          />
+        </div>
+        <div className="relative z-10 flex items-center justify-center h-full">
+          <div className="flex flex-col items-center gap-4">
+            <Spinner size="lg" color="secondary" />
+            <p className={subtitle()}>Loading single molecule dataset...</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <>
+        <div className="fixed inset-0 w-full h-full z-0">
+          <LightRays
+            raysOrigin="top-center"
+            raysColor="#FF72E1"
+            rayLength={10}
+            raysSpeed={0.8}
+            lightSpread={1.0}
+            pulsating={false}
+            mouseInfluence={0.1}
+          />
+        </div>
+        <div className="relative z-10 flex items-center justify-center h-full p-8">
+          <div className="flex flex-col items-center gap-6 max-w-2xl w-full">
+            <div className="text-center">
+              <h2 className={title({ size: "md", color: "pink" })}>
+                Failed to load dataset
+              </h2>
+              <p className={subtitle({ class: "mt-4" })}>{error}</p>
+            </div>
+            <div className="flex gap-4">
+              <Button
+                color="secondary"
+                onPress={() => router.push("/sm-viewer")}
+              >
+                Go to Single Molecule Viewer
+              </Button>
+              <Button
+                color="default"
+                variant="bordered"
+                onPress={() => loadDatasetFromServer(datasetId)}
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Dataset loaded
+  if (!dataset) {
+    return null;
+  }
+
+  return (
+    <>
+      <SingleMoleculeControls />
+      <SingleMoleculeThreeScene />
+    </>
+  );
+}
+
+export default function SingleMoleculeViewerByIdPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-full">
+          <Spinner size="lg" />
+        </div>
+      }
+    >
+      <SingleMoleculeViewerByIdContent />
+    </Suspense>
+  );
+}
