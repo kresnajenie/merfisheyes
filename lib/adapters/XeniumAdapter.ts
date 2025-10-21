@@ -54,7 +54,7 @@ export class XeniumAdapter {
 
   async initialize(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<void> {
     this._onProgress = onProgress;
-    const expandedArchives = await extractAnalysisArchives(files);
+    const expandedArchives = await extractRelevantArchives(files);
     this.files = expandedArchives.length ? [...files, ...expandedArchives] : files;
 
     // 1) Load cells table (csv or csv.gz)
@@ -832,7 +832,7 @@ function detectWideGeneColumns(sampleRow: RowData, knownGenes: string[] = []): {
 
 type TarEntry = { name: string; data: Uint8Array };
 
-async function extractAnalysisArchives(files: File[]): Promise<File[]> {
+async function extractRelevantArchives(files: File[]): Promise<File[]> {
   const extracted: File[] = [];
   for (const file of files) {
     const fileName = (file.name || "").toLowerCase();
@@ -842,17 +842,19 @@ async function extractAnalysisArchives(files: File[]): Promise<File[]> {
       !fileName.endsWith(".tgz")
     )
       continue;
-    if (!/analysis/.test(fileName)) continue;
+    if (!/analysis|cell_feature_matrix/.test(fileName)) continue;
     try {
       const entries = await readTarEntriesFromFile(file);
       for (const entry of entries) {
         const pathLower = entry.name.toLowerCase();
-        if (
-          !/analysis\/clustering\//.test(pathLower) ||
-          !/\.(csv|tsv)$/.test(pathLower)
-        ) {
-          continue;
-        }
+        const isClusterCsv =
+          /analysis\/clustering\//.test(pathLower) &&
+          /\.(csv|tsv)$/.test(pathLower);
+        const isFeatureTsv =
+          /cell_feature_matrix\//.test(pathLower) &&
+          /features\.tsv(\.gz)?$/.test(pathLower);
+        if (!isClusterCsv && !isFeatureTsv) continue;
+
         const blob = new File([entry.data], entry.name, {
           type: "text/plain",
           lastModified: file.lastModified,
