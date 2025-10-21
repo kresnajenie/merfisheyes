@@ -555,12 +555,7 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
           headers = extractHeadersFromRow(row);
         }
         const normalized = normalizeRow(row, headers);
-        // Skip rows that are entirely empty after normalization
-        if (
-          Object.keys(normalized).length === 0 ||
-          Object.values(normalized).every((val) => val === "")
-        )
-          continue;
+        if (!hasNonEmptyValue(normalized, headers)) continue;
         rows.push(normalized);
       }
     };
@@ -570,6 +565,8 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
       skipEmptyLines: "greedy",
       worker: false,
       dynamicTyping: false,
+      transformHeader: (header: string | undefined) =>
+        (header ?? "").trim(),
       chunk: (results: ParseResult<RowData>) => {
         if (!results) return;
         headers = ensureHeaders(headers, results.meta?.fields);
@@ -602,16 +599,32 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
 function normalizeRow(row: RowData, headers: string[]): RowData {
   if (!row) return {};
   const keys = headers.length ? headers : Object.keys(row);
-  const lookup = buildRowKeyLookup(row);
   for (const key of keys) {
     if (!key) continue;
-    const sourceKey = lookup.get(key);
-    if (sourceKey && sourceKey !== key) {
-      row[key] = row[sourceKey];
-    }
-    if (row[key] == null) row[key] = "";
+    if (!(key in row) || row[key] == null) row[key] = "";
   }
   return row;
+}
+
+function hasNonEmptyValue(row: RowData, headers: string[]): boolean {
+  if (!row) return false;
+  const keys = headers.length ? headers : Object.keys(row);
+  for (const key of keys) {
+    if (!key) continue;
+    const value = row[key];
+    if (value == null) continue;
+    if (typeof value === "number") {
+      if (Number.isFinite(value)) return true;
+      continue;
+    }
+    if (typeof value === "boolean") {
+      if (value) return true;
+      continue;
+    }
+    const s = String(value).trim();
+    if (s !== "") return true;
+  }
+  return false;
 }
 
 function ensureHeaders(
@@ -640,17 +653,6 @@ function extractHeadersFromRow(row: RowData): string[] {
     headers.push(trimmed);
   }
   return headers;
-}
-
-function buildRowKeyLookup(row: RowData | null | undefined): Map<string, string> {
-  const map = new Map<string, string>();
-  if (!row) return map;
-  for (const rawKey of Object.keys(row)) {
-    if (!map.has(rawKey)) map.set(rawKey, rawKey);
-    const trimmed = rawKey.trim();
-    if (trimmed && !map.has(trimmed)) map.set(trimmed, rawKey);
-  }
-  return map;
 }
 
 function toNum(v: any): number {
