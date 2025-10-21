@@ -355,6 +355,18 @@ export class XeniumAdapter {
     });
     if (!candidates.length) return;
 
+    const nCells = this._rows.length || 1;
+    const maxReasonableUnique = Math.max(50, Math.floor(0.1 * nCells));
+    let best:
+      | {
+          file: File;
+          labelKey: string;
+          lut: Map<string, string>;
+          assigned: number;
+          uniqCount: number;
+        }
+      | null = null;
+
     for (const f of candidates) {
       try {
         const { headers, rows } = await this._parseCsvFile(f);
@@ -385,30 +397,41 @@ export class XeniumAdapter {
 
         // build map of id->label
         const lut = new Map();
+        const uniqVals = new Set<string>();
         for (const r of rows) {
           const cid = String(r[cellIdKeyAlt] ?? "").trim();
           const lab = String(r[labelKey] ?? "").trim();
-          if (cid) lut.set(cid, lab);
+          if (cid) {
+            lut.set(cid, lab);
+            if (lab) uniqVals.add(lab);
+          }
         }
+        if (!lut.size) continue;
 
         let assigned = 0;
+        const matchedVals: string[] = [];
         for (const r of this._rows) {
           const cid = String(r[cellIdKey] ?? "").trim();
           if (!cid) continue;
           const lab = lut.get(cid);
           if (lab != null) {
-            r[labelKey] = lab;
             assigned++;
+            if (lab) matchedVals.push(lab);
           }
         }
 
-        if (assigned > 0) {
-          this._clusterColumn = labelKey;
-          if (!this._obsKeys.includes(labelKey)) this._obsKeys.push(labelKey);
-          console.log(
-            `[XeniumAdapter] Joined ${assigned} labels from ${f.name} onto cells (column "${labelKey}")`
-          );
-          return;
+        if (assigned === 0) continue;
+
+        const uniqCount = new Set(matchedVals).size;
+        if (uniqCount === 0) continue;
+        if (uniqCount > maxReasonableUnique) continue;
+
+        if (
+          !best ||
+          uniqCount > best.uniqCount ||
+          (uniqCount === best.uniqCount && assigned > best.assigned)
+        ) {
+          best = { file: f, labelKey, lut, assigned, uniqCount };
         }
       } catch (e) {
         console.warn(
@@ -417,6 +440,21 @@ export class XeniumAdapter {
           e
         );
       }
+    }
+
+    if (best) {
+      const { labelKey, lut, file, assigned, uniqCount } = best;
+      for (const r of this._rows) {
+        const cid = String(r[cellIdKey] ?? "").trim();
+        if (!cid) continue;
+        const lab = lut.get(cid);
+        if (lab != null) r[labelKey] = lab;
+      }
+      this._clusterColumn = labelKey;
+      if (!this._obsKeys.includes(labelKey)) this._obsKeys.push(labelKey);
+      console.log(
+        `[XeniumAdapter] Joined ${assigned} labels from ${file.name} onto cells (column "${labelKey}", unique=${uniqCount})`
+      );
     }
   }
 
