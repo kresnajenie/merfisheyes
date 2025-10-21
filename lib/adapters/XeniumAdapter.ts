@@ -23,7 +23,7 @@ interface ClusterData {
 
 type RowData = Record<string, any>;
 
-export class XeniumAdapter { 
+export class XeniumAdapter {
   files: File[];
   metadata: XeniumMetadata;
   _rows: RowData[];
@@ -32,6 +32,7 @@ export class XeniumAdapter {
   _genes: string[];
   _exprByGene: Map<string, Float32Array>;
   _cellIndex: Map<string, number>;
+  _featureTypes: Map<string, string>;
   _onProgress?: (progress: number, message: string) => Promise<void> | void;
 
   constructor() {
@@ -50,6 +51,7 @@ export class XeniumAdapter {
     this._genes = [];
     this._exprByGene = new Map();
     this._cellIndex = new Map();
+    this._featureTypes = new Map();
   }
 
   async initialize(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<void> {
@@ -159,6 +161,7 @@ export class XeniumAdapter {
     // 5) Genes: features, else transcripts
     //    (we'll still build expression from transcripts or cells-wide if possible)
     await this._onProgress?.(50, "Loading gene features...");
+    this._featureTypes.clear();
     const featureFile = this._findFileOneOf([
       "features.tsv",
       "features.tsv.gz",
@@ -171,46 +174,24 @@ export class XeniumAdapter {
     ]);
     if (featureFile) {
       try {
-        const { rows } = await this._parseCsvFile(featureFile);
-        if (rows.length) {
-          const key = pickFirstPresent(rows[0], [
-            "gene",
-            "gene_symbol",
-            "gene_id",
-            "gene_name",
-            "feature_name",
-            "feature",
-            "feature_id",
-            "target",
-            "target_name",
-            "name",
-            "id",
-          ]);
-          if (key) {
-            this._genes = rows.map((r) => String(r[key] || "")).filter(Boolean);
+        const featureEntries = await parseFeaturesFile(featureFile);
+        if (featureEntries.length) {
+          const seen = new Set<string>();
+          this._genes = [];
+          for (const entry of featureEntries) {
+            const gene = entry.gene;
+            if (!gene || seen.has(gene)) continue;
+            seen.add(gene);
+            this._genes.push(gene);
+            if (entry.type) this._featureTypes.set(gene, entry.type);
           }
-        }
-      } catch (e) {
-        console.warn("[XeniumAdapter] Failed parsing features table:", e);
-      }
-
-      if (!this._genes.length) {
-        try {
-          const text = await fileToTextMaybeGz(featureFile);
-          const fallbackGenes = parseHeaderlessFeatures(text);
-          if (fallbackGenes.length) {
-            this._genes = fallbackGenes;
-          } else {
-            console.warn(
-              "[XeniumAdapter] features.tsv present but fallback parsing yielded no genes."
-            );
-          }
-        } catch (err) {
+        } else {
           console.warn(
-            "[XeniumAdapter] Failed headerless parse of features.tsv:",
-            err
+            "[XeniumAdapter] features.tsv parsed but yielded no entries."
           );
         }
+      } catch (err) {
+        console.warn("[XeniumAdapter] Failed parsing features.tsv:", err);
       }
     } else {
       console.warn(
@@ -257,6 +238,8 @@ export class XeniumAdapter {
         }
       }
     }
+
+    this._applyGeneFilters();
 
     if (!this._genes.length)
       console.warn("No gene names found (or none usable for expression).");
@@ -773,11 +756,39 @@ export class XeniumAdapter {
     const { rows } = await this._parseCsvFile(f);
     return rows;
   }
+
+  private _applyGeneFilters(): void {
+    if (!this._genes.length) return;
+    const filtered: string[] = [];
+    let removed = 0;
+    const seen = new Set<string>();
+    for (const gene of this._genes) {
+      if (!gene || seen.has(gene)) continue;
+      seen.add(gene);
+      const type = this._featureTypes.get(gene) || "";
+      if (shouldFilterGene(gene, type)) {
+        this._exprByGene.delete(gene);
+        removed++;
+      } else {
+        filtered.push(gene);
+      }
+    }
+    if (removed) {
+      console.log(
+        `[XeniumAdapter] Filtered ${removed} control/unassigned features from gene list.`
+      );
+    }
+    this._genes = filtered;
+  }
 }
 
 /* ----------------- parsing & utility helpers ----------------- */
 
 type ParsedTable = { headers: string[]; rows: RowData[] };
+interface FeatureEntry {
+  gene: string;
+  type?: string;
+}
 
 async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
   if (typeof input === "string" && !input.trim()) {
@@ -896,19 +907,17 @@ function extractHeadersFromRow(row: RowData): string[] {
   return headers;
 }
 
-function parseHeaderlessFeatures(text: string): string[] {
-  if (!text) return [];
-  const lines = text.split(/\r?\n/);
-  const genes: string[] = [];
-  for (const line of lines) {
-    if (!line) continue;
-    if (line.startsWith("#")) continue;
-    const parts = line.split(/\t|,/);
-    if (parts.length < 2) continue;
-    const gene = parts[1]?.trim();
-    if (gene) genes.push(gene);
-  }
-  return Array.from(new Set(genes));
+function shouldFilterGene(gene: string, featureType: string): boolean {
+  const g = gene.toLowerCase();
+  const t = (featureType || "").toLowerCase();
+  const patterns = [
+    /negative[\s_-]*control/,
+    /neg[\s_-]*ctrl/,
+    /unassigned/,
+    /deprecated/,
+    /codeword/,
+  ];
+  return patterns.some((rx) => rx.test(g) || rx.test(t));
 }
 
 async function readBarcodesFile(file: File): Promise<string[]> {
@@ -968,6 +977,71 @@ async function* readLinesFromFile(file: File): AsyncGenerator<string> {
     if (buffer.endsWith("\r")) buffer = buffer.slice(0, -1);
     yield buffer;
   }
+}
+
+async function parseFeaturesFile(file: File): Promise<FeatureEntry[]> {
+  const lines: string[] = [];
+  for await (const rawLine of readLinesFromFile(file)) {
+    if (rawLine == null) continue;
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    lines.push(trimmed);
+  }
+  if (!lines.length) return [];
+
+  const delim = lines[0].includes("\t") ? "\t" : ",";
+  const firstParts = lines[0].split(delim).map((s) => s.trim());
+  const looksLikeHeader = firstParts.some((p) =>
+    /gene|feature|target|type|id/.test(p.toLowerCase())
+  );
+
+  let startIdx = 0;
+  let geneIdx = -1;
+  let typeIdx = -1;
+
+  if (looksLikeHeader) {
+    startIdx = 1;
+    firstParts.forEach((col, idx) => {
+      const lower = col.toLowerCase();
+      if (
+        geneIdx === -1 &&
+        [
+          "gene",
+          "gene_symbol",
+          "gene_id",
+          "gene_name",
+          "feature_name",
+          "feature",
+          "target",
+          "name",
+          "id",
+        ].includes(lower)
+      ) {
+        geneIdx = idx;
+      } else if (
+        typeIdx === -1 &&
+        (/type/.test(lower) || /class/.test(lower) || /category/.test(lower))
+      ) {
+        typeIdx = idx;
+      }
+    });
+    if (geneIdx === -1) geneIdx = Math.min(1, firstParts.length - 1);
+  } else {
+    startIdx = 0;
+    geneIdx = firstParts.length >= 2 ? 1 : 0;
+    typeIdx = firstParts.length >= 3 ? 2 : -1;
+  }
+
+  const entries: FeatureEntry[] = [];
+  for (let i = startIdx; i < lines.length; i++) {
+    const parts = lines[i].split(delim);
+    if (!parts.length) continue;
+    const gene = (parts[geneIdx] ?? "").trim();
+    if (!gene) continue;
+    const type = typeIdx >= 0 ? (parts[typeIdx] ?? "").trim() : "";
+    entries.push({ gene, type });
+  }
+  return entries;
 }
 
 function toNum(v: any): number {
