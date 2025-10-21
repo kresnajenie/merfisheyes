@@ -8,6 +8,7 @@ import { useState, useMemo } from "react";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import type { VisualizationMode } from "@/lib/stores/visualizationStore";
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
 
 interface VisualizationPanelProps {
@@ -26,7 +27,10 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
     toggleCelltype,
     setSelectedGene,
   } = useVisualizationStore();
-  const dataset = getCurrentDataset();
+
+  // Type guard: this component only works with StandardizedDataset
+  const rawDataset = getCurrentDataset();
+  const dataset = (rawDataset && 'clusters' in rawDataset) ? rawDataset as StandardizedDataset : null;
 
   // Get cluster columns for dropdown
   const clusterColumns = useMemo(() => {

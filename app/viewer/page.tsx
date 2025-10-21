@@ -19,26 +19,35 @@ function ViewerContent() {
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
 
   useEffect(() => {
+    // Helper function to check if dataset is StandardizedDataset
+    const isStandardizedDataset = (ds: any): ds is StandardizedDataset => {
+      return ds && 'spatial' in ds && 'embeddings' in ds;
+    };
+
     // Check for dataset ID in URL params
     const urlDatasetId = searchParams.get("dataset");
 
     if (urlDatasetId) {
       // Try to get dataset from URL param
       const datasetFromUrl = datasets.get(urlDatasetId);
-      if (datasetFromUrl) {
+      if (datasetFromUrl && isStandardizedDataset(datasetFromUrl)) {
         console.log("Loading dataset from URL param:", urlDatasetId);
         setDataset(datasetFromUrl);
       } else {
-        console.warn(`Dataset with ID ${urlDatasetId} not found in store`);
+        console.warn(`Dataset with ID ${urlDatasetId} not found in store or is not a StandardizedDataset`);
         // Fall back to current dataset
         const current = getCurrentDataset();
-        setDataset(current);
+        if (current && isStandardizedDataset(current)) {
+          setDataset(current);
+        }
       }
     } else {
       // Use current dataset from store
       const current = getCurrentDataset();
       console.log("Loading current dataset:", current?.id);
-      setDataset(current);
+      if (current && isStandardizedDataset(current)) {
+        setDataset(current);
+      }
     }
   }, [searchParams, datasets, currentDatasetId, getCurrentDataset]);
 

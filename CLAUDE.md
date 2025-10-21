@@ -295,6 +295,16 @@ The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/
 - WASM memory copied to JavaScript for simpler lifecycle management
 - Parquet files more memory-efficient than CSV parsing
 
+### Adapter Threading Model
+
+All adapters (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter) **do NOT use web workers**:
+- File I/O operations are async (non-blocking)
+- Data parsing and processing happens synchronously in main thread
+- ChunkedDataAdapter uses browser's `DecompressionStream` API (streaming, not web workers)
+- This approach keeps implementation simple and avoids message-passing overhead
+- For large datasets, async I/O prevents blocking during file reads, but parsing may briefly freeze UI
+- Consider web workers in future if parsing performance becomes an issue for very large files
+
 ### TypeScript Configuration
 
 - Path alias `@/*` maps to project root for clean imports

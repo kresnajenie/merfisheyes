@@ -1,4 +1,4 @@
-import { parquetService } from "./services/parquetService";
+import { hyparquetService } from "./services/hyparquetService";
 import { normalizeCoordinates } from "./utils/coordinates";
 import {
   MOLECULE_COLUMN_MAPPINGS,
@@ -134,6 +134,39 @@ export class SingleMoleculeDataset {
   }
 
   /**
+   * Get gene index entries for serialization (used by web worker)
+   */
+  getGeneIndexEntries(): [string, number[]][] {
+    return Array.from(this.geneIndex.entries());
+  }
+
+  /**
+   * Reconstruct dataset from serializable data (used after web worker processing)
+   */
+  static fromSerializedData(data: {
+    id: string;
+    name: string;
+    type: string;
+    uniqueGenes: string[];
+    geneIndexEntries: [string, number[]][];
+    dimensions: 2 | 3;
+    scalingFactor: number;
+    metadata: Record<string, any>;
+  }): SingleMoleculeDataset {
+    return new SingleMoleculeDataset({
+      id: data.id,
+      name: data.name,
+      type: data.type,
+      uniqueGenes: data.uniqueGenes,
+      geneIndex: new Map(data.geneIndexEntries),
+      dimensions: data.dimensions,
+      scalingFactor: data.scalingFactor,
+      metadata: data.metadata,
+      rawData: null,
+    });
+  }
+
+  /**
    * Get coordinates for a specific gene
    * Returns flat array: [x1,y1,z1, x2,y2,z2, ...]
    * Throws error if gene not found
@@ -169,39 +202,52 @@ export class SingleMoleculeDataset {
     const startTime = performance.now();
     console.log(`[SingleMoleculeDataset] Starting parquet parsing: ${file.name}`);
 
-    await onProgress?.(10, "Reading parquet file...");
-
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
 
-    // Read parquet file using parquet-wasm
-    const table = await parquetService.readParquet(file);
+    // Determine which columns to read
+    const columnsToRead = [
+      columnMapping.gene,
+      columnMapping.x,
+      columnMapping.y,
+    ];
+
+    // Add z column if it exists (for 3D data)
+    if (columnMapping.z) {
+      columnsToRead.push(columnMapping.z);
+    }
+
+    // Read parquet file using hyparquet
+    const columnData = await hyparquetService.readParquetColumns(
+      file,
+      columnsToRead,
+      onProgress
+    );
 
     await onProgress?.(30, "Extracting columns...");
 
-    // Extract columns from Arrow Table
-    const geneColumn = table.getChild(columnMapping.gene);
-    const xColumn = table.getChild(columnMapping.x);
-    const yColumn = table.getChild(columnMapping.y);
-    const zColumn = table.getChild(columnMapping.z);
+    // Extract columns from the returned Map
+    const moleculeGenes = columnData.get(columnMapping.gene);
+    const xData = columnData.get(columnMapping.x);
+    const yData = columnData.get(columnMapping.y);
+    const zData = columnData.get(columnMapping.z || "");
 
-    if (!geneColumn || !xColumn || !yColumn) {
+    if (!moleculeGenes || !xData || !yData) {
       throw new Error(
         `Missing required columns. Expected: ${columnMapping.gene}, ${columnMapping.x}, ${columnMapping.y}`
       );
     }
 
-    await onProgress?.(50, "Converting to JavaScript arrays...");
+    await onProgress?.(50, "Converting to typed arrays...");
 
-    // Copy Arrow data to JavaScript (this frees WASM memory)
-    const moleculeGenes: string[] = geneColumn.toArray();
-    const xCoords = new Float32Array(xColumn.toArray());
-    const yCoords = new Float32Array(yColumn.toArray());
-    const zCoords = zColumn
-      ? new Float32Array(zColumn.toArray())
+    // Convert to typed arrays for efficiency
+    const xCoords = new Float32Array(xData);
+    const yCoords = new Float32Array(yData);
+    const zCoords = zData
+      ? new Float32Array(zData)
       : new Float32Array(xCoords.length); // Fill with 0s if 2D
 
-    const dimensions: 2 | 3 = zColumn ? 3 : 2;
+    const dimensions: 2 | 3 = zData ? 3 : 2;
 
     await onProgress?.(60, "Normalizing coordinates...");
 

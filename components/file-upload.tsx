@@ -3,16 +3,18 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import * as Comlink from "comlink";
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
-import { ParquetDatasetType } from "@/lib/adapters/ParquetAdapter";
+import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 
 type UploadType = "h5ad" | "xenium" | "merscope";
 
-// Map UploadType to ParquetDatasetType for single molecule datasets
-const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, ParquetDatasetType> = {
+// Map UploadType to MoleculeDatasetType for single molecule datasets
+const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
   h5ad: "custom",
   xenium: "xenium",
   merscope: "merscope",
@@ -75,11 +77,10 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
       setProgress(0);
       setProgressMessage("Starting...");
 
-      const onProgress = async (prog: number, msg: string) => {
+      const onProgress = (prog: number, msg: string) => {
+        console.log(`[FileUpload] Progress: ${prog}% - ${msg}`);
         setProgress(prog);
         setProgressMessage(msg);
-        // Yield to allow React to re-render
-        await new Promise(resolve => setTimeout(resolve, 0));
       };
 
       let dataset: StandardizedDataset | SingleMoleculeDataset;
@@ -90,24 +91,33 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
         const fileExtension = file.name.split('.').pop()?.toLowerCase();
 
         toast.info(`Processing ${file.name}...`);
-        console.log("=== Starting Single Molecule file processing ===");
+        console.log("=== Starting Single Molecule file processing (in worker) ===");
         console.log("File:", file.name, "Size:", file.size, "bytes");
         console.log("File extension:", fileExtension);
         console.log("Dataset type:", type, "→", UPLOAD_TYPE_TO_PARQUET_TYPE[type]);
 
         const parquetDatasetType = UPLOAD_TYPE_TO_PARQUET_TYPE[type];
 
-        // Choose parser based on file extension
-        // Note: Using direct parsing instead of worker due to WASM URL issues in workers
+        // Get singleton worker instance
+        const workerApi = await getSingleMoleculeWorker();
+
+        // Wrap progress callback with Comlink.proxy for cross-thread communication
+        const proxiedProgress = Comlink.proxy(onProgress);
+
+        // Parse file in web worker
+        let serializedData;
         if (fileExtension === 'parquet') {
-          dataset = await SingleMoleculeDataset.fromParquet(file, parquetDatasetType, onProgress);
+          serializedData = await workerApi.parseParquet(file, parquetDatasetType, proxiedProgress);
         } else if (fileExtension === 'csv') {
-          dataset = await SingleMoleculeDataset.fromCSV(file, parquetDatasetType, onProgress);
+          serializedData = await workerApi.parseCSV(file, parquetDatasetType, proxiedProgress);
         } else {
           throw new Error(`Unsupported file type: .${fileExtension}. Only .parquet and .csv files are supported.`);
         }
 
-        console.log("=== Single Molecule Dataset created successfully ===");
+        // Reconstruct dataset from serialized data
+        dataset = SingleMoleculeDataset.fromSerializedData(serializedData);
+
+        console.log("=== Single Molecule Dataset created successfully (from worker) ===");
         console.log("Dataset ID:", dataset.id);
         console.log("Dataset name:", dataset.name);
         console.log("Dataset type:", dataset.type);
@@ -181,7 +191,11 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
   };
 
   const isFolder = !singleMolecule && (type === "xenium" || type === "merscope");
-  const { isLoading } = useDatasetStore();
+
+  // Get isLoading from appropriate store
+  const cellIsLoading = useDatasetStore((state) => state.isLoading);
+  const smIsLoading = useSingleMoleculeStore((state) => state.isLoading);
+  const isLoading = singleMolecule ? smIsLoading : cellIsLoading;
 
   // Determine accepted file types
   const getAcceptedFileTypes = () => {

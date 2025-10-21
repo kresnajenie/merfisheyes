@@ -5,6 +5,7 @@ import { UploadSettingsModal } from "@/components/upload-settings-modal";
 import { SingleMoleculeUploadModal } from "@/components/single-molecule-upload-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 
@@ -25,6 +26,16 @@ export function NavbarWrapper() {
   const currentDatasetId = isSingleMolecule ? smDatasetId : cellDatasetId;
   const hasDataset = currentDatasetId !== null;
 
+  // Helper to ensure we only pass StandardizedDataset to UploadSettingsModal
+  const getCellDatasetAsStandardized = (): StandardizedDataset | null => {
+    const dataset = getCellDataset();
+    // Type guard: check if it's a StandardizedDataset
+    if (dataset && 'spatial' in dataset && 'embeddings' in dataset) {
+      return dataset as StandardizedDataset;
+    }
+    return null;
+  };
+
   return (
     <>
       <Navbar
@@ -40,7 +51,7 @@ export function NavbarWrapper() {
         <UploadSettingsModal
           isOpen={isUploadModalOpen}
           onClose={() => setIsUploadModalOpen(false)}
-          dataset={getCellDataset()}
+          dataset={getCellDatasetAsStandardized()}
         />
       )}
     </>

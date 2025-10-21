@@ -45,23 +45,13 @@ export function SingleMoleculeThreeScene() {
     // Initialize Three.js scene
     const { scene, camera, renderer, controls, animate } = initializeScene(
       containerRef.current,
-      dataset.dimensions
+      { is2D: dataset.dimensions === 2 }
     );
 
     sceneRef.current = scene;
     rendererRef.current = renderer;
     cameraRef.current = camera;
     controlsRef.current = controls;
-
-    // For 2D: disable rotation, enable panning with left click
-    if (dataset.dimensions === 2 || viewMode === "2D") {
-      controls.enableRotate = false;
-      controls.mouseButtons = {
-        LEFT: THREE.MOUSE.PAN,
-        MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.PAN,
-      };
-    }
 
     // Start animation loop
     animate();
