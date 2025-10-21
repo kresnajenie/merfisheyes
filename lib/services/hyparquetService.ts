@@ -40,17 +40,25 @@ class HyparquetService {
       throw new Error("Hyparquet service can only be used in browser");
     }
 
+    // Warn for very large files
+    const fileGB = file.size / 1_000_000_000;
+    if (fileGB > 2) {
+      console.warn(`⚠️ Large file detected: ${fileGB.toFixed(1)}GB - This may cause memory issues`);
+    }
+
     await onProgress?.(5, "Reading file into memory...");
     console.log(columnNames);
 
     // Convert File to ArrayBuffer (hyparquet accepts ArrayBuffer as AsyncBuffer in browser)
+    // Note: This loads entire file into memory - may fail for very large files (>2-3GB)
     const arrayBuffer = await file.arrayBuffer();
 
     await onProgress?.(10, "Parsing parquet structure...");
 
-    // Map to store accumulated column data
-    const columnData = new Map<string, any[]>();
-    columnNames.forEach((name) => columnData.set(name, []));
+    // Map to store accumulated column data as arrays of chunks
+    // This avoids repeated array concatenation which creates many copies
+    const columnChunks = new Map<string, any[][]>();
+    columnNames.forEach((name) => columnChunks.set(name, []));
 
     let totalPages = 0;
     let relevantPages = 0;
@@ -68,14 +76,9 @@ class HyparquetService {
           totalPages++;
           relevantPages++;
 
-          const existingData = columnData.get(columnName) || [];
-
-          // Concatenate page data (columnData is ArrayLike)
-          // Use concat instead of spread to avoid "Maximum call stack size exceeded"
-          const newData = Array.from(page.columnData);
-          const combined = existingData.concat(newData);
-
-          columnData.set(columnName, combined);
+          // Store chunks instead of concatenating - more memory efficient
+          const chunks = columnChunks.get(columnName)!;
+          chunks.push(Array.from(page.columnData));
 
           // Only report progress every 5% to reduce spam
           const progress = 10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20); // 10-30% estimate
@@ -87,6 +90,14 @@ class HyparquetService {
         // Silently skip unwanted columns - no processing, no progress reporting
       },
     });
+
+    await onProgress?.(25, "Combining column data...");
+
+    // Flatten chunks into final arrays (done once at the end)
+    const columnData = new Map<string, any[]>();
+    for (const [columnName, chunks] of columnChunks.entries()) {
+      columnData.set(columnName, chunks.flat());
+    }
 
     await onProgress?.(30, "Column extraction complete");
 
