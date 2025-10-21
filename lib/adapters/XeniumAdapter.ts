@@ -1,6 +1,7 @@
 // /src/data/adapters/XeniumAdapter.ts
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 import Papa, { ParseResult } from "papaparse";
+import { ungzip } from "pako";
 
 interface XeniumMetadata {
   hasPolygons: boolean;
@@ -53,7 +54,8 @@ export class XeniumAdapter {
 
   async initialize(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<void> {
     this._onProgress = onProgress;
-    this.files = files;
+    const expandedArchives = await extractAnalysisArchives(files);
+    this.files = expandedArchives.length ? [...files, ...expandedArchives] : files;
 
     // 1) Load cells table (csv or csv.gz)
     await this._onProgress?.(10, "Loading cell metadata...");
@@ -524,7 +526,11 @@ export class XeniumAdapter {
       f = Array.from(map.values()).find((file) => {
         const base = file.name.toLowerCase();
         const rel = (file.webkitRelativePath || "").toLowerCase();
-        return base === needle || rel.endsWith("/" + needle);
+        return (
+          base === needle ||
+          base.endsWith("/" + needle) ||
+          rel.endsWith("/" + needle)
+        );
       });
       if (f) break;
     }
@@ -778,4 +784,129 @@ function detectWideGeneColumns(sampleRow: RowData, knownGenes: string[] = []): {
     }
   }
   return { geneCols: geneLike };
+}
+
+type TarEntry = { name: string; data: Uint8Array };
+
+async function extractAnalysisArchives(files: File[]): Promise<File[]> {
+  const extracted: File[] = [];
+  for (const file of files) {
+    const fileName = (file.name || "").toLowerCase();
+    if (
+      !fileName.endsWith(".tar") &&
+      !fileName.endsWith(".tar.gz") &&
+      !fileName.endsWith(".tgz")
+    )
+      continue;
+    if (!/analysis/.test(fileName)) continue;
+    try {
+      const entries = await readTarEntriesFromFile(file);
+      for (const entry of entries) {
+        const pathLower = entry.name.toLowerCase();
+        if (
+          !/analysis\/clustering\//.test(pathLower) ||
+          !/\.(csv|tsv)$/.test(pathLower)
+        ) {
+          continue;
+        }
+        const blob = new File([entry.data], entry.name, {
+          type: "text/plain",
+          lastModified: file.lastModified,
+        });
+        try {
+          Object.defineProperty(blob, "webkitRelativePath", {
+            value: entry.name,
+            configurable: true,
+          });
+        } catch {}
+        extracted.push(blob);
+      }
+    } catch (err) {
+      console.warn("[XeniumAdapter] Failed to extract archive", file.name, err);
+    }
+  }
+  return extracted;
+}
+
+async function readTarEntriesFromFile(file: File): Promise<TarEntry[]> {
+  const lower = (file.name || "").toLowerCase();
+  let bytes: Uint8Array;
+  if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) {
+    bytes = await decompressGzipToUint8Array(file);
+  } else if (lower.endsWith(".tar")) {
+    const buf = await file.arrayBuffer();
+    bytes = new Uint8Array(buf);
+  } else {
+    return [];
+  }
+  return parseTarArchive(bytes);
+}
+
+async function decompressGzipToUint8Array(file: File): Promise<Uint8Array> {
+  if (typeof DecompressionStream !== "undefined") {
+    const ds = new DecompressionStream("gzip");
+    const decompressed = file.stream().pipeThrough(ds);
+    const arrayBuffer = await new Response(decompressed).arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  }
+  const buffer = await file.arrayBuffer();
+  return ungzip(new Uint8Array(buffer));
+}
+
+function parseTarArchive(bytes: Uint8Array): TarEntry[] {
+  const entries: TarEntry[] = [];
+  const blockSize = 512;
+  const decoder = new TextDecoder("utf-8");
+  let offset = 0;
+
+  while (offset + blockSize <= bytes.length) {
+    const header = bytes.subarray(offset, offset + blockSize);
+    offset += blockSize;
+
+    if (isZeroBlock(header)) {
+      // end of archive marker (two consecutive zero blocks)
+      if (offset + blockSize > bytes.length) break;
+      const next = bytes.subarray(offset, offset + blockSize);
+      if (isZeroBlock(next)) break;
+      else continue;
+    }
+
+    const nameRaw = decoder.decode(header.subarray(0, 100)).replace(/\0.*$/, "");
+    const prefixRaw = decoder
+      .decode(header.subarray(345, 500))
+      .replace(/\0.*$/, "");
+    const sizeRaw = decoder
+      .decode(header.subarray(124, 136))
+      .replace(/\0.*$/, "")
+      .trim();
+
+    const fullName = (prefixRaw ? prefixRaw + "/" : "") + nameRaw;
+    if (!fullName) {
+      const sizeSkip = Math.ceil(0 / blockSize) * blockSize;
+      offset += sizeSkip;
+      continue;
+    }
+
+    const size = sizeRaw ? parseInt(sizeRaw, 8) || 0 : 0;
+    const typeflag = header[156];
+
+    const dataStart = offset;
+    const dataEnd = dataStart + size;
+    const fileData = bytes.subarray(dataStart, dataEnd);
+    const paddedSize = Math.ceil(size / blockSize) * blockSize;
+    offset += paddedSize;
+
+    if (typeflag === 0 || typeflag === 48 /* '0' */) {
+      entries.push({ name: fullName, data: fileData.slice() });
+    }
+  }
+
+  return entries;
+}
+
+function isZeroBlock(block: Uint8Array): boolean {
+  for (let i = 0; i < block.length; i++) {
+    if (block[i] !== 0) return false;
+  }
+  return true;
 }
