@@ -1,5 +1,6 @@
 // /src/data/adapters/XeniumAdapter.ts
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
+import Papa, { ParseResult } from "papaparse";
 
 interface XeniumMetadata {
   hasPolygons: boolean;
@@ -21,7 +22,7 @@ interface ClusterData {
 
 type RowData = Record<string, any>;
 
-export class XeniumAdapter {
+export class XeniumAdapter { 
   files: File[];
   metadata: XeniumMetadata;
   _rows: RowData[];
@@ -89,7 +90,13 @@ export class XeniumAdapter {
       this._clusterColumn = pickFirstPresent(this._rows[0], [
         "cell_type",
         "celltype",
+        "cell type",
+        "cell-type",
+        "celltypes",
+        "cell types",
         "predicted_celltype",
+        "predicted celltype",
+        "predicted cell type",
         "cluster",
         "clusters",
         "leiden",
@@ -99,9 +106,31 @@ export class XeniumAdapter {
         "annotation",
         "annotations",
         "class",
+        "class_label",
+        "class label",
         "subclass",
+        "subclass_label",
+        "subclass label",
         "label",
         "labels",
+        "labels",
+        "annotation",
+        "annotations",
+        "cell_annotation",
+        "cell annotation",
+        "cell_annotations",
+        "cell annotations",
+        "cell_class",
+        "cell class",
+        "cell_subclass",
+        "cell subclass",
+        "cluster_label",
+        "cluster label",
+        "cluster_id",
+        "cluster id",
+        "group",
+        "group_label",
+        "group label",
       ]);
     }
 
@@ -326,10 +355,7 @@ export class XeniumAdapter {
 
     for (const f of candidates) {
       try {
-        const text = await fileToTextMaybeGz(f);
-        if (!text || !text.trim()) continue;
-
-        const { headers, rows } = parseTable(text);
+        const { headers, rows } = await this._parseCsvFile(f);
         if (!rows.length || !headers.length) continue;
 
         const cellIdKeyAlt = pickFirstPresent(headersObj(headers), [
@@ -478,6 +504,16 @@ export class XeniumAdapter {
     );
   }
 
+  async _parseCsvFile(file: File): Promise<ParsedTable> {
+    const name = (file.name || "").toLowerCase();
+    if (name.endsWith(".gz")) {
+      const text = await fileToTextMaybeGz(file);
+      if (!text || !text.trim()) return { headers: [], rows: [] };
+      return parseCsvWithPapa(text);
+    }
+    return parseCsvWithPapa(file);
+  }
+
   async _readTableOneOf(names: string[]): Promise<RowData[]> {
     const map = new Map(
       this.files.map((f) => [(f.webkitRelativePath || f.name).toLowerCase(), f])
@@ -493,61 +529,126 @@ export class XeniumAdapter {
       if (f) break;
     }
     if (!f) return [];
-    const text = await fileToTextMaybeGz(f);
-    if (!text || !text.trim()) return [];
-    const { rows } = parseTable(text);
+    const { rows } = await this._parseCsvFile(f);
     return rows;
   }
 }
 
 /* ----------------- parsing & utility helpers ----------------- */
 
-function parseTable(txt: string): { headers: string[]; rows: RowData[] } {
-  // detect delimiter from header line
-  const firstNL = txt.indexOf("\n");
-  const headLine = firstNL > -1 ? txt.slice(0, firstNL) : txt;
-  const isTSV =
-    (headLine.match(/\t/g)?.length || 0) > (headLine.match(/,/g)?.length || 0);
-  const delim = isTSV ? "\t" : ",";
+type ParsedTable = { headers: string[]; rows: RowData[] };
 
-  const lines = txt.split(/\r?\n/);
-  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-  if (!lines.length) return { headers: [], rows: [] };
-
-  const headers = splitLine(lines[0], delim);
-  const rows: RowData[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const L = lines[i];
-    if (!L) continue;
-    const cols = splitLine(L, delim);
-    if (!cols.length) continue;
-    const obj: RowData = {};
-    for (let j = 0; j < headers.length; j++) obj[headers[j]] = cols[j] ?? "";
-    rows.push(obj);
+async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
+  if (typeof input === "string" && !input.trim()) {
+    return { headers: [], rows: [] };
   }
-  return { headers, rows };
+
+  return new Promise<ParsedTable>((resolve, reject) => {
+    const rows: RowData[] = [];
+    let headers: string[] = [];
+
+    const pushRows = (data: RowData[] | undefined) => {
+      if (!data?.length) return;
+      for (const row of data) {
+        if (!row) continue;
+        if (!headers.length) {
+          headers = extractHeadersFromRow(row);
+        }
+        const normalized = normalizeRow(row, headers);
+        // Skip rows that are entirely empty after normalization
+        if (
+          Object.keys(normalized).length === 0 ||
+          Object.values(normalized).every((val) => val === "")
+        )
+          continue;
+        rows.push(normalized);
+      }
+    };
+
+    Papa.parse<RowData>(input as any, {
+      header: true,
+      skipEmptyLines: "greedy",
+      worker: false,
+      dynamicTyping: false,
+      chunk: (results: ParseResult<RowData>) => {
+        if (!results) return;
+        headers = ensureHeaders(headers, results.meta?.fields);
+        pushRows(results.data as RowData[]);
+      },
+      complete: (results: ParseResult<RowData>) => {
+        if (!results) {
+          resolve({ headers, rows });
+          return;
+        }
+        if (results) {
+          headers = ensureHeaders(headers, results.meta?.fields);
+          if (!rows.length && Array.isArray(results.data)) {
+            pushRows(results.data as RowData[]);
+          }
+          if (results.errors?.length) {
+            console.warn(
+              "[XeniumAdapter] PapaParse completed with errors:",
+              results.errors
+            );
+          }
+        }
+        resolve({ headers, rows });
+      },
+      error: (error: unknown) => reject(error),
+    });
+  });
 }
 
-function splitLine(line: string, delim: string): string[] {
-  const res: string[] = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      if (inQ && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else inQ = !inQ;
-    } else if (c === delim && !inQ) {
-      res.push(cur);
-      cur = "";
-    } else {
-      cur += c;
-    }
+function normalizeRow(row: RowData, headers: string[]): RowData {
+  const normalized: RowData = {};
+  const keys = headers.length ? headers : Object.keys(row || {});
+  const lookup = buildRowKeyLookup(row);
+  for (const key of keys) {
+    if (!key) continue;
+    const sourceKey = lookup.get(key) ?? key;
+    const value = row ? row[sourceKey] : undefined;
+    normalized[key] = value ?? "";
   }
-  res.push(cur);
-  return res;
+  return normalized;
+}
+
+function ensureHeaders(
+  existing: string[],
+  fields?: (string | undefined)[]
+): string[] {
+  if (existing.length || !fields?.length) return existing;
+  const seen = new Set<string>();
+  const trimmed = [];
+  for (const h of fields) {
+    const header = (h ?? "").trim();
+    if (!header || seen.has(header)) continue;
+    seen.add(header);
+    trimmed.push(header);
+  }
+  return trimmed;
+}
+
+function extractHeadersFromRow(row: RowData): string[] {
+  const seen = new Set<string>();
+  const headers: string[] = [];
+  for (const key of Object.keys(row || {})) {
+    const trimmed = key.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    headers.push(trimmed);
+  }
+  return headers;
+}
+
+function buildRowKeyLookup(row: RowData | null | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!row) return map;
+  for (const rawKey of Object.keys(row)) {
+    if (!map.has(rawKey)) map.set(rawKey, rawKey);
+    const trimmed = rawKey.trim();
+    if (trimmed && !map.has(trimmed)) map.set(trimmed, rawKey);
+  }
+  return map;
 }
 
 function toNum(v: any): number {
