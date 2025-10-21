@@ -599,6 +599,9 @@ export class XeniumAdapter {
     let rowCount = 0;
     let colCount = 0;
     let filled = 0;
+    let transpose = false;
+    let cellsDim = nCells;
+    const genesDim = this._genes.length;
 
     for await (const line of readLinesFromFile(matrixFile)) {
       if (!line || line.startsWith("%")) continue;
@@ -616,14 +619,38 @@ export class XeniumAdapter {
             );
             return false;
           }
-          if (barcodes && rowCount !== barcodes.length) {
-            console.warn(
-              `[XeniumAdapter] matrix.mtx row count (${rowCount}) != barcodes length (${barcodes.length}); using positional fallback.`
-            );
+          const rowsMatchCells = rowCount === nCells;
+          const colsMatchGenes = colCount === genesDim;
+          const rowsMatchGenes = rowCount === genesDim;
+          const colsMatchCells = colCount === nCells;
+          if (!(rowsMatchCells && colsMatchGenes)) {
+            if (colsMatchCells && rowsMatchGenes) {
+              transpose = true;
+            } else if (!rowsMatchCells && colsMatchCells) {
+              transpose = true;
+              console.warn(
+                `[XeniumAdapter] matrix.mtx row count (${rowCount}) did not match cell count (${nCells}); treating matrix as transposed.`
+              );
+            } else if (!colsMatchGenes && rowsMatchGenes) {
+              transpose = true;
+              console.warn(
+                `[XeniumAdapter] matrix.mtx column count (${colCount}) aligned with cells and rows with genes; transposing interpretation.`
+              );
+            } else {
+              if (!rowsMatchCells)
+                console.warn(
+                  `[XeniumAdapter] matrix.mtx row count (${rowCount}) != cell count (${nCells}); using positional fallback.`
+                );
+              if (!colsMatchGenes)
+                console.warn(
+                  `[XeniumAdapter] matrix.mtx column count (${colCount}) != feature count (${genesDim}); extra indices will be ignored.`
+                );
+            }
           }
-          if (colCount !== this._genes.length) {
+          cellsDim = transpose ? colCount : rowCount;
+          if (barcodes && cellsDim !== barcodes.length) {
             console.warn(
-              `[XeniumAdapter] matrix.mtx column count (${colCount}) != feature count (${this._genes.length}); extra columns will be ignored.`
+              `[XeniumAdapter] matrix.mtx ${transpose ? "column" : "row"} count (${cellsDim}) != barcodes length (${barcodes.length}); using positional fallback.`
             );
           }
         }
@@ -640,24 +667,27 @@ export class XeniumAdapter {
       )
         continue;
 
+      const cellIndexRaw = transpose ? colIdx : rowIdx;
+      const geneIndexRaw = transpose ? rowIdx : colIdx;
+
       let cellIdx: number | undefined;
-      if (rowIdx >= 0) {
-        if (barcodes && rowIdx < barcodes.length) {
-          const cid = barcodes[rowIdx]?.trim();
+      if (cellIndexRaw >= 0) {
+        if (barcodes && cellIndexRaw < barcodes.length) {
+          const cid = barcodes[cellIndexRaw]?.trim();
           if (cid) {
             cellIdx = this._cellIndex.get(cid);
             if (cellIdx == null && cid.endsWith("-1"))
               cellIdx = this._cellIndex.get(cid.slice(0, -2));
           }
         }
-        if (cellIdx == null && rowIdx < nCells) {
-          cellIdx = rowIdx;
+        if (cellIdx == null && cellIndexRaw < nCells) {
+          cellIdx = cellIndexRaw;
         }
       }
       if (cellIdx == null) continue;
 
-      if (colIdx < 0 || colIdx >= this._genes.length) continue;
-      const gene = this._genes[colIdx];
+      if (geneIndexRaw < 0 || geneIndexRaw >= this._genes.length) continue;
+      const gene = this._genes[geneIndexRaw];
       if (!gene) continue;
 
       let vec = this._exprByGene.get(gene);
