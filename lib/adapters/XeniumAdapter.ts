@@ -172,13 +172,32 @@ export class XeniumAdapter {
       const key = pickFirstPresent(feats[0], [
         "gene",
         "gene_symbol",
+        "gene_id",
+        "gene_name",
         "feature_name",
-        "name",
+        "feature",
+        "feature_id",
         "target",
+        "target_name",
+        "name",
         "id",
       ]);
-      if (key)
+      if (key) {
         this._genes = feats.map((r) => String(r[key] || "")).filter(Boolean);
+        if (!this._genes.length) {
+          console.warn(
+            `[XeniumAdapter] features file had column "${key}" but no non-empty entries.`
+          );
+        }
+      } else {
+        console.warn(
+          "[XeniumAdapter] features file loaded but no recognizable gene column found."
+        );
+      }
+    } else {
+      console.warn(
+        "[XeniumAdapter] No features.tsv entries located; falling back to cells.csv gene inference."
+      );
     }
 
     // 6) Expression: try transcripts.csv(.gz) (long format) first
