@@ -244,8 +244,17 @@ export class XeniumAdapter {
     if (!gotExpr) {
       const maybeWide = detectWideGeneColumns(this._rows[0], this._genes);
       if (maybeWide.geneCols.length) {
-        await this._ingestFromCellsWide(maybeWide.geneCols);
-        gotExpr = this._genes.length > 0 && this._exprByGene.size > 0;
+        const estimatedCells = this._rows.length;
+        const estimatedGenes = maybeWide.geneCols.length;
+        const estimatedEntries = estimatedCells * estimatedGenes;
+        if (estimatedEntries > 5e7) {
+          console.warn(
+            `[XeniumAdapter] Skipping cells.csv wide gene ingestion (${estimatedGenes} genes × ${estimatedCells} cells ≈ ${estimatedEntries.toLocaleString()} entries).`
+          );
+        } else {
+          await this._ingestFromCellsWide(maybeWide.geneCols);
+          gotExpr = this._genes.length > 0 && this._exprByGene.size > 0;
+        }
       }
     }
 
@@ -618,9 +627,6 @@ export class XeniumAdapter {
     }
 
     this._exprByGene.clear();
-    for (const gene of this._genes) {
-      this._exprByGene.set(gene, new Float32Array(nCells));
-    }
 
     let headerParsed = false;
     let rowCount = 0;
@@ -689,7 +695,16 @@ export class XeniumAdapter {
 
       let vec = this._exprByGene.get(gene);
       if (!vec) {
-        vec = new Float32Array(nCells);
+        try {
+          vec = new Float32Array(nCells);
+        } catch (err) {
+          console.warn(
+            "[XeniumAdapter] Unable to allocate expression vector from matrix.mtx; aborting ingest.",
+            err
+          );
+          this._exprByGene.clear();
+          return false;
+        }
         this._exprByGene.set(gene, vec);
       }
       vec[cellIdx] += value;
