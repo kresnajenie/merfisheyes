@@ -34,9 +34,10 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - [Zustand](https://zustand-demo.pmnd.rs/) - State management
 - [Prisma](https://www.prisma.io/) - Database ORM
 - [AWS S3](https://aws.amazon.com/s3/) - Cloud file storage
-- [Parquet-WASM](https://github.com/kylebarron/parquet-wasm) - Efficient parquet parsing
-- [Apache Arrow](https://arrow.apache.org/) - Columnar data processing
+- [Hyparquet](https://github.com/hyparam/hyparquet) - Pure JavaScript parquet parsing
+- [Comlink](https://github.com/GoogleChromeLabs/comlink) - Web worker communication
 - [Pako](https://github.com/nodeca/pako) - Gzip compression/decompression
+- [PapaParse](https://www.papaparse.com/) - CSV parsing
 
 ## Getting Started
 
@@ -206,15 +207,17 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   ├── H5adAdapter.ts
 │   │   ├── XeniumAdapter.ts
 │   │   ├── MerscopeAdapter.ts
-│   │   ├── ChunkedDataAdapter.ts  # S3 loading adapter
-│   │   └── ParquetAdapter.ts      # Single molecule parquet adapter
+│   │   └── ChunkedDataAdapter.ts  # S3 loading adapter
+│   ├── workers/                 # Web workers for background processing
+│   │   ├── single-molecule.worker.ts  # Parquet/CSV parsing worker
+│   │   └── singleMoleculeWorkerManager.ts  # Singleton worker manager
 │   ├── stores/                  # Zustand state stores
 │   │   ├── datasetStore.ts      # Single cell datasets
 │   │   ├── singleMoleculeStore.ts  # Single molecule datasets
 │   │   ├── visualizationStore.ts   # Single cell viz state
 │   │   └── singleMoleculeVisualizationStore.ts  # Single molecule viz state
 │   ├── services/                # Data processing services
-│   │   └── parquetService.ts    # Parquet-WASM reader
+│   │   └── hyparquetService.ts  # Hyparquet parquet reader
 │   ├── utils/
 │   │   ├── SingleMoleculeProcessor.ts  # S3 upload processing
 │   │   └── fingerprint.ts       # Dataset fingerprinting
