@@ -177,20 +177,175 @@ export class H5adAdapter {
   /**
    * Load spatial coordinates
    */
-  loadSpatialCoordinates(): { coordinates: number[][]; dimensions: number } {
-    const result = this.loadCoordinates("X_spatial");
-    if (!result) {
-      throw new Error("No spatial coordinates found in obsm/X_spatial");
+  /**
+   * Try to load spatial coordinates from obs columns
+   * Checks alternative naming conventions in order
+   */
+  private loadSpatialFromObs(): { coordinates: number[][]; dimensions: number } | null {
+    const obs = this.h5File.get("obs");
+    if (!obs) return null;
+
+    const columnNames = obs.keys();
+    
+    // Define alternative naming patterns to check in order
+    const namingPatterns = [
+      { x: 'center_x', y: 'center_y', z: 'center_z' },
+      { x: 'centerX', y: 'centerY', z: 'centerZ' },
+      { x: 'x', y: 'y', z: 'z' },
+      { x: 'centroid_x', y: 'centroid_y', z: 'centroid_z' },
+    ];
+
+    // Find first matching pattern
+    for (const pattern of namingPatterns) {
+      const hasX = columnNames.includes(pattern.x);
+      const hasY = columnNames.includes(pattern.y);
+      
+      if (hasX && hasY) {
+        return this.extractCoordinatesFromObs(pattern.x, pattern.y, pattern.z);
+      }
     }
 
-    // Get dimensions from the dataset
-    const dataset = this.h5File.get("obsm/X_spatial");
-    const dimensions = dataset.metadata.shape[1];
+    return null;
+  }
 
-    return {
-      coordinates: result,
-      dimensions: dimensions,
-    };
+  /**
+   * Extract and validate coordinates from obs columns
+   */
+  private extractCoordinatesFromObs(
+    xCol: string, 
+    yCol: string, 
+    zCol: string
+  ): { coordinates: number[][]; dimensions: number } {
+    const obs = this.h5File.get("obs");
+    const columnNames = obs.keys();
+    
+    // Read x and y columns
+    const xData = obs.get(xCol).value as string[] | number[];
+    const yData = obs.get(yCol).value as string[] | number[];
+    
+    // Check if z column exists
+    const hasZ = columnNames.includes(zCol);
+    const zData = hasZ ? (obs.get(zCol).value as string[] | number[]) : null;
+
+    const numRows = xData.length;
+    
+    // Convert to numbers and track validity
+    const xNumbers: (number | null)[] = [];
+    const yNumbers: (number | null)[] = [];
+    const zNumbers: (number | null)[] = [];
+    
+    let validXCount = 0;
+    let validYCount = 0;
+    let validZCount = 0;
+    let nonZeroZCount = 0;
+
+    for (let i = 0; i < numRows; i++) {
+      // Parse X
+      const xVal = parseFloat(String(xData[i]));
+      const xValid = !isNaN(xVal) && isFinite(xVal);
+      xNumbers.push(xValid ? xVal : null);
+      if (xValid) validXCount++;
+
+      // Parse Y
+      const yVal = parseFloat(String(yData[i]));
+      const yValid = !isNaN(yVal) && isFinite(yVal);
+      yNumbers.push(yValid ? yVal : null);
+      if (yValid) validYCount++;
+
+      // Parse Z if exists
+      if (zData) {
+        const zVal = parseFloat(String(zData[i]));
+        const zValid = !isNaN(zVal) && isFinite(zVal);
+        zNumbers.push(zValid ? zVal : null);
+        if (zValid) {
+          validZCount++;
+          if (zVal !== 0) nonZeroZCount++;
+        }
+      }
+    }
+
+    // Validate: at least 90% of x and y must be valid
+    const xValidPercent = (validXCount / numRows) * 100;
+    const yValidPercent = (validYCount / numRows) * 100;
+    
+    if (xValidPercent < 90) {
+      throw new Error(
+        `Invalid x coordinates in obs/${xCol}: only ${xValidPercent.toFixed(1)}% are valid (need ≥90%)`
+      );
+    }
+    
+    if (yValidPercent < 90) {
+      throw new Error(
+        `Invalid y coordinates in obs/${yCol}: only ${yValidPercent.toFixed(1)}% are valid (need ≥90%)`
+      );
+    }
+
+    // Determine dimensions based on z validity
+    let dimensions = 2;
+    let useZ = false;
+    
+    if (zData) {
+      const zValidPercent = (validZCount / numRows) * 100;
+      const nonZeroPercent = validZCount > 0 ? (nonZeroZCount / validZCount) * 100 : 0;
+      
+      // Use z if ≥90% are valid and ≥90% of valid values are non-zero
+      if (zValidPercent >= 90 && nonZeroPercent >= 90) {
+        dimensions = 3;
+        useZ = true;
+      }
+    }
+
+    // Build coordinate arrays, filtering out rows with null x or y
+    const coordinates: number[][] = [];
+    
+    for (let i = 0; i < numRows; i++) {
+      const x = xNumbers[i];
+      const y = yNumbers[i];
+      
+      // Skip rows with invalid x or y
+      if (x === null || y === null) continue;
+      
+      if (useZ) {
+        const z = zNumbers[i];
+        // For 3D, also skip if z is null
+        if (z === null) continue;
+        coordinates.push([x, y, z]);
+      } else {
+        coordinates.push([x, y]);
+      }
+    }
+
+    return { coordinates, dimensions };
+  }
+
+  loadSpatialCoordinates(): { coordinates: number[][]; dimensions: number } {
+    // Try obsm/X_spatial first
+    let result = this.loadCoordinates("X_spatial");
+    if (result) {
+      const dataset = this.h5File.get("obsm/X_spatial");
+      const dimensions = dataset.metadata.shape[1];
+      return { coordinates: result, dimensions };
+    }
+
+    // Try obsm/spatial second
+    result = this.loadCoordinates("spatial");
+    if (result) {
+      const dataset = this.h5File.get("obsm/spatial");
+      const dimensions = dataset.metadata.shape[1];
+      return { coordinates: result, dimensions };
+    }
+
+    // Fallback to obs columns
+    const obsResult = this.loadSpatialFromObs();
+    if (obsResult) {
+      return obsResult;
+    }
+
+    // If nothing found, throw error
+    throw new Error(
+      'No spatial coordinates found. Checked: obsm/X_spatial, obsm/spatial, ' +
+      'obs columns (center_x/y/z, centerX/Y/Z, x/y/z, centroid_x/y/z)'
+    );
   }
 
   /**
