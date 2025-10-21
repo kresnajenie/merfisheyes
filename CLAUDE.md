@@ -61,30 +61,40 @@ Uses an **Adapter Pattern** to standardize different formats into a unified `Sta
 
 #### Single Molecule Data Pipeline
 
-Uses **Apache Arrow** for efficient columnar data access and gene-based indexing:
+Uses **Web Workers with Comlink** for non-blocking data processing:
 
-1. **File Parsing** ([lib/services/parquetService.ts](lib/services/parquetService.ts)):
-   - `parquet-wasm` - WebAssembly parquet reader with zero-copy Arrow access
-   - `apache-arrow` & `arrow-js-ffi` - FFI bridge for Arrow Table creation
+1. **File Parsing** ([lib/services/hyparquetService.ts](lib/services/hyparquetService.ts)):
+   - `hyparquet` - Pure JavaScript parquet reader with `onPage` callback for column-oriented data
+   - `hyparquet-compressors` - Compression codec support (gzip, snappy, etc.)
    - `papaparse` - CSV parsing fallback
-   - Proper WASM initialization with `await module.default()`
+   - Memory optimization: Stores column chunks during reading, flattens once at end to avoid repeated array concatenation
+   - Warning for files >2GB to alert about potential memory pressure
 
-2. **SingleMoleculeDataset** ([lib/SingleMoleculeDataset.ts](lib/SingleMoleculeDataset.ts)):
+2. **Web Worker Processing** ([lib/workers/](lib/workers/)):
+   - `single-molecule.worker.ts` - Background worker for parsing parquet/CSV files
+   - `singleMoleculeWorkerManager.ts` - Singleton pattern for worker lifecycle management
+   - Uses Comlink for seamless function proxying across worker boundary
+   - Progress callbacks proxied via `Comlink.proxy()` for real-time UI updates
+   - Serializable dataset format transfers geneIndex as array of entries
+   - Prevents UI freezing during processing of large files (e.g., 26+ seconds for 21M molecules)
+
+3. **SingleMoleculeDataset** ([lib/SingleMoleculeDataset.ts](lib/SingleMoleculeDataset.ts)):
    - Stores molecules as: `uniqueGenes: string[]`, `geneIndex: Map<string, number[]>`, `dimensions: 2|3`
    - Pre-computes normalized coordinates ([-1, 1]) during initialization
    - Gene index stores flattened coordinate arrays: `[x1,y1,z1, x2,y2,z2, ...]`
    - `getCoordinatesByGene()` provides O(1) lookup of pre-normalized coordinates (async for S3 lazy loading)
    - Saves `scalingFactor` for potential denormalization
    - Factory methods:
-     - `fromParquet()`, `fromCSV()` - Local file parsing with async progress callbacks
+     - `fromParquet()`, `fromCSV()` - Local file parsing with async progress callbacks (called from worker)
      - `fromS3()` - **Lazy loading from S3** (loads manifest only, genes on-demand)
+     - `fromSerializedData()` - Reconstructs dataset from worker-serialized data
    - **Progress Tracking**: Reports progress during file reading (10%), parsing (30%), extraction (50-60%), normalization (60%), indexing (70-90%), and finalization (90-100%)
    - **Granular Progress**: Indexing loop reports every 5% for real-time feedback on large datasets (millions of molecules)
    - **Responsive UI**: Progress callbacks with `await` yield to event loop for UI updates
    - **Performance Timer**: Displays elapsed time in progress messages and final completion time (e.g., "2.45s", "1m 32.5s")
    - **S3 Lazy Loading**: Downloads gene files on-demand when selected, caches in memory for instant re-selection
 
-3. **Column Mapping Configuration** ([lib/config/moleculeColumnMappings.ts](lib/config/moleculeColumnMappings.ts)):
+4. **Column Mapping Configuration** ([lib/config/moleculeColumnMappings.ts](lib/config/moleculeColumnMappings.ts)):
    - Configurable column names for different dataset types (xenium, merscope, custom)
    - Default mappings: `feature_name`, `x_location`, `y_location`, `z_location` (Xenium)
    - Alternative: `gene`, `global_x`, `global_y`, `global_z` (MERSCOPE)
@@ -205,11 +215,12 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### File Upload
 - `components/file-upload.tsx` - Unified upload component with `singleMolecule` prop
-  - **Single Molecule**: Direct parsing with granular progress tracking (.parquet/.csv)
+  - **Single Molecule**: Worker-based parsing with granular progress tracking (.parquet/.csv)
   - **Single Cell**: Direct parsing with progress callbacks (h5ad, xenium, merscope)
   - Routes to appropriate store based on data type
   - Navigates to `/viewer` for cell data, `/sm-viewer` for molecule data
   - Real-time progress bar (0-100%) and status messages
+  - Uses singleton worker manager for molecule data to keep UI responsive
 
 ## Key Technical Details
 
@@ -225,10 +236,11 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### Single Molecule Data
 
-**Parquet**: Columnar format read via `parquet-wasm` with Apache Arrow
+**Parquet**: Columnar format read via `hyparquet` (pure JavaScript, no WASM)
 - Requires columns for gene names and x/y/z coordinates
 - Column names configurable via `MOLECULE_COLUMN_MAPPINGS`
 - Supports both 2D and 3D datasets (z_location optional)
+- Processed in web worker to keep UI responsive
 
 **CSV**: Parsed via `papaparse` with same column requirements as parquet
 - Automatically infers dimensions based on z column presence
@@ -292,18 +304,26 @@ The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/
 **Single Molecule Data**:
 - Pre-computed gene index trades memory for O(1) query speed
 - For millions of molecules, index stores normalized coordinates per gene
-- WASM memory copied to JavaScript for simpler lifecycle management
+- **Web worker processing** prevents UI freezing during large file parsing
+- **Chunked storage** during parquet reading reduces memory pressure (avoids repeated concatenation)
 - Parquet files more memory-efficient than CSV parsing
+- Warning for files >2GB to alert about potential browser memory limits
 
-### Adapter Threading Model
+### Threading Model
 
-All adapters (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter) **do NOT use web workers**:
+**Single Cell Adapters** (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter) **do NOT use web workers**:
 - File I/O operations are async (non-blocking)
 - Data parsing and processing happens synchronously in main thread
 - ChunkedDataAdapter uses browser's `DecompressionStream` API (streaming, not web workers)
 - This approach keeps implementation simple and avoids message-passing overhead
 - For large datasets, async I/O prevents blocking during file reads, but parsing may briefly freeze UI
-- Consider web workers in future if parsing performance becomes an issue for very large files
+
+**Single Molecule Processing** (hyparquetService, SingleMoleculeDataset) **USES web workers**:
+- Web worker with Comlink for seamless function proxying
+- Singleton worker manager pattern for lifecycle management
+- Progress callbacks proxied for real-time UI updates during processing
+- Prevents UI freezing for large files (e.g., 21M+ molecules taking 26+ seconds)
+- Worker serializes dataset as JSON-compatible structure for main thread transfer
 
 ### TypeScript Configuration
 
@@ -328,19 +348,24 @@ All use cascade deletion to maintain referential integrity.
 - **3D Graphics**: Three.js with custom WebGL shaders
 - **Data Processing**:
   - Single Cell: h5wasm (WebAssembly H5AD parser), pako (gzip)
-  - Single Molecule: parquet-wasm (WebAssembly parquet reader), apache-arrow, arrow-js-ffi, papaparse
+  - Single Molecule: hyparquet (pure JS parquet reader), hyparquet-compressors, papaparse, comlink (web workers)
 - **State**: Zustand (separate stores for cell vs molecule datasets)
 - **Database**: PostgreSQL + Prisma ORM
 - **Storage**: AWS S3 with presigned URLs
 - **Animation**: Framer Motion, GSAP
+- **Background Processing**: Web Workers with Comlink for single molecule data
 
 ## Performance Optimizations
 
 ### Single Molecule Data
+- **Web Worker Processing**: All parsing happens in background worker to prevent UI freezing
+- **Comlink Proxying**: Seamless function calls and progress updates across worker boundary
+- **Chunked Storage**: During parquet reading, stores column chunks then flattens once at end (avoids repeated array concatenation)
 - **Async Progress Callbacks**: Yields to event loop during heavy processing to keep UI responsive
 - **Pre-computed Gene Index**: Normalized coordinates computed once during initialization
 - **O(1) Gene Lookup**: `getCoordinatesByGene()` is direct Map lookup with no computation
-- **Apache Arrow Integration**: Zero-copy WASM access for parquet files
+- **Hyparquet Column-Oriented Reading**: Only processes requested columns via `onPage` callback
 - **Typed Arrays**: Float32Array for memory-efficient coordinate storage
 - **Coordinate Normalization**: [-1, 1] range with saved `scalingFactor` for consistent visualization
 - **Granular Progress Updates**: Every 5% during indexing for responsive UI feedback on large datasets
+- **Memory Warnings**: Alerts for files >2GB that may cause browser memory pressure
