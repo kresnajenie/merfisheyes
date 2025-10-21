@@ -355,6 +355,12 @@ export class XeniumAdapter {
     });
     if (!candidates.length) return;
 
+    const preferred = candidates.filter((f) => {
+      const p = (f.webkitRelativePath || f.name || "").toLowerCase();
+      return p.includes("analysis/clustering/gene_expression_graphclust/");
+    });
+    const prioritized = preferred.length ? preferred : candidates;
+
     const nCells = this._rows.length || 1;
     const maxReasonableUnique = Math.max(50, Math.floor(0.1 * nCells));
     let best:
@@ -367,7 +373,7 @@ export class XeniumAdapter {
         }
       | null = null;
 
-    for (const f of candidates) {
+    for (const f of prioritized) {
       try {
         const { headers, rows } = await this._parseCsvFile(f);
         if (!rows.length || !headers.length) continue;
