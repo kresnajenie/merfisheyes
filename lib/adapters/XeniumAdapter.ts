@@ -159,44 +159,62 @@ export class XeniumAdapter {
     // 5) Genes: features, else transcripts
     //    (we'll still build expression from transcripts or cells-wide if possible)
     await this._onProgress?.(50, "Loading gene features...");
-    let feats: RowData[] = [];
-    try {
-      feats = await this._readTableOneOf([
-        "features.tsv",
-        "features.tsv.gz",
-        "features.csv",
-        "features.csv.gz",
-      ]);
-    } catch {}
-    if (feats.length) {
-      const key = pickFirstPresent(feats[0], [
-        "gene",
-        "gene_symbol",
-        "gene_id",
-        "gene_name",
-        "feature_name",
-        "feature",
-        "feature_id",
-        "target",
-        "target_name",
-        "name",
-        "id",
-      ]);
-      if (key) {
-        this._genes = feats.map((r) => String(r[key] || "")).filter(Boolean);
-        if (!this._genes.length) {
+    const featureFile = this._findFileOneOf([
+      "features.tsv",
+      "features.tsv.gz",
+      "features.csv",
+      "features.csv.gz",
+      "cell_feature_matrix/features.tsv",
+      "cell_feature_matrix/features.tsv.gz",
+      "cell_feature_matrix/features.csv",
+      "cell_feature_matrix/features.csv.gz",
+    ]);
+    if (featureFile) {
+      try {
+        const { rows } = await this._parseCsvFile(featureFile);
+        if (rows.length) {
+          const key = pickFirstPresent(rows[0], [
+            "gene",
+            "gene_symbol",
+            "gene_id",
+            "gene_name",
+            "feature_name",
+            "feature",
+            "feature_id",
+            "target",
+            "target_name",
+            "name",
+            "id",
+          ]);
+          if (key) {
+            this._genes = rows.map((r) => String(r[key] || "")).filter(Boolean);
+          }
+        }
+      } catch (e) {
+        console.warn("[XeniumAdapter] Failed parsing features table:", e);
+      }
+
+      if (!this._genes.length) {
+        try {
+          const text = await fileToTextMaybeGz(featureFile);
+          const fallbackGenes = parseHeaderlessFeatures(text);
+          if (fallbackGenes.length) {
+            this._genes = fallbackGenes;
+          } else {
+            console.warn(
+              "[XeniumAdapter] features.tsv present but fallback parsing yielded no genes."
+            );
+          }
+        } catch (err) {
           console.warn(
-            `[XeniumAdapter] features file had column "${key}" but no non-empty entries.`
+            "[XeniumAdapter] Failed headerless parse of features.tsv:",
+            err
           );
         }
-      } else {
-        console.warn(
-          "[XeniumAdapter] features file loaded but no recognizable gene column found."
-        );
       }
     } else {
       console.warn(
-        "[XeniumAdapter] No features.tsv entries located; falling back to cells.csv gene inference."
+        "[XeniumAdapter] features.tsv not found; falling back to cells.csv gene inference."
       );
     }
 
@@ -213,6 +231,14 @@ export class XeniumAdapter {
         gotExpr = this._genes.length > 0 && this._exprByGene.size > 0;
       }
     } catch {}
+
+    if (!gotExpr) {
+      try {
+        gotExpr = await this._ingestFromMatrixMarket(cellIdKey);
+      } catch (e) {
+        console.warn("[XeniumAdapter] matrix.mtx ingestion failed:", e);
+      }
+    }
 
     // 7) Fallback: derive genes/expr from cells.csv if it contains wide gene columns
     if (!gotExpr) {
@@ -360,6 +386,26 @@ export class XeniumAdapter {
 
   getObsmEmbeddings(): string[] {
     return ["X_spatial"];
+  }
+
+  private _findFileOneOf(names: string[]): File | null {
+    const map = new Map(
+      this.files.map((f) => [(f.webkitRelativePath || f.name).toLowerCase(), f])
+    );
+    for (const n of names) {
+      const needle = n.toLowerCase();
+      const match = Array.from(map.values()).find((file) => {
+        const base = file.name.toLowerCase();
+        const rel = (file.webkitRelativePath || "").toLowerCase();
+        return (
+          base === needle ||
+          base.endsWith(needle) ||
+          rel.endsWith(needle)
+        );
+      });
+      if (match) return match;
+    }
+    return null;
   }
 
   /* ========================================================
@@ -537,6 +583,133 @@ export class XeniumAdapter {
     );
   }
 
+  async _ingestFromMatrixMarket(cellIdKey: string): Promise<boolean> {
+    const matrixFile = this._findFileOneOf([
+      "matrix.mtx",
+      "matrix.mtx.gz",
+      "cell_feature_matrix/matrix.mtx",
+      "cell_feature_matrix/matrix.mtx.gz",
+    ]);
+    if (!matrixFile) return false;
+
+    const nCells = this._rows.length;
+    if (!nCells) return false;
+
+    const barcodesFile = this._findFileOneOf([
+      "barcodes.tsv",
+      "barcodes.tsv.gz",
+      "cell_feature_matrix/barcodes.tsv",
+      "cell_feature_matrix/barcodes.tsv.gz",
+    ]);
+    let barcodes: string[] | null = null;
+    if (barcodesFile) {
+      try {
+        barcodes = await readBarcodesFile(barcodesFile);
+      } catch (e) {
+        console.warn("[XeniumAdapter] Failed reading barcodes.tsv:", e);
+      }
+    }
+
+    if (!this._genes.length) {
+      console.warn(
+        "[XeniumAdapter] matrix.mtx found but gene list empty; cannot align columns."
+      );
+      return false;
+    }
+
+    this._exprByGene.clear();
+    for (const gene of this._genes) {
+      this._exprByGene.set(gene, new Float32Array(nCells));
+    }
+
+    let headerParsed = false;
+    let rowCount = 0;
+    let colCount = 0;
+    let filled = 0;
+
+    for await (const line of readLinesFromFile(matrixFile)) {
+      if (!line || line.startsWith("%")) continue;
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const parts = trimmed.split(/\s+/);
+      if (!headerParsed) {
+        if (parts.length >= 3) {
+          rowCount = Number(parts[0]);
+          colCount = Number(parts[1]);
+          headerParsed = true;
+          if (!Number.isFinite(rowCount) || !Number.isFinite(colCount)) {
+            console.warn(
+              "[XeniumAdapter] matrix.mtx header invalid; aborting ingest."
+            );
+            return false;
+          }
+          if (barcodes && rowCount !== barcodes.length) {
+            console.warn(
+              `[XeniumAdapter] matrix.mtx row count (${rowCount}) != barcodes length (${barcodes.length}); using positional fallback.`
+            );
+          }
+          if (colCount !== this._genes.length) {
+            console.warn(
+              `[XeniumAdapter] matrix.mtx column count (${colCount}) != feature count (${this._genes.length}); extra columns will be ignored.`
+            );
+          }
+        }
+        continue;
+      }
+      if (parts.length < 3) continue;
+      const rowIdx = Number(parts[0]) - 1;
+      const colIdx = Number(parts[1]) - 1;
+      const value = Number(parts[2]);
+      if (
+        !Number.isFinite(rowIdx) ||
+        !Number.isFinite(colIdx) ||
+        !Number.isFinite(value)
+      )
+        continue;
+
+      let cellIdx: number | undefined;
+      if (rowIdx >= 0) {
+        if (barcodes && rowIdx < barcodes.length) {
+          const cid = barcodes[rowIdx]?.trim();
+          if (cid) {
+            cellIdx = this._cellIndex.get(cid);
+            if (cellIdx == null && cid.endsWith("-1"))
+              cellIdx = this._cellIndex.get(cid.slice(0, -2));
+          }
+        }
+        if (cellIdx == null && rowIdx < nCells) {
+          cellIdx = rowIdx;
+        }
+      }
+      if (cellIdx == null) continue;
+
+      if (colIdx < 0 || colIdx >= this._genes.length) continue;
+      const gene = this._genes[colIdx];
+      if (!gene) continue;
+
+      let vec = this._exprByGene.get(gene);
+      if (!vec) {
+        vec = new Float32Array(nCells);
+        this._exprByGene.set(gene, vec);
+      }
+      vec[cellIdx] += value;
+      filled++;
+    }
+
+    if (!filled) {
+      console.warn(
+        "[XeniumAdapter] matrix.mtx parsed but produced no gene entries."
+      );
+      this._exprByGene.clear();
+      return false;
+    }
+
+    console.log(
+      `[XeniumAdapter] Ingested expression from matrix.mtx: genes=${this._genes.length}, nonzeros=${filled}`
+    );
+    return true;
+  }
+
   async _ingestFromCellsWide(geneCols: string[]): Promise<void> {
     // Wide layout: cells.csv has many gene columns (binary or counts)
     // Use provided geneCols; if _genes empty, adopt them as list in this order.
@@ -580,23 +753,7 @@ export class XeniumAdapter {
   }
 
   async _readTableOneOf(names: string[]): Promise<RowData[]> {
-    const map = new Map(
-      this.files.map((f) => [(f.webkitRelativePath || f.name).toLowerCase(), f])
-    );
-    let f = null;
-    for (const n of names) {
-      const needle = n.toLowerCase();
-      f = Array.from(map.values()).find((file) => {
-        const base = file.name.toLowerCase();
-        const rel = (file.webkitRelativePath || "").toLowerCase();
-        return (
-          base === needle ||
-          base.endsWith("/" + needle) ||
-          rel.endsWith("/" + needle)
-        );
-      });
-      if (f) break;
-    }
+    const f = this._findFileOneOf(names);
     if (!f) return [];
     const { rows } = await this._parseCsvFile(f);
     return rows;
@@ -722,6 +879,80 @@ function extractHeadersFromRow(row: RowData): string[] {
     headers.push(trimmed);
   }
   return headers;
+}
+
+function parseHeaderlessFeatures(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split(/\r?\n/);
+  const genes: string[] = [];
+  for (const line of lines) {
+    if (!line) continue;
+    if (line.startsWith("#")) continue;
+    const parts = line.split(/\t|,/);
+    if (parts.length < 2) continue;
+    const gene = parts[1]?.trim();
+    if (gene) genes.push(gene);
+  }
+  return Array.from(new Set(genes));
+}
+
+async function readBarcodesFile(file: File): Promise<string[]> {
+  const barcodes: string[] = [];
+  for await (const line of readLinesFromFile(file)) {
+    if (!line) continue;
+    if (line.startsWith("#")) continue;
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const first = trimmed.split(/\t|,/)[0]?.trim();
+    if (first) barcodes.push(first);
+  }
+  return barcodes;
+}
+
+async function* readLinesFromFile(file: File): AsyncGenerator<string> {
+  const name = (file.name || "").toLowerCase();
+  const isGz = name.endsWith(".gz");
+
+  if (isGz && typeof DecompressionStream === "undefined") {
+    const text = await fileToTextMaybeGz(file);
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      yield line;
+    }
+    return;
+  }
+
+  let stream: ReadableStream<Uint8Array> = file.stream();
+  if (isGz && typeof DecompressionStream !== "undefined") {
+    stream = stream.pipeThrough(new DecompressionStream("gzip"));
+  }
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIndex = buffer.indexOf("\n");
+      while (newlineIndex !== -1) {
+        let line = buffer.slice(0, newlineIndex);
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        yield line;
+        buffer = buffer.slice(newlineIndex + 1);
+        newlineIndex = buffer.indexOf("\n");
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  buffer += decoder.decode();
+  if (buffer) {
+    if (buffer.endsWith("\r")) buffer = buffer.slice(0, -1);
+    yield buffer;
+  }
 }
 
 function toNum(v: any): number {
@@ -872,7 +1103,10 @@ async function extractRelevantArchives(files: File[]): Promise<File[]> {
         const isFeatureTsv =
           /cell_feature_matrix\//.test(pathLower) &&
           /features\.tsv(\.gz)?$/.test(pathLower);
-        if (!isClusterCsv && !isFeatureTsv) continue;
+        const isBarcodesTsv =
+          /cell_feature_matrix\//.test(pathLower) &&
+          /barcodes\.tsv(\.gz)?$/.test(pathLower);
+        if (!isClusterCsv && !isFeatureTsv && !isBarcodesTsv) continue;
 
         const blob = new File([entry.data], entry.name, {
           type: "text/plain",
