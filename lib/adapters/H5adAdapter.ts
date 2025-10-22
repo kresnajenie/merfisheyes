@@ -18,10 +18,6 @@ import h5wasm from "h5wasm";
 export class H5adAdapter {
   h5File: any = null;
   metadata: any = null;
-  private _onProgress?: (
-    progress: number,
-    message: string,
-  ) => Promise<void> | void;
 
   /**
    * Initialize adapter with H5AD file
@@ -30,27 +26,25 @@ export class H5adAdapter {
     file: File,
     onProgress?: (progress: number, message: string) => Promise<void> | void,
   ) {
-    this._onProgress = onProgress;
-
-    await this._onProgress?.(10, "Initializing h5wasm...");
+    await onProgress?.(10, "Initializing h5wasm...");
     const { FS } = await h5wasm.ready;
 
-    await this._onProgress?.(30, "Reading file into memory...");
+    await onProgress?.(30, "Reading file into memory...");
     const arrayBuffer = await file.arrayBuffer();
 
-    await this._onProgress?.(50, "Loading HDF5 structure...");
+    await onProgress?.(50, "Loading HDF5 structure...");
     FS.writeFile(file.name, new Uint8Array(arrayBuffer));
     this.h5File = new h5wasm.File(file.name, "r");
 
     // Get available keys from different groups
-    await this._onProgress?.(70, "Reading dataset metadata...");
+    await onProgress?.(70, "Reading dataset metadata...");
     const rootKeys = this.h5File.keys();
     const obsKeys = this.h5File.get("obs").keys();
     const obsmKeys = this.h5File.get("obsm")?.keys() || [];
     const unsKeys = this.h5File.get("uns")?.keys() || [];
     const varKeys = this.h5File.get("var")?.keys() || [];
 
-    await this._onProgress?.(90, "Finalizing...");
+    await onProgress?.(90, "Finalizing...");
     this.metadata = {
       rootKeys,
       obsKeys,

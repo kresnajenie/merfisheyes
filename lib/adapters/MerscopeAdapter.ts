@@ -33,7 +33,6 @@ export class MerscopeAdapter {
   _genes: string[];
   _exprByGene: Map<string, Float32Array>;
   _cellIndex: Map<string, number>;
-  _onProgress?: (progress: number, message: string) => Promise<void> | void;
 
   constructor() {
     this.files = [];
@@ -58,11 +57,10 @@ export class MerscopeAdapter {
     files: File[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<void> {
-    this._onProgress = onProgress;
     this.files = files;
 
     // 1) cell_metadata.csv (positions live here)
-    await this._onProgress?.(10, "Loading cell metadata...");
+    await onProgress?.(10, "Loading cell metadata...");
     const metaRows = await this._readTableOneOf(["cell_metadata.csv"]);
 
     if (!metaRows.length) {
@@ -70,7 +68,7 @@ export class MerscopeAdapter {
     }
 
     // 2) cell_categories.csv (cluster labels like "leiden")
-    await this._onProgress?.(25, "Loading cluster categories...");
+    await onProgress?.(25, "Loading cluster categories...");
     const catRows = await this._readTableOneOf(["cell_categories.csv"]);
     let clusterCol = null;
     let catIndex = null;
@@ -110,7 +108,7 @@ export class MerscopeAdapter {
     }
 
     // 3) cell_numeric_categories.csv (UMAP)
-    await this._onProgress?.(40, "Loading UMAP embeddings...");
+    await onProgress?.(40, "Loading UMAP embeddings...");
     const numRows = await this._readTableOneOf(["cell_numeric_categories.csv"]);
     let umapIndex = null;
 
@@ -151,7 +149,7 @@ export class MerscopeAdapter {
     }
 
     // 4) Merge rows — choose a stable ID present in metadata
-    await this._onProgress?.(55, "Merging cell data...");
+    await onProgress?.(55, "Merging cell data...");
     const metaIdKey = firstPresent(Object.keys(metaRows[0]), [
       "EntityID",
       "cell",
@@ -197,7 +195,7 @@ export class MerscopeAdapter {
     }
 
     // 5) genes + expression — from cell_by_gene.csv (supports wide or long)
-    await this._onProgress?.(70, "Loading gene expression...");
+    await onProgress?.(70, "Loading gene expression...");
     try {
       const cbgRows = await this._readTableOneOf(["cell_by_gene.csv"]);
 
@@ -213,7 +211,7 @@ export class MerscopeAdapter {
     }
 
     // 6) remember obs keys and cluster column
-    await this._onProgress?.(85, "Processing clusters and embeddings...");
+    await onProgress?.(85, "Processing clusters and embeddings...");
     this._obsKeys = Array.from(new Set(Object.keys(this._rows[0] || {})));
     const clusterCandidates = [
       "leiden",
