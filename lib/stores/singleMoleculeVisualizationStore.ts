@@ -5,6 +5,7 @@ function generateBrightColor(): string {
   const hue = Math.random() * 360;
   const saturation = 70 + Math.random() * 30; // 70-100%
   const lightness = 50 + Math.random() * 20; // 50-70%
+
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
@@ -45,6 +46,7 @@ export const useSingleMoleculeVisualizationStore =
     addGene: (gene: string) =>
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
+
         if (!newSelectedGenes.has(gene)) {
           newSelectedGenes.set(gene, {
             gene,
@@ -52,13 +54,16 @@ export const useSingleMoleculeVisualizationStore =
             localScale: 1.0,
           });
         }
+
         return { selectedGenes: newSelectedGenes };
       }),
 
     removeGene: (gene: string) =>
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
+
         newSelectedGenes.delete(gene);
+
         return { selectedGenes: newSelectedGenes };
       }),
 
@@ -66,9 +71,11 @@ export const useSingleMoleculeVisualizationStore =
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
         const geneViz = newSelectedGenes.get(gene);
+
         if (geneViz) {
           newSelectedGenes.set(gene, { ...geneViz, color });
         }
+
         return { selectedGenes: newSelectedGenes };
       }),
 
@@ -76,9 +83,11 @@ export const useSingleMoleculeVisualizationStore =
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
         const geneViz = newSelectedGenes.get(gene);
+
         if (geneViz) {
           newSelectedGenes.set(gene, { ...geneViz, localScale: scale });
         }
+
         return { selectedGenes: newSelectedGenes };
       }),
 

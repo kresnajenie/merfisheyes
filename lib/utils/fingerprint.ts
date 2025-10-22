@@ -11,7 +11,7 @@ import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
  * - Sample intervals for file contents
  */
 export async function generateDatasetFingerprint(
-  dataset: StandardizedDataset
+  dataset: StandardizedDataset,
 ): Promise<string> {
   const parts: string[] = [];
 
@@ -22,6 +22,7 @@ export async function generateDatasetFingerprint(
 
   // 2. Sample gene names (every 3rd gene)
   const sampledGenes: string[] = [];
+
   for (let i = 0; i < dataset.genes.length; i += 3) {
     sampledGenes.push(dataset.genes[i]);
   }
@@ -34,6 +35,7 @@ export async function generateDatasetFingerprint(
 
     for (let i = 0; i < coords.length; i += 5) {
       const cellCoords = coords[i];
+
       sampledCoords.push(cellCoords.join(","));
     }
     parts.push(`spatial:${sampledCoords.join(";")}`);
@@ -46,6 +48,7 @@ export async function generateDatasetFingerprint(
 
     for (let i = 0; i < coords.length; i += 5) {
       const cellCoords = coords[i];
+
       sampledCoords.push(cellCoords.join(","));
     }
     parts.push(`umap:${sampledCoords.join(";")}`);
@@ -53,12 +56,14 @@ export async function generateDatasetFingerprint(
 
   // 5. Sample expression data (every 5th cell, every 3rd gene)
   const sampledExpression: string[] = [];
+
   for (let geneIdx = 0; geneIdx < dataset.genes.length; geneIdx += 3) {
     const geneName = dataset.genes[geneIdx];
     const values = await dataset.getGeneExpression(geneName);
 
     if (values) {
       const sampledValues: number[] = [];
+
       for (let cellIdx = 0; cellIdx < values.length; cellIdx += 5) {
         sampledValues.push(values[cellIdx]);
       }
@@ -69,12 +74,16 @@ export async function generateDatasetFingerprint(
 
   // 6. Cluster metadata keys (if available)
   if (dataset.clusters && dataset.clusters.length > 0) {
-    const clusterColumns = dataset.clusters.map((cluster) => cluster.column).sort();
+    const clusterColumns = dataset.clusters
+      .map((cluster) => cluster.column)
+      .sort();
+
     parts.push(`clusters:${clusterColumns.join(",")}`);
   }
 
   // Combine all parts and hash
   const combined = parts.join("|");
+
   return await hashString(combined);
 }
 
@@ -85,7 +94,7 @@ export async function generateDatasetFingerprint(
  * Uses gene names and molecule counts to uniquely identify the dataset
  */
 export async function generateSingleMoleculeFingerprint(
-  dataset: SingleMoleculeDataset
+  dataset: SingleMoleculeDataset,
 ): Promise<string> {
   const parts: string[] = [];
 
@@ -97,19 +106,23 @@ export async function generateSingleMoleculeFingerprint(
 
   // 2. Gene names (sorted for consistency)
   const sortedGenes = [...dataset.uniqueGenes].sort();
+
   parts.push(`gene_names:${sortedGenes.join(",")}`);
 
   // 3. Per-gene molecule counts (sorted by gene name for consistency)
   const geneCounts: string[] = [];
+
   for (const gene of sortedGenes) {
     const coords = dataset.getCoordinatesByGene(gene);
     const moleculeCount = coords.length / dataset.dimensions; // coordinates are flat array
+
     geneCounts.push(`${gene}:${moleculeCount}`);
   }
   parts.push(`gene_counts:${geneCounts.join(";")}`);
 
   // Combine all parts and hash
   const combined = parts.join("|");
+
   return await hashString(combined);
 }
 
@@ -121,6 +134,9 @@ async function hashString(str: string): Promise<string> {
   const data = encoder.encode(str);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  const hashHex = hashArray
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
   return hashHex;
 }

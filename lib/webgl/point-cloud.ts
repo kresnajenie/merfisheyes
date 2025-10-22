@@ -1,6 +1,8 @@
-import * as THREE from "three";
-import { vertexShader, fragmentShader } from "./shaders";
 import type { PointData, PointCloudConfig } from "./types";
+
+import * as THREE from "three";
+
+import { vertexShader, fragmentShader } from "./shaders";
 
 /**
  * Generates random point data for visualization
@@ -37,7 +39,7 @@ export function generateRandomPoints(config: PointCloudConfig): PointData[] {
  */
 export function createPointCloud(
   data: PointData[],
-  dotSize: number = 5
+  dotSize: number = 5,
 ): THREE.Points {
   const count = data.length;
 
@@ -91,9 +93,10 @@ export function createPointCloud(
  */
 export function updateDotSize(
   pointsMesh: THREE.Points,
-  newDotSize: number
+  newDotSize: number,
 ): void {
   const material = pointsMesh.material as THREE.ShaderMaterial;
+
   if (material.uniforms && material.uniforms.dotSize) {
     material.uniforms.dotSize.value = newDotSize;
   }
@@ -107,12 +110,13 @@ export function updatePointCloudAttributes(
   pointsMesh: THREE.Points,
   colors?: Float32Array,
   sizes?: Float32Array,
-  alphas?: Float32Array
+  alphas?: Float32Array,
 ): void {
   const geometry = pointsMesh.geometry;
 
   if (colors) {
     const colorAttribute = geometry.getAttribute("color");
+
     if (colorAttribute) {
       geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     } else {
@@ -122,6 +126,7 @@ export function updatePointCloudAttributes(
 
   if (sizes) {
     const sizeAttribute = geometry.getAttribute("size");
+
     if (sizeAttribute) {
       geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
     } else {
@@ -131,6 +136,7 @@ export function updatePointCloudAttributes(
 
   if (alphas) {
     const alphaAttribute = geometry.getAttribute("alpha");
+
     if (alphaAttribute) {
       geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
     } else {

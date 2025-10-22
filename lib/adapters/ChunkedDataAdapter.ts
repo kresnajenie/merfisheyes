@@ -29,11 +29,12 @@ export class ChunkedDataAdapter {
 
       if (!response.ok) {
         throw new Error(
-          `Failed to fetch dataset: ${response.status} ${response.statusText}`
+          `Failed to fetch dataset: ${response.status} ${response.statusText}`,
         );
       }
 
       const data = await response.json();
+
       console.log("Dataset API response:", data);
 
       // Check if there's an error in the response (e.g., dataset not ready)
@@ -44,7 +45,7 @@ export class ChunkedDataAdapter {
       // Check if files object exists
       if (!data.files || typeof data.files !== "object") {
         throw new Error(
-          `Invalid response structure: files object missing. Status: ${data.status || "unknown"}`
+          `Invalid response structure: files object missing. Status: ${data.status || "unknown"}`,
         );
       }
 
@@ -52,7 +53,7 @@ export class ChunkedDataAdapter {
       console.log(
         "Available files:",
         Object.keys(this.downloadUrls).length,
-        "files"
+        "files",
       );
 
       // Load manifest
@@ -71,7 +72,7 @@ export class ChunkedDataAdapter {
       this.obsMetadata = await this.fetchJSON("obs/metadata.json");
       console.log(
         "Loaded observation metadata:",
-        Object.keys(this.obsMetadata)
+        Object.keys(this.obsMetadata),
       );
 
       return true;
@@ -86,6 +87,7 @@ export class ChunkedDataAdapter {
    */
   private async fetchJSON(fileKey: string) {
     const url = this.downloadUrls[fileKey];
+
     if (!url) {
       throw new Error(`No download URL found for ${fileKey}`);
     }
@@ -93,9 +95,10 @@ export class ChunkedDataAdapter {
     console.log(`Fetching JSON: ${fileKey}`);
 
     const response = await fetch(url);
+
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`
+        `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`,
       );
     }
 
@@ -107,6 +110,7 @@ export class ChunkedDataAdapter {
    */
   private async fetchBinary(fileKey: string): Promise<ArrayBuffer> {
     const url = this.downloadUrls[fileKey];
+
     if (!url) {
       throw new Error(`No download URL found for ${fileKey}`);
     }
@@ -114,13 +118,15 @@ export class ChunkedDataAdapter {
     console.log(`Fetching binary: ${fileKey}`);
 
     const response = await fetch(url);
+
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`
+        `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`,
       );
     }
 
     const compressedBlob = await response.blob();
+
     return await this.decompress(compressedBlob);
   }
 
@@ -131,6 +137,7 @@ export class ChunkedDataAdapter {
     const stream = compressedBlob
       .stream()
       .pipeThrough(new DecompressionStream("gzip"));
+
     return await new Response(stream).arrayBuffer();
   }
 
@@ -143,6 +150,7 @@ export class ChunkedDataAdapter {
     try {
       const spatialBuffer = await this.fetchBinary("coords/spatial.bin.gz");
       const coordinates = this.parseCoordinateBuffer(spatialBuffer);
+
       console.log("Loaded spatial coordinates:", coordinates.data.length);
 
       return {
@@ -170,11 +178,12 @@ export class ChunkedDataAdapter {
         try {
           const buffer = await this.fetchBinary(`coords/${coordType}.bin.gz`);
           const coordinates = this.parseCoordinateBuffer(buffer);
+
           embeddings[coordType] = coordinates.data;
           console.log(
             `Loaded ${coordType} embedding:`,
             coordinates.data.length,
-            "points"
+            "points",
           );
         } catch (error) {
           console.warn(`Failed to load ${coordType} embedding:`, error);
@@ -201,6 +210,7 @@ export class ChunkedDataAdapter {
 
     for (let i = 0; i < numPoints; i++) {
       const coord: number[] = [];
+
       for (let d = 0; d < dimensions; d++) {
         coord.push(view.getFloat32(offset, true));
         offset += 4;
@@ -240,13 +250,14 @@ export class ChunkedDataAdapter {
       }
       console.log(
         "Available observation columns:",
-        Object.keys(this.obsMetadata)
+        Object.keys(this.obsMetadata),
       );
 
       const availableColumns = Object.keys(this.obsMetadata);
 
       if (availableColumns.length === 0) {
         console.warn("No observation columns found");
+
         return null;
       }
 
@@ -259,18 +270,19 @@ export class ChunkedDataAdapter {
 
           // Load cluster values
           const clusterValues = await this.fetchCompressedJSON(
-            `obs/${columnName}.json.gz`
+            `obs/${columnName}.json.gz`,
           );
 
           // Load color palette for this column
           let palette: Record<string, string> = {};
+
           try {
             palette = await this.fetchJSON(`palettes/${columnName}.json`);
             console.log(`Loaded palette from: palettes/${columnName}.json`);
           } catch (error) {
             // Fall back to default colors if palette not found
             console.log(
-              `Palette palettes/${columnName}.json not found, generating default colors`
+              `Palette palettes/${columnName}.json not found, generating default colors`,
             );
             palette = this.generateDefaultPalette(clusterValues);
           }
@@ -288,9 +300,11 @@ export class ChunkedDataAdapter {
       }
 
       console.log(`Successfully loaded ${clusters.length} cluster columns`);
+
       return clusters.length > 0 ? clusters : null;
     } catch (error) {
       console.error("Failed to load clusters:", error);
+
       return null;
     }
   }
@@ -301,6 +315,7 @@ export class ChunkedDataAdapter {
   private async fetchCompressedJSON(fileKey: string) {
     const buffer = await this.fetchBinary(fileKey);
     const jsonString = new TextDecoder().decode(buffer);
+
     return JSON.parse(jsonString);
   }
 
@@ -333,6 +348,7 @@ export class ChunkedDataAdapter {
     ];
 
     const palette: Record<string, string> = {};
+
     uniqueValues.forEach((value, index) => {
       palette[String(value)] = colors[index % colors.length];
     });
@@ -352,10 +368,12 @@ export class ChunkedDataAdapter {
 
     // Find gene in index
     const geneInfo = this.expressionIndex.genes.find(
-      (g: any) => g.name === geneName
+      (g: any) => g.name === geneName,
     );
+
     if (!geneInfo) {
       console.warn(`Gene not found: ${geneName}`);
+
       return null;
     }
 
@@ -364,6 +382,7 @@ export class ChunkedDataAdapter {
 
     // Load chunk if not already cached
     let chunk = this.loadedChunks.get(chunkId);
+
     if (!chunk) {
       chunk = await this.loadExpressionChunk(chunkId);
       this.loadedChunks.set(chunkId, chunk);
@@ -371,9 +390,10 @@ export class ChunkedDataAdapter {
 
     // Extract gene data from chunk
     const geneData = chunk.genes[positionInChunk];
+
     if (!geneData) {
       throw new Error(
-        `Gene data not found in chunk ${chunkId} at position ${positionInChunk}`
+        `Gene data not found in chunk ${chunkId} at position ${positionInChunk}`,
       );
     }
 
@@ -385,12 +405,14 @@ export class ChunkedDataAdapter {
     for (let i = 0; i < geneData.indices.length; i++) {
       const cellIndex = geneData.indices[i];
       const value = geneData.values[i];
+
       denseArray[cellIndex] = value;
     }
 
     console.log(
-      `Loaded gene ${geneName}: ${geneData.indices.length} non-zero values out of ${numCells} cells`
+      `Loaded gene ${geneName}: ${geneData.indices.length} non-zero values out of ${numCells} cells`,
     );
+
     return Array.from(denseArray);
   }
 
@@ -399,9 +421,11 @@ export class ChunkedDataAdapter {
    */
   private async loadExpressionChunk(chunkId: number) {
     const chunkFilename = `chunk_${chunkId.toString().padStart(5, "0")}.bin.gz`;
+
     console.log(`Loading expression chunk: ${chunkFilename}`);
 
     const buffer = await this.fetchBinary(`expr/${chunkFilename}`);
+
     return this.parseExpressionChunk(buffer);
   }
 
@@ -418,7 +442,7 @@ export class ChunkedDataAdapter {
     const totalCells = view.getUint32(12, true);
 
     console.log(
-      `Parsing chunk ${chunkId}: ${numGenes} genes, ${totalCells} total cells`
+      `Parsing chunk ${chunkId}: ${numGenes} genes, ${totalCells} total cells`,
     );
 
     // Read gene table
@@ -457,7 +481,7 @@ export class ChunkedDataAdapter {
   private parseSparseGeneData(
     buffer: ArrayBuffer,
     offset: number,
-    numNonZero: number
+    numNonZero: number,
   ) {
     const view = new DataView(buffer);
 
@@ -469,6 +493,7 @@ export class ChunkedDataAdapter {
 
     // Read indices
     const indices: number[] = [];
+
     for (let i = 0; i < actualNonZero; i++) {
       indices.push(view.getUint32(dataOffset, true));
       dataOffset += 4;
@@ -476,6 +501,7 @@ export class ChunkedDataAdapter {
 
     // Read values
     const values: number[] = [];
+
     for (let i = 0; i < actualNonZero; i++) {
       values.push(view.getFloat32(dataOffset, true));
       dataOffset += 4;
@@ -529,15 +555,18 @@ export class ChunkedDataAdapter {
 
     // Get gene info by index
     const geneInfo = this.expressionIndex.genes[geneIndex];
+
     if (!geneInfo) {
       throw new Error(`Gene at index ${geneIndex} not found`);
     }
 
     const geneName = geneInfo.name;
+
     console.log(`Fetching column for gene index ${geneIndex}: ${geneName}`);
 
     // Use the existing fetchGeneExpression which handles chunk caching
     const result = await this.fetchGeneExpression(geneName);
+
     if (result === null) {
       throw new Error(`Failed to fetch expression data for gene: ${geneName}`);
     }

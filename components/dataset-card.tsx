@@ -1,7 +1,6 @@
 "use client";
 
 import { Card, CardBody, Image } from "@heroui/react";
-import { useRouter } from "next/navigation";
 
 export interface Dataset {
   id: string;
@@ -27,9 +26,9 @@ export function DatasetCard({ dataset }: DatasetCardProps) {
     <Card
       isBlurred
       isPressable
-      onPress={handlePress}
       className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-105 transition-all duration-200 cursor-pointer"
       shadow="sm"
+      onPress={handlePress}
     >
       <CardBody className="p-4">
         <div className="grid grid-cols-12 gap-4 items-center">

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
+
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { ViewModeToggle } from "@/components/view-mode-toggle";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
@@ -14,6 +15,7 @@ function ViewerContent() {
   // Get dataset from single molecule store
   const dataset = useSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
+
     return id ? state.datasets.get(id) : null;
   });
 
@@ -40,11 +42,14 @@ function ViewerContent() {
     }
 
     // Pick 4 additional random genes
-    const availableGenes = dataset.uniqueGenes.filter((gene) => gene !== "LEF1");
+    const availableGenes = dataset.uniqueGenes.filter(
+      (gene) => gene !== "LEF1",
+    );
     const numRandomGenes = Math.min(4, availableGenes.length);
 
     for (let i = 0; i < numRandomGenes; i++) {
       const randomIndex = Math.floor(Math.random() * availableGenes.length);
+
       selectedGenes.push(availableGenes[randomIndex]);
       availableGenes.splice(randomIndex, 1); // Remove to avoid duplicates
     }
@@ -60,24 +65,24 @@ function ViewerContent() {
       <>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-left"
-            raysColor="#FFD700"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FFD700"
+            raysOrigin="top-left"
+            raysSpeed={0.8}
           />
         </div>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-right"
-            raysColor="#FFD700"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FFD700"
+            raysOrigin="top-right"
+            raysSpeed={0.8}
           />
         </div>
         <div className="relative z-10 flex items-center justify-center h-full p-8">
@@ -92,16 +97,16 @@ function ViewerContent() {
             </div>
             <div className="grid grid-cols-2 gap-4 w-full">
               <FileUpload
-                type="xenium"
-                title="Xenium Parquet/CSV"
                 description="Select .parquet or .csv file"
                 singleMolecule={true}
+                title="Xenium Parquet/CSV"
+                type="xenium"
               />
               <FileUpload
-                type="merscope"
-                title="MERSCOPE Parquet/CSV"
                 description="Select .parquet or .csv file"
                 singleMolecule={true}
+                title="MERSCOPE Parquet/CSV"
+                type="merscope"
               />
             </div>
           </div>

@@ -1,5 +1,4 @@
 import type { StandardizedDataset } from "../StandardizedDataset";
-import type { VisualizationMode } from "../stores/visualizationStore";
 
 /**
  * Calculates the value at the specified percentile of the given array, ignoring NaN values.
@@ -9,7 +8,7 @@ import type { VisualizationMode } from "../stores/visualizationStore";
  */
 export function calculateGenePercentile(
   arr: number[],
-  percentile: number
+  percentile: number,
 ): number {
   // Filter out NaN values and create a sorted copy
   const sortedArr = arr
@@ -47,6 +46,7 @@ export function normalizeArray(arr: number[], nmax: number): number[] {
     if (isNaN(value) || value === null) {
       return NaN;
     }
+
     // Clip and normalize
     return Math.min(value / nmax, 1);
   });
@@ -73,6 +73,7 @@ export function coolwarm(value: number): [number, number, number] {
   if (value < 0.5) {
     // Blue to white
     const t = value * 2; // 0 to 1
+
     return [white.r * t, white.g * t, blue.b];
   } else if (value === 0.5) {
     // White
@@ -80,6 +81,7 @@ export function coolwarm(value: number): [number, number, number] {
   } else {
     // White to red
     const t = (value - 0.5) * 2; // 0 to 1
+
     return [red.r, white.g - white.g * t, white.b - white.b * t];
   }
 }
@@ -89,8 +91,10 @@ export function coolwarm(value: number): [number, number, number] {
  */
 
 const grey = "#808080";
+
 export function hexToRgb(hex: string): [number, number, number] {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+
   if (!result) return [0, 0, 0];
 
   return [
@@ -106,7 +110,7 @@ export function hexToRgb(hex: string): [number, number, number] {
 export function valueToColor(
   value: number,
   min: number,
-  max: number
+  max: number,
 ): [number, number, number] {
   const normalized = max > min ? (value - min) / (max - min) : 0;
   const clamped = Math.max(0, Math.min(1, normalized));
@@ -114,15 +118,19 @@ export function valueToColor(
   // Blue (low) -> Cyan -> Green -> Yellow -> Red (high)
   if (clamped < 0.25) {
     const t = clamped / 0.25;
+
     return [0, t, 1]; // Blue to Cyan
   } else if (clamped < 0.5) {
     const t = (clamped - 0.25) / 0.25;
+
     return [0, 1, 1 - t]; // Cyan to Green
   } else if (clamped < 0.75) {
     const t = (clamped - 0.5) / 0.25;
+
     return [t, 1, 0]; // Green to Yellow
   } else {
     const t = (clamped - 0.75) / 0.25;
+
     return [1, 1 - t, 0]; // Yellow to Red
   }
 }
@@ -134,7 +142,7 @@ export async function updateGeneVisualization(
   dataset: StandardizedDataset,
   selectedGene: string | null,
   alphaScale: number,
-  sizeScale: number
+  sizeScale: number,
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -144,6 +152,7 @@ export async function updateGeneVisualization(
 
   if (!selectedGene) {
     console.log("No gene selected");
+
     return null;
   }
 
@@ -152,6 +161,7 @@ export async function updateGeneVisualization(
 
   if (!expression) {
     console.warn(`Gene expression data not found for: ${selectedGene}`);
+
     return null;
   }
 
@@ -159,10 +169,12 @@ export async function updateGeneVisualization(
 
   // Calculate 95th percentile for normalization
   const percentile95 = calculateGenePercentile(expression, 0.95);
+
   console.log("95th percentile:", percentile95);
 
   // Normalize expression values to 0-1 range
   const normalizedExpression = normalizeArray(expression, percentile95);
+
   console.log("Normalized expression:", normalizedExpression.slice(0, 10));
 
   // Initialize arrays
@@ -179,6 +191,7 @@ export async function updateGeneVisualization(
 
     // Colors from coolwarm
     const [r, g, b] = coolwarm(normalizedValue);
+
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
@@ -188,6 +201,7 @@ export async function updateGeneVisualization(
     const sizeMultiplier = isNaN(normalizedValue)
       ? 1.0
       : 0.5 + normalizedValue * 1.5;
+
     sizes[i] = baseSize * sizeMultiplier * sizeScale;
 
     // Alphas
@@ -208,7 +222,7 @@ export function updateCelltypeVisualization(
   selectedCelltypes: Set<string>,
   colorPalette: Record<string, string>,
   alphaScale: number,
-  sizeScale: number
+  sizeScale: number,
 ): {
   colors: Float32Array;
   sizes: Float32Array;
@@ -218,16 +232,18 @@ export function updateCelltypeVisualization(
 
   if (!dataset.clusters || !selectedColumn) {
     console.log("No cluster data or column selected");
+
     return null;
   }
 
   // Find the selected cluster column data
   const selectedCluster = dataset.clusters.find(
-    (c) => c.column === selectedColumn
+    (c) => c.column === selectedColumn,
   );
 
   if (!selectedCluster) {
     console.warn(`Cluster column not found: ${selectedColumn}`);
+
     return null;
   }
 
@@ -251,6 +267,7 @@ export function updateCelltypeVisualization(
     // Colors
     const hex = isSelected ? palette[category] || grey : grey;
     const [r, g, b] = hexToRgb(hex);
+
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
@@ -260,6 +277,7 @@ export function updateCelltypeVisualization(
       selectedCelltypes.size === 0 || selectedCelltypes.has(category)
         ? 2.0
         : 1.0;
+
     sizes[i] = baseSize * sizeMultiplier * sizeScale;
 
     // Alphas

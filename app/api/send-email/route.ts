@@ -1,5 +1,5 @@
-import sgMail from '@sendgrid/mail';
-import { NextRequest } from 'next/server';
+import sgMail from "@sendgrid/mail";
+import { NextRequest } from "next/server";
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
@@ -7,13 +7,13 @@ export async function POST(req: NextRequest) {
   try {
     const { email, datasetId } = await req.json();
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const link = `${baseUrl}/viewer/${datasetId}`;
 
     const msg = {
       to: email,
-      from: 'noreply@merfisheyes.com',
-      subject: 'Your Dataset is Ready - MERFISHeyes',
+      from: "noreply@merfisheyes.com",
+      subject: "Your Dataset is Ready - MERFISHeyes",
       text: `Your dataset has been processed and is ready to view.\n\nDataset ID: ${datasetId}\n\nView your dataset here: ${link}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -36,9 +36,13 @@ export async function POST(req: NextRequest) {
 
     return Response.json({ success: true });
   } catch (error) {
-    console.error('SendGrid Error:', error);
-    return Response.json({
-      error: error instanceof Error ? error.message : 'Failed to send email'
-    }, { status: 500 });
+    console.error("SendGrid Error:", error);
+
+    return Response.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to send email",
+      },
+      { status: 500 },
+    );
   }
 }

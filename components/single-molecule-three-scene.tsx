@@ -3,8 +3,8 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { Spinner } from "@heroui/react";
+
 import { initializeScene } from "@/lib/webgl/scene-manager";
-import { createPointCloud } from "@/lib/webgl/point-cloud";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
@@ -19,11 +19,13 @@ export function SingleMoleculeThreeScene() {
   // Get dataset from store
   const dataset = useSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
+
     return id ? state.datasets.get(id) : null;
   });
 
   // Get visualization settings from store
-  const { selectedGenes, globalScale, viewMode } = useSingleMoleculeVisualizationStore();
+  const { selectedGenes, globalScale, viewMode } =
+    useSingleMoleculeVisualizationStore();
 
   // Effect 1: Scene initialization
   useEffect(() => {
@@ -45,7 +47,7 @@ export function SingleMoleculeThreeScene() {
     // Initialize Three.js scene
     const { scene, camera, renderer, controls, animate } = initializeScene(
       containerRef.current,
-      { is2D: dataset.dimensions === 2 }
+      { is2D: dataset.dimensions === 2 },
     );
 
     sceneRef.current = scene;
@@ -146,74 +148,87 @@ export function SingleMoleculeThreeScene() {
         try {
           // Get coordinates for this gene (async for lazy loading from S3)
           const coords = await dataset.getCoordinatesByGene(gene);
-        const moleculeCount = coords.length / 3; // Each molecule has x, y, z
+          const moleculeCount = coords.length / 3; // Each molecule has x, y, z
 
-        console.log(`Creating/updating point cloud for gene: ${gene}`);
-        console.log(`  Molecules: ${moleculeCount.toLocaleString()}`);
-        console.log(`  Color: ${geneViz.color}`);
-        console.log(`  Local scale: ${geneViz.localScale}`);
+          console.log(`Creating/updating point cloud for gene: ${gene}`);
+          console.log(`  Molecules: ${moleculeCount.toLocaleString()}`);
+          console.log(`  Color: ${geneViz.color}`);
+          console.log(`  Local scale: ${geneViz.localScale}`);
 
-        // Check if point cloud already exists
-        let pointCloud = currentPointClouds.get(gene);
+          // Check if point cloud already exists
+          let pointCloud = currentPointClouds.get(gene);
 
-        if (!pointCloud) {
-          // Create new point cloud
-          const positions: number[] = [];
+          if (!pointCloud) {
+            // Create new point cloud
+            const positions: number[] = [];
 
-          // Extract coordinates (already normalized to [-1, 1]) and scale by 100
-          for (let i = 0; i < coords.length; i += 3) {
-            positions.push(coords[i] * 100, coords[i + 1] * 100, coords[i + 2] * 100);
+            // Extract coordinates (already normalized to [-1, 1]) and scale by 100
+            for (let i = 0; i < coords.length; i += 3) {
+              positions.push(
+                coords[i] * 100,
+                coords[i + 1] * 100,
+                coords[i + 2] * 100,
+              );
+            }
+
+            // Create point cloud with single color
+            const geometry = new THREE.BufferGeometry();
+
+            geometry.setAttribute(
+              "position",
+              new THREE.Float32BufferAttribute(positions, 3),
+            );
+
+            // Parse HSL color and convert to RGB
+            const color = new THREE.Color(geneViz.color);
+            const colors = new Float32Array(moleculeCount * 3);
+
+            for (let i = 0; i < moleculeCount; i++) {
+              colors[i * 3] = color.r;
+              colors[i * 3 + 1] = color.g;
+              colors[i * 3 + 2] = color.b;
+            }
+            geometry.setAttribute(
+              "color",
+              new THREE.BufferAttribute(colors, 3),
+            );
+
+            // Create material (increased base size)
+            const material = new THREE.PointsMaterial({
+              size: geneViz.localScale * globalScale * 2.0,
+              vertexColors: true,
+              transparent: true,
+              opacity: 1.0,
+              sizeAttenuation: false,
+            });
+
+            pointCloud = new THREE.Points(geometry, material);
+            scene.add(pointCloud);
+            currentPointClouds.set(gene, pointCloud);
+
+            console.log(
+              `  ✅ Point cloud created with ${moleculeCount} molecules`,
+            );
+          } else {
+            // Update existing point cloud color and size
+            const material = pointCloud.material as THREE.PointsMaterial;
+
+            material.size = geneViz.localScale * globalScale * 2.0;
+
+            // Update colors
+            const color = new THREE.Color(geneViz.color);
+            const colorAttr = pointCloud.geometry.getAttribute("color");
+            const colors = colorAttr.array as Float32Array;
+
+            for (let i = 0; i < moleculeCount; i++) {
+              colors[i * 3] = color.r;
+              colors[i * 3 + 1] = color.g;
+              colors[i * 3 + 2] = color.b;
+            }
+            colorAttr.needsUpdate = true;
+
+            console.log(`  ✅ Point cloud updated`);
           }
-
-          // Create point cloud with single color
-          const geometry = new THREE.BufferGeometry();
-          geometry.setAttribute(
-            "position",
-            new THREE.Float32BufferAttribute(positions, 3)
-          );
-
-          // Parse HSL color and convert to RGB
-          const color = new THREE.Color(geneViz.color);
-          const colors = new Float32Array(moleculeCount * 3);
-          for (let i = 0; i < moleculeCount; i++) {
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
-          }
-          geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-          // Create material (increased base size)
-          const material = new THREE.PointsMaterial({
-            size: geneViz.localScale * globalScale * 2.0,
-            vertexColors: true,
-            transparent: true,
-            opacity: 1.0,
-            sizeAttenuation: false,
-          });
-
-          pointCloud = new THREE.Points(geometry, material);
-          scene.add(pointCloud);
-          currentPointClouds.set(gene, pointCloud);
-
-          console.log(`  ✅ Point cloud created with ${moleculeCount} molecules`);
-        } else {
-          // Update existing point cloud color and size
-          const material = pointCloud.material as THREE.PointsMaterial;
-          material.size = geneViz.localScale * globalScale * 2.0;
-
-          // Update colors
-          const color = new THREE.Color(geneViz.color);
-          const colorAttr = pointCloud.geometry.getAttribute("color");
-          const colors = colorAttr.array as Float32Array;
-          for (let i = 0; i < moleculeCount; i++) {
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
-          }
-          colorAttr.needsUpdate = true;
-
-          console.log(`  ✅ Point cloud updated`);
-        }
         } catch (error) {
           console.error(`Error creating point cloud for gene ${gene}:`, error);
         }
@@ -228,7 +243,7 @@ export function SingleMoleculeThreeScene() {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black">
         <div className="text-center">
-          <Spinner size="lg" color="primary" />
+          <Spinner color="primary" size="lg" />
           <p className="mt-4 text-white">No dataset loaded</p>
         </div>
       </div>

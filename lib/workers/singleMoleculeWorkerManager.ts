@@ -1,6 +1,7 @@
 // lib/workers/singleMoleculeWorkerManager.ts
-import * as Comlink from "comlink";
 import type { SingleMoleculeWorkerApi } from "./single-molecule.worker";
+
+import * as Comlink from "comlink";
 
 let worker: Worker | null = null;
 let workerProxy: Comlink.Remote<SingleMoleculeWorkerApi> | null = null;
@@ -18,7 +19,7 @@ export async function getSingleMoleculeWorker(): Promise<
 
     worker = new Worker(
       new URL("./single-molecule.worker.ts", import.meta.url),
-      { type: "module" }
+      { type: "module" },
     );
 
     // Add error handling for worker creation/loading
@@ -49,7 +50,9 @@ export async function getSingleMoleculeWorker(): Promise<
  */
 export function terminateSingleMoleculeWorker() {
   if (worker) {
-    console.log("[SingleMoleculeWorkerManager] Terminating singleton worker...");
+    console.log(
+      "[SingleMoleculeWorkerManager] Terminating singleton worker...",
+    );
     worker.terminate();
     worker = null;
     workerProxy = null;

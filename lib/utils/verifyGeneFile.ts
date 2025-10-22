@@ -37,7 +37,9 @@ export async function verifyGeneFile(file: File): Promise<{
     // Calculate min/max/avg
     let minVal = Infinity;
     let maxVal = -Infinity;
-    let sumX = 0, sumY = 0, sumZ = 0;
+    let sumX = 0,
+      sumY = 0,
+      sumZ = 0;
 
     for (let i = 0; i < coordinateCount; i += 3) {
       const x = float32Array[i];
@@ -67,6 +69,7 @@ export async function verifyGeneFile(file: File): Promise<{
     };
   } catch (error) {
     console.error("Failed to verify gene file:", error);
+
     return {
       isValid: false,
       byteLength: 0,
@@ -86,6 +89,7 @@ export async function verifyGeneFile(file: File): Promise<{
  */
 export function createGeneFileVerifier() {
   const input = document.createElement("input");
+
   input.type = "file";
   input.accept = ".bin.gz,.gz";
 
@@ -95,6 +99,7 @@ export function createGeneFileVerifier() {
 
     if (!file) {
       console.error("No file selected");
+
       return;
     }
 
@@ -108,7 +113,9 @@ export function createGeneFileVerifier() {
       console.log(`🧬 Total molecules: ${result.coordinateCount / 3}`);
       console.log(`📍 First few coordinates:`, result.firstFewCoordinates);
       console.log(`📈 Stats:`, result.stats);
-      console.log(`   - Range: [${result.stats.min.toFixed(4)}, ${result.stats.max.toFixed(4)}]`);
+      console.log(
+        `   - Range: [${result.stats.min.toFixed(4)}, ${result.stats.max.toFixed(4)}]`,
+      );
       console.log(`   - Should be normalized to [-1, 1] range`);
     } else {
       console.error("❌ File is invalid or corrupt");

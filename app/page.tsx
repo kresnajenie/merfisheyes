@@ -1,24 +1,26 @@
 "use client";
 
-import { title, subtitle } from "@/components/primitives";
-import { FileUpload } from "@/components/file-upload";
-import LightRays from "@/components/react-bits/LightRays";
 import { Button } from "@heroui/button";
 import Link from "next/link";
 
+import { title, subtitle } from "@/components/primitives";
+import { FileUpload } from "@/components/file-upload";
+import LightRays from "@/components/react-bits/LightRays";
+
 export default function Home() {
   const name = "MERFISH";
+
   return (
     <>
       <div className="fixed inset-0 w-full h-full z-0">
         <LightRays
-          raysOrigin="top-center"
-          raysColor="#5EA2EF"
-          rayLength={10}
-          raysSpeed={1.0}
           lightSpread={1.0}
-          pulsating={false}
           mouseInfluence={0.1}
+          pulsating={false}
+          rayLength={10}
+          raysColor="#5EA2EF"
+          raysOrigin="top-center"
+          raysSpeed={1.0}
         />
       </div>
       <section className="relative flex flex-col items-center gap-1 py-12 md:py-20 px-4 md:px-8">
@@ -45,19 +47,19 @@ export default function Home() {
           {/* Three separate file uploaders for testing */}
           <div className="grid grid-cols-3 gap-4 w-full">
             <FileUpload
-              type="h5ad"
-              title="H5AD File"
               description="Single .h5ad file"
+              title="H5AD File"
+              type="h5ad"
             />
             <FileUpload
-              type="xenium"
-              title="Xenium Folder"
               description="Select Xenium output folder"
+              title="Xenium Folder"
+              type="xenium"
             />
             <FileUpload
-              type="merscope"
-              title="Merscope Folder"
               description="Select Merscope output folder"
+              title="Merscope Folder"
+              type="merscope"
             />
           </div>
         </div>
@@ -65,10 +67,10 @@ export default function Home() {
         <div className="relative z-10 flex justify-center mt-8">
           <Button
             as={Link}
-            href="/explore"
             color="primary"
-            size="lg"
+            href="/explore"
             radius="full"
+            size="lg"
           >
             Explore Example Data
           </Button>

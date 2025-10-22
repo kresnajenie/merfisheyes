@@ -1,5 +1,6 @@
 import sgMail from "@sendgrid/mail";
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
@@ -11,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (!email || !datasetId) {
       return NextResponse.json(
         { error: "Email and datasetId are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -26,10 +27,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!dataset) {
-      return NextResponse.json(
-        { error: "Dataset not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
@@ -117,12 +115,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("SendGrid error:", error);
+
     return NextResponse.json(
       {
         error: "Failed to send email",
         message: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

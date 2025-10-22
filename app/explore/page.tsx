@@ -10,13 +10,13 @@ export default function ExplorePage() {
     <>
       <div className="fixed inset-0 w-full h-full z-0">
         <LightRays
-          raysOrigin="top-left"
-          raysColor="#FF1CF7"
-          rayLength={10}
-          raysSpeed={1.0}
           lightSpread={1.2}
-          pulsating={false}
           mouseInfluence={0.1}
+          pulsating={false}
+          rayLength={10}
+          raysColor="#FF1CF7"
+          raysOrigin="top-left"
+          raysSpeed={1.0}
         />
       </div>
       <div className="w-full">

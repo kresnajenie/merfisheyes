@@ -1,7 +1,3 @@
-import { H5adAdapter } from "./adapters/H5adAdapter";
-import { XeniumAdapter } from "./adapters/XeniumAdapter";
-import { MerscopeAdapter } from "./adapters/MerscopeAdapter";
-import { ChunkedDataAdapter } from "./adapters/ChunkedDataAdapter";
 import { normalizeCoordinates } from "./utils/coordinates";
 
 interface SpatialData {
@@ -68,6 +64,7 @@ export class StandardizedDataset {
 
     // Normalize spatial coordinates to [-1, 1]
     const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
+
     this.spatial = {
       coordinates: normalizedSpatial?.normalized || spatial.coordinates,
       dimensions: spatial.dimensions,
@@ -118,6 +115,7 @@ export class StandardizedDataset {
 
     if (this.spatial.coordinates.length > 0) {
       const firstCoord = this.spatial.coordinates[0];
+
       if (
         !Array.isArray(firstCoord) ||
         firstCoord.length < this.spatial.dimensions
@@ -171,6 +169,7 @@ export class StandardizedDataset {
 
     // Use cached genes array instead of re-fetching
     const geneIndex = this.genes.indexOf(gene);
+
     if (geneIndex === -1) {
       return null;
     }
@@ -181,241 +180,142 @@ export class StandardizedDataset {
   /**
    * Create StandardizedDataset from H5AD file
    */
-  static async fromH5ad(file: File, onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
-    const adapter = new H5adAdapter();
-    await adapter.initialize(file, onProgress);
-
-    // Load all data through adapter
-    await onProgress?.(92, "Loading spatial coordinates...");
-    const spatial = adapter.loadSpatialCoordinates();
-    console.log("Spatial data:", spatial);
-    await onProgress?.(94, "Loading embeddings...");
-    const embeddings = adapter.loadEmbeddings();
-    console.log("Embeddings:", embeddings);
-    await onProgress?.(96, "Loading genes...");
-    const genes = await adapter.loadGenes();
-    console.log("Genes:", genes.length, "genes loaded");
-    await onProgress?.(98, "Loading clusters...");
-    const clusters = await adapter.loadClusters();
-    console.log("Clusters:", clusters);
-    const dataInfo = adapter.getDatasetInfo();
-    console.log("Dataset info:", dataInfo);
-
-    // Generate dataset ID
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 11);
-    const id = `h5ad_${file.name.replace(".h5ad", "")}_${timestamp}_${random}`;
-
+  /**
+   * Reconstruct StandardizedDataset from serializable data (used after web worker processing)
+   */
+  static fromSerializedData(data: {
+    id: string;
+    name: string;
+    type: string;
+    spatial: {
+      coordinates: number[][];
+      dimensions: number;
+      scalingFactor: number;
+    };
+    embeddings: Record<string, number[][]>;
+    genes: string[];
+    clusters:
+      | {
+          column: string;
+          type: string;
+          values: any[];
+          palette: Record<string, string> | null;
+        }[]
+      | null;
+    metadata: Record<string, any>;
+  }): StandardizedDataset {
     return new StandardizedDataset({
-      id: id,
-      name: file.name.replace(".h5ad", ""),
-      type: "h5ad",
-      spatial: spatial,
-      embeddings: embeddings,
-      genes: genes,
-      clusters: clusters,
-      metadata: {
-        ...adapter.metadata,
-        originalFileName: file.name,
-        numCells: dataInfo.numCells,
-        numGenes: dataInfo.numGenes,
-      },
-      rawData: adapter.h5File,
-      adapter: adapter,
+      id: data.id,
+      name: data.name,
+      type: data.type,
+      spatial: data.spatial,
+      embeddings: data.embeddings,
+      genes: data.genes,
+      clusters: data.clusters,
+      metadata: data.metadata,
+      rawData: null,
+      adapter: null,
     });
+  }
+
+  static async fromH5ad(
+    file: File,
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<StandardizedDataset> {
+    // Use web worker for parsing
+    const { getStandardizedDatasetWorker } = await import(
+      "./workers/standardizedDatasetWorkerManager"
+    );
+    const worker = await getStandardizedDatasetWorker();
+
+    // Import Comlink dynamically
+    const Comlink = await import("comlink");
+
+    // Parse in worker with proxied progress callback
+    const serializedData = await worker.parseH5ad(
+      file,
+      onProgress ? Comlink.proxy(onProgress) : undefined,
+    );
+
+    // Reconstruct StandardizedDataset from serialized data
+    return StandardizedDataset.fromSerializedData(serializedData);
   }
 
   /**
    * Create StandardizedDataset from Xenium files
    */
-  static async fromXenium(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
-    const adapter = new XeniumAdapter();
-    await adapter.initialize(files, onProgress);
+  static async fromXenium(
+    files: File[],
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<StandardizedDataset> {
+    // Use web worker for parsing
+    const { getStandardizedDatasetWorker } = await import(
+      "./workers/standardizedDatasetWorkerManager"
+    );
+    const worker = await getStandardizedDatasetWorker();
 
-    // Load all data through adapter
-    await onProgress?.(92, "Loading spatial coordinates...");
-    const spatial = adapter.loadSpatialCoordinates();
-    console.log("Spatial data:", spatial);
-    await onProgress?.(94, "Loading embeddings...");
-    const embeddings = adapter.loadEmbeddings();
-    console.log("Embeddings:", embeddings);
-    await onProgress?.(96, "Loading genes...");
-    const genes = await adapter.loadGenes();
-    console.log("Genes:", genes.length, "genes loaded");
-    await onProgress?.(98, "Loading clusters...");
-    const clusterData = await adapter.loadClusters();
-    console.log("Clusters:", clusterData);
+    // Import Comlink dynamically
+    const Comlink = await import("comlink");
 
-    // Wrap single cluster object in array and add type field for StandardizedDataset format
-    const clusters = clusterData
-      ? [
-          {
-            column: clusterData.column,
-            type: "categorical",
-            values: clusterData.values,
-            palette: clusterData.palette,
-          },
-        ]
-      : null;
+    // Parse in worker with proxied progress callback
+    const serializedData = await worker.parseXenium(
+      files,
+      onProgress ? Comlink.proxy(onProgress) : undefined,
+    );
 
-    const dataInfo = adapter.getDatasetInfo();
-    console.log("Dataset info:", dataInfo);
-
-    // Generate dataset ID and name from folder
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 11);
-    const folderName =
-      files[0]?.webkitRelativePath?.split("/")[0] || "xenium_data";
-    const id = `xenium_${folderName}_${timestamp}_${random}`;
-
-    return new StandardizedDataset({
-      id: id,
-      name: folderName,
-      type: "xenium",
-      spatial: spatial,
-      embeddings: embeddings,
-      genes: genes,
-      clusters: clusters,
-      metadata: {
-        ...((adapter as any).metadata || {}),
-        fileCount: files.length,
-        numCells: dataInfo.numCells,
-        numGenes: dataInfo.numGenes,
-      },
-      rawData: files,
-      adapter: adapter,
-    });
+    // Reconstruct StandardizedDataset from serialized data
+    return StandardizedDataset.fromSerializedData(serializedData);
   }
 
   /**
    * Create StandardizedDataset from MERSCOPE files
    */
-  static async fromMerscope(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
-    const adapter = new MerscopeAdapter();
-    await adapter.initialize(files, onProgress);
+  static async fromMerscope(
+    files: File[],
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<StandardizedDataset> {
+    // Use web worker for parsing
+    const { getStandardizedDatasetWorker } = await import(
+      "./workers/standardizedDatasetWorkerManager"
+    );
+    const worker = await getStandardizedDatasetWorker();
 
-    // Load all data through adapter
-    await onProgress?.(92, "Loading spatial coordinates...");
-    const spatial = adapter.loadSpatialCoordinates();
-    console.log("Spatial data:", spatial);
-    await onProgress?.(94, "Loading embeddings...");
-    const rawEmbeddings = adapter.loadEmbeddings();
-    console.log("Raw embeddings:", rawEmbeddings);
+    // Import Comlink dynamically
+    const Comlink = await import("comlink");
 
-    // Convert embeddings to proper format (filter out undefined values)
-    const embeddings: Record<string, number[][]> = {};
-    if (rawEmbeddings && typeof rawEmbeddings === "object") {
-      Object.entries(rawEmbeddings).forEach(([key, value]) => {
-        if (value && Array.isArray(value)) {
-          embeddings[key] = value;
-        }
-      });
-    }
+    // Parse in worker with proxied progress callback
+    const serializedData = await worker.parseMerscope(
+      files,
+      onProgress ? Comlink.proxy(onProgress) : undefined,
+    );
 
-    await onProgress?.(96, "Loading genes...");
-    const genes = await adapter.loadGenes();
-    console.log("Genes:", genes.length, "genes loaded");
-    await onProgress?.(98, "Loading clusters...");
-    const clusterData = await adapter.loadClusters();
-    console.log("Clusters:", clusterData);
-
-    // Wrap single cluster object in array and add type field for StandardizedDataset format
-    const clusters = clusterData
-      ? [
-          {
-            column: clusterData.column,
-            type: "categorical",
-            values: clusterData.values,
-            palette: clusterData.palette,
-          },
-        ]
-      : null;
-
-    const dataInfo = adapter.getDatasetInfo();
-    console.log("Dataset info:", dataInfo);
-
-    // Generate dataset ID and name from folder
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 11);
-    const folderName =
-      files[0]?.webkitRelativePath?.split("/")[0] || "merscope_data";
-    const id = `merscope_${folderName}_${timestamp}_${random}`;
-
-    return new StandardizedDataset({
-      id: id,
-      name: folderName,
-      type: "merscope",
-      spatial: spatial,
-      embeddings: embeddings,
-      genes: genes,
-      clusters: clusters,
-      metadata: {
-        ...((adapter as any).metadata || {}),
-        fileCount: files.length,
-        numCells: dataInfo.numCells,
-        numGenes: dataInfo.numGenes,
-      },
-      rawData: files,
-      adapter: adapter,
-    });
+    // Reconstruct StandardizedDataset from serialized data
+    return StandardizedDataset.fromSerializedData(serializedData);
   }
 
   /**
    * Create StandardizedDataset from S3 chunked data
    */
-  static async fromS3(datasetId: string, onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<StandardizedDataset> {
-    const adapter = new ChunkedDataAdapter(datasetId);
+  static async fromS3(
+    datasetId: string,
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<StandardizedDataset> {
+    // Use web worker for parsing
+    const { getStandardizedDatasetWorker } = await import(
+      "./workers/standardizedDatasetWorkerManager"
+    );
+    const worker = await getStandardizedDatasetWorker();
 
-    // Initialize adapter (fetches URLs and loads manifest/index)
-    await onProgress?.(10, "Initializing adapter...");
-    await adapter.initialize();
-    console.log("Adapter initialized");
+    // Import Comlink dynamically
+    const Comlink = await import("comlink");
 
-    // Load spatial coordinates
-    await onProgress?.(30, "Loading spatial coordinates...");
-    const spatial = await adapter.loadSpatialCoordinates();
-    console.log("Loaded spatial coordinates:", spatial.coordinates.length);
+    // Parse in worker with proxied progress callback
+    const serializedData = await worker.parseS3(
+      datasetId,
+      onProgress ? Comlink.proxy(onProgress) : undefined,
+    );
 
-    // Load embeddings
-    await onProgress?.(50, "Loading embeddings...");
-    const embeddings = await adapter.loadEmbeddings();
-    console.log("Loaded embeddings:", Object.keys(embeddings));
-
-    // Load genes
-    await onProgress?.(70, "Loading genes...");
-    const genes = await adapter.loadGenes();
-    console.log("Loaded genes:", genes.length);
-
-    // Load clusters
-    await onProgress?.(90, "Loading clusters...");
-    const clusters = await adapter.loadClusters();
-    console.log("Loaded clusters:", clusters);
-
-    // Get dataset info
-    const dataInfo = adapter.getDatasetInfo();
-    console.log("Dataset info:", dataInfo);
-
-    await onProgress?.(100, "Dataset loaded successfully");
-
-    return new StandardizedDataset({
-      id: dataInfo.id,
-      name: dataInfo.name,
-      type: dataInfo.type,
-      spatial: {
-        coordinates: spatial.coordinates,
-        dimensions: spatial.dimensions,
-      },
-      embeddings: embeddings,
-      genes: genes,
-      clusters: clusters,
-      metadata: {
-        numCells: dataInfo.numCells,
-        numGenes: dataInfo.numGenes,
-        spatialDimensions: dataInfo.spatialDimensions,
-        availableEmbeddings: dataInfo.availableEmbeddings,
-        clusterCount: dataInfo.clusterCount,
-      },
-      adapter: adapter,
-    });
+    // Reconstruct StandardizedDataset from serialized data
+    return StandardizedDataset.fromSerializedData(serializedData);
   }
 }

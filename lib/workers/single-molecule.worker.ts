@@ -1,7 +1,9 @@
 // lib/workers/single-molecule.worker.ts
-import * as Comlink from "comlink";
-import { SingleMoleculeDataset } from "../SingleMoleculeDataset";
 import type { MoleculeDatasetType } from "../config/moleculeColumnMappings";
+
+import * as Comlink from "comlink";
+
+import { SingleMoleculeDataset } from "../SingleMoleculeDataset";
 
 /**
  * Progress callback type that can be proxied by Comlink
@@ -32,7 +34,7 @@ const workerApi = {
   async parseParquet(
     file: File,
     datasetType: MoleculeDatasetType,
-    onProgress?: ProgressCallback
+    onProgress?: ProgressCallback,
   ): Promise<SerializableDatasetData> {
     console.log("[Worker] Starting parquet parsing:", file.name);
 
@@ -41,7 +43,7 @@ const workerApi = {
     const dataset = await SingleMoleculeDataset.fromParquet(
       file,
       datasetType,
-      onProgress
+      onProgress,
     );
 
     console.log("[Worker] Parsing complete, serializing data...");
@@ -59,6 +61,7 @@ const workerApi = {
     };
 
     console.log("[Worker] Serialization complete");
+
     return serializable;
   },
 
@@ -68,7 +71,7 @@ const workerApi = {
   async parseCSV(
     file: File,
     datasetType: MoleculeDatasetType,
-    onProgress?: ProgressCallback
+    onProgress?: ProgressCallback,
   ): Promise<SerializableDatasetData> {
     console.log("[Worker] Starting CSV parsing:", file.name);
 
@@ -76,7 +79,7 @@ const workerApi = {
     const dataset = await SingleMoleculeDataset.fromCSV(
       file,
       datasetType,
-      onProgress
+      onProgress,
     );
 
     console.log("[Worker] Parsing complete, serializing data...");
@@ -93,6 +96,7 @@ const workerApi = {
     };
 
     console.log("[Worker] Serialization complete");
+
     return serializable;
   },
 };

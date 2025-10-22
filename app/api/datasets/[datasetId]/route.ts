@@ -1,5 +1,6 @@
 // app/api/datasets/[datasetId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 import { generateDatasetUrls } from "@/lib/s3";
 
@@ -15,7 +16,7 @@ export async function OPTIONS() {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ datasetId: string }> }
+  { params }: { params: Promise<{ datasetId: string }> },
 ) {
   try {
     const { datasetId } = await params;
@@ -24,7 +25,7 @@ export async function GET(
     if (!datasetId || !datasetId.startsWith("ds_")) {
       return NextResponse.json(
         { error: "Invalid dataset ID format" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -45,7 +46,7 @@ export async function GET(
     if (!dataset) {
       return NextResponse.json(
         { error: "Dataset not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
@@ -61,9 +62,11 @@ export async function GET(
         {
           error: "Dataset not ready",
           status: dataset.status,
-          message: statusMessages[dataset.status as keyof typeof statusMessages] || "Dataset is not available",
+          message:
+            statusMessages[dataset.status as keyof typeof statusMessages] ||
+            "Dataset is not available",
         },
-        { status: 202, headers: corsHeaders } // 202 Accepted - processing not complete
+        { status: 202, headers: corsHeaders }, // 202 Accepted - processing not complete
       );
     }
 
@@ -96,13 +99,14 @@ export async function GET(
         expiresIn,
         expiresAt: expiresAt.toISOString(),
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error) {
     console.error("Get dataset error:", error);
+
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

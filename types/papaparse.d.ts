@@ -40,6 +40,13 @@ declare module "papaparse" {
   }
 
   const Papa: PapaParser;
-  export { ParseResult, ParseMeta, ParseError, ParseConfig, ParseParser, ParseInput };
+  export {
+    ParseResult,
+    ParseMeta,
+    ParseError,
+    ParseConfig,
+    ParseParser,
+    ParseInput,
+  };
   export default Papa;
 }

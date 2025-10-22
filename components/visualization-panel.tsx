@@ -1,15 +1,17 @@
 "use client";
 
+import type { VisualizationMode } from "@/lib/stores/visualizationStore";
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Checkbox } from "@heroui/checkbox";
 import { RadioGroup, Radio } from "@heroui/radio";
 import { useState, useMemo } from "react";
+import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
+
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
-import type { VisualizationMode } from "@/lib/stores/visualizationStore";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
 
 interface VisualizationPanelProps {
   mode: VisualizationMode;
@@ -30,7 +32,10 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
 
   // Type guard: this component only works with StandardizedDataset
   const rawDataset = getCurrentDataset();
-  const dataset = (rawDataset && 'clusters' in rawDataset) ? rawDataset as StandardizedDataset : null;
+  const dataset =
+    rawDataset && "clusters" in rawDataset
+      ? (rawDataset as StandardizedDataset)
+      : null;
 
   // Get cluster columns for dropdown
   const clusterColumns = useMemo(() => {
@@ -53,8 +58,9 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
 
         // Find the cluster data for the selected column
         const selectedCluster = dataset.clusters.find(
-          (c) => c.column === selectedColumn
+          (c) => c.column === selectedColumn,
         );
+
         if (!selectedCluster) return [];
 
         const uniqueTypes = new Set<string>();
@@ -65,9 +71,11 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
 
         selectedCluster.values.forEach((value) => {
           const typeStr = String(value);
+
           if (!uniqueTypes.has(typeStr)) {
             uniqueTypes.add(typeStr);
             const palette = selectedCluster.palette || {};
+
             itemsMap.set(typeStr, {
               id: typeStr,
               label: typeStr,
@@ -94,7 +102,7 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
   }, [dataset, mode, selectedColumn]);
 
   const filteredItems = items.filter((item) =>
-    item.label.toLowerCase().includes(searchTerm.toLowerCase())
+    item.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const getTitle = () => {
@@ -115,40 +123,44 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
         {/* Select celltypes - only show for celltype mode */}
         {mode === "celltype" && (
           <Autocomplete
-            label="Cluster Column"
             className="max-w-xs"
             color="primary"
+            label="Cluster Column"
             placeholder="Select a column"
             selectedKey={selectedColumn}
             onSelectionChange={(key) => {
-              setSelectedColumn(key as string || null);
+              setSelectedColumn((key as string) || null);
             }}
           >
             {clusterColumns.map((column) => (
-              <AutocompleteItem key={column.key}>{column.label}</AutocompleteItem>
+              <AutocompleteItem key={column.key}>
+                {column.label}
+              </AutocompleteItem>
             ))}
           </Autocomplete>
         )}
         {/* Search Input */}
         <Input
-          placeholder={`Search ${getTitle()}`}
-          value={searchTerm}
-          onValueChange={setSearchTerm}
           classNames={{
             input: "text-sm",
           }}
+          placeholder={`Search ${getTitle()}`}
+          value={searchTerm}
+          onValueChange={setSearchTerm}
         />
 
         {/* Clear Button */}
         <Button
+          className="w-full"
           color="danger"
           variant="ghost"
-          className="w-full"
           onPress={() => {
             setSearchTerm("");
             if (mode === "celltype") {
               // Clear all selected celltypes
-              useVisualizationStore.setState({ selectedCelltypes: new Set<string>() });
+              useVisualizationStore.setState({
+                selectedCelltypes: new Set<string>(),
+              });
             } else if (mode === "gene") {
               // Clear selected gene
               setSelectedGene(null);
@@ -165,9 +177,9 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
             filteredItems.map((item) => (
               <Checkbox
                 key={item.id}
-                size="sm"
                 className="w-full"
                 isSelected={selectedCelltypes.has(item.id)}
+                size="sm"
                 onValueChange={() => toggleCelltype(item.id)}
               >
                 <span style={{ color: item.color }}>{item.label}</span>
@@ -180,7 +192,7 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
               onValueChange={(value) => setSelectedGene(value || null)}
             >
               {filteredItems.map((item) => (
-                <Radio key={item.id} value={item.id} size="sm">
+                <Radio key={item.id} size="sm" value={item.id}>
                   <span style={{ color: item.color }}>{item.label}</span>
                 </Radio>
               ))}

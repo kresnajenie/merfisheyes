@@ -5,7 +5,6 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
@@ -34,7 +33,7 @@ if (!S3_BUCKET) {
 export async function generatePresignedUploadUrl(
   key: string,
   contentType: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
 ) {
   const command = new PutObjectCommand({
     Bucket: S3_BUCKET,
@@ -47,7 +46,7 @@ export async function generatePresignedUploadUrl(
   const url = await getSignedUrl(s3Client, command, {
     expiresIn,
     // Don't sign additional headers that might conflict with CORS
-    unhoistableHeaders: new Set()
+    unhoistableHeaders: new Set(),
   });
 
   return {
@@ -66,7 +65,7 @@ export async function generatePresignedUploadUrl(
  */
 export async function generatePresignedDownloadUrl(
   key: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
 ): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: S3_BUCKET,
@@ -74,6 +73,7 @@ export async function generatePresignedDownloadUrl(
   });
 
   const url = await getSignedUrl(s3Client, command, { expiresIn });
+
   return url;
 }
 
@@ -86,7 +86,7 @@ export async function generatePresignedDownloadUrl(
 export async function generateDatasetUrls(
   datasetId: string,
   fileKeys: string[],
-  expiresIn: number = 12 * 3600 // 12 hours default
+  expiresIn: number = 12 * 3600, // 12 hours default
 ): Promise<Record<string, string>> {
   const urls: Record<string, string> = {};
 
@@ -94,6 +94,7 @@ export async function generateDatasetUrls(
   const urlPromises = fileKeys.map(async (fileKey) => {
     const s3Key = `datasets/${datasetId}/${fileKey}`;
     const url = await generatePresignedDownloadUrl(s3Key, expiresIn);
+
     return { fileKey, url };
   });
 
@@ -121,8 +122,9 @@ export function getPublicUrl(key: string): string {
  */
 export async function generateManifestUrl(
   datasetId: string,
-  expiresIn: number = 12 * 3600
+  expiresIn: number = 12 * 3600,
 ): Promise<string> {
   const manifestKey = `datasets/${datasetId}/manifest.json.gz`;
+
   return generatePresignedDownloadUrl(manifestKey, expiresIn);
 }

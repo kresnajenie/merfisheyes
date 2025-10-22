@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 
 const corsHeaders = {
@@ -13,7 +14,7 @@ export async function OPTIONS() {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ datasetId: string; fileKey: string }> }
+  { params }: { params: Promise<{ datasetId: string; fileKey: string }> },
 ) {
   try {
     const { datasetId, fileKey } = await params;
@@ -23,7 +24,7 @@ export async function POST(
     if (!uploadId) {
       return NextResponse.json(
         { error: "uploadId is required" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -44,7 +45,7 @@ export async function POST(
     if (file.count === 0) {
       return NextResponse.json(
         { error: "File not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
@@ -54,16 +55,17 @@ export async function POST(
         fileKey: decodedFileKey,
         status: "COMPLETE",
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error: any) {
     console.error("Mark file complete error:", error);
+
     return NextResponse.json(
       {
         error: "Internal server error",
         message: error.message,
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

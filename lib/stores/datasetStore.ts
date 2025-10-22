@@ -1,6 +1,7 @@
-import { create } from "zustand";
 import type { StandardizedDataset } from "../StandardizedDataset";
 import type { SingleMoleculeDataset } from "../SingleMoleculeDataset";
+
+import { create } from "zustand";
 
 type Dataset = StandardizedDataset | SingleMoleculeDataset;
 
@@ -30,6 +31,7 @@ export const useDatasetStore = create<DatasetState>((set, get) => ({
   addDataset: (dataset: Dataset) => {
     set((state) => {
       const newDatasets = new Map(state.datasets);
+
       newDatasets.set(dataset.id, dataset);
 
       console.log("Dataset added to store:", {
@@ -50,6 +52,7 @@ export const useDatasetStore = create<DatasetState>((set, get) => ({
   removeDataset: (id: string) => {
     set((state) => {
       const newDatasets = new Map(state.datasets);
+
       newDatasets.delete(id);
 
       return {
@@ -66,7 +69,9 @@ export const useDatasetStore = create<DatasetState>((set, get) => ({
 
   getCurrentDataset: () => {
     const state = get();
+
     if (!state.currentDatasetId) return null;
+
     return state.datasets.get(state.currentDatasetId) || null;
   },
 

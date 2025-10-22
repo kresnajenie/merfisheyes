@@ -63,12 +63,19 @@ export const useVisualizationStore = create<VisualizationState>((set) => ({
   toggleCelltype: (celltype) => {
     set((state) => {
       const newCelltypes = new Set(state.selectedCelltypes);
+
       if (newCelltypes.has(celltype)) {
         newCelltypes.delete(celltype);
       } else {
         newCelltypes.add(celltype);
       }
-      console.log("Toggled celltype:", celltype, "Selected celltypes:", Array.from(newCelltypes));
+      console.log(
+        "Toggled celltype:",
+        celltype,
+        "Selected celltypes:",
+        Array.from(newCelltypes),
+      );
+
       return { selectedCelltypes: newCelltypes };
     });
   },

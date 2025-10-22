@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 import { generateManifestUrl } from "@/lib/s3";
 
@@ -14,7 +15,7 @@ export async function OPTIONS() {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: datasetId } = await params;
@@ -23,7 +24,7 @@ export async function GET(
     if (!datasetId || !datasetId.startsWith("sm_")) {
       return NextResponse.json(
         { error: "Invalid single molecule dataset ID format" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -47,7 +48,7 @@ export async function GET(
     if (!dataset) {
       return NextResponse.json(
         { error: "Dataset not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
@@ -55,7 +56,7 @@ export async function GET(
     if (dataset.datasetType !== "single_molecule") {
       return NextResponse.json(
         { error: "Not a single molecule dataset" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -75,7 +76,7 @@ export async function GET(
             statusMessages[dataset.status as keyof typeof statusMessages] ||
             "Dataset is not available",
         },
-        { status: 202, headers: corsHeaders } // 202 Accepted - processing not complete
+        { status: 202, headers: corsHeaders }, // 202 Accepted - processing not complete
       );
     }
 
@@ -102,13 +103,14 @@ export async function GET(
         expiresIn,
         expiresAt: expiresAt.toISOString(),
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error) {
     console.error("Get single molecule dataset error:", error);
+
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

@@ -1,11 +1,12 @@
+import Papa from "papaparse";
+import { ungzip } from "pako";
+
 import { hyparquetService } from "./services/hyparquetService";
 import { normalizeCoordinates } from "./utils/coordinates";
 import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
 } from "./config/moleculeColumnMappings";
-import Papa from "papaparse";
-import { ungzip } from "pako";
 
 /**
  * Format elapsed time in a human-readable format
@@ -18,6 +19,7 @@ function formatElapsedTime(ms: number): string {
   } else {
     const minutes = Math.floor(ms / 60000);
     const seconds = ((ms % 60000) / 1000).toFixed(1);
+
     return `${minutes}m ${seconds}s`;
   }
 }
@@ -113,9 +115,11 @@ export class SingleMoleculeDataset {
    */
   getMoleculeCount(): number {
     let total = 0;
+
     for (const coords of this.geneIndex.values()) {
       total += coords.length / 3; // Each molecule has x, y, z
     }
+
     return total;
   }
 
@@ -175,7 +179,7 @@ export class SingleMoleculeDataset {
     // Check if gene exists
     if (!this.geneIndex.has(geneName)) {
       throw new Error(
-        `Gene '${geneName}' not found. Available genes: ${this.uniqueGenes.length}`
+        `Gene '${geneName}' not found. Available genes: ${this.uniqueGenes.length}`,
       );
     }
 
@@ -197,10 +201,13 @@ export class SingleMoleculeDataset {
   static async fromParquet(
     file: File,
     datasetType: MoleculeDatasetType = "xenium",
-    onProgress?: (progress: number, message: string) => Promise<void> | void
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
-    console.log(`[SingleMoleculeDataset] Starting parquet parsing: ${file.name}`);
+
+    console.log(
+      `[SingleMoleculeDataset] Starting parquet parsing: ${file.name}`,
+    );
 
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
@@ -221,7 +228,7 @@ export class SingleMoleculeDataset {
     const columnData = await hyparquetService.readParquetColumns(
       file,
       columnsToRead,
-      onProgress
+      onProgress,
     );
 
     await onProgress?.(30, "Extracting columns...");
@@ -234,7 +241,7 @@ export class SingleMoleculeDataset {
 
     if (!moleculeGenes || !xData || !yData) {
       throw new Error(
-        `Missing required columns. Expected: ${columnMapping.gene}, ${columnMapping.x}, ${columnMapping.y}`
+        `Missing required columns. Expected: ${columnMapping.gene}, ${columnMapping.x}, ${columnMapping.y}`,
       );
     }
 
@@ -253,6 +260,7 @@ export class SingleMoleculeDataset {
 
     // Normalize coordinates to [-1, 1]
     const coords2D: number[][] = [];
+
     for (let i = 0; i < xCoords.length; i++) {
       coords2D.push([xCoords[i], yCoords[i], zCoords[i]]);
     }
@@ -277,6 +285,7 @@ export class SingleMoleculeDataset {
 
     for (let i = 0; i < moleculeGenes.length; i++) {
       const gene = moleculeGenes[i];
+
       uniqueGenesSet.add(gene);
 
       if (!geneIndex.has(gene)) {
@@ -285,22 +294,24 @@ export class SingleMoleculeDataset {
 
       // Store normalized coordinates [x, y, z] for this molecule
       const coords = geneIndex.get(gene)!;
+
       coords.push(
         normalizedCoords[i][0],
         normalizedCoords[i][1],
-        normalizedCoords[i][2]
+        normalizedCoords[i][2],
       );
 
       // Report progress every 5% and yield to browser
       if (i > 0 && i % progressInterval === 0) {
         const elapsed = performance.now() - startTime;
         const progress = 70 + Math.floor((i / totalMolecules) * 20); // 70-90%
+
         await onProgress?.(
           progress,
-          `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`
+          `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
         );
         // Yield to browser to allow UI updates
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
 
@@ -332,12 +343,16 @@ export class SingleMoleculeDataset {
     });
 
     const elapsedTime = performance.now() - startTime;
+
     console.log(
       `[SingleMoleculeDataset] ✅ Parquet parsing complete: ${formatElapsedTime(elapsedTime)} | ` +
-      `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
-      `${dataset.genes.length.toLocaleString()} genes`
+        `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
+        `${dataset.genes.length.toLocaleString()} genes`,
     );
-    await onProgress?.(100, `Dataset loaded successfully in ${formatElapsedTime(elapsedTime)}`);
+    await onProgress?.(
+      100,
+      `Dataset loaded successfully in ${formatElapsedTime(elapsedTime)}`,
+    );
 
     return dataset;
   }
@@ -349,9 +364,10 @@ export class SingleMoleculeDataset {
   static async fromCSV(
     file: File,
     datasetType: MoleculeDatasetType = "xenium",
-    onProgress?: (progress: number, message: string) => Promise<void> | void
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
+
     console.log(`[SingleMoleculeDataset] Starting CSV parsing: ${file.name}`);
 
     await onProgress?.(10, "Reading CSV file...");
@@ -396,7 +412,11 @@ export class SingleMoleculeDataset {
       xCoords.push(Number(row[columnMapping.x]) || 0);
       yCoords.push(Number(row[columnMapping.y]) || 0);
 
-      if (columnMapping.z && row[columnMapping.z] !== undefined && row[columnMapping.z] !== null) {
+      if (
+        columnMapping.z &&
+        row[columnMapping.z] !== undefined &&
+        row[columnMapping.z] !== null
+      ) {
         zCoords.push(Number(row[columnMapping.z]) || 0);
         hasZ = true;
       } else {
@@ -407,12 +427,13 @@ export class SingleMoleculeDataset {
       if (i > 0 && i % Math.max(1, Math.floor(rows.length / 20)) === 0) {
         const elapsed = performance.now() - startTime;
         const progress = 50 + Math.floor((i / rows.length) * 10); // 50-60%
+
         await onProgress?.(
           progress,
-          `Extracting data: ${((i / rows.length) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`
+          `Extracting data: ${((i / rows.length) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
         );
         // Yield to browser to allow UI updates
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
 
@@ -422,6 +443,7 @@ export class SingleMoleculeDataset {
 
     // Normalize coordinates to [-1, 1]
     const coords2D: number[][] = [];
+
     for (let i = 0; i < xCoords.length; i++) {
       coords2D.push([xCoords[i], yCoords[i], zCoords[i]]);
     }
@@ -446,6 +468,7 @@ export class SingleMoleculeDataset {
 
     for (let i = 0; i < moleculeGenes.length; i++) {
       const gene = moleculeGenes[i];
+
       uniqueGenesSet.add(gene);
 
       if (!geneIndex.has(gene)) {
@@ -454,22 +477,24 @@ export class SingleMoleculeDataset {
 
       // Store normalized coordinates [x, y, z] for this molecule
       const coords = geneIndex.get(gene)!;
+
       coords.push(
         normalizedCoords[i][0],
         normalizedCoords[i][1],
-        normalizedCoords[i][2]
+        normalizedCoords[i][2],
       );
 
       // Report progress every 5% and yield to browser
       if (i > 0 && i % progressInterval === 0) {
         const elapsed = performance.now() - startTime;
         const progress = 70 + Math.floor((i / totalMolecules) * 20); // 70-90%
+
         await onProgress?.(
           progress,
-          `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`
+          `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
         );
         // Yield to browser to allow UI updates
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
 
@@ -501,12 +526,16 @@ export class SingleMoleculeDataset {
     });
 
     const elapsedTime = performance.now() - startTime;
+
     console.log(
       `[SingleMoleculeDataset] ✅ CSV parsing complete: ${formatElapsedTime(elapsedTime)} | ` +
-      `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
-      `${dataset.genes.length.toLocaleString()} genes`
+        `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
+        `${dataset.genes.length.toLocaleString()} genes`,
     );
-    await onProgress?.(100, `Dataset loaded successfully in ${formatElapsedTime(elapsedTime)}`);
+    await onProgress?.(
+      100,
+      `Dataset loaded successfully in ${formatElapsedTime(elapsedTime)}`,
+    );
 
     return dataset;
   }
@@ -517,9 +546,10 @@ export class SingleMoleculeDataset {
    */
   static async fromS3(
     datasetId: string,
-    onProgress?: (progress: number, message: string) => Promise<void> | void
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
+
     console.log(`[SingleMoleculeDataset] Loading from S3: ${datasetId}`);
 
     await onProgress?.(10, "Fetching dataset metadata...");
@@ -529,6 +559,7 @@ export class SingleMoleculeDataset {
 
     if (!response.ok) {
       const error = await response.json();
+
       throw new Error(error.error || "Failed to fetch dataset metadata");
     }
 
@@ -538,12 +569,15 @@ export class SingleMoleculeDataset {
 
     // Download and decompress manifest from S3
     const manifestResponse = await fetch(apiData.manifestUrl);
+
     if (!manifestResponse.ok) {
       throw new Error("Failed to download manifest from S3");
     }
 
     const manifestCompressed = await manifestResponse.arrayBuffer();
-    const manifestJson = ungzip(new Uint8Array(manifestCompressed), { to: "string" });
+    const manifestJson = ungzip(new Uint8Array(manifestCompressed), {
+      to: "string",
+    });
     const manifest = JSON.parse(manifestJson);
 
     await onProgress?.(60, "Initializing dataset...");
@@ -577,7 +611,10 @@ export class SingleMoleculeDataset {
 
     // Override getCoordinatesByGene to support lazy loading from S3
     const originalGetCoordinates = dataset.getCoordinatesByGene.bind(dataset);
-    dataset.getCoordinatesByGene = async function(geneName: string): Promise<number[]> {
+
+    dataset.getCoordinatesByGene = async function (
+      geneName: string,
+    ): Promise<number[]> {
       // Check if already cached
       if (geneIndex.has(geneName)) {
         return geneIndex.get(geneName)!;
@@ -586,26 +623,32 @@ export class SingleMoleculeDataset {
       // Check if gene exists in manifest
       if (!uniqueGenes.includes(geneName)) {
         throw new Error(
-          `Gene '${geneName}' not found. Available genes: ${uniqueGenes.length}`
+          `Gene '${geneName}' not found. Available genes: ${uniqueGenes.length}`,
         );
       }
 
-      console.log(`[SingleMoleculeDataset] Lazy-loading gene '${geneName}' from S3...`);
+      console.log(
+        `[SingleMoleculeDataset] Lazy-loading gene '${geneName}' from S3...`,
+      );
 
       // Get presigned URL from API
       const urlResponse = await fetch(
-        `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}`
+        `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}`,
       );
 
       if (!urlResponse.ok) {
         const error = await urlResponse.json();
-        throw new Error(error.error || `Failed to get URL for gene '${geneName}'`);
+
+        throw new Error(
+          error.error || `Failed to get URL for gene '${geneName}'`,
+        );
       }
 
       const { url: geneUrl } = await urlResponse.json();
 
       // Download and decompress gene file
       const geneResponse = await fetch(geneUrl);
+
       if (!geneResponse.ok) {
         throw new Error(`Failed to download gene file for '${geneName}'`);
       }
@@ -621,19 +664,23 @@ export class SingleMoleculeDataset {
       geneIndex.set(geneName, coordinates);
 
       console.log(
-        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${coordinates.length / dimensions} molecules`
+        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${coordinates.length / dimensions} molecules`,
       );
 
       return coordinates;
     } as any; // Type override for lazy loading
 
     const elapsedTime = performance.now() - startTime;
+
     console.log(
       `[SingleMoleculeDataset] ✅ S3 dataset initialized: ${formatElapsedTime(elapsedTime)} | ` +
-      `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
-      `${uniqueGenes.length.toLocaleString()} genes (lazy-loaded)`
+        `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
+        `${uniqueGenes.length.toLocaleString()} genes (lazy-loaded)`,
     );
-    await onProgress?.(100, `Dataset ready in ${formatElapsedTime(elapsedTime)}`);
+    await onProgress?.(
+      100,
+      `Dataset ready in ${formatElapsedTime(elapsedTime)}`,
+    );
 
     return dataset;
   }

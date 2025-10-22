@@ -1,4 +1,5 @@
 import { gzip } from "pako";
+
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 
 /**
@@ -39,7 +40,7 @@ export class SingleMoleculeProcessor {
   static createManifest(
     dataset: SingleMoleculeDataset,
     datasetId: string,
-    datasetName: string
+    datasetName: string,
   ): SingleMoleculeManifest {
     const manifest: SingleMoleculeManifest = {
       version: "1.0",
@@ -73,7 +74,7 @@ export class SingleMoleculeProcessor {
    */
   static async processGenes(
     dataset: SingleMoleculeDataset,
-    onProgress?: (progress: number, message: string) => void
+    onProgress?: (progress: number, message: string) => void,
   ): Promise<Record<string, Blob>> {
     const geneFiles: Record<string, Blob> = {};
     const totalGenes = dataset.uniqueGenes.length;
@@ -84,7 +85,7 @@ export class SingleMoleculeProcessor {
 
       await onProgress?.(
         progress,
-        `Processing gene ${i + 1}/${totalGenes}: ${gene}`
+        `Processing gene ${i + 1}/${totalGenes}: ${gene}`,
       );
 
       // Get coordinates for this gene (already normalized in flat array format)
@@ -103,6 +104,7 @@ export class SingleMoleculeProcessor {
 
         // Sanitize gene name for filename
         const sanitizedName = this.sanitizeGeneName(gene);
+
         geneFiles[sanitizedName] = blob;
       }
 
@@ -129,9 +131,12 @@ export class SingleMoleculeProcessor {
   /**
    * Create compressed manifest blob
    */
-  static async createManifestBlob(manifest: SingleMoleculeManifest): Promise<Blob> {
+  static async createManifestBlob(
+    manifest: SingleMoleculeManifest,
+  ): Promise<Blob> {
     const manifestJson = JSON.stringify(manifest, null, 2);
     const compressed = gzip(manifestJson);
+
     return new Blob([compressed], { type: "application/gzip" });
   }
 
@@ -141,6 +146,7 @@ export class SingleMoleculeProcessor {
   static async saveBlob(blob: Blob, filepath: string): Promise<void> {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+
     a.href = url;
     a.download = filepath.replace(/\//g, "_"); // Flatten path for browser download
     document.body.appendChild(a);
@@ -158,7 +164,7 @@ export class SingleMoleculeProcessor {
   static async processAndDownload(
     dataset: SingleMoleculeDataset,
     datasetName: string,
-    onProgress?: (progress: number, message: string) => void
+    onProgress?: (progress: number, message: string) => void,
   ): Promise<void> {
     const datasetId = `${dataset.type}_${datasetName}_${Date.now()}`;
     const folderName = `${datasetName}_${Date.now()}`;
@@ -170,11 +176,15 @@ export class SingleMoleculeProcessor {
 
     // Step 2: Process genes (5% - 90%)
     await onProgress?.(10, "Processing genes...");
-    const geneFiles = await this.processGenes(dataset, (geneProgress, geneMsg) => {
-      // Map gene processing progress to 10-90% range
-      const overallProgress = 10 + (geneProgress * 0.8);
-      onProgress?.(overallProgress, geneMsg);
-    });
+    const geneFiles = await this.processGenes(
+      dataset,
+      (geneProgress, geneMsg) => {
+        // Map gene processing progress to 10-90% range
+        const overallProgress = 10 + geneProgress * 0.8;
+
+        onProgress?.(overallProgress, geneMsg);
+      },
+    );
 
     // Step 3: Download manifest (92%)
     await onProgress?.(92, "Downloading manifest...");
@@ -190,7 +200,7 @@ export class SingleMoleculeProcessor {
 
       await onProgress?.(
         progress,
-        `Downloading gene file ${i + 1}/${totalFiles}...`
+        `Downloading gene file ${i + 1}/${totalFiles}...`,
       );
 
       await this.saveBlob(blob, `${folderName}/genes/${sanitizedName}.bin.gz`);
@@ -207,7 +217,7 @@ export class SingleMoleculeProcessor {
     datasetName: string,
     fingerprint: string,
     onProgress?: (progress: number, message: string) => void,
-    onUploadProgress?: (progress: number, message: string) => void
+    onUploadProgress?: (progress: number, message: string) => void,
   ): Promise<{ datasetId: string; uploadId: string }> {
     // Step 1: Create manifest (5%) - use temporary ID, will be replaced by API
     await onProgress?.(5, "Creating manifest...");
@@ -217,10 +227,14 @@ export class SingleMoleculeProcessor {
 
     // Step 2: Process genes (5% - 45%)
     await onProgress?.(10, "Processing genes...");
-    const geneFiles = await this.processGenes(dataset, (geneProgress, geneMsg) => {
-      const overallProgress = 10 + (geneProgress * 0.35);
-      onProgress?.(overallProgress, geneMsg);
-    });
+    const geneFiles = await this.processGenes(
+      dataset,
+      (geneProgress, geneMsg) => {
+        const overallProgress = 10 + geneProgress * 0.35;
+
+        onProgress?.(overallProgress, geneMsg);
+      },
+    );
 
     // Step 3: Prepare files for upload (45%)
     await onProgress?.(45, "Preparing files for upload...");
@@ -274,6 +288,7 @@ export class SingleMoleculeProcessor {
 
     if (!initiateResponse.ok) {
       const error = await initiateResponse.json();
+
       throw new Error(error.error || "Failed to initiate upload");
     }
 
@@ -288,6 +303,7 @@ export class SingleMoleculeProcessor {
 
     for (const file of filesToUpload) {
       const url = uploadUrls[file.key];
+
       if (!url) {
         console.warn(`No presigned URL for ${file.key}, skipping`);
         continue;
@@ -319,24 +335,33 @@ export class SingleMoleculeProcessor {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ uploadId }),
-            }
+            },
           );
 
           success = true;
           completed++;
           const uploadProgress = (completed / filesToUpload.length) * 100;
-          const overallProgress = 55 + (uploadProgress * 0.4);
+          const overallProgress = 55 + uploadProgress * 0.4;
 
-          await onProgress?.(overallProgress, `Uploading files (${completed}/${filesToUpload.length})...`);
-          await onUploadProgress?.(uploadProgress, `Uploaded ${completed}/${filesToUpload.length} files`);
+          await onProgress?.(
+            overallProgress,
+            `Uploading files (${completed}/${filesToUpload.length})...`,
+          );
+          await onUploadProgress?.(
+            uploadProgress,
+            `Uploaded ${completed}/${filesToUpload.length} files`,
+          );
         } catch (error) {
           retries++;
           if (retries >= MAX_RETRIES) {
             throw new Error(
-              `Failed to upload ${file.key} after ${MAX_RETRIES} retries: ${error}`
+              `Failed to upload ${file.key} after ${MAX_RETRIES} retries: ${error}`,
             );
           }
-          console.warn(`Retry ${retries}/${MAX_RETRIES} for ${file.key}:`, error);
+          console.warn(
+            `Retry ${retries}/${MAX_RETRIES} for ${file.key}:`,
+            error,
+          );
           await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
         }
       }

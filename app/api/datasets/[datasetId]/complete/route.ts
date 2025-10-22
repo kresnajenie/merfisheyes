@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 import { generateManifestUrl } from "@/lib/s3";
 
@@ -19,7 +20,7 @@ interface CompleteUploadRequest {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ datasetId: string }> }
+  { params }: { params: Promise<{ datasetId: string }> },
 ) {
   try {
     const { datasetId } = await params;
@@ -30,7 +31,7 @@ export async function POST(
     if (!uploadId) {
       return NextResponse.json(
         { error: "uploadId is required" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -50,21 +51,22 @@ export async function POST(
     if (!dataset) {
       return NextResponse.json(
         { error: "Dataset not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
     const uploadSession = dataset.uploadSessions[0];
+
     if (!uploadSession) {
       return NextResponse.json(
         { error: "Upload session not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
     // Check if all files were uploaded
     const completedFiles = uploadSession.files.filter(
-      (f) => f.status === "COMPLETE"
+      (f) => f.status === "COMPLETE",
     ).length;
 
     if (completedFiles !== uploadSession.totalFiles) {
@@ -74,12 +76,13 @@ export async function POST(
           uploaded: completedFiles,
           total: uploadSession.totalFiles,
         },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
     // Generate manifest URL if manifest was uploaded
     let manifestUrl: string | null = null;
+
     if (manifestKey) {
       manifestUrl = await generateManifestUrl(datasetId);
     }
@@ -109,16 +112,17 @@ export async function POST(
         viewUrl: `${baseUrl}/view/${datasetId}`,
         shareUrl: `${baseUrl}/view/${datasetId}`,
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error: any) {
     console.error("Complete upload error:", error);
+
     return NextResponse.json(
       {
         error: "Internal server error",
         message: error.message,
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }
