@@ -150,7 +150,7 @@ export class MerscopeAdapter {
 
     // 4) Merge rows — choose a stable ID present in metadata
     await onProgress?.(55, "Merging cell data...");
-    const metaIdKey = firstPresent(Object.keys(metaRows[0]), [
+    let metaIdKey = firstPresent(Object.keys(metaRows[0]), [
       "EntityID",
       "cell",
       "cell_id",
@@ -158,8 +158,15 @@ export class MerscopeAdapter {
     ]);
 
     if (!metaIdKey) {
-      throw new Error(
-        "MERSCOPE: could not find an ID column in cell_metadata.csv",
+      const keys = Object.keys(metaRows[0] || {});
+      if (!keys.length) {
+        throw new Error(
+          "MERSCOPE: could not find an ID column in cell_metadata.csv",
+        );
+      }
+      metaIdKey = keys[0];
+      console.warn(
+        `[MerscopeAdapter] Using first metadata column ("${metaIdKey}") as EntityID fallback.`,
       );
     }
 
