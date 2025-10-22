@@ -17,11 +17,15 @@ export const s3Client = new S3Client({
   // 3. AWS credentials file
 });
 
-export const S3_BUCKET = process.env.S3_BUCKET!;
+export const S3_BUCKET = process.env.AWS_S3_BUCKET || process.env.S3_BUCKET || "";
 export const AWS_REGION = process.env.AWS_REGION || "us-east-1";
 
-if (!S3_BUCKET) {
-  throw new Error("S3_BUCKET environment variable is required");
+// Helper to ensure bucket is configured
+function ensureBucket() {
+  if (!S3_BUCKET) {
+    throw new Error("AWS_S3_BUCKET environment variable is required");
+  }
+  return S3_BUCKET;
 }
 
 /**
@@ -36,7 +40,7 @@ export async function generatePresignedUploadUrl(
   expiresIn: number = 3600,
 ) {
   const command = new PutObjectCommand({
-    Bucket: S3_BUCKET,
+    Bucket: ensureBucket(),
     Key: key,
     ContentType: contentType,
     // Don't set ACL or other CORS-related parameters here
@@ -68,7 +72,7 @@ export async function generatePresignedDownloadUrl(
   expiresIn: number = 3600,
 ): Promise<string> {
   const command = new GetObjectCommand({
-    Bucket: S3_BUCKET,
+    Bucket: ensureBucket(),
     Key: key,
   });
 
@@ -112,7 +116,7 @@ export async function generateDatasetUrls(
  * Note: This won't work if bucket is private - use generatePresignedDownloadUrl instead
  */
 export function getPublicUrl(key: string): string {
-  return `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+  return `https://${ensureBucket()}.s3.${AWS_REGION}.amazonaws.com/${key}`;
 }
 
 /**
