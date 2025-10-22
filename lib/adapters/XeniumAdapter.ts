@@ -215,17 +215,17 @@ export class XeniumAdapter {
     await onProgress?.(70, "Loading gene expression...");
     let gotExpr = false;
 
-    try {
-      const tx = await this._readTableOneOf([
-        "transcripts.csv",
-        "transcripts.csv.gz",
-      ]);
+    // try {
+    //   const tx = await this._readTableOneOf([
+    //     "transcripts.csv",
+    //     "transcripts.csv.gz",
+    //   ]);
 
-      if (tx.length) {
-        await this._ingestFromTranscripts(tx, cellIdKey);
-        gotExpr = this._genes.length > 0 && this._exprByGene.size > 0;
-      }
-    } catch {}
+    //   if (tx.length) {
+    //     await this._ingestFromTranscripts(tx, cellIdKey);
+    //     gotExpr = this._genes.length > 0 && this._exprByGene.size > 0;
+    //   }
+    // } catch {}
 
     if (!gotExpr) {
       try {
@@ -1037,6 +1037,8 @@ function shouldFilterGene(gene: string, featureType: string): boolean {
     /unassigned/,
     /deprecated/,
     /codeword/,
+    /blank/,
+    /negcontrol/
   ];
 
   return patterns.some((rx) => rx.test(g) || rx.test(t));
