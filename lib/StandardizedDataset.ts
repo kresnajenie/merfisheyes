@@ -170,7 +170,12 @@ export class StandardizedDataset {
       return this.extractColumnFromMatrix(this.matrix, geneIndex);
     }
 
-    // Otherwise, need adapter to fetch matrix
+    // If adapter has fetchGeneExpression method (ChunkedDataAdapter), use it
+    if (this.adapter && typeof this.adapter.fetchGeneExpression === 'function') {
+      return await this.adapter.fetchGeneExpression(gene);
+    }
+
+    // Otherwise, need adapter to fetch full matrix
     if (!this.adapter) {
       throw new Error("No adapter available for gene expression data access");
     }
@@ -366,6 +371,17 @@ export class StandardizedDataset {
     );
 
     // Reconstruct StandardizedDataset from serialized data
-    return StandardizedDataset.fromSerializedData(serializedData);
+    const dataset = StandardizedDataset.fromSerializedData(serializedData);
+
+    // For S3 datasets, create a fresh adapter in the main thread
+    // This allows on-demand gene expression loading
+    const { ChunkedDataAdapter } = await import("./adapters/ChunkedDataAdapter");
+    const adapter = new ChunkedDataAdapter(datasetId);
+    await adapter.initialize();
+    
+    // Attach adapter for on-demand gene expression queries
+    dataset.adapter = adapter;
+
+    return dataset;
   }
 }
