@@ -1,5 +1,7 @@
 // /src/data/adapters/XeniumAdapter.ts
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
+import Papa, { ParseResult } from "papaparse";
+import { ungzip } from "pako";
 
 interface XeniumMetadata {
   hasPolygons: boolean;
@@ -30,6 +32,7 @@ export class XeniumAdapter {
   _genes: string[];
   _exprByGene: Map<string, Float32Array>;
   _cellIndex: Map<string, number>;
+  _featureTypes: Map<string, string>;
   _onProgress?: (progress: number, message: string) => Promise<void> | void;
 
   constructor() {
@@ -48,11 +51,13 @@ export class XeniumAdapter {
     this._genes = [];
     this._exprByGene = new Map();
     this._cellIndex = new Map();
+    this._featureTypes = new Map();
   }
 
   async initialize(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<void> {
     this._onProgress = onProgress;
-    this.files = files;
+    const expandedArchives = await extractRelevantArchives(files);
+    this.files = expandedArchives.length ? [...files, ...expandedArchives] : files;
 
     // 1) Load cells table (csv or csv.gz)
     await this._onProgress?.(10, "Loading cell metadata...");
@@ -89,7 +94,13 @@ export class XeniumAdapter {
       this._clusterColumn = pickFirstPresent(this._rows[0], [
         "cell_type",
         "celltype",
+        "cell type",
+        "cell-type",
+        "celltypes",
+        "cell types",
         "predicted_celltype",
+        "predicted celltype",
+        "predicted cell type",
         "cluster",
         "clusters",
         "leiden",
@@ -99,9 +110,31 @@ export class XeniumAdapter {
         "annotation",
         "annotations",
         "class",
+        "class_label",
+        "class label",
         "subclass",
+        "subclass_label",
+        "subclass label",
         "label",
         "labels",
+        "labels",
+        "annotation",
+        "annotations",
+        "cell_annotation",
+        "cell annotation",
+        "cell_annotations",
+        "cell annotations",
+        "cell_class",
+        "cell class",
+        "cell_subclass",
+        "cell subclass",
+        "cluster_label",
+        "cluster label",
+        "cluster_id",
+        "cluster id",
+        "group",
+        "group_label",
+        "group label",
       ]);
     }
 
@@ -128,26 +161,42 @@ export class XeniumAdapter {
     // 5) Genes: features, else transcripts
     //    (we'll still build expression from transcripts or cells-wide if possible)
     await this._onProgress?.(50, "Loading gene features...");
-    let feats: RowData[] = [];
-    try {
-      feats = await this._readTableOneOf([
-        "features.tsv",
-        "features.tsv.gz",
-        "features.csv",
-        "features.csv.gz",
-      ]);
-    } catch {}
-    if (feats.length) {
-      const key = pickFirstPresent(feats[0], [
-        "gene",
-        "gene_symbol",
-        "feature_name",
-        "name",
-        "target",
-        "id",
-      ]);
-      if (key)
-        this._genes = feats.map((r) => String(r[key] || "")).filter(Boolean);
+    this._featureTypes.clear();
+    const featureFile = this._findFileOneOf([
+      "features.tsv",
+      "features.tsv.gz",
+      "features.csv",
+      "features.csv.gz",
+      "cell_feature_matrix/features.tsv",
+      "cell_feature_matrix/features.tsv.gz",
+      "cell_feature_matrix/features.csv",
+      "cell_feature_matrix/features.csv.gz",
+    ]);
+    if (featureFile) {
+      try {
+        const featureEntries = await parseFeaturesFile(featureFile);
+        if (featureEntries.length) {
+          const seen = new Set<string>();
+          this._genes = [];
+          for (const entry of featureEntries) {
+            const gene = entry.gene;
+            if (!gene || seen.has(gene)) continue;
+            seen.add(gene);
+            this._genes.push(gene);
+            if (entry.type) this._featureTypes.set(gene, entry.type);
+          }
+        } else {
+          console.warn(
+            "[XeniumAdapter] features.tsv parsed but yielded no entries."
+          );
+        }
+      } catch (err) {
+        console.warn("[XeniumAdapter] Failed parsing features.tsv:", err);
+      }
+    } else {
+      console.warn(
+        "[XeniumAdapter] features.tsv not found; falling back to cells.csv gene inference."
+      );
     }
 
     // 6) Expression: try transcripts.csv(.gz) (long format) first
@@ -164,14 +213,17 @@ export class XeniumAdapter {
       }
     } catch {}
 
-    // 7) Fallback: derive genes/expr from cells.csv if it contains wide gene columns
     if (!gotExpr) {
-      const maybeWide = detectWideGeneColumns(this._rows[0], this._genes);
-      if (maybeWide.geneCols.length) {
-        await this._ingestFromCellsWide(maybeWide.geneCols);
-        gotExpr = this._genes.length > 0 && this._exprByGene.size > 0;
+      try {
+        gotExpr = await this._ingestFromMatrixMarket(cellIdKey);
+      } catch (e) {
+        console.warn("[XeniumAdapter] matrix.mtx ingestion failed:", e);
       }
     }
+
+    // 7) Fallback: disabled to avoid huge allocations from cells.csv wide columns
+
+    this._applyGeneFilters();
 
     if (!this._genes.length)
       console.warn("No gene names found (or none usable for expression).");
@@ -312,6 +364,26 @@ export class XeniumAdapter {
     return ["X_spatial"];
   }
 
+  private _findFileOneOf(names: string[]): File | null {
+    const map = new Map(
+      this.files.map((f) => [(f.webkitRelativePath || f.name).toLowerCase(), f])
+    );
+    for (const n of names) {
+      const needle = n.toLowerCase();
+      const match = Array.from(map.values()).find((file) => {
+        const base = file.name.toLowerCase();
+        const rel = (file.webkitRelativePath || "").toLowerCase();
+        return (
+          base === needle ||
+          base.endsWith(needle) ||
+          rel.endsWith(needle)
+        );
+      });
+      if (match) return match;
+    }
+    return null;
+  }
+
   /* ========================================================
    * Internal helpers
    * ====================================================== */
@@ -324,12 +396,27 @@ export class XeniumAdapter {
     });
     if (!candidates.length) return;
 
-    for (const f of candidates) {
-      try {
-        const text = await fileToTextMaybeGz(f);
-        if (!text || !text.trim()) continue;
+    const preferred = candidates.filter((f) => {
+      const p = (f.webkitRelativePath || f.name || "").toLowerCase();
+      return p.includes("analysis/clustering/gene_expression_graphclust/");
+    });
+    const prioritized = preferred.length ? preferred : candidates;
 
-        const { headers, rows } = parseTable(text);
+    const nCells = this._rows.length || 1;
+    const maxReasonableUnique = Math.max(50, Math.floor(0.1 * nCells));
+    let best:
+      | {
+          file: File;
+          labelKey: string;
+          lut: Map<string, string>;
+          assigned: number;
+          uniqCount: number;
+        }
+      | null = null;
+
+    for (const f of prioritized) {
+      try {
+        const { headers, rows } = await this._parseCsvFile(f);
         if (!rows.length || !headers.length) continue;
 
         const cellIdKeyAlt = pickFirstPresent(headersObj(headers), [
@@ -357,30 +444,41 @@ export class XeniumAdapter {
 
         // build map of id->label
         const lut = new Map();
+        const uniqVals = new Set<string>();
         for (const r of rows) {
           const cid = String(r[cellIdKeyAlt] ?? "").trim();
           const lab = String(r[labelKey] ?? "").trim();
-          if (cid) lut.set(cid, lab);
+          if (cid) {
+            lut.set(cid, lab);
+            if (lab) uniqVals.add(lab);
+          }
         }
+        if (!lut.size) continue;
 
         let assigned = 0;
+        const matchedVals: string[] = [];
         for (const r of this._rows) {
           const cid = String(r[cellIdKey] ?? "").trim();
           if (!cid) continue;
           const lab = lut.get(cid);
           if (lab != null) {
-            r[labelKey] = lab;
             assigned++;
+            if (lab) matchedVals.push(lab);
           }
         }
 
-        if (assigned > 0) {
-          this._clusterColumn = labelKey;
-          if (!this._obsKeys.includes(labelKey)) this._obsKeys.push(labelKey);
-          console.log(
-            `[XeniumAdapter] Joined ${assigned} labels from ${f.name} onto cells (column "${labelKey}")`
-          );
-          return;
+        if (assigned === 0) continue;
+
+        const uniqCount = new Set(matchedVals).size;
+        if (uniqCount === 0) continue;
+        if (uniqCount > maxReasonableUnique) continue;
+
+        if (
+          !best ||
+          uniqCount > best.uniqCount ||
+          (uniqCount === best.uniqCount && assigned > best.assigned)
+        ) {
+          best = { file: f, labelKey, lut, assigned, uniqCount };
         }
       } catch (e) {
         console.warn(
@@ -389,6 +487,21 @@ export class XeniumAdapter {
           e
         );
       }
+    }
+
+    if (best) {
+      const { labelKey, lut, file, assigned, uniqCount } = best;
+      for (const r of this._rows) {
+        const cid = String(r[cellIdKey] ?? "").trim();
+        if (!cid) continue;
+        const lab = lut.get(cid);
+        if (lab != null) r[labelKey] = lab;
+      }
+      this._clusterColumn = labelKey;
+      if (!this._obsKeys.includes(labelKey)) this._obsKeys.push(labelKey);
+      console.log(
+        `[XeniumAdapter] Joined ${assigned} labels from ${file.name} onto cells (column "${labelKey}", unique=${uniqCount})`
+      );
     }
   }
 
@@ -446,6 +559,169 @@ export class XeniumAdapter {
     );
   }
 
+  async _ingestFromMatrixMarket(cellIdKey: string): Promise<boolean> {
+    const matrixFile = this._findFileOneOf([
+      "matrix.mtx",
+      "matrix.mtx.gz",
+      "cell_feature_matrix/matrix.mtx",
+      "cell_feature_matrix/matrix.mtx.gz",
+    ]);
+    if (!matrixFile) return false;
+
+    const nCells = this._rows.length;
+    if (!nCells) return false;
+
+    const barcodesFile = this._findFileOneOf([
+      "barcodes.tsv",
+      "barcodes.tsv.gz",
+      "cell_feature_matrix/barcodes.tsv",
+      "cell_feature_matrix/barcodes.tsv.gz",
+    ]);
+    let barcodes: string[] | null = null;
+    if (barcodesFile) {
+      try {
+        barcodes = await readBarcodesFile(barcodesFile);
+      } catch (e) {
+        console.warn("[XeniumAdapter] Failed reading barcodes.tsv:", e);
+      }
+    }
+
+    if (!this._genes.length) {
+      console.warn(
+        "[XeniumAdapter] matrix.mtx found but gene list empty; cannot align columns."
+      );
+      return false;
+    }
+
+    this._exprByGene.clear();
+
+    let headerParsed = false;
+    let rowCount = 0;
+    let colCount = 0;
+    let filled = 0;
+    let transpose = false;
+    let cellsDim = nCells;
+    const genesDim = this._genes.length;
+
+    for await (const line of readLinesFromFile(matrixFile)) {
+      if (!line || line.startsWith("%")) continue;
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const parts = trimmed.split(/\s+/);
+      if (!headerParsed) {
+        if (parts.length >= 3) {
+          rowCount = Number(parts[0]);
+          colCount = Number(parts[1]);
+          headerParsed = true;
+          if (!Number.isFinite(rowCount) || !Number.isFinite(colCount)) {
+            console.warn(
+              "[XeniumAdapter] matrix.mtx header invalid; aborting ingest."
+            );
+            return false;
+          }
+          const rowsMatchCells = rowCount === nCells;
+          const colsMatchGenes = colCount === genesDim;
+          const rowsMatchGenes = rowCount === genesDim;
+          const colsMatchCells = colCount === nCells;
+          if (!(rowsMatchCells && colsMatchGenes)) {
+            if (colsMatchCells && rowsMatchGenes) {
+              transpose = true;
+            } else if (!rowsMatchCells && colsMatchCells) {
+              transpose = true;
+              console.warn(
+                `[XeniumAdapter] matrix.mtx row count (${rowCount}) did not match cell count (${nCells}); treating matrix as transposed.`
+              );
+            } else if (!colsMatchGenes && rowsMatchGenes) {
+              transpose = true;
+              console.warn(
+                `[XeniumAdapter] matrix.mtx column count (${colCount}) aligned with cells and rows with genes; transposing interpretation.`
+              );
+            } else {
+              if (!rowsMatchCells)
+                console.warn(
+                  `[XeniumAdapter] matrix.mtx row count (${rowCount}) != cell count (${nCells}); using positional fallback.`
+                );
+              if (!colsMatchGenes)
+                console.warn(
+                  `[XeniumAdapter] matrix.mtx column count (${colCount}) != feature count (${genesDim}); extra indices will be ignored.`
+                );
+            }
+          }
+          cellsDim = transpose ? colCount : rowCount;
+          if (barcodes && cellsDim !== barcodes.length) {
+            console.warn(
+              `[XeniumAdapter] matrix.mtx ${transpose ? "column" : "row"} count (${cellsDim}) != barcodes length (${barcodes.length}); using positional fallback.`
+            );
+          }
+        }
+        continue;
+      }
+      if (parts.length < 3) continue;
+      const rowIdx = Number(parts[0]) - 1;
+      const colIdx = Number(parts[1]) - 1;
+      const value = Number(parts[2]);
+      if (
+        !Number.isFinite(rowIdx) ||
+        !Number.isFinite(colIdx) ||
+        !Number.isFinite(value)
+      )
+        continue;
+
+      const cellIndexRaw = transpose ? colIdx : rowIdx;
+      const geneIndexRaw = transpose ? rowIdx : colIdx;
+
+      let cellIdx: number | undefined;
+      if (cellIndexRaw >= 0) {
+        if (barcodes && cellIndexRaw < barcodes.length) {
+          const cid = barcodes[cellIndexRaw]?.trim();
+          if (cid) {
+            cellIdx = this._cellIndex.get(cid);
+            if (cellIdx == null && cid.endsWith("-1"))
+              cellIdx = this._cellIndex.get(cid.slice(0, -2));
+          }
+        }
+        if (cellIdx == null && cellIndexRaw < nCells) {
+          cellIdx = cellIndexRaw;
+        }
+      }
+      if (cellIdx == null) continue;
+
+      if (geneIndexRaw < 0 || geneIndexRaw >= this._genes.length) continue;
+      const gene = this._genes[geneIndexRaw];
+      if (!gene) continue;
+
+      let vec = this._exprByGene.get(gene);
+      if (!vec) {
+        try {
+          vec = new Float32Array(nCells);
+        } catch (err) {
+          console.warn(
+            "[XeniumAdapter] Unable to allocate expression vector from matrix.mtx; aborting ingest.",
+            err
+          );
+          this._exprByGene.clear();
+          return false;
+        }
+        this._exprByGene.set(gene, vec);
+      }
+      vec[cellIdx] += value;
+      filled++;
+    }
+
+    if (!filled) {
+      console.warn(
+        "[XeniumAdapter] matrix.mtx parsed but produced no gene entries."
+      );
+      this._exprByGene.clear();
+      return false;
+    }
+
+    console.log(
+      `[XeniumAdapter] Ingested expression from matrix.mtx: genes=${this._genes.length}, nonzeros=${filled}`
+    );
+    return true;
+  }
+
   async _ingestFromCellsWide(geneCols: string[]): Promise<void> {
     // Wide layout: cells.csv has many gene columns (binary or counts)
     // Use provided geneCols; if _genes empty, adopt them as list in this order.
@@ -478,76 +754,308 @@ export class XeniumAdapter {
     );
   }
 
-  async _readTableOneOf(names: string[]): Promise<RowData[]> {
-    const map = new Map(
-      this.files.map((f) => [(f.webkitRelativePath || f.name).toLowerCase(), f])
-    );
-    let f = null;
-    for (const n of names) {
-      const needle = n.toLowerCase();
-      f = Array.from(map.values()).find((file) => {
-        const base = file.name.toLowerCase();
-        const rel = (file.webkitRelativePath || "").toLowerCase();
-        return base === needle || rel.endsWith("/" + needle);
-      });
-      if (f) break;
+  async _parseCsvFile(file: File): Promise<ParsedTable> {
+    const name = (file.name || "").toLowerCase();
+    if (name.endsWith(".gz")) {
+      const text = await fileToTextMaybeGz(file);
+      if (!text || !text.trim()) return { headers: [], rows: [] };
+      return parseCsvWithPapa(text);
     }
+    return parseCsvWithPapa(file);
+  }
+
+  async _readTableOneOf(names: string[]): Promise<RowData[]> {
+    const f = this._findFileOneOf(names);
     if (!f) return [];
-    const text = await fileToTextMaybeGz(f);
-    if (!text || !text.trim()) return [];
-    const { rows } = parseTable(text);
+    const { rows } = await this._parseCsvFile(f);
     return rows;
+  }
+
+  private _applyGeneFilters(): void {
+    if (!this._genes.length) return;
+    const filtered: string[] = [];
+    let removed = 0;
+    const seen = new Set<string>();
+    for (const gene of this._genes) {
+      if (!gene || seen.has(gene)) continue;
+      seen.add(gene);
+      const type = this._featureTypes.get(gene) || "";
+      if (shouldFilterGene(gene, type)) {
+        this._exprByGene.delete(gene);
+        removed++;
+      } else {
+        filtered.push(gene);
+      }
+    }
+    if (removed) {
+      console.log(
+        `[XeniumAdapter] Filtered ${removed} control/unassigned features from gene list.`
+      );
+    }
+    this._genes = filtered;
   }
 }
 
 /* ----------------- parsing & utility helpers ----------------- */
 
-function parseTable(txt: string): { headers: string[]; rows: RowData[] } {
-  // detect delimiter from header line
-  const firstNL = txt.indexOf("\n");
-  const headLine = firstNL > -1 ? txt.slice(0, firstNL) : txt;
-  const isTSV =
-    (headLine.match(/\t/g)?.length || 0) > (headLine.match(/,/g)?.length || 0);
-  const delim = isTSV ? "\t" : ",";
-
-  const lines = txt.split(/\r?\n/);
-  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
-  if (!lines.length) return { headers: [], rows: [] };
-
-  const headers = splitLine(lines[0], delim);
-  const rows: RowData[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const L = lines[i];
-    if (!L) continue;
-    const cols = splitLine(L, delim);
-    if (!cols.length) continue;
-    const obj: RowData = {};
-    for (let j = 0; j < headers.length; j++) obj[headers[j]] = cols[j] ?? "";
-    rows.push(obj);
-  }
-  return { headers, rows };
+type ParsedTable = { headers: string[]; rows: RowData[] };
+interface FeatureEntry {
+  gene: string;
+  type?: string;
 }
 
-function splitLine(line: string, delim: string): string[] {
-  const res: string[] = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      if (inQ && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else inQ = !inQ;
-    } else if (c === delim && !inQ) {
-      res.push(cur);
-      cur = "";
-    } else {
-      cur += c;
-    }
+async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
+  if (typeof input === "string" && !input.trim()) {
+    return { headers: [], rows: [] };
   }
-  res.push(cur);
-  return res;
+
+  return new Promise<ParsedTable>((resolve, reject) => {
+    const rows: RowData[] = [];
+    let headers: string[] = [];
+
+    const pushRows = (data: RowData[] | undefined) => {
+      if (!data?.length) return;
+      for (const row of data) {
+        if (!row) continue;
+        if (!headers.length) {
+          headers = extractHeadersFromRow(row);
+        }
+        const normalized = normalizeRow(row, headers);
+        if (!hasNonEmptyValue(normalized, headers)) continue;
+        rows.push(normalized);
+      }
+    };
+
+    Papa.parse<RowData>(input as any, {
+      header: true,
+      skipEmptyLines: "greedy",
+      worker: false,
+      dynamicTyping: false,
+      transformHeader: (header: string | undefined) =>
+        (header ?? "").trim(),
+      chunk: (results: ParseResult<RowData>) => {
+        if (!results) return;
+        headers = ensureHeaders(headers, results.meta?.fields);
+        pushRows(results.data as RowData[]);
+      },
+      complete: (results: ParseResult<RowData>) => {
+        if (!results) {
+          resolve({ headers, rows });
+          return;
+        }
+        if (results) {
+          headers = ensureHeaders(headers, results.meta?.fields);
+          if (!rows.length && Array.isArray(results.data)) {
+            pushRows(results.data as RowData[]);
+          }
+          if (results.errors?.length) {
+            console.warn(
+              "[XeniumAdapter] PapaParse completed with errors:",
+              results.errors
+            );
+          }
+        }
+        resolve({ headers, rows });
+      },
+      error: (error: unknown) => reject(error),
+    });
+  });
+}
+
+function normalizeRow(row: RowData, headers: string[]): RowData {
+  if (!row) return {};
+  const keys = headers.length ? headers : Object.keys(row);
+  for (const key of keys) {
+    if (!key) continue;
+    if (!(key in row) || row[key] == null) row[key] = "";
+  }
+  return row;
+}
+
+function hasNonEmptyValue(row: RowData, headers: string[]): boolean {
+  if (!row) return false;
+  const keys = headers.length ? headers : Object.keys(row);
+  for (const key of keys) {
+    if (!key) continue;
+    const value = row[key];
+    if (value == null) continue;
+    if (typeof value === "number") {
+      if (Number.isFinite(value)) return true;
+      continue;
+    }
+    if (typeof value === "boolean") {
+      if (value) return true;
+      continue;
+    }
+    const s = String(value).trim();
+    if (s !== "") return true;
+  }
+  return false;
+}
+
+function ensureHeaders(
+  existing: string[],
+  fields?: (string | undefined)[]
+): string[] {
+  if (existing.length || !fields?.length) return existing;
+  const seen = new Set<string>();
+  const trimmed = [];
+  for (const h of fields) {
+    const header = (h ?? "").trim();
+    if (!header || seen.has(header)) continue;
+    seen.add(header);
+    trimmed.push(header);
+  }
+  return trimmed;
+}
+
+function extractHeadersFromRow(row: RowData): string[] {
+  const seen = new Set<string>();
+  const headers: string[] = [];
+  for (const key of Object.keys(row || {})) {
+    const trimmed = key.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    headers.push(trimmed);
+  }
+  return headers;
+}
+
+function shouldFilterGene(gene: string, featureType: string): boolean {
+  const g = gene.toLowerCase();
+  const t = (featureType || "").toLowerCase();
+  const patterns = [
+    /negative[\s_-]*control/,
+    /neg[\s_-]*ctrl/,
+    /unassigned/,
+    /deprecated/,
+    /codeword/,
+  ];
+  return patterns.some((rx) => rx.test(g) || rx.test(t));
+}
+
+async function readBarcodesFile(file: File): Promise<string[]> {
+  const barcodes: string[] = [];
+  for await (const line of readLinesFromFile(file)) {
+    if (!line) continue;
+    if (line.startsWith("#")) continue;
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const first = trimmed.split(/\t|,/)[0]?.trim();
+    if (first) barcodes.push(first);
+  }
+  return barcodes;
+}
+
+async function* readLinesFromFile(file: File): AsyncGenerator<string> {
+  const name = (file.name || "").toLowerCase();
+  const isGz = name.endsWith(".gz");
+
+  if (isGz && typeof DecompressionStream === "undefined") {
+    const text = await fileToTextMaybeGz(file);
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      yield line;
+    }
+    return;
+  }
+
+  let stream: ReadableStream<Uint8Array> = file.stream();
+  if (isGz && typeof DecompressionStream !== "undefined") {
+    stream = stream.pipeThrough(new DecompressionStream("gzip"));
+  }
+
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIndex = buffer.indexOf("\n");
+      while (newlineIndex !== -1) {
+        let line = buffer.slice(0, newlineIndex);
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        yield line;
+        buffer = buffer.slice(newlineIndex + 1);
+        newlineIndex = buffer.indexOf("\n");
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  buffer += decoder.decode();
+  if (buffer) {
+    if (buffer.endsWith("\r")) buffer = buffer.slice(0, -1);
+    yield buffer;
+  }
+}
+
+async function parseFeaturesFile(file: File): Promise<FeatureEntry[]> {
+  const lines: string[] = [];
+  for await (const rawLine of readLinesFromFile(file)) {
+    if (rawLine == null) continue;
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    lines.push(trimmed);
+  }
+  if (!lines.length) return [];
+
+  const delim = lines[0].includes("\t") ? "\t" : ",";
+  const firstParts = lines[0].split(delim).map((s) => s.trim());
+  const looksLikeHeader = firstParts.some((p) =>
+    /gene|feature|target|type|id/.test(p.toLowerCase())
+  );
+
+  let startIdx = 0;
+  let geneIdx = -1;
+  let typeIdx = -1;
+
+  if (looksLikeHeader) {
+    startIdx = 1;
+    firstParts.forEach((col, idx) => {
+      const lower = col.toLowerCase();
+      if (
+        geneIdx === -1 &&
+        [
+          "gene",
+          "gene_symbol",
+          "gene_id",
+          "gene_name",
+          "feature_name",
+          "feature",
+          "target",
+          "name",
+          "id",
+        ].includes(lower)
+      ) {
+        geneIdx = idx;
+      } else if (
+        typeIdx === -1 &&
+        (/type/.test(lower) || /class/.test(lower) || /category/.test(lower))
+      ) {
+        typeIdx = idx;
+      }
+    });
+    if (geneIdx === -1) geneIdx = Math.min(1, firstParts.length - 1);
+  } else {
+    startIdx = 0;
+    geneIdx = firstParts.length >= 2 ? 1 : 0;
+    typeIdx = firstParts.length >= 3 ? 2 : -1;
+  }
+
+  const entries: FeatureEntry[] = [];
+  for (let i = startIdx; i < lines.length; i++) {
+    const parts = lines[i].split(delim);
+    if (!parts.length) continue;
+    const gene = (parts[geneIdx] ?? "").trim();
+    if (!gene) continue;
+    const type = typeIdx >= 0 ? (parts[typeIdx] ?? "").trim() : "";
+    entries.push({ gene, type });
+  }
+  return entries;
 }
 
 function toNum(v: any): number {
@@ -673,4 +1181,138 @@ function detectWideGeneColumns(sampleRow: RowData, knownGenes: string[] = []): {
     }
   }
   return { geneCols: geneLike };
+}
+
+type TarEntry = { name: string; data: Uint8Array };
+
+async function extractRelevantArchives(files: File[]): Promise<File[]> {
+  const extracted: File[] = [];
+  for (const file of files) {
+    const fileName = (file.name || "").toLowerCase();
+    if (
+      !fileName.endsWith(".tar") &&
+      !fileName.endsWith(".tar.gz") &&
+      !fileName.endsWith(".tgz")
+    )
+      continue;
+    if (!/analysis|cell_feature_matrix/.test(fileName)) continue;
+    try {
+      const entries = await readTarEntriesFromFile(file);
+      for (const entry of entries) {
+        const pathLower = entry.name.toLowerCase();
+        const isClusterCsv =
+          /analysis\/clustering\//.test(pathLower) &&
+          /\.(csv|tsv)$/.test(pathLower);
+        const isFeatureTsv =
+          /cell_feature_matrix\//.test(pathLower) &&
+          /features\.tsv(\.gz)?$/.test(pathLower);
+        const isBarcodesTsv =
+          /cell_feature_matrix\//.test(pathLower) &&
+          /barcodes\.tsv(\.gz)?$/.test(pathLower);
+        const isMatrixMtx =
+          /cell_feature_matrix\//.test(pathLower) &&
+          /matrix\.mtx(\.gz)?$/.test(pathLower);
+        if (!isClusterCsv && !isFeatureTsv && !isBarcodesTsv && !isMatrixMtx)
+          continue;
+
+        const blob = new File([entry.data], entry.name, {
+          type: "text/plain",
+          lastModified: file.lastModified,
+        });
+        try {
+          Object.defineProperty(blob, "webkitRelativePath", {
+            value: entry.name,
+            configurable: true,
+          });
+        } catch {}
+        extracted.push(blob);
+      }
+    } catch (err) {
+      console.warn("[XeniumAdapter] Failed to extract archive", file.name, err);
+    }
+  }
+  return extracted;
+}
+
+async function readTarEntriesFromFile(file: File): Promise<TarEntry[]> {
+  const lower = (file.name || "").toLowerCase();
+  let bytes: Uint8Array;
+  if (lower.endsWith(".tar.gz") || lower.endsWith(".tgz")) {
+    bytes = await decompressGzipToUint8Array(file);
+  } else if (lower.endsWith(".tar")) {
+    const buf = await file.arrayBuffer();
+    bytes = new Uint8Array(buf);
+  } else {
+    return [];
+  }
+  return parseTarArchive(bytes);
+}
+
+async function decompressGzipToUint8Array(file: File): Promise<Uint8Array> {
+  if (typeof DecompressionStream !== "undefined") {
+    const ds = new DecompressionStream("gzip");
+    const decompressed = file.stream().pipeThrough(ds);
+    const arrayBuffer = await new Response(decompressed).arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  }
+  const buffer = await file.arrayBuffer();
+  return ungzip(new Uint8Array(buffer));
+}
+
+function parseTarArchive(bytes: Uint8Array): TarEntry[] {
+  const entries: TarEntry[] = [];
+  const blockSize = 512;
+  const decoder = new TextDecoder("utf-8");
+  let offset = 0;
+
+  while (offset + blockSize <= bytes.length) {
+    const header = bytes.subarray(offset, offset + blockSize);
+    offset += blockSize;
+
+    if (isZeroBlock(header)) {
+      // end of archive marker (two consecutive zero blocks)
+      if (offset + blockSize > bytes.length) break;
+      const next = bytes.subarray(offset, offset + blockSize);
+      if (isZeroBlock(next)) break;
+      else continue;
+    }
+
+    const nameRaw = decoder.decode(header.subarray(0, 100)).replace(/\0.*$/, "");
+    const prefixRaw = decoder
+      .decode(header.subarray(345, 500))
+      .replace(/\0.*$/, "");
+    const sizeRaw = decoder
+      .decode(header.subarray(124, 136))
+      .replace(/\0.*$/, "")
+      .trim();
+
+    const fullName = (prefixRaw ? prefixRaw + "/" : "") + nameRaw;
+    if (!fullName) {
+      const sizeSkip = Math.ceil(0 / blockSize) * blockSize;
+      offset += sizeSkip;
+      continue;
+    }
+
+    const size = sizeRaw ? parseInt(sizeRaw, 8) || 0 : 0;
+    const typeflag = header[156];
+
+    const dataStart = offset;
+    const dataEnd = dataStart + size;
+    const fileData = bytes.subarray(dataStart, dataEnd);
+    const paddedSize = Math.ceil(size / blockSize) * blockSize;
+    offset += paddedSize;
+
+    if (typeflag === 0 || typeflag === 48 /* '0' */) {
+      entries.push({ name: fullName, data: fileData.slice() });
+    }
+  }
+
+  return entries;
+}
+
+function isZeroBlock(block: Uint8Array): boolean {
+  for (let i = 0; i < block.length; i++) {
+    if (block[i] !== 0) return false;
+  }
+  return true;
 }

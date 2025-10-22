@@ -1,5 +1,6 @@
 // src/data/adapters/MerscopeAdapter.ts
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
+import Papa, { ParseResult } from "papaparse";
 
 interface MerscopeMetadata {
   obsKeys: string[];
@@ -56,42 +57,16 @@ export class MerscopeAdapter {
     this._onProgress = onProgress;
     this.files = files;
 
-    // --- read helpers
-    const readTable = async (needles: string[]): Promise<RowData[]> => {
-      const map = new Map(
-        this.files.map((f) => [
-          (f.webkitRelativePath || f.name).toLowerCase(),
-          f,
-        ])
-      );
-      let f = null;
-      for (const n of needles) {
-        const needle = n.toLowerCase();
-        f = Array.from(map.values()).find((file) => {
-          const base = file.name.toLowerCase();
-          const rel = (file.webkitRelativePath || "").toLowerCase();
-          return base === needle || rel.endsWith("/" + needle);
-        });
-        if (f) break;
-      }
-      if (!f) return [];
-      const text = await fileToTextMaybeGz(f);
-      if (!text || !text.trim()) return [];
-      const delim = sniffDelimiter(text);
-      const { headers, rows } = parseDelimited(text, delim);
-      return rows;
-    };
-
     // 1) cell_metadata.csv (positions live here)
     await this._onProgress?.(10, "Loading cell metadata...");
-    const metaRows = await readTable(["cell_metadata.csv"]);
+    const metaRows = await this._readTableOneOf(["cell_metadata.csv"]);
     if (!metaRows.length) {
       throw new Error("MERSCOPE: cell_metadata.csv not found or empty");
     }
 
     // 2) cell_categories.csv (cluster labels like "leiden")
     await this._onProgress?.(25, "Loading cluster categories...");
-    const catRows = await readTable(["cell_categories.csv"]);
+    const catRows = await this._readTableOneOf(["cell_categories.csv"]);
     let clusterCol = null;
     let catIndex = null;
     if (catRows.length) {
@@ -128,7 +103,9 @@ export class MerscopeAdapter {
 
     // 3) cell_numeric_categories.csv (UMAP)
     await this._onProgress?.(40, "Loading UMAP embeddings...");
-    const numRows = await readTable(["cell_numeric_categories.csv"]);
+    const numRows = await this._readTableOneOf([
+      "cell_numeric_categories.csv",
+    ]);
     let umapIndex = null;
     if (numRows.length) {
       const idKey = firstPresent(Object.keys(numRows[0]), [
@@ -183,8 +160,8 @@ export class MerscopeAdapter {
       const out = { ...r };
 
       // attach cluster label if available
-      if (catIndex) {
-        out.leiden = catIndex.get(id) ?? "";
+      if (catIndex && clusterCol) {
+        out[clusterCol] = catIndex.get(id) ?? "";
       }
 
       // attach umap for convenience (we’ll also expose as an embedding)
@@ -210,7 +187,7 @@ export class MerscopeAdapter {
     // 5) genes + expression — from cell_by_gene.csv (supports wide or long)
     await this._onProgress?.(70, "Loading gene expression...");
     try {
-      const cbgRows = await readTable(["cell_by_gene.csv"]);
+      const cbgRows = await this._readTableOneOf(["cell_by_gene.csv"]);
       if (cbgRows.length) {
         await this._ingestCellByGene(cbgRows, metaIdKey);
       } else {
@@ -225,16 +202,61 @@ export class MerscopeAdapter {
     // 6) remember obs keys and cluster column
     await this._onProgress?.(85, "Processing clusters and embeddings...");
     this._obsKeys = Array.from(new Set(Object.keys(this._rows[0] || {})));
+    const clusterCandidates = [
+      "leiden",
+      "cluster",
+      "clusters",
+      "cluster_id",
+      "clusterid",
+      "cluster label",
+      "cluster_label",
+      "cluster id",
+      "cell_type",
+      "cell type",
+      "cell-type",
+      "celltype",
+      "celltypes",
+      "cell types",
+      "cell_class",
+      "cell class",
+      "cell_subclass",
+      "cell subclass",
+      "predicted_celltype",
+      "predicted celltype",
+      "predicted cell type",
+      "annotation",
+      "annotations",
+      "cell_annotation",
+      "cell annotation",
+      "cell_annotations",
+      "cell annotations",
+      "class",
+      "class_label",
+      "class label",
+      "subclass",
+      "subclass_label",
+      "subclass label",
+      "label",
+      "labels",
+      "group",
+      "group_label",
+      "group label",
+    ];
     this._clusterColumn =
-      [
-        "leiden",
-        "cluster",
-        "clusters",
-        "cell_type",
-        "celltype",
-        "annotation",
-        "class",
-      ].find((k) => this._obsKeys.includes(k)) || null;
+      clusterCandidates.find((k) => this._obsKeys.includes(k)) || null;
+
+    if (!this._clusterColumn) {
+      const heuristicCluster = detectLikelyClusterColumn(this._rows);
+      if (heuristicCluster) {
+        this._clusterColumn = heuristicCluster;
+        if (!this._obsKeys.includes(heuristicCluster)) {
+          this._obsKeys.push(heuristicCluster);
+        }
+        console.log(
+          `[MerscopeAdapter] Auto-selected "${heuristicCluster}" as cluster column via heuristic detection.`
+        );
+      }
+    }
 
     if (!this._clusterColumn) {
       console.warn(
@@ -409,6 +431,38 @@ export class MerscopeAdapter {
     return keys;
   }
 
+  private async _parseCsvFile(file: File): Promise<ParsedTable> {
+    const name = (file.name || "").toLowerCase();
+    if (name.endsWith(".gz")) {
+      const text = await fileToTextMaybeGz(file);
+      if (!text || !text.trim()) return { headers: [], rows: [] };
+      return parseCsvWithPapa(text);
+    }
+    return parseCsvWithPapa(file);
+  }
+
+  private async _readTableOneOf(names: string[]): Promise<RowData[]> {
+    const map = new Map(
+      this.files.map((f) => [(f.webkitRelativePath || f.name).toLowerCase(), f])
+    );
+    let target: File | null = null;
+    for (const n of names) {
+      const needle = n.toLowerCase();
+      const candidate = Array.from(map.values()).find((file) => {
+        const base = file.name.toLowerCase();
+        const rel = (file.webkitRelativePath || "").toLowerCase();
+        return base === needle || rel.endsWith("/" + needle);
+      });
+      if (candidate) {
+        target = candidate;
+        break;
+      }
+    }
+    if (!target) return [];
+    const { rows } = await this._parseCsvFile(target);
+    return rows;
+  }
+
   /* ----------------- gene ingestion helpers ----------------- */
 
   async _ingestCellByGene(rows: RowData[], _metaIdKey: string): Promise<void> {
@@ -532,47 +586,185 @@ function firstPresent(keys: string[], list: string[]): string | null {
   return null;
 }
 
-function sniffDelimiter(sampleText: string): string {
-  const first = sampleText.split(/\r?\n/)[0] || "";
-  const tabs = (first.match(/\t/g) || []).length;
-  const commas = (first.match(/,/g) || []).length;
-  const semis = (first.match(/;/g) || []).length;
-  if (tabs > commas && tabs > semis) return "\t";
-  if (semis > commas) return ";";
-  return ","; // default
+type ParsedTable = { headers: string[]; rows: RowData[] };
+
+async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
+  if (typeof input === "string" && !input.trim()) {
+    return { headers: [], rows: [] };
+  }
+
+  return new Promise<ParsedTable>((resolve, reject) => {
+    const rows: RowData[] = [];
+    let headers: string[] = [];
+
+    const pushRows = (data: RowData[] | undefined) => {
+      if (!data?.length) return;
+      for (const row of data) {
+        if (!row) continue;
+        if (!headers.length) {
+          headers = extractHeadersFromRow(row);
+        }
+        const normalized = normalizeRow(row, headers);
+        if (!hasNonEmptyValue(normalized, headers)) continue;
+        rows.push(normalized);
+      }
+    };
+
+    Papa.parse<RowData>(input as any, {
+      header: true,
+      skipEmptyLines: "greedy",
+      worker: false,
+      dynamicTyping: false,
+      transformHeader: (header: string | undefined) =>
+        (header ?? "").trim(),
+      chunk: (results: ParseResult<RowData>) => {
+        if (!results) return;
+        headers = ensureHeaders(headers, results.meta?.fields);
+        pushRows(results.data as RowData[]);
+      },
+      complete: (results: ParseResult<RowData>) => {
+        if (!results) {
+          resolve({ headers, rows });
+          return;
+        }
+        headers = ensureHeaders(headers, results.meta?.fields);
+        if (!rows.length && Array.isArray(results.data)) {
+          pushRows(results.data as RowData[]);
+        }
+        if (results.errors?.length) {
+          console.warn(
+            "[MerscopeAdapter] PapaParse completed with errors:",
+            results.errors
+          );
+        }
+        resolve({ headers, rows });
+      },
+      error: (error: unknown) => reject(error),
+    });
+  });
 }
 
-function parseDelimited(txt: string, delim: string): { headers: string[]; rows: RowData[] } {
-  const lines = txt.split(/\r?\n/).filter(Boolean);
-  if (!lines.length) return { headers: [], rows: [] };
-  const headers = splitLine(lines[0], delim);
-  const rows: RowData[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = splitLine(lines[i], delim);
-    if (!cols.length) continue;
-    const obj: RowData = {};
-    for (let j = 0; j < headers.length; j++) obj[headers[j]] = cols[j] ?? "";
-    rows.push(obj);
+function normalizeRow(row: RowData, headers: string[]): RowData {
+  if (!row) return {};
+  const keys = headers.length ? headers : Object.keys(row);
+  for (const key of keys) {
+    if (!key) continue;
+    if (!(key in row) || row[key] == null) row[key] = "";
   }
-  return { headers, rows };
+  return row;
 }
 
-function splitLine(line: string, delim: string): string[] {
-  const res: string[] = [];
-  let cur = "";
-  let inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      if (inQ && line[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else inQ = !inQ;
-    } else if (c === delim && !inQ) {
-      res.push(cur);
-      cur = "";
-    } else cur += c;
+function hasNonEmptyValue(row: RowData, headers: string[]): boolean {
+  if (!row) return false;
+  const keys = headers.length ? headers : Object.keys(row);
+  for (const key of keys) {
+    if (!key) continue;
+    const value = row[key];
+    if (value == null) continue;
+    if (typeof value === "number") {
+      if (Number.isFinite(value)) return true;
+      continue;
+    }
+    if (typeof value === "boolean") {
+      if (value) return true;
+      continue;
+    }
+    const s = String(value).trim();
+    if (s !== "") return true;
   }
-  res.push(cur);
-  return res;
+  return false;
+}
+
+function ensureHeaders(
+  existing: string[],
+  fields?: (string | undefined)[]
+): string[] {
+  if (existing.length || !fields?.length) return existing;
+  const seen = new Set<string>();
+  const trimmed: string[] = [];
+  for (const h of fields) {
+    const header = (h ?? "").trim();
+    if (!header || seen.has(header)) continue;
+    seen.add(header);
+    trimmed.push(header);
+  }
+  return trimmed;
+}
+
+function extractHeadersFromRow(row: RowData): string[] {
+  const seen = new Set<string>();
+  const headers: string[] = [];
+  for (const key of Object.keys(row || {})) {
+    const trimmed = key.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    headers.push(trimmed);
+  }
+  return headers;
+}
+
+function detectLikelyClusterColumn(rows: RowData[]): string | null {
+  if (!rows.length) return null;
+
+  const sampleKeys = Object.keys(rows[0] || {});
+  if (!sampleKeys.length) return null;
+
+  const skipPrefixes = [
+    "x",
+    "y",
+    "z",
+    "row",
+    "col",
+    "column",
+    "coord",
+    "n_",
+    "sum",
+    "total",
+    "count",
+    "umi",
+    "umis",
+    "reads",
+    "intensity",
+    "area",
+    "volume",
+  ];
+  const skipRegex = new RegExp(`^(${skipPrefixes.join("|")})`, "i");
+
+  let bestKey: string | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const key of sampleKeys) {
+    if (!key) continue;
+    if (key.startsWith("_")) continue;
+    const lower = key.toLowerCase();
+    if (skipRegex.test(lower)) continue;
+    if (lower.includes("gene") || lower.includes("umi")) continue;
+
+    let nonEmpty = 0;
+    let numericish = 0;
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const raw = row?.[key];
+      if (raw == null || raw === "") continue;
+      const str = String(raw).trim();
+      if (!str) continue;
+      nonEmpty++;
+      if (!Number.isNaN(Number(str))) numericish++;
+      seen.add(str);
+      if (seen.size > 200) break;
+    }
+
+    if (seen.size < 2) continue;
+    if (nonEmpty === 0) continue;
+    if (seen.size > Math.max(50, 0.2 * rows.length)) continue;
+    if (numericish / Math.max(nonEmpty, 1) > 0.25) continue;
+
+    const score = seen.size + numericish / Math.max(nonEmpty, 1);
+    if (score < bestScore) {
+      bestScore = score;
+      bestKey = key;
+    }
+  }
+
+  return bestKey;
 }
