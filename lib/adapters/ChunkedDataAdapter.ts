@@ -25,7 +25,14 @@ export class ChunkedDataAdapter {
 
     try {
       // Fetch dataset metadata and presigned URLs from API
-      const response = await fetch(`/api/datasets/${this.datasetId}`);
+      // Use absolute URL for worker compatibility
+      // 'self' is available in both workers and main thread
+      const baseUrl =
+        typeof self !== "undefined" && self.location
+          ? self.location.origin
+          : "";
+      const url = `${baseUrl}/api/datasets/${this.datasetId}`;
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(

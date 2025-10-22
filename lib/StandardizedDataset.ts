@@ -158,23 +158,65 @@ export class StandardizedDataset {
     if (!gene) {
       return null;
     }
+
+    // Find gene index
+    const geneIndex = this.genes.indexOf(gene);
+    if (geneIndex === -1) {
+      return null;
+    }
+
+    // If matrix is already cached (from worker), use it directly
+    if (this.matrix) {
+      return this.extractColumnFromMatrix(this.matrix, geneIndex);
+    }
+
+    // Otherwise, need adapter to fetch matrix
     if (!this.adapter) {
       throw new Error("No adapter available for gene expression data access");
     }
 
     // Cache matrix for subsequent queries
-    if (!this.matrix) {
-      this.matrix = this.adapter.fetchFullMatrix();
-    }
-
-    // Use cached genes array instead of re-fetching
-    const geneIndex = this.genes.indexOf(gene);
-
-    if (geneIndex === -1) {
-      return null;
-    }
+    this.matrix = this.adapter.fetchFullMatrix();
 
     return this.adapter.fetchColumn(this.matrix, geneIndex);
+  }
+
+  /**
+   * Extract a column from a matrix (works with different matrix formats)
+   */
+  private extractColumnFromMatrix(matrix: any, column: number): number[] {
+    // Case 1: Map<string, Float32Array> (Xenium/MERSCOPE format)
+    if (matrix instanceof Map) {
+      const gene = this.genes[column];
+      if (!gene || !matrix.has(gene)) {
+        return [];
+      }
+      return Array.from(matrix.get(gene)!);
+    }
+
+    // Case 2: Array of arrays (row-major)
+    if (Array.isArray(matrix) && Array.isArray(matrix[0])) {
+      return matrix.map((row: any) => row[column]);
+    }
+
+    // Case 3: TypedArray (flattened row-major - H5AD format)
+    if (ArrayBuffer.isView(matrix)) {
+      const typedArray = matrix as any;
+      // Assume it's flattened row-major: [row0col0, row0col1, ..., row1col0, row1col1, ...]
+      const numCells = this.spatial.coordinates.length;
+      const numGenes = this.genes.length;
+      
+      if (column >= numGenes) {
+        throw new Error("Column index out of bounds");
+      }
+
+      return Array.from(
+        { length: numCells },
+        (_, i) => typedArray[i * numGenes + column],
+      );
+    }
+
+    throw new Error("Unsupported matrix format");
   }
 
   /**
@@ -203,8 +245,9 @@ export class StandardizedDataset {
         }[]
       | null;
     metadata: Record<string, any>;
+    matrix?: any;
   }): StandardizedDataset {
-    return new StandardizedDataset({
+    const dataset = new StandardizedDataset({
       id: data.id,
       name: data.name,
       type: data.type,
@@ -216,6 +259,13 @@ export class StandardizedDataset {
       rawData: null,
       adapter: null,
     });
+
+    // Pre-cache the matrix if provided (from worker)
+    if (data.matrix) {
+      dataset.matrix = data.matrix;
+    }
+
+    return dataset;
   }
 
   static async fromH5ad(

@@ -46,6 +46,7 @@ export interface SerializableStandardizedDataset {
   genes: string[];
   clusters: SerializableClusterData[] | null;
   metadata: Record<string, any>;
+  matrix: any; // Pre-loaded expression matrix for gene visualization
 }
 
 /**
@@ -86,6 +87,11 @@ const workerApi = {
 
     console.log("[Worker] Dataset info:", dataInfo);
 
+    // Load expression matrix for gene visualization
+    await onProgress?.(99, "Loading expression matrix...");
+    const matrix = adapter.fetchFullMatrix();
+    console.log("[Worker] Expression matrix loaded");
+
     // Normalize spatial coordinates
     const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
 
@@ -113,6 +119,7 @@ const workerApi = {
         numGenes: dataInfo.numGenes,
         spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
       },
+      matrix: matrix,
     };
 
     console.log("[Worker] H5AD parsing complete");
@@ -167,6 +174,11 @@ const workerApi = {
 
     console.log("[Worker] Dataset info:", dataInfo);
 
+    // Load expression matrix for gene visualization
+    await onProgress?.(99, "Loading expression matrix...");
+    const matrix = adapter.fetchFullMatrix();
+    console.log("[Worker] Expression matrix loaded");
+
     // Normalize spatial coordinates
     const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
 
@@ -196,6 +208,7 @@ const workerApi = {
         numGenes: dataInfo.numGenes,
         spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
       },
+      matrix: matrix,
     };
 
     console.log("[Worker] Xenium parsing complete");
@@ -258,6 +271,11 @@ const workerApi = {
 
     console.log("[Worker] Dataset info:", dataInfo);
 
+    // Load expression matrix for gene visualization
+    await onProgress?.(99, "Loading expression matrix...");
+    const matrix = adapter.fetchFullMatrix();
+    console.log("[Worker] Expression matrix loaded");
+
     // Normalize spatial coordinates
     const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
 
@@ -287,6 +305,7 @@ const workerApi = {
         numGenes: dataInfo.numGenes,
         spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
       },
+      matrix: matrix,
     };
 
     console.log("[Worker] MERSCOPE parsing complete");
@@ -328,6 +347,11 @@ const workerApi = {
 
     console.log("[Worker] Dataset info:", dataInfo);
 
+    // Load expression matrix for gene visualization
+    await onProgress?.(95, "Loading expression matrix...");
+    const matrix = await adapter.fetchFullMatrix();
+    console.log("[Worker] Expression matrix loaded");
+
     // Normalize spatial coordinates
     const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
 
@@ -351,6 +375,7 @@ const workerApi = {
         clusterCount: dataInfo.clusterCount,
         spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
       },
+      matrix: matrix,
     };
 
     console.log("[Worker] S3 loading complete");

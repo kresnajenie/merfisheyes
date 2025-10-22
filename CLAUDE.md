@@ -311,19 +311,28 @@ The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/
 
 ### Threading Model
 
-**Single Cell Adapters** (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter) **do NOT use web workers**:
-- File I/O operations are async (non-blocking)
-- Data parsing and processing happens synchronously in main thread
-- ChunkedDataAdapter uses browser's `DecompressionStream` API (streaming, not web workers)
-- This approach keeps implementation simple and avoids message-passing overhead
-- For large datasets, async I/O prevents blocking during file reads, but parsing may briefly freeze UI
+**ALL DATA PROCESSING NOW USES WEB WORKERS** to keep UI responsive:
 
-**Single Molecule Processing** (hyparquetService, SingleMoleculeDataset) **USES web workers**:
-- Web worker with Comlink for seamless function proxying
-- Singleton worker manager pattern for lifecycle management
-- Progress callbacks proxied for real-time UI updates during processing
+**Single Cell Adapters** (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter):
+- `standardized-dataset.worker.ts` - Background worker for parsing all single cell formats
+- `standardizedDatasetWorkerManager.ts` - Singleton pattern for worker lifecycle management
+- Workers parse files → load expression matrix → normalize coordinates → serialize
+- Main thread receives serialized data → reconstructs `StandardizedDataset` with cached matrix
+- Expression matrix pre-loaded in worker, no adapter needed after reconstruction
+- Prevents UI freezing during parsing of large H5AD/Xenium/MERSCOPE files
+- ChunkedDataAdapter (S3 loading) also runs in worker with absolute URLs for fetch
+
+**Single Molecule Processing** (hyparquetService, SingleMoleculeDataset):
+- `single-molecule.worker.ts` - Background worker for parsing parquet/CSV files
+- `singleMoleculeWorkerManager.ts` - Singleton pattern for worker lifecycle management
+- Uses Comlink for seamless function proxying across worker boundary
+- Progress callbacks proxied via `Comlink.proxy()` for real-time UI updates
 - Prevents UI freezing for large files (e.g., 21M+ molecules taking 26+ seconds)
 - Worker serializes dataset as JSON-compatible structure for main thread transfer
+
+**Worker Compatibility Fixes**:
+- `gzip.ts`: Uses `typeof DecompressionStream !== "undefined"` instead of `window` check
+- `ChunkedDataAdapter.ts`: Uses `self.location.origin` for absolute URLs (works in both main thread and workers)
 
 ### TypeScript Configuration
 

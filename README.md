@@ -209,8 +209,10 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   ├── MerscopeAdapter.ts
 │   │   └── ChunkedDataAdapter.ts  # S3 loading adapter
 │   ├── workers/                 # Web workers for background processing
+│   │   ├── standardized-dataset.worker.ts  # Single cell parsing worker (H5AD/Xenium/MERSCOPE)
+│   │   ├── standardizedDatasetWorkerManager.ts  # Single cell worker manager
 │   │   ├── single-molecule.worker.ts  # Parquet/CSV parsing worker
-│   │   └── singleMoleculeWorkerManager.ts  # Singleton worker manager
+│   │   └── singleMoleculeWorkerManager.ts  # Single molecule worker manager
 │   ├── stores/                  # Zustand state stores
 │   │   ├── datasetStore.ts      # Single cell datasets
 │   │   ├── singleMoleculeStore.ts  # Single molecule datasets

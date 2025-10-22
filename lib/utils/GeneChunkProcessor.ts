@@ -92,7 +92,18 @@ export class GeneChunkProcessor {
 
     // Load expression matrix once for all chunks
     onProgress?.(0, "Loading expression matrix...");
-    const matrix = dataset.adapter.fetchFullMatrix();
+
+    // Use cached matrix if available (from worker), otherwise fetch via adapter
+    let matrix;
+    if (dataset.matrix) {
+      console.log("Using cached expression matrix from worker");
+      matrix = dataset.matrix;
+    } else if (dataset.adapter) {
+      console.log("Fetching expression matrix via adapter");
+      matrix = dataset.adapter.fetchFullMatrix();
+    } else {
+      throw new Error("No expression matrix or adapter available");
+    }
 
     console.log("Expression matrix loaded");
 
@@ -221,9 +232,17 @@ export class GeneChunkProcessor {
       const geneName = geneNames[geneIdx];
 
       // Extract gene column from matrix directly
-      const geneData = dataset.adapter.fetchColumn(matrix, geneIdx);
+      let geneData: number[];
 
-      if (!geneData) {
+      // Use dataset's method if adapter is available, otherwise extract directly
+      if (dataset.adapter) {
+        geneData = dataset.adapter.fetchColumn(matrix, geneIdx);
+      } else {
+        // Extract column directly from cached matrix (same logic as extractColumnFromMatrix)
+        geneData = this.extractColumnFromMatrix(matrix, geneIdx, geneName, geneNames);
+      }
+
+      if (!geneData || geneData.length === 0) {
         throw new Error(`Failed to get expression data for gene: ${geneName}`);
       }
 
@@ -350,6 +369,49 @@ export class GeneChunkProcessor {
       numNonZero: numNonZero,
       meanExpression: meanExpression,
     };
+  }
+
+  /**
+   * Extract a column from a matrix without requiring an adapter
+   * Handles different matrix formats (Map, Array, TypedArray)
+   */
+  private extractColumnFromMatrix(
+    matrix: any,
+    columnIndex: number,
+    geneName: string,
+    allGenes: string[],
+  ): number[] {
+    // Case 1: Map<string, Float32Array> (Xenium/MERSCOPE format)
+    if (matrix instanceof Map) {
+      const gene = allGenes[columnIndex];
+      if (!gene || !matrix.has(gene)) {
+        return [];
+      }
+      return Array.from(matrix.get(gene)!);
+    }
+
+    // Case 2: Array of arrays (row-major)
+    if (Array.isArray(matrix) && Array.isArray(matrix[0])) {
+      return matrix.map((row: any) => row[columnIndex]);
+    }
+
+    // Case 3: TypedArray (flattened row-major - H5AD format)
+    if (ArrayBuffer.isView(matrix)) {
+      const typedArray = matrix as any;
+      const numCells = typedArray.length / allGenes.length;
+      const numGenes = allGenes.length;
+
+      if (columnIndex >= numGenes) {
+        throw new Error("Column index out of bounds");
+      }
+
+      return Array.from(
+        { length: numCells },
+        (_, i) => typedArray[i * numGenes + columnIndex],
+      );
+    }
+
+    throw new Error("Unsupported matrix format");
   }
 
   /**
