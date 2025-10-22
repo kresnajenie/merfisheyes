@@ -13,7 +13,8 @@ export async function fileToTextMaybeGz(file: File): Promise<string> {
   if (!isGz) return file.text();
 
   // Prefer built-in DecompressionStream when available (Chrome/Edge, Safari 17+)
-  if ("DecompressionStream" in window) {
+  // Check for DecompressionStream in global scope (works in both window and worker contexts)
+  if (typeof DecompressionStream !== "undefined") {
     const ds = new DecompressionStream("gzip");
     const decompressed = file.stream().pipeThrough(ds);
     const resp = new Response(decompressed);
