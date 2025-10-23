@@ -246,7 +246,7 @@ export class ChunkedDataAdapter {
     column: string;
     type: string;
     values: any[];
-    palette: Record<string, string>;
+    palette: Record<string, string> | null;
   }> | null> {
     console.log("Loading clusters...");
 
