@@ -30,15 +30,15 @@ export function Providers({ children, themeProps }: ProvidersProps) {
       <NextThemesProvider {...themeProps}>
         {children}
         <ToastContainer
-          position="bottom-right"
+          closeOnClick
+          draggable
+          pauseOnFocusLoss
+          pauseOnHover
           autoClose={3000}
           hideProgressBar={false}
           newestOnTop={true}
-          closeOnClick
+          position="bottom-right"
           rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
           theme="dark"
         />
       </NextThemesProvider>

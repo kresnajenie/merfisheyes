@@ -10,10 +10,11 @@ import {
   Button,
   Input,
 } from "@heroui/react";
+import { toast } from "react-toastify";
+
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import { SingleMoleculeProcessor } from "@/lib/utils/SingleMoleculeProcessor";
 import { generateSingleMoleculeFingerprint } from "@/lib/utils/fingerprint";
-import { toast } from "react-toastify";
 
 interface SingleMoleculeUploadModalProps {
   isOpen: boolean;
@@ -27,7 +28,7 @@ export function SingleMoleculeUploadModal({
   dataset,
 }: SingleMoleculeUploadModalProps) {
   const [datasetName, setDatasetName] = useState<string>(
-    dataset?.name || "dataset"
+    dataset?.name || "dataset",
   );
   const [email, setEmail] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -45,11 +46,13 @@ export function SingleMoleculeUploadModal({
   const handleUpload = async () => {
     if (!dataset) {
       toast.error("No dataset loaded");
+
       return;
     }
 
     if (!email || !isEmailValid) {
       toast.error("Please provide a valid email address");
+
       return;
     }
 
@@ -60,6 +63,7 @@ export function SingleMoleculeUploadModal({
     try {
       // Generate fingerprint
       const fingerprint = await generateSingleMoleculeFingerprint(dataset);
+
       console.log("Single molecule dataset fingerprint:", fingerprint);
 
       // Check for duplicates
@@ -67,20 +71,22 @@ export function SingleMoleculeUploadModal({
       setProgress(2);
 
       const duplicateResponse = await fetch(
-        `/api/single-molecule/check-duplicate/${fingerprint}`
+        `/api/single-molecule/check-duplicate/${fingerprint}`,
       );
 
       if (duplicateResponse.ok) {
         const duplicateData = await duplicateResponse.json();
+
         if (duplicateData.exists) {
           const confirmed = window.confirm(
-            `A dataset with this content already exists.\n\nDataset: ${duplicateData.dataset.title}\nUploaded: ${new Date(duplicateData.dataset.createdAt).toLocaleString()}\nMolecules: ${duplicateData.dataset.numMolecules.toLocaleString()}\n\nDo you want to upload anyway?`
+            `A dataset with this content already exists.\n\nDataset: ${duplicateData.dataset.title}\nUploaded: ${new Date(duplicateData.dataset.createdAt).toLocaleString()}\nMolecules: ${duplicateData.dataset.numMolecules.toLocaleString()}\n\nDo you want to upload anyway?`,
           );
 
           if (!confirmed) {
             setIsProcessing(false);
             setProgress(0);
             setProgressMessage("");
+
             return;
           }
         }
@@ -90,19 +96,20 @@ export function SingleMoleculeUploadModal({
       setProgressMessage("Processing dataset...");
       setProgress(5);
 
-      const { datasetId, uploadId } = await SingleMoleculeProcessor.processAndUpload(
-        dataset,
-        datasetName,
-        fingerprint,
-        (prog, msg) => {
-          setProgress(prog);
-          setProgressMessage(msg);
-        },
-        (prog, msg) => {
-          setUploadProgress(prog);
-          setUploadMessage(msg);
-        }
-      );
+      const { datasetId, uploadId } =
+        await SingleMoleculeProcessor.processAndUpload(
+          dataset,
+          datasetName,
+          fingerprint,
+          (prog, msg) => {
+            setProgress(prog);
+            setProgressMessage(msg);
+          },
+          (prog, msg) => {
+            setUploadProgress(prog);
+            setUploadMessage(msg);
+          },
+        );
 
       // Complete upload
       setProgressMessage("Completing upload...");
@@ -114,11 +121,12 @@ export function SingleMoleculeUploadModal({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ uploadId, email }),
-        }
+        },
       );
 
       if (!completeResponse.ok) {
         const error = await completeResponse.json();
+
         throw new Error(error.error || "Failed to complete upload");
       }
 
@@ -134,7 +142,7 @@ export function SingleMoleculeUploadModal({
     } catch (error) {
       console.error("Upload processing error:", error);
       toast.error(
-        `Failed to process dataset: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to process dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
       setIsProcessing(false);
       setProgress(0);
@@ -145,7 +153,7 @@ export function SingleMoleculeUploadModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="2xl">
+    <Modal isOpen={isOpen} size="2xl" onClose={onClose}>
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           Upload Single Molecule Dataset
@@ -153,32 +161,34 @@ export function SingleMoleculeUploadModal({
         <ModalBody>
           <div className="flex flex-col gap-4">
             <Input
+              description="Name for the saved files"
               label="Dataset Name"
               placeholder="Enter dataset name"
               value={datasetName}
               onValueChange={setDatasetName}
-              description="Name for the saved files"
             />
 
             <Input
-              type="email"
-              label="Email"
-              placeholder="Enter your email"
-              value={email}
-              onValueChange={setEmail}
-              description="Get notified when processing is complete"
               isRequired
-              isInvalid={email.length > 0 && !isEmailValid}
+              description="Get notified when processing is complete"
               errorMessage={
                 email.length > 0 && !isEmailValid
                   ? "Please enter a valid email address"
                   : ""
               }
+              isInvalid={email.length > 0 && !isEmailValid}
+              label="Email"
+              placeholder="Enter your email"
+              type="email"
+              value={email}
+              onValueChange={setEmail}
             />
 
             {dataset && (
               <div className="bg-default-100 p-4 rounded-lg">
-                <h4 className="text-sm font-semibold mb-2">Dataset Information</h4>
+                <h4 className="text-sm font-semibold mb-2">
+                  Dataset Information
+                </h4>
                 <div className="text-xs space-y-1">
                   <p>
                     <span className="font-medium">Dataset Name:</span>{" "}
@@ -241,14 +251,14 @@ export function SingleMoleculeUploadModal({
                   Upload Complete!
                 </h4>
                 <p className="text-xs text-success-600 mb-3">
-                  Your single molecule dataset has been uploaded successfully and is
-                  ready to view.
+                  Your single molecule dataset has been uploaded successfully
+                  and is ready to view.
                 </p>
                 <a
-                  href={`/sm-viewer/${uploadedDatasetId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="inline-block text-xs font-medium text-success-700 hover:text-success-800 underline"
+                  href={`/sm-viewer/${uploadedDatasetId}`}
+                  rel="noopener noreferrer"
+                  target="_blank"
                 >
                   Open in Single Molecule Viewer →
                 </a>
@@ -265,17 +275,17 @@ export function SingleMoleculeUploadModal({
             <>
               <Button
                 color="danger"
+                isDisabled={isProcessing}
                 variant="light"
                 onPress={onClose}
-                isDisabled={isProcessing}
               >
                 Cancel
               </Button>
               <Button
                 color="primary"
-                onPress={handleUpload}
-                isLoading={isProcessing}
                 isDisabled={!dataset || !email || !isEmailValid}
+                isLoading={isProcessing}
+                onPress={handleUpload}
               >
                 {isProcessing ? "Processing..." : "Process & Upload"}
               </Button>

@@ -5,7 +5,6 @@ import {
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
@@ -18,11 +17,15 @@ export const s3Client = new S3Client({
   // 3. AWS credentials file
 });
 
-export const S3_BUCKET = process.env.S3_BUCKET!;
+export const S3_BUCKET = process.env.AWS_S3_BUCKET || process.env.S3_BUCKET || "";
 export const AWS_REGION = process.env.AWS_REGION || "us-east-1";
 
-if (!S3_BUCKET) {
-  throw new Error("S3_BUCKET environment variable is required");
+// Helper to ensure bucket is configured
+function ensureBucket() {
+  if (!S3_BUCKET) {
+    throw new Error("AWS_S3_BUCKET environment variable is required");
+  }
+  return S3_BUCKET;
 }
 
 /**
@@ -34,10 +37,10 @@ if (!S3_BUCKET) {
 export async function generatePresignedUploadUrl(
   key: string,
   contentType: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
 ) {
   const command = new PutObjectCommand({
-    Bucket: S3_BUCKET,
+    Bucket: ensureBucket(),
     Key: key,
     ContentType: contentType,
     // Don't set ACL or other CORS-related parameters here
@@ -47,7 +50,7 @@ export async function generatePresignedUploadUrl(
   const url = await getSignedUrl(s3Client, command, {
     expiresIn,
     // Don't sign additional headers that might conflict with CORS
-    unhoistableHeaders: new Set()
+    unhoistableHeaders: new Set(),
   });
 
   return {
@@ -66,14 +69,15 @@ export async function generatePresignedUploadUrl(
  */
 export async function generatePresignedDownloadUrl(
   key: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
 ): Promise<string> {
   const command = new GetObjectCommand({
-    Bucket: S3_BUCKET,
+    Bucket: ensureBucket(),
     Key: key,
   });
 
   const url = await getSignedUrl(s3Client, command, { expiresIn });
+
   return url;
 }
 
@@ -86,7 +90,7 @@ export async function generatePresignedDownloadUrl(
 export async function generateDatasetUrls(
   datasetId: string,
   fileKeys: string[],
-  expiresIn: number = 12 * 3600 // 12 hours default
+  expiresIn: number = 12 * 3600, // 12 hours default
 ): Promise<Record<string, string>> {
   const urls: Record<string, string> = {};
 
@@ -94,6 +98,7 @@ export async function generateDatasetUrls(
   const urlPromises = fileKeys.map(async (fileKey) => {
     const s3Key = `datasets/${datasetId}/${fileKey}`;
     const url = await generatePresignedDownloadUrl(s3Key, expiresIn);
+
     return { fileKey, url };
   });
 
@@ -111,7 +116,7 @@ export async function generateDatasetUrls(
  * Note: This won't work if bucket is private - use generatePresignedDownloadUrl instead
  */
 export function getPublicUrl(key: string): string {
-  return `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+  return `https://${ensureBucket()}.s3.${AWS_REGION}.amazonaws.com/${key}`;
 }
 
 /**
@@ -121,8 +126,9 @@ export function getPublicUrl(key: string): string {
  */
 export async function generateManifestUrl(
   datasetId: string,
-  expiresIn: number = 12 * 3600
+  expiresIn: number = 12 * 3600,
 ): Promise<string> {
   const manifestKey = `datasets/${datasetId}/manifest.json.gz`;
+
   return generatePresignedDownloadUrl(manifestKey, expiresIn);
 }

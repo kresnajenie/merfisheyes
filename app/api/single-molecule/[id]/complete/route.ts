@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 
 const corsHeaders = {
@@ -13,7 +14,7 @@ export async function OPTIONS() {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: datasetId } = await params;
@@ -22,7 +23,7 @@ export async function POST(
     if (!uploadId) {
       return NextResponse.json(
         { error: "uploadId is required" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -38,7 +39,7 @@ export async function POST(
     if (!uploadSession) {
       return NextResponse.json(
         { error: "Upload session not found" },
-        { status: 404, headers: corsHeaders }
+        { status: 404, headers: corsHeaders },
       );
     }
 
@@ -48,7 +49,7 @@ export async function POST(
           error: "Upload incomplete",
           message: `Only ${uploadSession.completedFiles} of ${uploadSession.totalFiles} files uploaded`,
         },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -64,11 +65,14 @@ export async function POST(
     // Send email notification if email provided
     if (email) {
       try {
-        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/send-email-single-molecule`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, datasetId }),
-        });
+        await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/send-email-single-molecule`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, datasetId }),
+          },
+        );
       } catch (error) {
         console.error("Failed to send email notification:", error);
         // Don't fail the upload if email fails
@@ -81,16 +85,17 @@ export async function POST(
         message: "Upload completed successfully",
         datasetId,
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error: any) {
     console.error("Complete upload error:", error);
+
     return NextResponse.json(
       {
         error: "Internal server error",
         message: error.message,
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

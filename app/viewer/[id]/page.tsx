@@ -1,16 +1,18 @@
 "use client";
 
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Button, Spinner } from "@heroui/react";
+
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
-import { Button, Spinner } from "@heroui/react";
 
 function ViewerByIdContent() {
   const params = useParams();
@@ -27,6 +29,7 @@ function ViewerByIdContent() {
     if (!datasetId) {
       setError("No dataset ID provided");
       setIsLoading(false);
+
       return;
     }
 
@@ -48,7 +51,7 @@ function ViewerByIdContent() {
         id,
         (progress, message) => {
           console.log(`${progress}%: ${message}`);
-        }
+        },
       );
 
       console.log("StandardizedDataset created:", standardizedDataset);
@@ -70,6 +73,7 @@ function ViewerByIdContent() {
   useEffect(() => {
     if (dataset) {
       const bestColumn = selectBestClusterColumn(dataset);
+
       setSelectedColumn(bestColumn);
       console.log("Auto-selected column:", bestColumn);
     }
@@ -81,29 +85,29 @@ function ViewerByIdContent() {
       <>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-left"
-            raysColor="#FFD700"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FFD700"
+            raysOrigin="top-left"
+            raysSpeed={0.8}
           />
         </div>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-right"
-            raysColor="#FFD700"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FFD700"
+            raysOrigin="top-right"
+            raysSpeed={0.8}
           />
         </div>
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="flex flex-col items-center gap-4">
-            <Spinner size="lg" color="primary" />
+            <Spinner color="primary" size="lg" />
             <p className={subtitle()}>Loading dataset...</p>
           </div>
         </div>
@@ -117,13 +121,13 @@ function ViewerByIdContent() {
       <>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-center"
-            raysColor="#FF72E1"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FF72E1"
+            raysOrigin="top-center"
+            raysSpeed={0.8}
           />
         </div>
         <div className="relative z-10 flex items-center justify-center h-full p-8">

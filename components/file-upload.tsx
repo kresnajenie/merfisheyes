@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import * as Comlink from "comlink";
+
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
@@ -27,7 +28,12 @@ interface FileUploadProps {
   singleMolecule?: boolean;
 }
 
-export function FileUpload({ type, title, description, singleMolecule = false }: FileUploadProps) {
+export function FileUpload({
+  type,
+  title,
+  description,
+  singleMolecule = false,
+}: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
@@ -51,21 +57,26 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    handleFiles(files);
-  }, [type]);
+      const files = Array.from(e.dataTransfer.files);
+
+      handleFiles(files);
+    },
+    [type],
+  );
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files ? Array.from(e.target.files) : [];
+
       handleFiles(files);
     },
-    [type]
+    [type],
   );
 
   const handleFiles = async (files: File[]) => {
@@ -88,13 +99,20 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
       if (singleMolecule) {
         // Single molecule mode - expects single parquet/csv file
         const file = files[0];
-        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+        const fileExtension = file.name.split(".").pop()?.toLowerCase();
 
         toast.info(`Processing ${file.name}...`);
-        console.log("=== Starting Single Molecule file processing (in worker) ===");
+        console.log(
+          "=== Starting Single Molecule file processing (in worker) ===",
+        );
         console.log("File:", file.name, "Size:", file.size, "bytes");
         console.log("File extension:", fileExtension);
-        console.log("Dataset type:", type, "→", UPLOAD_TYPE_TO_PARQUET_TYPE[type]);
+        console.log(
+          "Dataset type:",
+          type,
+          "→",
+          UPLOAD_TYPE_TO_PARQUET_TYPE[type],
+        );
 
         const parquetDatasetType = UPLOAD_TYPE_TO_PARQUET_TYPE[type];
 
@@ -106,18 +124,31 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
 
         // Parse file in web worker
         let serializedData;
-        if (fileExtension === 'parquet') {
-          serializedData = await workerApi.parseParquet(file, parquetDatasetType, proxiedProgress);
-        } else if (fileExtension === 'csv') {
-          serializedData = await workerApi.parseCSV(file, parquetDatasetType, proxiedProgress);
+
+        if (fileExtension === "parquet") {
+          serializedData = await workerApi.parseParquet(
+            file,
+            parquetDatasetType,
+            proxiedProgress,
+          );
+        } else if (fileExtension === "csv") {
+          serializedData = await workerApi.parseCSV(
+            file,
+            parquetDatasetType,
+            proxiedProgress,
+          );
         } else {
-          throw new Error(`Unsupported file type: .${fileExtension}. Only .parquet and .csv files are supported.`);
+          throw new Error(
+            `Unsupported file type: .${fileExtension}. Only .parquet and .csv files are supported.`,
+          );
         }
 
         // Reconstruct dataset from serialized data
         dataset = SingleMoleculeDataset.fromSerializedData(serializedData);
 
-        console.log("=== Single Molecule Dataset created successfully (from worker) ===");
+        console.log(
+          "=== Single Molecule Dataset created successfully (from worker) ===",
+        );
         console.log("Dataset ID:", dataset.id);
         console.log("Dataset name:", dataset.name);
         console.log("Dataset type:", dataset.type);
@@ -130,6 +161,7 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
         // Single cell mode - original behavior
         if (type === "h5ad") {
           const file = files[0];
+
           toast.info(`Processing ${file.name}...`);
           console.log("=== Starting H5AD file processing ===");
           console.log("File:", file.name, "Size:", file.size, "bytes");
@@ -151,10 +183,19 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
         console.log("Dataset ID:", dataset.id);
         console.log("Dataset name:", dataset.name);
         console.log("Dataset type:", dataset.type);
-        console.log("Point count:", (dataset as StandardizedDataset).getPointCount());
+        console.log(
+          "Point count:",
+          (dataset as StandardizedDataset).getPointCount(),
+        );
         console.log("Gene count:", dataset.genes.length);
-        console.log("Spatial dimensions:", (dataset as StandardizedDataset).spatial.dimensions);
-        console.log("Available embeddings:", Object.keys((dataset as StandardizedDataset).embeddings));
+        console.log(
+          "Spatial dimensions:",
+          (dataset as StandardizedDataset).spatial.dimensions,
+        );
+        console.log(
+          "Available embeddings:",
+          Object.keys((dataset as StandardizedDataset).embeddings),
+        );
         console.log("Cluster info:", (dataset as StandardizedDataset).clusters);
         console.log("Summary:", dataset.getSummary());
       }
@@ -178,6 +219,7 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
       console.error(`Error processing ${type} data:`, error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+
       setError(errorMessage);
       toast.error(`Failed to process data: ${errorMessage}`);
       setLoading(false);
@@ -190,7 +232,8 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
     document.getElementById(`file-input-${type}`)?.click();
   };
 
-  const isFolder = !singleMolecule && (type === "xenium" || type === "merscope");
+  const isFolder =
+    !singleMolecule && (type === "xenium" || type === "merscope");
 
   // Get isLoading from appropriate store
   const cellIsLoading = useDatasetStore((state) => state.isLoading);
@@ -202,6 +245,7 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
     if (singleMolecule) {
       return ".parquet,.csv";
     }
+
     return type === "h5ad" ? ".h5ad" : ".csv,.tsv,.txt";
   };
 
@@ -218,21 +262,19 @@ export function FileUpload({ type, title, description, singleMolecule = false }:
           }
           ${isLoading ? "pointer-events-none opacity-60" : ""}
         `}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
         onClick={handleClick}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
         <input
-          id={`file-input-${type}`}
-          type="file"
-          multiple={isFolder}
-          className="hidden"
-          onChange={handleFileInput}
           accept={getAcceptedFileTypes()}
-          {...(isFolder
-            ? { webkitdirectory: "", directory: "" }
-            : {})}
+          className="hidden"
+          id={`file-input-${type}`}
+          multiple={isFolder}
+          type="file"
+          onChange={handleFileInput}
+          {...(isFolder ? { webkitdirectory: "", directory: "" } : {})}
         />
 
         <div className="flex flex-col items-center gap-2 w-full">

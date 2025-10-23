@@ -38,7 +38,7 @@ export default function RootLayout({
       <body
         className={clsx(
           "min-h-screen text-foreground bg-background font-sans antialiased",
-          fontSans.variable
+          fontSans.variable,
         )}
       >
         <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
@@ -63,7 +63,7 @@ export default function RootLayout({
                 href="https://b.bintulab.com"
                 title="b.bintulab.com"
               >
-                <span className="text-default-600"></span>
+                <span className="text-default-600" />
                 <span className="text-default-600">at</span>
                 <p className="text-primary">Bintu Lab</p>
               </Link>

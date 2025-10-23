@@ -1,9 +1,10 @@
 // app/api/datasets/initiate/route.ts
 // OR src/app/api/datasets/initiate/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { nanoid } from "nanoid";
+
 import { prisma } from "@/lib/prisma";
 import { generatePresignedUploadUrl } from "@/lib/s3";
-import { nanoid } from "nanoid";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -40,14 +41,14 @@ export async function POST(request: NextRequest) {
     if (!fingerprint || !metadata || !files || files.length === 0) {
       return NextResponse.json(
         { error: "Missing required fields: fingerprint, metadata, or files" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
     if (!metadata.numCells || !metadata.numGenes) {
       return NextResponse.json(
         { error: "metadata.numCells and metadata.numGenes are required" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
         const presignedUrl = await generatePresignedUploadUrl(
           s3Key,
           file.contentType || "application/octet-stream",
-          3600 // 1 hour expiration
+          3600, // 1 hour expiration
         );
 
         uploadUrls[file.key] = presignedUrl.url;
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
         expiresIn: 3600,
         expiresAt: expiresAt.toISOString(),
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error: any) {
     console.error("Initiate upload error:", error);
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
           error: "Duplicate dataset",
           message: "A dataset with this fingerprint already exists",
         },
-        { status: 409, headers: corsHeaders }
+        { status: 409, headers: corsHeaders },
       );
     }
 
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
         error: "Internal server error",
         message: error.message,
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

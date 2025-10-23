@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { generatePresignedDownloadUrl } from "@/lib/s3";
 
 const corsHeaders = {
@@ -17,7 +18,7 @@ export async function OPTIONS() {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; geneName: string }> }
+  { params }: { params: Promise<{ id: string; geneName: string }> },
 ) {
   try {
     const { id: datasetId, geneName } = await params;
@@ -26,14 +27,14 @@ export async function GET(
     if (!datasetId || !datasetId.startsWith("sm_")) {
       return NextResponse.json(
         { error: "Invalid single molecule dataset ID format" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
     if (!geneName) {
       return NextResponse.json(
         { error: "Gene name is required" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -56,16 +57,17 @@ export async function GET(
         url: presignedUrl,
         expiresIn: 3600,
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error: any) {
     console.error("Generate gene URL error:", error);
+
     return NextResponse.json(
       {
         error: "Internal server error",
         message: error.message,
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

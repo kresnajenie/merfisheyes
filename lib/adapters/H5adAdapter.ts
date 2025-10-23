@@ -18,39 +18,33 @@ import h5wasm from "h5wasm";
 export class H5adAdapter {
   h5File: any = null;
   metadata: any = null;
-  private _onProgress?: (
-    progress: number,
-    message: string
-  ) => Promise<void> | void;
 
   /**
    * Initialize adapter with H5AD file
    */
   async initialize(
     file: File,
-    onProgress?: (progress: number, message: string) => Promise<void> | void
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
   ) {
-    this._onProgress = onProgress;
-
-    await this._onProgress?.(10, "Initializing h5wasm...");
+    await onProgress?.(10, "Initializing h5wasm...");
     const { FS } = await h5wasm.ready;
 
-    await this._onProgress?.(30, "Reading file into memory...");
+    await onProgress?.(30, "Reading file into memory...");
     const arrayBuffer = await file.arrayBuffer();
 
-    await this._onProgress?.(50, "Loading HDF5 structure...");
+    await onProgress?.(50, "Loading HDF5 structure...");
     FS.writeFile(file.name, new Uint8Array(arrayBuffer));
     this.h5File = new h5wasm.File(file.name, "r");
 
     // Get available keys from different groups
-    await this._onProgress?.(70, "Reading dataset metadata...");
+    await onProgress?.(70, "Reading dataset metadata...");
     const rootKeys = this.h5File.keys();
     const obsKeys = this.h5File.get("obs").keys();
     const obsmKeys = this.h5File.get("obsm")?.keys() || [];
     const unsKeys = this.h5File.get("uns")?.keys() || [];
     const varKeys = this.h5File.get("var")?.keys() || [];
 
-    await this._onProgress?.(90, "Finalizing...");
+    await onProgress?.(90, "Finalizing...");
     this.metadata = {
       rootKeys,
       obsKeys,
@@ -66,6 +60,7 @@ export class H5adAdapter {
   getDatasetInfo() {
     const xDataset = this.h5File.get("X");
     const [numCells, numGenes] = xDataset.shape || [0, 0];
+
     return { numCells, numGenes };
   }
 
@@ -74,10 +69,12 @@ export class H5adAdapter {
    */
   decodeBytes(value: any): string {
     const decoder = new TextDecoder();
+
     if (value instanceof Uint8Array)
       return decoder.decode(value).replace(/\0/g, "");
     if (Array.isArray(value))
       return decoder.decode(new Uint8Array(value)).replace(/\0/g, "");
+
     return String(value);
   }
 
@@ -86,17 +83,21 @@ export class H5adAdapter {
    */
   async fetchObs(group: string): Promise<any[]> {
     const obs = this.h5File.get("obs");
+
     if (group === "index") return Array.from(obs.attrs._index || []);
     const field = obs.get(group);
     const keys = field.keys?.();
+
     if (keys?.includes("categories") && keys.includes("codes")) {
       const categories = Array.from(
         field.get("categories").value,
-        this.decodeBytes.bind(this)
+        this.decodeBytes.bind(this),
       );
       const codes = Array.from(field.get("codes").value) as number[];
+
       return codes.map((i) => categories[i] ?? "Unknown");
     }
+
     return Array.from(field.value, this.decodeBytes.bind(this));
   }
 
@@ -105,11 +106,14 @@ export class H5adAdapter {
    */
   async fetchVar(group: string): Promise<any[]> {
     const v = this.h5File.get("var");
+
     if (group === "index") {
       const varIndex = v.get("_index");
+
       return Array.from(varIndex.value, this.decodeBytes.bind(this));
     }
     const d = v.get(group);
+
     return Array.from(d.value, this.decodeBytes.bind(this));
   }
 
@@ -129,6 +133,7 @@ export class H5adAdapter {
    */
   fetchObsm(group: string): any {
     const m = this.h5File.get("obsm/" + group);
+
     return m.toArray ? m.toArray() : m.value;
   }
 
@@ -140,6 +145,7 @@ export class H5adAdapter {
 
     let coordinates;
     const flat = dataset.value;
+
     if (!flat || !flat.length) return null;
 
     // Determine if we have 2D or 3D coordinates based on array length
@@ -148,9 +154,11 @@ export class H5adAdapter {
 
     coordinates = Array.from({ length: rows }, (_, i) => {
       const coords = [flat[i * dimensions], flat[i * dimensions + 1]];
+
       if (dimensions === 3) {
         coords.push(flat[i * dimensions + 2]);
       }
+
       return coords;
     });
 
@@ -167,9 +175,11 @@ export class H5adAdapter {
     try {
       const dataset = this.h5File.get("obsm/" + coordKey);
       const result = this.loadDatasetCoordinates(dataset);
+
       return result ? result.coordinates : null;
     } catch (error) {
       console.warn(`Failed to load coordinates for ${coordKey}:`, error);
+
       return null;
     }
   }
@@ -181,25 +191,29 @@ export class H5adAdapter {
    * Try to load spatial coordinates from obs columns
    * Checks alternative naming conventions in order
    */
-  private loadSpatialFromObs(): { coordinates: number[][]; dimensions: number } | null {
+  private loadSpatialFromObs(): {
+    coordinates: number[][];
+    dimensions: number;
+  } | null {
     const obs = this.h5File.get("obs");
+
     if (!obs) return null;
 
     const columnNames = obs.keys();
-    
+
     // Define alternative naming patterns to check in order
     const namingPatterns = [
-      { x: 'center_x', y: 'center_y', z: 'center_z' },
-      { x: 'centerX', y: 'centerY', z: 'centerZ' },
-      { x: 'x', y: 'y', z: 'z' },
-      { x: 'centroid_x', y: 'centroid_y', z: 'centroid_z' },
+      { x: "center_x", y: "center_y", z: "center_z" },
+      { x: "centerX", y: "centerY", z: "centerZ" },
+      { x: "x", y: "y", z: "z" },
+      { x: "centroid_x", y: "centroid_y", z: "centroid_z" },
     ];
 
     // Find first matching pattern
     for (const pattern of namingPatterns) {
       const hasX = columnNames.includes(pattern.x);
       const hasY = columnNames.includes(pattern.y);
-      
+
       if (hasX && hasY) {
         return this.extractCoordinatesFromObs(pattern.x, pattern.y, pattern.z);
       }
@@ -212,28 +226,28 @@ export class H5adAdapter {
    * Extract and validate coordinates from obs columns
    */
   private extractCoordinatesFromObs(
-    xCol: string, 
-    yCol: string, 
-    zCol: string
+    xCol: string,
+    yCol: string,
+    zCol: string,
   ): { coordinates: number[][]; dimensions: number } {
     const obs = this.h5File.get("obs");
     const columnNames = obs.keys();
-    
+
     // Read x and y columns
     const xData = obs.get(xCol).value as string[] | number[];
     const yData = obs.get(yCol).value as string[] | number[];
-    
+
     // Check if z column exists
     const hasZ = columnNames.includes(zCol);
     const zData = hasZ ? (obs.get(zCol).value as string[] | number[]) : null;
 
     const numRows = xData.length;
-    
+
     // Convert to numbers and track validity
     const xNumbers: (number | null)[] = [];
     const yNumbers: (number | null)[] = [];
     const zNumbers: (number | null)[] = [];
-    
+
     let validXCount = 0;
     let validYCount = 0;
     let validZCount = 0;
@@ -243,12 +257,14 @@ export class H5adAdapter {
       // Parse X
       const xVal = parseFloat(String(xData[i]));
       const xValid = !isNaN(xVal) && isFinite(xVal);
+
       xNumbers.push(xValid ? xVal : null);
       if (xValid) validXCount++;
 
       // Parse Y
       const yVal = parseFloat(String(yData[i]));
       const yValid = !isNaN(yVal) && isFinite(yVal);
+
       yNumbers.push(yValid ? yVal : null);
       if (yValid) validYCount++;
 
@@ -256,6 +272,7 @@ export class H5adAdapter {
       if (zData) {
         const zVal = parseFloat(String(zData[i]));
         const zValid = !isNaN(zVal) && isFinite(zVal);
+
         zNumbers.push(zValid ? zVal : null);
         if (zValid) {
           validZCount++;
@@ -267,27 +284,28 @@ export class H5adAdapter {
     // Validate: at least 90% of x and y must be valid
     const xValidPercent = (validXCount / numRows) * 100;
     const yValidPercent = (validYCount / numRows) * 100;
-    
+
     if (xValidPercent < 90) {
       throw new Error(
-        `Invalid x coordinates in obs/${xCol}: only ${xValidPercent.toFixed(1)}% are valid (need ≥90%)`
+        `Invalid x coordinates in obs/${xCol}: only ${xValidPercent.toFixed(1)}% are valid (need ≥90%)`,
       );
     }
-    
+
     if (yValidPercent < 90) {
       throw new Error(
-        `Invalid y coordinates in obs/${yCol}: only ${yValidPercent.toFixed(1)}% are valid (need ≥90%)`
+        `Invalid y coordinates in obs/${yCol}: only ${yValidPercent.toFixed(1)}% are valid (need ≥90%)`,
       );
     }
 
     // Determine dimensions based on z validity
     let dimensions = 2;
     let useZ = false;
-    
+
     if (zData) {
       const zValidPercent = (validZCount / numRows) * 100;
-      const nonZeroPercent = validZCount > 0 ? (nonZeroZCount / validZCount) * 100 : 0;
-      
+      const nonZeroPercent =
+        validZCount > 0 ? (nonZeroZCount / validZCount) * 100 : 0;
+
       // Use z if ≥90% are valid and ≥90% of valid values are non-zero
       if (zValidPercent >= 90 && nonZeroPercent >= 90) {
         dimensions = 3;
@@ -297,16 +315,17 @@ export class H5adAdapter {
 
     // Build coordinate arrays, filtering out rows with null x or y
     const coordinates: number[][] = [];
-    
+
     for (let i = 0; i < numRows; i++) {
       const x = xNumbers[i];
       const y = yNumbers[i];
-      
+
       // Skip rows with invalid x or y
       if (x === null || y === null) continue;
-      
+
       if (useZ) {
         const z = zNumbers[i];
+
         // For 3D, also skip if z is null
         if (z === null) continue;
         coordinates.push([x, y, z]);
@@ -321,9 +340,11 @@ export class H5adAdapter {
   loadSpatialCoordinates(): { coordinates: number[][]; dimensions: number } {
     // Try obsm/X_spatial first
     let result = this.loadCoordinates("X_spatial");
+
     if (result) {
       const dataset = this.h5File.get("obsm/X_spatial");
       const dimensions = dataset.metadata.shape[1];
+
       return { coordinates: result, dimensions };
     }
 
@@ -332,19 +353,21 @@ export class H5adAdapter {
     if (result) {
       const dataset = this.h5File.get("obsm/spatial");
       const dimensions = dataset.metadata.shape[1];
+
       return { coordinates: result, dimensions };
     }
 
     // Fallback to obs columns
     const obsResult = this.loadSpatialFromObs();
+
     if (obsResult) {
       return obsResult;
     }
 
     // If nothing found, throw error
     throw new Error(
-      'No spatial coordinates found. Checked: obsm/X_spatial, obsm/spatial, ' +
-      'obs columns (center_x/y/z, centerX/Y/Z, x/y/z, centroid_x/y/z)'
+      "No spatial coordinates found. Checked: obsm/X_spatial, obsm/spatial, " +
+        "obs columns (center_x/y/z, centerX/Y/Z, x/y/z, centroid_x/y/z)",
     );
   }
 
@@ -358,8 +381,10 @@ export class H5adAdapter {
       if (key.startsWith("X_") && key !== "X_spatial") {
         try {
           const coords = this.loadCoordinates(key);
+
           if (coords) {
             const embeddingName = key.replace("X_", "");
+
             embeddings[embeddingName] = coords;
           }
         } catch (error) {
@@ -380,18 +405,27 @@ export class H5adAdapter {
 
     for (const columnName of possibleColumns) {
       try {
-        console.log(`[H5adAdapter] Trying to load genes from var['${columnName}']`);
+        console.log(
+          `[H5adAdapter] Trying to load genes from var['${columnName}']`,
+        );
         const varIndex = await this.fetchVar(columnName);
+
         if (varIndex && varIndex.length > 0) {
-          console.log(`[H5adAdapter] ✅ Successfully loaded ${varIndex.length} genes from var['${columnName}']`);
+          console.log(
+            `[H5adAdapter] ✅ Successfully loaded ${varIndex.length} genes from var['${columnName}']`,
+          );
+
           return varIndex;
         }
       } catch (error) {
-        console.warn(`[H5adAdapter] Column '${columnName}' not found in var, trying next...`);
+        console.warn(
+          `[H5adAdapter] Column '${columnName}' not found in var, trying next...`,
+        );
       }
     }
 
     console.error("[H5adAdapter] Failed to load genes from any known column");
+
     return [];
   }
 
@@ -406,6 +440,7 @@ export class H5adAdapter {
 
     // Check if numerical values have limited unique values (threshold: 50)
     const uniqueValues = new Set(values);
+
     if (uniqueValues.size <= 100) return true;
 
     // If more than 50 unique numerical values, treat as continuous
@@ -424,6 +459,7 @@ export class H5adAdapter {
 
       if (isCategorical) {
         const palette = await this.loadClusterPalette(columnName);
+
         return {
           column: columnName,
           type: "categorical",
@@ -440,6 +476,7 @@ export class H5adAdapter {
       }
     } catch (error) {
       console.warn(`Failed to parse column ${columnName}:`, error);
+
       return null;
     }
   }
@@ -452,12 +489,13 @@ export class H5adAdapter {
 
     // Get all non-index columns
     const nonIndexColumns = this.metadata.obsKeys.filter(
-      (key: string) => !key.startsWith("_")
+      (key: string) => !key.startsWith("_"),
     );
 
     // Parse all columns
     for (const columnName of nonIndexColumns) {
       const clusterData = await this.parseObsColumn(columnName);
+
       if (clusterData) {
         allClusters.push(clusterData);
       }
@@ -484,7 +522,7 @@ export class H5adAdapter {
    * Load color palette for clusters
    */
   async loadClusterPalette(
-    clusterColumn: string
+    clusterColumn: string,
   ): Promise<Record<string, string>> {
     try {
       // Try to get colors from uns
@@ -495,20 +533,22 @@ export class H5adAdapter {
       if (colors && colors.length === uniqueClusters.length) {
         // Check if palette has only 1 unique color (e.g., all gray)
         const uniqueColors = new Set(
-          colors.map((c: any) => this.normalizeHexColor(c))
+          colors.map((c: any) => this.normalizeHexColor(c)),
         );
 
         if (uniqueColors.size === 1 && uniqueClusters.length > 1) {
           // Multiple categories but only 1 color - fall back to default colors
           console.log(
-            `Palette for ${clusterColumn} has only 1 unique color, using default colors`
+            `Palette for ${clusterColumn} has only 1 unique color, using default colors`,
           );
         } else {
           // Valid palette - use colors from uns
           const palette: Record<string, string> = {};
+
           uniqueClusters.forEach((cluster, index) => {
             palette[cluster] = this.normalizeHexColor(colors[index]);
           });
+
           return palette;
         }
       }
@@ -536,7 +576,7 @@ export class H5adAdapter {
 
     uniqueClusters.forEach((cluster, index) => {
       palette[cluster] = this.normalizeHexColor(
-        defaultColors[index % defaultColors.length]
+        defaultColors[index % defaultColors.length],
       );
     });
 
@@ -567,10 +607,13 @@ export class H5adAdapter {
       const matrix = this.fetchX();
       const genes = await this.fetchVar("_index");
       const index = genes.indexOf(gene);
+
       if (index === -1) throw new Error("Gene not found");
+
       return this.fetchColumn(matrix, index);
     } catch (error) {
       console.warn(`Failed to fetch gene expression for ${gene}:`, error);
+
       return null;
     }
   }
@@ -580,6 +623,7 @@ export class H5adAdapter {
    */
   fetchX(): any {
     const m = this.h5File.get("X");
+
     return m.value;
   }
 
@@ -588,6 +632,7 @@ export class H5adAdapter {
    */
   fetchFullMatrix(): any {
     const m = this.h5File.get("X");
+
     return m.value;
   }
 
@@ -603,9 +648,10 @@ export class H5adAdapter {
     if (ArrayBuffer.isView(matrix)) {
       if (column >= n_genes) throw new Error("Column index out of bounds");
       const typedArray = matrix as any; // Type assertion for indexing
+
       return Array.from(
         { length: n_obs },
-        (_, i) => typedArray[i * n_genes + column]
+        (_, i) => typedArray[i * n_genes + column],
       );
     }
 

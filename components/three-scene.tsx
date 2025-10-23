@@ -1,8 +1,12 @@
 "use client";
 
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type { PointData } from "@/lib/webgl/types";
+
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Spinner } from "@heroui/react";
+
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloud,
@@ -13,8 +17,6 @@ import {
   updateCelltypeVisualization,
 } from "@/lib/webgl/visualization-utils";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import type { PointData } from "@/lib/webgl/types";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -75,14 +77,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         ((bounds.minY + bounds.maxY) / 2) * 500,
         dataset.spatial.dimensions === 3
           ? ((bounds.minZ + bounds.maxZ) / 2) * 500
-          : 0
+          : 0,
       );
 
       // Calculate size of data
       const size = Math.max(
         (bounds.maxX - bounds.minX) * 500,
         (bounds.maxY - bounds.minY) * 500,
-        dataset.spatial.dimensions === 3 ? (bounds.maxZ - bounds.minZ) * 500 : 0
+        dataset.spatial.dimensions === 3
+          ? (bounds.maxZ - bounds.minZ) * 500
+          : 0,
       );
 
       // Position camera at appropriate distance
@@ -90,7 +94,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const cameraPos = new THREE.Vector3(
         center.x,
         center.y,
-        center.z + distance
+        center.z + distance,
       );
 
       // Initialize Three.js scene with options
@@ -100,7 +104,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           is2D: dataset.spatial.dimensions === 2,
           cameraPosition: cameraPos,
           lookAtPosition: center,
-        }
+        },
       );
 
       // Convert dataset spatial coordinates to PointData format
@@ -114,13 +118,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           b: Math.random(),
           size: 1.0,
           alpha: 1.0,
-        })
+        }),
       );
 
       console.log("Point data created:", pointData.length, "points");
 
       // Create point cloud mesh with custom shaders
       const pointCloud = createPointCloud(pointData, 5);
+
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
       scene.add(pointCloud);
@@ -170,7 +175,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           selectedCelltypes,
           colorPalette,
           alphaScale,
-          sizeScale
+          sizeScale,
         );
 
         if (result && pointCloudRef.current) {
@@ -178,9 +183,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             pointCloudRef.current,
             result.colors,
             result.sizes,
-            result.alphas
+            result.alphas,
           );
         }
+
         return;
       }
 
@@ -190,7 +196,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           dataset,
           selectedGene,
           alphaScale,
-          sizeScale
+          sizeScale,
         );
 
         if (result && pointCloudRef.current) {
@@ -198,7 +204,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             pointCloudRef.current,
             result.colors,
             result.sizes,
-            result.alphas
+            result.alphas,
           );
         }
       } finally {
@@ -232,7 +238,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       selectedCelltypes,
       colorPalette,
       alphaScale,
-      sizeScale
+      sizeScale,
     );
 
     if (result && pointCloudRef.current) {
@@ -240,7 +246,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         pointCloudRef.current,
         result.colors,
         result.sizes,
-        result.alphas
+        result.alphas,
       );
     }
   }, [
@@ -264,7 +270,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       {isLoadingGene && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
           <div className="bg-default-100/90 rounded-lg p-6 shadow-lg flex flex-col items-center gap-3">
-            <Spinner size="lg" color="primary" />
+            <Spinner color="primary" size="lg" />
             <p className="text-sm font-medium">Loading gene expression...</p>
             {selectedGene && (
               <p className="text-xs text-default-500">{selectedGene}</p>

@@ -1,6 +1,7 @@
 // src/data/adapters/MerscopeAdapter.ts
-import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 import Papa, { ParseResult } from "papaparse";
+
+import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 
 interface MerscopeMetadata {
   obsKeys: string[];
@@ -32,7 +33,6 @@ export class MerscopeAdapter {
   _genes: string[];
   _exprByGene: Map<string, Float32Array>;
   _cellIndex: Map<string, number>;
-  _onProgress?: (progress: number, message: string) => Promise<void> | void;
 
   constructor() {
     this.files = [];
@@ -53,22 +53,26 @@ export class MerscopeAdapter {
     this._cellIndex = new Map();
   }
 
-  async initialize(files: File[], onProgress?: (progress: number, message: string) => Promise<void> | void): Promise<void> {
-    this._onProgress = onProgress;
+  async initialize(
+    files: File[],
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<void> {
     this.files = files;
 
     // 1) cell_metadata.csv (positions live here)
-    await this._onProgress?.(10, "Loading cell metadata...");
+    await onProgress?.(10, "Loading cell metadata...");
     const metaRows = await this._readTableOneOf(["cell_metadata.csv"]);
+
     if (!metaRows.length) {
       throw new Error("MERSCOPE: cell_metadata.csv not found or empty");
     }
 
     // 2) cell_categories.csv (cluster labels like "leiden")
-    await this._onProgress?.(25, "Loading cluster categories...");
+    await onProgress?.(25, "Loading cluster categories...");
     const catRows = await this._readTableOneOf(["cell_categories.csv"]);
     let clusterCol = null;
     let catIndex = null;
+
     if (catRows.length) {
       // choose the ID key that is present in categories
       const catIdKey = firstPresent(Object.keys(catRows[0]), [
@@ -77,6 +81,7 @@ export class MerscopeAdapter {
         "cell_id",
         "id",
       ]);
+
       // choose a good label column (e.g., "leiden")
       clusterCol = firstPresent(Object.keys(catRows[0]), [
         "leiden",
@@ -96,17 +101,17 @@ export class MerscopeAdapter {
         for (const r of catRows) {
           const id = String(r[catIdKey] ?? "");
           const lab = r[clusterCol] ?? "";
+
           if (id) catIndex.set(id, lab);
         }
       }
     }
 
     // 3) cell_numeric_categories.csv (UMAP)
-    await this._onProgress?.(40, "Loading UMAP embeddings...");
-    const numRows = await this._readTableOneOf([
-      "cell_numeric_categories.csv",
-    ]);
+    await onProgress?.(40, "Loading UMAP embeddings...");
+    const numRows = await this._readTableOneOf(["cell_numeric_categories.csv"]);
     let umapIndex = null;
+
     if (numRows.length) {
       const idKey = firstPresent(Object.keys(numRows[0]), [
         "EntityID",
@@ -128,12 +133,14 @@ export class MerscopeAdapter {
         "umap2",
         "y_umap",
       ]);
+
       if (idKey && ux && uy) {
         umapIndex = new Map();
         for (const r of numRows) {
           const id = String(r[idKey] ?? "");
           const x = toNum(r[ux]);
           const y = toNum(r[uy]);
+
           if (id && Number.isFinite(x) && Number.isFinite(y)) {
             umapIndex.set(id, [x, y]);
           }
@@ -142,16 +149,24 @@ export class MerscopeAdapter {
     }
 
     // 4) Merge rows — choose a stable ID present in metadata
-    await this._onProgress?.(55, "Merging cell data...");
-    const metaIdKey = firstPresent(Object.keys(metaRows[0]), [
+    await onProgress?.(55, "Merging cell data...");
+    let metaIdKey = firstPresent(Object.keys(metaRows[0]), [
       "EntityID",
       "cell",
       "cell_id",
       "id",
     ]);
+
     if (!metaIdKey) {
-      throw new Error(
-        "MERSCOPE: could not find an ID column in cell_metadata.csv"
+      const keys = Object.keys(metaRows[0] || {});
+      if (!keys.length) {
+        throw new Error(
+          "MERSCOPE: could not find an ID column in cell_metadata.csv",
+        );
+      }
+      metaIdKey = keys[0];
+      console.warn(
+        `[MerscopeAdapter] Using first metadata column ("${metaIdKey}") as EntityID fallback.`,
       );
     }
 
@@ -167,6 +182,7 @@ export class MerscopeAdapter {
       // attach umap for convenience (we’ll also expose as an embedding)
       if (umapIndex) {
         const u = umapIndex.get(id);
+
         if (u) {
           out._umap_x = u[0];
           out._umap_y = u[1];
@@ -181,18 +197,20 @@ export class MerscopeAdapter {
     for (let i = 0; i < this._rows.length; i++) {
       const r = this._rows[i];
       const id = String(r[metaIdKey] ?? "");
+
       if (id) this._cellIndex.set(id, i);
     }
 
     // 5) genes + expression — from cell_by_gene.csv (supports wide or long)
-    await this._onProgress?.(70, "Loading gene expression...");
+    await onProgress?.(70, "Loading gene expression...");
     try {
       const cbgRows = await this._readTableOneOf(["cell_by_gene.csv"]);
+
       if (cbgRows.length) {
         await this._ingestCellByGene(cbgRows, metaIdKey);
       } else {
         console.warn(
-          "[MerscopeAdapter] cell_by_gene.csv not found; gene coloring disabled."
+          "[MerscopeAdapter] cell_by_gene.csv not found; gene coloring disabled.",
         );
       }
     } catch (e) {
@@ -200,7 +218,7 @@ export class MerscopeAdapter {
     }
 
     // 6) remember obs keys and cluster column
-    await this._onProgress?.(85, "Processing clusters and embeddings...");
+    await onProgress?.(85, "Processing clusters and embeddings...");
     this._obsKeys = Array.from(new Set(Object.keys(this._rows[0] || {})));
     const clusterCandidates = [
       "leiden",
@@ -242,25 +260,27 @@ export class MerscopeAdapter {
       "group_label",
       "group label",
     ];
+
     this._clusterColumn =
       clusterCandidates.find((k) => this._obsKeys.includes(k)) || null;
 
     if (!this._clusterColumn) {
       const heuristicCluster = detectLikelyClusterColumn(this._rows);
+
       if (heuristicCluster) {
         this._clusterColumn = heuristicCluster;
         if (!this._obsKeys.includes(heuristicCluster)) {
           this._obsKeys.push(heuristicCluster);
         }
         console.log(
-          `[MerscopeAdapter] Auto-selected "${heuristicCluster}" as cluster column via heuristic detection.`
+          `[MerscopeAdapter] Auto-selected "${heuristicCluster}" as cluster column via heuristic detection.`,
         );
       }
     }
 
     if (!this._clusterColumn) {
       console.warn(
-        '[MerscopeAdapter] No celltype-like column found; will fall back to single "All" group.'
+        '[MerscopeAdapter] No celltype-like column found; will fall back to single "All" group.',
       );
     }
 
@@ -269,11 +289,14 @@ export class MerscopeAdapter {
       this._rows.length &&
       "_umap_x" in this._rows[0] &&
       "_umap_y" in this._rows[0];
+
     if (haveU) {
       const coords = [];
+
       for (const r of this._rows) {
         const x = toNum(r._umap_x),
           y = toNum(r._umap_y);
+
         if (Number.isFinite(x) && Number.isFinite(y)) coords.push([x, y]);
       }
       this._umap = { coordinates: coords, dimensions: 2 };
@@ -288,7 +311,7 @@ export class MerscopeAdapter {
     };
 
     console.log(
-      `[MerscopeAdapter] Loaded ${this._rows.length} cells, ${this._genes.length} genes.`
+      `[MerscopeAdapter] Loaded ${this._rows.length} cells, ${this._genes.length} genes.`,
     );
   }
 
@@ -302,11 +325,14 @@ export class MerscopeAdapter {
   // --- spatial coords from cell_metadata: center_x/center_y (robust)
   loadSpatialCoordinates(): SpatialCoordinates {
     const rows = this._rows;
+
     if (!rows.length) return { coordinates: [], dimensions: 2 };
 
     const xKey = firstPresent(Object.keys(rows[0]), [
       "center_x",
       "centroid_x",
+      "centerX",
+      "centerx",
       "x",
       "x_centroid",
       "x_px",
@@ -315,6 +341,8 @@ export class MerscopeAdapter {
     const yKey = firstPresent(Object.keys(rows[0]), [
       "center_y",
       "centroid_y",
+      "centerY",
+      "centery",
       "y",
       "y_centroid",
       "y_px",
@@ -323,29 +351,50 @@ export class MerscopeAdapter {
 
     if (!xKey || !yKey) {
       console.warn(
-        "[MerscopeAdapter] Could not detect centroid columns; returning 0 points"
+        "[MerscopeAdapter] Could not detect centroid columns; returning 0 points",
       );
+
       return { coordinates: [], dimensions: 2 };
     }
 
+    const numRows = rows.length;
     const coords = [];
-    let dropped = 0;
+    let validCount = 0;
+
     for (const r of rows) {
       const x = toNum(r[xKey]);
       const y = toNum(r[yKey]);
-      if (Number.isFinite(x) && Number.isFinite(y)) coords.push([x, y]);
-      else dropped++;
+
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        coords.push([x, y]);
+        validCount++;
+      }
     }
-    if (dropped)
-      console.warn(
-        `[MerscopeAdapter] Dropped ${dropped} rows with invalid centroids`
+
+    // Validate: at least 90% of coordinates must be valid
+    const validPercent = (validCount / numRows) * 100;
+
+    if (validPercent < 90) {
+      throw new Error(
+        `[MerscopeAdapter] Invalid coordinates: only ${validPercent.toFixed(1)}% are valid (need ≥90%). ` +
+          `Found ${validCount} valid out of ${numRows} rows using keys: ${xKey}, ${yKey}`,
       );
+    }
+
+    const droppedCount = numRows - validCount;
+
+    if (droppedCount > 0) {
+      console.warn(
+        `[MerscopeAdapter] Dropped ${droppedCount} rows with invalid centroids (from ${numRows})`,
+      );
+    }
 
     return { coordinates: coords, dimensions: 2 };
   }
 
   loadEmbeddings(): Record<string, number[][]> {
     if (this._umap) return { umap: this._umap.coordinates };
+
     return {};
   }
 
@@ -378,15 +427,18 @@ export class MerscopeAdapter {
       "#bcbd22",
       "#17becf",
     ];
+
     uniq.forEach((u, i) => {
       palette[u] = defaultColors[i % defaultColors.length];
     });
+
     return { column: clusterColumn, values: vals, palette };
   }
 
   // ========= StandardizedDataset adapter surface =========
   async fetchObs(column: string): Promise<any[]> {
     if (!column || !this._rows.length) return [];
+
     return this._rows.map((r) => r[column]);
   }
 
@@ -401,6 +453,7 @@ export class MerscopeAdapter {
   // NEW: return expression vector for a gene (array length == number of cells)
   async fetchGeneExpression(gene: string): Promise<number[] | null> {
     if (!gene || !this._exprByGene.has(gene)) return null;
+
     return Array.from(this._exprByGene.get(gene)!);
   }
 
@@ -417,7 +470,9 @@ export class MerscopeAdapter {
    */
   fetchColumn(matrix: Map<string, Float32Array>, geneIndex: number): number[] {
     const gene = this._genes[geneIndex];
+
     if (!gene || !matrix.has(gene)) return [];
+
     return Array.from(matrix.get(gene)!);
   }
 
@@ -427,32 +482,44 @@ export class MerscopeAdapter {
 
   getObsmEmbeddings(): string[] {
     const keys = ["X_spatial"];
+
     if (this._umap) keys.push("X_umap");
+
     return keys;
   }
 
   private async _parseCsvFile(file: File): Promise<ParsedTable> {
     const name = (file.name || "").toLowerCase();
+
     if (name.endsWith(".gz")) {
       const text = await fileToTextMaybeGz(file);
+
       if (!text || !text.trim()) return { headers: [], rows: [] };
+
       return parseCsvWithPapa(text);
     }
+
     return parseCsvWithPapa(file);
   }
 
   private async _readTableOneOf(names: string[]): Promise<RowData[]> {
     const map = new Map(
-      this.files.map((f) => [(f.webkitRelativePath || f.name).toLowerCase(), f])
+      this.files.map((f) => [
+        (f.webkitRelativePath || f.name).toLowerCase(),
+        f,
+      ]),
     );
     let target: File | null = null;
+
     for (const n of names) {
       const needle = n.toLowerCase();
       const candidate = Array.from(map.values()).find((file) => {
         const base = file.name.toLowerCase();
         const rel = (file.webkitRelativePath || "").toLowerCase();
+
         return base === needle || rel.endsWith("/" + needle);
       });
+
       if (candidate) {
         target = candidate;
         break;
@@ -460,6 +527,7 @@ export class MerscopeAdapter {
     }
     if (!target) return [];
     const { rows } = await this._parseCsvFile(target);
+
     return rows;
   }
 
@@ -493,21 +561,25 @@ export class MerscopeAdapter {
 
       if (!countKey) {
         console.warn(
-          "[MerscopeAdapter] long cell_by_gene.csv has no count-like column; skipping."
+          "[MerscopeAdapter] long cell_by_gene.csv has no count-like column; skipping.",
         );
+
         return;
       }
 
       // gather genes
       const gset = new Set<string>();
+
       for (const r of rows) {
         const g = String(r[geneKey] ?? "").trim();
+
         if (g) gset.add(g);
       }
       this._genes = Array.from(gset).sort();
 
       // init vectors per gene
       const N = this._rows.length;
+
       for (const g of this._genes) this._exprByGene.set(g, new Float32Array(N));
 
       // fill
@@ -516,14 +588,17 @@ export class MerscopeAdapter {
         const g = String(r[geneKey] ?? "");
         const v = toNumBool(r[countKey]); // handles 0/1/"TRUE"/"FALSE"
         const idx = this._cellIndex.get(id);
+
         if (idx == null || !this._exprByGene.has(g)) continue;
         const vec = this._exprByGene.get(g);
+
         if (vec) vec[idx] = Number.isFinite(v) ? v : 0;
       }
 
       console.log(
-        `[MerscopeAdapter] Ingested LONG cell_by_gene: genes=${this._genes.length}`
+        `[MerscopeAdapter] Ingested LONG cell_by_gene: genes=${this._genes.length}`,
       );
+
       return;
     }
 
@@ -531,24 +606,28 @@ export class MerscopeAdapter {
     const idColGuess =
       firstPresent(keys, ["cell", "EntityID", "cell_id", "id"]) || keys[0];
     const geneCols = keys.filter((k) => k !== idColGuess && !k.startsWith("_"));
+
     this._genes = geneCols.slice(); // keep order as in file
 
     const N = this._rows.length;
+
     for (const g of this._genes) this._exprByGene.set(g, new Float32Array(N));
 
     for (const r of rows) {
       const id = String(r[idColGuess] ?? "");
       const idx = this._cellIndex.get(id);
+
       if (idx == null) continue;
       for (const g of this._genes) {
         const v = toNumBool(r[g]);
         const vec = this._exprByGene.get(g);
+
         if (vec) vec[idx] = Number.isFinite(v) ? v : 0;
       }
     }
 
     console.log(
-      `[MerscopeAdapter] Ingested WIDE cell_by_gene: genes=${this._genes.length}`
+      `[MerscopeAdapter] Ingested WIDE cell_by_gene: genes=${this._genes.length}`,
     );
   }
 }
@@ -557,6 +636,7 @@ export class MerscopeAdapter {
 function toNum(v: any): number {
   if (v === "" || v == null) return NaN;
   const n = Number(v);
+
   return Number.isFinite(n) ? n : NaN;
 }
 
@@ -565,24 +645,32 @@ function toNumBool(v: any): number {
   if (v == null) return 0;
   if (typeof v === "number") return Number.isFinite(v) ? v : 0;
   const s = String(v).trim();
+
   if (s === "") return 0;
   const n = Number(s);
+
   if (Number.isFinite(n)) return n;
   const l = s.toLowerCase();
+
   if (["true", "yes", "on", "present", "detected"].includes(l)) return 1;
   if (["false", "no", "off", "absent", "undetected"].includes(l)) return 0;
+
   return 0;
 }
 
 function firstPresent(keys: string[], list: string[]): string | null {
   const set = new Set(keys.map((k) => String(k)));
+
   for (const cand of list) if (set.has(cand)) return cand;
   // also try case-insensitive
   const lowerMap = new Map(keys.map((k) => [String(k).toLowerCase(), k]));
+
   for (const cand of list) {
     const k = lowerMap.get(String(cand).toLowerCase());
+
     if (k) return k;
   }
+
   return null;
 }
 
@@ -605,6 +693,7 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
           headers = extractHeadersFromRow(row);
         }
         const normalized = normalizeRow(row, headers);
+
         if (!hasNonEmptyValue(normalized, headers)) continue;
         rows.push(normalized);
       }
@@ -615,8 +704,7 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
       skipEmptyLines: "greedy",
       worker: false,
       dynamicTyping: false,
-      transformHeader: (header: string | undefined) =>
-        (header ?? "").trim(),
+      transformHeader: (header: string | undefined) => (header ?? "").trim(),
       chunk: (results: ParseResult<RowData>) => {
         if (!results) return;
         headers = ensureHeaders(headers, results.meta?.fields);
@@ -625,6 +713,7 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
       complete: (results: ParseResult<RowData>) => {
         if (!results) {
           resolve({ headers, rows });
+
           return;
         }
         headers = ensureHeaders(headers, results.meta?.fields);
@@ -634,7 +723,7 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
         if (results.errors?.length) {
           console.warn(
             "[MerscopeAdapter] PapaParse completed with errors:",
-            results.errors
+            results.errors,
           );
         }
         resolve({ headers, rows });
@@ -647,19 +736,23 @@ async function parseCsvWithPapa(input: File | string): Promise<ParsedTable> {
 function normalizeRow(row: RowData, headers: string[]): RowData {
   if (!row) return {};
   const keys = headers.length ? headers : Object.keys(row);
+
   for (const key of keys) {
     if (!key) continue;
     if (!(key in row) || row[key] == null) row[key] = "";
   }
+
   return row;
 }
 
 function hasNonEmptyValue(row: RowData, headers: string[]): boolean {
   if (!row) return false;
   const keys = headers.length ? headers : Object.keys(row);
+
   for (const key of keys) {
     if (!key) continue;
     const value = row[key];
+
     if (value == null) continue;
     if (typeof value === "number") {
       if (Number.isFinite(value)) return true;
@@ -670,36 +763,44 @@ function hasNonEmptyValue(row: RowData, headers: string[]): boolean {
       continue;
     }
     const s = String(value).trim();
+
     if (s !== "") return true;
   }
+
   return false;
 }
 
 function ensureHeaders(
   existing: string[],
-  fields?: (string | undefined)[]
+  fields?: (string | undefined)[],
 ): string[] {
   if (existing.length || !fields?.length) return existing;
   const seen = new Set<string>();
   const trimmed: string[] = [];
+
   for (const h of fields) {
     const header = (h ?? "").trim();
+
     if (!header || seen.has(header)) continue;
     seen.add(header);
     trimmed.push(header);
   }
+
   return trimmed;
 }
 
 function extractHeadersFromRow(row: RowData): string[] {
   const seen = new Set<string>();
   const headers: string[] = [];
+
   for (const key of Object.keys(row || {})) {
     const trimmed = key.trim();
+
     if (!trimmed || seen.has(trimmed)) continue;
     seen.add(trimmed);
     headers.push(trimmed);
   }
+
   return headers;
 }
 
@@ -707,6 +808,7 @@ function detectLikelyClusterColumn(rows: RowData[]): string | null {
   if (!rows.length) return null;
 
   const sampleKeys = Object.keys(rows[0] || {});
+
   if (!sampleKeys.length) return null;
 
   const skipPrefixes = [
@@ -737,16 +839,20 @@ function detectLikelyClusterColumn(rows: RowData[]): string | null {
     if (!key) continue;
     if (key.startsWith("_")) continue;
     const lower = key.toLowerCase();
+
     if (skipRegex.test(lower)) continue;
     if (lower.includes("gene") || lower.includes("umi")) continue;
 
     let nonEmpty = 0;
     let numericish = 0;
     const seen = new Set<string>();
+
     for (const row of rows) {
       const raw = row?.[key];
+
       if (raw == null || raw === "") continue;
       const str = String(raw).trim();
+
       if (!str) continue;
       nonEmpty++;
       if (!Number.isNaN(Number(str))) numericish++;
@@ -760,6 +866,7 @@ function detectLikelyClusterColumn(rows: RowData[]): string | null {
     if (numericish / Math.max(nonEmpty, 1) > 0.25) continue;
 
     const score = seen.size + numericish / Math.max(nonEmpty, 1);
+
     if (score < bestScore) {
       bestScore = score;
       bestKey = key;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import { prisma } from "@/lib/prisma";
 
 const corsHeaders = {
@@ -13,7 +14,7 @@ export async function OPTIONS() {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ fingerprint: string }> }
+  { params }: { params: Promise<{ fingerprint: string }> },
 ) {
   try {
     const { fingerprint } = await params;
@@ -21,7 +22,7 @@ export async function GET(
     if (!fingerprint || fingerprint.length < 10 || fingerprint.length > 64) {
       return NextResponse.json(
         { error: "Invalid fingerprint format" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -49,7 +50,7 @@ export async function GET(
           exists: false,
           message: "No duplicate found. Safe to upload.",
         },
-        { headers: corsHeaders }
+        { headers: corsHeaders },
       );
     }
 
@@ -64,16 +65,17 @@ export async function GET(
           numGenes: existingDataset.numGenes,
         },
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error: any) {
     console.error("Check duplicate error:", error);
+
     return NextResponse.json(
       {
         error: "Internal server error",
         message: error.message,
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

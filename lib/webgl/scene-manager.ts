@@ -22,12 +22,13 @@ export interface SceneOptions {
  */
 export function initializeScene(
   container: HTMLElement,
-  options: SceneOptions = {}
+  options: SceneOptions = {},
 ): SceneSetup {
   const { is2D = false, cameraPosition, lookAtPosition } = options;
 
   // Scene setup
   const scene = new THREE.Scene();
+
   scene.background = new THREE.Color(0x000000);
 
   // Camera setup
@@ -35,7 +36,7 @@ export function initializeScene(
     75,
     container.clientWidth / container.clientHeight,
     0.1,
-    10000
+    10000,
   );
 
   // Set camera position
@@ -52,6 +53,7 @@ export function initializeScene(
 
   // Renderer setup
   const renderer = new THREE.WebGLRenderer({ antialias: true });
+
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(window.devicePixelRatio);
   container.appendChild(renderer.domElement);
@@ -62,6 +64,7 @@ export function initializeScene(
   if (is2D) {
     // 2D: Use OrbitControls with rotation disabled and left-click panning
     const orbitControls = new OrbitControls(camera, renderer.domElement);
+
     orbitControls.enableRotate = false;
     orbitControls.mouseButtons = {
       LEFT: THREE.MOUSE.PAN,
@@ -83,8 +86,9 @@ export function initializeScene(
     // 3D: Use TrackballControls
     const trackballControls = new TrackballControls(
       camera,
-      renderer.domElement
+      renderer.domElement,
     );
+
     trackballControls.rotateSpeed = 1.5;
     trackballControls.zoomSpeed = 1.2;
     trackballControls.panSpeed = 0.8;
@@ -112,6 +116,7 @@ export function initializeScene(
     camera.updateProjectionMatrix();
     renderer.setSize(container.clientWidth, container.clientHeight);
   };
+
   window.addEventListener("resize", handleResize);
 
   // Cleanup function

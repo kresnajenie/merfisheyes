@@ -5,6 +5,7 @@ import { Input } from "@heroui/input";
 import { Checkbox } from "@heroui/checkbox";
 import { Chip } from "@heroui/chip";
 import { useState, useMemo } from "react";
+
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { glassButton } from "@/components/primitives";
@@ -16,6 +17,7 @@ export function SingleMoleculeControls() {
   // Get dataset
   const dataset = useSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
+
     return id ? state.datasets.get(id) : null;
   });
 
@@ -26,8 +28,9 @@ export function SingleMoleculeControls() {
   // Filter genes based on search
   const filteredGenes = useMemo(() => {
     if (!dataset) return [];
+
     return dataset.uniqueGenes.filter((gene) =>
-      gene.toLowerCase().includes(searchTerm.toLowerCase())
+      gene.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [dataset, searchTerm]);
 
@@ -65,16 +68,17 @@ export function SingleMoleculeControls() {
               <div className="flex flex-wrap gap-1">
                 {selectedGenesArray.map((gene) => {
                   const geneViz = selectedGenes.get(gene);
+
                   return (
                     <Chip
                       key={gene}
                       size="sm"
-                      variant="flat"
-                      onClose={() => removeGene(gene)}
                       style={{
                         backgroundColor: geneViz?.color || "#808080",
                         color: "#000",
                       }}
+                      variant="flat"
+                      onClose={() => removeGene(gene)}
                     >
                       {gene}
                     </Chip>
@@ -85,21 +89,21 @@ export function SingleMoleculeControls() {
 
             {/* Search Input */}
             <Input
-              placeholder="Search genes..."
-              value={searchTerm}
-              onValueChange={setSearchTerm}
-              size="sm"
               classNames={{
                 input: "text-sm",
               }}
+              placeholder="Search genes..."
+              size="sm"
+              value={searchTerm}
+              onValueChange={setSearchTerm}
             />
 
             {/* Clear Button */}
             <Button
-              color="danger"
-              variant="ghost"
-              size="sm"
               className="w-full"
+              color="danger"
+              size="sm"
+              variant="ghost"
               onPress={() => {
                 clearGenes();
                 setSearchTerm("");
@@ -114,9 +118,9 @@ export function SingleMoleculeControls() {
                 filteredGenes.map((gene) => (
                   <Checkbox
                     key={gene}
-                    size="sm"
                     className="w-full"
                     isSelected={selectedGenes.has(gene)}
+                    size="sm"
                     onValueChange={() => {
                       if (selectedGenes.has(gene)) {
                         removeGene(gene);
@@ -137,8 +141,8 @@ export function SingleMoleculeControls() {
 
             {/* Gene count info */}
             <div className="text-xs text-default-400 text-center pt-2 border-t border-default-200">
-              Showing {filteredGenes.length} of {dataset?.uniqueGenes.length || 0}{" "}
-              genes
+              Showing {filteredGenes.length} of{" "}
+              {dataset?.uniqueGenes.length || 0} genes
             </div>
           </div>
         </div>

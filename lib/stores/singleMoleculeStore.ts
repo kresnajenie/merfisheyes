@@ -1,5 +1,6 @@
-import { create } from "zustand";
 import type { SingleMoleculeDataset } from "../SingleMoleculeDataset";
+
+import { create } from "zustand";
 
 interface SingleMoleculeState {
   datasets: Map<string, SingleMoleculeDataset>;
@@ -28,6 +29,7 @@ export const useSingleMoleculeStore = create<SingleMoleculeState>(
     addDataset: (dataset: SingleMoleculeDataset) => {
       set((state) => {
         const newDatasets = new Map(state.datasets);
+
         newDatasets.set(dataset.id, dataset);
 
         console.log("Single molecule dataset added to store:", {
@@ -50,6 +52,7 @@ export const useSingleMoleculeStore = create<SingleMoleculeState>(
     removeDataset: (id: string) => {
       set((state) => {
         const newDatasets = new Map(state.datasets);
+
         newDatasets.delete(id);
 
         return {
@@ -66,7 +69,9 @@ export const useSingleMoleculeStore = create<SingleMoleculeState>(
 
     getCurrentDataset: () => {
       const state = get();
+
       if (!state.currentDatasetId) return null;
+
       return state.datasets.get(state.currentDatasetId) || null;
     },
 
@@ -90,5 +95,5 @@ export const useSingleMoleculeStore = create<SingleMoleculeState>(
         error: null,
       });
     },
-  })
+  }),
 );

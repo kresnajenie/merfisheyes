@@ -36,10 +36,20 @@ declare module "papaparse" {
   }
 
   export interface PapaParser {
-    parse<T>(input: ParseInput, config: ParseConfig<T>): void;
+    // Synchronous parsing (string input without callbacks)
+    parse<T>(input: string, config?: ParseConfig<T>): ParseResult<T>;
+    // Asynchronous parsing (File/Blob input or with callbacks)
+    parse<T>(input: File | Blob, config: ParseConfig<T>): void;
   }
 
   const Papa: PapaParser;
-  export { ParseResult, ParseMeta, ParseError, ParseConfig, ParseParser, ParseInput };
+  export {
+    ParseResult,
+    ParseMeta,
+    ParseError,
+    ParseConfig,
+    ParseParser,
+    ParseInput,
+  };
   export default Papa;
 }

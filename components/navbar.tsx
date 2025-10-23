@@ -25,7 +25,6 @@ import {
   DiscordIcon,
   HeartFilledIcon,
   SearchIcon,
-  Logo,
 } from "@/components/icons";
 
 interface NavbarProps {
@@ -57,9 +56,9 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
 
   return (
     <HeroUINavbar
+      className="w-3/4 mx-auto my-4 rounded-full glass"
       maxWidth="xl"
       position="sticky"
-      className="w-3/4 mx-auto my-4 rounded-full glass"
     >
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
         <NavbarBrand as="li" className="gap-3 max-w-fit">
@@ -74,7 +73,7 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
               <NextLink
                 className={clsx(
                   linkStyles({ color: "foreground" }),
-                  "data-[active=true]:text-primary data-[active=true]:font-medium"
+                  "data-[active=true]:text-primary data-[active=true]:font-medium",
                 )}
                 color="foreground"
                 href={item.href}
@@ -111,7 +110,7 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
         {/* Show Back to Viewer button on /viewer/[id] */}
         {pathname?.startsWith("/viewer/") && pathname !== "/viewer" && (
           <NavbarItem>
-            <Button as={NextLink} href="/viewer" color="primary" variant="flat">
+            <Button as={NextLink} color="primary" href="/viewer" variant="flat">
               Back to Viewer
             </Button>
           </NavbarItem>

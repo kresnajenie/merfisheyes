@@ -216,11 +216,11 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 #### File Upload
 - `components/file-upload.tsx` - Unified upload component with `singleMolecule` prop
   - **Single Molecule**: Worker-based parsing with granular progress tracking (.parquet/.csv)
-  - **Single Cell**: Direct parsing with progress callbacks (h5ad, xenium, merscope)
+  - **Single Cell**: Worker-based parsing with progress callbacks (h5ad, xenium, merscope)
   - Routes to appropriate store based on data type
   - Navigates to `/viewer` for cell data, `/sm-viewer` for molecule data
   - Real-time progress bar (0-100%) and status messages
-  - Uses singleton worker manager for molecule data to keep UI responsive
+  - Uses singleton worker managers to keep UI responsive during heavy processing
 
 ## Key Technical Details
 
@@ -311,19 +311,32 @@ The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/
 
 ### Threading Model
 
-**Single Cell Adapters** (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter) **do NOT use web workers**:
-- File I/O operations are async (non-blocking)
-- Data parsing and processing happens synchronously in main thread
-- ChunkedDataAdapter uses browser's `DecompressionStream` API (streaming, not web workers)
-- This approach keeps implementation simple and avoids message-passing overhead
-- For large datasets, async I/O prevents blocking during file reads, but parsing may briefly freeze UI
+**ALL DATA PROCESSING NOW USES WEB WORKERS** to keep UI responsive:
 
-**Single Molecule Processing** (hyparquetService, SingleMoleculeDataset) **USES web workers**:
-- Web worker with Comlink for seamless function proxying
-- Singleton worker manager pattern for lifecycle management
-- Progress callbacks proxied for real-time UI updates during processing
+**Single Cell Adapters** (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter):
+- `standardized-dataset.worker.ts` - Background worker for parsing all single cell formats
+- `standardizedDatasetWorkerManager.ts` - Singleton pattern for worker lifecycle management
+- Workers parse files → load expression matrix → normalize coordinates → serialize
+- Main thread receives serialized data → reconstructs `StandardizedDataset` with cached matrix
+- Expression matrix pre-loaded in worker for non-S3 datasets
+- For S3 datasets: ChunkedDataAdapter created in main thread after worker completes
+  - Enables on-demand gene expression loading via `adapter.fetchGeneExpression()`
+  - Loads gene data from S3 chunks as needed (avoids loading entire matrix)
+- Prevents UI freezing during parsing of large H5AD/Xenium/MERSCOPE files
+- ChunkedDataAdapter (S3 loading) also runs in worker with absolute URLs for fetch
+- Progress callbacks use `Comlink.proxy()` to avoid DataCloneError in production
+
+**Single Molecule Processing** (hyparquetService, SingleMoleculeDataset):
+- `single-molecule.worker.ts` - Background worker for parsing parquet/CSV files
+- `singleMoleculeWorkerManager.ts` - Singleton pattern for worker lifecycle management
+- Uses Comlink for seamless function proxying across worker boundary
+- Progress callbacks proxied via `Comlink.proxy()` for real-time UI updates
 - Prevents UI freezing for large files (e.g., 21M+ molecules taking 26+ seconds)
 - Worker serializes dataset as JSON-compatible structure for main thread transfer
+
+**Worker Compatibility Fixes**:
+- `gzip.ts`: Uses `typeof DecompressionStream !== "undefined"` instead of `window` check
+- `ChunkedDataAdapter.ts`: Uses `self.location.origin` for absolute URLs (works in both main thread and workers)
 
 ### TypeScript Configuration
 
@@ -353,9 +366,17 @@ All use cascade deletion to maintain referential integrity.
 - **Database**: PostgreSQL + Prisma ORM
 - **Storage**: AWS S3 with presigned URLs
 - **Animation**: Framer Motion, GSAP
-- **Background Processing**: Web Workers with Comlink for single molecule data
+- **Background Processing**: Web Workers with Comlink for all data processing
 
 ## Performance Optimizations
+
+### Single Cell Data
+- **Web Worker Processing**: All parsing (H5AD/Xenium/MERSCOPE) runs in background workers
+- **Pre-loaded Expression Matrix**: Matrix cached during worker processing for instant gene queries
+- **On-Demand S3 Loading**: ChunkedDataAdapter fetches gene data from S3 as needed
+- **Coordinate Validation**: Ensures ≥90% valid coordinates, filters invalid rows automatically
+- **Progress Tracking**: Real-time progress updates via Comlink proxying
+- **Comlink Proxy Safety**: Progress callbacks properly proxied to avoid DataCloneError in production
 
 ### Single Molecule Data
 - **Web Worker Processing**: All parsing happens in background worker to prevent UI freezing

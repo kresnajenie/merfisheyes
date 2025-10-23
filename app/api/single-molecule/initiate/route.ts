@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { nanoid } from "nanoid";
+
 import { prisma } from "@/lib/prisma";
 import { generatePresignedUploadUrl } from "@/lib/s3";
-import { nanoid } from "nanoid";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -36,17 +37,26 @@ export async function POST(request: NextRequest) {
     const { fingerprint, metadata, manifest, files } = body;
 
     // Validate required fields
-    if (!fingerprint || !metadata || !manifest || !files || files.length === 0) {
+    if (
+      !fingerprint ||
+      !metadata ||
+      !manifest ||
+      !files ||
+      files.length === 0
+    ) {
       return NextResponse.json(
-        { error: "Missing required fields: fingerprint, metadata, manifest, or files" },
-        { status: 400, headers: corsHeaders }
+        {
+          error:
+            "Missing required fields: fingerprint, metadata, manifest, or files",
+        },
+        { status: 400, headers: corsHeaders },
       );
     }
 
     if (!metadata.numMolecules || !metadata.numGenes) {
       return NextResponse.json(
         { error: "metadata.numMolecules and metadata.numGenes are required" },
-        { status: 400, headers: corsHeaders }
+        { status: 400, headers: corsHeaders },
       );
     }
 
@@ -56,67 +66,70 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
     // Start transaction with extended timeout for many files
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create dataset record
-      const dataset = await tx.dataset.create({
-        data: {
-          id: datasetId,
-          fingerprint,
-          title: metadata.title || "Untitled Single Molecule Dataset",
-          numCells: metadata.numMolecules, // Store molecule count in numCells field
-          numGenes: metadata.numGenes,
-          datasetType: "single_molecule",
-          manifestJson: manifest,
-          status: "UPLOADING",
-        },
-      });
-
-      // 2. Create upload session
-      const uploadSession = await tx.uploadSession.create({
-        data: {
-          id: uploadId,
-          datasetId,
-          totalFiles: files.length,
-          completedFiles: 0,
-          expiresAt,
-        },
-      });
-
-      // 3. Create upload file records and generate presigned URLs
-      const uploadUrls: Record<string, any> = {};
-
-      for (const file of files) {
-        // Create file record in database
-        await tx.uploadFile.create({
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // 1. Create dataset record
+        const dataset = await tx.dataset.create({
           data: {
-            uploadSessionId: uploadId,
-            fileKey: file.key,
-            fileSize: BigInt(file.size),
-            status: "PENDING",
+            id: datasetId,
+            fingerprint,
+            title: metadata.title || "Untitled Single Molecule Dataset",
+            numCells: metadata.numMolecules, // Store molecule count in numCells field
+            numGenes: metadata.numGenes,
+            datasetType: "single_molecule",
+            manifestJson: manifest,
+            status: "UPLOADING",
           },
         });
 
-        // Generate S3 key (path in bucket)
-        const s3Key = `datasets/${datasetId}/${file.key}`;
+        // 2. Create upload session
+        const uploadSession = await tx.uploadSession.create({
+          data: {
+            id: uploadId,
+            datasetId,
+            totalFiles: files.length,
+            completedFiles: 0,
+            expiresAt,
+          },
+        });
 
-        // Generate presigned URL
-        const presignedUrl = await generatePresignedUploadUrl(
-          s3Key,
-          file.contentType || "application/octet-stream",
-          3600 // 1 hour expiration
-        );
+        // 3. Create upload file records and generate presigned URLs
+        const uploadUrls: Record<string, any> = {};
 
-        uploadUrls[file.key] = presignedUrl.url;
-      }
+        for (const file of files) {
+          // Create file record in database
+          await tx.uploadFile.create({
+            data: {
+              uploadSessionId: uploadId,
+              fileKey: file.key,
+              fileSize: BigInt(file.size),
+              status: "PENDING",
+            },
+          });
 
-      return {
-        dataset,
-        uploadSession,
-        uploadUrls,
-      };
-    }, {
-      timeout: 60000, // 60 second timeout for large datasets with many genes
-    });
+          // Generate S3 key (path in bucket)
+          const s3Key = `datasets/${datasetId}/${file.key}`;
+
+          // Generate presigned URL
+          const presignedUrl = await generatePresignedUploadUrl(
+            s3Key,
+            file.contentType || "application/octet-stream",
+            3600, // 1 hour expiration
+          );
+
+          uploadUrls[file.key] = presignedUrl.url;
+        }
+
+        return {
+          dataset,
+          uploadSession,
+          uploadUrls,
+        };
+      },
+      {
+        timeout: 60000, // 60 second timeout for large datasets with many genes
+      },
+    );
 
     // Return success response
     return NextResponse.json(
@@ -128,7 +141,7 @@ export async function POST(request: NextRequest) {
         expiresIn: 3600,
         expiresAt: expiresAt.toISOString(),
       },
-      { headers: corsHeaders }
+      { headers: corsHeaders },
     );
   } catch (error: any) {
     console.error("Initiate single molecule upload error:", error);
@@ -140,7 +153,7 @@ export async function POST(request: NextRequest) {
           error: "Duplicate dataset",
           message: "A dataset with this fingerprint already exists",
         },
-        { status: 409, headers: corsHeaders }
+        { status: 409, headers: corsHeaders },
       );
     }
 
@@ -149,7 +162,7 @@ export async function POST(request: NextRequest) {
         error: "Internal server error",
         message: error.message,
       },
-      { status: 500, headers: corsHeaders }
+      { status: 500, headers: corsHeaders },
     );
   }
 }

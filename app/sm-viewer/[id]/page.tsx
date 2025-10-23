@@ -1,15 +1,16 @@
 "use client";
 
+import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Button, Spinner } from "@heroui/react";
+
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
-import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
-import { Button, Spinner } from "@heroui/react";
 
 function SingleMoleculeViewerByIdContent() {
   const params = useParams();
@@ -26,6 +27,7 @@ function SingleMoleculeViewerByIdContent() {
     if (!datasetId) {
       setError("No dataset ID provided");
       setIsLoading(false);
+
       return;
     }
 
@@ -49,12 +51,12 @@ function SingleMoleculeViewerByIdContent() {
         id,
         (progress, message) => {
           console.log(`${progress}%: ${message}`);
-        }
+        },
       );
 
       console.log(
         "SingleMoleculeDataset loaded from S3:",
-        smDataset.getSummary()
+        smDataset.getSummary(),
       );
 
       // Store dataset in both local state and global store
@@ -64,6 +66,7 @@ function SingleMoleculeViewerByIdContent() {
 
       // Auto-select first 5 genes for visualization (if available)
       const genesToSelect = smDataset.uniqueGenes.slice(0, 5);
+
       // genesToSelect.forEach((gene) => selectGene(gene));
       console.log("Auto-selected genes:", genesToSelect);
 
@@ -81,29 +84,29 @@ function SingleMoleculeViewerByIdContent() {
       <>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-left"
-            raysColor="#667eea"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#667eea"
+            raysOrigin="top-left"
+            raysSpeed={0.8}
           />
         </div>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-right"
-            raysColor="#764ba2"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#764ba2"
+            raysOrigin="top-right"
+            raysSpeed={0.8}
           />
         </div>
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="flex flex-col items-center gap-4">
-            <Spinner size="lg" color="secondary" />
+            <Spinner color="secondary" size="lg" />
             <p className={subtitle()}>Loading single molecule dataset...</p>
           </div>
         </div>
@@ -117,13 +120,13 @@ function SingleMoleculeViewerByIdContent() {
       <>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-center"
-            raysColor="#FF72E1"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FF72E1"
+            raysOrigin="top-center"
+            raysSpeed={0.8}
           />
         </div>
         <div className="relative z-10 flex items-center justify-center h-full p-8">

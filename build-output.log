@@ -1,0 +1,27 @@
+
+> next-app-template@0.0.1 build
+> NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=4096' next build
+
+ ⚠ Invalid next.config.js options detected: 
+ ⚠     Unrecognized key(s) in object: 'experiments'
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+   ▲ Next.js 15.3.1
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 2000ms
+   Skipping linting
+   Checking validity of types ...
+Failed to compile.
+
+./lib/SingleMoleculeDataset.ts:389:21
+Type error: Property 'errors' does not exist on type 'void'.
+
+[0m [90m 387 |[39m     })[33m;[39m[0m
+[0m [90m 388 |[39m[0m
+[0m[31m[1m>[22m[39m[90m 389 |[39m     [36mif[39m (parseResult[33m.[39merrors[33m.[39mlength [33m>[39m [35m0[39m) {[0m
+[0m [90m     |[39m                     [31m[1m^[22m[39m[0m
+[0m [90m 390 |[39m       console[33m.[39mwarn([32m"CSV parsing warnings:"[39m[33m,[39m parseResult[33m.[39merrors)[33m;[39m[0m
+[0m [90m 391 |[39m     }[0m
+[0m [90m 392 |[39m[0m
+Next.js build worker exited with code: 1 and signal: null

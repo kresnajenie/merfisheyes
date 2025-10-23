@@ -1,12 +1,15 @@
 "use client";
 
+import type { VisualizationMode } from "@/lib/stores/visualizationStore";
+
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/slider";
 import { Tooltip } from "@heroui/tooltip";
 import { useState } from "react";
-import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+
 import { VisualizationPanel } from "./visualization-panel";
-import type { VisualizationMode } from "@/lib/stores/visualizationStore";
+
+import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { glassButton } from "@/components/primitives";
 
 export function VisualizationControls() {
@@ -50,17 +53,19 @@ export function VisualizationControls() {
 
       {/* Dot Size Slider */}
       <Tooltip content="Change dotsize" placement="right">
-        <div className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}>
+        <div
+          className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+        >
           <Slider
+            aria-label="Dot size"
+            className="h-full"
+            maxValue={3}
+            minValue={0.1}
             orientation="vertical"
             size="sm"
             step={0.1}
-            minValue={0.1}
-            maxValue={3}
             value={sizeScale}
             onChange={(value) => setSizeScale(value as number)}
-            className="h-full"
-            aria-label="Dot size"
           />
         </div>
       </Tooltip>

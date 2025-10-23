@@ -24,7 +24,7 @@ export function normalizeCoordinates(coordinates: number[][]): {
   }
 
   const normalized = coordinates.map((coord) =>
-    coord.slice(0, n).map((c) => c / maxAbs)
+    coord.slice(0, n).map((c) => c / maxAbs),
   );
 
   return {

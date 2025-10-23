@@ -1,14 +1,16 @@
 "use client";
 
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+
 import { ThreeScene } from "@/components/three-scene";
 import { FileUpload } from "@/components/file-upload";
 import { VisualizationControls } from "@/components/visualization-controls";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -21,7 +23,7 @@ function ViewerContent() {
   useEffect(() => {
     // Helper function to check if dataset is StandardizedDataset
     const isStandardizedDataset = (ds: any): ds is StandardizedDataset => {
-      return ds && 'spatial' in ds && 'embeddings' in ds;
+      return ds && "spatial" in ds && "embeddings" in ds;
     };
 
     // Check for dataset ID in URL params
@@ -30,13 +32,17 @@ function ViewerContent() {
     if (urlDatasetId) {
       // Try to get dataset from URL param
       const datasetFromUrl = datasets.get(urlDatasetId);
+
       if (datasetFromUrl && isStandardizedDataset(datasetFromUrl)) {
         console.log("Loading dataset from URL param:", urlDatasetId);
         setDataset(datasetFromUrl);
       } else {
-        console.warn(`Dataset with ID ${urlDatasetId} not found in store or is not a StandardizedDataset`);
+        console.warn(
+          `Dataset with ID ${urlDatasetId} not found in store or is not a StandardizedDataset`,
+        );
         // Fall back to current dataset
         const current = getCurrentDataset();
+
         if (current && isStandardizedDataset(current)) {
           setDataset(current);
         }
@@ -44,6 +50,7 @@ function ViewerContent() {
     } else {
       // Use current dataset from store
       const current = getCurrentDataset();
+
       console.log("Loading current dataset:", current?.id);
       if (current && isStandardizedDataset(current)) {
         setDataset(current);
@@ -54,6 +61,7 @@ function ViewerContent() {
   // Auto-select best cluster column when dataset changes
   useEffect(() => {
     const bestColumn = selectBestClusterColumn(dataset);
+
     setSelectedColumn(bestColumn);
     console.log("Auto-selected column:", bestColumn);
     console.log("Dataset:", dataset);
@@ -64,24 +72,24 @@ function ViewerContent() {
       <>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-left"
-            raysColor="#FFD700"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FFD700"
+            raysOrigin="top-left"
+            raysSpeed={0.8}
           />
         </div>
         <div className="fixed inset-0 w-full h-full z-0">
           <LightRays
-            raysOrigin="top-right"
-            raysColor="#FFD700"
-            rayLength={10}
-            raysSpeed={0.8}
             lightSpread={1.0}
-            pulsating={false}
             mouseInfluence={0.1}
+            pulsating={false}
+            rayLength={10}
+            raysColor="#FFD700"
+            raysOrigin="top-right"
+            raysSpeed={0.8}
           />
         </div>
         <div className="relative z-10 flex items-center justify-center h-full p-8">
@@ -96,19 +104,19 @@ function ViewerContent() {
             </div>
             <div className="grid grid-cols-3 gap-4 w-full">
               <FileUpload
-                type="h5ad"
-                title="H5AD File"
                 description="Single .h5ad file"
+                title="H5AD File"
+                type="h5ad"
               />
               <FileUpload
-                type="xenium"
-                title="Xenium Folder"
                 description="Select Xenium output folder"
+                title="Xenium Folder"
+                type="xenium"
               />
               <FileUpload
-                type="merscope"
-                title="MERSCOPE Folder"
                 description="Select MERSCOPE output folder"
+                title="MERSCOPE Folder"
+                type="merscope"
               />
             </div>
           </div>

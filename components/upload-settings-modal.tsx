@@ -12,10 +12,11 @@ import {
   Select,
   SelectItem,
 } from "@heroui/react";
+import { toast } from "react-toastify";
+
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneChunkProcessor } from "@/lib/utils/GeneChunkProcessor";
 import { generateDatasetFingerprint } from "@/lib/utils/fingerprint";
-import { toast } from "react-toastify";
 
 interface UploadSettingsModalProps {
   isOpen: boolean;
@@ -31,7 +32,7 @@ export function UploadSettingsModal({
   const [chunkSize, setChunkSize] = useState<string>("auto");
   const [customChunkSize, setCustomChunkSize] = useState<string>("100");
   const [datasetName, setDatasetName] = useState<string>(
-    dataset?.name || "dataset"
+    dataset?.name || "dataset",
   );
   const [email, setEmail] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -49,11 +50,13 @@ export function UploadSettingsModal({
   const handleUpload = async () => {
     if (!dataset) {
       toast.error("No dataset loaded");
+
       return;
     }
 
     if (!email || !isEmailValid) {
       toast.error("Please provide a valid email address");
+
       return;
     }
 
@@ -64,6 +67,7 @@ export function UploadSettingsModal({
     try {
       // Generate fingerprint
       const fingerprint = await generateDatasetFingerprint(dataset);
+
       console.log("Dataset fingerprint:", fingerprint);
 
       // Check for duplicates
@@ -73,13 +77,14 @@ export function UploadSettingsModal({
 
       if (duplicateExists) {
         const confirmed = window.confirm(
-          `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`
+          `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`,
         );
 
         if (!confirmed) {
           setIsProcessing(false);
           setProgress(0);
           setProgressMessage("");
+
           return;
         }
       }
@@ -96,7 +101,7 @@ export function UploadSettingsModal({
         (prog, msg) => {
           setProgress(5 + prog * 0.35); // Genes take 35% of progress (5-40%)
           setProgressMessage(msg);
-        }
+        },
       );
 
       // Process coordinates
@@ -127,7 +132,7 @@ export function UploadSettingsModal({
         chunks,
         index,
         coordinates,
-        observations.metadata
+        observations.metadata,
       );
 
       // Prepare files for upload
@@ -140,7 +145,7 @@ export function UploadSettingsModal({
         observations.files,
         observations.metadata,
         palettes,
-        manifestJson
+        manifestJson,
       );
 
       // Initiate upload
@@ -150,7 +155,7 @@ export function UploadSettingsModal({
         fingerprint,
         datasetName,
         dataset,
-        filesToUpload
+        filesToUpload,
       );
 
       // Upload files to S3
@@ -164,7 +169,7 @@ export function UploadSettingsModal({
         (prog, msg) => {
           setUploadProgress(prog);
           setUploadMessage(msg);
-        }
+        },
       );
 
       // Complete upload
@@ -173,7 +178,7 @@ export function UploadSettingsModal({
       await completeUpload(
         uploadSession.datasetId,
         uploadSession.uploadId,
-        email
+        email,
       );
 
       setProgress(100);
@@ -186,7 +191,7 @@ export function UploadSettingsModal({
     } catch (error) {
       console.error("Upload processing error:", error);
       toast.error(
-        `Failed to process dataset: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to process dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
       setIsProcessing(false);
       setProgress(0);
@@ -199,7 +204,7 @@ export function UploadSettingsModal({
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="2xl">
+    <Modal isOpen={isOpen} size="2xl" onClose={onClose}>
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           {uploadComplete ? "Upload Successful!" : "Upload Dataset Settings"}
@@ -212,10 +217,10 @@ export function UploadSettingsModal({
               <div className="bg-default-100 p-4 rounded-lg">
                 <p className="text-sm mb-2">Here is your dataset link:</p>
                 <a
-                  href={`${baseUrl}/viewer/${uploadedDatasetId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="text-primary hover:underline break-all"
+                  href={`${baseUrl}/viewer/${uploadedDatasetId}`}
+                  rel="noopener noreferrer"
+                  target="_blank"
                 >
                   {baseUrl}/viewer/{uploadedDatasetId}
                 </a>
@@ -228,41 +233,42 @@ export function UploadSettingsModal({
           ) : (
             <div className="flex flex-col gap-4">
               <Input
+                description="Name for the saved files"
+                isDisabled={isProcessing}
                 label="Dataset Name"
                 placeholder="Enter dataset name"
                 value={datasetName}
                 onValueChange={setDatasetName}
-                description="Name for the saved files"
-                isDisabled={isProcessing}
               />
 
               <Input
-                type="email"
-                label="Email"
-                placeholder="Enter your email"
-                value={email}
-                onValueChange={setEmail}
-                description="Get notified when processing is complete"
-                isDisabled={isProcessing}
                 isRequired
-                isInvalid={email.length > 0 && !isEmailValid}
+                description="Get notified when processing is complete"
                 errorMessage={
                   email.length > 0 && !isEmailValid
                     ? "Please enter a valid email address"
                     : ""
                 }
+                isDisabled={isProcessing}
+                isInvalid={email.length > 0 && !isEmailValid}
+                label="Email"
+                placeholder="Enter your email"
+                type="email"
+                value={email}
+                onValueChange={setEmail}
               />
 
               <Select
+                description="Number of genes per chunk (auto-determines based on total genes)"
+                isDisabled={isProcessing}
                 label="Chunk Size"
                 placeholder="Select chunk size"
                 selectedKeys={[chunkSize]}
                 onSelectionChange={(keys) => {
                   const value = Array.from(keys)[0] as string;
+
                   setChunkSize(value);
                 }}
-                description="Number of genes per chunk (auto-determines based on total genes)"
-                isDisabled={isProcessing}
               >
                 <SelectItem key="auto">Auto (Recommended)</SelectItem>
                 <SelectItem key="50">50 genes/chunk</SelectItem>
@@ -273,14 +279,14 @@ export function UploadSettingsModal({
 
               {chunkSize === "custom" && (
                 <Input
-                  type="number"
+                  isDisabled={isProcessing}
                   label="Custom Chunk Size"
+                  max="500"
+                  min="10"
                   placeholder="Enter chunk size"
+                  type="number"
                   value={customChunkSize}
                   onValueChange={setCustomChunkSize}
-                  min="10"
-                  max="500"
-                  isDisabled={isProcessing}
                 />
               )}
 
@@ -305,8 +311,8 @@ export function UploadSettingsModal({
                         {Math.ceil(
                           dataset.genes.length /
                             new GeneChunkProcessor(
-                              chunkSize === "auto" ? null : parseInt(chunkSize)
-                            ).determineChunkSize(dataset.genes.length)
+                              chunkSize === "auto" ? null : parseInt(chunkSize),
+                            ).determineChunkSize(dataset.genes.length),
                         )}
                       </p>
                     )}
@@ -368,17 +374,17 @@ export function UploadSettingsModal({
             <>
               <Button
                 color="danger"
+                isDisabled={isProcessing}
                 variant="light"
                 onPress={onClose}
-                isDisabled={isProcessing}
               >
                 Cancel
               </Button>
               <Button
                 color="primary"
-                onPress={handleUpload}
-                isLoading={isProcessing}
                 isDisabled={!dataset || !email || !isEmailValid}
+                isLoading={isProcessing}
+                onPress={handleUpload}
               >
                 {isProcessing ? "Processing..." : "Process & Save"}
               </Button>
@@ -400,10 +406,11 @@ async function createManifest(
   chunks: any[],
   index: any,
   coordinates: Record<string, Blob>,
-  obsMetadata: Record<string, any>
+  obsMetadata: Record<string, any>,
 ): Promise<string> {
   // Determine spatial dimensions
   let spatialDimensions = 2;
+
   if (
     dataset.spatial &&
     dataset.spatial.coordinates &&
@@ -414,12 +421,14 @@ async function createManifest(
 
   // Get available embeddings
   const availableEmbeddings: string[] = [];
+
   if (dataset.embeddings) {
     availableEmbeddings.push(...Object.keys(dataset.embeddings));
   }
 
   // Count clusters
   let clusterCount = 0;
+
   if (dataset.clusters && dataset.clusters.length > 0) {
     clusterCount = new Set(dataset.clusters).size;
   }
@@ -470,13 +479,14 @@ async function saveFilesWithStructure(
   observationFiles: Record<string, Blob>,
   observationMetadata: Record<string, any>,
   paletteFiles: Record<string, Blob>,
-  manifestJson: string
+  manifestJson: string,
 ) {
   const folderName = `${datasetName}_${Date.now()}`;
   let fileCount = 0;
 
   // Save manifest
   const manifestBlob = new Blob([manifestJson], { type: "application/json" });
+
   await saveBlob(manifestBlob, `${folderName}/manifest.json`);
   fileCount++;
 
@@ -490,6 +500,7 @@ async function saveFilesWithStructure(
   const indexBlob = new Blob([JSON.stringify(index, null, 2)], {
     type: "application/json",
   });
+
   await saveBlob(indexBlob, `${folderName}/expr/index.json`);
   fileCount++;
 
@@ -508,8 +519,9 @@ async function saveFilesWithStructure(
   // Save observation metadata to obs/
   const obsMetadataBlob = new Blob(
     [JSON.stringify(observationMetadata, null, 2)],
-    { type: "application/json" }
+    { type: "application/json" },
   );
+
   await saveBlob(obsMetadataBlob, `${folderName}/obs/metadata.json`);
   fileCount++;
 
@@ -520,7 +532,7 @@ async function saveFilesWithStructure(
   }
 
   toast.info(
-    `Files saved to downloads folder: ${folderName} (${fileCount} files)`
+    `Files saved to downloads folder: ${folderName} (${fileCount} files)`,
   );
 }
 
@@ -528,11 +540,11 @@ async function saveFilesWithStructure(
  * Check for duplicate dataset
  */
 async function checkDuplicate(
-  fingerprint: string
+  fingerprint: string,
 ): Promise<{ title: string; createdAt: string } | null> {
   try {
     const response = await fetch(
-      `/api/datasets/check-duplicate/${fingerprint}`
+      `/api/datasets/check-duplicate/${fingerprint}`,
     );
 
     if (response.status === 404) {
@@ -541,12 +553,14 @@ async function checkDuplicate(
 
     if (response.ok) {
       const data = await response.json();
+
       return data.dataset;
     }
 
     throw new Error("Failed to check for duplicates");
   } catch (error) {
     console.error("Duplicate check error:", error);
+
     return null; // Continue on error
   }
 }
@@ -561,7 +575,7 @@ async function prepareFilesForUpload(
   observationFiles: Record<string, Blob>,
   observationMetadata: Record<string, any>,
   paletteFiles: Record<string, Blob>,
-  manifestJson: string
+  manifestJson: string,
 ): Promise<{ key: string; blob: Blob; size: number; contentType: string }[]> {
   const files: {
     key: string;
@@ -572,6 +586,7 @@ async function prepareFilesForUpload(
 
   // Manifest
   const manifestBlob = new Blob([manifestJson], { type: "application/json" });
+
   files.push({
     key: "manifest.json",
     blob: manifestBlob,
@@ -593,6 +608,7 @@ async function prepareFilesForUpload(
   const indexBlob = new Blob([JSON.stringify(index, null, 2)], {
     type: "application/json",
   });
+
   files.push({
     key: "expr/index.json",
     blob: indexBlob,
@@ -623,8 +639,9 @@ async function prepareFilesForUpload(
   // Observation metadata
   const obsMetadataBlob = new Blob(
     [JSON.stringify(observationMetadata, null, 2)],
-    { type: "application/json" }
+    { type: "application/json" },
   );
+
   files.push({
     key: "obs/metadata.json",
     blob: obsMetadataBlob,
@@ -652,7 +669,7 @@ async function initiateUpload(
   fingerprint: string,
   title: string,
   dataset: any,
-  files: { key: string; size: number; contentType: string }[]
+  files: { key: string; size: number; contentType: string }[],
 ): Promise<{
   uploadId: string;
   datasetId: string;
@@ -680,6 +697,7 @@ async function initiateUpload(
 
   if (!response.ok) {
     const error = await response.json();
+
     throw new Error(error.error || "Failed to initiate upload");
   }
 
@@ -701,13 +719,14 @@ async function uploadFilesToS3(
   files: { key: string; blob: Blob; contentType: string }[],
   datasetId: string,
   uploadId: string,
-  onProgress: (progress: number, message: string) => void
+  onProgress: (progress: number, message: string) => void,
 ) {
   const MAX_RETRIES = 3;
   let completed = 0;
 
   for (const file of files) {
     const url = uploadUrls[file.key];
+
     if (!url) {
       console.warn(`No presigned URL for ${file.key}, skipping`);
       continue;
@@ -738,12 +757,13 @@ async function uploadFilesToS3(
         success = true;
         completed++;
         const progress = (completed / files.length) * 100;
+
         onProgress(progress, `Uploaded ${completed}/${files.length} files`);
       } catch (error) {
         retries++;
         if (retries >= MAX_RETRIES) {
           throw new Error(
-            `Failed to upload ${file.key} after ${MAX_RETRIES} retries: ${error}`
+            `Failed to upload ${file.key} after ${MAX_RETRIES} retries: ${error}`,
           );
         }
         console.warn(`Retry ${retries}/${MAX_RETRIES} for ${file.key}:`, error);
@@ -759,7 +779,7 @@ async function uploadFilesToS3(
 async function markFileComplete(
   datasetId: string,
   fileKey: string,
-  uploadId: string
+  uploadId: string,
 ): Promise<void> {
   const response = await fetch(
     `/api/datasets/${datasetId}/files/${encodeURIComponent(fileKey)}/complete`,
@@ -767,7 +787,7 @@ async function markFileComplete(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ uploadId }),
-    }
+    },
   );
 
   if (!response.ok) {
@@ -782,7 +802,7 @@ async function markFileComplete(
 async function completeUpload(
   datasetId: string,
   uploadId: string,
-  email: string
+  email: string,
 ): Promise<void> {
   const response = await fetch(`/api/datasets/${datasetId}/complete`, {
     method: "POST",
@@ -792,6 +812,7 @@ async function completeUpload(
 
   if (!response.ok) {
     const error = await response.json();
+
     throw new Error(error.error || "Failed to complete upload");
   }
 
@@ -814,6 +835,7 @@ async function completeUpload(
 async function saveBlob(blob: Blob, filepath: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
+
   a.href = url;
   a.download = filepath.replace(/\//g, "_"); // Flatten path for browser download
   document.body.appendChild(a);

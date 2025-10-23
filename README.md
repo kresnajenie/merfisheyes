@@ -18,56 +18,105 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - 2D/3D view mode toggle
 
 ### General
-- Cloud storage with AWS S3 integration
-- Duplicate detection via dataset fingerprinting
-- Email notifications with shareable links
-- Dark mode
+- **Web worker processing**: Non-blocking background processing for all data parsing
+- **Cloud storage** with AWS S3 integration and lazy loading
+- **Duplicate detection** via dataset fingerprinting
+- **Email notifications** with shareable links
+- **Dark mode**
 - Works on desktop and tablet
 
 ## Tech Stack
 
-- [Next.js 15](https://nextjs.org/) - React framework
+- [Next.js 15](https://nextjs.org/) - React framework with Turbopack
 - [HeroUI v2](https://heroui.com/) - UI components
 - [Three.js](https://threejs.org/) - 3D visualization
 - [TypeScript](https://www.typescriptlang.org/) - Type safety
 - [Tailwind CSS](https://tailwindcss.com/) - Styling
 - [Zustand](https://zustand-demo.pmnd.rs/) - State management
-- [Prisma](https://www.prisma.io/) - Database ORM
+- [Prisma](https://www.prisma.io/) - Database ORM (PostgreSQL)
 - [AWS S3](https://aws.amazon.com/s3/) - Cloud file storage
+- [h5wasm](https://github.com/usnistgov/h5wasm) - HDF5/H5AD file reading
 - [Hyparquet](https://github.com/hyparam/hyparquet) - Pure JavaScript parquet parsing
 - [Comlink](https://github.com/GoogleChromeLabs/comlink) - Web worker communication
 - [Pako](https://github.com/nodeca/pako) - Gzip compression/decompression
 - [PapaParse](https://www.papaparse.com/) - CSV parsing
+- [SendGrid](https://sendgrid.com/) - Email notifications
 
 ## Getting Started
 
 Requires Node.js 18+
 
+### Installation
+
 ```bash
 git clone <repository-url>
 cd merfisheyes-heroui
 npm install
-npm run dev
 ```
 
-Open http://localhost:3000
+### Environment Setup
+
+Copy `.env.example` to `.env.local` and configure:
+
+```bash
+cp .env.example .env.local
+```
+
+Required environment variables:
+- `DATABASE_URL` - PostgreSQL connection string
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET` - S3 storage
+- `NEXT_PUBLIC_BASE_URL` - Base URL for the application
+- `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL` - Email notifications
+
+See `.env.example` for full list and examples.
+
+### Database Setup
+
+```bash
+npx prisma generate    # Generate Prisma client
+npx prisma migrate dev # Run database migrations
+```
+
+### Development
+
+```bash
+npm run dev            # Start dev server (http://localhost:3000)
+```
 
 ### Production Build
 
 ```bash
-npm run build
-npm start
+npm run build          # Build for production (requires 4GB RAM)
+npm start              # Start production server
 ```
 
 **Low memory servers:** If you encounter SIGBUS errors on servers with limited RAM:
 ```bash
-npm run build:low-memory
+npm run build:low-memory  # Build with 2GB memory limit
 ```
 
 Or manually set memory limit:
 ```bash
 NODE_OPTIONS='--max-old-space-size=2048' npm run build
 ```
+
+### Deployment
+
+For deploying to remote servers:
+
+1. **Build locally** on a high-memory machine
+2. **Deploy** using the included script:
+   ```bash
+   ./deploy.sh
+   ```
+
+The deploy script:
+- Builds the project locally
+- Transfers `.next`, `public`, `package.json`, and `prisma` to remote server
+- Runs `npx prisma generate` on production
+- Restarts the application with PM2
+
+**Note**: The script does NOT transfer `.env.local` - production server should have its own environment variables configured.
 
 ## Usage
 
@@ -209,8 +258,10 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   ├── MerscopeAdapter.ts
 │   │   └── ChunkedDataAdapter.ts  # S3 loading adapter
 │   ├── workers/                 # Web workers for background processing
+│   │   ├── standardized-dataset.worker.ts  # Single cell parsing worker (H5AD/Xenium/MERSCOPE)
+│   │   ├── standardizedDatasetWorkerManager.ts  # Single cell worker manager
 │   │   ├── single-molecule.worker.ts  # Parquet/CSV parsing worker
-│   │   └── singleMoleculeWorkerManager.ts  # Singleton worker manager
+│   │   └── singleMoleculeWorkerManager.ts  # Single molecule worker manager
 │   ├── stores/                  # Zustand state stores
 │   │   ├── datasetStore.ts      # Single cell datasets
 │   │   ├── singleMoleculeStore.ts  # Single molecule datasets

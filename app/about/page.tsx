@@ -8,13 +8,13 @@ export default function AboutPage() {
     <div>
       <div className="fixed inset-0 w-full h-full z-0">
         <LightRays
-          raysOrigin="bottom-center"
-          raysColor="#6FEE8D"
-          rayLength={10}
-          raysSpeed={1.0}
           lightSpread={1.0}
-          pulsating={false}
           mouseInfluence={0.1}
+          pulsating={false}
+          rayLength={10}
+          raysColor="#6FEE8D"
+          raysOrigin="bottom-center"
+          raysSpeed={1.0}
         />
       </div>
       <div className="relative z-10 flex flex-col items-center gap-1 py-12 md:py-20 px-4 md:px-8">
