@@ -122,7 +122,10 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
    - Returns presigned S3 URLs for direct upload
 3. **Upload Files**: Client uploads directly to S3 using presigned URLs
 4. **Complete**: POST to `/api/datasets/[datasetId]/complete` to finalize upload
-5. **View**: Navigate to `/viewer/[datasetId]` which loads data via `StandardizedDataset.fromS3()`
+5. **Email Notification**: POST to `/api/send-email` with dataset name and metadata
+   - Subject line includes dataset name: `"{DatasetName} - Dataset Ready - MERFISHeyes"`
+   - Email body includes: total cells, unique genes, platform, cluster columns count, shareable link
+6. **View**: Navigate to `/viewer/[datasetId]` which loads data via `StandardizedDataset.fromS3()`
 
 #### Single Molecule Upload Flow
 
@@ -160,13 +163,18 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - `point-cloud.ts` - Creates Three.js point cloud with custom shaders
 - `shaders.ts` - Vertex/fragment shaders for point rendering with color/size control
 - `scene-manager.ts` - Manages Three.js scene, camera, controls, and rendering loop
-- `visualization-utils.ts` - Color mapping utilities (gene expression → RGB, cluster → categorical colors)
+- `visualization-utils.ts` - Color mapping utilities with support for:
+  - Gene expression → coolwarm gradient (95th percentile normalization)
+  - Categorical clusters → discrete palette colors
+  - **Numerical clusters** → coolwarm gradient (same as gene expression)
 
 **Key Features**:
 - GPU-accelerated point rendering using BufferGeometry and custom shaders
 - Dynamic attribute updates for color (gene expression or cell type) and size
 - Coordinate normalization ensures consistent visualization across datasets
 - Supports both 2D and 3D spatial coordinates
+- **Automatic column type detection**: Columns with ≤100 unique values are categorical, >100 are numerical
+- **Numerical cluster visualization**: Numerical metadata columns use gradient coloring instead of discrete categories
 
 #### Single Molecule Visualization
 
@@ -283,9 +291,18 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - ✅ Instant re-selection (genes cached after first load)
 - ✅ Scales to datasets with hundreds of genes
 
-### Cluster Column Selection
+### Cluster Column Type Detection & Selection
 
-The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/dataset-utils.ts)) automatically picks the best cluster column with priority:
+**Type Detection** - All adapters and workers automatically classify columns:
+- **Categorical**: ≤100 unique values → discrete color palette, checkbox filtering
+- **Numerical**: >100 unique values → coolwarm gradient, no filtering UI
+
+**Implementation**:
+- `H5adAdapter.isCategoricalData()` - Analyzes column values during H5AD parsing
+- `standardized-dataset.worker.ts` - Uses `isCategoricalData()` helper for Xenium/Merscope
+- `ChunkedDataAdapter` - Reads type from S3 metadata, skips palette loading for numerical columns
+
+**Column Selection** - The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/dataset-utils.ts)) automatically picks the best cluster column with priority:
 1. "leiden" column
 2. Any column containing "celltype"
 3. First categorical column

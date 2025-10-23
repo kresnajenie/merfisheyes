@@ -214,6 +214,89 @@ export async function updateGeneVisualization(
 }
 
 /**
+ * Update visualization for numerical celltype mode (uses same logic as gene expression)
+ */
+export function updateNumericalCelltypeVisualization(
+  dataset: StandardizedDataset,
+  selectedColumn: string | null,
+  alphaScale: number,
+  sizeScale: number,
+): {
+  colors: Float32Array;
+  sizes: Float32Array;
+  alphas: Float32Array;
+} | null {
+  const count = dataset.getPointCount();
+
+  if (!dataset.clusters || !selectedColumn) {
+    console.log("No cluster data or column selected");
+
+    return null;
+  }
+
+  // Find the selected cluster column data
+  const selectedCluster = dataset.clusters.find(
+    (c) => c.column === selectedColumn,
+  );
+
+  if (!selectedCluster) {
+    console.warn(`Cluster column not found: ${selectedColumn}`);
+
+    return null;
+  }
+
+  // Get the numerical values
+  const values = selectedCluster.values.map((v) => Number(v));
+
+  console.log("Numerical celltype values loaded:", values.slice(0, 10));
+
+  // Calculate 95th percentile for normalization (same as gene expression)
+  const percentile95 = calculateGenePercentile(values, 0.95);
+
+  console.log("95th percentile:", percentile95);
+
+  // Normalize values to 0-1 range (same as gene expression)
+  const normalizedValues = normalizeArray(values, percentile95);
+
+  console.log("Normalized values:", normalizedValues.slice(0, 10));
+
+  // Initialize arrays
+  const colors = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+
+  const baseSize = 2.0;
+  const baseAlpha = 1.0;
+
+  // Apply coolwarm colormap and use normalized values for size (same as gene expression)
+  for (let i = 0; i < count; i++) {
+    const normalizedValue = normalizedValues[i];
+
+    // Colors from coolwarm
+    const [r, g, b] = coolwarm(normalizedValue);
+
+    colors[i * 3] = r;
+    colors[i * 3 + 1] = g;
+    colors[i * 3 + 2] = b;
+
+    // Sizes based on value level (higher value = bigger)
+    // Use normalized value to scale size (0.5 to 2x base size)
+    const sizeMultiplier = isNaN(normalizedValue)
+      ? 1.0
+      : 0.5 + normalizedValue * 1.5;
+
+    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+
+    // Alphas
+    alphas[i] = baseAlpha * alphaScale;
+  }
+
+  console.log("Numerical celltype visualization updated successfully");
+
+  return { colors, sizes, alphas };
+}
+
+/**
  * Update visualization for celltype mode
  */
 export function updateCelltypeVisualization(

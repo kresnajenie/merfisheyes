@@ -15,6 +15,7 @@ import {
 import {
   updateGeneVisualization,
   updateCelltypeVisualization,
+  updateNumericalCelltypeVisualization,
 } from "@/lib/webgl/visualization-utils";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 
@@ -232,14 +233,28 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       selectedCelltypes: Array.from(selectedCelltypes),
     });
 
-    const result = updateCelltypeVisualization(
-      dataset,
-      selectedColumn,
-      selectedCelltypes,
-      colorPalette,
-      alphaScale,
-      sizeScale,
+    // Check if the selected column is numerical
+    const selectedCluster = dataset.clusters?.find(
+      (c) => c.column === selectedColumn,
     );
+    const isNumerical = selectedCluster?.type === "numerical";
+
+    // Use appropriate visualization function based on column type
+    const result = isNumerical
+      ? updateNumericalCelltypeVisualization(
+          dataset,
+          selectedColumn,
+          alphaScale,
+          sizeScale,
+        )
+      : updateCelltypeVisualization(
+          dataset,
+          selectedColumn,
+          selectedCelltypes,
+          colorPalette,
+          alphaScale,
+          sizeScale,
+        );
 
     if (result && pointCloudRef.current) {
       updatePointCloudAttributes(

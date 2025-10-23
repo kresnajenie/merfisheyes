@@ -16,6 +16,22 @@ type ProgressCallback = (
 ) => void | Promise<void>;
 
 /**
+ * Determine if data is categorical or numerical
+ * (Same logic as H5adAdapter.isCategoricalData)
+ */
+function isCategoricalData(values: any[]): boolean {
+  if (!values || values.length === 0) return false;
+
+  // Check if numerical values have limited unique values (threshold: 100)
+  const uniqueValues = new Set(values);
+
+  if (uniqueValues.size <= 100) return true;
+
+  // If more than 100 unique values, treat as continuous/numerical
+  return false;
+}
+
+/**
  * Serializable cluster data
  */
 interface SerializableClusterData {
@@ -163,9 +179,9 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: "categorical",
+            type: isCategoricalData(clusterData.values) ? "categorical" : "numerical",
             values: clusterData.values,
-            palette: clusterData.palette,
+            palette: isCategoricalData(clusterData.values) ? clusterData.palette : null,
           },
         ]
       : null;
@@ -260,9 +276,9 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: "categorical",
+            type: isCategoricalData(clusterData.values) ? "categorical" : "numerical",
             values: clusterData.values,
-            palette: clusterData.palette,
+            palette: isCategoricalData(clusterData.values) ? clusterData.palette : null,
           },
         ]
       : null;

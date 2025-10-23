@@ -47,6 +47,17 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
     }));
   }, [dataset]);
 
+  // Check if the selected column is numerical
+  const isNumericalColumn = useMemo(() => {
+    if (!dataset?.clusters || !selectedColumn) return false;
+
+    const selectedCluster = dataset.clusters.find(
+      (c) => c.column === selectedColumn,
+    );
+
+    return selectedCluster?.type === "numerical";
+  }, [dataset, selectedColumn]);
+
   // Get items based on mode and dataset
   const items = useMemo(() => {
     if (!dataset) return [];
@@ -139,73 +150,79 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
             ))}
           </Autocomplete>
         )}
-        {/* Search Input */}
-        <Input
-          classNames={{
-            input: "text-sm",
-          }}
-          placeholder={`Search ${getTitle()}`}
-          value={searchTerm}
-          onValueChange={setSearchTerm}
-        />
 
-        {/* Clear Button */}
-        <Button
-          className="w-full"
-          color="danger"
-          variant="ghost"
-          onPress={() => {
-            setSearchTerm("");
-            if (mode === "celltype") {
-              // Clear all selected celltypes
-              useVisualizationStore.setState({
-                selectedCelltypes: new Set<string>(),
-              });
-            } else if (mode === "gene") {
-              // Clear selected gene
-              setSelectedGene(null);
-            }
-          }}
-        >
-          Clear
-        </Button>
+        {/* Only show search, clear, and list if not numerical column in celltype mode */}
+        {!(mode === "celltype" && isNumericalColumn) && (
+          <>
+            {/* Search Input */}
+            <Input
+              classNames={{
+                input: "text-sm",
+              }}
+              placeholder={`Search ${getTitle()}`}
+              value={searchTerm}
+              onValueChange={setSearchTerm}
+            />
 
-        {/* List */}
-        <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
-          {mode === "celltype" ? (
-            // Checkbox list for celltype mode
-            filteredItems.map((item) => (
-              <Checkbox
-                key={item.id}
-                className="w-full"
-                isSelected={selectedCelltypes.has(item.id)}
-                size="sm"
-                onValueChange={() => toggleCelltype(item.id)}
-              >
-                <span style={{ color: item.color }}>{item.label}</span>
-              </Checkbox>
-            ))
-          ) : mode === "gene" ? (
-            // Radio group for gene mode
-            <RadioGroup
-              value={selectedGene || ""}
-              onValueChange={(value) => setSelectedGene(value || null)}
+            {/* Clear Button */}
+            <Button
+              className="w-full"
+              color="danger"
+              variant="ghost"
+              onPress={() => {
+                setSearchTerm("");
+                if (mode === "celltype") {
+                  // Clear all selected celltypes
+                  useVisualizationStore.setState({
+                    selectedCelltypes: new Set<string>(),
+                  });
+                } else if (mode === "gene") {
+                  // Clear selected gene
+                  setSelectedGene(null);
+                }
+              }}
             >
-              {filteredItems.map((item) => (
-                <Radio key={item.id} size="sm" value={item.id}>
-                  <span style={{ color: item.color }}>{item.label}</span>
-                </Radio>
-              ))}
-            </RadioGroup>
-          ) : (
-            // For other modes, just display items
-            filteredItems.map((item) => (
-              <div key={item.id} className="p-2">
-                <span style={{ color: item.color }}>{item.label}</span>
-              </div>
-            ))
-          )}
-        </div>
+              Clear
+            </Button>
+
+            {/* List */}
+            <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
+              {mode === "celltype" ? (
+                // Checkbox list for celltype mode
+                filteredItems.map((item) => (
+                  <Checkbox
+                    key={item.id}
+                    className="w-full"
+                    isSelected={selectedCelltypes.has(item.id)}
+                    size="sm"
+                    onValueChange={() => toggleCelltype(item.id)}
+                  >
+                    <span style={{ color: item.color }}>{item.label}</span>
+                  </Checkbox>
+                ))
+              ) : mode === "gene" ? (
+                // Radio group for gene mode
+                <RadioGroup
+                  value={selectedGene || ""}
+                  onValueChange={(value) => setSelectedGene(value || null)}
+                >
+                  {filteredItems.map((item) => (
+                    <Radio key={item.id} size="sm" value={item.id}>
+                      <span style={{ color: item.color }}>{item.label}</span>
+                    </Radio>
+                  ))}
+                </RadioGroup>
+              ) : (
+                // For other modes, just display items
+                filteredItems.map((item) => (
+                  <div key={item.id} className="p-2">
+                    <span style={{ color: item.color }}>{item.label}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
       {/* Slider Section
       <div className="p-4 border-t border-default-200">

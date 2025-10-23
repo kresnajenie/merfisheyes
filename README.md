@@ -8,7 +8,9 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - Multiple format support: .h5ad (AnnData), MERSCOPE, and Xenium
 - 3D visualization of cell-level spatial data using Three.js
 - Color cells by gene expression or cell type annotations
+- **Numerical metadata support**: Continuous metadata (e.g., QC metrics) visualized with gradient coloring
 - Interactive filtering and selection of cell populations
+- Automatic column type detection (categorical vs numerical)
 
 ### Single Molecule Visualization
 - Parquet and CSV file support for molecule coordinates
@@ -21,7 +23,7 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - **Web worker processing**: Non-blocking background processing for all data parsing
 - **Cloud storage** with AWS S3 integration and lazy loading
 - **Duplicate detection** via dataset fingerprinting
-- **Email notifications** with shareable links
+- **Email notifications** with shareable links and dataset metadata (cell count, gene count, platform)
 - **Dark mode**
 - Works on desktop and tablet
 
@@ -142,8 +144,10 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 - **Rotate**: Left click + drag
 - **Pan**: Right click + drag or middle click + drag
 - **Zoom**: Mouse wheel
-- **Filter**: Use side panel to filter by cell type
-- **Color**: Select gene from dropdown to color by expression
+- **Filter**: Use side panel to filter by cell type (categorical columns only)
+- **Color**: Select gene from dropdown to color by expression, or choose cluster column:
+  - **Categorical columns** (≤100 unique values): Discrete colors with checkbox filtering
+  - **Numerical columns** (>100 unique values): Coolwarm gradient, no filtering UI
 
 #### Single Molecule Viewer (`/sm-viewer/[id]`)
 - **Rotate**: Left click + drag (disabled in 2D mode)

@@ -280,23 +280,31 @@ export class ChunkedDataAdapter {
             `obs/${columnName}.json.gz`,
           );
 
-          // Load color palette for this column
-          let palette: Record<string, string> = {};
+          // Get column type from metadata
+          const columnType = this.obsMetadata[columnName].type || "categorical";
+          const isNumerical = columnType === "numerical";
 
-          try {
-            palette = await this.fetchJSON(`palettes/${columnName}.json`);
-            console.log(`Loaded palette from: palettes/${columnName}.json`);
-          } catch (error) {
-            // Fall back to default colors if palette not found
-            console.log(
-              `Palette palettes/${columnName}.json not found, generating default colors`,
-            );
-            palette = this.generateDefaultPalette(clusterValues);
+          // Only load/generate palette for categorical columns
+          let palette: Record<string, string> | null = null;
+
+          if (!isNumerical) {
+            try {
+              palette = await this.fetchJSON(`palettes/${columnName}.json`);
+              console.log(`Loaded palette from: palettes/${columnName}.json`);
+            } catch (error) {
+              // Fall back to default colors if palette not found
+              console.log(
+                `Palette palettes/${columnName}.json not found, generating default colors`,
+              );
+              palette = this.generateDefaultPalette(clusterValues);
+            }
+          } else {
+            console.log(`Skipping palette for numerical column: ${columnName}`);
           }
 
           clusters.push({
             column: columnName,
-            type: this.obsMetadata[columnName].type || "categorical",
+            type: columnType,
             values: clusterValues,
             palette: palette,
           });

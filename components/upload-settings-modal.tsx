@@ -179,6 +179,8 @@ export function UploadSettingsModal({
         uploadSession.datasetId,
         uploadSession.uploadId,
         email,
+        datasetName,
+        dataset,
       );
 
       setProgress(100);
@@ -803,6 +805,8 @@ async function completeUpload(
   datasetId: string,
   uploadId: string,
   email: string,
+  datasetName: string,
+  dataset: StandardizedDataset,
 ): Promise<void> {
   const response = await fetch(`/api/datasets/${datasetId}/complete`, {
     method: "POST",
@@ -816,12 +820,20 @@ async function completeUpload(
     throw new Error(error.error || "Failed to complete upload");
   }
 
+  // Prepare metadata for email
+  const metadata = {
+    numCells: dataset.getPointCount(),
+    numGenes: dataset.genes.length,
+    platform: dataset.type,
+    clusterCount: dataset.clusters?.length || 0,
+  };
+
   // Send email notification
   try {
     await fetch("/api/send-email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, datasetId }),
+      body: JSON.stringify({ email, datasetId, datasetName, metadata }),
     });
   } catch (error) {
     console.error("Failed to send email notification:", error);
