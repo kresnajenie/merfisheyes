@@ -93,6 +93,20 @@ const LightRays: React.FC<LightRaysProps> = ({
   const cleanupFunctionRef = useRef<(() => void) | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  const latestSettingsRef = useRef({
+    raysOrigin,
+    raysColor,
+    raysSpeed,
+    lightSpread,
+    rayLength,
+    pulsating,
+    fadeDistance,
+    saturation,
+    followMouse,
+    mouseInfluence,
+    noiseAmount,
+    distortion,
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -117,7 +131,46 @@ const LightRays: React.FC<LightRaysProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!isVisible || !containerRef.current) return;
+    latestSettingsRef.current = {
+      raysOrigin,
+      raysColor,
+      raysSpeed,
+      lightSpread,
+      rayLength,
+      pulsating,
+      fadeDistance,
+      saturation,
+      followMouse,
+      mouseInfluence,
+      noiseAmount,
+      distortion,
+    };
+  }, [
+    raysOrigin,
+    raysColor,
+    raysSpeed,
+    lightSpread,
+    rayLength,
+    pulsating,
+    fadeDistance,
+    saturation,
+    followMouse,
+    mouseInfluence,
+    noiseAmount,
+    distortion,
+  ]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    if (!isVisible) {
+      if (cleanupFunctionRef.current) {
+        cleanupFunctionRef.current();
+        cleanupFunctionRef.current = null;
+      }
+
+      return;
+    }
 
     if (cleanupFunctionRef.current) {
       cleanupFunctionRef.current();
@@ -250,6 +303,21 @@ void main() {
   gl_FragColor  = color;
 }`;
 
+      const settings = latestSettingsRef.current;
+      const {
+        raysOrigin: originSetting,
+        raysColor: colorSetting,
+        raysSpeed: speedSetting,
+        lightSpread: spreadSetting,
+        rayLength: lengthSetting,
+        pulsating: pulsatingSetting,
+        fadeDistance: fadeSetting,
+        saturation: saturationSetting,
+        mouseInfluence: mouseInfluenceSetting,
+        noiseAmount: noiseSetting,
+        distortion: distortionSetting,
+      } = settings;
+
       const uniforms = {
         iTime: { value: 0 },
         iResolution: { value: [1, 1] },
@@ -257,17 +325,17 @@ void main() {
         rayPos: { value: [0, 0] },
         rayDir: { value: [0, 1] },
 
-        raysColor: { value: hexToRgb(raysColor) },
-        raysSpeed: { value: raysSpeed },
-        lightSpread: { value: lightSpread },
-        rayLength: { value: rayLength },
-        pulsating: { value: pulsating ? 1.0 : 0.0 },
-        fadeDistance: { value: fadeDistance },
-        saturation: { value: saturation },
+        raysColor: { value: hexToRgb(colorSetting) },
+        raysSpeed: { value: speedSetting },
+        lightSpread: { value: spreadSetting },
+        rayLength: { value: lengthSetting },
+        pulsating: { value: pulsatingSetting ? 1.0 : 0.0 },
+        fadeDistance: { value: fadeSetting },
+        saturation: { value: saturationSetting },
         mousePos: { value: [0.5, 0.5] },
-        mouseInfluence: { value: mouseInfluence },
-        noiseAmount: { value: noiseAmount },
-        distortion: { value: distortion },
+        mouseInfluence: { value: mouseInfluenceSetting },
+        noiseAmount: { value: noiseSetting },
+        distortion: { value: distortionSetting },
       };
 
       uniformsRef.current = uniforms;
@@ -284,6 +352,7 @@ void main() {
 
       const updatePlacement = () => {
         if (!containerRef.current || !renderer) return;
+        const { raysOrigin: originValue } = latestSettingsRef.current;
 
         renderer.dpr = Math.min(window.devicePixelRatio, 2);
 
@@ -297,7 +366,7 @@ void main() {
 
         uniforms.iResolution.value = [w, h];
 
-        const { anchor, dir } = getAnchorAndDir(raysOrigin, w, h);
+        const { anchor, dir } = getAnchorAndDir(originValue, w, h);
 
         uniforms.rayPos.value = anchor;
         uniforms.rayDir.value = dir;
@@ -307,10 +376,14 @@ void main() {
         if (!rendererRef.current || !uniformsRef.current || !meshRef.current) {
           return;
         }
+        const {
+          followMouse: followMouseSetting,
+          mouseInfluence: mouseInfluenceValue,
+        } = latestSettingsRef.current;
 
         uniforms.iTime.value = t * 0.001;
 
-        if (followMouse && mouseInfluence > 0.0) {
+        if (followMouseSetting && mouseInfluenceValue > 0.0) {
           const smoothing = 0.92;
 
           smoothMouseRef.current.x =
@@ -325,6 +398,8 @@ void main() {
             smoothMouseRef.current.y,
           ];
         }
+
+        uniforms.mouseInfluence.value = mouseInfluenceValue;
 
         try {
           renderer.render({ scene: mesh });
@@ -380,21 +455,7 @@ void main() {
         cleanupFunctionRef.current = null;
       }
     };
-  }, [
-    isVisible,
-    raysOrigin,
-    raysColor,
-    raysSpeed,
-    lightSpread,
-    rayLength,
-    pulsating,
-    fadeDistance,
-    saturation,
-    followMouse,
-    mouseInfluence,
-    noiseAmount,
-    distortion,
-  ]);
+  }, [isVisible]);
 
   useEffect(() => {
     if (!uniformsRef.current || !containerRef.current || !rendererRef.current)
