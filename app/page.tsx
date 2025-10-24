@@ -171,7 +171,7 @@ export default function Home() {
           <div className="relative w-full max-w-5xl min-h-[360px] flex items-center justify-center">
             <div
               className={clsx(
-                "absolute inset-0 flex items-center justify-center transition-opacity duration-700 ease-out pointer-events-none",
+                "absolute inset-0 flex items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
                 isSingleMolecule ? "opacity-100" : "opacity-0",
               )}
             >
@@ -180,9 +180,9 @@ export default function Home() {
 
             <div
               className={clsx(
-                "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] origin-center",
+                "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-center",
                 isSingleMolecule
-                  ? "scale-[1.35] opacity-0 blur-sm pointer-events-none"
+                  ? "scale-[1.2] opacity-0 blur-sm pointer-events-none"
                   : "scale-100 opacity-100 blur-0 pointer-events-auto",
               )}
             >
@@ -207,7 +207,7 @@ export default function Home() {
 
             <div
               className={clsx(
-                "absolute left-1/2 top-1/2 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                "absolute left-1/2 top-1/2 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
                 isSingleMolecule
                   ? "opacity-100 scale-100 pointer-events-auto"
                   : "opacity-0 scale-90 pointer-events-none",
