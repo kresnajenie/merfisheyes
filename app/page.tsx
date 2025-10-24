@@ -2,13 +2,13 @@
 
 import { Button } from "@heroui/button";
 import Link from "next/link";
-import { useEffect, useMemo, memo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 
-import { title, subtitle } from "@/components/primitives";
+import { BrainToggle } from "@/components/brain-toggle";
 import { FileUpload } from "@/components/file-upload";
+import { title, subtitle } from "@/components/primitives";
 import LightRays from "@/components/react-bits/LightRays";
-import { Switch } from "@heroui/react";
 
 const MemoizedLightRays = memo(LightRays);
 
@@ -124,7 +124,7 @@ export default function Home() {
                 to Life
               </span>
             </h1>
-            <div className="flex items-center gap-3 mt-4">
+            <div className="flex flex-col items-center gap-3 mt-4 sm:flex-row sm:gap-6">
               <span
                 className={`text-sm transition-all duration-300 px-3 py-1 rounded-full ${
                   !isSingleMolecule
@@ -134,16 +134,9 @@ export default function Home() {
               >
                 single cell
               </span>
-              <Switch
-                isSelected={isSingleMolecule}
-                onValueChange={setIsSingleMolecule}
-                aria-label="Toggle between single cell and single molecule"
-                classNames={{
-                  wrapper: isSingleMolecule
-                    ? "bg-purple-500 group-data-[selected=true]:bg-purple-500"
-                    : "bg-blue-500",
-                  thumb: "bg-white",
-                }}
+              <BrainToggle
+                isActive={isSingleMolecule}
+                onToggle={setIsSingleMolecule}
               />
               <span
                 className={`text-sm transition-all duration-300 px-3 py-1 rounded-full ${
@@ -182,7 +175,7 @@ export default function Home() {
               className={clsx(
                 "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-center",
                 isSingleMolecule
-                  ? "scale-[1.2] opacity-0 blur-sm pointer-events-none"
+                  ? "scale-[1.25] opacity-0 blur-sm pointer-events-none"
                   : "scale-100 opacity-100 blur-0 pointer-events-auto",
               )}
             >
