@@ -172,11 +172,37 @@ export function FileUpload({
           console.log("Files:", files.length);
           dataset = await StandardizedDataset.fromXenium(files, onProgress);
         } else {
-          // merscope
-          toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
-          console.log("=== Starting MERSCOPE folder processing ===");
-          console.log("Files:", files.length);
-          dataset = await StandardizedDataset.fromMerscope(files, onProgress);
+          // MERSCOPE uploads may contain a preprocessed H5AD
+          const h5adFile = files.find((f) => {
+            const name = f.name.toLowerCase();
+            const rel = (f.webkitRelativePath || "").toLowerCase();
+
+            return name.endsWith(".h5ad") || rel.endsWith(".h5ad");
+          });
+
+          if (h5adFile) {
+            toast.info(
+              `Detected H5AD file (${h5adFile.name}); processing as H5AD...`,
+            );
+            console.log(
+              "=== H5AD detected inside MERSCOPE upload; routing to H5AD parser ===",
+            );
+            console.log("File:", h5adFile.name, "Size:", h5adFile.size, "bytes");
+            dataset = await StandardizedDataset.fromH5ad(
+              h5adFile,
+              onProgress,
+            );
+          } else {
+            toast.info(
+              `Processing MERSCOPE folder (${files.length} files)...`,
+            );
+            console.log("=== Starting MERSCOPE folder processing ===");
+            console.log("Files:", files.length);
+            dataset = await StandardizedDataset.fromMerscope(
+              files,
+              onProgress,
+            );
+          }
         }
 
         console.log("=== Dataset created successfully ===");
