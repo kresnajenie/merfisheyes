@@ -45,6 +45,8 @@ export function FileUpload({
   const { setLoading, setError } = singleMolecule ? smStore : cellStore;
   const router = useRouter();
 
+  const inputId = `${singleMolecule ? "sm" : "sc"}-file-input-${type}`;
+
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -255,7 +257,7 @@ export function FileUpload({
   };
 
   const handleClick = () => {
-    document.getElementById(`file-input-${type}`)?.click();
+    document.getElementById(inputId)?.click();
   };
 
   const isFolder =
@@ -296,7 +298,7 @@ export function FileUpload({
         <input
           accept={getAcceptedFileTypes()}
           className="hidden"
-          id={`file-input-${type}`}
+          id={inputId}
           multiple={isFolder}
           type="file"
           onChange={handleFileInput}
