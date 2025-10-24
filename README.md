@@ -17,6 +17,7 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - 3D point cloud visualization with one cloud per gene
 - Lazy loading from S3 for efficient memory usage
 - Gene-based filtering and multi-gene overlay
+- **Automatic control gene filtering**: Removes negative controls, unassigned probes, and codewords
 - 2D/3D view mode toggle
 
 ### General
@@ -275,7 +276,8 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   └── hyparquetService.ts  # Hyparquet parquet reader
 │   ├── utils/
 │   │   ├── SingleMoleculeProcessor.ts  # S3 upload processing
-│   │   └── fingerprint.ts       # Dataset fingerprinting
+│   │   ├── fingerprint.ts       # Dataset fingerprinting
+│   │   └── gene-filters.ts      # Shared gene filtering (control probes, etc.)
 │   ├── webgl/                   # WebGL/Three.js utilities (single cell)
 │   ├── s3.ts                    # S3 client utilities
 │   ├── prisma.ts                # Database client

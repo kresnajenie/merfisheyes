@@ -88,7 +88,8 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
      - `fromParquet()`, `fromCSV()` - Local file parsing with async progress callbacks (called from worker)
      - `fromS3()` - **Lazy loading from S3** (loads manifest only, genes on-demand)
      - `fromSerializedData()` - Reconstructs dataset from worker-serialized data
-   - **Progress Tracking**: Reports progress during file reading (10%), parsing (30%), extraction (50-60%), normalization (60%), indexing (70-90%), and finalization (90-100%)
+   - **Progress Tracking**: Reports progress during file reading (10%), parsing (30%), extraction (50-60%), normalization (60%), indexing (70-85%), filtering (85%), and finalization (90-100%)
+   - **Gene Filtering**: Automatically filters control probes and unassigned genes using shared `shouldFilterGene()` utility
    - **Granular Progress**: Indexing loop reports every 5% for real-time feedback on large datasets (millions of molecules)
    - **Responsive UI**: Progress callbacks with `await` yield to event loop for UI updates
    - **Performance Timer**: Displays elapsed time in progress messages and final completion time (e.g., "2.45s", "1m 32.5s")
@@ -98,6 +99,12 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
    - Configurable column names for different dataset types (xenium, merscope, custom)
    - Default mappings: `feature_name`, `x_location`, `y_location`, `z_location` (Xenium)
    - Alternative: `gene`, `global_x`, `global_y`, `global_z` (MERSCOPE)
+
+5. **Gene Filtering Utilities** ([lib/utils/gene-filters.ts](lib/utils/gene-filters.ts)):
+   - Shared `shouldFilterGene()` function filters control probes and unassigned genes
+   - Used by both single cell (XeniumAdapter) and single molecule (SingleMoleculeDataset) pipelines
+   - Filters patterns: negative controls, unassigned, deprecated, codewords, blanks
+   - Reduces clutter in gene selection UI and improves performance
 
 #### State Management
 

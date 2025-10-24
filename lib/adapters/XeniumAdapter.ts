@@ -3,6 +3,7 @@ import Papa, { ParseResult } from "papaparse";
 import { ungzip } from "pako";
 
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
+import { shouldFilterGene } from "@/lib/utils/gene-filters";
 
 interface XeniumMetadata {
   hasPolygons: boolean;
@@ -1026,22 +1027,6 @@ function extractHeadersFromRow(row: RowData): string[] {
   }
 
   return headers;
-}
-
-function shouldFilterGene(gene: string, featureType: string): boolean {
-  const g = gene.toLowerCase();
-  const t = (featureType || "").toLowerCase();
-  const patterns = [
-    /negative[\s_-]*control/,
-    /neg[\s_-]*ctrl/,
-    /unassigned/,
-    /deprecated/,
-    /codeword/,
-    /blank/,
-    /negcontrol/
-  ];
-
-  return patterns.some((rx) => rx.test(g) || rx.test(t));
 }
 
 async function readBarcodesFile(file: File): Promise<string[]> {
