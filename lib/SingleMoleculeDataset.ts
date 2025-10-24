@@ -7,6 +7,7 @@ import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
 } from "./config/moleculeColumnMappings";
+import { shouldFilterGene } from "./utils/gene-filters";
 
 /**
  * Format elapsed time in a human-readable format
@@ -315,7 +316,28 @@ export class SingleMoleculeDataset {
       }
     }
 
-    const uniqueGenes = Array.from(uniqueGenesSet);
+    await onProgress?.(85, "Filtering control genes...");
+
+    // Filter out control/unassigned genes
+    const filteredGenes: string[] = [];
+    let filteredCount = 0;
+
+    for (const gene of Array.from(uniqueGenesSet)) {
+      if (shouldFilterGene(gene)) {
+        geneIndex.delete(gene);
+        filteredCount++;
+      } else {
+        filteredGenes.push(gene);
+      }
+    }
+
+    if (filteredCount > 0) {
+      console.log(
+        `[SingleMoleculeDataset] Filtered ${filteredCount} control/unassigned genes from parquet dataset`,
+      );
+    }
+
+    const uniqueGenes = filteredGenes;
 
     await onProgress?.(90, "Creating dataset...");
 
@@ -498,7 +520,28 @@ export class SingleMoleculeDataset {
       }
     }
 
-    const uniqueGenes = Array.from(uniqueGenesSet);
+    await onProgress?.(85, "Filtering control genes...");
+
+    // Filter out control/unassigned genes
+    const filteredGenes: string[] = [];
+    let filteredCount = 0;
+
+    for (const gene of Array.from(uniqueGenesSet)) {
+      if (shouldFilterGene(gene)) {
+        geneIndex.delete(gene);
+        filteredCount++;
+      } else {
+        filteredGenes.push(gene);
+      }
+    }
+
+    if (filteredCount > 0) {
+      console.log(
+        `[SingleMoleculeDataset] Filtered ${filteredCount} control/unassigned genes from CSV dataset`,
+      );
+    }
+
+    const uniqueGenes = filteredGenes;
 
     await onProgress?.(90, "Creating dataset...");
 
