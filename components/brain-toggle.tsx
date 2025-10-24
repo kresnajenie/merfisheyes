@@ -1,8 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useMemo } from "react";
 import clsx from "clsx";
+import { useEffect, useMemo, useState } from "react";
 
 interface BrainToggleProps {
   isActive: boolean;
@@ -81,7 +81,7 @@ const generateMoleculePoints = (count: number): MoleculePoint[] => {
   const steps = Math.max(12, count);
   const turns = 3.4;
   const radius = 0.36;
-  const height = 1.8;
+  const height = 1.6;
 
   for (let i = 0; i < steps; i++) {
     const t = steps <= 1 ? 0 : i / (steps - 1);
@@ -107,6 +107,13 @@ const generateMoleculePoints = (count: number): MoleculePoint[] => {
 export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps) {
   const points = useMemo(() => generateBrainPoints(120), []);
   const molecules = useMemo(() => generateMoleculePoints(42), []);
+  const [isHovering, setIsHovering] = useState(false);
+
+  useEffect(() => {
+    if (!isActive) {
+      setIsHovering(false);
+    }
+  }, [isActive]);
 
   return (
     <button
@@ -116,6 +123,10 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
         isActive ? "Switch to single cell datasets" : "Switch to single molecule datasets"
       }
       onClick={() => onToggle(!isActive)}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      onFocus={() => setIsHovering(true)}
+      onBlur={() => setIsHovering(false)}
       className={clsx(
         "group relative flex items-center justify-center rounded-full p-2 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-100/70 focus-visible:ring-offset-slate-950/40",
         className,
@@ -131,6 +142,29 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
             : "0 22px 50px rgba(14, 165, 233, 0.25)",
           borderColor: isActive ? "rgba(124, 58, 237, 0.35)" : "rgba(59, 130, 246, 0.3)",
         }}
+        whileHover={
+          isActive
+            ? {
+                scale: 1.04,
+                boxShadow: "0 30px 65px rgba(14, 165, 233, 0.35)",
+              }
+            : {
+                scale: 1.04,
+                boxShadow: "0 30px 65px rgba(14, 165, 233, 0.35)",
+              }
+        }
+        whileFocus={
+          isActive
+            ? {
+                scale: 1.04,
+                boxShadow: "0 30px 65px rgba(14, 165, 233, 0.35)",
+              }
+            : {
+                scale: 1.04,
+                boxShadow: "0 30px 65px rgba(14, 165, 233, 0.35)",
+              }
+        }
+        whileTap={{ scale: 0.98 }}
         transition={{ duration: 1.1, ease }}
       >
         <motion.div
@@ -141,6 +175,29 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
             scale: isActive ? 1.12 : 1,
           }}
           transition={{ duration: 1.1, ease }}
+        />
+
+        <motion.div
+          className="absolute inset-0 rounded-full border-2 border-transparent"
+          initial={false}
+          animate={{
+            borderColor: isActive ? "rgba(168, 85, 247, 0.35)" : "rgba(59, 130, 246, 0.3)",
+            boxShadow: isActive
+              ? [
+                  "0 0 0 0 rgba(168, 85, 247, 0.4)",
+                  "0 0 0 16px rgba(168, 85, 247, 0)",
+                ]
+              : [
+                  "0 0 0 0 rgba(59, 130, 246, 0.35)",
+                  "0 0 0 16px rgba(59, 130, 246, 0)",
+                ],
+          }}
+          transition={{
+            repeat: Infinity,
+            repeatDelay: 1.6,
+            duration: 1.8,
+            ease: "easeOut",
+          }}
         />
 
         {points.map((point) => (
@@ -154,13 +211,11 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
                 ? {
                     x: point.scatter.x * SCATTER_SCALE,
                     y: point.scatter.y * SCATTER_SCALE,
-                    scale: 0.85,
                     opacity: 0.55,
                   }
                 : {
                     x: point.home.x * HOME_SCALE,
                     y: point.home.y * HOME_SCALE,
-                    scale: 1,
                     opacity: 0.92,
                   }
             }
@@ -173,27 +228,21 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
         ))}
 
         <motion.span
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80"
-          style={{ width: 20, height: 20 }}
-          initial={false}
-          animate={
-            isActive
-              ? { scale: 0.4, opacity: 0 }
-              : { scale: 1, opacity: 0.9 }
-          }
-          transition={{ duration: 0.9, ease }}
-        />
-
-        <motion.span
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-sky-300/40 via-violet-400/40 to-fuchsia-500/40"
           style={{ width: 48, height: 48 }}
           initial={false}
           animate={
             isActive
-              ? { scale: 3.1, opacity: 0.12 }
+              ? {
+                  scale: isHovering ? 3.4 : 3.1,
+                  opacity: isHovering ? 0.16 : 0.12,
+                }
               : { scale: 1.15, opacity: 0.28 }
           }
-          transition={{ duration: 1.1, ease }}
+          transition={{
+            duration: isHovering ? 0.4 : 1.1,
+            ease,
+          }}
         />
 
         <AnimatePresence>
@@ -202,9 +251,16 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
               key="inner-molecules"
               className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
               initial={{ opacity: 0, scale: 0.35 }}
-              animate={{ opacity: 1, scale: 1 }}
+              animate={{
+                opacity: 1,
+                scale: isHovering ? 1.08 : 1,
+              }}
               exit={{ opacity: 0, scale: 0.3 }}
-              transition={{ duration: 0.9, ease, delay: 0.2 }}
+              transition={{
+                duration: isHovering ? 0.45 : 0.9,
+                ease,
+                delay: isHovering ? 0 : 0.2,
+              }}
             >
               <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-violet-500/20 via-fuchsia-400/15 to-rose-300/20 blur-xl" />
               <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
