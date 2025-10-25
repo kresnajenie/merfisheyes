@@ -29,6 +29,21 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const [isLoadingGene, setIsLoadingGene] = useState(false);
 
+  // Raycaster and interaction state
+  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
+  const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
+  const cameraRef = useRef<THREE.Camera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const hoveredPointRef = useRef<number | null>(null);
+  const lastCameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+
+  // Store current visualization data for tooltips
+  const geneExpressionRef = useRef<number[] | null>(null);
+  const colorPaletteRef = useRef<Record<string, string>>({});
+  const clusterValuesRef = useRef<(string | number)[]>([]);
+  const isNumericalClusterRef = useRef<boolean>(false);
+
   // Get visualization settings from store
   const {
     mode,
@@ -39,6 +54,231 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     alphaScale,
     sizeScale,
   } = useVisualizationStore();
+
+  // Store current mode and selection in refs to avoid closure issues
+  const modeRef = useRef(mode);
+  const selectedGeneRef = useRef(selectedGene);
+  const selectedColumnRef = useRef(selectedColumn);
+
+  // Update refs when store values change
+  useEffect(() => {
+    modeRef.current = mode;
+    selectedGeneRef.current = selectedGene;
+    selectedColumnRef.current = selectedColumn;
+  }, [mode, selectedGene, selectedColumn]);
+
+  // Helper function: Create tooltip element
+  const createTooltip = (): HTMLDivElement => {
+    const tooltip = document.createElement("div");
+    tooltip.className =
+      "absolute bg-black/80 text-white px-2.5 py-1.5 rounded text-sm font-sans pointer-events-none hidden z-[1000] shadow-lg min-w-[80px]";
+    document.body.appendChild(tooltip);
+    return tooltip;
+  };
+
+  // Helper function: Get color from point cloud at specific index
+  const getPointColor = (index: number): string => {
+    if (!pointCloudRef.current) return "#808080";
+    const colorAttr = pointCloudRef.current.geometry.attributes
+      .color as THREE.BufferAttribute;
+    if (!colorAttr) return "#808080";
+
+    const r = Math.round(colorAttr.getX(index) * 255);
+    const g = Math.round(colorAttr.getY(index) * 255);
+    const b = Math.round(colorAttr.getZ(index) * 255);
+
+    return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  };
+
+  // Helper function: Show tooltip
+  const showTooltip = (position: THREE.Vector3, index: number) => {
+    if (!tooltipRef.current || !cameraRef.current || !rendererRef.current)
+      return;
+
+    // Convert 3D position to screen coordinates
+    const vector = position.clone();
+    vector.project(cameraRef.current);
+
+    const x = (vector.x * 0.5 + 0.5) * rendererRef.current.domElement.clientWidth;
+    const y =
+      (-vector.y * 0.5 + 0.5) * rendererRef.current.domElement.clientHeight;
+
+    // Get point color (gene gradient color in gene mode)
+    const pointColor = getPointColor(index);
+
+    // Determine what to show based on current mode and cluster type
+    const isNumerical = isNumericalClusterRef.current;
+    const clusterValue = clusterValuesRef.current[index];
+    const geneValue = geneExpressionRef.current?.[index];
+
+    // Get current values from refs
+    const currentMode = modeRef.current;
+    const currentGene = selectedGeneRef.current;
+    const currentColumn = selectedColumnRef.current;
+
+    // Debug: Log all ref states
+    console.log("=== TOOLTIP HOVER DEBUG ===");
+    console.log("Index:", index);
+    console.log("Mode (from ref):", currentMode);
+    console.log("Selected Gene (from ref):", currentGene);
+    console.log("Selected Column (from ref):", currentColumn);
+    console.log("Cluster Value at index:", clusterValue);
+    console.log("Cluster Values Array length:", clusterValuesRef.current.length);
+    console.log("Is Numerical Cluster:", isNumerical);
+    console.log("Color Palette Ref:", colorPaletteRef.current);
+    console.log("Color Palette from Store:", colorPalette);
+    console.log("Gene Expression at index:", geneValue);
+    console.log("Point Color (from geometry):", pointColor);
+    console.log("===========================");
+
+    let tooltipContent = "";
+
+    if (currentMode === "gene" && currentGene) {
+      // Gene mode
+      if (isNumerical) {
+        // Numerical cluster + gene: show both values without color circle
+        tooltipContent = `
+          <div class="flex flex-col gap-1">
+            <div>${currentColumn}: ${clusterValue}</div>
+            <div>${currentGene}: ${geneValue?.toFixed(2) ?? "N/A"}</div>
+          </div>
+        `;
+      } else {
+        // Categorical cluster + gene: show 2 rows with colored circles
+        // Row 1: cluster color + cluster name
+        // Row 2: gene gradient color + gene value
+        const clusterColor =
+          colorPaletteRef.current[String(clusterValue)] || "#808080";
+
+        // Debug logging
+        console.log("Tooltip debug:", {
+          clusterValue,
+          clusterValueType: typeof clusterValue,
+          palette: colorPaletteRef.current,
+          clusterColor,
+          pointColor,
+        });
+
+        tooltipContent = `
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
+              <span>${clusterValue}</span>
+            </div>
+            <div class="flex items-center">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${pointColor}; margin-right: 6px;"></div>
+              <span>${geneValue?.toFixed(2) ?? "N/A"}</span>
+            </div>
+          </div>
+        `;
+      }
+    } else {
+      // Celltype mode or gene mode without gene selected
+      if (isNumerical) {
+        // Numerical cluster: just show the value
+        tooltipContent = `<div>${currentColumn}: ${clusterValue}</div>`;
+      } else {
+        // Categorical cluster: show with color circle
+        tooltipContent = `
+          <div class="flex items-center">
+            <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${pointColor}; margin-right: 6px;"></div>
+            <span>${clusterValue}</span>
+          </div>
+        `;
+      }
+    }
+
+    tooltipRef.current.innerHTML = tooltipContent;
+    tooltipRef.current.style.left = `${x + 10}px`;
+    tooltipRef.current.style.top = `${y + 10}px`;
+    tooltipRef.current.classList.remove("hidden");
+  };
+
+  // Helper function: Hide tooltip
+  const hideTooltip = () => {
+    if (tooltipRef.current) {
+      tooltipRef.current.classList.add("hidden");
+    }
+  };
+
+  // Helper function: Check intersections with adaptive threshold
+  const checkIntersections = () => {
+    if (
+      !pointCloudRef.current ||
+      !cameraRef.current ||
+      !rendererRef.current ||
+      !dataset
+    )
+      return;
+
+    // Get current camera position to check if we've moved
+    const currentCameraPosition = cameraRef.current.position.clone();
+    const cameraHasMoved = !currentCameraPosition.equals(
+      lastCameraPositionRef.current,
+    );
+    lastCameraPositionRef.current.copy(currentCameraPosition);
+
+    // Calculate camera distance to determine raycaster parameters
+    const cameraDistance = cameraRef.current.position.length();
+
+    // Set adaptive thresholds for raycasting
+    const minThreshold = 0.2;
+    const maxThreshold = 2.0;
+
+    let threshold;
+    if (cameraDistance < 50) {
+      threshold = minThreshold;
+    } else if (cameraDistance > 500) {
+      threshold = maxThreshold;
+    } else {
+      const t = (cameraDistance - 50) / (500 - 50);
+      threshold = minThreshold + t * t * (maxThreshold - minThreshold);
+    }
+
+    raycasterRef.current.params.Points!.threshold = threshold;
+
+    // Update the raycaster with the current mouse position and camera
+    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
+
+    // Check for intersections with the points mesh
+    const intersects = raycasterRef.current.intersectObject(
+      pointCloudRef.current,
+    );
+
+    // If we found an intersection
+    if (intersects.length > 0) {
+      // Sort intersections by distance if there are multiple
+      if (intersects.length > 1) {
+        intersects.sort((a, b) => a.distance - b.distance);
+      }
+
+      // Get the index of the closest point that was intersected
+      const index = intersects[0].index!;
+
+      // If this is a different point than the one we were previously hovering over
+      if (hoveredPointRef.current !== index) {
+        hoveredPointRef.current = index;
+        const position = intersects[0].point;
+        showTooltip(position, index);
+      }
+    } else {
+      // If we're not hovering over any point, hide the tooltip
+      if (hoveredPointRef.current !== null) {
+        hoveredPointRef.current = null;
+        hideTooltip();
+      }
+    }
+  };
+
+  // Effect 0: Tooltip cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      if (tooltipRef.current) {
+        document.body.removeChild(tooltipRef.current);
+        tooltipRef.current = null;
+      }
+    };
+  }, []);
 
   // Effect 1: Scene initialization - runs when dataset changes
   useEffect(() => {
@@ -99,7 +339,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       );
 
       // Initialize Three.js scene with options
-      const { scene, animate, dispose } = initializeScene(
+      const { scene, camera, renderer, animate, dispose } = initializeScene(
         containerRef.current,
         {
           is2D: dataset.spatial.dimensions === 2,
@@ -107,6 +347,52 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           lookAtPosition: center,
         },
       );
+
+      // Store camera and renderer refs for raycasting
+      cameraRef.current = camera;
+      rendererRef.current = renderer;
+
+      // Create tooltip
+      if (!tooltipRef.current) {
+        tooltipRef.current = createTooltip();
+      }
+
+      // Throttled intersection checking (50ms)
+      let lastCheckTime = 0;
+      const throttleDelay = 50;
+
+      // Mouse move handler
+      const handleMouseMove = (event: MouseEvent) => {
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouseRef.current.y =
+          -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        // Throttle intersection checking
+        const now = Date.now();
+        if (now - lastCheckTime > throttleDelay) {
+          lastCheckTime = now;
+          checkIntersections();
+        }
+      };
+
+      // Double-click handler
+      const handleDoubleClick = () => {
+        if (hoveredPointRef.current !== null && dataset.clusters) {
+          const index = hoveredPointRef.current;
+          const clusterValue = clusterValuesRef.current[index];
+
+          console.log("Double-clicked cluster:", {
+            column: selectedColumnRef.current,
+            value: clusterValue,
+            index: index,
+          });
+        }
+      };
+
+      // Add event listeners
+      renderer.domElement.addEventListener("mousemove", handleMouseMove);
+      renderer.domElement.addEventListener("dblclick", handleDoubleClick);
 
       // Convert dataset spatial coordinates to PointData format
       const pointData: PointData[] = dataset.spatial.coordinates.map(
@@ -136,11 +422,20 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Cleanup on unmount
       return () => {
+        // Remove event listeners
+        renderer.domElement.removeEventListener("mousemove", handleMouseMove);
+        renderer.domElement.removeEventListener("dblclick", handleDoubleClick);
+
+        // Hide tooltip
+        hideTooltip();
+
         scene.remove(pointCloud);
         pointCloud.geometry.dispose();
         (pointCloud.material as any).dispose();
         pointCloudRef.current = null;
         sceneRef.current = null;
+        cameraRef.current = null;
+        rendererRef.current = null;
         dispose();
       };
     } else {
@@ -166,6 +461,25 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     const updateGene = async () => {
       if (!pointCloudRef.current || !dataset) return;
+
+      // Store cluster data for tooltip (needed even in gene mode)
+      const selectedCluster = dataset.clusters?.find(
+        (c) => c.column === selectedColumn,
+      );
+      if (selectedCluster) {
+        clusterValuesRef.current = selectedCluster.values;
+        isNumericalClusterRef.current = selectedCluster.type === "numerical";
+        colorPaletteRef.current = selectedCluster.palette || colorPalette;
+
+        console.log("=== STORING CLUSTER DATA (GENE MODE) ===");
+        console.log("Selected Cluster Column:", selectedColumn);
+        console.log("Cluster Type:", selectedCluster.type);
+        console.log("Cluster Values (first 5):", selectedCluster.values.slice(0, 5));
+        console.log("Cluster Palette:", selectedCluster.palette);
+        console.log("Fallback Palette from Store:", colorPalette);
+        console.log("Final Palette Stored:", colorPaletteRef.current);
+        console.log("========================================");
+      }
 
       // If no gene selected, fall back to celltype visualization
       if (!selectedGene) {
@@ -193,6 +507,15 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       try {
         setIsLoadingGene(true);
+
+        // Fetch gene expression data
+        const expression = selectedGene
+          ? await dataset.getGeneExpression(selectedGene)
+          : null;
+
+        // Store gene expression for tooltip
+        geneExpressionRef.current = expression;
+
         const result = await updateGeneVisualization(
           dataset,
           selectedGene,
@@ -222,6 +545,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     colorPalette,
     alphaScale,
     sizeScale,
+    mode,
   ]);
 
   // Effect 3: Update celltype visualization
@@ -238,6 +562,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       (c) => c.column === selectedColumn,
     );
     const isNumerical = selectedCluster?.type === "numerical";
+
+    // Store cluster data for tooltip
+    if (selectedCluster) {
+      clusterValuesRef.current = selectedCluster.values;
+      isNumericalClusterRef.current = isNumerical || false;
+      colorPaletteRef.current = selectedCluster.palette || colorPalette;
+    }
 
     // Use appropriate visualization function based on column type
     const result = isNumerical
@@ -271,6 +602,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     colorPalette,
     alphaScale,
     sizeScale,
+    mode,
   ]);
 
   return (

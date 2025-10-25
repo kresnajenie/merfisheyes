@@ -145,10 +145,14 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 - **Rotate**: Left click + drag
 - **Pan**: Right click + drag or middle click + drag
 - **Zoom**: Mouse wheel
+- **Hover**: Mouse over points to see tooltip with cluster and gene information
+- **Double-click**: Double-click points to log cluster details to console
+- **Panel Navigation**: Click Celltype/Gene buttons to open panels without changing visualization
 - **Filter**: Use side panel to filter by cell type (categorical columns only)
 - **Color**: Select gene from dropdown to color by expression, or choose cluster column:
   - **Categorical columns** (≤100 unique values): Discrete colors with checkbox filtering
   - **Numerical columns** (>100 unique values): Coolwarm gradient, no filtering UI
+- **Visualization updates** only when actively selecting a gene or toggling a celltype
 
 #### Single Molecule Viewer (`/sm-viewer/[id]`)
 - **Rotate**: Left click + drag (disabled in 2D mode)

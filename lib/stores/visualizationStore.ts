@@ -3,8 +3,11 @@ import { create } from "zustand";
 export type VisualizationMode = "celltype" | "gene";
 
 interface VisualizationState {
-  // Visualization mode
+  // Visualization mode (what's actually being rendered)
   mode: VisualizationMode;
+
+  // Panel mode (which panel is open)
+  panelMode: VisualizationMode;
 
   // Gene-specific settings
   selectedGene: string | null;
@@ -24,6 +27,7 @@ interface VisualizationState {
 
   // Actions
   setMode: (mode: VisualizationMode) => void;
+  setPanelMode: (mode: VisualizationMode) => void;
   setSelectedGene: (gene: string | null) => void;
   toggleCelltype: (celltype: string) => void;
   setClusterColumn: (column: string | null) => void;
@@ -37,6 +41,7 @@ interface VisualizationState {
 
 const initialState = {
   mode: "celltype" as VisualizationMode,
+  panelMode: "celltype" as VisualizationMode,
   selectedGene: null,
   selectedClusterColumn: null,
   selectedColumn: null,
@@ -53,6 +58,11 @@ export const useVisualizationStore = create<VisualizationState>((set) => ({
   setMode: (mode) => {
     console.log("Visualization mode changed to:", mode);
     set({ mode });
+  },
+
+  setPanelMode: (mode) => {
+    console.log("Panel mode changed to:", mode);
+    set({ panelMode: mode });
   },
 
   setSelectedGene: (gene) => {

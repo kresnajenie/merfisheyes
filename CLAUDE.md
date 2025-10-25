@@ -112,6 +112,9 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 - `datasetStore` - Manages single cell datasets (StandardizedDataset)
 - `singleMoleculeStore` - Manages single molecule datasets (SingleMoleculeDataset)
 - `visualizationStore` - Controls 3D scene state for single cell viewer (camera, colors, filters, gene/celltype selection)
+  - **Separate mode states**: `mode` (actual visualization) and `panelMode` (which panel is open)
+  - Allows browsing genes/celltypes without changing visualization
+  - Visualization updates only when user selects a gene or toggles a celltype
 - `singleMoleculeVisualizationStore` - Controls visualization state for single molecule viewer (gene selection with colors, local/global scaling, view mode)
 - Uses Zustand for client-side state management
 
@@ -182,6 +185,13 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - Supports both 2D and 3D spatial coordinates
 - **Automatic column type detection**: Columns with ≤100 unique values are categorical, >100 are numerical
 - **Numerical cluster visualization**: Numerical metadata columns use gradient coloring instead of discrete categories
+- **Interactive hover tooltips**: Mouse over points to see cluster/gene information
+  - Celltype mode: Shows cluster color circle + cluster name (or numerical value)
+  - Gene mode: Shows cluster info + gene expression value with gradient color
+  - Adaptive raycaster threshold for easier selection when zoomed out
+  - Throttled intersection checking (50ms) for performance
+- **Double-click logging**: Double-click points to log cluster information to console
+- **Ref-based state management**: Uses refs to avoid JavaScript closure issues with event handlers
 
 #### Single Molecule Visualization
 

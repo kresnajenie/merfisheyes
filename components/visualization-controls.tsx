@@ -13,16 +13,17 @@ import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { glassButton } from "@/components/primitives";
 
 export function VisualizationControls() {
-  const { mode, setMode, sizeScale, setSizeScale } = useVisualizationStore();
+  const { panelMode, setPanelMode, sizeScale, setSizeScale } =
+    useVisualizationStore();
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
   const handleModeChange = (newMode: VisualizationMode) => {
-    if (mode === newMode) {
+    if (panelMode === newMode) {
       // Toggle panel if clicking the same mode
       setIsPanelOpen(!isPanelOpen);
     } else {
-      // Switch mode and open panel
-      setMode(newMode);
+      // Switch panel mode and open panel
+      setPanelMode(newMode);
       setIsPanelOpen(true);
     }
   };
@@ -33,9 +34,9 @@ export function VisualizationControls() {
     <div className="fixed top-20 left-4 z-50 flex flex-col gap-2">
       {/* Celltype Button */}
       <Button
-        className={`${buttonBaseClass} ${isPanelOpen && mode === "celltype" ? "" : glassButton()}`}
-        color={isPanelOpen && mode === "celltype" ? "primary" : "default"}
-        variant={isPanelOpen && mode === "celltype" ? "shadow" : "light"}
+        className={`${buttonBaseClass} ${isPanelOpen && panelMode === "celltype" ? "" : glassButton()}`}
+        color={isPanelOpen && panelMode === "celltype" ? "primary" : "default"}
+        variant={isPanelOpen && panelMode === "celltype" ? "shadow" : "light"}
         onPress={() => handleModeChange("celltype")}
       >
         Celltype
@@ -43,9 +44,9 @@ export function VisualizationControls() {
 
       {/* Gene Button */}
       <Button
-        className={`${buttonBaseClass} ${isPanelOpen && mode === "gene" ? "" : glassButton()}`}
-        color={isPanelOpen && mode === "gene" ? "primary" : "default"}
-        variant={isPanelOpen && mode === "gene" ? "shadow" : "light"}
+        className={`${buttonBaseClass} ${isPanelOpen && panelMode === "gene" ? "" : glassButton()}`}
+        color={isPanelOpen && panelMode === "gene" ? "primary" : "default"}
+        variant={isPanelOpen && panelMode === "gene" ? "shadow" : "light"}
         onPress={() => handleModeChange("gene")}
       >
         Gene
@@ -72,7 +73,10 @@ export function VisualizationControls() {
 
       {/* Visualization Panel */}
       {isPanelOpen && (
-        <VisualizationPanel mode={mode} onClose={() => setIsPanelOpen(false)} />
+        <VisualizationPanel
+          mode={panelMode}
+          onClose={() => setIsPanelOpen(false)}
+        />
       )}
     </div>
   );

@@ -28,6 +28,7 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
     selectedGene,
     toggleCelltype,
     setSelectedGene,
+    setMode,
   } = useVisualizationStore();
 
   // Type guard: this component only works with StandardizedDataset
@@ -141,6 +142,10 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
             selectedKey={selectedColumn}
             onSelectionChange={(key) => {
               setSelectedColumn((key as string) || null);
+              // When a cluster column is selected, switch visualization mode to celltype
+              if (key) {
+                setMode("celltype");
+              }
             }}
           >
             {clusterColumns.map((column) => (
@@ -195,7 +200,11 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
                     className="w-full"
                     isSelected={selectedCelltypes.has(item.id)}
                     size="sm"
-                    onValueChange={() => toggleCelltype(item.id)}
+                    onValueChange={() => {
+                      toggleCelltype(item.id);
+                      // When a celltype is toggled, switch visualization mode to celltype
+                      setMode("celltype");
+                    }}
                   >
                     <span style={{ color: item.color }}>{item.label}</span>
                   </Checkbox>
@@ -204,7 +213,13 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
                 // Radio group for gene mode
                 <RadioGroup
                   value={selectedGene || ""}
-                  onValueChange={(value) => setSelectedGene(value || null)}
+                  onValueChange={(value) => {
+                    setSelectedGene(value || null);
+                    // When a gene is selected, switch visualization mode to gene
+                    if (value) {
+                      setMode("gene");
+                    }
+                  }}
                 >
                   {filteredItems.map((item) => (
                     <Radio key={item.id} size="sm" value={item.id}>
