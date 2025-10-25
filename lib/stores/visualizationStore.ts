@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { VISUALIZATION_CONFIG } from "../config/visualization.config";
 
 export type VisualizationMode = "celltype" | "gene";
 
@@ -11,11 +12,15 @@ interface VisualizationState {
 
   // Gene-specific settings
   selectedGene: string | null;
+  geneScaleMin: number; // Minimum value for gene expression scale
+  geneScaleMax: number; // Maximum value for gene expression scale
 
   // Celltype/cluster settings
   selectedClusterColumn: string | null;
   selectedColumn: string | null; // Currently active obs column for celltype mode
   selectedCelltypes: Set<string>; // Selected celltypes from the list
+  numericalScaleMin: number; // Minimum value for numerical cluster scale
+  numericalScaleMax: number; // Maximum value for numerical cluster scale
 
   // Embedding settings
   selectedEmbedding: string | null;
@@ -29,6 +34,10 @@ interface VisualizationState {
   setMode: (mode: VisualizationMode[]) => void;
   setPanelMode: (mode: VisualizationMode) => void;
   setSelectedGene: (gene: string | null) => void;
+  setGeneScaleMin: (min: number) => void;
+  setGeneScaleMax: (max: number) => void;
+  setNumericalScaleMin: (min: number) => void;
+  setNumericalScaleMax: (max: number) => void;
   toggleCelltype: (celltype: string) => void;
   setClusterColumn: (column: string | null) => void;
   setSelectedColumn: (column: string | null, isNumerical?: boolean) => void;
@@ -43,12 +52,16 @@ const initialState = {
   mode: ["celltype"] as VisualizationMode[],
   panelMode: "celltype" as VisualizationMode,
   selectedGene: null,
+  geneScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
+  geneScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
   selectedClusterColumn: null,
   selectedColumn: null,
   selectedCelltypes: new Set<string>(),
+  numericalScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
+  numericalScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
   selectedEmbedding: null,
   colorPalette: {},
-  alphaScale: 1.0,
+  alphaScale: VISUALIZATION_CONFIG.POINT_BASE_ALPHA,
   sizeScale: 1.0,
 };
 
@@ -114,6 +127,26 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         return { selectedGene: gene, mode: newMode };
       }
     });
+  },
+
+  setGeneScaleMin: (min) => {
+    console.log("Gene scale min:", min);
+    set({ geneScaleMin: min });
+  },
+
+  setGeneScaleMax: (max) => {
+    console.log("Gene scale max:", max);
+    set({ geneScaleMax: max });
+  },
+
+  setNumericalScaleMin: (min) => {
+    console.log("Numerical scale min:", min);
+    set({ numericalScaleMin: min });
+  },
+
+  setNumericalScaleMax: (max) => {
+    console.log("Numerical scale max:", max);
+    set({ numericalScaleMax: max });
   },
 
   toggleCelltype: (celltype) => {

@@ -19,6 +19,7 @@ import {
   updateCombinedVisualization,
 } from "@/lib/webgl/visualization-utils";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import { GeneScalebar } from "@/components/gene-scalebar";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -54,6 +55,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     colorPalette,
     alphaScale,
     sizeScale,
+    geneScaleMin,
+    geneScaleMax,
+    setGeneScaleMin,
+    setGeneScaleMax,
+    numericalScaleMin,
+    numericalScaleMax,
+    setNumericalScaleMin,
+    setNumericalScaleMax,
     toggleCelltype,
   } = useVisualizationStore();
 
@@ -61,6 +70,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const modeRef = useRef(mode);
   const selectedGeneRef = useRef(selectedGene);
   const selectedColumnRef = useRef(selectedColumn);
+  const previousGeneRef = useRef<string | null>(null);
+  const previousColumnRef = useRef<string | null>(null);
 
   // Update refs when store values change
   useEffect(() => {
@@ -101,7 +112,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     const vector = position.clone();
     vector.project(cameraRef.current);
 
-    const x = (vector.x * 0.5 + 0.5) * rendererRef.current.domElement.clientWidth;
+    const x =
+      (vector.x * 0.5 + 0.5) * rendererRef.current.domElement.clientWidth;
     const y =
       (-vector.y * 0.5 + 0.5) * rendererRef.current.domElement.clientHeight;
 
@@ -194,7 +206,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     // Get current camera position to check if we've moved
     const currentCameraPosition = cameraRef.current.position.clone();
     const cameraHasMoved = !currentCameraPosition.equals(
-      lastCameraPositionRef.current,
+      lastCameraPositionRef.current
     );
     lastCameraPositionRef.current.copy(currentCameraPosition);
 
@@ -234,7 +246,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     // Check for intersections with the points mesh
     const intersects = raycasterRef.current.intersectObject(
-      pointCloudRef.current,
+      pointCloudRef.current
     );
 
     // If we found an intersection
@@ -310,16 +322,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         ((bounds.minY + bounds.maxY) / 2) * 500,
         dataset.spatial.dimensions === 3
           ? ((bounds.minZ + bounds.maxZ) / 2) * 500
-          : 0,
+          : 0
       );
 
       // Calculate size of data
       const size = Math.max(
         (bounds.maxX - bounds.minX) * 500,
         (bounds.maxY - bounds.minY) * 500,
-        dataset.spatial.dimensions === 3
-          ? (bounds.maxZ - bounds.minZ) * 500
-          : 0,
+        dataset.spatial.dimensions === 3 ? (bounds.maxZ - bounds.minZ) * 500 : 0
       );
 
       // Position camera at appropriate distance
@@ -327,7 +337,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const cameraPos = new THREE.Vector3(
         center.x,
         center.y,
-        center.z + distance,
+        center.z + distance
       );
 
       // Initialize Three.js scene with options
@@ -337,7 +347,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           is2D: dataset.spatial.dimensions === 2,
           cameraPosition: cameraPos,
           lookAtPosition: center,
-        },
+        }
       );
 
       // Store camera and renderer refs for raycasting
@@ -351,7 +361,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Throttled intersection checking (50ms)
       let lastCheckTime = 0;
-      const throttleDelay = 50;
+      const throttleDelay = 10;
 
       // Mouse move handler
       const handleMouseMove = (event: MouseEvent) => {
@@ -405,7 +415,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           b: Math.random(),
           size: 1.0,
           alpha: 1.0,
-        }),
+        })
       );
 
       console.log("Point data created:", pointData.length, "points");
@@ -464,7 +474,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Store cluster data for tooltip
       const selectedCluster = dataset.clusters?.find(
-        (c) => c.column === selectedColumn,
+        (c) => c.column === selectedColumn
       );
       if (selectedCluster) {
         clusterValuesRef.current = selectedCluster.values;
@@ -481,7 +491,24 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       let result = null;
 
-      if (hasGeneMode && hasCelltypeMode && selectedGene && selectedCelltypes.size > 0) {
+      // Check if gene has changed (for auto-scaling)
+      const geneChanged = previousGeneRef.current !== selectedGene;
+      if (geneChanged) {
+        previousGeneRef.current = selectedGene;
+      }
+
+      // Check if column has changed (for auto-scaling numerical columns)
+      const columnChanged = previousColumnRef.current !== selectedColumn;
+      if (columnChanged) {
+        previousColumnRef.current = selectedColumn;
+      }
+
+      if (
+        hasGeneMode &&
+        hasCelltypeMode &&
+        selectedGene &&
+        selectedCelltypes.size > 0
+      ) {
         // Combined mode: gene expression on selected celltypes
         console.log("Using combined gene + celltype visualization");
 
@@ -499,6 +526,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             selectedCelltypes,
             alphaScale,
             sizeScale,
+            geneScaleMin,
+            geneScaleMax,
+            // Only auto-set scale when gene changes, not when user manually adjusts
+            geneChanged ? setGeneScaleMin : undefined,
+            geneChanged ? setGeneScaleMax : undefined
           );
         } finally {
           setIsLoadingGene(false);
@@ -519,6 +551,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             selectedGene,
             alphaScale,
             sizeScale,
+            geneScaleMin,
+            geneScaleMax,
+            // Only auto-set scale when gene changes, not when user manually adjusts
+            geneChanged ? setGeneScaleMin : undefined,
+            geneChanged ? setGeneScaleMax : undefined
           );
         } finally {
           setIsLoadingGene(false);
@@ -535,6 +572,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               selectedColumn,
               alphaScale,
               sizeScale,
+              numericalScaleMin,
+              numericalScaleMax,
+              // Only auto-set scale when column changes, not when user manually adjusts
+              columnChanged ? setNumericalScaleMin : undefined,
+              columnChanged ? setNumericalScaleMax : undefined
             )
           : updateCelltypeVisualization(
               dataset,
@@ -542,7 +584,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               selectedCelltypes,
               colorPalette,
               alphaScale,
-              sizeScale,
+              sizeScale
             );
       }
 
@@ -552,7 +594,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           pointCloudRef.current,
           result.colors,
           result.sizes,
-          result.alphas,
+          result.alphas
         );
       }
     };
@@ -566,6 +608,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     colorPalette,
     alphaScale,
     sizeScale,
+    geneScaleMin,
+    geneScaleMax,
+    numericalScaleMin,
+    numericalScaleMax,
     mode,
   ]);
 
@@ -588,6 +634,26 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             )}
           </div>
         </div>
+      )}
+
+      {/* Gene expression scalebar */}
+      {mode.includes("gene") && selectedGene && (
+        <GeneScalebar
+          minValue={geneScaleMin}
+          maxValue={geneScaleMax}
+          onMinChange={setGeneScaleMin}
+          onMaxChange={setGeneScaleMax}
+        />
+      )}
+
+      {/* Numerical cluster scalebar */}
+      {mode.includes("celltype") && !selectedGene && selectedColumn && isNumericalClusterRef.current && (
+        <GeneScalebar
+          minValue={numericalScaleMin}
+          maxValue={numericalScaleMax}
+          onMinChange={setNumericalScaleMin}
+          onMaxChange={setNumericalScaleMax}
+        />
       )}
     </>
   );

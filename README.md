@@ -10,6 +10,11 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - Color cells by gene expression or cell type annotations
 - **Combined gene + celltype visualization**: Show gene expression gradient on selected celltypes only
 - **Numerical metadata support**: Continuous metadata (e.g., QC metrics) visualized with gradient coloring
+- **Interactive gene expression scalebar**: Real-time visual scale with draggable min/max controls
+  - Auto-scales to 95th percentile when gene changes
+  - Manual override via vertical drag scrubbers
+  - Glassmorphism design with smooth debounced updates
+  - Works for both gene expression and numerical columns
 - Interactive filtering and selection of cell populations
 - Automatic column type detection (categorical vs numerical)
 - **Mutual exclusivity**: Gene and numerical columns cannot be selected simultaneously
@@ -154,6 +159,11 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 - **Color**: Select gene from dropdown to color by expression, or choose cluster column:
   - **Categorical columns** (≤100 unique values): Discrete colors with checkbox filtering
   - **Numerical columns** (>100 unique values): Coolwarm gradient, no filtering UI
+- **Gene Expression Scalebar**: Appears when gene or numerical column is active
+  - **Gradient Bar**: Blue (low) → White (mid) → Red (high)
+  - **Number Scrubbers**: Drag vertically to adjust min/max scale values
+  - Auto-scales to 0 and 95th percentile on gene/column change
+  - Manual adjustments persist until gene/column changes
 - **Combined Mode**: Select a gene + toggle celltypes to see gene expression only on those cell populations
   - Automatically activates when both gene and celltypes are selected
   - Non-selected celltypes appear grey
@@ -268,6 +278,9 @@ The application provides RESTful API endpoints for dataset upload and management
 │   ├── single-molecule-three-scene.tsx  # Single molecule Three.js scene
 │   ├── visualization-controls.tsx       # Single cell controls
 │   ├── single-molecule-controls.tsx     # Single molecule controls
+│   ├── gene-scalebar.tsx         # Interactive gene expression scalebar
+│   ├── ui/
+│   │   └── number-scrubber.tsx   # Draggable number input component
 │   └── file-upload.tsx           # Unified upload component
 ├── lib/                          # Core logic
 │   ├── adapters/                # Single cell format adapters
@@ -287,6 +300,9 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   └── singleMoleculeVisualizationStore.ts  # Single molecule viz state
 │   ├── services/                # Data processing services
 │   │   └── hyparquetService.ts  # Hyparquet parquet reader
+│   ├── config/                  # Configuration files
+│   │   ├── visualization.config.ts  # Centralized visualization parameters
+│   │   └── moleculeColumnMappings.ts  # Column naming conventions
 │   ├── utils/
 │   │   ├── SingleMoleculeProcessor.ts  # S3 upload processing
 │   │   ├── fingerprint.ts       # Dataset fingerprinting

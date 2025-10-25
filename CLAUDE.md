@@ -106,6 +106,15 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
    - Filters patterns: negative controls, unassigned, deprecated, codewords, blanks
    - Reduces clutter in gene selection UI and improves performance
 
+6. **Visualization Configuration** ([lib/config/visualization.config.ts](lib/config/visualization.config.ts)):
+   - Centralized configuration for all visualization parameters
+   - **Percentiles**: Gene expression (95th), numerical clusters (95th)
+   - **Point Sizes**: Base size (2.0), size multiplier range (0.5x-2.0x)
+   - **Opacity**: Base alpha (1.0)
+   - **Scale Bar**: Default range (0-3), step size (0.1% of max), decimal places (3)
+   - **Helper Functions**: `calculateSizeMultiplier()` for consistent size scaling across visualization modes
+   - All visualization parameters can be modified in this single file
+
 #### State Management
 
 Separate stores for each data type ([lib/stores/](lib/stores/)):
@@ -203,6 +212,18 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
   - Automatically switches to celltype mode
   - Toggles cluster in/out of selectedCelltypes for filtering
   - Only works for categorical clusters (numerical clusters excluded)
+- **Interactive Gene Expression Scalebar** ([components/gene-scalebar.tsx](components/gene-scalebar.tsx)):
+  - Appears when gene mode or numerical cluster mode is active
+  - **Gradient Bar**: Blue (low) → White (mid) → Red (high) representing expression levels
+  - **Number Scrubbers** ([components/ui/number-scrubber.tsx](components/ui/number-scrubber.tsx)): Interactive min/max controls with vertical drag
+    - Drag up to increase value, drag down to decrease
+    - Glassmorphism design (frosted glass background)
+    - Debounced updates (100ms) during drag for performance
+    - Immediate display feedback during scrubbing
+  - **Auto-scaling**: Min/max values auto-set to 0 and 95th percentile when gene/column changes
+  - **Manual Override**: Users can scrub to adjust scale range after auto-scaling
+  - **Dynamic Step Size**: 0.1% of max value (configurable in VISUALIZATION_CONFIG)
+  - **Separate Scales**: Independent scales for gene expression vs numerical clusters
 - **Ref-based state management**: Uses refs to avoid JavaScript closure issues with event handlers
 
 #### Single Molecule Visualization

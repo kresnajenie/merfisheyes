@@ -1,4 +1,5 @@
 import type { StandardizedDataset } from "../StandardizedDataset";
+import { VISUALIZATION_CONFIG, calculateSizeMultiplier } from "../config/visualization.config";
 
 /**
  * Calculates the value at the specified percentile of the given array, ignoring NaN values.
@@ -74,15 +75,12 @@ export function coolwarm(value: number): [number, number, number] {
     // Blue to white
     const t = value * 2; // 0 to 1
 
-    return [white.r * t, white.g * t, blue.b];
-  } else if (value === 0.5) {
-    // White
-    return [white.r, white.g, white.b];
+    return [blue.r + (white.r - blue.r) * t, blue.g + (white.g - blue.g) * t, blue.b + (white.b - blue.b) * t];
   } else {
     // White to red
     const t = (value - 0.5) * 2; // 0 to 1
 
-    return [red.r, white.g - white.g * t, white.b - white.b * t];
+    return [white.r + (red.r - white.r) * t, white.g + (red.g - white.g) * t, white.b + (red.b - white.b) * t];
   }
 }
 
@@ -143,6 +141,10 @@ export async function updateGeneVisualization(
   selectedGene: string | null,
   alphaScale: number,
   sizeScale: number,
+  scaleMin: number = 0,
+  scaleMax: number = 3,
+  setScaleMin?: (min: number) => void,
+  setScaleMax?: (max: number) => void,
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -167,13 +169,31 @@ export async function updateGeneVisualization(
 
   console.log("Expression data loaded for gene:", selectedGene);
 
-  // Calculate 95th percentile for normalization
-  const percentile95 = calculateGenePercentile(expression, 0.95);
+  // Calculate 95th percentile for auto-scaling
+  const percentile95 = calculateGenePercentile(expression, VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE);
 
   console.log("95th percentile:", percentile95);
 
-  // Normalize expression values to 0-1 range
-  const normalizedExpression = normalizeArray(expression, percentile95);
+  // Auto-update scale range: min = 0, max = 95th percentile
+  if (setScaleMin && setScaleMax) {
+    setScaleMin(0);
+    setScaleMax(percentile95);
+    console.log("Auto-scaled gene range to:", 0, "-", percentile95);
+  }
+
+  // Use the manual scale values from store (scaleMin and scaleMax parameters)
+  console.log("Using scale range for visualization:", scaleMin, "-", scaleMax);
+
+  // Normalize expression values to 0-1 range using manual scale values
+  const normalizedExpression = expression.map((value) => {
+    if (isNaN(value) || value === null) {
+      return NaN;
+    }
+    // Map [scaleMin, scaleMax] to [0, 1]
+    const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+    // Clamp to [0, 1]
+    return Math.max(0, Math.min(1, normalized));
+  });
 
   console.log("Normalized expression:", normalizedExpression.slice(0, 10));
 
@@ -182,8 +202,8 @@ export async function updateGeneVisualization(
   const sizes = new Float32Array(count);
   const alphas = new Float32Array(count);
 
-  const baseSize = 2.0;
-  const baseAlpha = 1.0;
+  const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
+  const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
   // Apply coolwarm colormap and use normalized values for size
   for (let i = 0; i < count; i++) {
@@ -197,10 +217,7 @@ export async function updateGeneVisualization(
     colors[i * 3 + 2] = b;
 
     // Sizes based on expression level (higher expression = bigger)
-    // Use normalized value to scale size (0.5 to 2x base size)
-    const sizeMultiplier = isNaN(normalizedValue)
-      ? 1.0
-      : 0.5 + normalizedValue * 1.5;
+    const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
     sizes[i] = baseSize * sizeMultiplier * sizeScale;
 
@@ -221,6 +238,10 @@ export function updateNumericalCelltypeVisualization(
   selectedColumn: string | null,
   alphaScale: number,
   sizeScale: number,
+  scaleMin: number = 0,
+  scaleMax: number = 3,
+  setScaleMin?: (min: number) => void,
+  setScaleMax?: (max: number) => void,
 ): {
   colors: Float32Array;
   sizes: Float32Array;
@@ -250,13 +271,31 @@ export function updateNumericalCelltypeVisualization(
 
   console.log("Numerical celltype values loaded:", values.slice(0, 10));
 
-  // Calculate 95th percentile for normalization (same as gene expression)
-  const percentile95 = calculateGenePercentile(values, 0.95);
+  // Calculate 95th percentile for auto-scaling
+  const percentile95 = calculateGenePercentile(values, VISUALIZATION_CONFIG.NUMERICAL_CLUSTER_PERCENTILE);
 
   console.log("95th percentile:", percentile95);
 
-  // Normalize values to 0-1 range (same as gene expression)
-  const normalizedValues = normalizeArray(values, percentile95);
+  // Auto-update scale range: min = 0, max = 95th percentile
+  if (setScaleMin && setScaleMax) {
+    setScaleMin(0);
+    setScaleMax(percentile95);
+    console.log("Auto-scaled numerical range to:", 0, "-", percentile95);
+  }
+
+  // Use the manual scale values from store (scaleMin and scaleMax parameters)
+  console.log("Using scale range for visualization:", scaleMin, "-", scaleMax);
+
+  // Normalize values to 0-1 range using manual scale values
+  const normalizedValues = values.map((value) => {
+    if (isNaN(value) || value === null) {
+      return NaN;
+    }
+    // Map [scaleMin, scaleMax] to [0, 1]
+    const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+    // Clamp to [0, 1]
+    return Math.max(0, Math.min(1, normalized));
+  });
 
   console.log("Normalized values:", normalizedValues.slice(0, 10));
 
@@ -265,8 +304,8 @@ export function updateNumericalCelltypeVisualization(
   const sizes = new Float32Array(count);
   const alphas = new Float32Array(count);
 
-  const baseSize = 2.0;
-  const baseAlpha = 1.0;
+  const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
+  const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
   // Apply coolwarm colormap and use normalized values for size (same as gene expression)
   for (let i = 0; i < count; i++) {
@@ -280,10 +319,7 @@ export function updateNumericalCelltypeVisualization(
     colors[i * 3 + 2] = b;
 
     // Sizes based on value level (higher value = bigger)
-    // Use normalized value to scale size (0.5 to 2x base size)
-    const sizeMultiplier = isNaN(normalizedValue)
-      ? 1.0
-      : 0.5 + normalizedValue * 1.5;
+    const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
     sizes[i] = baseSize * sizeMultiplier * sizeScale;
 
@@ -338,8 +374,8 @@ export function updateCelltypeVisualization(
   const sizes = new Float32Array(count);
   const alphas = new Float32Array(count);
 
-  const baseSize = 2.0;
-  const baseAlpha = 1.0;
+  const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
+  const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
   // Apply colors and sizes based on celltype selection
   for (let i = 0; i < count; i++) {
@@ -383,6 +419,10 @@ export async function updateCombinedVisualization(
   selectedCelltypes: Set<string>,
   alphaScale: number,
   sizeScale: number,
+  scaleMin: number = 0,
+  scaleMax: number = 3,
+  setScaleMin?: (min: number) => void,
+  setScaleMax?: (max: number) => void,
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -420,19 +460,39 @@ export async function updateCombinedVisualization(
 
   const clusterValues = selectedCluster.values;
 
-  // Calculate 95th percentile for normalization
-  const percentile95 = calculateGenePercentile(expression, 0.95);
+  // Calculate 95th percentile for auto-scaling
+  const percentile95 = calculateGenePercentile(expression, VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE);
 
-  // Normalize expression values to 0-1 range
-  const normalizedExpression = normalizeArray(expression, percentile95);
+  console.log("95th percentile:", percentile95);
+
+  // Auto-update scale range: min = 0, max = 95th percentile
+  if (setScaleMin && setScaleMax) {
+    setScaleMin(0);
+    setScaleMax(percentile95);
+    console.log("Auto-scaled gene range to:", 0, "-", percentile95);
+  }
+
+  // Use the manual scale values from store (scaleMin and scaleMax parameters)
+  console.log("Using scale range for visualization:", scaleMin, "-", scaleMax);
+
+  // Normalize expression values to 0-1 range using manual scale values
+  const normalizedExpression = expression.map((value) => {
+    if (isNaN(value) || value === null) {
+      return NaN;
+    }
+    // Map [scaleMin, scaleMax] to [0, 1]
+    const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+    // Clamp to [0, 1]
+    return Math.max(0, Math.min(1, normalized));
+  });
 
   // Initialize arrays
   const colors = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
   const alphas = new Float32Array(count);
 
-  const baseSize = 2.0;
-  const baseAlpha = 1.0;
+  const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
+  const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
   // Apply combined visualization
   for (let i = 0; i < count; i++) {
@@ -452,9 +512,7 @@ export async function updateCombinedVisualization(
       colors[i * 3 + 2] = b;
 
       // Sizes based on expression level (higher expression = bigger)
-      const sizeMultiplier = isNaN(normalizedValue)
-        ? 1.0
-        : 0.5 + normalizedValue * 1.5;
+      const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
       sizes[i] = baseSize * sizeMultiplier * sizeScale;
 
