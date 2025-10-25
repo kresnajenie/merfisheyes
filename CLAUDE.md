@@ -186,11 +186,15 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - **Automatic column type detection**: Columns with ≤100 unique values are categorical, >100 are numerical
 - **Numerical cluster visualization**: Numerical metadata columns use gradient coloring instead of discrete categories
 - **Interactive hover tooltips**: Mouse over points to see cluster/gene information
-  - Celltype mode: Shows cluster color circle + cluster name (or numerical value)
-  - Gene mode: Shows cluster info + gene expression value with gradient color
-  - Adaptive raycaster threshold for easier selection when zoomed out
+  - Celltype mode: Shows original cluster palette color + cluster name (even when filtered/greyed)
+  - Gene mode: Shows cluster palette color + cluster name, plus gene gradient color + expression value
+  - Numerical clusters: Shows numerical value without color circle
+  - Fine-tuned adaptive raycaster threshold (0.1-2.0 based on camera distance) for accurate selection
   - Throttled intersection checking (50ms) for performance
-- **Double-click logging**: Double-click points to log cluster information to console
+- **Double-click interaction**: Double-click points to toggle cluster selection
+  - Automatically switches to celltype mode
+  - Toggles cluster in/out of selectedCelltypes for filtering
+  - Only works for categorical clusters (numerical clusters excluded)
 - **Ref-based state management**: Uses refs to avoid JavaScript closure issues with event handlers
 
 #### Single Molecule Visualization

@@ -145,8 +145,8 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 - **Rotate**: Left click + drag
 - **Pan**: Right click + drag or middle click + drag
 - **Zoom**: Mouse wheel
-- **Hover**: Mouse over points to see tooltip with cluster and gene information
-- **Double-click**: Double-click points to log cluster details to console
+- **Hover**: Mouse over points to see tooltip with cluster and gene information (shows original palette colors even when filtered)
+- **Double-click**: Double-click points to toggle cluster selection and switch to celltype mode
 - **Panel Navigation**: Click Celltype/Gene buttons to open panels without changing visualization
 - **Filter**: Use side panel to filter by cell type (categorical columns only)
 - **Color**: Select gene from dropdown to color by expression, or choose cluster column:

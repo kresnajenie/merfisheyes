@@ -53,6 +53,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     colorPalette,
     alphaScale,
     sizeScale,
+    toggleCelltype,
+    setMode,
   } = useVisualizationStore();
 
   // Store current mode and selection in refs to avoid closure issues
@@ -116,21 +118,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     const currentGene = selectedGeneRef.current;
     const currentColumn = selectedColumnRef.current;
 
-    // Debug: Log all ref states
-    console.log("=== TOOLTIP HOVER DEBUG ===");
-    console.log("Index:", index);
-    console.log("Mode (from ref):", currentMode);
-    console.log("Selected Gene (from ref):", currentGene);
-    console.log("Selected Column (from ref):", currentColumn);
-    console.log("Cluster Value at index:", clusterValue);
-    console.log("Cluster Values Array length:", clusterValuesRef.current.length);
-    console.log("Is Numerical Cluster:", isNumerical);
-    console.log("Color Palette Ref:", colorPaletteRef.current);
-    console.log("Color Palette from Store:", colorPalette);
-    console.log("Gene Expression at index:", geneValue);
-    console.log("Point Color (from geometry):", pointColor);
-    console.log("===========================");
-
     let tooltipContent = "";
 
     if (currentMode === "gene" && currentGene) {
@@ -149,15 +136,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         // Row 2: gene gradient color + gene value
         const clusterColor =
           colorPaletteRef.current[String(clusterValue)] || "#808080";
-
-        // Debug logging
-        console.log("Tooltip debug:", {
-          clusterValue,
-          clusterValueType: typeof clusterValue,
-          palette: colorPaletteRef.current,
-          clusterColor,
-          pointColor,
-        });
 
         tooltipContent = `
           <div class="flex flex-col gap-1">
@@ -178,10 +156,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         // Numerical cluster: just show the value
         tooltipContent = `<div>${currentColumn}: ${clusterValue}</div>`;
       } else {
-        // Categorical cluster: show with color circle
+        // Categorical cluster: show with color circle from palette (not rendered color)
+        const clusterColor =
+          colorPaletteRef.current[String(clusterValue)] || "#808080";
         tooltipContent = `
           <div class="flex items-center">
-            <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${pointColor}; margin-right: 6px;"></div>
+            <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
             <span>${clusterValue}</span>
           </div>
         `;
@@ -221,18 +201,30 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     // Calculate camera distance to determine raycaster parameters
     const cameraDistance = cameraRef.current.position.length();
 
-    // Set adaptive thresholds for raycasting
-    const minThreshold = 0.2;
-    const maxThreshold = 2.0;
-
+    // Set adaptive thresholds for raycasting with multiple tiers
+    // IMPORTANT: Smaller threshold = more precision needed, Larger threshold = easier selection
+    // When zoomed IN (small distance) = need SMALLER threshold for accuracy
+    // When zoomed OUT (large distance) = need LARGER threshold for easier selection
+    // Note: threshold is in world space units, so it needs to be VERY small
     let threshold;
-    if (cameraDistance < 50) {
-      threshold = minThreshold;
-    } else if (cameraDistance > 500) {
-      threshold = maxThreshold;
+    if (cameraDistance < 150) {
+      // Very close zoom: precise selection
+      threshold = 0.1;
+    } else if (cameraDistance < 250) {
+      // Close zoom: moderately precise
+      threshold = 0.2;
+    } else if (cameraDistance < 400) {
+      // Medium zoom: balanced (your current zoom at ~315)
+      threshold = 0.3;
+    } else if (cameraDistance < 600) {
+      // Far zoom: easier selection
+      threshold = 0.5;
+    } else if (cameraDistance < 900) {
+      // Very far zoom: very easy selection
+      threshold = 1.0;
     } else {
-      const t = (cameraDistance - 50) / (500 - 50);
-      threshold = minThreshold + t * t * (maxThreshold - minThreshold);
+      // Extremely far zoom: maximum ease
+      threshold = 2.0;
     }
 
     raycasterRef.current.params.Points!.threshold = threshold;
@@ -381,12 +373,22 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         if (hoveredPointRef.current !== null && dataset.clusters) {
           const index = hoveredPointRef.current;
           const clusterValue = clusterValuesRef.current[index];
+          const clusterValueStr = String(clusterValue);
 
           console.log("Double-clicked cluster:", {
             column: selectedColumnRef.current,
             value: clusterValue,
             index: index,
           });
+
+          // Only toggle celltype if it's not a numerical cluster
+          if (!isNumericalClusterRef.current) {
+            // Toggle the cluster in selectedCelltypes
+            toggleCelltype(clusterValueStr);
+
+            // Switch to celltype mode to show the filtering
+            setMode("celltype");
+          }
         }
       };
 
