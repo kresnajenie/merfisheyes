@@ -371,3 +371,112 @@ export function updateCelltypeVisualization(
 
   return { colors, sizes, alphas };
 }
+
+/**
+ * Updates visualization with combined gene expression + celltype filtering
+ * Shows gene expression gradient on selected celltypes, greys out others
+ */
+export async function updateCombinedVisualization(
+  dataset: StandardizedDataset,
+  selectedGene: string | null,
+  selectedColumn: string | null,
+  selectedCelltypes: Set<string>,
+  alphaScale: number,
+  sizeScale: number,
+): Promise<{
+  colors: Float32Array;
+  sizes: Float32Array;
+  alphas: Float32Array;
+} | null> {
+  const count = dataset.getPointCount();
+
+  if (!selectedGene) {
+    console.log("No gene selected for combined visualization");
+    return null;
+  }
+
+  if (!dataset.clusters || !selectedColumn) {
+    console.log("No cluster data or column selected for combined visualization");
+    return null;
+  }
+
+  // Fetch gene expression data
+  const expression = await dataset.getGeneExpression(selectedGene);
+
+  if (!expression) {
+    console.warn(`Gene expression data not found for: ${selectedGene}`);
+    return null;
+  }
+
+  // Find the selected cluster column data
+  const selectedCluster = dataset.clusters.find(
+    (c) => c.column === selectedColumn,
+  );
+
+  if (!selectedCluster) {
+    console.warn(`Cluster column not found: ${selectedColumn}`);
+    return null;
+  }
+
+  const clusterValues = selectedCluster.values;
+
+  // Calculate 95th percentile for normalization
+  const percentile95 = calculateGenePercentile(expression, 0.95);
+
+  // Normalize expression values to 0-1 range
+  const normalizedExpression = normalizeArray(expression, percentile95);
+
+  // Initialize arrays
+  const colors = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+
+  const baseSize = 2.0;
+  const baseAlpha = 1.0;
+
+  // Apply combined visualization
+  for (let i = 0; i < count; i++) {
+    const category = String(clusterValues[i]);
+    const isSelected =
+      selectedCelltypes.size === 0 || selectedCelltypes.has(category);
+
+    if (isSelected) {
+      // Selected celltypes: show gene expression gradient
+      const normalizedValue = normalizedExpression[i];
+
+      // Colors from coolwarm gradient
+      const [r, g, b] = coolwarm(normalizedValue);
+
+      colors[i * 3] = r;
+      colors[i * 3 + 1] = g;
+      colors[i * 3 + 2] = b;
+
+      // Sizes based on expression level (higher expression = bigger)
+      const sizeMultiplier = isNaN(normalizedValue)
+        ? 1.0
+        : 0.5 + normalizedValue * 1.5;
+
+      sizes[i] = baseSize * sizeMultiplier * sizeScale;
+
+      // Alphas based on gene expression
+      alphas[i] = baseAlpha * alphaScale;
+    } else {
+      // Non-selected celltypes: show grey with reduced size/alpha
+      const [r, g, b] = hexToRgb(grey);
+
+      colors[i * 3] = r;
+      colors[i * 3 + 1] = g;
+      colors[i * 3 + 2] = b;
+
+      // Smaller size for non-selected
+      sizes[i] = baseSize * 1.0 * sizeScale;
+
+      // Same alpha as celltype mode
+      alphas[i] = baseAlpha * alphaScale;
+    }
+  }
+
+  console.log("Combined gene + celltype visualization updated successfully");
+
+  return { colors, sizes, alphas };
+}

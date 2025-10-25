@@ -3,8 +3,8 @@ import { create } from "zustand";
 export type VisualizationMode = "celltype" | "gene";
 
 interface VisualizationState {
-  // Visualization mode (what's actually being rendered)
-  mode: VisualizationMode;
+  // Visualization mode (what's actually being rendered) - can be multiple modes
+  mode: VisualizationMode[];
 
   // Panel mode (which panel is open)
   panelMode: VisualizationMode;
@@ -26,12 +26,12 @@ interface VisualizationState {
   sizeScale: number; // multiplier
 
   // Actions
-  setMode: (mode: VisualizationMode) => void;
+  setMode: (mode: VisualizationMode[]) => void;
   setPanelMode: (mode: VisualizationMode) => void;
   setSelectedGene: (gene: string | null) => void;
   toggleCelltype: (celltype: string) => void;
   setClusterColumn: (column: string | null) => void;
-  setSelectedColumn: (column: string | null) => void;
+  setSelectedColumn: (column: string | null, isNumerical?: boolean) => void;
   setSelectedEmbedding: (embedding: string | null) => void;
   setColorPalette: (palette: Record<string, string>) => void;
   setAlphaScale: (alpha: number) => void;
@@ -40,7 +40,7 @@ interface VisualizationState {
 }
 
 const initialState = {
-  mode: "celltype" as VisualizationMode,
+  mode: ["celltype"] as VisualizationMode[],
   panelMode: "celltype" as VisualizationMode,
   selectedGene: null,
   selectedClusterColumn: null,
@@ -52,7 +52,31 @@ const initialState = {
   sizeScale: 1.0,
 };
 
-export const useVisualizationStore = create<VisualizationState>((set) => ({
+// Helper function to update mode array
+const updateModeArray = (
+  currentMode: VisualizationMode[],
+  add?: VisualizationMode,
+  remove?: VisualizationMode,
+): VisualizationMode[] => {
+  let newMode = [...currentMode];
+
+  if (remove && newMode.includes(remove)) {
+    newMode = newMode.filter((m) => m !== remove);
+  }
+
+  if (add && !newMode.includes(add)) {
+    newMode.push(add);
+  }
+
+  // Ensure mode array is never empty, default to celltype
+  if (newMode.length === 0) {
+    newMode = ["celltype"];
+  }
+
+  return newMode;
+};
+
+export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   ...initialState,
 
   setMode: (mode) => {
@@ -67,7 +91,29 @@ export const useVisualizationStore = create<VisualizationState>((set) => ({
 
   setSelectedGene: (gene) => {
     console.log("Selected gene:", gene);
-    set({ selectedGene: gene });
+    set((state) => {
+      // When selecting a gene, keep selectedColumn but update mode
+      if (gene) {
+        // Add gene to mode, keep celltype if celltypes are selected
+        const newMode: VisualizationMode[] =
+          state.selectedCelltypes.size > 0
+            ? updateModeArray(state.mode, "gene")
+            : (["gene"] as VisualizationMode[]);
+
+        console.log("Gene selected - new mode:", newMode);
+        return { selectedGene: gene, mode: newMode };
+      } else {
+        // When clearing gene, remove from mode
+        const newMode: VisualizationMode[] = updateModeArray(
+          state.mode,
+          undefined,
+          "gene",
+        );
+
+        console.log("Gene cleared - new mode:", newMode);
+        return { selectedGene: gene, mode: newMode };
+      }
+    });
   },
 
   toggleCelltype: (celltype) => {
@@ -86,7 +132,26 @@ export const useVisualizationStore = create<VisualizationState>((set) => ({
         Array.from(newCelltypes),
       );
 
-      return { selectedCelltypes: newCelltypes };
+      // Update mode based on selections
+      let newMode: VisualizationMode[] = [...state.mode];
+
+      if (newCelltypes.size > 0) {
+        // Add celltype to mode if celltypes are selected
+        if (!newMode.includes("celltype")) {
+          newMode.push("celltype");
+        }
+      } else {
+        // Remove celltype from mode if no celltypes selected and gene is not selected
+        if (!state.selectedGene) {
+          newMode = newMode.filter((m) => m !== "celltype");
+          if (newMode.length === 0) {
+            newMode = ["celltype"];
+          }
+        }
+      }
+
+      console.log("After toggle - new mode:", newMode);
+      return { selectedCelltypes: newCelltypes, mode: newMode };
     });
   },
 
@@ -95,12 +160,25 @@ export const useVisualizationStore = create<VisualizationState>((set) => ({
     set({ selectedClusterColumn: column });
   },
 
-  setSelectedColumn: (column) => {
-    console.log("Selected column:", column);
-    set({
-      selectedColumn: column,
-      selectedCelltypes: new Set<string>(),
-      selectedGene: null,
+  setSelectedColumn: (column, isNumerical) => {
+    console.log("Selected column:", column, "isNumerical:", isNumerical);
+    set((state) => {
+      const updates: Partial<VisualizationState> = {
+        selectedColumn: column,
+        selectedCelltypes: new Set<string>(),
+      };
+
+      // If selecting a numerical column, clear gene and set mode to celltype only
+      if (isNumerical && column) {
+        console.log("Numerical column selected - clearing gene");
+        updates.selectedGene = null;
+        updates.mode = ["celltype"];
+      } else if (!column) {
+        // If clearing column, reset mode
+        updates.mode = state.selectedGene ? ["gene"] : ["celltype"];
+      }
+
+      return updates;
     });
   },
 

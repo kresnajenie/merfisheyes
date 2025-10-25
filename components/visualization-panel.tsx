@@ -14,7 +14,7 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 
 interface VisualizationPanelProps {
-  mode: VisualizationMode;
+  mode: VisualizationMode; // This is panelMode, not the visualization mode array
   onClose: () => void;
 }
 
@@ -141,10 +141,16 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
             placeholder="Select a column"
             selectedKey={selectedColumn}
             onSelectionChange={(key) => {
-              setSelectedColumn((key as string) || null);
+              const columnKey = (key as string) || null;
+              const selectedCluster = dataset?.clusters?.find(
+                (c) => c.column === columnKey,
+              );
+              const isNumerical = selectedCluster?.type === "numerical";
+
+              setSelectedColumn(columnKey, isNumerical);
               // When a cluster column is selected, switch visualization mode to celltype
               if (key) {
-                setMode("celltype");
+                setMode(["celltype"]);
               }
             }}
           >
@@ -202,8 +208,7 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
                     size="sm"
                     onValueChange={() => {
                       toggleCelltype(item.id);
-                      // When a celltype is toggled, switch visualization mode to celltype
-                      setMode("celltype");
+                      // Mode is now automatically updated by toggleCelltype
                     }}
                   >
                     <span style={{ color: item.color }}>{item.label}</span>
@@ -215,10 +220,7 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
                   value={selectedGene || ""}
                   onValueChange={(value) => {
                     setSelectedGene(value || null);
-                    // When a gene is selected, switch visualization mode to gene
-                    if (value) {
-                      setMode("gene");
-                    }
+                    // Mode is now automatically updated by setSelectedGene
                   }}
                 >
                   {filteredItems.map((item) => (

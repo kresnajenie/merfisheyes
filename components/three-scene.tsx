@@ -16,6 +16,7 @@ import {
   updateGeneVisualization,
   updateCelltypeVisualization,
   updateNumericalCelltypeVisualization,
+  updateCombinedVisualization,
 } from "@/lib/webgl/visualization-utils";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 
@@ -54,7 +55,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     alphaScale,
     sizeScale,
     toggleCelltype,
-    setMode,
   } = useVisualizationStore();
 
   // Store current mode and selection in refs to avoid closure issues
@@ -120,7 +120,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     let tooltipContent = "";
 
-    if (currentMode === "gene" && currentGene) {
+    if (currentMode.includes("gene") && currentGene) {
       // Gene mode
       if (isNumerical) {
         // Numerical cluster + gene: show both values without color circle
@@ -385,9 +385,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           if (!isNumericalClusterRef.current) {
             // Toggle the cluster in selectedCelltypes
             toggleCelltype(clusterValueStr);
-
-            // Switch to celltype mode to show the filtering
-            setMode("celltype");
+            // Mode is now automatically updated by toggleCelltype
           }
         }
       };
@@ -455,16 +453,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     }
   }, [dataset]);
 
-  // Effect 2: Update gene visualization
+  // Effect 2: Update visualization based on mode array
   useEffect(() => {
-    if (!pointCloudRef.current || !dataset || mode !== "gene") return;
+    if (!pointCloudRef.current || !dataset) return;
 
-    console.log("Updating gene visualization:", selectedGene);
+    console.log("Updating visualization with mode:", mode);
 
-    const updateGene = async () => {
+    const updateVisualization = async () => {
       if (!pointCloudRef.current || !dataset) return;
 
-      // Store cluster data for tooltip (needed even in gene mode)
+      // Store cluster data for tooltip
       const selectedCluster = dataset.clusters?.find(
         (c) => c.column === selectedColumn,
       );
@@ -472,133 +470,97 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         clusterValuesRef.current = selectedCluster.values;
         isNumericalClusterRef.current = selectedCluster.type === "numerical";
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
-
-        console.log("=== STORING CLUSTER DATA (GENE MODE) ===");
-        console.log("Selected Cluster Column:", selectedColumn);
-        console.log("Cluster Type:", selectedCluster.type);
-        console.log("Cluster Values (first 5):", selectedCluster.values.slice(0, 5));
-        console.log("Cluster Palette:", selectedCluster.palette);
-        console.log("Fallback Palette from Store:", colorPalette);
-        console.log("Final Palette Stored:", colorPaletteRef.current);
-        console.log("========================================");
       }
 
-      // If no gene selected, fall back to celltype visualization
-      if (!selectedGene) {
-        setIsLoadingGene(false);
-        const result = updateCelltypeVisualization(
-          dataset,
-          selectedColumn,
-          selectedCelltypes,
-          colorPalette,
-          alphaScale,
-          sizeScale,
-        );
+      // Determine which visualization to use based on mode array
+      const hasGeneMode = mode.includes("gene");
+      const hasCelltypeMode = mode.includes("celltype");
 
-        if (result && pointCloudRef.current) {
-          updatePointCloudAttributes(
-            pointCloudRef.current,
-            result.colors,
-            result.sizes,
-            result.alphas,
+      // Check if the selected column is numerical
+      const isNumerical = selectedCluster?.type === "numerical";
+
+      let result = null;
+
+      if (hasGeneMode && hasCelltypeMode && selectedGene && selectedCelltypes.size > 0) {
+        // Combined mode: gene expression on selected celltypes
+        console.log("Using combined gene + celltype visualization");
+
+        try {
+          setIsLoadingGene(true);
+
+          // Fetch gene expression data for tooltip
+          const expression = await dataset.getGeneExpression(selectedGene);
+          geneExpressionRef.current = expression;
+
+          result = await updateCombinedVisualization(
+            dataset,
+            selectedGene,
+            selectedColumn,
+            selectedCelltypes,
+            alphaScale,
+            sizeScale,
           );
+        } finally {
+          setIsLoadingGene(false);
         }
+      } else if (hasGeneMode && selectedGene) {
+        // Gene mode only
+        console.log("Using gene-only visualization");
 
-        return;
+        try {
+          setIsLoadingGene(true);
+
+          // Fetch gene expression data for tooltip
+          const expression = await dataset.getGeneExpression(selectedGene);
+          geneExpressionRef.current = expression;
+
+          result = await updateGeneVisualization(
+            dataset,
+            selectedGene,
+            alphaScale,
+            sizeScale,
+          );
+        } finally {
+          setIsLoadingGene(false);
+        }
+      } else if (hasCelltypeMode) {
+        // Celltype mode only
+        console.log("Using celltype-only visualization");
+        setIsLoadingGene(false);
+
+        // Use appropriate visualization function based on column type
+        result = isNumerical
+          ? updateNumericalCelltypeVisualization(
+              dataset,
+              selectedColumn,
+              alphaScale,
+              sizeScale,
+            )
+          : updateCelltypeVisualization(
+              dataset,
+              selectedColumn,
+              selectedCelltypes,
+              colorPalette,
+              alphaScale,
+              sizeScale,
+            );
       }
 
-      try {
-        setIsLoadingGene(true);
-
-        // Fetch gene expression data
-        const expression = selectedGene
-          ? await dataset.getGeneExpression(selectedGene)
-          : null;
-
-        // Store gene expression for tooltip
-        geneExpressionRef.current = expression;
-
-        const result = await updateGeneVisualization(
-          dataset,
-          selectedGene,
-          alphaScale,
-          sizeScale,
+      // Update point cloud if we have a result
+      if (result && pointCloudRef.current) {
+        updatePointCloudAttributes(
+          pointCloudRef.current,
+          result.colors,
+          result.sizes,
+          result.alphas,
         );
-
-        if (result && pointCloudRef.current) {
-          updatePointCloudAttributes(
-            pointCloudRef.current,
-            result.colors,
-            result.sizes,
-            result.alphas,
-          );
-        }
-      } finally {
-        setIsLoadingGene(false);
       }
     };
 
-    updateGene();
+    updateVisualization();
   }, [
     dataset,
     selectedGene,
-    selectedColumn,
-    selectedCelltypes,
-    colorPalette,
-    alphaScale,
-    sizeScale,
-    mode,
-  ]);
-
-  // Effect 3: Update celltype visualization
-  useEffect(() => {
-    if (!pointCloudRef.current || !dataset || mode !== "celltype") return;
-
-    console.log("Updating celltype visualization:", {
-      selectedColumn,
-      selectedCelltypes: Array.from(selectedCelltypes),
-    });
-
-    // Check if the selected column is numerical
-    const selectedCluster = dataset.clusters?.find(
-      (c) => c.column === selectedColumn,
-    );
-    const isNumerical = selectedCluster?.type === "numerical";
-
-    // Store cluster data for tooltip
-    if (selectedCluster) {
-      clusterValuesRef.current = selectedCluster.values;
-      isNumericalClusterRef.current = isNumerical || false;
-      colorPaletteRef.current = selectedCluster.palette || colorPalette;
-    }
-
-    // Use appropriate visualization function based on column type
-    const result = isNumerical
-      ? updateNumericalCelltypeVisualization(
-          dataset,
-          selectedColumn,
-          alphaScale,
-          sizeScale,
-        )
-      : updateCelltypeVisualization(
-          dataset,
-          selectedColumn,
-          selectedCelltypes,
-          colorPalette,
-          alphaScale,
-          sizeScale,
-        );
-
-    if (result && pointCloudRef.current) {
-      updatePointCloudAttributes(
-        pointCloudRef.current,
-        result.colors,
-        result.sizes,
-        result.alphas,
-      );
-    }
-  }, [
-    dataset,
     selectedColumn,
     selectedCelltypes,
     colorPalette,

@@ -112,9 +112,16 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 - `datasetStore` - Manages single cell datasets (StandardizedDataset)
 - `singleMoleculeStore` - Manages single molecule datasets (SingleMoleculeDataset)
 - `visualizationStore` - Controls 3D scene state for single cell viewer (camera, colors, filters, gene/celltype selection)
-  - **Separate mode states**: `mode` (actual visualization) and `panelMode` (which panel is open)
+  - **Mode Array System**: `mode: VisualizationMode[]` supports multiple simultaneous visualization modes
+  - **Automatic Mode Switching**: Mode array updates automatically based on selections
+    - Selecting a gene → adds `"gene"` to mode array
+    - Toggling celltypes → adds/removes `"celltype"` from mode array
+    - Selecting numerical column → clears gene and sets mode to `["celltype"]` only (mutual exclusivity)
+  - **Combined Visualization**: When `mode = ["gene", "celltype"]` with selected gene + celltypes:
+    - Shows gene expression gradient on selected celltypes only
+    - Greys out non-selected celltypes
+  - **Separate Panel Mode**: `panelMode` controls which panel is open (independent of visualization)
   - Allows browsing genes/celltypes without changing visualization
-  - Visualization updates only when user selects a gene or toggles a celltype
 - `singleMoleculeVisualizationStore` - Controls visualization state for single molecule viewer (gene selection with colors, local/global scaling, view mode)
 - Uses Zustand for client-side state management
 
@@ -177,6 +184,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
   - Gene expression → coolwarm gradient (95th percentile normalization)
   - Categorical clusters → discrete palette colors
   - **Numerical clusters** → coolwarm gradient (same as gene expression)
+  - **Combined gene + celltype** → gene gradient on selected celltypes, grey on others (`updateCombinedVisualization()`)
 
 **Key Features**:
 - GPU-accelerated point rendering using BufferGeometry and custom shaders
@@ -222,7 +230,10 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 ### Component Structure
 
 #### Shared Components
-- `components/three-scene.tsx` - Three.js scene for single cell visualization (uses `useEffect` for scene lifecycle)
+- `components/three-scene.tsx` - Three.js scene for single cell visualization
+  - Unified `useEffect` hook handles all visualization modes based on `mode` array
+  - Supports gene-only, celltype-only, and combined gene+celltype visualization
+  - Automatic switching between `updateGeneVisualization()`, `updateCelltypeVisualization()`, `updateNumericalCelltypeVisualization()`, and `updateCombinedVisualization()`
 - `components/visualization-controls.tsx` - UI for gene selection, cluster filtering (single cell viewer)
 - `components/dataset-card.tsx` - Dataset preview cards on explore page
 - `components/navbar-wrapper.tsx` - Smart routing to appropriate store/modal based on pathname
