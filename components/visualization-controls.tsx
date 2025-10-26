@@ -5,7 +5,7 @@ import type { VisualizationMode } from "@/lib/stores/visualizationStore";
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/slider";
 import { Tooltip } from "@heroui/tooltip";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import { VisualizationPanel } from "./visualization-panel";
 
@@ -16,6 +16,7 @@ export function VisualizationControls() {
   const { panelMode, setPanelMode, sizeScale, setSizeScale } =
     useVisualizationStore();
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const controlsRef = useRef<HTMLDivElement>(null);
 
   const handleModeChange = (newMode: VisualizationMode) => {
     if (panelMode === newMode) {
@@ -31,7 +32,7 @@ export function VisualizationControls() {
   const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
 
   return (
-    <div className="fixed top-20 left-4 z-50 flex flex-col gap-2">
+    <div ref={controlsRef} className="fixed top-28 left-4 z-50 flex flex-col gap-2">
       {/* Celltype Button */}
       <Button
         className={`${buttonBaseClass} ${isPanelOpen && panelMode === "celltype" ? "" : glassButton()}`}
@@ -76,6 +77,7 @@ export function VisualizationControls() {
         <VisualizationPanel
           mode={panelMode}
           onClose={() => setIsPanelOpen(false)}
+          controlsRef={controlsRef}
         />
       )}
     </div>

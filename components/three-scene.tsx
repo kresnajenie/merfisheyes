@@ -19,7 +19,7 @@ import {
   updateCombinedVisualization,
 } from "@/lib/webgl/visualization-utils";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
-import { GeneScalebar } from "@/components/gene-scalebar";
+import { VisualizationLegends } from "@/components/visualization-legends";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -636,25 +636,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         </div>
       )}
 
-      {/* Gene expression scalebar */}
-      {mode.includes("gene") && selectedGene && (
-        <GeneScalebar
-          minValue={geneScaleMin}
-          maxValue={geneScaleMax}
-          onMinChange={setGeneScaleMin}
-          onMaxChange={setGeneScaleMax}
-        />
-      )}
-
-      {/* Numerical cluster scalebar */}
-      {mode.includes("celltype") && !selectedGene && selectedColumn && isNumericalClusterRef.current && (
-        <GeneScalebar
-          minValue={numericalScaleMin}
-          maxValue={numericalScaleMax}
-          onMinChange={setNumericalScaleMin}
-          onMaxChange={setNumericalScaleMax}
-        />
-      )}
+      {/* Visualization legends panel (includes scale bar) */}
+      <VisualizationLegends />
     </>
   );
 }

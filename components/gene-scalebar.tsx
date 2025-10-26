@@ -24,7 +24,7 @@ export const GeneScalebar: React.FC<GeneScalebarProps> = ({
   );
 
   return (
-    <div className="fixed right-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 z-10">
+    <div className="flex flex-col items-center gap-2">
       {/* Top number scrubber */}
       <NumberScrubber
         value={maxValue}
@@ -37,7 +37,7 @@ export const GeneScalebar: React.FC<GeneScalebarProps> = ({
 
       {/* Gradient bar */}
       <div
-        className="w-12 h-64 rounded-lg shadow-lg"
+        className="w-8 h-32 rounded-lg shadow-lg"
         style={{
           background:
             "linear-gradient(to bottom, #ff0000 0%, #ffffff 50%, #0000ff 100%)",

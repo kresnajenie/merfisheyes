@@ -268,6 +268,27 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
   - Progress updates from `StandardizedDataset.fromS3()` callback (e.g., "Fetching manifest", "Loading chunk 1 of 3")
   - Enhanced loading UI with spinner, progress bar, and descriptive status text
   - Automatic progress reset on retry
+- `components/visualization-controls.tsx` - Left-side control buttons (Celltype, Gene, Size slider)
+  - Positioned at `top-28 left-4` with glassmorphism styling
+  - Opens/closes VisualizationPanel on button press
+- `components/visualization-panel.tsx` - Sidebar panel for gene/celltype selection
+  - Glassmorphism background with `backdrop-blur-[50px]` and rounded-3xl corners
+  - Click-outside-to-close functionality
+  - Positioned at `top-28 left-20` (32px below navbar)
+  - Cluster column dropdown (categorical/numerical detection)
+  - Search, filter, and selection UI for genes and celltypes
+- `components/visualization-legends.tsx` - **Top-right legends panel** showing active selections
+  - **Unified layout** (top to bottom): Gene badge → Scale bar → Clusters list
+  - **Gene Badge**: Blue pill with gene name, click X to remove
+  - **Scale Bar**: Embedded gradient bar (w-8 h-32) with number scrubbers for gene/numerical columns
+  - **Cluster Badges**: Color-coded pills with celltype names, 70% opacity → solid on hover
+  - **"Clear All" header**: Click cluster header to deselect all celltypes at once
+  - Gets palette colors from `dataset.clusters[].palette` (same source as tooltips)
+  - Auto-hides when nothing is selected
+- `components/gene-scalebar.tsx` - Compact gradient scale bar (now embedded in legends)
+  - Size: `w-8 h-32` (reduced from w-12 h-48)
+  - Position: Relative (removed fixed positioning, now inside VisualizationLegends)
+  - Shows for gene expression or numerical cluster columns
 - `components/upload-settings-modal.tsx` - Upload settings for cell datasets (shows point count, genes, clusters)
 
 #### Single Molecule Components

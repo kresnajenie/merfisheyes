@@ -10,11 +10,20 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - Color cells by gene expression or cell type annotations
 - **Combined gene + celltype visualization**: Show gene expression gradient on selected celltypes only
 - **Numerical metadata support**: Continuous metadata (e.g., QC metrics) visualized with gradient coloring
+- **Interactive legends panel** (top-right): Live display of active selections
+  - Gene badge with one-click removal
+  - Embedded gradient scale bar (compact w-8 h-32)
+  - Color-coded celltype badges with palette colors
+  - "Clear All" header to deselect all celltypes at once
+  - 70% opacity badges that become solid on hover
 - **Interactive gene expression scalebar**: Real-time visual scale with draggable min/max controls
   - Auto-scales to 95th percentile when gene changes
   - Manual override via vertical drag scrubbers
   - Glassmorphism design with smooth debounced updates
   - Works for both gene expression and numerical columns
+- **Glassmorphism UI**: Sidebar panels and controls with frosted glass effect
+  - Click-outside-to-close for selection panels
+  - Smooth rounded corners (rounded-3xl)
 - Interactive filtering and selection of cell populations
 - Automatic column type detection (categorical vs numerical)
 - **Mutual exclusivity**: Gene and numerical columns cannot be selected simultaneously
