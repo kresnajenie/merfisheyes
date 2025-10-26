@@ -264,6 +264,10 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### Single Cell Components
 - `app/viewer/[id]/page.tsx` - Single cell viewer page with dynamic dataset loading from S3
+  - **Real-time Progress Bar**: Shows loading percentage (0-100%) and status messages during S3 dataset loading
+  - Progress updates from `StandardizedDataset.fromS3()` callback (e.g., "Fetching manifest", "Loading chunk 1 of 3")
+  - Enhanced loading UI with spinner, progress bar, and descriptive status text
+  - Automatic progress reset on retry
 - `components/upload-settings-modal.tsx` - Upload settings for cell datasets (shows point count, genes, clusters)
 
 #### Single Molecule Components

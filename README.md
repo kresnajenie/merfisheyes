@@ -149,6 +149,7 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 ### Viewer Controls
 
 #### Single Cell Viewer (`/viewer/[id]`)
+- **Loading Progress**: Real-time progress bar showing dataset loading from S3 (0-100% with status messages)
 - **Rotate**: Left click + drag
 - **Pan**: Right click + drag or middle click + drag
 - **Zoom**: Mouse wheel
