@@ -51,13 +51,16 @@ Uses an **Adapter Pattern** to standardize different formats into a unified `Sta
    - `H5adAdapter` - Parses AnnData .h5ad files using h5wasm
    - `XeniumAdapter` - Parses Xenium folder structure (cells.csv, transcripts.csv)
    - `MerscopeAdapter` - Parses MERSCOPE folder structure (cell_metadata.csv, cell_by_gene.csv)
-   - `ChunkedDataAdapter` - Loads pre-processed data from S3 storage
+   - `ChunkedDataAdapter` - Loads pre-processed data from S3 storage or local pre-chunked folders
+     - **Dual-mode support**: Remote (S3) and Local (File objects)
+     - Local mode enables direct upload of Python-preprocessed datasets
 
 2. **StandardizedDataset** ([lib/StandardizedDataset.ts](lib/StandardizedDataset.ts)):
    - Normalizes spatial coordinates to [-1, 1] range
    - Provides consistent interface: `spatial`, `embeddings`, `genes`, `clusters`
-   - Factory methods: `fromH5ad()`, `fromXenium()`, `fromMerscope()`, `fromS3()`
+   - Factory methods: `fromH5ad()`, `fromXenium()`, `fromMerscope()`, `fromS3()`, `fromLocalChunked()`
    - Handles gene expression queries via adapter's matrix interface
+   - **Pre-chunked support**: `isPreChunked` flag bypasses processing for Python-preprocessed data
 
 #### Single Molecule Data Pipeline
 
@@ -149,16 +152,42 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 
 #### Single Cell Upload Flow
 
-1. **Client-side**: Calculate dataset fingerprint, check for duplicates via `/api/datasets/check-duplicate/[fingerprint]`
-2. **Initiate Upload**: POST to `/api/datasets/initiate` with metadata and file list
+**Standard Flow (H5AD, Xenium, MERSCOPE)**:
+1. **Client-side**: Parse file in web worker, calculate dataset fingerprint, check for duplicates
+2. **Process**: Browser processes data using `GeneChunkProcessor` to create chunks
+3. **Initiate Upload**: POST to `/api/datasets/initiate` with metadata and file list
    - Creates `Dataset`, `UploadSession`, and `UploadFile` records in PostgreSQL
-   - Returns presigned S3 URLs for direct upload
-3. **Upload Files**: Client uploads directly to S3 using presigned URLs
-4. **Complete**: POST to `/api/datasets/[datasetId]/complete` to finalize upload
-5. **Email Notification**: POST to `/api/send-email` with dataset name and metadata
+   - Batch creates file records (`createMany`) for performance with large file counts
+   - Generates presigned S3 URLs in batches of 50 for parallel processing
+   - Returns presigned URLs for direct upload
+4. **Upload Files**: Client uploads directly to S3 using presigned URLs
+5. **Complete**: POST to `/api/datasets/[datasetId]/complete` to finalize upload
+6. **Email Notification**: POST to `/api/send-email` with dataset name and metadata
    - Subject line includes dataset name: `"{DatasetName} - Dataset Ready - MERFISHeyes"`
    - Email body includes: total cells, unique genes, platform, cluster columns count, shareable link
-6. **View**: Navigate to `/viewer/[datasetId]` which loads data via `StandardizedDataset.fromS3()`
+7. **View**: Navigate to `/viewer/[datasetId]` which loads data via `StandardizedDataset.fromS3()`
+
+**Pre-Chunked Flow (Python-Preprocessed)**:
+1. **Preprocessing**: Run Python script locally to create chunked folder (see [scripts/README.md](scripts/README.md))
+   ```bash
+   python scripts/process_spatial_data.py data.h5ad output_folder
+   ```
+2. **Client-side**: Select chunked folder on homepage, reads `manifest.json` only
+   - **No browser processing** - dataset marked with `isPreChunked = true`
+   - Fingerprint generated from manifest hash (SHA-256)
+   - File map created for upload
+3. **Upload Modal**: Chunk size settings hidden, shows "Pre-chunked and ready for upload"
+4. **Initiate Upload**: POST to `/api/datasets/initiate` with existing chunked files
+   - Skips `GeneChunkProcessor` entirely
+   - Uploads files as-is from Python preprocessing
+5. **Upload Files**: Direct S3 upload of pre-chunked files
+6. **Complete & View**: Same as standard flow
+
+**Benefits of Pre-Chunked Flow**:
+- ✅ No browser memory pressure (processes in Python with unlimited memory)
+- ✅ Faster upload initialization (no client-side chunking)
+- ✅ Handles very large datasets (>500K cells) that browsers can't process
+- ✅ Reproducible preprocessing outside browser environment
 
 #### Single Molecule Upload Flow
 
@@ -258,6 +287,57 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - Three.js OrbitControls for pan/zoom/rotate (rotate disabled in 2D mode)
 - Multiple point clouds rendered simultaneously (one per selected gene)
 - Point cloud update loop wrapped in async function to handle lazy S3 loading
+
+### Python Preprocessing Scripts
+
+For very large datasets (>500K cells) that exceed browser memory limits, Python scripts can preprocess data into chunked format:
+
+**Location**: [scripts/](scripts/)
+
+**Scripts**:
+- `process_h5ad.py` - Process single .h5ad files
+- `process_spatial_data.py` - Auto-detects and processes H5AD, Xenium, or MERSCOPE formats
+
+**Usage**:
+```bash
+# Install dependencies
+pip install anndata numpy pandas
+
+# Process any format (auto-detection)
+python scripts/process_spatial_data.py path/to/data output_folder
+
+# Process H5AD specifically
+python scripts/process_h5ad.py path/to/data.h5ad output_folder
+```
+
+**Output Structure**:
+```
+output_folder/
+├── manifest.json              # Dataset metadata
+├── coords/
+│   ├── spatial.bin.gz        # Normalized spatial coordinates
+│   ├── umap.bin.gz           # UMAP embedding (max 3D)
+│   └── pca.bin.gz            # PCA embedding (max 3D, truncated from 50)
+├── expr/
+│   ├── index.json            # Expression matrix index
+│   └── chunk_00000.bin.gz    # Gene expression chunks
+├── obs/
+│   ├── metadata.json         # Cluster metadata
+│   └── leiden.json.gz        # Cluster values
+└── palettes/
+    └── leiden.json           # Color palettes for categorical clusters
+```
+
+**Key Features**:
+- **Embedding Dimension Limit**: Automatically truncates embeddings (PCA, UMAP, etc.) to first 3 dimensions
+  - Example: PCA with 50 components → saves only first 3 (94% size reduction)
+- **Coordinate Normalization**: Scales to [-1, 1] range with saved scaling factor
+- **Sparse Expression Matrix**: Stores only non-zero values with indices
+- **Binary Compression**: Uses gzip compression for all binary files
+- **Automatic Column Detection**: Detects categorical vs numerical metadata columns
+- **Color Palette Generation**: Creates consistent color palettes matching browser visualization
+
+**Documentation**: See [scripts/README.md](scripts/README.md) and [scripts/UPLOAD_GUIDE.md](scripts/UPLOAD_GUIDE.md)
 
 ### Component Structure
 

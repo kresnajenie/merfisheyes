@@ -451,10 +451,18 @@ def process_dataset(
 
         # Process embeddings (UMAP, etc.)
         embeddings = {}
+        MAX_EMBEDDING_DIMS = 3  # Maximum dimensions to save for embeddings
         for key in adata.obsm.keys():
             if key not in ['X_spatial', 'spatial'] and key.startswith('X_'):
                 embedding_name = key[2:].lower()  # Remove 'X_' prefix
-                embeddings[embedding_name] = adata.obsm[key]
+                embedding_coords = adata.obsm[key]
+
+                # Limit to first 3 dimensions
+                if embedding_coords.shape[1] > MAX_EMBEDDING_DIMS:
+                    embedding_coords = embedding_coords[:, :MAX_EMBEDDING_DIMS]
+                    print(f"  ℹ {embedding_name}: Limiting to first {MAX_EMBEDDING_DIMS} dimensions (from {adata.obsm[key].shape[1]})")
+
+                embeddings[embedding_name] = embedding_coords
 
     elif data_format == 'xenium':
         cells_df, expr_matrix, gene_names = load_xenium_data(input_path)
@@ -550,7 +558,19 @@ def process_dataset(
     coords_dir = output_dir / 'coords'
     write_coordinate_binary(normalized_spatial, coords_dir / 'spatial.bin.gz')
 
-    # 2. Process observation columns (clusters)
+    # 2. Process embeddings (if any)
+    available_embeddings = []
+    if embeddings:
+        print("\n🗺️  Processing embeddings...")
+        for emb_name, emb_coords in embeddings.items():
+            normalized_emb, _ = normalize_coordinates(emb_coords)
+            write_coordinate_binary(normalized_emb, coords_dir / f'{emb_name}.bin.gz')
+            available_embeddings.append(emb_name)
+            print(f"  ✓ {emb_name}: {emb_coords.shape[1]}D")
+    else:
+        print("\n  ℹ No embeddings to process")
+
+    # 3. Process observation columns (clusters)
     print("\n🏷️  Processing observation columns...")
     obs_dir = output_dir / 'obs'
     palettes_dir = output_dir / 'palettes'
@@ -661,7 +681,7 @@ def process_dataset(
             'total_cells': int(num_cells),
             'total_genes': int(num_genes),
             'spatial_dimensions': int(spatial_dims),
-            'available_embeddings': [],
+            'available_embeddings': available_embeddings,
             'cluster_count': cluster_count
         },
         'processing': {

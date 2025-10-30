@@ -190,10 +190,50 @@ export function FileUpload({
               "Invalid chunked dataset folder. Make sure it contains manifest.json, expr/index.json, expr/chunk_*.bin.gz, and coords/spatial.bin.gz"
             );
           }
-          toast.info(`Loading chunked dataset folder (${files.length} files)...`);
-          console.log("=== Starting chunked dataset loading (local files) ===");
+          toast.info(`Loading pre-chunked dataset (${files.length} files)...`);
+          console.log("=== Loading pre-chunked dataset (ready for upload) ===");
           console.log("Files:", files.length);
+
+          // Read manifest to get metadata
+          onProgress(10, "Reading manifest...");
+          const manifestFile = files.find((f) => {
+            const path = f.webkitRelativePath || f.name;
+            const parts = path.split("/");
+            const relativePath = parts.length > 1 ? parts.slice(1).join("/") : path;
+            return relativePath === "manifest.json";
+          });
+
+          if (!manifestFile) {
+            throw new Error("manifest.json not found in chunked folder");
+          }
+
+          const manifestText = await manifestFile.text();
+          const manifest = JSON.parse(manifestText);
+
+          console.log("Manifest loaded:", manifest);
+
+          // Create file map for later upload
+          const fileMap = new Map<string, File>();
+          for (const file of files) {
+            const relativePath = file.webkitRelativePath;
+            const parts = relativePath.split("/");
+            const fileKey = parts.slice(1).join("/"); // Remove root folder
+            fileMap.set(fileKey, file);
+          }
+
+          onProgress(30, "Creating dataset from manifest...");
+
+          // Create a minimal StandardizedDataset from manifest
+          // We don't actually load the chunked data, just create metadata
           dataset = await StandardizedDataset.fromLocalChunked(files, onProgress);
+
+          // Mark dataset as pre-chunked and attach file map
+          (dataset as any).isPreChunked = true;
+          (dataset as any).chunkedFiles = fileMap;
+          (dataset as any).manifestData = manifest;
+
+          onProgress(100, "Pre-chunked dataset ready for upload!");
+          console.log("Pre-chunked dataset ready. File map size:", fileMap.size);
         } else if (type === "h5ad") {
           const file = files[0];
 

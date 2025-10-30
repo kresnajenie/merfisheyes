@@ -80,7 +80,8 @@ output_folder/
 ├── manifest.json                # Dataset metadata
 ├── coords/
 │   ├── spatial.bin.gz          # Spatial coordinates (normalized to [-1, 1])
-│   └── umap.bin.gz             # UMAP embedding (if exists in H5AD)
+│   ├── umap.bin.gz             # UMAP embedding (max 3D)
+│   └── pca.bin.gz              # PCA embedding (max 3D, truncated from 50)
 ├── expr/
 │   ├── index.json              # Gene → chunk mapping
 │   ├── chunk_00000.bin.gz      # Expression data chunks (sparse format)
@@ -93,6 +94,11 @@ output_folder/
 └── palettes/
     └── leiden.json             # Color mappings (categorical columns only)
 ```
+
+**Note on Embeddings**: All embeddings (PCA, UMAP, etc.) are automatically limited to **first 3 dimensions** to reduce file size:
+- PCA with 50 components → saves only first 3 (~94% size reduction)
+- UMAP typically already 2D or 3D (no change)
+- Embeddings >3D are truncated during processing
 
 ## Loading in MERFISH Eyes
 
@@ -110,13 +116,22 @@ python scripts/process_spatial_data.py merscope_output/ processed_data/
 
 ### Step 2: Upload Folder to MERFISH Eyes
 1. Go to the MERFISH Eyes homepage
-2. Make sure you're in "single cell" mode (toggle on left/blue)
-3. Click on **"Chunked Folder"** upload box (second box)
-4. **Select the entire `processed_data` folder**
-5. The app will load it instantly (1-3 seconds)
-6. Navigate to `/viewer` to visualize
+2. Click on **"Chunked Folder"** upload box (4th box on homepage)
+3. **Select the entire `processed_data` folder**
+4. The app will load it instantly (1-3 seconds) - no browser processing!
+5. Click "Upload & Save" button
+6. Upload modal shows:
+   - ✅ Chunk settings hidden (already processed)
+   - ✅ "Pre-chunked and ready for upload" message
+   - Just enter email and dataset name
+7. Upload to S3 and receive email notification
+8. View at `/viewer/[datasetId]`
 
-**Note**: The browser will automatically detect if you're uploading a chunked dataset folder vs a raw H5AD file.
+**Benefits of Pre-Chunked Upload**:
+- **No browser processing** - instant loading
+- **No memory limits** - Python handles all processing
+- **Faster uploads** - no client-side chunking needed
+- **Large dataset support** - handle 500K+ cells easily
 
 ## Binary Format Details
 

@@ -43,6 +43,9 @@ export function UploadSettingsModal({
   const [uploadComplete, setUploadComplete] = useState(false);
   const [uploadedDatasetId, setUploadedDatasetId] = useState<string>("");
 
+  // Check if dataset is pre-chunked
+  const isPreChunked = (dataset as any)?.isPreChunked || false;
+
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
@@ -65,88 +68,182 @@ export function UploadSettingsModal({
     setProgressMessage("Generating fingerprint...");
 
     try {
-      // Generate fingerprint
-      const fingerprint = await generateDatasetFingerprint(dataset);
+      let filesToUpload: Array<{ key: string; blob: Blob; size: number; contentType: string }>;
+      let datasetId: string;
+      let fingerprint: string;
 
-      console.log("Dataset fingerprint:", fingerprint);
+      if (isPreChunked) {
+        // Pre-chunked dataset - skip processing, use existing files
+        console.log("=== Uploading pre-chunked dataset ===");
 
-      // Check for duplicates
-      setProgressMessage("Checking for duplicates...");
-      setProgress(5);
-      const duplicateExists = await checkDuplicate(fingerprint);
+        const chunkedFiles = (dataset as any).chunkedFiles as Map<string, File>;
+        const manifest = (dataset as any).manifestData;
 
-      if (duplicateExists) {
-        const confirmed = window.confirm(
-          `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`,
+        if (!chunkedFiles || !manifest) {
+          throw new Error("Pre-chunked dataset is missing file map or manifest data");
+        }
+
+        // Generate fingerprint from manifest (simpler for pre-chunked)
+        // We don't want to load all expression data just for fingerprinting
+        const manifestString = JSON.stringify({
+          cells: manifest.statistics.total_cells,
+          genes: manifest.statistics.total_genes,
+          type: dataset.type,
+          genes_list: dataset.genes.sort().join(","),
+          clusters: dataset.clusters?.map((c) => c.column).sort().join(","),
+        });
+
+        // Hash the manifest string to create a proper fingerprint
+        const encoder = new TextEncoder();
+        const data = encoder.encode(manifestString);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        fingerprint = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+        console.log("Pre-chunked dataset fingerprint:", fingerprint.substring(0, 50));
+
+        // Check for duplicates
+        setProgressMessage("Checking for duplicates...");
+        setProgress(5);
+        const duplicateExists = await checkDuplicate(fingerprint);
+
+        if (duplicateExists) {
+          const confirmed = window.confirm(
+            `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`,
+          );
+
+          if (!confirmed) {
+            setIsProcessing(false);
+            setProgress(0);
+            setProgressMessage("");
+
+            return;
+          }
+        }
+
+        // Generate dataset ID
+        datasetId = `${dataset.type}_${datasetName}_${Date.now()}_${fingerprint.substring(0, 9)}`;
+
+        // Update manifest with new dataset ID and name
+        const updatedManifest = {
+          ...manifest,
+          dataset_id: datasetId,
+          name: datasetName,
+        };
+
+        // Prepare files from the chunked folder
+        setProgressMessage("Preparing pre-chunked files for upload...");
+        setProgress(20);
+        filesToUpload = [];
+
+        // Add manifest
+        const manifestBlob = new Blob([JSON.stringify(updatedManifest, null, 2)], { type: "application/json" });
+        filesToUpload.push({
+          key: "manifest.json",
+          blob: manifestBlob,
+          size: manifestBlob.size,
+          contentType: "application/json",
+        });
+
+        // Add all other files from the chunked folder
+        for (const [fileKey, file] of chunkedFiles.entries()) {
+          if (fileKey !== "manifest.json") {
+            filesToUpload.push({
+              key: fileKey,
+              blob: file,
+              size: file.size,
+              contentType: file.type || "application/octet-stream",
+            });
+          }
+        }
+
+        console.log(`Prepared ${filesToUpload.length} pre-chunked files for upload`);
+        setProgress(55);
+      } else {
+        // Regular dataset - process and chunk
+        // Generate fingerprint
+        fingerprint = await generateDatasetFingerprint(dataset);
+
+        console.log("Dataset fingerprint:", fingerprint);
+
+        // Check for duplicates
+        setProgressMessage("Checking for duplicates...");
+        setProgress(5);
+        const duplicateExists = await checkDuplicate(fingerprint);
+
+        if (duplicateExists) {
+          const confirmed = window.confirm(
+            `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`,
+          );
+
+          if (!confirmed) {
+            setIsProcessing(false);
+            setProgress(0);
+            setProgressMessage("");
+
+            return;
+          }
+        }
+
+        // Determine chunk size
+        const actualChunkSize =
+          chunkSize === "auto" ? null : parseInt(customChunkSize);
+        const processor = new GeneChunkProcessor(actualChunkSize);
+
+        // Process genes
+        setProgressMessage("Processing genes into chunks...");
+        const { chunks, index } = await processor.processGenes(
+          dataset,
+          (prog, msg) => {
+            setProgress(5 + prog * 0.35); // Genes take 35% of progress (5-40%)
+            setProgressMessage(msg);
+          },
         );
 
-        if (!confirmed) {
-          setIsProcessing(false);
-          setProgress(0);
-          setProgressMessage("");
+        // Process coordinates
+        setProgressMessage("Processing coordinates...");
+        setProgress(40);
+        const coordinates = await processor.processCoordinates(dataset);
 
-          return;
-        }
+        // Process observations
+        setProgressMessage("Processing observations...");
+        setProgress(45);
+        const observations = await processor.processObservations(dataset);
+
+        // Process palettes
+        setProgressMessage("Processing color palettes...");
+        setProgress(47);
+        const palettes = await processor.processPalettes(dataset);
+
+        // Generate dataset ID
+        datasetId = `${dataset.type}_${datasetName}_${Date.now()}_${fingerprint.substring(0, 9)}`;
+
+        // Create manifest
+        setProgressMessage("Creating manifest...");
+        setProgress(50);
+        const manifestJson = await createManifest(
+          dataset,
+          datasetId,
+          datasetName,
+          chunks,
+          index,
+          coordinates,
+          observations.metadata,
+        );
+
+        // Prepare files for upload
+        setProgressMessage("Preparing files for upload...");
+        setProgress(55);
+        filesToUpload = await prepareFilesForUpload(
+          chunks,
+          index,
+          coordinates,
+          observations.files,
+          observations.metadata,
+          palettes,
+          manifestJson,
+        );
       }
-
-      // Determine chunk size
-      const actualChunkSize =
-        chunkSize === "auto" ? null : parseInt(customChunkSize);
-      const processor = new GeneChunkProcessor(actualChunkSize);
-
-      // Process genes
-      setProgressMessage("Processing genes into chunks...");
-      const { chunks, index } = await processor.processGenes(
-        dataset,
-        (prog, msg) => {
-          setProgress(5 + prog * 0.35); // Genes take 35% of progress (5-40%)
-          setProgressMessage(msg);
-        },
-      );
-
-      // Process coordinates
-      setProgressMessage("Processing coordinates...");
-      setProgress(40);
-      const coordinates = await processor.processCoordinates(dataset);
-
-      // Process observations
-      setProgressMessage("Processing observations...");
-      setProgress(45);
-      const observations = await processor.processObservations(dataset);
-
-      // Process palettes
-      setProgressMessage("Processing color palettes...");
-      setProgress(47);
-      const palettes = await processor.processPalettes(dataset);
-
-      // Generate dataset ID
-      const datasetId = `${dataset.type}_${datasetName}_${Date.now()}_${fingerprint.substring(0, 9)}`;
-
-      // Create manifest
-      setProgressMessage("Creating manifest...");
-      setProgress(50);
-      const manifestJson = await createManifest(
-        dataset,
-        datasetId,
-        datasetName,
-        chunks,
-        index,
-        coordinates,
-        observations.metadata,
-      );
-
-      // Prepare files for upload
-      setProgressMessage("Preparing files for upload...");
-      setProgress(55);
-      const filesToUpload = await prepareFilesForUpload(
-        chunks,
-        index,
-        coordinates,
-        observations.files,
-        observations.metadata,
-        palettes,
-        manifestJson,
-      );
 
       // Initiate upload
       setProgressMessage("Initiating upload...");
@@ -260,36 +357,48 @@ export function UploadSettingsModal({
                 onValueChange={setEmail}
               />
 
-              <Select
-                description="Number of genes per chunk (auto-determines based on total genes)"
-                isDisabled={isProcessing}
-                label="Chunk Size"
-                placeholder="Select chunk size"
-                selectedKeys={[chunkSize]}
-                onSelectionChange={(keys) => {
-                  const value = Array.from(keys)[0] as string;
+              {!isPreChunked && (
+                <>
+                  <Select
+                    description="Number of genes per chunk (auto-determines based on total genes)"
+                    isDisabled={isProcessing}
+                    label="Chunk Size"
+                    placeholder="Select chunk size"
+                    selectedKeys={[chunkSize]}
+                    onSelectionChange={(keys) => {
+                      const value = Array.from(keys)[0] as string;
 
-                  setChunkSize(value);
-                }}
-              >
-                <SelectItem key="auto">Auto (Recommended)</SelectItem>
-                <SelectItem key="50">50 genes/chunk</SelectItem>
-                <SelectItem key="100">100 genes/chunk</SelectItem>
-                <SelectItem key="150">150 genes/chunk</SelectItem>
-                <SelectItem key="custom">Custom</SelectItem>
-              </Select>
+                      setChunkSize(value);
+                    }}
+                  >
+                    <SelectItem key="auto">Auto (Recommended)</SelectItem>
+                    <SelectItem key="50">50 genes/chunk</SelectItem>
+                    <SelectItem key="100">100 genes/chunk</SelectItem>
+                    <SelectItem key="150">150 genes/chunk</SelectItem>
+                    <SelectItem key="custom">Custom</SelectItem>
+                  </Select>
 
-              {chunkSize === "custom" && (
-                <Input
-                  isDisabled={isProcessing}
-                  label="Custom Chunk Size"
-                  max="500"
-                  min="10"
-                  placeholder="Enter chunk size"
-                  type="number"
-                  value={customChunkSize}
-                  onValueChange={setCustomChunkSize}
-                />
+                  {chunkSize === "custom" && (
+                    <Input
+                      isDisabled={isProcessing}
+                      label="Custom Chunk Size"
+                      max="500"
+                      min="10"
+                      placeholder="Enter chunk size"
+                      type="number"
+                      value={customChunkSize}
+                      onValueChange={setCustomChunkSize}
+                    />
+                  )}
+                </>
+              )}
+
+              {isPreChunked && (
+                <div className="bg-primary-50 dark:bg-primary-950 p-3 rounded-lg">
+                  <p className="text-sm text-primary-600 dark:text-primary-400">
+                    ✓ This dataset is pre-chunked and ready for upload. No processing needed.
+                  </p>
+                </div>
               )}
 
               {dataset && (
@@ -307,7 +416,7 @@ export function UploadSettingsModal({
                     <p>
                       <span className="font-medium">Type:</span> {dataset.type}
                     </p>
-                    {chunkSize !== "custom" && (
+                    {!isPreChunked && chunkSize !== "custom" && (
                       <p>
                         <span className="font-medium">Estimated chunks:</span>{" "}
                         {Math.ceil(
@@ -316,6 +425,11 @@ export function UploadSettingsModal({
                               chunkSize === "auto" ? null : parseInt(chunkSize),
                             ).determineChunkSize(dataset.genes.length),
                         )}
+                      </p>
+                    )}
+                    {isPreChunked && (
+                      <p>
+                        <span className="font-medium">Status:</span> Pre-chunked (ready for upload)
                       </p>
                     )}
                   </div>

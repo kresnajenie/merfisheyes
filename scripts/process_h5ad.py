@@ -296,10 +296,17 @@ def process_h5ad(input_path: Path, output_dir: Path, custom_chunk_size: Optional
     # 2. Process embeddings (UMAP, etc.)
     print("\n🗺️  Processing embeddings...")
     available_embeddings = []
+    MAX_EMBEDDING_DIMS = 3  # Maximum dimensions to save for embeddings
     for key in adata.obsm.keys():
         if key not in ['X_spatial', 'spatial'] and key.startswith('X_'):
             embedding_name = key[2:].lower()  # Remove 'X_' prefix
             embedding_coords = adata.obsm[key]
+
+            # Limit to first 3 dimensions
+            if embedding_coords.shape[1] > MAX_EMBEDDING_DIMS:
+                embedding_coords = embedding_coords[:, :MAX_EMBEDDING_DIMS]
+                print(f"  ℹ {embedding_name}: Limiting to first {MAX_EMBEDDING_DIMS} dimensions (from {adata.obsm[key].shape[1]})")
+
             normalized_emb, _ = normalize_coordinates(embedding_coords)
             write_coordinate_binary(normalized_emb, coords_dir / f'{embedding_name}.bin.gz')
             available_embeddings.append(embedding_name)
