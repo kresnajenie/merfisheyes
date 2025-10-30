@@ -18,6 +18,12 @@ export default function Home() {
   const animationFrameRef = useRef<number | null>(null);
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
+  const [viewportHeight, setViewportHeight] = useState<number | null>(
+    typeof window === "undefined" ? null : window.innerHeight,
+  );
+  const [viewportWidth, setViewportWidth] = useState<number | null>(
+    typeof window === "undefined" ? null : window.innerWidth,
+  );
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -93,6 +99,24 @@ export default function Home() {
     };
   }, [targetRaysColor]);
 
+  useEffect(() => {
+    const updateViewport = () => {
+      if (typeof window !== "undefined") {
+        setViewportHeight(window.innerHeight);
+        setViewportWidth(window.innerWidth);
+      }
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("orientationchange", updateViewport);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("orientationchange", updateViewport);
+    };
+  }, []);
+
   return (
     <>
       <div className="fixed inset-0 w-full h-full z-0">
@@ -106,8 +130,11 @@ export default function Home() {
           raysSpeed={1.0}
         />
       </div>
-      <section className="relative flex flex-col items-center gap-1 py-12 md:py-20 px-4 md:px-8">
-        <div className="relative z-10 flex flex-col items-center gap-10 max-w-3xl w-full">
+      <section
+        className="relative flex flex-col items-center gap-1 px-4 md:px-8"
+        style={{ minHeight: viewportHeight ? `${viewportHeight}px` : "100vh" }}
+      >
+        <div className="relative z-10 flex flex-col items-center gap-10 max-w-3xl w-full pt-12 md:pt-16">
           <div className="flex flex-col items-center">
             <h1 className="flex flex-col items-center text-center">
               <span className={title({ size: "xl" })}>
@@ -164,8 +191,8 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-col items-center gap-8 max-w-5xl w-full">
-          <div className="relative w-full max-w-5xl min-h-[360px] flex items-center justify-center">
+        <div className="relative z-10 flex flex-col items-center gap-8 max-w-5xl w-full pb-12">
+          <div className="relative w-full max-w-5xl flex items-center justify-center">
             <div
               className={clsx(
                 "absolute inset-0 flex items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
@@ -174,16 +201,18 @@ export default function Home() {
             >
               <div className="h-[120%] w-[120%] rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-fuchsia-500 opacity-30 blur-3xl" />
             </div>
+          </div>
 
+          <div className="relative w-full max-w-2xl min-h-[320px] md:min-h-[280px]">
             <div
               className={clsx(
-                "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-center",
+                "absolute inset-0 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
                 isSingleMolecule
-                  ? "scale-[1.25] opacity-0 blur-sm pointer-events-none"
-                  : "scale-100 opacity-100 blur-0 pointer-events-auto",
+                  ? "opacity-0 pointer-events-none translate-y-6 scale-95"
+                  : "opacity-100 pointer-events-auto translate-y-0 scale-100",
               )}
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <FileUpload
                   description="Single .h5ad file"
                   title="H5AD File"
@@ -204,10 +233,10 @@ export default function Home() {
 
             <div
               className={clsx(
-                "absolute left-1/2 top-1/2 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+                "absolute inset-0 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
                 isSingleMolecule
-                  ? "opacity-100 scale-100 pointer-events-auto"
-                  : "opacity-0 scale-90 pointer-events-none",
+                  ? "opacity-100 pointer-events-auto translate-y-0 scale-100"
+                  : "opacity-0 pointer-events-none -translate-y-6 scale-95",
               )}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -228,7 +257,14 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="relative z-10 flex justify-center mt-8">
+        <div
+          className={clsx(
+            "relative z-10 flex justify-center transition-all duration-500",
+            viewportWidth && viewportWidth < 500
+              ? "mt-[800px] mb-16"
+              : "mt-8 mb-12",
+          )}
+        >
           <Button
             as={Link}
             color="primary"
