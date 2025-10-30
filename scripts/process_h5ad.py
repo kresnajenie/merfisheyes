@@ -245,17 +245,31 @@ def process_h5ad(input_path: Path, output_dir: Path, custom_chunk_size: Optional
 
     if spatial_coords is None:
         print("  ⚠ No spatial coordinates found in obsm, checking obs columns...")
-        # Try to extract from obs columns
-        x_candidates = ['x', 'x_centroid', 'centroid_x', 'x_location']
-        y_candidates = ['y', 'y_centroid', 'centroid_y', 'y_location']
-        z_candidates = ['z', 'z_centroid', 'centroid_z', 'z_location']
+        # Try to extract from obs columns (matching TypeScript H5adAdapter logic)
+        x_candidates = [
+            'center_x', 'centerX', 'centerx', 'x', 'X',
+            'x_centroid', 'centroid_x', 'x_location',
+            'center_X', 'spatial_x', 'spatial_X'
+        ]
+        y_candidates = [
+            'center_y', 'centerY', 'centery', 'y', 'Y',
+            'y_centroid', 'centroid_y', 'y_location',
+            'center_Y', 'spatial_y', 'spatial_Y'
+        ]
+        z_candidates = [
+            'center_z', 'centerZ', 'centerz', 'z', 'Z',
+            'z_centroid', 'centroid_z', 'z_location',
+            'center_Z', 'spatial_z', 'spatial_Z'
+        ]
 
         x_col = next((col for col in x_candidates if col in adata.obs.columns), None)
         y_col = next((col for col in y_candidates if col in adata.obs.columns), None)
 
         if x_col and y_col:
+            print(f"  ✓ Found coordinates in obs: {x_col}, {y_col}")
             z_col = next((col for col in z_candidates if col in adata.obs.columns), None)
             if z_col:
+                print(f"  ✓ Found z coordinate: {z_col}")
                 spatial_coords = np.column_stack([
                     adata.obs[x_col].values,
                     adata.obs[y_col].values,

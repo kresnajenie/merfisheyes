@@ -1,10 +1,10 @@
-# H5AD Processing Script
+# Spatial Transcriptomics Data Processing Scripts
 
-This directory contains Python scripts for preprocessing large H5AD datasets that are too large for browser processing.
+This directory contains Python scripts for preprocessing spatial transcriptomics datasets that are too large for browser processing.
 
 ## Overview
 
-The `process_h5ad.py` script converts H5AD files into a chunked binary format that can be loaded directly into the MERFISH Eyes viewer without requiring browser-based processing. This is essential for very large datasets (>500K cells) that would exceed browser memory limits.
+The `process_spatial_data.py` script converts **H5AD**, **Xenium**, and **MERSCOPE** datasets into a chunked binary format that can be loaded directly into the MERFISH Eyes viewer without requiring browser-based processing. This is essential for very large datasets (>500K cells) that would exceed browser memory limits.
 
 ## Why Use This Script?
 
@@ -23,39 +23,52 @@ The `process_h5ad.py` script converts H5AD files into a chunked binary format th
 
 ### Requirements:
 ```bash
-pip install anndata numpy scipy
+pip install anndata numpy scipy pandas
 ```
 
 ### Dependencies:
-- `anndata` - Reading H5AD files
+- `anndata` - Reading H5AD files (required for H5AD format)
+- `pandas` - Reading CSV files (required for Xenium/MERSCOPE)
 - `numpy` - Numerical operations
 - `scipy` - Sparse matrix support
 - Standard library: `gzip`, `json`, `struct`, `pathlib`
 
 ## Usage
 
-### Basic Usage (Auto Chunk Size):
+### H5AD Files:
 ```bash
-python scripts/process_h5ad.py input.h5ad output_folder/
+python scripts/process_spatial_data.py input.h5ad output_folder/
 ```
 
-The script automatically determines optimal chunk size based on gene count:
+### Xenium Folders:
+```bash
+python scripts/process_spatial_data.py xenium_output/ output_folder/
+```
+
+### MERSCOPE Folders:
+```bash
+python scripts/process_spatial_data.py merscope_output/ output_folder/
+```
+
+The script **automatically detects** the input format based on file/folder structure.
+
+### Chunk Size Options:
+
+**Auto-determined (default):**
 - <100 genes: 50 genes/chunk
 - <500 genes: 100 genes/chunk
 - <2000 genes: 200 genes/chunk
 - <10000 genes: 500 genes/chunk
 - ≥10000 genes: 1000 genes/chunk
 
-### Single Gene Per Chunk (For Very Large Datasets):
+**Single Gene Per Chunk (For Very Large Datasets):**
 ```bash
-python scripts/process_h5ad.py large_data.h5ad output_folder/ --chunk-size 1
+python scripts/process_spatial_data.py large_data.h5ad output_folder/ --chunk-size 1
 ```
 
-This creates maximum flexibility for on-demand loading but results in more files.
-
-### Custom Chunk Size:
+**Custom Chunk Size:**
 ```bash
-python scripts/process_h5ad.py data.h5ad output_folder/ --chunk-size 100
+python scripts/process_spatial_data.py data.h5ad output_folder/ --chunk-size 100
 ```
 
 ## Output Structure
@@ -83,9 +96,16 @@ output_folder/
 
 ## Loading in MERFISH Eyes
 
-### Step 1: Process Your H5AD File
+### Step 1: Process Your Dataset
 ```bash
-python scripts/process_h5ad.py my_large_dataset.h5ad processed_data/
+# H5AD file
+python scripts/process_spatial_data.py my_large_dataset.h5ad processed_data/
+
+# Xenium folder
+python scripts/process_spatial_data.py xenium_output/ processed_data/
+
+# MERSCOPE folder
+python scripts/process_spatial_data.py merscope_output/ processed_data/
 ```
 
 ### Step 2: Upload Folder to MERFISH Eyes
