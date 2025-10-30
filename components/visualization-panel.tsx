@@ -22,6 +22,8 @@ interface VisualizationPanelProps {
 
 export function VisualizationPanel({ mode, onClose, controlsRef }: VisualizationPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100; // Show 100 items per page
   const panelRef = useRef<HTMLDivElement>(null);
   const { getCurrentDataset } = useDatasetStore();
   const {
@@ -148,6 +150,17 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
     item.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, mode]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
   const getTitle = () => {
     switch (mode) {
       case "celltype":
@@ -230,11 +243,18 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
               Clear
             </Button>
 
+            {/* Pagination Info */}
+            {filteredItems.length > itemsPerPage && (
+              <div className="text-xs text-default-500 text-center">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
+              </div>
+            )}
+
             {/* List */}
             <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
               {mode === "celltype" ? (
                 // Checkbox list for celltype mode
-                filteredItems.map((item) => (
+                paginatedItems.map((item) => (
                   <Checkbox
                     key={item.id}
                     className="w-full"
@@ -257,7 +277,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
                     // Mode is now automatically updated by setSelectedGene
                   }}
                 >
-                  {filteredItems.map((item) => (
+                  {paginatedItems.map((item) => (
                     <Radio key={item.id} size="sm" value={item.id}>
                       <span style={{ color: item.color }}>{item.label}</span>
                     </Radio>
@@ -265,13 +285,38 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
                 </RadioGroup>
               ) : (
                 // For other modes, just display items
-                filteredItems.map((item) => (
+                paginatedItems.map((item) => (
                   <div key={item.id} className="p-2">
                     <span style={{ color: item.color }}>{item.label}</span>
                   </div>
                 ))
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center gap-2">
+                <Button
+                  isDisabled={currentPage === 1}
+                  size="sm"
+                  variant="flat"
+                  onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs text-default-500">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  isDisabled={currentPage === totalPages}
+                  size="sm"
+                  variant="flat"
+                  onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>
