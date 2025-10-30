@@ -128,7 +128,7 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
       onFocus={() => setIsHovering(true)}
       onBlur={() => setIsHovering(false)}
       className={clsx(
-        "group relative flex items-center justify-center rounded-full p-2 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-100/70 focus-visible:ring-offset-slate-950/40",
+        "group relative flex items-center justify-center rounded-full p-2 transition-shadow cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-100/70 focus-visible:ring-offset-slate-950/40",
         className,
       )}
     >
