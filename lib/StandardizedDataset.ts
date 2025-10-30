@@ -384,4 +384,98 @@ export class StandardizedDataset {
 
     return dataset;
   }
+
+  /**
+   * Load dataset from local chunked files (created by Python script)
+   */
+  static async fromLocalChunked(
+    files: File[],
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<StandardizedDataset> {
+    console.log("[StandardizedDataset] Loading from local chunked files...");
+
+    // Convert File[] to Map<fileKey, File>
+    // File keys should match the structure: manifest.json, coords/spatial.bin.gz, etc.
+    const fileMap = new Map<string, File>();
+
+    for (const file of files) {
+      // Extract relative path from webkitRelativePath
+      const relativePath = file.webkitRelativePath;
+
+      if (!relativePath) {
+        console.warn("File missing webkitRelativePath:", file.name);
+        continue;
+      }
+
+      // Remove the root folder name to get the file key
+      // e.g., "my_dataset/manifest.json" -> "manifest.json"
+      const parts = relativePath.split("/");
+      const fileKey = parts.slice(1).join("/"); // Remove first part (root folder)
+
+      fileMap.set(fileKey, file);
+      console.log(`Mapped file: ${fileKey}`);
+    }
+
+    console.log(`Total files mapped: ${fileMap.size}`);
+
+    // Generate a temporary dataset ID
+    const datasetId = `local_${Date.now()}`;
+
+    await onProgress?.(10, "Initializing local chunked adapter...");
+
+    // Create ChunkedDataAdapter in local mode
+    const { ChunkedDataAdapter } = await import("./adapters/ChunkedDataAdapter");
+    const adapter = new ChunkedDataAdapter(datasetId, fileMap);
+
+    await adapter.initialize();
+
+    await onProgress?.(30, "Loading spatial coordinates...");
+    const spatial = await adapter.loadSpatialCoordinates();
+
+    await onProgress?.(50, "Loading embeddings...");
+    const embeddings = await adapter.loadEmbeddings();
+
+    await onProgress?.(70, "Loading genes...");
+    const genes = await adapter.loadGenes();
+
+    await onProgress?.(90, "Loading clusters...");
+    const clusters = await adapter.loadClusters();
+
+    const dataInfo = adapter.getDatasetInfo();
+
+    await onProgress?.(95, "Finalizing dataset...");
+
+    // Expression matrix is NOT pre-loaded - will be fetched on-demand via adapter
+    const matrix = null;
+
+    // Create StandardizedDataset
+    const dataset = new StandardizedDataset({
+      id: datasetId,
+      name: dataInfo.name,
+      type: dataInfo.type,
+      spatial: {
+        coordinates: spatial.coordinates,
+        dimensions: spatial.dimensions,
+      },
+      embeddings: embeddings,
+      genes: genes,
+      clusters: clusters,
+      metadata: {
+        numCells: dataInfo.numCells,
+        numGenes: dataInfo.numGenes,
+        spatialDimensions: dataInfo.spatialDimensions,
+        availableEmbeddings: dataInfo.availableEmbeddings,
+        clusterCount: dataInfo.clusterCount,
+      },
+      adapter: adapter,
+      rawData: null,
+    });
+
+    // Attach matrix (even though it's null for chunked datasets)
+    dataset.matrix = matrix;
+
+    await onProgress?.(100, "Dataset loaded successfully!");
+
+    return dataset;
+  }
 }

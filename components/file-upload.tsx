@@ -12,13 +12,14 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 
-type UploadType = "h5ad" | "xenium" | "merscope";
+type UploadType = "h5ad" | "xenium" | "merscope" | "chunked";
 
 // Map UploadType to MoleculeDatasetType for single molecule datasets
 const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
   h5ad: "custom",
   xenium: "xenium",
   merscope: "merscope",
+  chunked: "custom",
 };
 
 interface FileUploadProps {
@@ -80,6 +81,27 @@ export function FileUpload({
     },
     [type],
   );
+
+  /**
+   * Detect if files represent a chunked dataset folder (from Python script)
+   */
+  const isChunkedDatasetFolder = (files: File[]): boolean => {
+    const fileNames = files.map((f) => {
+      const path = f.webkitRelativePath || f.name;
+      // Remove root folder name
+      const parts = path.split("/");
+
+      return parts.length > 1 ? parts.slice(1).join("/") : path;
+    });
+
+    // Check for required chunked dataset files
+    const hasManifest = fileNames.some((name) => name === "manifest.json");
+    const hasExprIndex = fileNames.some((name) => name === "expr/index.json");
+    const hasChunks = fileNames.some((name) => /^expr\/chunk_\d{5}\.bin\.gz$/.test(name));
+    const hasSpatial = fileNames.some((name) => name === "coords/spatial.bin.gz");
+
+    return hasManifest && hasExprIndex && hasChunks && hasSpatial;
+  };
 
   const handleFiles = async (files: File[]) => {
     if (files.length === 0) return;
@@ -160,8 +182,19 @@ export function FileUpload({
         console.log("Scaling factor:", dataset.scalingFactor);
         console.log("Summary:", dataset.getSummary());
       } else {
-        // Single cell mode - original behavior
-        if (type === "h5ad") {
+        // Single cell mode
+        if (type === "chunked") {
+          // Chunked folder upload - verify it's a valid chunked dataset
+          if (!isChunkedDatasetFolder(files)) {
+            throw new Error(
+              "Invalid chunked dataset folder. Make sure it contains manifest.json, expr/index.json, expr/chunk_*.bin.gz, and coords/spatial.bin.gz"
+            );
+          }
+          toast.info(`Loading chunked dataset folder (${files.length} files)...`);
+          console.log("=== Starting chunked dataset loading (local files) ===");
+          console.log("Files:", files.length);
+          dataset = await StandardizedDataset.fromLocalChunked(files, onProgress);
+        } else if (type === "h5ad") {
           const file = files[0];
 
           toast.info(`Processing ${file.name}...`);
@@ -261,7 +294,7 @@ export function FileUpload({
   };
 
   const isFolder =
-    !singleMolecule && (type === "xenium" || type === "merscope");
+    !singleMolecule && (type === "xenium" || type === "merscope" || type === "chunked");
 
   // Get isLoading from appropriate store
   const cellIsLoading = useDatasetStore((state) => state.isLoading);
