@@ -4,7 +4,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button, Spinner } from "@heroui/react";
+import { Button, Progress, Spinner } from "@heroui/react";
 
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
@@ -22,6 +22,8 @@ function ViewerByIdContent() {
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingMessage, setLoadingMessage] = useState("Initializing...");
 
   const datasetId = params.id as string;
 
@@ -40,6 +42,8 @@ function ViewerByIdContent() {
     try {
       setIsLoading(true);
       setError(null);
+      setLoadingProgress(0);
+      setLoadingMessage("Initializing...");
 
       console.log("Loading dataset from server:", id);
 
@@ -51,6 +55,8 @@ function ViewerByIdContent() {
         id,
         (progress, message) => {
           console.log(`${progress}%: ${message}`);
+          setLoadingProgress(progress);
+          setLoadingMessage(message);
         },
       );
 
@@ -106,9 +112,17 @@ function ViewerByIdContent() {
           />
         </div>
         <div className="relative z-10 flex items-center justify-center h-full">
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-4 w-full max-w-md px-4">
             <Spinner color="primary" size="lg" />
             <p className={subtitle()}>Loading dataset...</p>
+            <Progress
+              aria-label="Loading progress"
+              className="w-full"
+              color="primary"
+              size="md"
+              value={loadingProgress}
+            />
+            <p className="text-sm text-default-500">{loadingMessage}</p>
           </div>
         </div>
       </>

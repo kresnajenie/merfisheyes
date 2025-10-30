@@ -8,9 +8,25 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 - Multiple format support: .h5ad (AnnData), MERSCOPE, and Xenium
 - 3D visualization of cell-level spatial data using Three.js
 - Color cells by gene expression or cell type annotations
+- **Combined gene + celltype visualization**: Show gene expression gradient on selected celltypes only
 - **Numerical metadata support**: Continuous metadata (e.g., QC metrics) visualized with gradient coloring
+- **Interactive legends panel** (top-right): Live display of active selections
+  - Gene badge with one-click removal
+  - Embedded gradient scale bar (compact w-8 h-32)
+  - Color-coded celltype badges with palette colors
+  - "Clear All" header to deselect all celltypes at once
+  - 70% opacity badges that become solid on hover
+- **Interactive gene expression scalebar**: Real-time visual scale with draggable min/max controls
+  - Auto-scales to 95th percentile when gene changes
+  - Manual override via vertical drag scrubbers
+  - Glassmorphism design with smooth debounced updates
+  - Works for both gene expression and numerical columns
+- **Glassmorphism UI**: Sidebar panels and controls with frosted glass effect
+  - Click-outside-to-close for selection panels
+  - Smooth rounded corners (rounded-3xl)
 - Interactive filtering and selection of cell populations
 - Automatic column type detection (categorical vs numerical)
+- **Mutual exclusivity**: Gene and numerical columns cannot be selected simultaneously
 
 ### Single Molecule Visualization
 - Parquet and CSV file support for molecule coordinates
@@ -142,13 +158,30 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 ### Viewer Controls
 
 #### Single Cell Viewer (`/viewer/[id]`)
+- **Loading Progress**: Real-time progress bar showing dataset loading from S3 (0-100% with status messages)
 - **Rotate**: Left click + drag
 - **Pan**: Right click + drag or middle click + drag
 - **Zoom**: Mouse wheel
+- **Hover**: Mouse over points to see tooltip with cluster and gene information (shows original palette colors even when filtered)
+- **Double-click**: Double-click points to toggle cluster selection and switch to celltype mode
+- **Panel Navigation**: Click Celltype/Gene buttons to open panels without changing visualization
 - **Filter**: Use side panel to filter by cell type (categorical columns only)
 - **Color**: Select gene from dropdown to color by expression, or choose cluster column:
   - **Categorical columns** (≤100 unique values): Discrete colors with checkbox filtering
   - **Numerical columns** (>100 unique values): Coolwarm gradient, no filtering UI
+- **Gene Expression Scalebar**: Appears when gene or numerical column is active
+  - **Gradient Bar**: Blue (low) → White (mid) → Red (high)
+  - **Number Scrubbers**: Drag vertically to adjust min/max scale values
+  - Auto-scales to 0 and 95th percentile on gene/column change
+  - Manual adjustments persist until gene/column changes
+- **Combined Mode**: Select a gene + toggle celltypes to see gene expression only on those cell populations
+  - Automatically activates when both gene and celltypes are selected
+  - Non-selected celltypes appear grey
+  - Selected celltypes show gene expression gradient (coolwarm)
+- **Automatic Mode Switching**:
+  - Selecting a numerical column clears gene selection (mutual exclusivity)
+  - Selecting a gene while numerical column is active switches back to categorical column
+- **Visualization updates** only when actively selecting a gene or toggling a celltype
 
 #### Single Molecule Viewer (`/sm-viewer/[id]`)
 - **Rotate**: Left click + drag (disabled in 2D mode)
@@ -255,6 +288,9 @@ The application provides RESTful API endpoints for dataset upload and management
 │   ├── single-molecule-three-scene.tsx  # Single molecule Three.js scene
 │   ├── visualization-controls.tsx       # Single cell controls
 │   ├── single-molecule-controls.tsx     # Single molecule controls
+│   ├── gene-scalebar.tsx         # Interactive gene expression scalebar
+│   ├── ui/
+│   │   └── number-scrubber.tsx   # Draggable number input component
 │   └── file-upload.tsx           # Unified upload component
 ├── lib/                          # Core logic
 │   ├── adapters/                # Single cell format adapters
@@ -262,6 +298,9 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   ├── XeniumAdapter.ts
 │   │   ├── MerscopeAdapter.ts
 │   │   └── ChunkedDataAdapter.ts  # S3 loading adapter
+│   ├── config/                  # Configuration files
+│   │   ├── visualization.config.ts  # Centralized visualization parameters
+│   │   └── moleculeColumnMappings.ts  # Column naming conventions
 │   ├── workers/                 # Web workers for background processing
 │   │   ├── standardized-dataset.worker.ts  # Single cell parsing worker (H5AD/Xenium/MERSCOPE)
 │   │   ├── standardizedDatasetWorkerManager.ts  # Single cell worker manager
@@ -277,7 +316,8 @@ The application provides RESTful API endpoints for dataset upload and management
 │   ├── utils/
 │   │   ├── SingleMoleculeProcessor.ts  # S3 upload processing
 │   │   ├── fingerprint.ts       # Dataset fingerprinting
-│   │   └── gene-filters.ts      # Shared gene filtering (control probes, etc.)
+│   │   ├── gene-filters.ts      # Shared gene filtering (control probes, etc.)
+│   │   └── color-palette.ts     # Centralized color palette (40+ colors)
 │   ├── webgl/                   # WebGL/Three.js utilities (single cell)
 │   ├── s3.ts                    # S3 client utilities
 │   ├── prisma.ts                # Database client

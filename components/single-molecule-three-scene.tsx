@@ -7,6 +7,38 @@ import { Spinner } from "@heroui/react";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+
+// Create circular sprite texture for points
+function createCircleTexture(): THREE.Texture {
+  const canvas = document.createElement("canvas");
+  const size = 64;
+  canvas.width = size;
+  canvas.height = size;
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not get 2D context");
+
+  const gradient = context.createRadialGradient(
+    size / 2,
+    size / 2,
+    0,
+    size / 2,
+    size / 2,
+    size / 2,
+  );
+  gradient.addColorStop(0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.5, "rgba(255,255,255,1)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+
+  return texture;
+}
 
 export function SingleMoleculeThreeScene() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -15,6 +47,7 @@ export function SingleMoleculeThreeScene() {
   const cameraRef = useRef<THREE.Camera | null>(null);
   const controlsRef = useRef<any>(null);
   const pointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
+  const circleTextureRef = useRef<THREE.Texture | null>(null);
 
   // Get dataset from store
   const dataset = useSingleMoleculeStore((state) => {
@@ -54,6 +87,11 @@ export function SingleMoleculeThreeScene() {
     rendererRef.current = renderer;
     cameraRef.current = camera;
     controlsRef.current = controls;
+
+    // Create circle texture for points (reuse across all point clouds)
+    if (!circleTextureRef.current) {
+      circleTextureRef.current = createCircleTexture();
+    }
 
     // Start animation loop
     animate();
@@ -193,13 +231,15 @@ export function SingleMoleculeThreeScene() {
               new THREE.BufferAttribute(colors, 3),
             );
 
-            // Create material (increased base size)
+            // Create material with circular texture
             const material = new THREE.PointsMaterial({
-              size: geneViz.localScale * globalScale * 2.0,
+              size: geneViz.localScale * globalScale * VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
               vertexColors: true,
               transparent: true,
               opacity: 1.0,
               sizeAttenuation: false,
+              map: circleTextureRef.current,
+              alphaTest: 0.5,
             });
 
             pointCloud = new THREE.Points(geometry, material);
@@ -213,7 +253,7 @@ export function SingleMoleculeThreeScene() {
             // Update existing point cloud color and size
             const material = pointCloud.material as THREE.PointsMaterial;
 
-            material.size = geneViz.localScale * globalScale * 2.0;
+            material.size = geneViz.localScale * globalScale * VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
 
             // Update colors
             const color = new THREE.Color(geneViz.color);

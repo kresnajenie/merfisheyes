@@ -6,6 +6,8 @@
 // We'll load h5wasm dynamically from CDN
 import h5wasm from "h5wasm";
 
+import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+
 // async function loadH5wasm() {
 //   if (h5wasm) return h5wasm;
 //   const module = await import(
@@ -556,27 +558,13 @@ export class H5adAdapter {
       console.log("No colors found in uns, using default colors");
     }
 
-    // Use default matplotlib colors
-    const defaultColors = [
-      "#1f77b4",
-      "#ff7f0e",
-      "#2ca02c",
-      "#d62728",
-      "#9467bd",
-      "#8c564b",
-      "#e377c2",
-      "#7f7f7f",
-      "#bcbd22",
-      "#17becf",
-    ];
-
     const clusters = await this.fetchObs(clusterColumn);
     const uniqueClusters = Array.from(new Set(clusters)).sort();
     const palette: Record<string, string> = {};
 
     uniqueClusters.forEach((cluster, index) => {
       palette[cluster] = this.normalizeHexColor(
-        defaultColors[index % defaultColors.length],
+        DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length],
       );
     });
 

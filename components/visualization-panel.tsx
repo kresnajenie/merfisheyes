@@ -7,19 +7,22 @@ import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Checkbox } from "@heroui/checkbox";
 import { RadioGroup, Radio } from "@heroui/radio";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
 
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import { glassButton } from "@/components/primitives";
 
 interface VisualizationPanelProps {
-  mode: VisualizationMode;
+  mode: VisualizationMode; // This is panelMode, not the visualization mode array
   onClose: () => void;
+  controlsRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function VisualizationPanel({ mode }: VisualizationPanelProps) {
+export function VisualizationPanel({ mode, onClose, controlsRef }: VisualizationPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
   const { getCurrentDataset } = useDatasetStore();
   const {
     selectedColumn,
@@ -28,7 +31,36 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
     selectedGene,
     toggleCelltype,
     setSelectedGene,
+    setMode,
   } = useVisualizationStore();
+
+  // Handle click outside to close panel
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      // Don't close if clicking inside the panel
+      if (panelRef.current && panelRef.current.contains(target)) {
+        return;
+      }
+
+      // Don't close if clicking on the controls
+      if (controlsRef?.current && controlsRef.current.contains(target)) {
+        return;
+      }
+
+      // Close if clicking outside both panel and controls
+      onClose();
+    };
+
+    // Add event listener
+    document.addEventListener("mousedown", handleClickOutside);
+
+    // Cleanup
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [onClose, controlsRef]);
 
   // Type guard: this component only works with StandardizedDataset
   const rawDataset = getCurrentDataset();
@@ -128,7 +160,10 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
   };
 
   return (
-    <div className="fixed top-20 left-20 z-50 w-[300px] bg-content1 border-2 border-default-200 rounded-lg shadow-lg">
+    <div
+      ref={panelRef}
+      className={`fixed top-28 left-20 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+    >
       {/* Content */}
       <div className="p-4 space-y-3">
         {/* Select celltypes - only show for celltype mode */}
@@ -140,7 +175,17 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
             placeholder="Select a column"
             selectedKey={selectedColumn}
             onSelectionChange={(key) => {
-              setSelectedColumn((key as string) || null);
+              const columnKey = (key as string) || null;
+              const selectedCluster = dataset?.clusters?.find(
+                (c) => c.column === columnKey,
+              );
+              const isNumerical = selectedCluster?.type === "numerical";
+
+              setSelectedColumn(columnKey, isNumerical);
+              // When a cluster column is selected, switch visualization mode to celltype
+              if (key) {
+                setMode(["celltype"]);
+              }
             }}
           >
             {clusterColumns.map((column) => (
@@ -195,7 +240,10 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
                     className="w-full"
                     isSelected={selectedCelltypes.has(item.id)}
                     size="sm"
-                    onValueChange={() => toggleCelltype(item.id)}
+                    onValueChange={() => {
+                      toggleCelltype(item.id);
+                      // Mode is now automatically updated by toggleCelltype
+                    }}
                   >
                     <span style={{ color: item.color }}>{item.label}</span>
                   </Checkbox>
@@ -204,7 +252,10 @@ export function VisualizationPanel({ mode }: VisualizationPanelProps) {
                 // Radio group for gene mode
                 <RadioGroup
                   value={selectedGene || ""}
-                  onValueChange={(value) => setSelectedGene(value || null)}
+                  onValueChange={(value) => {
+                    setSelectedGene(value || null);
+                    // Mode is now automatically updated by setSelectedGene
+                  }}
                 >
                   {filteredItems.map((item) => (
                     <Radio key={item.id} size="sm" value={item.id}>

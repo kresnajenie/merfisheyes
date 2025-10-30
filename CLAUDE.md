@@ -98,13 +98,29 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
 4. **Column Mapping Configuration** ([lib/config/moleculeColumnMappings.ts](lib/config/moleculeColumnMappings.ts)):
    - Configurable column names for different dataset types (xenium, merscope, custom)
    - Default mappings: `feature_name`, `x_location`, `y_location`, `z_location` (Xenium)
-   - Alternative: `gene`, `global_x`, `global_y`, `global_z` (MERSCOPE)
 
-5. **Gene Filtering Utilities** ([lib/utils/gene-filters.ts](lib/utils/gene-filters.ts)):
+5. **Color Palette System** ([lib/utils/color-palette.ts](lib/utils/color-palette.ts)):
+   - **Centralized palette**: `DEFAULT_COLOR_PALETTE` with 40+ bright, distinct colors optimized for black backgrounds
+   - **Shared across all adapters**: H5adAdapter, XeniumAdapter, MerscopeAdapter all use same palette
+   - **Utility functions**: `getColorFromPalette()` for index-based access, `generateColorPalette()` for value mapping
+   - **Consistent styling**: Ensures cluster colors match across tooltips, legends, and visualization
+
+6. **Gene Filtering Utilities** ([lib/utils/gene-filters.ts](lib/utils/gene-filters.ts)):
    - Shared `shouldFilterGene()` function filters control probes and unassigned genes
    - Used by both single cell (XeniumAdapter) and single molecule (SingleMoleculeDataset) pipelines
    - Filters patterns: negative controls, unassigned, deprecated, codewords, blanks
    - Reduces clutter in gene selection UI and improves performance
+
+7. **Visualization Configuration** ([lib/config/visualization.config.ts](lib/config/visualization.config.ts)):
+   - Centralized configuration for all visualization parameters
+   - **Percentiles**: Gene expression (95th), numerical clusters (95th)
+   - **Point Sizes**:
+     - Single cell base size (0.5), size multiplier range (0.5x-2.0x)
+     - Single molecule base size (5.0) - configurable separately
+   - **Opacity**: Base alpha (1.0)
+   - **Scale Bar**: Default range (0-3), step size (0.1% of max), decimal places (3)
+   - **Helper Functions**: `calculateSizeMultiplier()` for consistent size scaling across visualization modes
+   - All visualization parameters can be modified in this single file
 
 #### State Management
 
@@ -112,6 +128,16 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 - `datasetStore` - Manages single cell datasets (StandardizedDataset)
 - `singleMoleculeStore` - Manages single molecule datasets (SingleMoleculeDataset)
 - `visualizationStore` - Controls 3D scene state for single cell viewer (camera, colors, filters, gene/celltype selection)
+  - **Mode Array System**: `mode: VisualizationMode[]` supports multiple simultaneous visualization modes
+  - **Automatic Mode Switching**: Mode array updates automatically based on selections
+    - Selecting a gene → adds `"gene"` to mode array
+    - Toggling celltypes → adds/removes `"celltype"` from mode array
+    - Selecting numerical column → clears gene and sets mode to `["celltype"]` only (mutual exclusivity)
+  - **Combined Visualization**: When `mode = ["gene", "celltype"]` with selected gene + celltypes:
+    - Shows gene expression gradient on selected celltypes only
+    - Greys out non-selected celltypes
+  - **Separate Panel Mode**: `panelMode` controls which panel is open (independent of visualization)
+  - Allows browsing genes/celltypes without changing visualization
 - `singleMoleculeVisualizationStore` - Controls visualization state for single molecule viewer (gene selection with colors, local/global scaling, view mode)
 - Uses Zustand for client-side state management
 
@@ -174,6 +200,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
   - Gene expression → coolwarm gradient (95th percentile normalization)
   - Categorical clusters → discrete palette colors
   - **Numerical clusters** → coolwarm gradient (same as gene expression)
+  - **Combined gene + celltype** → gene gradient on selected celltypes, grey on others (`updateCombinedVisualization()`)
 
 **Key Features**:
 - GPU-accelerated point rendering using BufferGeometry and custom shaders
@@ -182,14 +209,41 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - Supports both 2D and 3D spatial coordinates
 - **Automatic column type detection**: Columns with ≤100 unique values are categorical, >100 are numerical
 - **Numerical cluster visualization**: Numerical metadata columns use gradient coloring instead of discrete categories
+- **Interactive hover tooltips**: Mouse over points to see cluster/gene information
+  - Celltype mode: Shows original cluster palette color + cluster name (even when filtered/greyed)
+  - Gene mode: Shows cluster palette color + cluster name, plus gene gradient color + expression value
+  - Numerical clusters: Shows numerical value without color circle
+  - Fine-tuned adaptive raycaster threshold (0.1-2.0 based on camera distance) for accurate selection
+  - Throttled intersection checking (50ms) for performance
+- **Double-click interaction**: Double-click points to toggle cluster selection
+  - Automatically switches to celltype mode
+  - Toggles cluster in/out of selectedCelltypes for filtering
+  - Only works for categorical clusters (numerical clusters excluded)
+- **Interactive Gene Expression Scalebar** ([components/gene-scalebar.tsx](components/gene-scalebar.tsx)):
+  - Appears when gene mode or numerical cluster mode is active
+  - **Gradient Bar**: Blue (low) → White (mid) → Red (high) representing expression levels
+  - **Number Scrubbers** ([components/ui/number-scrubber.tsx](components/ui/number-scrubber.tsx)): Interactive min/max controls with vertical drag
+    - Drag up to increase value, drag down to decrease
+    - Glassmorphism design (frosted glass background)
+    - Debounced updates (100ms) during drag for performance
+    - Immediate display feedback during scrubbing
+  - **Auto-scaling**: Min/max values auto-set to 0 and 95th percentile when gene/column changes
+  - **Manual Override**: Users can scrub to adjust scale range after auto-scaling
+  - **Dynamic Step Size**: 0.1% of max value (configurable in VISUALIZATION_CONFIG)
+  - **Separate Scales**: Independent scales for gene expression vs numerical clusters
+- **Ref-based state management**: Uses refs to avoid JavaScript closure issues with event handlers
 
 #### Single Molecule Visualization
 
 **Three.js Point Clouds** ([components/single-molecule-three-scene.tsx](components/single-molecule-three-scene.tsx)):
 - One point cloud per gene for independent control (easier alpha/visibility management)
-- Random HSL color assignment per gene (70-100% saturation, 50-70% lightness for visibility on black background)
+- **Circular Point Rendering**: Uses radial gradient texture for smooth, anti-aliased circles
+  - `createCircleTexture()` generates 64x64 canvas texture with radial gradient
+  - Texture reused across all point clouds for memory efficiency
+  - `alphaTest: 0.5` for transparency, `map` property applies texture
+- **Color Assignment**: Random HSL colors per gene (70-100% saturation, 50-70% lightness for visibility on black background)
 - Coordinates pre-scaled by 100x (from normalized [-1,1] to [-100,100] range)
-- Point size: `localScale × globalScale × 2.0`
+- Point size: `localScale × globalScale × SINGLE_MOLECULE_POINT_BASE_SIZE` (configurable in VISUALIZATION_CONFIG)
 - **Async lazy loading**: `getCoordinatesByGene()` is async to support on-demand S3 loading
 - **Gene caching**: Once loaded from S3, genes remain in memory for instant re-selection
 
@@ -208,7 +262,10 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 ### Component Structure
 
 #### Shared Components
-- `components/three-scene.tsx` - Three.js scene for single cell visualization (uses `useEffect` for scene lifecycle)
+- `components/three-scene.tsx` - Three.js scene for single cell visualization
+  - Unified `useEffect` hook handles all visualization modes based on `mode` array
+  - Supports gene-only, celltype-only, and combined gene+celltype visualization
+  - Automatic switching between `updateGeneVisualization()`, `updateCelltypeVisualization()`, `updateNumericalCelltypeVisualization()`, and `updateCombinedVisualization()`
 - `components/visualization-controls.tsx` - UI for gene selection, cluster filtering (single cell viewer)
 - `components/dataset-card.tsx` - Dataset preview cards on explore page
 - `components/navbar-wrapper.tsx` - Smart routing to appropriate store/modal based on pathname
@@ -218,6 +275,31 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### Single Cell Components
 - `app/viewer/[id]/page.tsx` - Single cell viewer page with dynamic dataset loading from S3
+  - **Real-time Progress Bar**: Shows loading percentage (0-100%) and status messages during S3 dataset loading
+  - Progress updates from `StandardizedDataset.fromS3()` callback (e.g., "Fetching manifest", "Loading chunk 1 of 3")
+  - Enhanced loading UI with spinner, progress bar, and descriptive status text
+  - Automatic progress reset on retry
+- `components/visualization-controls.tsx` - Left-side control buttons (Celltype, Gene, Size slider)
+  - Positioned at `top-28 left-4` with glassmorphism styling
+  - Opens/closes VisualizationPanel on button press
+- `components/visualization-panel.tsx` - Sidebar panel for gene/celltype selection
+  - Glassmorphism background with `backdrop-blur-[50px]` and rounded-3xl corners
+  - Click-outside-to-close functionality
+  - Positioned at `top-28 left-20` (32px below navbar)
+  - Cluster column dropdown (categorical/numerical detection)
+  - Search, filter, and selection UI for genes and celltypes
+- `components/visualization-legends.tsx` - **Top-right legends panel** showing active selections
+  - **Unified layout** (top to bottom): Gene badge → Scale bar → Clusters list
+  - **Gene Badge**: Blue pill with gene name, click X to remove
+  - **Scale Bar**: Embedded gradient bar (w-8 h-32) with number scrubbers for gene/numerical columns
+  - **Cluster Badges**: Color-coded pills with celltype names, 70% opacity → solid on hover
+  - **"Clear All" header**: Click cluster header to deselect all celltypes at once
+  - Gets palette colors from `dataset.clusters[].palette` (same source as tooltips)
+  - Auto-hides when nothing is selected
+- `components/gene-scalebar.tsx` - Compact gradient scale bar (now embedded in legends)
+  - Size: `w-8 h-32` (reduced from w-12 h-48)
+  - Position: Relative (removed fixed positioning, now inside VisualizationLegends)
+  - Shows for gene expression or numerical cluster columns
 - `components/upload-settings-modal.tsx` - Upload settings for cell datasets (shows point count, genes, clusters)
 
 #### Single Molecule Components
