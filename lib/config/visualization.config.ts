@@ -23,9 +23,16 @@ export const VISUALIZATION_CONFIG = {
 
   /**
    * Point Sizes
-   * Base size for rendered points before any scaling is applied
+   * Base size for rendered points before any scaling is applied (single cell visualization)
    */
   POINT_BASE_SIZE: 0.5,
+
+  /**
+   * Single Molecule Point Base Size
+   * Base size for single molecule points (separate from cell visualization)
+   * Default: 2.0
+   */
+  SINGLE_MOLECULE_POINT_BASE_SIZE: 5.0,
 
   /**
    * Point Size Multiplier Range

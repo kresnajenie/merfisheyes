@@ -98,18 +98,25 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
 4. **Column Mapping Configuration** ([lib/config/moleculeColumnMappings.ts](lib/config/moleculeColumnMappings.ts)):
    - Configurable column names for different dataset types (xenium, merscope, custom)
    - Default mappings: `feature_name`, `x_location`, `y_location`, `z_location` (Xenium)
-   - Alternative: `gene`, `global_x`, `global_y`, `global_z` (MERSCOPE)
 
-5. **Gene Filtering Utilities** ([lib/utils/gene-filters.ts](lib/utils/gene-filters.ts)):
+5. **Color Palette System** ([lib/utils/color-palette.ts](lib/utils/color-palette.ts)):
+   - **Centralized palette**: `DEFAULT_COLOR_PALETTE` with 40+ bright, distinct colors optimized for black backgrounds
+   - **Shared across all adapters**: H5adAdapter, XeniumAdapter, MerscopeAdapter all use same palette
+   - **Utility functions**: `getColorFromPalette()` for index-based access, `generateColorPalette()` for value mapping
+   - **Consistent styling**: Ensures cluster colors match across tooltips, legends, and visualization
+
+6. **Gene Filtering Utilities** ([lib/utils/gene-filters.ts](lib/utils/gene-filters.ts)):
    - Shared `shouldFilterGene()` function filters control probes and unassigned genes
    - Used by both single cell (XeniumAdapter) and single molecule (SingleMoleculeDataset) pipelines
    - Filters patterns: negative controls, unassigned, deprecated, codewords, blanks
    - Reduces clutter in gene selection UI and improves performance
 
-6. **Visualization Configuration** ([lib/config/visualization.config.ts](lib/config/visualization.config.ts)):
+7. **Visualization Configuration** ([lib/config/visualization.config.ts](lib/config/visualization.config.ts)):
    - Centralized configuration for all visualization parameters
    - **Percentiles**: Gene expression (95th), numerical clusters (95th)
-   - **Point Sizes**: Base size (2.0), size multiplier range (0.5x-2.0x)
+   - **Point Sizes**:
+     - Single cell base size (0.5), size multiplier range (0.5x-2.0x)
+     - Single molecule base size (5.0) - configurable separately
    - **Opacity**: Base alpha (1.0)
    - **Scale Bar**: Default range (0-3), step size (0.1% of max), decimal places (3)
    - **Helper Functions**: `calculateSizeMultiplier()` for consistent size scaling across visualization modes
@@ -230,9 +237,13 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 **Three.js Point Clouds** ([components/single-molecule-three-scene.tsx](components/single-molecule-three-scene.tsx)):
 - One point cloud per gene for independent control (easier alpha/visibility management)
-- Random HSL color assignment per gene (70-100% saturation, 50-70% lightness for visibility on black background)
+- **Circular Point Rendering**: Uses radial gradient texture for smooth, anti-aliased circles
+  - `createCircleTexture()` generates 64x64 canvas texture with radial gradient
+  - Texture reused across all point clouds for memory efficiency
+  - `alphaTest: 0.5` for transparency, `map` property applies texture
+- **Color Assignment**: Random HSL colors per gene (70-100% saturation, 50-70% lightness for visibility on black background)
 - Coordinates pre-scaled by 100x (from normalized [-1,1] to [-100,100] range)
-- Point size: `localScale × globalScale × 2.0`
+- Point size: `localScale × globalScale × SINGLE_MOLECULE_POINT_BASE_SIZE` (configurable in VISUALIZATION_CONFIG)
 - **Async lazy loading**: `getCoordinatesByGene()` is async to support on-demand S3 loading
 - **Gene caching**: Once loaded from S3, genes remain in memory for instant re-selection
 

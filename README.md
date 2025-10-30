@@ -298,6 +298,9 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   ├── XeniumAdapter.ts
 │   │   ├── MerscopeAdapter.ts
 │   │   └── ChunkedDataAdapter.ts  # S3 loading adapter
+│   ├── config/                  # Configuration files
+│   │   ├── visualization.config.ts  # Centralized visualization parameters
+│   │   └── moleculeColumnMappings.ts  # Column naming conventions
 │   ├── workers/                 # Web workers for background processing
 │   │   ├── standardized-dataset.worker.ts  # Single cell parsing worker (H5AD/Xenium/MERSCOPE)
 │   │   ├── standardizedDatasetWorkerManager.ts  # Single cell worker manager
@@ -310,13 +313,11 @@ The application provides RESTful API endpoints for dataset upload and management
 │   │   └── singleMoleculeVisualizationStore.ts  # Single molecule viz state
 │   ├── services/                # Data processing services
 │   │   └── hyparquetService.ts  # Hyparquet parquet reader
-│   ├── config/                  # Configuration files
-│   │   ├── visualization.config.ts  # Centralized visualization parameters
-│   │   └── moleculeColumnMappings.ts  # Column naming conventions
 │   ├── utils/
 │   │   ├── SingleMoleculeProcessor.ts  # S3 upload processing
 │   │   ├── fingerprint.ts       # Dataset fingerprinting
-│   │   └── gene-filters.ts      # Shared gene filtering (control probes, etc.)
+│   │   ├── gene-filters.ts      # Shared gene filtering (control probes, etc.)
+│   │   └── color-palette.ts     # Centralized color palette (40+ colors)
 │   ├── webgl/                   # WebGL/Three.js utilities (single cell)
 │   ├── s3.ts                    # S3 client utilities
 │   ├── prisma.ts                # Database client
