@@ -125,28 +125,32 @@ export default function Home() {
               </span>
             </h1>
             <div className="flex flex-col items-center gap-3 mt-4 sm:flex-row sm:gap-6">
-              <span
-                className={`text-sm transition-all duration-300 px-3 py-1 rounded-full ${
+              <button
+                type="button"
+                onClick={() => setIsSingleMolecule(false)}
+                className={`text-sm transition-all duration-300 px-3 py-1 rounded-full cursor-pointer hover:scale-[1.04] hover:shadow-lg hover:shadow-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 ${
                   !isSingleMolecule
                     ? "font-medium text-white bg-blue-500"
                     : "font-normal text-default-500"
                 }`}
               >
                 single cell
-              </span>
+              </button>
               <BrainToggle
                 isActive={isSingleMolecule}
                 onToggle={setIsSingleMolecule}
               />
-              <span
-                className={`text-sm transition-all duration-300 px-3 py-1 rounded-full ${
+              <button
+                type="button"
+                onClick={() => setIsSingleMolecule(true)}
+                className={`text-sm transition-all duration-300 px-3 py-1 rounded-full cursor-pointer hover:scale-[1.04] hover:shadow-lg hover:shadow-purple-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500 ${
                   isSingleMolecule
                     ? "font-medium text-white bg-purple-500"
                     : "font-normal text-default-500"
                 }`}
               >
                 single molecule
-              </span>
+              </button>
             </div>
             <div className={subtitle({ class: "mt-4 text-center" })}>
               Explore your{" "}
