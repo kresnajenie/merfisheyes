@@ -3,7 +3,6 @@
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Checkbox } from "@heroui/checkbox";
-import { Chip } from "@heroui/chip";
 import { Slider } from "@heroui/slider";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useMemo } from "react";
@@ -25,7 +24,7 @@ export function SingleMoleculeControls() {
   });
 
   // Get visualization state
-  const { selectedGenes, addGene, removeGene, clearGenes, globalScale, setGlobalScale, viewMode, setViewMode } =
+  const { selectedGenes, selectedGenesLegend, addGene, removeGene, clearGenes, globalScale, setGlobalScale, viewMode, setViewMode } =
     useSingleMoleculeVisualizationStore();
 
   // Filter genes based on search
@@ -36,9 +35,6 @@ export function SingleMoleculeControls() {
       gene.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [dataset, searchTerm]);
-
-  // Convert Map to array for easier display
-  const selectedGenesArray = Array.from(selectedGenes.keys());
 
   return (
     <div className="fixed top-28 left-4 z-50 flex flex-col gap-2">
@@ -91,33 +87,9 @@ export function SingleMoleculeControls() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Select Genes</h3>
               <span className="text-sm text-default-500">
-                {selectedGenesArray.length} selected
+                {selectedGenesLegend.size} selected
               </span>
             </div>
-
-            {/* Selected Genes Display */}
-            {selectedGenesArray.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {selectedGenesArray.map((gene) => {
-                  const geneViz = selectedGenes.get(gene);
-
-                  return (
-                    <Chip
-                      key={gene}
-                      size="sm"
-                      style={{
-                        backgroundColor: geneViz?.color || "#808080",
-                        color: "#000",
-                      }}
-                      variant="flat"
-                      onClose={() => removeGene(gene)}
-                    >
-                      {gene}
-                    </Chip>
-                  );
-                })}
-              </div>
-            )}
 
             {/* Search Input */}
             <Input
