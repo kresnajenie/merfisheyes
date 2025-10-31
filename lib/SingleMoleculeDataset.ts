@@ -10,6 +10,25 @@ import {
 import { shouldFilterGene } from "./utils/gene-filters";
 
 /**
+ * Generate a random bright color for dark background
+ */
+function generateBrightColor(): string {
+  const hue = Math.random() * 360;
+  const saturation = 70 + Math.random() * 30; // 70-100%
+  const lightness = 50 + Math.random() * 20; // 50-70%
+
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+/**
+ * Gene visualization properties
+ */
+export interface GeneProperties {
+  color: string;
+  size: number;
+}
+
+/**
  * Format elapsed time in a human-readable format
  */
 function formatElapsedTime(ms: number): string {
@@ -39,6 +58,9 @@ export class SingleMoleculeDataset {
 
   // Fast gene lookup with pre-computed normalized coordinates
   private geneIndex: Map<string, number[]>; // gene -> normalized [x1,y1,z1, x2,y2,z2, ...]
+
+  // Gene visualization properties (color and size for each gene)
+  geneColors: Record<string, GeneProperties>;
 
   dimensions: 2 | 3;
   scalingFactor: number;
@@ -80,6 +102,54 @@ export class SingleMoleculeDataset {
     this.rawData = rawData;
 
     this.validateStructure();
+
+    // Initialize gene colors from localStorage or generate new ones
+    this.geneColors = this.initializeGeneColors();
+  }
+
+  /**
+   * Initialize gene colors from localStorage or generate new ones
+   * Persists across page reloads for the same dataset ID
+   */
+  private initializeGeneColors(): Record<string, GeneProperties> {
+    const storageKey = `sm_gene_colors_${this.id}`;
+
+    // Try to load from localStorage
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log(`[SingleMoleculeDataset] Loaded gene colors from localStorage for dataset: ${this.id}`);
+          return parsed;
+        }
+      } catch (error) {
+        console.warn(`[SingleMoleculeDataset] Failed to load gene colors from localStorage:`, error);
+      }
+    }
+
+    // Generate new colors for all genes
+    console.log(`[SingleMoleculeDataset] Generating new gene colors for ${this.uniqueGenes.length} genes`);
+    const geneColors: Record<string, GeneProperties> = {};
+
+    for (const gene of this.uniqueGenes) {
+      geneColors[gene] = {
+        color: generateBrightColor(),
+        size: 1.0, // Default local size multiplier
+      };
+    }
+
+    // Save to localStorage
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(geneColors));
+        console.log(`[SingleMoleculeDataset] Saved gene colors to localStorage for dataset: ${this.id}`);
+      } catch (error) {
+        console.warn(`[SingleMoleculeDataset] Failed to save gene colors to localStorage:`, error);
+      }
+    }
+
+    return geneColors;
   }
 
   /**

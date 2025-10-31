@@ -32,7 +32,24 @@ export const VISUALIZATION_CONFIG = {
    * Base size for single molecule points (separate from cell visualization)
    * Default: 2.0
    */
-  SINGLE_MOLECULE_POINT_BASE_SIZE: 5.0,
+  SINGLE_MOLECULE_POINT_BASE_SIZE: 0.1,
+
+  /**
+   * Single Molecule Global Scale Slider Range
+   * Min/max/step values for the global scale slider in single molecule viewer
+   */
+  SINGLE_MOLECULE_GLOBAL_SCALE_MIN: 0.1,
+  SINGLE_MOLECULE_GLOBAL_SCALE_MAX: 10.0,
+  SINGLE_MOLECULE_GLOBAL_SCALE_STEP: 0.1,
+
+  /**
+   * Single Molecule Local Scale Slider Range
+   * Min/max/step values for per-gene local scale slider in legend settings
+   */
+  SINGLE_MOLECULE_LOCAL_SCALE_MIN: 0.1,
+  SINGLE_MOLECULE_LOCAL_SCALE_MAX: 5.0,
+  SINGLE_MOLECULE_LOCAL_SCALE_STEP: 0.1,
+  SINGLE_MOLECULE_LOCAL_SCALE_DEFAULT: 1.0,
 
   /**
    * Point Size Multiplier Range

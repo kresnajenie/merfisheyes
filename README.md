@@ -184,6 +184,7 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 - **Visualization updates** only when actively selecting a gene or toggling a celltype
 
 #### Single Molecule Viewer (`/sm-viewer/[id]`)
+- **Auto-selection**: First 3 genes are automatically selected and displayed when loading from S3 link
 - **Rotate**: Left click + drag (disabled in 2D mode)
 - **Pan**: Right click + drag
 - **Zoom**: Mouse wheel

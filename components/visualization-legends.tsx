@@ -33,7 +33,7 @@ export const VisualizationLegends: React.FC = () => {
     if (!dataset || !selectedColumn) return {};
 
     // Check if dataset has clusters property (StandardizedDataset)
-    if (!('clusters' in dataset)) return {};
+    if (!("clusters" in dataset)) return {};
 
     // Type-narrow to StandardizedDataset
     const standardizedDataset = dataset as StandardizedDataset;
@@ -47,7 +47,7 @@ export const VisualizationLegends: React.FC = () => {
   // Check if selected column is numerical
   const isNumericalColumn = useMemo(() => {
     if (!dataset || !selectedColumn) return false;
-    if (!('clusters' in dataset)) return false;
+    if (!("clusters" in dataset)) return false;
 
     const standardizedDataset = dataset as StandardizedDataset;
     const selectedCluster = standardizedDataset.clusters?.find(
@@ -62,11 +62,19 @@ export const VisualizationLegends: React.FC = () => {
     console.log("=== VisualizationLegends Debug ===");
     console.log("dataset:", dataset);
     console.log("dataset.type:", dataset?.type);
-    console.log("has clusters property:", dataset ? 'clusters' in dataset : false);
-    console.log("dataset.clusters:", dataset && 'clusters' in dataset ? (dataset as StandardizedDataset).clusters : "N/A");
+    console.log(
+      "has clusters property:",
+      dataset ? "clusters" in dataset : false
+    );
+    console.log(
+      "dataset.clusters:",
+      dataset && "clusters" in dataset
+        ? (dataset as StandardizedDataset).clusters
+        : "N/A"
+    );
     console.log("selectedColumn:", selectedColumn);
 
-    if (dataset && 'clusters' in dataset) {
+    if (dataset && "clusters" in dataset) {
       const standardizedDataset = dataset as StandardizedDataset;
       const selectedCluster = standardizedDataset.clusters?.find(
         (c) => c.column === selectedColumn
@@ -88,8 +96,12 @@ export const VisualizationLegends: React.FC = () => {
   // Don't render if nothing is selected
   const hasGene = !!selectedGene;
   const hasCelltypes = selectedCelltypes.size > 0;
-  const showScalebar = (mode.includes("gene") && selectedGene) ||
-                       (mode.includes("celltype") && !selectedGene && selectedColumn && isNumericalColumn);
+  const showScalebar =
+    (mode.includes("gene") && selectedGene) ||
+    (mode.includes("celltype") &&
+      !selectedGene &&
+      selectedColumn &&
+      isNumericalColumn);
 
   if (!hasGene && !hasCelltypes && !showScalebar) {
     return null;
@@ -146,7 +158,8 @@ export const VisualizationLegends: React.FC = () => {
               });
             }}
           >
-            {selectedColumn || "Celltypes"} ({selectedCelltypes.size}) - Clear All
+            {selectedColumn || "Celltypes"} ({selectedCelltypes.size}) - Clear
+            All
           </div>
           <div className="flex flex-col items-end gap-2 max-h-96 overflow-y-auto">
             {Array.from(selectedCelltypes).map((celltype) => {
@@ -157,7 +170,7 @@ export const VisualizationLegends: React.FC = () => {
                   key={celltype}
                   className="group flex items-center gap-2 px-4 py-2 rounded-full transition-colors cursor-pointer"
                   style={{
-                    backgroundColor: `${color}B3`, // 70% opacity (B3 in hex)
+                    backgroundColor: `${color}`, // 70% opacity (B3 in hex)
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = color;

@@ -304,7 +304,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### Single Molecule Components
 - `app/sm-viewer/page.tsx` - Single molecule viewer page (local file upload, auto-selects 5 random genes on load)
-- `app/sm-viewer/[id]/page.tsx` - Single molecule viewer page with S3 lazy loading (auto-selects first 5 genes)
+- `app/sm-viewer/[id]/page.tsx` - Single molecule viewer page with S3 lazy loading (auto-selects first 3 genes)
 - `components/single-molecule-three-scene.tsx` - Three.js scene for molecule visualization with multiple point clouds
 - `components/single-molecule-controls.tsx` - Gene selection UI with search, checkboxes, and colored chips
 - `components/view-mode-toggle.tsx` - Toggle button for 2D/3D camera views
