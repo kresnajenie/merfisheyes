@@ -61,31 +61,32 @@ export const ColorPicker = ({
   children,
   ...props
 }: ColorPickerProps) => {
-  const selectedColor = useMemo(
-    () => (value ? Color(value) : Color(defaultValue)),
-    [value, defaultValue]
-  );
+  const initialColor = value ? Color(value) : Color(defaultValue);
 
-  const [hue, setHue] = useState(selectedColor.hue());
-  const [saturation, setSaturation] = useState(selectedColor.saturationl());
-  const [lightness, setLightness] = useState(selectedColor.lightness());
-  const [alpha, setAlpha] = useState(selectedColor.alpha());
+  const [hue, setHue] = useState(initialColor.hue());
+  const [saturation, setSaturation] = useState(initialColor.saturationl());
+  const [lightness, setLightness] = useState(initialColor.lightness());
+  const [alpha, setAlpha] = useState(1.0); // Always 100% opacity
   const [mode, setMode] = useState('hsl');
+  const onChangeRef = useRef(onChange);
 
+  // Keep ref updated
   useEffect(() => {
-    if (value) {
-      const color = Color(value);
-      setHue(color.hue());
-      setSaturation(color.saturationl());
-      setLightness(color.lightness());
-      setAlpha(color.alpha());
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  // Call onChange when internal state changes (not on mount)
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
-  }, [value]);
 
-  useEffect(() => {
-    const color = Color.hsl(hue, saturation, lightness).alpha(alpha);
-    onChange?.(color.hexa());
-  }, [hue, saturation, lightness, alpha, onChange]);
+    const color = Color.hsl(hue, saturation, lightness);
+    // Use hex() instead of hexa() to exclude alpha channel
+    onChangeRef.current?.(color.hex());
+  }, [hue, saturation, lightness]);
 
   const contextValue = useMemo<ColorPickerContextValue>(
     () => ({
@@ -247,16 +248,16 @@ export const ColorPickerAlpha = () => {
 };
 
 export const ColorPickerOutput = () => {
-  const { hue, saturation, lightness, alpha, mode } = useColorPicker();
+  const { hue, saturation, lightness, mode } = useColorPicker();
   const color = useMemo(
-    () => Color.hsl(hue, saturation, lightness).alpha(alpha),
-    [hue, saturation, lightness, alpha]
+    () => Color.hsl(hue, saturation, lightness),
+    [hue, saturation, lightness]
   );
 
   const outputValue = useMemo(() => {
     switch (mode) {
       case 'hex':
-        return color.hexa();
+        return color.hex(); // No alpha
       case 'rgb':
         return color.rgb().string();
       case 'hsl':

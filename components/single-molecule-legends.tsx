@@ -28,8 +28,6 @@ export const SingleMoleculeLegends: React.FC = () => {
   });
 
   const [openPopoverGene, setOpenPopoverGene] = useState<string | null>(null);
-  const [tempColors, setTempColors] = useState<Record<string, string>>({});
-  const [tempScales, setTempScales] = useState<Record<string, number>>({});
 
   // Debug logging
   useEffect(() => {
@@ -53,33 +51,46 @@ export const SingleMoleculeLegends: React.FC = () => {
 
   console.log("[SingleMoleculeLegends] Rendering", legendGenesArray.length, "gene badges");
 
-  const handleRightClick = (e: React.MouseEvent, gene: string, geneViz: any) => {
+  const handleRightClick = (e: React.MouseEvent, gene: string) => {
     e.preventDefault();
     setOpenPopoverGene(gene);
-    setTempColors(prev => ({ ...prev, [gene]: geneViz.color }));
-    setTempScales(prev => ({ ...prev, [gene]: geneViz.localScale }));
   };
 
-  const handleSaveChanges = (gene: string) => {
-    if (dataset && tempColors[gene] && tempScales[gene] !== undefined) {
-      // Update visualization store
-      setGeneColor(gene, tempColors[gene]);
-      setGeneLocalScale(gene, tempScales[gene]);
+  const handleColorChange = (gene: string, color: string) => {
+    if (dataset) {
+      // Update visualization store immediately
+      setGeneColor(gene, color);
 
       // Update dataset localStorage
       dataset.geneColors[gene] = {
-        color: tempColors[gene],
-        size: tempScales[gene],
+        ...dataset.geneColors[gene],
+        color: color,
       };
       const storageKey = `sm_gene_colors_${dataset.id}`;
       try {
         localStorage.setItem(storageKey, JSON.stringify(dataset.geneColors));
-        console.log(`[SingleMoleculeLegends] Updated gene colors in localStorage for ${gene}`);
       } catch (error) {
         console.warn(`[SingleMoleculeLegends] Failed to update localStorage:`, error);
       }
+    }
+  };
 
-      setOpenPopoverGene(null);
+  const handleScaleChange = (gene: string, scale: number) => {
+    if (dataset) {
+      // Update visualization store immediately
+      setGeneLocalScale(gene, scale);
+
+      // Update dataset localStorage
+      dataset.geneColors[gene] = {
+        ...dataset.geneColors[gene],
+        size: scale,
+      };
+      const storageKey = `sm_gene_colors_${dataset.id}`;
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(dataset.geneColors));
+      } catch (error) {
+        console.warn(`[SingleMoleculeLegends] Failed to update localStorage:`, error);
+      }
     }
   };
 
@@ -115,7 +126,7 @@ export const SingleMoleculeLegends: React.FC = () => {
                 placement="left"
               >
                 <Tooltip
-                  content="Right click to change color and size"
+                  content="Click to change color and size"
                   placement="left"
                   delay={0}
                 >
@@ -125,7 +136,7 @@ export const SingleMoleculeLegends: React.FC = () => {
                       style={{
                         backgroundColor: isVisible ? geneViz.color : `${geneViz.color}80`, // 50% opacity when hidden
                       }}
-                      onContextMenu={(e) => handleRightClick(e, gene, geneViz)}
+                      onClick={() => setOpenPopoverGene(gene)}
                     >
                       {/* Checkbox for visibility toggle */}
                       <Checkbox
@@ -159,41 +170,49 @@ export const SingleMoleculeLegends: React.FC = () => {
                     </div>
                   </PopoverTrigger>
                 </Tooltip>
-                <PopoverContent className="p-4 w-80">
-                  <div className="space-y-4">
-                    <h4 className="font-semibold">Edit: {gene}</h4>
+                <PopoverContent className="!bg-[rgba(0,0,0,0.4)] backdrop-blur-[50px] border-white/20 p-3 w-64">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold">{gene}</h4>
+                      <Button
+                        size="sm"
+                        variant="light"
+                        isIconOnly
+                        onPress={() => setOpenPopoverGene(null)}
+                        className="h-6 w-6 min-w-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
 
                     {/* Color Picker */}
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">Color</label>
-                      <ColorPicker
-                        value={tempColors[gene] || geneViz.color}
-                        onChange={(color) => setTempColors(prev => ({ ...prev, [gene]: color }))}
-                        className="rounded-md border bg-background p-3 shadow-sm"
-                      >
-                        <ColorPickerSelection />
-                        <div className="flex items-center gap-3 mt-3">
-                          <ColorPickerEyeDropper />
-                          <div className="grid w-full gap-1">
-                            <ColorPickerHue />
-                            <ColorPickerAlpha />
-                          </div>
+                    <ColorPicker
+                      key={gene}
+                      defaultValue={geneViz.color}
+                      onChange={(color) => handleColorChange(gene, color)}
+                      className="rounded-md p-2"
+                    >
+                      <ColorPickerSelection />
+                      <div className="flex items-center gap-2 mt-2">
+                        <ColorPickerEyeDropper />
+                        <div className="grid w-full gap-1">
+                          <ColorPickerHue />
                         </div>
-                        <div className="flex items-center gap-2 mt-3">
-                          <ColorPickerOutput />
-                          <ColorPickerFormat />
-                        </div>
-                      </ColorPicker>
-                    </div>
+                      </div>
+                      {/* Show hex code as small text */}
+                      <div className="mt-2 text-center">
+                        <ColorPickerOutput />
+                      </div>
+                    </ColorPicker>
 
                     {/* Local Dot Size Slider */}
                     <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Local Dot Size: {(tempScales[gene] || geneViz.localScale).toFixed(1)}x
+                      <label className="text-xs font-medium mb-1 block">
+                        Size: {geneViz.localScale.toFixed(1)}x
                       </label>
                       <Slider
-                        value={tempScales[gene] || geneViz.localScale}
-                        onChange={(value) => setTempScales(prev => ({ ...prev, [gene]: value as number }))}
+                        value={geneViz.localScale}
+                        onChange={(value) => handleScaleChange(gene, value as number)}
                         minValue={VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MIN}
                         maxValue={VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MAX}
                         step={VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_STEP}
@@ -201,28 +220,10 @@ export const SingleMoleculeLegends: React.FC = () => {
                         className="w-full"
                         size="sm"
                       />
-                      <div className="flex justify-between text-xs text-default-400 mt-1">
+                      <div className="flex justify-between text-[10px] text-default-400 mt-1">
                         <span>{VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MIN}x</span>
                         <span>{VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MAX}x</span>
                       </div>
-                    </div>
-
-                    {/* Buttons */}
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="light"
-                        onPress={() => setOpenPopoverGene(null)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        color="primary"
-                        onPress={() => handleSaveChanges(gene)}
-                      >
-                        Save
-                      </Button>
                     </div>
                   </div>
                 </PopoverContent>
