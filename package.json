@@ -89,6 +89,7 @@
     "@next/eslint-plugin-next": "15.3.4",
     "@react-types/shared": "3.30.0",
     "@tailwindcss/postcss": "4.1.11",
+    "@types/color": "^4.2.0",
     "@types/node": "^20.5.7",
     "@types/pako": "^2.0.4",
     "@types/papaparse": "^5.3.16",

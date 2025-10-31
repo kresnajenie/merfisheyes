@@ -43,6 +43,15 @@ export const VISUALIZATION_CONFIG = {
   SINGLE_MOLECULE_GLOBAL_SCALE_STEP: 0.1,
 
   /**
+   * Single Molecule Local Scale Slider Range
+   * Min/max/step values for per-gene local scale slider in legend settings
+   */
+  SINGLE_MOLECULE_LOCAL_SCALE_MIN: 0.1,
+  SINGLE_MOLECULE_LOCAL_SCALE_MAX: 5.0,
+  SINGLE_MOLECULE_LOCAL_SCALE_STEP: 0.1,
+  SINGLE_MOLECULE_LOCAL_SCALE_DEFAULT: 1.0,
+
+  /**
    * Point Size Multiplier Range
    * Controls how much the point size varies based on expression level
    * Formula: baseSize * (sizeMin + normalizedValue * (sizeMax - sizeMin)) * sizeScale
