@@ -16,6 +16,7 @@ import argparse
 import gzip
 import json
 import os
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -24,6 +25,7 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 import numpy as np
 import pandas as pd
 from scipy import sparse
+from scipy.io import mmread
 
 
 # Color palette from lib/utils/color-palette.ts
@@ -70,7 +72,13 @@ def determine_chunk_size(num_genes: int, custom_chunk_size: Optional[int] = None
 
 def is_categorical(values: np.ndarray) -> bool:
     """Determine if data is categorical (≤100 unique values)"""
-    unique_count = len(np.unique(values))
+    if not isinstance(values, np.ndarray):
+        values = np.asarray(values)
+    series = pd.Series(values)
+    if series.dtype == "object":
+        # Cast to string to avoid mixed-type comparison errors
+        series = series.astype("string")
+    unique_count = series.nunique(dropna=False)
     return unique_count <= 100
 
 
@@ -343,6 +351,7 @@ def load_xenium_data(input_path: Path):
     # Try to load expression matrix (cell_feature_matrix or cell_by_gene)
     expr_matrix = None
     gene_names = None
+    features_file = None
 
     # Option 1: Try wide format in cells.csv (genes as columns)
     # Skip coordinate and metadata columns
@@ -363,7 +372,6 @@ def load_xenium_data(input_path: Path):
 
     # Option 2: Try loading features.tsv
     if gene_names is None:
-        features_file = None
         for path in [input_path / 'features.tsv', input_path / 'features.tsv.gz',
                      input_path / 'cell_feature_matrix' / 'features.tsv',
                      input_path / 'cell_feature_matrix' / 'features.tsv.gz']:
@@ -379,6 +387,122 @@ def load_xenium_data(input_path: Path):
                 features_df = pd.read_csv(features_file, sep='\t', header=None)
             gene_names = features_df[0].tolist()
             print(f"  ✓ Loaded {len(gene_names)} genes from features file")
+
+    # Option 3: Load matrix.mtx or cell_feature_matrix.h5
+    if expr_matrix is None:
+        matrix_file = None
+        temp_extract_dir: Optional[Path] = None
+
+        for path in [
+            input_path / "matrix.mtx",
+            input_path / "matrix.mtx.gz",
+            input_path / "cell_feature_matrix" / "matrix.mtx",
+            input_path / "cell_feature_matrix" / "matrix.mtx.gz",
+        ]:
+            if path.exists():
+                matrix_file = path
+                break
+
+        if matrix_file is None:
+            for archive in [
+                input_path / "cell_feature_matrix.zip",
+                input_path / "cell_feature_matrix.tar",
+                input_path / "cell_feature_matrix.tar.gz",
+            ]:
+                if archive.exists():
+                    print(f"  Extracting {archive.name}...")
+                    import tempfile
+                    import tarfile
+                    import zipfile
+
+                    temp_extract_dir = Path(tempfile.mkdtemp(prefix="xenium_cfm_"))
+                    try:
+                        if archive.suffix == ".zip":
+                            with zipfile.ZipFile(archive, "r") as zf:
+                                zf.extractall(temp_extract_dir)
+                        else:
+                            mode = "r:gz" if archive.name.endswith(".tar.gz") else "r"
+                            with tarfile.open(archive, mode) as tf:
+                                tf.extractall(temp_extract_dir)
+                        for candidate in temp_extract_dir.rglob("matrix.mtx*"):
+                            matrix_file = candidate
+                            break
+                        if not features_file:
+                            for candidate in temp_extract_dir.rglob("features.tsv*"):
+                                if candidate.exists():
+                                    features_file = candidate
+                                    break
+                        if matrix_file:
+                            print(f"  ✓ Found matrix in archive: {matrix_file}")
+                        else:
+                            print("  ⚠ matrix.mtx not found in archive")
+                    except Exception as e:
+                        print(f"  ⚠ Failed to extract {archive.name}: {e}")
+                        matrix_file = None
+                        if temp_extract_dir:
+                            shutil.rmtree(temp_extract_dir, ignore_errors=True)
+                            temp_extract_dir = None
+                    if matrix_file:
+                        break
+
+        if features_file and gene_names is None and features_file.exists():
+            print(f"  Loading {features_file.name}...")
+            if features_file.suffix.endswith('.gz'):
+                features_df = pd.read_csv(features_file, sep='\t', header=None, compression='gzip')
+            else:
+                features_df = pd.read_csv(features_file, sep='\t', header=None)
+            gene_names = features_df[0].tolist()
+            print(f"  ✓ Loaded {len(gene_names)} genes from features file")
+
+        if matrix_file:
+            print(f"  Loading expression matrix from {matrix_file.name}...")
+            matrix = None
+            if matrix_file.suffix == '.gz' or matrix_file.name.endswith('.mtx.gz'):
+                with gzip.open(matrix_file, 'rb') as f:
+                    matrix = mmread(f)
+            elif matrix_file.suffix == '.mtx':
+                matrix = mmread(str(matrix_file))
+            elif matrix_file.suffix == '.h5':
+                try:
+                    import anndata as ad
+
+                    adata_matrix = ad.read_10x_h5(str(matrix_file))
+                    matrix = adata_matrix.X
+                    if gene_names is None:
+                        gene_names = adata_matrix.var_names.tolist()
+                except Exception as e:
+                    print(f"  ⚠ Failed to read {matrix_file.name}: {e}")
+
+            if matrix is not None:
+                expr_matrix = matrix.tocsr() if sparse.issparse(matrix) else sparse.csr_matrix(matrix)
+                print(f"  ✓ Loaded sparse matrix: {expr_matrix.shape[0]} x {expr_matrix.shape[1]}")
+
+                # Determine orientation (genes vs cells)
+                if expr_matrix.shape[0] == len(cells_df):
+                    pass  # Already cells x genes
+                elif expr_matrix.shape[1] == len(cells_df):
+                    expr_matrix = expr_matrix.transpose().tocsr()
+                    print("  ↺ Transposed matrix to align with cells")
+                else:
+                    print("  ⚠ Matrix dimensions do not match cell count; continuing with placeholder")
+                    expr_matrix = None
+
+                # Ensure gene names align with matrix columns
+                if expr_matrix is not None:
+                    if gene_names is None:
+                        if features_file and features_file.exists():
+                            pass  # already loaded above if file present
+                        else:
+                            gene_names = [f"Gene{i+1}" for i in range(expr_matrix.shape[1])]
+                            print(f"  ⚠ Features file missing; generated {len(gene_names)} placeholder gene names")
+                    elif len(gene_names) != expr_matrix.shape[1]:
+                        print(
+                            f"  ⚠ Gene name count ({len(gene_names)}) does not match matrix columns ({expr_matrix.shape[1]}). "
+                            "Truncating to match."
+                        )
+                        gene_names = gene_names[:expr_matrix.shape[1]]
+        if temp_extract_dir:
+            shutil.rmtree(temp_extract_dir, ignore_errors=True)
 
     if expr_matrix is None:
         print("  ⚠ No expression matrix found, creating placeholder")
@@ -475,9 +599,18 @@ def process_dataset(
         coord_candidates_y = ['y_centroid', 'cell_centroid_y', 'center_y']
         coord_candidates_z = ['z_centroid', 'cell_centroid_z', 'center_z']
 
-        x_col = next((c for c in coord_candidates_x if c in cells_df.columns), None)
-        y_col = next((c for c in coord_candidates_y if c in cells_df.columns), None)
-        z_col = next((c for c in coord_candidates_z if c in cells_df.columns), None)
+        cells_columns_lower = {col.lower(): col for col in cells_df.columns}
+
+        def find_column(columns_lower: Dict[str, str], candidates: List[str]) -> Optional[str]:
+            for cand in candidates:
+                actual = columns_lower.get(cand.lower())
+                if actual:
+                    return actual
+            return None
+
+        x_col = find_column(cells_columns_lower, coord_candidates_x)
+        y_col = find_column(cells_columns_lower, coord_candidates_y)
+        z_col = find_column(cells_columns_lower, coord_candidates_z)
 
         if not x_col or not y_col:
             raise ValueError("Could not find x/y coordinate columns in cells.csv")
@@ -496,10 +629,140 @@ def process_dataset(
 
         # Extract observation columns (clusters, metadata)
         obs_columns = {}
-        exclude_cols = [x_col, y_col, z_col, 'cell_id', 'id']
+        exclude_cols = {col for col in [x_col, y_col, z_col] if col}
+        for cand in ['cell_id', 'id', 'barcode', 'barcodes', 'cell']:
+            actual = find_column(cells_columns_lower, [cand])
+            if actual:
+                exclude_cols.add(actual)
         for col in cells_df.columns:
             if col not in exclude_cols and col not in gene_names:
                 obs_columns[col] = cells_df[col].values
+
+        analysis_dir = input_path / 'analysis' / 'clustering'
+        analysis_extract_dir: Optional[Path] = None
+
+        if not analysis_dir.exists():
+            print("  ℹ analysis/clustering not found on disk; searching archives...")
+            for archive in [
+                input_path / 'analysis.tar.gz',
+                input_path / 'analysis.tgz',
+                input_path / 'analysis.tar',
+                input_path / 'analysis.zip',
+            ]:
+                if not archive.exists():
+                    continue
+                print(f"  Extracting {archive.name} to inspect clustering results...")
+                import tempfile
+                import tarfile
+                import zipfile
+
+                analysis_extract_dir = Path(tempfile.mkdtemp(prefix="xenium_analysis_"))
+                try:
+                    if archive.suffix == '.zip':
+                        with zipfile.ZipFile(archive, "r") as zf:
+                            zf.extractall(analysis_extract_dir)
+                    else:
+                        mode = "r:gz" if archive.name.endswith((".tar.gz", ".tgz")) else "r"
+                        with tarfile.open(archive, mode) as tf:
+                            tf.extractall(analysis_extract_dir)
+
+                    candidate = next(
+                        (
+                            p
+                            for p in analysis_extract_dir.rglob("clustering")
+                            if p.is_dir() and p.parent.name == "analysis"
+                        ),
+                        None,
+                    )
+                    if candidate:
+                        analysis_dir = candidate
+                        print(f"  ✓ Found clustering directory inside archive: {analysis_dir}")
+                        break
+                    else:
+                        print("  ⚠ Extracted archive but could not find analysis/clustering directory")
+                        shutil.rmtree(analysis_extract_dir, ignore_errors=True)
+                        analysis_extract_dir = None
+                except Exception as e:
+                    print(f"  ⚠ Failed to extract {archive.name}: {e}")
+                    shutil.rmtree(analysis_extract_dir, ignore_errors=True)
+                    analysis_extract_dir = None
+
+        if analysis_dir.exists():
+            print("  Looking for clustering results in analysis/clustering ...")
+            cluster_files = sorted(
+                p
+                for p in analysis_dir.rglob('*')
+                if p.is_file()
+                and not p.name.startswith("._")
+                and any(
+                    p.name.lower().endswith(ext)
+                    for ext in ('.csv', '.csv.gz', '.tsv', '.tsv.gz')
+                )
+            )
+            preferred_subdir = "analysis/clustering/gene_expression_graphclust"
+            cluster_files.sort(
+                key=lambda p: (
+                    0
+                    if preferred_subdir in str(p.as_posix()).lower()
+                    else 1,
+                    str(p),
+                )
+            )
+            print(f"  ℹ Found {len(cluster_files)} candidate cluster files")
+            id_candidates = ['cell_id', 'cell', 'id', 'barcode', 'barcodes', 'cellid', 'cellId']
+            label_candidates = [
+                'cluster',
+                'clusters',
+                'cell_type',
+                'celltype',
+                'annotation',
+                'annotations',
+                'label',
+                'labels',
+                'group',
+                'subclass',
+                'class',
+            ]
+            cell_id_key = (
+                find_column(cells_columns_lower, ['cell_id', 'id', 'barcode', 'barcodes', 'cell'])
+                or cells_df.columns[0]
+            )
+            for cluster_file in cluster_files:
+                print(f"    ℹ Trying {cluster_file}")
+                try:
+                    suffixes = [s.lower() for s in cluster_file.suffixes]
+                    is_tsv = '.tsv' in suffixes
+                    cluster_df = pd.read_csv(
+                        cluster_file,
+                        sep='\t' if is_tsv else ',',
+                        compression='infer'
+                    )
+                except Exception as e:
+                    print(f"    ⚠ Failed to read {cluster_file.name}: {e}")
+                    continue
+                cluster_columns_lower = {col.lower(): col for col in cluster_df.columns}
+                id_col = find_column(cluster_columns_lower, id_candidates)
+                label_col = find_column(cluster_columns_lower, label_candidates)
+                if not id_col or not label_col:
+                    print(f"    ⚠ Missing id/label columns in {cluster_file.name}")
+                    continue
+                joined = cells_df.merge(
+                    cluster_df[[id_col, label_col]],
+                    left_on=cell_id_key,
+                    right_on=id_col,
+                    how='left'
+                )
+                non_null = joined[label_col].notna().sum()
+                if non_null == 0:
+                    print(f"    ⚠ No matching rows when joining {cluster_file.name}")
+                    continue
+                obs_columns[label_col] = joined[label_col].fillna('').values
+                print(f"    ✓ Imported clusters from {cluster_file.name} using column '{label_col}' ({non_null} matches)")
+                break
+            else:
+                print("  ⚠ Exhausted cluster files without importing labels")
+        if analysis_extract_dir:
+            shutil.rmtree(analysis_extract_dir, ignore_errors=True)
 
     elif data_format == 'merscope':
         metadata_df, expr_matrix, gene_names = load_merscope_data(input_path)
@@ -579,14 +842,26 @@ def process_dataset(
 
     for col_name, col_values in obs_columns.items():
         categorical = is_categorical(col_values)
+        series = pd.Series(col_values)
+        series_for_unique = (
+            series.astype("string") if series.dtype == "object" else series
+        )
+        unique_count = int(series_for_unique.nunique(dropna=False))
 
         obs_metadata[col_name] = {
             'type': 'categorical' if categorical else 'numerical',
-            'unique_values': int(len(np.unique(col_values)))
+            'unique_values': unique_count
         }
 
         # Write column values
-        values_list = [str(v) if categorical else float(v) for v in col_values]
+        if categorical:
+            cat_series = series.astype("string")
+            values_list = cat_series.fillna("").tolist()
+        else:
+            numeric_series = pd.to_numeric(series, errors="coerce")
+            values_list = [
+                None if pd.isna(v) else float(v) for v in numeric_series.tolist()
+            ]
         obs_file = obs_dir / f'{col_name}.json.gz'
         obs_file.parent.mkdir(parents=True, exist_ok=True)
         with gzip.open(obs_file, 'wt', encoding='utf-8') as f:
@@ -597,7 +872,10 @@ def process_dataset(
         # Generate palette for categorical
         if categorical:
             cluster_count += 1
-            unique_values = [str(v) for v in np.unique(col_values)]
+            unique_values = [
+                str(v)
+                for v in cat_series.dropna().unique().tolist()
+            ]
             palette = generate_color_palette(unique_values)
 
             palette_file = palettes_dir / f'{col_name}.json'
