@@ -18,12 +18,13 @@ function SingleMoleculeViewerByIdContent() {
   const params = useParams();
   const router = useRouter();
   const { addDataset } = useSingleMoleculeStore();
-  const { addGene } = useSingleMoleculeVisualizationStore();
+  const { addGene, loadFromLocalStorage, saveToLocalStorage } = useSingleMoleculeVisualizationStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const datasetId = params.id as string;
+  const selectedGenesLegend = useSingleMoleculeVisualizationStore(state => state.selectedGenesLegend);
 
   useEffect(() => {
     if (!datasetId) {
@@ -35,6 +36,13 @@ function SingleMoleculeViewerByIdContent() {
 
     loadDatasetFromServer(datasetId);
   }, [datasetId]);
+
+  // Save visibility state to localStorage whenever it changes
+  useEffect(() => {
+    if (datasetId && dataset) {
+      saveToLocalStorage(datasetId);
+    }
+  }, [selectedGenesLegend, datasetId, dataset, saveToLocalStorage]);
 
   const loadDatasetFromServer = async (id: string) => {
     try {
@@ -69,15 +77,27 @@ function SingleMoleculeViewerByIdContent() {
       // Wait a tick for store to update
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // Auto-select first 3 genes for visualization (if available)
-      const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
+      // Try to load visibility state from localStorage first
+      loadFromLocalStorage(id);
 
-      console.log("Auto-selecting genes:", genesToSelect);
-      genesToSelect.forEach((gene) => {
-        const geneProps = smDataset.geneColors[gene];
-        console.log(`Adding gene to visualization: ${gene} with color ${geneProps.color}`);
-        addGene(gene, geneProps.color, geneProps.size);
-      });
+      // Wait a bit to see if anything was loaded
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // If nothing was loaded (first time), auto-select first 3 genes
+      const { selectedGenesLegend } = useSingleMoleculeVisualizationStore.getState();
+      if (selectedGenesLegend.size === 0) {
+        console.log("No saved state found, auto-selecting first 3 genes");
+        const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
+
+        console.log("Auto-selecting genes:", genesToSelect);
+        genesToSelect.forEach((gene) => {
+          const geneProps = smDataset.geneColors[gene];
+          console.log(`Adding gene to visualization: ${gene} with color ${geneProps.color}`);
+          addGene(gene, geneProps.color, geneProps.size);
+        });
+      } else {
+        console.log("Loaded visibility state from localStorage:", selectedGenesLegend.size, "genes");
+      }
 
       setIsLoading(false);
     } catch (err) {

@@ -2,26 +2,33 @@
 
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
+import { Checkbox } from "@heroui/checkbox";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
 export const SingleMoleculeLegends: React.FC = () => {
-  const { selectedGenes, removeGene } = useSingleMoleculeVisualizationStore();
+  const { selectedGenes, selectedGenesLegend, geneDataCache, removeGene, toggleGeneVisibility } = useSingleMoleculeVisualizationStore();
 
   // Debug logging
   useEffect(() => {
     console.log("[SingleMoleculeLegends] Component mounted/updated");
+    console.log("[SingleMoleculeLegends] selectedGenesLegend size:", selectedGenesLegend.size);
     console.log("[SingleMoleculeLegends] selectedGenes size:", selectedGenes.size);
-    console.log("[SingleMoleculeLegends] selectedGenes entries:", Array.from(selectedGenes.entries()));
-  }, [selectedGenes]);
+  }, [selectedGenesLegend, selectedGenes]);
 
-  // Don't render if no genes are selected
-  if (selectedGenes.size === 0) {
-    console.log("[SingleMoleculeLegends] No genes selected, returning null");
+  // Don't render if no genes are in legend
+  if (selectedGenesLegend.size === 0) {
+    console.log("[SingleMoleculeLegends] No genes in legend, returning null");
     return null;
   }
 
-  const genesArray = Array.from(selectedGenes.entries());
-  console.log("[SingleMoleculeLegends] Rendering", genesArray.length, "gene badges");
+  // Create array of legend genes with their data and visibility state
+  const legendGenesArray = Array.from(selectedGenesLegend).map((gene) => {
+    const geneViz = geneDataCache.get(gene);
+    const isVisible = selectedGenes.has(gene);
+    return { gene, geneViz, isVisible };
+  });
+
+  console.log("[SingleMoleculeLegends] Rendering", legendGenesArray.length, "gene badges");
 
   return (
     <div className="fixed right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
@@ -31,33 +38,56 @@ export const SingleMoleculeLegends: React.FC = () => {
           className="text-xs text-white/70 font-medium cursor-pointer hover:text-white transition-colors"
           onClick={() => {
             console.log("[SingleMoleculeLegends] Clear All clicked");
-            // Clear all selected genes
-            Array.from(selectedGenes.keys()).forEach((gene) => {
+            // Clear all legend genes
+            Array.from(selectedGenesLegend).forEach((gene) => {
               removeGene(gene);
             });
           }}
         >
-          Selected Genes ({selectedGenes.size}) - Clear All
+          Selected Genes ({selectedGenesLegend.size}) - Clear All
         </div>
         <div className="flex flex-col items-end gap-2 max-h-96 overflow-y-auto">
-          {genesArray.map(([gene, geneViz]) => {
-            console.log("[SingleMoleculeLegends] Rendering badge for gene:", gene, "color:", geneViz.color);
+          {legendGenesArray.map(({ gene, geneViz, isVisible }) => {
+            if (!geneViz) return null;
+
+            console.log("[SingleMoleculeLegends] Rendering badge for gene:", gene, "color:", geneViz.color, "visible:", isVisible);
+
             return (
               <div
                 key={gene}
-                className="group flex items-center gap-2 px-4 py-2 rounded-full transition-colors cursor-pointer"
+                className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all"
                 style={{
-                  backgroundColor: geneViz.color, // 100% opacity
-                }}
-                onClick={() => {
-                  console.log("[SingleMoleculeLegends] Removing gene:", gene);
-                  removeGene(gene);
+                  backgroundColor: isVisible ? geneViz.color : `${geneViz.color}80`, // 50% opacity when hidden
                 }}
               >
-                <span className="text-xs font-medium text-black">
+                {/* Checkbox for visibility toggle */}
+                <Checkbox
+                  size="sm"
+                  isSelected={isVisible}
+                  onValueChange={() => {
+                    console.log("[SingleMoleculeLegends] Toggling visibility for gene:", gene);
+                    toggleGeneVisibility(gene);
+                  }}
+                  classNames={{
+                    wrapper: "bg-white/20",
+                  }}
+                />
+
+                {/* Gene name with strikethrough when hidden */}
+                <span
+                  className={`text-xs font-medium text-black ${!isVisible ? 'line-through' : ''}`}
+                >
                   {gene}
                 </span>
-                <X className="w-3 h-3 text-black/70 group-hover:text-black" />
+
+                {/* X button to remove from legend */}
+                <X
+                  className="w-3 h-3 text-black/70 group-hover:text-black cursor-pointer transition-colors"
+                  onClick={() => {
+                    console.log("[SingleMoleculeLegends] Removing gene from legend:", gene);
+                    removeGene(gene);
+                  }}
+                />
               </div>
             );
           })}
