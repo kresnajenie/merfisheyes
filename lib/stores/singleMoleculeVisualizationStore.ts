@@ -28,7 +28,7 @@ interface SingleMoleculeVisualizationState {
   viewMode: ViewMode;
 
   // Actions
-  addGene: (gene: string) => void;
+  addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
   setGeneColor: (gene: string, color: string) => void;
   setGeneLocalScale: (gene: string, scale: number) => void;
@@ -43,15 +43,15 @@ export const useSingleMoleculeVisualizationStore =
     globalScale: 1.0,
     viewMode: "2D",
 
-    addGene: (gene: string) =>
+    addGene: (gene: string, color?: string, localScale?: number) =>
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
 
         if (!newSelectedGenes.has(gene)) {
           newSelectedGenes.set(gene, {
             gene,
-            color: generateBrightColor(),
-            localScale: 1.0,
+            color: color || generateBrightColor(),
+            localScale: localScale || 1.0,
           });
         }
 

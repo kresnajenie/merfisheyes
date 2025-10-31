@@ -105,7 +105,7 @@ storybook-static
 # AI Tools
 .claude/
 .serena/
-.playwright/
+.playwright-mcp/
 /lib/generated/prisma
 
 example_data/

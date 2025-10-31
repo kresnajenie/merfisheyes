@@ -12,7 +12,7 @@ import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
-// Create circular sprite texture for points
+// Create solid circular sprite texture for points
 function createCircleTexture(): THREE.Texture {
   const canvas = document.createElement("canvas");
   const size = 64;
@@ -22,20 +22,11 @@ function createCircleTexture(): THREE.Texture {
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Could not get 2D context");
 
-  const gradient = context.createRadialGradient(
-    size / 2,
-    size / 2,
-    0,
-    size / 2,
-    size / 2,
-    size / 2,
-  );
-  gradient.addColorStop(0, "rgba(255,255,255,1)");
-  gradient.addColorStop(0.5, "rgba(255,255,255,1)");
-  gradient.addColorStop(1, "rgba(255,255,255,0)");
-
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, size, size);
+  // Draw a solid white circle with sharp edges
+  context.fillStyle = "white";
+  context.beginPath();
+  context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  context.fill();
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
@@ -52,18 +43,26 @@ export function SingleMoleculeThreeScene() {
   const pointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
   const circleTextureRef = useRef<THREE.Texture | null>(null);
   const lastDatasetIdRef = useRef<string | null>(null);
+  const baselineCameraDistanceRef = useRef<number | null>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
+  const selectedGenesRef = useRef<Map<string, any>>(new Map());
+  const globalScaleRef = useRef<number>(1);
 
   // Get dataset from store - using stable selector to prevent re-renders
   const currentDatasetId = useSingleMoleculeStore(
-    (state) => state.currentDatasetId,
+    (state) => state.currentDatasetId
   );
   const dataset = useSingleMoleculeStore((state) =>
-    currentDatasetId ? state.datasets.get(currentDatasetId) : null,
+    currentDatasetId ? state.datasets.get(currentDatasetId) : null
   );
 
   // Get visualization settings from store
   const { selectedGenes, globalScale, viewMode } =
     useSingleMoleculeVisualizationStore();
+
+  // Keep refs in sync with store values
+  selectedGenesRef.current = selectedGenes;
+  globalScaleRef.current = globalScale;
 
   // Debug: Log when component re-renders
   console.log("[SingleMoleculeThreeScene] Component render", {
@@ -94,7 +93,7 @@ export function SingleMoleculeThreeScene() {
         {
           datasetId: dataset.id,
           lastDatasetId: lastDatasetIdRef.current,
-        },
+        }
       );
 
       return;
@@ -106,7 +105,7 @@ export function SingleMoleculeThreeScene() {
         "[SingleMoleculeThreeScene] Scene was cleaned up but dataset ID unchanged, will recreate scene",
         {
           datasetId: dataset.id,
-        },
+        }
       );
     }
 
@@ -129,9 +128,9 @@ export function SingleMoleculeThreeScene() {
     }
 
     // Initialize Three.js scene with viewMode preference (not dataset dimensions)
-    const { scene, camera, renderer, controls, animate } = initializeScene(
+    const { scene, camera, renderer, controls } = initializeScene(
       containerRef.current,
-      { is2D: viewMode === "2D" },
+      { is2D: viewMode === "2D" }
     );
 
     sceneRef.current = scene;
@@ -144,8 +143,49 @@ export function SingleMoleculeThreeScene() {
       circleTextureRef.current = createCircleTexture();
     }
 
-    // Start animation loop
-    animate();
+    // Set baseline camera distance (initial zoomed-out distance)
+    if (baselineCameraDistanceRef.current === null) {
+      baselineCameraDistanceRef.current = camera.position.distanceTo(
+        new THREE.Vector3(0, 0, 0)
+      );
+    }
+
+    // Custom animation loop with dynamic point size scaling
+    const customAnimate = () => {
+      animationFrameIdRef.current = requestAnimationFrame(customAnimate);
+
+      controls.update();
+
+      // Calculate zoom factor (k) and update point sizes
+      const currentDistance = camera.position.distanceTo(
+        new THREE.Vector3(0, 0, 0)
+      );
+      const zoomFactor = baselineCameraDistanceRef.current! / currentDistance;
+
+      // Power-law scaling: s(k) = clamp(s0 * k^alpha, sMin, sMax)
+      const alpha = 0.8; // Power-law exponent (0.7-0.9 range)
+      const s0 = VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
+      const sMin = s0; // Minimum = base size (zoomed out)
+      const sMax = 200; // Maximum = 200 (zoomed in)
+
+      const scaledSize = Math.pow(zoomFactor, alpha) * s0;
+      const clampedSize = Math.max(sMin, Math.min(sMax, scaledSize));
+
+      // Update all point cloud sizes
+      pointCloudsRef.current.forEach((pointCloud, gene) => {
+        const geneViz = selectedGenesRef.current.get(gene);
+        if (geneViz) {
+          const material = pointCloud.material as THREE.PointsMaterial;
+          material.size =
+            geneViz.localScale * globalScaleRef.current * clampedSize;
+        }
+      });
+
+      renderer.render(scene, camera);
+    };
+
+    // Start custom animation loop
+    customAnimate();
 
     // Cleanup
     return () => {
@@ -154,13 +194,19 @@ export function SingleMoleculeThreeScene() {
         reason: "Effect cleanup triggered - dataset dependency changed",
       });
 
+      // Cancel animation frame
+      if (animationFrameIdRef.current !== null) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+
       // Properly dispose of Three.js resources
       if (controls) controls.dispose();
       if (renderer) {
         // Force lose WebGL context before disposing
         const gl = renderer.getContext();
         if (gl) {
-          const loseContextExt = gl.getExtension('WEBGL_lose_context');
+          const loseContextExt = gl.getExtension("WEBGL_lose_context");
           if (loseContextExt) loseContextExt.loseContext();
         }
         renderer.dispose();
@@ -183,7 +229,10 @@ export function SingleMoleculeThreeScene() {
   useEffect(() => {
     if (!controlsRef.current || !cameraRef.current) return;
 
-    console.log("[SingleMoleculeThreeScene] Adjusting camera for mode:", viewMode);
+    console.log(
+      "[SingleMoleculeThreeScene] Adjusting camera for mode:",
+      viewMode
+    );
 
     const camera = cameraRef.current;
     const controls = controlsRef.current;
@@ -251,7 +300,9 @@ export function SingleMoleculeThreeScene() {
       for (const [gene, geneViz] of selectedGenes.entries()) {
         // Check if cancelled before processing each gene
         if (isCancelled) {
-          console.log(`[SingleMoleculeThreeScene] Update cancelled for gene: ${gene}`);
+          console.log(
+            `[SingleMoleculeThreeScene] Update cancelled for gene: ${gene}`
+          );
           return;
         }
 
@@ -271,7 +322,9 @@ export function SingleMoleculeThreeScene() {
 
           // Check again after async operation
           if (isCancelled) {
-            console.log(`[SingleMoleculeThreeScene] Update cancelled after loading gene: ${gene}`);
+            console.log(
+              `[SingleMoleculeThreeScene] Update cancelled after loading gene: ${gene}`
+            );
             toast.dismiss(toastId);
             return;
           }
@@ -295,7 +348,7 @@ export function SingleMoleculeThreeScene() {
               positions.push(
                 coords[i] * 100,
                 coords[i + 1] * 100,
-                coords[i + 2] * 100,
+                coords[i + 2] * 100
               );
             }
 
@@ -304,7 +357,7 @@ export function SingleMoleculeThreeScene() {
 
             geometry.setAttribute(
               "position",
-              new THREE.Float32BufferAttribute(positions, 3),
+              new THREE.Float32BufferAttribute(positions, 3)
             );
 
             // Parse HSL color and convert to RGB
@@ -318,12 +371,15 @@ export function SingleMoleculeThreeScene() {
             }
             geometry.setAttribute(
               "color",
-              new THREE.BufferAttribute(colors, 3),
+              new THREE.BufferAttribute(colors, 3)
             );
 
             // Create material with circular texture
             const material = new THREE.PointsMaterial({
-              size: geneViz.localScale * globalScale * VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
+              size:
+                geneViz.localScale *
+                globalScale *
+                VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
               vertexColors: true,
               transparent: true,
               opacity: 1.0,
@@ -336,9 +392,13 @@ export function SingleMoleculeThreeScene() {
 
             // Final check before adding to scene
             if (isCancelled) {
-              console.log(`[SingleMoleculeThreeScene] Cancelled before adding point cloud for: ${gene}`);
+              console.log(
+                `[SingleMoleculeThreeScene] Cancelled before adding point cloud for: ${gene}`
+              );
               pointCloud.geometry.dispose();
-              pointCloud.material.dispose();
+              if (pointCloud.material instanceof THREE.Material) {
+                pointCloud.material.dispose();
+              }
               toast.dismiss(toastId);
               return;
             }
@@ -347,7 +407,7 @@ export function SingleMoleculeThreeScene() {
             currentPointClouds.set(gene, pointCloud);
 
             console.log(
-              `  ✅ Point cloud created with ${moleculeCount} molecules`,
+              `  ✅ Point cloud created with ${moleculeCount} molecules`
             );
 
             // Update toast to success
@@ -362,7 +422,10 @@ export function SingleMoleculeThreeScene() {
             // Update existing point cloud color and size
             const material = pointCloud.material as THREE.PointsMaterial;
 
-            material.size = geneViz.localScale * globalScale * VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
+            material.size =
+              geneViz.localScale *
+              globalScale *
+              VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
 
             // Update colors
             const color = new THREE.Color(geneViz.color);

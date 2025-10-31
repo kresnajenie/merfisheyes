@@ -3,8 +3,8 @@
 import { Suspense, useEffect } from "react";
 
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
-import { ViewModeToggle } from "@/components/view-mode-toggle";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
+import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { FileUpload } from "@/components/file-upload";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
@@ -56,8 +56,11 @@ function ViewerContent() {
 
     console.log("Selected genes:", selectedGenes);
 
-    // Add genes to visualization store
-    selectedGenes.forEach((gene) => addGene(gene));
+    // Add genes to visualization store with their persistent colors
+    selectedGenes.forEach((gene) => {
+      const geneProps = dataset.geneColors[gene];
+      addGene(gene, geneProps.color, geneProps.size);
+    });
   }, [dataset, addGene, clearGenes]);
 
   if (!dataset) {
@@ -117,8 +120,8 @@ function ViewerContent() {
 
   return (
     <>
-      <ViewModeToggle />
       <SingleMoleculeControls />
+      <SingleMoleculeLegends />
       <SingleMoleculeThreeScene />
     </>
   );

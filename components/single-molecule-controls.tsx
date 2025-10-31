@@ -4,11 +4,14 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Checkbox } from "@heroui/checkbox";
 import { Chip } from "@heroui/chip";
+import { Slider } from "@heroui/slider";
+import { Tooltip } from "@heroui/tooltip";
 import { useState, useMemo } from "react";
 
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { glassButton } from "@/components/primitives";
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 export function SingleMoleculeControls() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -22,7 +25,7 @@ export function SingleMoleculeControls() {
   });
 
   // Get visualization state
-  const { selectedGenes, addGene, removeGene, clearGenes } =
+  const { selectedGenes, addGene, removeGene, clearGenes, globalScale, setGlobalScale, viewMode, setViewMode } =
     useSingleMoleculeVisualizationStore();
 
   // Filter genes based on search
@@ -38,7 +41,7 @@ export function SingleMoleculeControls() {
   const selectedGenesArray = Array.from(selectedGenes.keys());
 
   return (
-    <div className="fixed top-20 left-4 z-50 flex flex-col gap-2">
+    <div className="fixed top-28 left-4 z-50 flex flex-col gap-2">
       {/* Gene Selection Button */}
       <Button
         className={`w-14 h-14 min-w-0 rounded-full font-medium text-xs ${
@@ -51,9 +54,38 @@ export function SingleMoleculeControls() {
         Genes
       </Button>
 
+      {/* Dot Size Slider */}
+      <Tooltip content="Change dotsize" placement="right">
+        <div
+          className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+        >
+          <Slider
+            aria-label="Dot size"
+            className="h-full"
+            maxValue={VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MAX}
+            minValue={VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MIN}
+            orientation="vertical"
+            size="sm"
+            step={VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_STEP}
+            value={globalScale}
+            onChange={(value) => setGlobalScale(value as number)}
+          />
+        </div>
+      </Tooltip>
+
+      {/* 2D/3D View Toggle */}
+      <Button
+        className={`w-14 h-14 min-w-0 rounded-full font-medium text-xs ${glassButton()}`}
+        color="default"
+        variant="light"
+        onPress={() => setViewMode(viewMode === "2D" ? "3D" : "2D")}
+      >
+        {viewMode}
+      </Button>
+
       {/* Gene Selection Panel */}
       {isPanelOpen && (
-        <div className="fixed top-20 left-20 z-50 w-[320px] bg-content1 border-2 border-default-200 rounded-lg shadow-lg">
+        <div className={`fixed top-28 left-20 z-50 w-[320px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}>
           <div className="p-4 space-y-3">
             {/* Title */}
             <div className="flex items-center justify-between">
@@ -125,7 +157,12 @@ export function SingleMoleculeControls() {
                       if (selectedGenes.has(gene)) {
                         removeGene(gene);
                       } else {
-                        addGene(gene);
+                        const geneProps = dataset?.geneColors[gene];
+                        if (geneProps) {
+                          addGene(gene, geneProps.color, geneProps.size);
+                        } else {
+                          addGene(gene);
+                        }
                       }
                     }}
                   >

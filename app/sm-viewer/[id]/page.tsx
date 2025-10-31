@@ -8,7 +8,7 @@ import { Button, Spinner } from "@heroui/react";
 
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
-import { ViewModeToggle } from "@/components/view-mode-toggle";
+import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import LightRays from "@/components/react-bits/LightRays";
@@ -74,8 +74,9 @@ function SingleMoleculeViewerByIdContent() {
 
       console.log("Auto-selecting genes:", genesToSelect);
       genesToSelect.forEach((gene) => {
-        console.log(`Adding gene to visualization: ${gene}`);
-        addGene(gene);
+        const geneProps = smDataset.geneColors[gene];
+        console.log(`Adding gene to visualization: ${gene} with color ${geneProps.color}`);
+        addGene(gene, geneProps.color, geneProps.size);
       });
 
       setIsLoading(false);
@@ -173,8 +174,8 @@ function SingleMoleculeViewerByIdContent() {
 
   return (
     <>
-      <ViewModeToggle />
       <SingleMoleculeControls />
+      <SingleMoleculeLegends />
       <SingleMoleculeThreeScene />
     </>
   );
