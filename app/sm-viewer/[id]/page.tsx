@@ -8,7 +8,9 @@ import { Button, Spinner } from "@heroui/react";
 
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
+import { ViewModeToggle } from "@/components/view-mode-toggle";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -16,7 +18,7 @@ function SingleMoleculeViewerByIdContent() {
   const params = useParams();
   const router = useRouter();
   const { addDataset } = useSingleMoleculeStore();
-  // const { selectGene } = useSingleMoleculeVisualizationStore();
+  const { addGene } = useSingleMoleculeVisualizationStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,11 +66,17 @@ function SingleMoleculeViewerByIdContent() {
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
 
-      // Auto-select first 5 genes for visualization (if available)
-      const genesToSelect = smDataset.uniqueGenes.slice(0, 5);
+      // Wait a tick for store to update
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // genesToSelect.forEach((gene) => selectGene(gene));
-      console.log("Auto-selected genes:", genesToSelect);
+      // Auto-select first 3 genes for visualization (if available)
+      const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
+
+      console.log("Auto-selecting genes:", genesToSelect);
+      genesToSelect.forEach((gene) => {
+        console.log(`Adding gene to visualization: ${gene}`);
+        addGene(gene);
+      });
 
       setIsLoading(false);
     } catch (err) {
@@ -165,6 +173,7 @@ function SingleMoleculeViewerByIdContent() {
 
   return (
     <>
+      <ViewModeToggle />
       <SingleMoleculeControls />
       <SingleMoleculeThreeScene />
     </>

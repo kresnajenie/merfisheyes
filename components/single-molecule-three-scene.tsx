@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { Spinner } from "@heroui/react";
+import { toast } from "react-toastify";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { TrackballControls } from "three/examples/jsm/controls/TrackballControls";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
@@ -48,27 +51,75 @@ export function SingleMoleculeThreeScene() {
   const controlsRef = useRef<any>(null);
   const pointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
   const circleTextureRef = useRef<THREE.Texture | null>(null);
+  const lastDatasetIdRef = useRef<string | null>(null);
 
-  // Get dataset from store
-  const dataset = useSingleMoleculeStore((state) => {
-    const id = state.currentDatasetId;
-
-    return id ? state.datasets.get(id) : null;
-  });
+  // Get dataset from store - using stable selector to prevent re-renders
+  const currentDatasetId = useSingleMoleculeStore(
+    (state) => state.currentDatasetId,
+  );
+  const dataset = useSingleMoleculeStore((state) =>
+    currentDatasetId ? state.datasets.get(currentDatasetId) : null,
+  );
 
   // Get visualization settings from store
   const { selectedGenes, globalScale, viewMode } =
     useSingleMoleculeVisualizationStore();
 
+  // Debug: Log when component re-renders
+  console.log("[SingleMoleculeThreeScene] Component render", {
+    datasetId: dataset?.id,
+    datasetName: dataset?.name,
+    selectedGenesCount: selectedGenes.size,
+    lastDatasetId: lastDatasetIdRef.current,
+    sceneExists: !!sceneRef.current,
+  });
+
   // Effect 1: Scene initialization
   useEffect(() => {
+    console.log("[SingleMoleculeThreeScene] Effect triggered", {
+      hasContainer: !!containerRef.current,
+      hasDataset: !!dataset,
+      datasetId: dataset?.id,
+      lastDatasetId: lastDatasetIdRef.current,
+      hasScene: !!sceneRef.current,
+    });
+
     if (!containerRef.current || !dataset) return;
+
+    // Only re-initialize if dataset ID actually changed AND scene exists
+    // This prevents unnecessary re-init during React Strict Mode double-render
+    if (lastDatasetIdRef.current === dataset.id && sceneRef.current) {
+      console.log(
+        "[SingleMoleculeThreeScene] Dataset ID unchanged and scene exists, skipping re-initialization",
+        {
+          datasetId: dataset.id,
+          lastDatasetId: lastDatasetIdRef.current,
+        },
+      );
+
+      return;
+    }
+
+    // If scene was cleaned up but dataset ID is same, we still need to recreate
+    if (lastDatasetIdRef.current === dataset.id && !sceneRef.current) {
+      console.log(
+        "[SingleMoleculeThreeScene] Scene was cleaned up but dataset ID unchanged, will recreate scene",
+        {
+          datasetId: dataset.id,
+        },
+      );
+    }
 
     console.log("[SingleMoleculeThreeScene] Initializing scene");
     console.log("Dataset:", dataset.name);
+    console.log("Dataset ID:", dataset.id);
+    console.log("Previous Dataset ID:", lastDatasetIdRef.current);
     console.log("Dimensions:", dataset.dimensions);
     console.log("Total molecules:", dataset.getMoleculeCount());
     console.log("Unique genes:", dataset.uniqueGenes.length);
+
+    // Update last dataset ID
+    lastDatasetIdRef.current = dataset.id;
 
     // Clear any existing canvas before creating new one
     if (containerRef.current) {
@@ -77,10 +128,10 @@ export function SingleMoleculeThreeScene() {
       }
     }
 
-    // Initialize Three.js scene
+    // Initialize Three.js scene with viewMode preference (not dataset dimensions)
     const { scene, camera, renderer, controls, animate } = initializeScene(
       containerRef.current,
-      { is2D: dataset.dimensions === 2 },
+      { is2D: viewMode === "2D" },
     );
 
     sceneRef.current = scene;
@@ -98,60 +149,72 @@ export function SingleMoleculeThreeScene() {
 
     // Cleanup
     return () => {
-      console.log("[SingleMoleculeThreeScene] Cleaning up scene");
-      controls.dispose();
-      renderer.dispose();
-      if (containerRef.current?.contains(renderer.domElement)) {
-        containerRef.current.removeChild(renderer.domElement);
+      console.log("[SingleMoleculeThreeScene] Cleaning up scene", {
+        lastDatasetId: lastDatasetIdRef.current,
+        reason: "Effect cleanup triggered - dataset dependency changed",
+      });
+
+      // Properly dispose of Three.js resources
+      if (controls) controls.dispose();
+      if (renderer) {
+        // Force lose WebGL context before disposing
+        const gl = renderer.getContext();
+        if (gl) {
+          const loseContextExt = gl.getExtension('WEBGL_lose_context');
+          if (loseContextExt) loseContextExt.loseContext();
+        }
+        renderer.dispose();
+
+        // Remove canvas from DOM
+        if (containerRef.current?.contains(renderer.domElement)) {
+          containerRef.current.removeChild(renderer.domElement);
+        }
       }
+
       rendererRef.current = null;
       sceneRef.current = null;
+      // DON'T reset lastDatasetIdRef here - keep it so we can skip re-init on React Strict Mode double-render
+      console.log("[SingleMoleculeThreeScene] Cleanup complete");
     };
-  }, [dataset, viewMode]);
+  }, [dataset]); // Removed viewMode to prevent unnecessary re-initialization
 
-  // Effect 2: Update camera controls when viewMode changes
+  // Effect 2: Update camera when viewMode changes
+  // Note: Controls are created in initializeScene, we just adjust camera here
   useEffect(() => {
     if (!controlsRef.current || !cameraRef.current) return;
 
-    const controls = controlsRef.current;
+    console.log("[SingleMoleculeThreeScene] Adjusting camera for mode:", viewMode);
+
     const camera = cameraRef.current;
+    const controls = controlsRef.current;
 
     if (viewMode === "2D") {
-      console.log("[SingleMoleculeThreeScene] Switching to 2D mode");
+      console.log("[SingleMoleculeThreeScene] Setting 2D camera position");
 
       // Reset camera to top-down view
       camera.position.set(0, 0, 200);
       camera.lookAt(0, 0, 0);
 
-      // Reset controls target to origin
+      // Ensure controls target is at origin
       controls.target.set(0, 0, 0);
-
-      controls.enableRotate = false;
-      controls.mouseButtons = {
-        LEFT: THREE.MOUSE.PAN,
-        MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.PAN,
-      };
-
       controls.update();
+
+      console.log("[SingleMoleculeThreeScene] 2D camera configured:", {
+        cameraPosition: camera.position.toArray(),
+        controlsTarget: controls.target.toArray(),
+      });
     } else {
-      console.log("[SingleMoleculeThreeScene] Switching to 3D mode");
+      console.log("[SingleMoleculeThreeScene] Setting 3D camera position");
 
       // Reset camera to 3D perspective view
       camera.position.set(150, 150, 150);
       camera.lookAt(0, 0, 0);
 
-      // Reset controls target to origin
+      // Ensure controls target is at origin
       controls.target.set(0, 0, 0);
-
-      controls.enableRotate = true;
-      controls.mouseButtons = {
-        LEFT: THREE.MOUSE.ROTATE,
-        MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.PAN,
-      };
-
       controls.update();
+
+      console.log("[SingleMoleculeThreeScene] 3D camera configured");
     }
   }, [viewMode]);
 
@@ -164,6 +227,9 @@ export function SingleMoleculeThreeScene() {
 
     const scene = sceneRef.current;
     const currentPointClouds = pointCloudsRef.current;
+
+    // Create abort flag for this effect run
+    let isCancelled = false;
 
     // Remove point clouds for unselected genes
     for (const [gene, pointCloud] of currentPointClouds.entries()) {
@@ -183,9 +249,33 @@ export function SingleMoleculeThreeScene() {
     // Add/update point clouds for selected genes (async)
     const updatePointClouds = async () => {
       for (const [gene, geneViz] of selectedGenes.entries()) {
+        // Check if cancelled before processing each gene
+        if (isCancelled) {
+          console.log(`[SingleMoleculeThreeScene] Update cancelled for gene: ${gene}`);
+          return;
+        }
+
+        // Create a unique toast ID for this gene
+        const toastId = `loading-gene-${gene}`;
+
         try {
+          // Show loading toast
+          toast.loading(`Loading ${gene}...`, {
+            toastId,
+            position: "bottom-left",
+            autoClose: false,
+          });
+
           // Get coordinates for this gene (async for lazy loading from S3)
           const coords = await dataset.getCoordinatesByGene(gene);
+
+          // Check again after async operation
+          if (isCancelled) {
+            console.log(`[SingleMoleculeThreeScene] Update cancelled after loading gene: ${gene}`);
+            toast.dismiss(toastId);
+            return;
+          }
+
           const moleculeCount = coords.length / 3; // Each molecule has x, y, z
 
           console.log(`Creating/updating point cloud for gene: ${gene}`);
@@ -243,12 +333,31 @@ export function SingleMoleculeThreeScene() {
             });
 
             pointCloud = new THREE.Points(geometry, material);
+
+            // Final check before adding to scene
+            if (isCancelled) {
+              console.log(`[SingleMoleculeThreeScene] Cancelled before adding point cloud for: ${gene}`);
+              pointCloud.geometry.dispose();
+              pointCloud.material.dispose();
+              toast.dismiss(toastId);
+              return;
+            }
+
             scene.add(pointCloud);
             currentPointClouds.set(gene, pointCloud);
 
             console.log(
               `  ✅ Point cloud created with ${moleculeCount} molecules`,
             );
+
+            // Update toast to success
+            toast.update(toastId, {
+              render: `${gene}: ${moleculeCount.toLocaleString()} molecules loaded`,
+              type: "success",
+              isLoading: false,
+              autoClose: 3000,
+              position: "bottom-left",
+            });
           } else {
             // Update existing point cloud color and size
             const material = pointCloud.material as THREE.PointsMaterial;
@@ -268,15 +377,33 @@ export function SingleMoleculeThreeScene() {
             colorAttr.needsUpdate = true;
 
             console.log(`  ✅ Point cloud updated`);
+
+            // Dismiss loading toast for already-cached genes
+            toast.dismiss(toastId);
           }
         } catch (error) {
           console.error(`Error creating point cloud for gene ${gene}:`, error);
+
+          // Update toast to error
+          toast.update(toastId, {
+            render: `Failed to load ${gene}`,
+            type: "error",
+            isLoading: false,
+            autoClose: 5000,
+            position: "bottom-left",
+          });
         }
       }
     };
 
     // Call async function
     updatePointClouds();
+
+    // Cleanup: cancel the async operation if effect is cleaned up
+    return () => {
+      console.log("[SingleMoleculeThreeScene] Cancelling point cloud updates");
+      isCancelled = true;
+    };
   }, [dataset, selectedGenes, globalScale]);
 
   if (!dataset) {
