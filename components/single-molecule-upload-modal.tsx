@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Modal,
   ModalContent,
@@ -42,6 +42,30 @@ export function SingleMoleculeUploadModal({
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
+
+  const resetState = () => {
+    setDatasetName(dataset?.name || "dataset");
+    setEmail("");
+    setIsProcessing(false);
+    setProgress(0);
+    setProgressMessage("");
+    setUploadProgress(0);
+    setUploadMessage("");
+    setUploadComplete(false);
+    setUploadedDatasetId("");
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      resetState();
+    }
+  }, [isOpen, dataset]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDatasetName(dataset?.name || "dataset");
+    }
+  }, [dataset, isOpen]);
 
   const handleUpload = async () => {
     if (!dataset) {
