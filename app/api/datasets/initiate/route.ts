@@ -57,65 +57,81 @@ export async function POST(request: NextRequest) {
     const uploadId = `up_${nanoid(10)}`;
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
-    // Start transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Create dataset record
-      const dataset = await tx.dataset.create({
-        data: {
-          id: datasetId,
-          fingerprint,
-          title: metadata.title || "Untitled Dataset",
-          numCells: metadata.numCells,
-          numGenes: metadata.numGenes,
-          datasetType: "single_cell",
-          status: "UPLOADING",
-        },
-      });
-
-      // 2. Create upload session
-      const uploadSession = await tx.uploadSession.create({
-        data: {
-          id: uploadId,
-          datasetId,
-          totalFiles: files.length,
-          completedFiles: 0,
-          expiresAt,
-        },
-      });
-
-      // 3. Create upload file records and generate presigned URLs
-      const uploadUrls: Record<string, any> = {};
-
-      for (const file of files) {
-        // Create file record in database
-        await tx.uploadFile.create({
+    // Start transaction (optimized for large file counts)
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // 1. Create dataset record
+        const dataset = await tx.dataset.create({
           data: {
+            id: datasetId,
+            fingerprint,
+            title: metadata.title || "Untitled Dataset",
+            numCells: metadata.numCells,
+            numGenes: metadata.numGenes,
+            datasetType: "single_cell",
+            status: "UPLOADING",
+          },
+        });
+
+        // 2. Create upload session
+        const uploadSession = await tx.uploadSession.create({
+          data: {
+            id: uploadId,
+            datasetId,
+            totalFiles: files.length,
+            completedFiles: 0,
+            expiresAt,
+          },
+        });
+
+        // 3. Batch create upload file records (much faster than individual creates)
+        await tx.uploadFile.createMany({
+          data: files.map((file) => ({
             uploadSessionId: uploadId,
             fileKey: file.key,
             fileSize: BigInt(file.size),
             status: "PENDING",
-          },
+          })),
         });
 
-        // Generate S3 key (path in bucket)
-        const s3Key = `datasets/${datasetId}/${file.key}`;
+        return {
+          dataset,
+          uploadSession,
+        };
+      },
+      {
+        maxWait: 10000, // Maximum time to wait for a transaction slot (10s)
+        timeout: 20000, // Maximum time for the transaction to complete (20s)
+      },
+    );
 
-        // Generate presigned URL
+    // 4. Generate presigned URLs outside transaction (parallel processing)
+    console.log(`Generating presigned URLs for ${files.length} files...`);
+    const uploadUrls: Record<string, any> = {};
+
+    // Process in batches of 50 to avoid overwhelming S3
+    const batchSize = 50;
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+      const urlPromises = batch.map(async (file) => {
+        const s3Key = `datasets/${datasetId}/${file.key}`;
         const presignedUrl = await generatePresignedUploadUrl(
           s3Key,
           file.contentType || "application/octet-stream",
           3600, // 1 hour expiration
         );
+        return { key: file.key, url: presignedUrl.url };
+      });
 
-        uploadUrls[file.key] = presignedUrl.url;
+      const batchResults = await Promise.all(urlPromises);
+      for (const { key, url } of batchResults) {
+        uploadUrls[key] = url;
       }
 
-      return {
-        dataset,
-        uploadSession,
-        uploadUrls,
-      };
-    });
+      console.log(
+        `Generated URLs for batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(files.length / batchSize)}`,
+      );
+    }
 
     // Return success response
     return NextResponse.json(
@@ -123,7 +139,7 @@ export async function POST(request: NextRequest) {
         success: true,
         datasetId,
         uploadId,
-        uploadUrls: result.uploadUrls,
+        uploadUrls: uploadUrls,
         expiresIn: 3600,
         expiresAt: expiresAt.toISOString(),
       },

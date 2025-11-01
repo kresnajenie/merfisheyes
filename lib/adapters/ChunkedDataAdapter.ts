@@ -1,67 +1,83 @@
 /**
  * Chunked Data Adapter
- * Reconstructs StandardizedDataset from chunked compressed files via presigned S3 URLs
- * Loads data from remote storage by dataset ID
+ * Reconstructs StandardizedDataset from chunked compressed files
+ * Supports both:
+ * - Remote: S3 storage via presigned URLs (dataset ID)
+ * - Local: Local files from folder upload (File objects)
  */
 export class ChunkedDataAdapter {
   private datasetId: string;
   private downloadUrls: Record<string, string> = {};
+  private localFiles: Map<string, File> | null = null;
   private manifest: any = null;
   private expressionIndex: any = null;
   private loadedChunks = new Map<number, any>();
   private obsMetadata: any = null;
+  private mode: "remote" | "local";
 
-  constructor(datasetId: string) {
+  constructor(datasetId: string, localFiles?: Map<string, File>) {
     this.datasetId = datasetId;
+    this.localFiles = localFiles || null;
+    this.mode = localFiles ? "local" : "remote";
   }
 
   /**
-   * Initialize adapter by fetching presigned URLs and loading manifest
+   * Initialize adapter by fetching presigned URLs (remote) or using local files (local)
    */
   async initialize() {
     console.log("Initializing ChunkedDataAdapter...", {
       datasetId: this.datasetId,
+      mode: this.mode,
     });
 
     try {
-      // Fetch dataset metadata and presigned URLs from API
-      // Use absolute URL for worker compatibility
-      // 'self' is available in both workers and main thread
-      const baseUrl =
-        typeof self !== "undefined" && self.location
-          ? self.location.origin
-          : "";
-      const url = `${baseUrl}/api/datasets/${this.datasetId}`;
-      const response = await fetch(url);
+      if (this.mode === "remote") {
+        // Fetch dataset metadata and presigned URLs from API
+        // Use absolute URL for worker compatibility
+        // 'self' is available in both workers and main thread
+        const baseUrl =
+          typeof self !== "undefined" && self.location
+            ? self.location.origin
+            : "";
+        const url = `${baseUrl}/api/datasets/${this.datasetId}`;
+        const response = await fetch(url);
 
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch dataset: ${response.status} ${response.statusText}`,
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch dataset: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const data = await response.json();
+
+        console.log("Dataset API response:", data);
+
+        // Check if there's an error in the response (e.g., dataset not ready)
+        if (data.error) {
+          throw new Error(`${data.error}: ${data.message || ""}`);
+        }
+
+        // Check if files object exists
+        if (!data.files || typeof data.files !== "object") {
+          throw new Error(
+            `Invalid response structure: files object missing. Status: ${data.status || "unknown"}`,
+          );
+        }
+
+        this.downloadUrls = data.files;
+        console.log(
+          "Available files:",
+          Object.keys(this.downloadUrls).length,
+          "files",
+        );
+      } else {
+        // Local mode - files already provided
+        console.log(
+          "Local mode: using provided files",
+          this.localFiles?.size,
+          "files",
         );
       }
-
-      const data = await response.json();
-
-      console.log("Dataset API response:", data);
-
-      // Check if there's an error in the response (e.g., dataset not ready)
-      if (data.error) {
-        throw new Error(`${data.error}: ${data.message || ""}`);
-      }
-
-      // Check if files object exists
-      if (!data.files || typeof data.files !== "object") {
-        throw new Error(
-          `Invalid response structure: files object missing. Status: ${data.status || "unknown"}`,
-        );
-      }
-
-      this.downloadUrls = data.files;
-      console.log(
-        "Available files:",
-        Object.keys(this.downloadUrls).length,
-        "files",
-      );
 
       // Load manifest
       this.manifest = await this.fetchJSON("manifest.json");
@@ -90,51 +106,74 @@ export class ChunkedDataAdapter {
   }
 
   /**
-   * Fetch and parse JSON file using presigned URL
+   * Fetch and parse JSON file (from S3 URL or local File)
    */
   private async fetchJSON(fileKey: string) {
-    const url = this.downloadUrls[fileKey];
+    console.log(`Fetching JSON: ${fileKey} (mode: ${this.mode})`);
 
-    if (!url) {
-      throw new Error(`No download URL found for ${fileKey}`);
+    if (this.mode === "local") {
+      const file = this.localFiles?.get(fileKey);
+
+      if (!file) {
+        throw new Error(`No local file found for ${fileKey}`);
+      }
+
+      const text = await file.text();
+
+      return JSON.parse(text);
+    } else {
+      const url = this.downloadUrls[fileKey];
+
+      if (!url) {
+        throw new Error(`No download URL found for ${fileKey}`);
+      }
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      return await response.json();
     }
-
-    console.log(`Fetching JSON: ${fileKey}`);
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    return await response.json();
   }
 
   /**
-   * Fetch and decompress binary file using presigned URL
+   * Fetch and decompress binary file (from S3 URL or local File)
    */
   private async fetchBinary(fileKey: string): Promise<ArrayBuffer> {
-    const url = this.downloadUrls[fileKey];
+    console.log(`Fetching binary: ${fileKey} (mode: ${this.mode})`);
 
-    if (!url) {
-      throw new Error(`No download URL found for ${fileKey}`);
+    if (this.mode === "local") {
+      const file = this.localFiles?.get(fileKey);
+
+      if (!file) {
+        throw new Error(`No local file found for ${fileKey}`);
+      }
+
+      // File is already gzipped, decompress it
+      return await this.decompress(file);
+    } else {
+      const url = this.downloadUrls[fileKey];
+
+      if (!url) {
+        throw new Error(`No download URL found for ${fileKey}`);
+      }
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const compressedBlob = await response.blob();
+
+      return await this.decompress(compressedBlob);
     }
-
-    console.log(`Fetching binary: ${fileKey}`);
-
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const compressedBlob = await response.blob();
-
-    return await this.decompress(compressedBlob);
   }
 
   /**
