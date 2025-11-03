@@ -185,11 +185,13 @@ Drag and drop or click to upload. After processing, you'll receive an email with
 
 #### Single Molecule Viewer (`/sm-viewer/[id]`)
 - **Auto-selection**: First 3 genes are automatically selected and displayed when loading from S3 link
-- **Rotate**: Left click + drag (disabled in 2D mode)
+- **Rotate**: Left click + drag (disabled in 2D mode, enabled with TrackballControls in 3D mode)
 - **Pan**: Right click + drag
 - **Zoom**: Mouse wheel
 - **Select Genes**: Search and check genes to display
+  - Toast notifications only appear when loading new genes, not when adjusting colors/sizes
 - **2D/3D Toggle**: Switch between top-down and perspective views
+  - Scene automatically reinitializes with appropriate controls (OrbitControls for 2D, TrackballControls for 3D)
 - **Scale**: Adjust point size with global and per-gene local scales
 
 ## Data Format Requirements

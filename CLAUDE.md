@@ -278,15 +278,21 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 **View Modes**:
 - **2D Mode**: Top-down orthographic-like view, camera at (0, 0, 200), rotation disabled
+  - Uses OrbitControls with `enableRotate = false`
 - **3D Mode**: Perspective view, camera at (150, 150, 150), rotation enabled
-- Camera resets to center when toggling between modes
+  - Uses TrackballControls for full 3D rotation
+- **Mode Switching**: Scene reinitializes when viewMode changes to swap control types
+  - Proper cleanup of point clouds and WebGL resources during reinitialization
+  - Point cloud effect includes `viewMode` dependency to recreate clouds in new scene
 
 **Rendering Strategy**:
 - Uses `fixed inset-0` positioning to fill entire viewport below navbar
 - Black background for high contrast with bright gene colors
-- Three.js OrbitControls for pan/zoom/rotate (rotate disabled in 2D mode)
 - Multiple point clouds rendered simultaneously (one per selected gene)
 - Point cloud update loop wrapped in async function to handle lazy S3 loading
+- **Toast notifications**: Only shown when first loading a new gene, not when updating existing genes (color/size changes)
+  - Prevents notification spam during visualization adjustments
+  - Silent updates for existing point clouds
 
 ### Python Preprocessing Scripts
 
