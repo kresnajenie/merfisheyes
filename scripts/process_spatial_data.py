@@ -385,7 +385,8 @@ def load_xenium_data(input_path: Path):
                 features_df = pd.read_csv(features_file, sep='\t', header=None, compression='gzip')
             else:
                 features_df = pd.read_csv(features_file, sep='\t', header=None)
-            gene_names = features_df[0].tolist()
+            # Per Xenium spec, column 1 (0-indexed) holds the gene symbols; fallback to column 0 if missing
+            gene_names = features_df[1].tolist() if features_df.shape[1] > 1 else features_df[0].tolist()
             print(f"  ✓ Loaded {len(gene_names)} genes from features file")
 
     # Option 3: Load matrix.mtx or cell_feature_matrix.h5
@@ -451,7 +452,8 @@ def load_xenium_data(input_path: Path):
                 features_df = pd.read_csv(features_file, sep='\t', header=None, compression='gzip')
             else:
                 features_df = pd.read_csv(features_file, sep='\t', header=None)
-            gene_names = features_df[0].tolist()
+            # Per Xenium spec, column 1 (0-indexed) holds the gene symbols; fallback to column 0 if missing
+            gene_names = features_df[1].tolist() if features_df.shape[1] > 1 else features_df[0].tolist()
             print(f"  ✓ Loaded {len(gene_names)} genes from features file")
 
         if matrix_file:

@@ -2,8 +2,19 @@
 
 import { Button } from "@heroui/button";
 import Link from "next/link";
-import { useEffect, useMemo, memo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  memo,
+  useRef,
+  useState,
+} from "react";
 import clsx from "clsx";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 
 import { title, subtitle } from "@/components/primitives";
 import { FileUpload } from "@/components/file-upload";
@@ -14,10 +25,16 @@ const MemoizedLightRays = memo(LightRays);
 
 export default function Home() {
   const name = "MERFISH";
-  const [isSingleMolecule, setIsSingleMolecule] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isSingleMolecule, setIsSingleMolecule] = useState(
+    () => searchParams.get("mode") === "sm",
+  );
   const animationFrameRef = useRef<number | null>(null);
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
+  const modeParam = searchParams.get("mode");
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -93,6 +110,31 @@ export default function Home() {
     };
   }, [targetRaysColor]);
 
+  useEffect(() => {
+    const shouldBeSingleMolecule = modeParam === "sm";
+
+    setIsSingleMolecule((prev) =>
+      prev === shouldBeSingleMolecule ? prev : shouldBeSingleMolecule,
+    );
+  }, [modeParam]);
+
+  const handleModeChange = (selected: boolean) => {
+    setIsSingleMolecule(selected);
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (selected) {
+      params.set("mode", "sm");
+    } else {
+      params.delete("mode");
+    }
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+    router.replace(newUrl, { scroll: false });
+  };
+
   return (
     <>
       <div className="fixed inset-0 w-full h-full z-0">
@@ -136,7 +178,7 @@ export default function Home() {
               </span>
               <Switch
                 isSelected={isSingleMolecule}
-                onValueChange={setIsSingleMolecule}
+                onValueChange={handleModeChange}
                 aria-label="Toggle between single cell and single molecule"
                 classNames={{
                   wrapper: isSingleMolecule
