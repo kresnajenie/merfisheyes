@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 
 interface SingleMoleculeViewerIdPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function SingleMoleculeViewerIdRedirect({
+export default async function SingleMoleculeViewerIdRedirect({
   params,
 }: SingleMoleculeViewerIdPageProps) {
-  const search = new URLSearchParams({ mode: "sm", dataset: params.id });
+  const { id } = await params;
+  const search = new URLSearchParams({ mode: "sm", dataset: id });
 
   redirect(`/?${search.toString()}`);
 }

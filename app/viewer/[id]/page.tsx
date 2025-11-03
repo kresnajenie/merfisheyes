@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 
 interface ViewerIdPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function ViewerIdRedirect({ params }: ViewerIdPageProps) {
-  const search = new URLSearchParams({ dataset: params.id });
+export default async function ViewerIdRedirect({ params }: ViewerIdPageProps) {
+  const { id } = await params;
+  const search = new URLSearchParams({ dataset: id });
 
   redirect(`/?${search.toString()}`);
 }

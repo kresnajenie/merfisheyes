@@ -8,6 +8,7 @@ import {
   memo,
   useRef,
   useState,
+  Suspense,
 } from "react";
 import clsx from "clsx";
 import {
@@ -23,7 +24,7 @@ import { Switch } from "@heroui/react";
 
 const MemoizedLightRays = memo(LightRays);
 
-export default function Home() {
+function HomeContent() {
   const name = "MERFISH";
   const router = useRouter();
   const pathname = usePathname();
@@ -291,5 +292,13 @@ export default function Home() {
         </div>
       </section>
     </>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
