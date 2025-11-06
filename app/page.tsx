@@ -2,19 +2,83 @@
 
 import { Button } from "@heroui/button";
 import Link from "next/link";
-import { useEffect, useMemo, memo, useRef, useState, Suspense } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  memo,
+  useRef,
+  useState,
+  Suspense,
+} from "react";
 import clsx from "clsx";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 
 import { title, subtitle } from "@/components/primitives";
 import { FileUpload } from "@/components/file-upload";
 import LightRays from "@/components/react-bits/LightRays";
-import { Switch } from "@heroui/react";
+import { BrainToggle } from "@/components/brain-toggle";
 
 const MemoizedLightRays = memo(LightRays);
 
+function useModeToggleState() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const modeParam = searchParams.get("mode");
+
+  const initialMode = useMemo(() => {
+    if (modeParam) {
+      return modeParam === "sm";
+    }
+
+    if (typeof window !== "undefined") {
+      const storedMode = window.localStorage.getItem("lastDatasetMode");
+
+      if (storedMode) {
+        return storedMode === "sm";
+      }
+    }
+
+    return false;
+  }, [modeParam]);
+
+  const [isSingleMolecule, setIsSingleMolecule] = useState(initialMode);
+
+  useEffect(() => {
+    setIsSingleMolecule(initialMode);
+  }, [initialMode]);
+
+  const handleModeChange = useCallback(
+    (selected: boolean) => {
+      setIsSingleMolecule(selected);
+
+      const params = new URLSearchParams(searchParams.toString());
+
+      if (selected) {
+        params.set("mode", "sm");
+      } else {
+        params.delete("mode");
+      }
+
+      const queryString = params.toString();
+      const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+      router.replace(newUrl, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  return { isSingleMolecule, handleModeChange };
+}
+
 function HomeContent() {
   const name = "MERFISH";
-  const [isSingleMolecule, setIsSingleMolecule] = useState(false);
+  const { isSingleMolecule, handleModeChange } = useModeToggleState();
   const animationFrameRef = useRef<number | null>(null);
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
@@ -124,36 +188,34 @@ function HomeContent() {
                 to Life
               </span>
             </h1>
-            <div className="flex items-center gap-3 mt-4">
-              <span
-                className={`text-sm transition-all duration-300 px-3 py-1 rounded-full ${
+            <div className="flex items-center gap-6 mt-6">
+              <button
+                type="button"
+                aria-pressed={!isSingleMolecule}
+                onClick={() => handleModeChange(false)}
+                className={clsx(
+                  "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-slate-900",
                   !isSingleMolecule
-                    ? "font-medium text-white bg-blue-500"
-                    : "font-normal text-default-500"
-                }`}
+                    ? "bg-blue-500 text-white shadow-[0_12px_25px_rgba(59,130,246,0.35)]"
+                    : "bg-transparent text-default-500 border border-blue-400/30 hover:bg-blue-500/15 hover:text-white"
+                )}
               >
                 single cell
-              </span>
-              <Switch
-                isSelected={isSingleMolecule}
-                onValueChange={setIsSingleMolecule}
-                aria-label="Toggle between single cell and single molecule"
-                classNames={{
-                  wrapper: isSingleMolecule
-                    ? "bg-purple-500 group-data-[selected=true]:bg-purple-500"
-                    : "bg-blue-500",
-                  thumb: "bg-white",
-                }}
-              />
-              <span
-                className={`text-sm transition-all duration-300 px-3 py-1 rounded-full ${
+              </button>
+              <BrainToggle isActive={isSingleMolecule} onToggle={handleModeChange} />
+              <button
+                type="button"
+                aria-pressed={isSingleMolecule}
+                onClick={() => handleModeChange(true)}
+                className={clsx(
+                  "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-400/80 focus-visible:ring-offset-slate-900",
                   isSingleMolecule
-                    ? "font-medium text-white bg-purple-500"
-                    : "font-normal text-default-500"
-                }`}
+                    ? "bg-purple-500 text-white shadow-[0_12px_25px_rgba(168,85,247,0.35)]"
+                    : "bg-transparent text-default-500 border border-purple-400/30 hover:bg-purple-500/15 hover:text-white"
+                )}
               >
                 single molecule
-              </span>
+              </button>
             </div>
             <div className={subtitle({ class: "mt-4 text-center" })}>
               Explore your{" "}
