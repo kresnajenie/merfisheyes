@@ -12,6 +12,7 @@ import { subtitle } from "@/components/primitives";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import  LightRays  from "@/components/react-bits/LightRays";
 
 function ViewerContent() {
   const router = useRouter();
