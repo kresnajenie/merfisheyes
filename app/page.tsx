@@ -29,11 +29,11 @@ function useModeToggleState() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const modeParam = searchParams.get("mode");
+  const [isSingleMolecule, setIsSingleMolecule] = useState(() => {
+    const modeFromQuery = searchParams.get("mode");
 
-  const initialMode = useMemo(() => {
-    if (modeParam) {
-      return modeParam === "sm";
+    if (modeFromQuery) {
+      return modeFromQuery === "sm";
     }
 
     if (typeof window !== "undefined") {
@@ -45,40 +45,7 @@ function useModeToggleState() {
     }
 
     return false;
-  }, [modeParam]);
-
-  const [isSingleMolecule, setIsSingleMolecule] = useState(initialMode);
-
-  useEffect(() => {
-    setIsSingleMolecule(initialMode);
-  }, [initialMode]);
-
-  const handleModeChange = useCallback(
-    (selected: boolean) => {
-      setIsSingleMolecule(selected);
-
-      const params = new URLSearchParams(searchParams.toString());
-
-      if (selected) {
-        params.set("mode", "sm");
-      } else {
-        params.delete("mode");
-      }
-
-      const queryString = params.toString();
-      const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-
-      router.replace(newUrl, { scroll: false });
-    },
-    [pathname, router, searchParams],
-  );
-
-  return { isSingleMolecule, handleModeChange };
-}
-
-function HomeContent() {
-  const name = "MERFISH";
-  const { isSingleMolecule, handleModeChange } = useModeToggleState();
+  });
   const animationFrameRef = useRef<number | null>(null);
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
@@ -156,6 +123,33 @@ function HomeContent() {
       }
     };
   }, [targetRaysColor]);
+
+  useEffect(() => {
+    if (!modeParam) return;
+
+    const shouldBeSingleMolecule = modeParam === "sm";
+
+    setIsSingleMolecule((prev) =>
+      prev === shouldBeSingleMolecule ? prev : shouldBeSingleMolecule,
+    );
+  }, [modeParam]);
+
+  const handleModeChange = (selected: boolean) => {
+    setIsSingleMolecule(selected);
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (selected) {
+      params.set("mode", "sm");
+    } else {
+      params.delete("mode");
+    }
+
+    const queryString = params.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+
+    router.replace(newUrl, { scroll: false });
+  };
 
   return (
     <>

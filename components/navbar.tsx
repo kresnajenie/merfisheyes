@@ -33,6 +33,7 @@ interface NavbarProps {
 
 export const Navbar = ({ onUploadClick }: NavbarProps) => {
   const pathname = usePathname();
+
   const searchInput = (
     <Input
       aria-label="Search"

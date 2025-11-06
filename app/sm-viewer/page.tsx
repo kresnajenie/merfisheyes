@@ -1,69 +1,55 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
+import { Spinner } from "@heroui/react";
+import { useRouter } from "next/navigation";
 
-import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
+import LightRays from "@/components/react-bits/LightRays";
+import { subtitle } from "@/components/primitives";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
-import { FileUpload } from "@/components/file-upload";
+import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
-import LightRays from "@/components/react-bits/LightRays";
-import { subtitle, title } from "@/components/primitives";
 
-function ViewerContent() {
-  // Get dataset from single molecule store
-  const dataset = useSingleMoleculeStore((state) => {
-    const id = state.currentDatasetId;
+function SingleMoleculeViewerContent() {
+  const router = useRouter();
+  const dataset = useSingleMoleculeStore((state) => state.getCurrentDataset());
+  const isLoading = useSingleMoleculeStore((state) => state.isLoading);
+  const addGene = useSingleMoleculeVisualizationStore(
+    (state) => state.addGene,
+  );
+  const clearGenes = useSingleMoleculeVisualizationStore(
+    (state) => state.clearGenes,
+  );
+  const lastDatasetIdRef = useRef<string | null>(null);
 
-    return id ? state.datasets.get(id) : null;
-  });
-
-  const { addGene, clearGenes } = useSingleMoleculeVisualizationStore();
-
-  // Auto-select LEF1 + 4 random genes when dataset loads
   useEffect(() => {
     if (!dataset) return;
 
-    console.log("[sm-viewer] Dataset loaded, selecting LEF1 + 4 random genes");
-    console.log("Available genes:", dataset.uniqueGenes.length);
+    if (lastDatasetIdRef.current === dataset.id) return;
 
-    // Clear previous selections
     clearGenes();
 
-    const selectedGenes: string[] = [];
+    const genesToSelect = dataset.uniqueGenes.slice(0, 3);
 
-    // Always add LEF1 if it exists
-    if (dataset.uniqueGenes.includes("LEF1")) {
-      selectedGenes.push("LEF1");
-      console.log("Added LEF1 (always included)");
-    } else {
-      console.warn("LEF1 not found in dataset");
-    }
-
-    // Pick 4 additional random genes
-    const availableGenes = dataset.uniqueGenes.filter(
-      (gene) => gene !== "LEF1",
-    );
-    const numRandomGenes = Math.min(4, availableGenes.length);
-
-    for (let i = 0; i < numRandomGenes; i++) {
-      const randomIndex = Math.floor(Math.random() * availableGenes.length);
-
-      selectedGenes.push(availableGenes[randomIndex]);
-      availableGenes.splice(randomIndex, 1); // Remove to avoid duplicates
-    }
-
-    console.log("Selected genes:", selectedGenes);
-
-    // Add genes to visualization store with their persistent colors
-    selectedGenes.forEach((gene) => {
+    genesToSelect.forEach((gene) => {
       const geneProps = dataset.geneColors[gene];
-      addGene(gene, geneProps.color, geneProps.size);
+      addGene(gene, geneProps?.color, geneProps?.size);
     });
+
+    lastDatasetIdRef.current = dataset.id;
   }, [dataset, addGene, clearGenes]);
 
-  if (!dataset) {
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (!dataset) {
+      router.replace("/?mode=sm");
+    }
+  }, [dataset, isLoading, router]);
+
+  if (isLoading) {
     return (
       <>
         <div className="fixed inset-0 w-full h-full z-0">
@@ -72,49 +58,25 @@ function ViewerContent() {
             mouseInfluence={0.1}
             pulsating={false}
             rayLength={10}
-            raysColor="#FFD700"
-            raysOrigin="top-left"
-            raysSpeed={0.8}
+            raysColor="#FF1CF7"
+            raysOrigin="top-center"
+            raysSpeed={1.0}
           />
         </div>
-        <div className="fixed inset-0 w-full h-full z-0">
-          <LightRays
-            lightSpread={1.0}
-            mouseInfluence={0.1}
-            pulsating={false}
-            rayLength={10}
-            raysColor="#FFD700"
-            raysOrigin="top-right"
-            raysSpeed={0.8}
-          />
-        </div>
-        <div className="relative z-10 flex items-center justify-center h-full p-8">
-          <div className="flex flex-col items-center gap-6 max-w-5xl w-full">
-            <div className="text-center">
-              <h2 className={title({ size: "md", color: "yellow" })}>
-                Single Molecule Viewer
-              </h2>
-              <p className={subtitle({ class: "mt-2" })}>
-                Upload a single molecule dataset to start visualizing
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <FileUpload
-                description="Select .parquet or .csv file"
-                singleMolecule={true}
-                title="Xenium Parquet/CSV"
-                type="xenium"
-              />
-              <FileUpload
-                description="Select .parquet or .csv file"
-                singleMolecule={true}
-                title="MERSCOPE Parquet/CSV"
-                type="merscope"
-              />
-            </div>
-          </div>
+        <div className="relative z-10 flex flex-col items-center justify-center h-full gap-4">
+          <Spinner color="secondary" size="lg" />
+          <p className={subtitle()}>Preparing your single molecule viewer...</p>
         </div>
       </>
+    );
+  }
+
+  if (!dataset) {
+    return (
+      <div className="relative z-10 flex flex-col items-center justify-center h-full gap-4">
+        <Spinner color="secondary" size="lg" />
+        <p className={subtitle()}>Redirecting to single molecule uploads…</p>
+      </div>
     );
   }
 
@@ -122,15 +84,21 @@ function ViewerContent() {
     <>
       <SingleMoleculeControls />
       <SingleMoleculeLegends />
-      <SingleMoleculeThreeScene />
+      <SingleMoleculeThreeScene key={dataset.id} />
     </>
   );
 }
 
-export default function ViewerPage() {
+export default function SingleMoleculeViewerPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <ViewerContent />
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-full">
+          <Spinner size="lg" />
+        </div>
+      }
+    >
+      <SingleMoleculeViewerContent />
     </Suspense>
   );
 }
