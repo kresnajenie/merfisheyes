@@ -3,13 +3,12 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { Suspense, useEffect } from "react";
-import { Button, Spinner } from "@heroui/react";
+import { Spinner } from "@heroui/react";
 import { useRouter } from "next/navigation";
 
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
-import LightRays from "@/components/react-bits/LightRays";
-import { subtitle, title } from "@/components/primitives";
+import { subtitle } from "@/components/primitives";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
@@ -19,6 +18,14 @@ function ViewerContent() {
   const dataset = useDatasetStore((state) => state.getCurrentDataset());
   const isLoading = useDatasetStore((state) => state.isLoading);
   const { setSelectedColumn } = useVisualizationStore();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (!dataset || !("spatial" in dataset) || !("embeddings" in dataset)) {
+      router.replace("/");
+    }
+  }, [dataset, isLoading, router]);
 
   useEffect(() => {
     if (!dataset || !("clusters" in dataset)) return;
@@ -60,31 +67,10 @@ function ViewerContent() {
 
   if (!dataset || !("spatial" in dataset) || !("embeddings" in dataset)) {
     return (
-      <>
-        <div className="fixed inset-0 w-full h-full z-0">
-          <LightRays
-            lightSpread={1.0}
-            mouseInfluence={0.1}
-            pulsating={false}
-            rayLength={10}
-            raysColor="#764ba2"
-            raysOrigin="top-center"
-            raysSpeed={0.9}
-          />
-        </div>
-        <div className="relative z-10 flex flex-col items-center justify-center h-full gap-6 px-6 text-center">
-          <h2 className={title({ size: "md", color: "blue" })}>
-            No single-cell dataset loaded
-          </h2>
-          <p className={subtitle({ class: "max-w-xl" })}>
-            Upload a dataset from the home page to explore it here, or return to
-            start a new upload.
-          </p>
-          <Button color="primary" onPress={() => router.push("/")}>
-            Back to Uploads
-          </Button>
-        </div>
-      </>
+      <div className="relative z-10 flex flex-col items-center justify-center h-full gap-4">
+        <Spinner color="primary" size="lg" />
+        <p className={subtitle()}>Redirecting to uploads…</p>
+      </div>
     );
   }
 
