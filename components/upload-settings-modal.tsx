@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import {
   Modal,
   ModalContent,
@@ -43,7 +44,7 @@ export function UploadSettingsModal({
   const [uploadComplete, setUploadComplete] = useState(false);
   const [uploadedDatasetId, setUploadedDatasetId] = useState<string>("");
 
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setChunkSize("auto");
     setCustomChunkSize("100");
     setDatasetName(dataset?.name || "dataset");
@@ -55,21 +56,18 @@ export function UploadSettingsModal({
     setUploadMessage("");
     setUploadComplete(false);
     setUploadedDatasetId("");
-  };
+  }, [dataset]);
 
-  // Ensure modal resets whenever it closes (including page refreshes)
+  const previousDatasetIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!isOpen) {
+    const currentId = dataset?.id ?? null;
+
+    if (previousDatasetIdRef.current !== currentId) {
       resetState();
+      previousDatasetIdRef.current = currentId;
     }
-  }, [isOpen, dataset]);
-
-  // Keep dataset name in sync when modal re-opens with a different dataset
-  useEffect(() => {
-    if (isOpen) {
-      setDatasetName(dataset?.name || "dataset");
-    }
-  }, [dataset, isOpen]);
+  }, [dataset?.id, resetState]);
 
   // Check if dataset is pre-chunked
   const isPreChunked = (dataset as any)?.isPreChunked || false;
