@@ -315,7 +315,7 @@ export function FileUpload({
       setLoading(false);
 
       // Navigate to appropriate viewer page
-      router.push(singleMolecule ? "/?mode=sm" : "/");
+      router.push(singleMolecule ? "/sm-viewer" : "/viewer");
     } catch (error) {
       console.error(`Error processing ${type} data:`, error);
       const errorMessage =
