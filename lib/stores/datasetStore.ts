@@ -34,6 +34,17 @@ export const useDatasetStore = create<DatasetState>((set, get) => ({
 
       newDatasets.set(dataset.id, dataset);
 
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem("lastDatasetMode", "cell");
+        } catch (error) {
+          console.warn(
+            "[DatasetStore] Failed to persist last dataset mode:",
+            error,
+          );
+        }
+      }
+
       console.log("Dataset added to store:", {
         id: dataset.id,
         name: dataset.name,

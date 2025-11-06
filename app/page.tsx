@@ -29,9 +29,23 @@ function HomeContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [isSingleMolecule, setIsSingleMolecule] = useState(
-    () => searchParams.get("mode") === "sm",
-  );
+  const [isSingleMolecule, setIsSingleMolecule] = useState(() => {
+    const modeFromQuery = searchParams.get("mode");
+
+    if (modeFromQuery) {
+      return modeFromQuery === "sm";
+    }
+
+    if (typeof window !== "undefined") {
+      const storedMode = window.localStorage.getItem("lastDatasetMode");
+
+      if (storedMode) {
+        return storedMode === "sm";
+      }
+    }
+
+    return false;
+  });
   const animationFrameRef = useRef<number | null>(null);
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
@@ -112,6 +126,8 @@ function HomeContent() {
   }, [targetRaysColor]);
 
   useEffect(() => {
+    if (!modeParam) return;
+
     const shouldBeSingleMolecule = modeParam === "sm";
 
     setIsSingleMolecule((prev) =>

@@ -32,6 +32,17 @@ export const useSingleMoleculeStore = create<SingleMoleculeState>(
 
         newDatasets.set(dataset.id, dataset);
 
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem("lastDatasetMode", "sm");
+          } catch (error) {
+            console.warn(
+              "[SingleMoleculeStore] Failed to persist last dataset mode:",
+              error,
+            );
+          }
+        }
+
         console.log("Single molecule dataset added to store:", {
           id: dataset.id,
           name: dataset.name,
