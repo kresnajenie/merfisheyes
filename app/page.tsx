@@ -2,18 +2,7 @@
 
 import { Button } from "@heroui/button";
 import Link from "next/link";
-<<<<<<< HEAD
-import {
-  useEffect,
-  useMemo,
-  memo,
-  useRef,
-  useState,
-  Suspense,
-} from "react";
-=======
-import { useEffect, useMemo, memo, useRef, useState } from "react";
->>>>>>> parent of 5c701a4 (added redirects for viewer and sm-viewer)
+import { useEffect, useMemo, memo, useRef, useState, Suspense } from "react";
 import clsx from "clsx";
 
 import { title, subtitle } from "@/components/primitives";
@@ -32,7 +21,7 @@ function HomeContent() {
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
-    [isSingleMolecule],
+    [isSingleMolecule]
   );
 
   useEffect(() => {
@@ -183,7 +172,7 @@ function HomeContent() {
             <div
               className={clsx(
                 "absolute inset-0 flex items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
-                isSingleMolecule ? "opacity-100" : "opacity-0",
+                isSingleMolecule ? "opacity-100" : "opacity-0"
               )}
             >
               <div className="h-[120%] w-[120%] rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-fuchsia-500 opacity-30 blur-3xl" />
@@ -194,7 +183,7 @@ function HomeContent() {
                 "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-center",
                 isSingleMolecule
                   ? "scale-[1.2] opacity-0 blur-sm pointer-events-none"
-                  : "scale-100 opacity-100 blur-0 pointer-events-auto",
+                  : "scale-100 opacity-100 blur-0 pointer-events-auto"
               )}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -226,7 +215,7 @@ function HomeContent() {
                 "absolute left-1/2 top-1/2 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
                 isSingleMolecule
                   ? "opacity-100 scale-100 pointer-events-auto"
-                  : "opacity-0 scale-90 pointer-events-none",
+                  : "opacity-0 scale-90 pointer-events-none"
               )}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
