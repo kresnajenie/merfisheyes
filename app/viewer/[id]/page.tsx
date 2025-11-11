@@ -154,7 +154,7 @@ function ViewerByIdContent() {
             </div>
             <div className="flex gap-4">
               <Button color="primary" onPress={() => router.push("/viewer")}>
-                Go to Home
+                Go to Viewer
               </Button>
               <Button
                 color="default"

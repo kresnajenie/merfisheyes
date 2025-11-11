@@ -171,7 +171,7 @@ function SingleMoleculeViewerByIdContent() {
                 color="secondary"
                 onPress={() => router.push("/sm-viewer")}
               >
-                Go to Home
+                Go to Single Molecule Viewer
               </Button>
               <Button
                 color="default"
