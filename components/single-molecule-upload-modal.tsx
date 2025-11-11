@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Modal,
   ModalContent,
@@ -43,8 +43,8 @@ export function SingleMoleculeUploadModal({
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
 
-  const resetState = () => {
-    setDatasetName(dataset?.name || "dataset");
+  const resetState = (targetDataset: SingleMoleculeDataset | null) => {
+    setDatasetName(targetDataset?.name || "dataset");
     setEmail("");
     setIsProcessing(false);
     setProgress(0);
@@ -55,11 +55,16 @@ export function SingleMoleculeUploadModal({
     setUploadedDatasetId("");
   };
 
+  const previousDatasetIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!isOpen) {
-      resetState();
+    const currentId = dataset?.id ?? null;
+
+    if (previousDatasetIdRef.current !== currentId) {
+      resetState(dataset);
+      previousDatasetIdRef.current = currentId;
     }
-  }, [isOpen, dataset]);
+  }, [dataset?.id]);
 
   useEffect(() => {
     if (isOpen) {

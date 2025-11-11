@@ -507,12 +507,6 @@ export function UploadSettingsModal({
             <Button
               color="primary"
               onPress={() => {
-                setUploadComplete(false);
-                setUploadedDatasetId("");
-                setProgress(0);
-                setProgressMessage("");
-                setUploadProgress(0);
-                setUploadMessage("");
                 onClose();
               }}
             >
