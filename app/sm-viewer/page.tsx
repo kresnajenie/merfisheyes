@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
@@ -12,6 +13,7 @@ import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
 function ViewerContent() {
+  const router = useRouter();
   // Get dataset from single molecule store
   const dataset = useSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
@@ -63,59 +65,14 @@ function ViewerContent() {
     });
   }, [dataset, addGene, clearGenes]);
 
+  useEffect(() => {
+    if (!dataset) {
+      router.replace("/?mode=sm");
+    }
+  }, [dataset, router]);
+
   if (!dataset) {
-    return (
-      <>
-        <div className="fixed inset-0 w-full h-full z-0">
-          <LightRays
-            lightSpread={1.0}
-            mouseInfluence={0.1}
-            pulsating={false}
-            rayLength={10}
-            raysColor="#FFD700"
-            raysOrigin="top-left"
-            raysSpeed={0.8}
-          />
-        </div>
-        <div className="fixed inset-0 w-full h-full z-0">
-          <LightRays
-            lightSpread={1.0}
-            mouseInfluence={0.1}
-            pulsating={false}
-            rayLength={10}
-            raysColor="#FFD700"
-            raysOrigin="top-right"
-            raysSpeed={0.8}
-          />
-        </div>
-        <div className="relative z-10 flex items-center justify-center h-full p-8">
-          <div className="flex flex-col items-center gap-6 max-w-5xl w-full">
-            <div className="text-center">
-              <h2 className={title({ size: "md", color: "yellow" })}>
-                Single Molecule Viewer
-              </h2>
-              <p className={subtitle({ class: "mt-2" })}>
-                Upload a single molecule dataset to start visualizing
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <FileUpload
-                description="Select .parquet or .csv file"
-                singleMolecule={true}
-                title="Xenium Parquet/CSV"
-                type="xenium"
-              />
-              <FileUpload
-                description="Select .parquet or .csv file"
-                singleMolecule={true}
-                title="MERSCOPE Parquet/CSV"
-                type="merscope"
-              />
-            </div>
-          </div>
-        </div>
-      </>
-    );
+    return null;
   }
 
   return (
