@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Modal,
   ModalContent,
@@ -43,10 +43,10 @@ export function UploadSettingsModal({
   const [uploadComplete, setUploadComplete] = useState(false);
   const [uploadedDatasetId, setUploadedDatasetId] = useState<string>("");
 
-  const resetState = () => {
+  const resetState = (targetDataset: StandardizedDataset | null) => {
     setChunkSize("auto");
     setCustomChunkSize("100");
-    setDatasetName(dataset?.name || "dataset");
+    setDatasetName(targetDataset?.name || "dataset");
     setEmail("");
     setIsProcessing(false);
     setProgress(0);
@@ -57,12 +57,16 @@ export function UploadSettingsModal({
     setUploadedDatasetId("");
   };
 
-  // Ensure modal resets whenever it closes (including page refreshes)
+  const previousDatasetIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!isOpen) {
-      resetState();
+    const currentId = dataset?.id ?? null;
+
+    if (previousDatasetIdRef.current !== currentId) {
+      resetState(dataset);
+      previousDatasetIdRef.current = currentId;
     }
-  }, [isOpen, dataset]);
+  }, [dataset?.id]);
 
   // Keep dataset name in sync when modal re-opens with a different dataset
   useEffect(() => {
@@ -503,12 +507,6 @@ export function UploadSettingsModal({
             <Button
               color="primary"
               onPress={() => {
-                setUploadComplete(false);
-                setUploadedDatasetId("");
-                setProgress(0);
-                setProgressMessage("");
-                setUploadProgress(0);
-                setUploadMessage("");
                 onClose();
               }}
             >
