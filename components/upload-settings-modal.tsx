@@ -55,6 +55,8 @@ export function UploadSettingsModal({
     setUploadMessage("");
     setUploadComplete(false);
     setUploadedDatasetId("");
+  };
+
   const previousDatasetIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -64,7 +66,7 @@ export function UploadSettingsModal({
       resetState(dataset);
       previousDatasetIdRef.current = currentId;
     }
-  }, [dataset]);
+  }, [dataset?.id]);
 
   // Keep dataset name in sync when modal re-opens with a different dataset
   useEffect(() => {
