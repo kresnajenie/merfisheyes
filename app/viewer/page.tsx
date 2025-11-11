@@ -3,7 +3,7 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { ThreeScene } from "@/components/three-scene";
 import { FileUpload } from "@/components/file-upload";
@@ -15,6 +15,7 @@ import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
 function ViewerContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { datasets, currentDatasetId, getCurrentDataset } = useDatasetStore();
   const { setSelectedColumn } = useVisualizationStore();
@@ -67,62 +68,17 @@ function ViewerContent() {
     console.log("Dataset:", dataset);
   }, [dataset, setSelectedColumn]);
 
+  const isLoading = useDatasetStore((state) => state.isLoading);
+  const datasetCount = useDatasetStore((state) => state.datasets.size);
+
+  useEffect(() => {
+    if (!dataset && !isLoading && datasetCount === 0) {
+      router.replace("/");
+    }
+  }, [dataset, datasetCount, isLoading, router]);
+
   if (!dataset) {
-    return (
-      <>
-        <div className="fixed inset-0 w-full h-full z-0">
-          <LightRays
-            lightSpread={1.0}
-            mouseInfluence={0.1}
-            pulsating={false}
-            rayLength={10}
-            raysColor="#FFD700"
-            raysOrigin="top-left"
-            raysSpeed={0.8}
-          />
-        </div>
-        <div className="fixed inset-0 w-full h-full z-0">
-          <LightRays
-            lightSpread={1.0}
-            mouseInfluence={0.1}
-            pulsating={false}
-            rayLength={10}
-            raysColor="#FFD700"
-            raysOrigin="top-right"
-            raysSpeed={0.8}
-          />
-        </div>
-        <div className="relative z-10 flex items-center justify-center h-full p-8">
-          <div className="flex flex-col items-center gap-6 max-w-5xl w-full">
-            <div className="text-center">
-              <h2 className={title({ size: "md", color: "yellow" })}>
-                No dataset loaded
-              </h2>
-              <p className={subtitle({ class: "mt-2" })}>
-                Upload a dataset to start visualizing
-              </p>
-            </div>
-            <div className="grid grid-cols-3 gap-4 w-full">
-              <FileUpload
-                description="Single .h5ad file"
-                title="H5AD File"
-                type="h5ad"
-              />
-              <FileUpload
-                description="Select Xenium output folder"
-                title="Xenium Folder"
-                type="xenium"
-              />
-              <FileUpload
-                description="Select MERSCOPE output folder"
-                title="MERSCOPE Folder"
-                type="merscope"
-              />
-            </div>
-          </div>
-        </div>
-      </>
-    );
+    return null;
   }
 
   return (

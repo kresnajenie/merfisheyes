@@ -9,10 +9,6 @@ export const siteConfig = {
       href: "/",
     },
     {
-      label: "Viewer",
-      href: "/viewer",
-    },
-    {
       label: "Explore",
       href: "/explore",
     },
@@ -27,10 +23,6 @@ export const siteConfig = {
       href: "/",
     },
     {
-      label: "Viewer",
-      href: "/viewer",
-    },
-    {
       label: "Explore",
       href: "/explore",
     },
@@ -40,10 +32,9 @@ export const siteConfig = {
     },
   ],
   links: {
-    github: "https://github.com/heroui-inc/heroui",
-    twitter: "https://twitter.com/hero_ui",
-    docs: "https://heroui.com",
-    discord: "https://discord.gg/9b6yyZKmH4",
-    sponsor: "https://patreon.com/jrgarciadev",
+    github: "https://github.com/kresnajenie/merfisheyes",
+    twitter: "https://x.com/merfisheyes",
+    discord: "https://discord.gg/BRp6C2EVHU",
+    sponsor: "https://www.patreon.com/cw/MERFISHEYES",
   },
 };
