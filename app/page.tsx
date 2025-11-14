@@ -230,10 +230,10 @@ function HomeContent() {
         </div>
 
         <div className="relative z-10 flex flex-col items-center gap-8 max-w-5xl w-full">
-          <div className="relative w-full max-w-5xl min-h-[360px] flex items-center justify-center">
+          <div className="relative w-full max-w-5xl min-h-[360px] flex flex-col gap-6 items-center justify-center md:min-h-[420px]">
             <div
               className={clsx(
-                "absolute inset-0 flex items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
+                "hidden md:flex absolute inset-0 items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
                 isSingleMolecule ? "opacity-100" : "opacity-0"
               )}
             >
@@ -242,10 +242,10 @@ function HomeContent() {
 
             <div
               className={clsx(
-                "absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-center",
+                "w-full transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-center md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2",
                 isSingleMolecule
-                  ? "scale-[1.2] opacity-0 blur-sm pointer-events-none"
-                  : "scale-100 opacity-100 blur-0 pointer-events-auto"
+                  ? "hidden md:block md:scale-[1.2] md:opacity-0 md:blur-sm md:pointer-events-none"
+                  : "block md:block md:scale-100 md:opacity-100 md:blur-0 md:pointer-events-auto"
               )}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -274,10 +274,10 @@ function HomeContent() {
 
             <div
               className={clsx(
-                "absolute left-1/2 top-1/2 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)]",
+                "w-full max-w-3xl transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2",
                 isSingleMolecule
-                  ? "opacity-100 scale-100 pointer-events-auto"
-                  : "opacity-0 scale-90 pointer-events-none"
+                  ? "block md:block md:opacity-100 md:scale-100 md:pointer-events-auto"
+                  : "hidden md:block md:opacity-0 md:scale-90 md:pointer-events-none"
               )}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
