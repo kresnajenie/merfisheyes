@@ -21,7 +21,6 @@ interface VisualizationPanelProps {
 }
 
 export function VisualizationPanel({ mode, onClose, controlsRef }: VisualizationPanelProps) {
-  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100; // Show 100 items per page
   const panelRef = useRef<HTMLDivElement>(null);
@@ -34,7 +33,16 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
     toggleCelltype,
     setSelectedGene,
     setMode,
+    celltypeSearchTerm,
+    geneSearchTerm,
+    setCelltypeSearchTerm,
+    setGeneSearchTerm,
   } = useVisualizationStore();
+
+  const currentSearchTerm =
+    mode === "celltype" ? celltypeSearchTerm : geneSearchTerm;
+  const updateSearchTerm =
+    mode === "celltype" ? setCelltypeSearchTerm : setGeneSearchTerm;
 
   // Handle click outside to close panel
   useEffect(() => {
@@ -147,13 +155,13 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
   }, [dataset, mode, selectedColumn]);
 
   const filteredItems = items.filter((item) =>
-    item.label.toLowerCase().includes(searchTerm.toLowerCase()),
+    item.label.toLowerCase().includes(currentSearchTerm.toLowerCase()),
   );
 
   // Reset to page 1 when search term changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, mode]);
+  }, [currentSearchTerm, mode]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -218,8 +226,8 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
                 input: "text-sm",
               }}
               placeholder={`Search ${getTitle()}`}
-              value={searchTerm}
-              onValueChange={setSearchTerm}
+              value={currentSearchTerm}
+              onValueChange={updateSearchTerm}
             />
 
             {/* Clear Button */}
@@ -228,7 +236,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
               color="danger"
               variant="ghost"
               onPress={() => {
-                setSearchTerm("");
+                updateSearchTerm("");
                 if (mode === "celltype") {
                   // Clear all selected celltypes
                   useVisualizationStore.setState({
