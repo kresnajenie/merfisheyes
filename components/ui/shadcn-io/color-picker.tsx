@@ -209,9 +209,13 @@ export const ColorPickerHue = () => {
       aria-label="Hue"
       className="w-full"
       classNames={{
-        track: "h-3 rounded-md",
-        filler: "h-3 rounded-md",
-        thumb: "h-5 w-5 bg-white border-2 border-gray-300"
+        base: "w-full",
+        trackWrapper: "relative flex w-full gap-0 items-center",
+        track:
+          "h-3 rounded-full w-full overflow-hidden border border-white/20 !bg-transparent bg-[linear-gradient(90deg,_#ff0000,_#ffff00,_#00ff00,_#00ffff,_#0000ff,_#ff00ff,_#ff0000)]",
+        filler: "hidden",
+        thumb:
+          "h-5 w-5 bg-white border-2 border-gray-300 absolute top-1/2 -translate-y-1/2"
       }}
       renderThumb={(props) => (
         <div
@@ -219,9 +223,6 @@ export const ColorPickerHue = () => {
           className="h-5 w-5 rounded-full bg-white border-2 border-gray-300 shadow-md"
         />
       )}
-      style={{
-        background: 'linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)',
-      } as any}
     />
   );
 };
