@@ -20,7 +20,12 @@ interface VisualizationPanelProps {
   controlsRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function VisualizationPanel({ mode, onClose, controlsRef }: VisualizationPanelProps) {
+export function VisualizationPanel({
+  mode,
+  onClose,
+  controlsRef,
+}: VisualizationPanelProps) {
+  const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100; // Show 100 items per page
   const panelRef = useRef<HTMLDivElement>(null);
@@ -94,7 +99,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
     if (!dataset?.clusters || !selectedColumn) return false;
 
     const selectedCluster = dataset.clusters.find(
-      (c) => c.column === selectedColumn,
+      (c) => c.column === selectedColumn
     );
 
     return selectedCluster?.type === "numerical";
@@ -111,7 +116,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
 
         // Find the cluster data for the selected column
         const selectedCluster = dataset.clusters.find(
-          (c) => c.column === selectedColumn,
+          (c) => c.column === selectedColumn
         );
 
         if (!selectedCluster) return [];
@@ -155,7 +160,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
   }, [dataset, mode, selectedColumn]);
 
   const filteredItems = items.filter((item) =>
-    item.label.toLowerCase().includes(currentSearchTerm.toLowerCase()),
+    item.label.toLowerCase().includes(currentSearchTerm.toLowerCase())
   );
 
   // Reset to page 1 when search term changes
@@ -198,7 +203,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
             onSelectionChange={(key) => {
               const columnKey = (key as string) || null;
               const selectedCluster = dataset?.clusters?.find(
-                (c) => c.column === columnKey,
+                (c) => c.column === columnKey
               );
               const isNumerical = selectedCluster?.type === "numerical";
 
@@ -254,7 +259,9 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
             {/* Pagination Info */}
             {filteredItems.length > itemsPerPage && (
               <div className="text-xs text-default-500 text-center">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
+                Showing {startIndex + 1}-
+                {Math.min(endIndex, filteredItems.length)} of{" "}
+                {filteredItems.length}
               </div>
             )}
 
@@ -319,7 +326,9 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
                   isDisabled={currentPage === totalPages}
                   size="sm"
                   variant="flat"
-                  onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onPress={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                 >
                   Next
                 </Button>

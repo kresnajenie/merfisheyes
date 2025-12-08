@@ -18,13 +18,16 @@ function SingleMoleculeViewerByIdContent() {
   const params = useParams();
   const router = useRouter();
   const { addDataset } = useSingleMoleculeStore();
-  const { addGene, loadFromLocalStorage, saveToLocalStorage } = useSingleMoleculeVisualizationStore();
+  const { addGene, loadFromLocalStorage, saveToLocalStorage } =
+    useSingleMoleculeVisualizationStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const datasetId = params.id as string;
-  const selectedGenesLegend = useSingleMoleculeVisualizationStore(state => state.selectedGenesLegend);
+  const selectedGenesLegend = useSingleMoleculeVisualizationStore(
+    (state) => state.selectedGenesLegend,
+  );
 
   useEffect(() => {
     if (!datasetId) {
@@ -84,7 +87,9 @@ function SingleMoleculeViewerByIdContent() {
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       // If nothing was loaded (first time), auto-select first 3 genes
-      const { selectedGenesLegend } = useSingleMoleculeVisualizationStore.getState();
+      const { selectedGenesLegend } =
+        useSingleMoleculeVisualizationStore.getState();
+
       if (selectedGenesLegend.size === 0) {
         console.log("No saved state found, auto-selecting first 3 genes");
         const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
@@ -92,11 +97,18 @@ function SingleMoleculeViewerByIdContent() {
         console.log("Auto-selecting genes:", genesToSelect);
         genesToSelect.forEach((gene) => {
           const geneProps = smDataset.geneColors[gene];
-          console.log(`Adding gene to visualization: ${gene} with color ${geneProps.color}`);
+
+          console.log(
+            `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
+          );
           addGene(gene, geneProps.color, geneProps.size);
         });
       } else {
-        console.log("Loaded visibility state from localStorage:", selectedGenesLegend.size, "genes");
+        console.log(
+          "Loaded visibility state from localStorage:",
+          selectedGenesLegend.size,
+          "genes",
+        );
       }
 
       setIsLoading(false);

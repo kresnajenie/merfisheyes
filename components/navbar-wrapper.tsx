@@ -44,9 +44,7 @@ export function NavbarWrapper() {
 
   return (
     <>
-      <Navbar
-        onUploadClick={() => setIsUploadModalOpen(true)}
-      />
+      <Navbar onUploadClick={() => setIsUploadModalOpen(true)} />
       {isSingleMolecule ? (
         <SingleMoleculeUploadModal
           dataset={getSmDataset()}

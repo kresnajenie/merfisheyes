@@ -6,13 +6,11 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { ThreeScene } from "@/components/three-scene";
-import { FileUpload } from "@/components/file-upload";
 import { VisualizationControls } from "@/components/visualization-controls";
+import UMAPPanel from "@/components/umap-panel";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import LightRays from "@/components/react-bits/LightRays";
-import { subtitle, title } from "@/components/primitives";
 
 function ViewerContent() {
   const router = useRouter();
@@ -85,6 +83,7 @@ function ViewerContent() {
     <>
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
+      <UMAPPanel />
     </>
   );
 }

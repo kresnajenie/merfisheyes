@@ -118,18 +118,28 @@ export class SingleMoleculeDataset {
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem(storageKey);
+
         if (stored) {
           const parsed = JSON.parse(stored);
-          console.log(`[SingleMoleculeDataset] Loaded gene colors from localStorage for dataset: ${this.id}`);
+
+          console.log(
+            `[SingleMoleculeDataset] Loaded gene colors from localStorage for dataset: ${this.id}`,
+          );
+
           return parsed;
         }
       } catch (error) {
-        console.warn(`[SingleMoleculeDataset] Failed to load gene colors from localStorage:`, error);
+        console.warn(
+          `[SingleMoleculeDataset] Failed to load gene colors from localStorage:`,
+          error,
+        );
       }
     }
 
     // Generate new colors for all genes
-    console.log(`[SingleMoleculeDataset] Generating new gene colors for ${this.uniqueGenes.length} genes`);
+    console.log(
+      `[SingleMoleculeDataset] Generating new gene colors for ${this.uniqueGenes.length} genes`,
+    );
     const geneColors: Record<string, GeneProperties> = {};
 
     for (const gene of this.uniqueGenes) {
@@ -143,9 +153,14 @@ export class SingleMoleculeDataset {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(storageKey, JSON.stringify(geneColors));
-        console.log(`[SingleMoleculeDataset] Saved gene colors to localStorage for dataset: ${this.id}`);
+        console.log(
+          `[SingleMoleculeDataset] Saved gene colors to localStorage for dataset: ${this.id}`,
+        );
       } catch (error) {
-        console.warn(`[SingleMoleculeDataset] Failed to save gene colors to localStorage:`, error);
+        console.warn(
+          `[SingleMoleculeDataset] Failed to save gene colors to localStorage:`,
+          error,
+        );
       }
     }
 

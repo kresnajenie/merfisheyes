@@ -1,4 +1,5 @@
 import { create } from "zustand";
+
 import { VISUALIZATION_CONFIG } from "../config/visualization.config";
 
 export type VisualizationMode = "celltype" | "gene";
@@ -99,17 +100,14 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   ...initialState,
 
   setMode: (mode) => {
-    console.log("Visualization mode changed to:", mode);
     set({ mode });
   },
 
   setPanelMode: (mode) => {
-    console.log("Panel mode changed to:", mode);
     set({ panelMode: mode });
   },
 
   setSelectedGene: (gene) => {
-    console.log("Selected gene:", gene);
     set((state) => {
       // When selecting a gene, keep selectedColumn but update mode
       if (gene) {
@@ -119,7 +117,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
             ? updateModeArray(state.mode, "gene")
             : (["gene"] as VisualizationMode[]);
 
-        console.log("Gene selected - new mode:", newMode);
         return { selectedGene: gene, mode: newMode };
       } else {
         // When clearing gene, remove from mode
@@ -129,29 +126,24 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
           "gene",
         );
 
-        console.log("Gene cleared - new mode:", newMode);
         return { selectedGene: gene, mode: newMode };
       }
     });
   },
 
   setGeneScaleMin: (min) => {
-    console.log("Gene scale min:", min);
     set({ geneScaleMin: min });
   },
 
   setGeneScaleMax: (max) => {
-    console.log("Gene scale max:", max);
     set({ geneScaleMax: max });
   },
 
   setNumericalScaleMin: (min) => {
-    console.log("Numerical scale min:", min);
     set({ numericalScaleMin: min });
   },
 
   setNumericalScaleMax: (max) => {
-    console.log("Numerical scale max:", max);
     set({ numericalScaleMax: max });
   },
 
@@ -164,12 +156,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
       } else {
         newCelltypes.add(celltype);
       }
-      console.log(
-        "Toggled celltype:",
-        celltype,
-        "Selected celltypes:",
-        Array.from(newCelltypes),
-      );
 
       // Update mode based on selections
       let newMode: VisualizationMode[] = [...state.mode];
@@ -189,18 +175,15 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         }
       }
 
-      console.log("After toggle - new mode:", newMode);
       return { selectedCelltypes: newCelltypes, mode: newMode };
     });
   },
 
   setClusterColumn: (column) => {
-    console.log("Selected cluster column:", column);
     set({ selectedClusterColumn: column });
   },
 
   setSelectedColumn: (column, isNumerical) => {
-    console.log("Selected column:", column, "isNumerical:", isNumerical);
     set((state) => {
       const updates: Partial<VisualizationState> = {
         selectedColumn: column,
@@ -209,7 +192,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 
       // If selecting a numerical column, clear gene and set mode to celltype only
       if (isNumerical && column) {
-        console.log("Numerical column selected - clearing gene");
         updates.selectedGene = null;
         updates.mode = ["celltype"];
       } else if (!column) {
@@ -222,7 +204,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   },
 
   setSelectedEmbedding: (embedding) => {
-    console.log("Selected embedding:", embedding);
     set({ selectedEmbedding: embedding });
   },
 
@@ -247,7 +228,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   },
 
   reset: () => {
-    console.log("Resetting visualization settings");
     set(initialState);
   },
 }));

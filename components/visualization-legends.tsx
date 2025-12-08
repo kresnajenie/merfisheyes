@@ -3,9 +3,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneScalebar } from "@/components/gene-scalebar";
 import {
   ColorPicker,
@@ -129,41 +129,7 @@ export const VisualizationLegends: React.FC = () => {
     return selectedCluster?.type === "numerical";
   }, [dataset, selectedColumn]);
 
-  // Debug: Log color palette whenever it changes
-  useEffect(() => {
-    console.log("=== VisualizationLegends Debug ===");
-    console.log("dataset:", dataset);
-    console.log("dataset.type:", dataset?.type);
-    console.log(
-      "has clusters property:",
-      dataset ? "clusters" in dataset : false
-    );
-    console.log(
-      "dataset.clusters:",
-      dataset && "clusters" in dataset
-        ? (dataset as StandardizedDataset).clusters
-        : "N/A"
-    );
-    console.log("selectedColumn:", selectedColumn);
-
-    if (dataset && "clusters" in dataset) {
-      const standardizedDataset = dataset as StandardizedDataset;
-      const selectedCluster = standardizedDataset.clusters?.find(
-        (c) => c.column === selectedColumn
-      );
-      console.log("selectedCluster:", selectedCluster);
-      console.log("selectedCluster.palette:", selectedCluster?.palette);
-    }
-
-    console.log("colorPalette:", storeColorPalette);
-    console.log("selectedCelltypes:", Array.from(selectedCelltypes));
-
-    // Log colors for each selected celltype
-    Array.from(selectedCelltypes).forEach((celltype) => {
-      const color = storeColorPalette[celltype];
-      console.log(`Color for "${celltype}":`, color || "NOT FOUND");
-    });
-  }, [dataset, storeColorPalette, selectedCelltypes, selectedColumn]);
+  // Debug logging removed for performance
 
   // Don't render if nothing is selected
   const hasGene = !!selectedGene;
@@ -202,17 +168,17 @@ export const VisualizationLegends: React.FC = () => {
         <div className="flex flex-col items-end">
           {mode.includes("gene") && selectedGene ? (
             <GeneScalebar
-              minValue={geneScaleMin}
               maxValue={geneScaleMax}
-              onMinChange={setGeneScaleMin}
+              minValue={geneScaleMin}
               onMaxChange={setGeneScaleMax}
+              onMinChange={setGeneScaleMin}
             />
           ) : (
             <GeneScalebar
-              minValue={numericalScaleMin}
               maxValue={numericalScaleMax}
-              onMinChange={setNumericalScaleMin}
+              minValue={numericalScaleMin}
               onMaxChange={setNumericalScaleMax}
+              onMinChange={setNumericalScaleMin}
             />
           )}
         </div>
@@ -244,11 +210,10 @@ export const VisualizationLegends: React.FC = () => {
                   onOpenChange={(open) => {
                     if (!open) setOpenPopoverCelltype(null);
                   }}
-                  placement="left"
                 >
                   <PopoverTrigger>
                     <div
-                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer"
+                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer opacity-70 hover:opacity-100"
                       style={{
                         backgroundColor: color,
                       }}
@@ -280,7 +245,7 @@ export const VisualizationLegends: React.FC = () => {
                       </div>
                       <ColorPicker
                         key={celltype}
-                        defaultValue={color}
+                        value={color}
                         onChange={(value) =>
                           handleClusterColorChange(celltype, value)
                         }

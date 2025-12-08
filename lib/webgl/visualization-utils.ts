@@ -1,5 +1,9 @@
 import type { StandardizedDataset } from "../StandardizedDataset";
-import { VISUALIZATION_CONFIG, calculateSizeMultiplier } from "../config/visualization.config";
+
+import {
+  VISUALIZATION_CONFIG,
+  calculateSizeMultiplier,
+} from "../config/visualization.config";
 
 /**
  * Calculates the value at the specified percentile of the given array, ignoring NaN values.
@@ -75,12 +79,20 @@ export function coolwarm(value: number): [number, number, number] {
     // Blue to white
     const t = value * 2; // 0 to 1
 
-    return [blue.r + (white.r - blue.r) * t, blue.g + (white.g - blue.g) * t, blue.b + (white.b - blue.b) * t];
+    return [
+      blue.r + (white.r - blue.r) * t,
+      blue.g + (white.g - blue.g) * t,
+      blue.b + (white.b - blue.b) * t,
+    ];
   } else {
     // White to red
     const t = (value - 0.5) * 2; // 0 to 1
 
-    return [white.r + (red.r - white.r) * t, white.g + (red.g - white.g) * t, white.b + (red.b - white.b) * t];
+    return [
+      white.r + (red.r - white.r) * t,
+      white.g + (red.g - white.g) * t,
+      white.b + (red.b - white.b) * t,
+    ];
   }
 }
 
@@ -170,7 +182,10 @@ export async function updateGeneVisualization(
   console.log("Expression data loaded for gene:", selectedGene);
 
   // Calculate 95th percentile for auto-scaling
-  const percentile95 = calculateGenePercentile(expression, VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE);
+  const percentile95 = calculateGenePercentile(
+    expression,
+    VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE,
+  );
 
   console.log("95th percentile:", percentile95);
 
@@ -191,6 +206,7 @@ export async function updateGeneVisualization(
     }
     // Map [scaleMin, scaleMax] to [0, 1]
     const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+
     // Clamp to [0, 1]
     return Math.max(0, Math.min(1, normalized));
   });
@@ -224,8 +240,6 @@ export async function updateGeneVisualization(
     // Alphas
     alphas[i] = baseAlpha * alphaScale;
   }
-
-  console.log("Gene visualization updated successfully");
 
   return { colors, sizes, alphas };
 }
@@ -272,7 +286,10 @@ export function updateNumericalCelltypeVisualization(
   console.log("Numerical celltype values loaded:", values.slice(0, 10));
 
   // Calculate 95th percentile for auto-scaling
-  const percentile95 = calculateGenePercentile(values, VISUALIZATION_CONFIG.NUMERICAL_CLUSTER_PERCENTILE);
+  const percentile95 = calculateGenePercentile(
+    values,
+    VISUALIZATION_CONFIG.NUMERICAL_CLUSTER_PERCENTILE,
+  );
 
   console.log("95th percentile:", percentile95);
 
@@ -293,6 +310,7 @@ export function updateNumericalCelltypeVisualization(
     }
     // Map [scaleMin, scaleMax] to [0, 1]
     const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+
     // Clamp to [0, 1]
     return Math.max(0, Math.min(1, normalized));
   });
@@ -326,8 +344,6 @@ export function updateNumericalCelltypeVisualization(
     // Alphas
     alphas[i] = baseAlpha * alphaScale;
   }
-
-  console.log("Numerical celltype visualization updated successfully");
 
   return { colors, sizes, alphas };
 }
@@ -403,8 +419,6 @@ export function updateCelltypeVisualization(
     alphas[i] = baseAlpha * alphaScale;
   }
 
-  console.log("Celltype visualization updated successfully");
-
   return { colors, sizes, alphas };
 }
 
@@ -432,11 +446,15 @@ export async function updateCombinedVisualization(
 
   if (!selectedGene) {
     console.log("No gene selected for combined visualization");
+
     return null;
   }
 
   if (!dataset.clusters || !selectedColumn) {
-    console.log("No cluster data or column selected for combined visualization");
+    console.log(
+      "No cluster data or column selected for combined visualization",
+    );
+
     return null;
   }
 
@@ -445,6 +463,7 @@ export async function updateCombinedVisualization(
 
   if (!expression) {
     console.warn(`Gene expression data not found for: ${selectedGene}`);
+
     return null;
   }
 
@@ -455,13 +474,17 @@ export async function updateCombinedVisualization(
 
   if (!selectedCluster) {
     console.warn(`Cluster column not found: ${selectedColumn}`);
+
     return null;
   }
 
   const clusterValues = selectedCluster.values;
 
   // Calculate 95th percentile for auto-scaling
-  const percentile95 = calculateGenePercentile(expression, VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE);
+  const percentile95 = calculateGenePercentile(
+    expression,
+    VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE,
+  );
 
   console.log("95th percentile:", percentile95);
 
@@ -482,6 +505,7 @@ export async function updateCombinedVisualization(
     }
     // Map [scaleMin, scaleMax] to [0, 1]
     const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+
     // Clamp to [0, 1]
     return Math.max(0, Math.min(1, normalized));
   });
@@ -533,8 +557,6 @@ export async function updateCombinedVisualization(
       alphas[i] = baseAlpha * alphaScale;
     }
   }
-
-  console.log("Combined gene + celltype visualization updated successfully");
 
   return { colors, sizes, alphas };
 }

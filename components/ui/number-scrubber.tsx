@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useCallback, useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 interface NumberScrubberProps {
@@ -29,7 +30,7 @@ export const NumberScrubber = React.forwardRef<
       className,
       disabled = false,
     },
-    ref
+    ref,
   ) => {
     // Use refs to avoid stale closure issues
     const isDraggingRef = useRef(false);
@@ -46,14 +47,14 @@ export const NumberScrubber = React.forwardRef<
       (val: number) => {
         return Math.max(min, Math.min(max, val));
       },
-      [min, max]
+      [min, max],
     );
 
     const formatValue = useCallback(
       (val: number) => {
         return val.toFixed(decimals);
       },
-      [decimals]
+      [decimals],
     );
 
     const handleMouseDown = useCallback(
@@ -66,7 +67,7 @@ export const NumberScrubber = React.forwardRef<
         setDraggingValue(value);
         document.body.style.cursor = "ns-resize"; // Changed from ew-resize to ns-resize
       },
-      [disabled, value]
+      [disabled, value],
     );
 
     const handleMouseMove = useCallback(
@@ -87,7 +88,7 @@ export const NumberScrubber = React.forwardRef<
           onChange?.(newValue);
         }, 100);
       },
-      [step, clampValue, onChange]
+      [step, clampValue, onChange],
     );
 
     const handleMouseUp = useCallback(() => {
@@ -111,6 +112,7 @@ export const NumberScrubber = React.forwardRef<
     React.useEffect(() => {
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
+
       return () => {
         window.removeEventListener("mousemove", handleMouseMove);
         window.removeEventListener("mouseup", handleMouseUp);
@@ -135,14 +137,14 @@ export const NumberScrubber = React.forwardRef<
           "border border-white/20",
           "shadow-lg",
           disabled && "opacity-50 cursor-not-allowed",
-          className
+          className,
         )}
         onMouseDown={handleMouseDown}
       >
         {formatValue(displayValue)}
       </div>
     );
-  }
+  },
 );
 
 NumberScrubber.displayName = "NumberScrubber";

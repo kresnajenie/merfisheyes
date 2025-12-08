@@ -1,9 +1,8 @@
-'use client';
+"use client";
 
-import Color from 'color';
-import { Pipette } from 'lucide-react';
+import Color from "color";
+import { Pipette } from "lucide-react";
 import {
-  type ComponentProps,
   createContext,
   type HTMLAttributes,
   useCallback,
@@ -12,15 +11,13 @@ import {
   useMemo,
   useRef,
   useState,
-} from 'react';
-import { Button } from '@heroui/button';
-import { Input } from '@heroui/input';
-import { Slider } from '@heroui/slider';
-import {
-  Select,
-  SelectItem,
-} from '@heroui/select';
-import { cn } from '@/lib/utils';
+} from "react";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
+import { Slider } from "@heroui/slider";
+import { Select, SelectItem } from "@heroui/select";
+
+import { cn } from "@/lib/utils";
 
 interface ColorPickerContextValue {
   hue: number;
@@ -41,13 +38,18 @@ const ColorPickerContext = createContext<ColorPickerContextValue | undefined>(
 
 export const useColorPicker = () => {
   const context = useContext(ColorPickerContext);
+
   if (!context) {
-    throw new Error('useColorPicker must be used within a ColorPickerProvider');
+    throw new Error("useColorPicker must be used within a ColorPickerProvider");
   }
+
   return context;
 };
 
-export type ColorPickerProps = Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> & {
+export type ColorPickerProps = Omit<
+  HTMLAttributes<HTMLDivElement>,
+  "onChange"
+> & {
   value?: Parameters<typeof Color>[0];
   defaultValue?: Parameters<typeof Color>[0];
   onChange?: (value: string) => void;
@@ -55,7 +57,7 @@ export type ColorPickerProps = Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> 
 
 export const ColorPicker = ({
   value,
-  defaultValue = '#000000',
+  defaultValue = "#000000",
   onChange,
   className,
   children,
@@ -67,7 +69,7 @@ export const ColorPicker = ({
   const [saturation, setSaturation] = useState(initialColor.saturationl());
   const [lightness, setLightness] = useState(initialColor.lightness());
   const [alpha, setAlpha] = useState(1.0); // Always 100% opacity
-  const [mode, setMode] = useState('hsl');
+  const [mode, setMode] = useState("hsl");
   const onChangeRef = useRef(onChange);
 
   // Keep ref updated
@@ -77,13 +79,16 @@ export const ColorPicker = ({
 
   // Call onChange when internal state changes (not on mount)
   const isFirstRender = useRef(true);
+
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
+
       return;
     }
 
     const color = Color.hsl(hue, saturation, lightness);
+
     // Use hex() instead of hexa() to exclude alpha channel
     onChangeRef.current?.(color.hex());
   }, [hue, saturation, lightness]);
@@ -106,7 +111,7 @@ export const ColorPicker = ({
 
   return (
     <ColorPickerContext.Provider value={contextValue}>
-      <div className={cn('space-y-3', className)} {...props}>
+      <div className={cn("space-y-3", className)} {...props}>
         {children}
       </div>
     </ColorPickerContext.Provider>
@@ -120,13 +125,16 @@ export const ColorPickerSelection = () => {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+
     if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
+
     if (!ctx) return;
 
     // Draw saturation gradient (left to right)
     const saturationGradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+
     saturationGradient.addColorStop(0, `hsl(${hue}, 0%, 50%)`);
     saturationGradient.addColorStop(1, `hsl(${hue}, 100%, 50%)`);
     ctx.fillStyle = saturationGradient;
@@ -134,10 +142,11 @@ export const ColorPickerSelection = () => {
 
     // Draw lightness gradient (top to bottom)
     const lightnessGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    lightnessGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    lightnessGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
-    lightnessGradient.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
-    lightnessGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+
+    lightnessGradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+    lightnessGradient.addColorStop(0.5, "rgba(255, 255, 255, 0)");
+    lightnessGradient.addColorStop(0.5, "rgba(0, 0, 0, 0)");
+    lightnessGradient.addColorStop(1, "rgba(0, 0, 0, 1)");
     ctx.fillStyle = lightnessGradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }, [hue]);
@@ -147,6 +156,7 @@ export const ColorPickerSelection = () => {
   const handleMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
+
       if (!canvas) return;
 
       const rect = canvas.getBoundingClientRect();
@@ -169,20 +179,21 @@ export const ColorPickerSelection = () => {
       handleMove(e as any);
     };
     const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
 
   return (
     <div className="relative h-48 w-full cursor-crosshair rounded-md overflow-hidden">
       <canvas
         ref={canvasRef}
-        width={300}
-        height={192}
         className="h-full w-full"
+        height={192}
+        width={300}
         onMouseDown={handleMouseDown}
       />
       <div
@@ -201,11 +212,6 @@ export const ColorPickerHue = () => {
 
   return (
     <Slider
-      value={hue}
-      onChange={(value) => setHue(value as number)}
-      minValue={0}
-      maxValue={360}
-      step={1}
       aria-label="Hue"
       className="w-full"
       classNames={{
@@ -215,8 +221,12 @@ export const ColorPickerHue = () => {
           "h-3 rounded-full w-full overflow-hidden border border-white/20 !bg-transparent bg-[linear-gradient(90deg,_#ff0000,_#ffff00,_#00ff00,_#00ffff,_#0000ff,_#ff00ff,_#ff0000)]",
         filler: "hidden",
         thumb:
-          "h-5 w-5 bg-white border-2 border-gray-300 absolute top-1/2 -translate-y-1/2"
+          "h-5 w-5 bg-white border-2 border-gray-300 absolute top-1/2 -translate-y-1/2",
       }}
+      maxValue={360}
+      minValue={0}
+      value={hue}
+      onChange={(value) => setHue(value as number)}
       renderThumb={(props) => (
         <div
           {...props}
@@ -232,18 +242,18 @@ export const ColorPickerAlpha = () => {
 
   return (
     <Slider
-      value={alpha * 100}
-      onChange={(value) => setAlpha((value as number) / 100)}
-      minValue={0}
-      maxValue={100}
-      step={1}
       aria-label="Alpha"
       className="w-full"
       classNames={{
         track: "h-3 rounded-md",
         filler: "h-3 rounded-md",
-        thumb: "h-5 w-5 bg-white border-2 border-gray-300"
+        thumb: "h-5 w-5 bg-white border-2 border-gray-300",
       }}
+      maxValue={100}
+      minValue={0}
+      step={1}
+      value={alpha * 100}
+      onChange={(value) => setAlpha((value as number) / 100)}
     />
   );
 };
@@ -257,11 +267,11 @@ export const ColorPickerOutput = () => {
 
   const outputValue = useMemo(() => {
     switch (mode) {
-      case 'hex':
+      case "hex":
         return color.hex(); // No alpha
-      case 'rgb':
+      case "rgb":
         return color.rgb().string();
-      case 'hsl':
+      case "hsl":
       default:
         return color.hsl().string();
     }
@@ -269,12 +279,12 @@ export const ColorPickerOutput = () => {
 
   return (
     <Input
-      value={outputValue}
       readOnly
-      size="sm"
       classNames={{
-        input: "text-xs font-mono"
+        input: "text-xs font-mono",
       }}
+      size="sm"
+      value={outputValue}
     />
   );
 };
@@ -284,13 +294,14 @@ export const ColorPickerFormat = () => {
 
   return (
     <Select
-      size="sm"
+      className="w-24"
       selectedKeys={[mode]}
+      size="sm"
       onSelectionChange={(keys) => {
         const selected = Array.from(keys)[0];
+
         if (selected) setMode(selected.toString());
       }}
-      className="w-24"
     >
       <SelectItem key="hsl">HSL</SelectItem>
       <SelectItem key="rgb">RGB</SelectItem>
@@ -303,8 +314,9 @@ export const ColorPickerEyeDropper = () => {
   const { setHue, setSaturation, setLightness, setAlpha } = useColorPicker();
 
   const handleEyeDropper = async () => {
-    if (!('EyeDropper' in window)) {
-      alert('EyeDropper API is not supported in your browser');
+    if (!("EyeDropper" in window)) {
+      alert("EyeDropper API is not supported in your browser");
+
       return;
     }
 
@@ -312,6 +324,7 @@ export const ColorPickerEyeDropper = () => {
       const eyeDropper = new (window as any).EyeDropper();
       const result = await eyeDropper.open();
       const color = Color(result.sRGBHex);
+
       setHue(color.hue());
       setSaturation(color.saturationl());
       setLightness(color.lightness());
@@ -322,12 +335,7 @@ export const ColorPickerEyeDropper = () => {
   };
 
   return (
-    <Button
-      size="sm"
-      variant="bordered"
-      isIconOnly
-      onPress={handleEyeDropper}
-    >
+    <Button isIconOnly size="sm" variant="bordered" onPress={handleEyeDropper}>
       <Pipette className="h-4 w-4" />
     </Button>
   );

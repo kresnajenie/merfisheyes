@@ -204,8 +204,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     if (
       !pointCloudRef.current ||
       !cameraRef.current ||
-      !rendererRef.current ||
-      !dataset
+      !rendererRef.current
     )
       return;
 
@@ -299,10 +298,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     // If dataset is provided, use its spatial coordinates
     if (dataset) {
-      console.log("dataset");
-      console.log("Creating point cloud from dataset:", dataset.name);
-      console.log("Point count:", dataset.getPointCount());
-      console.log("Spatial dimensions:", dataset.spatial.dimensions);
 
       // Calculate bounding box and center of spatial data
       const bounds = {
@@ -398,12 +393,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           const clusterValue = clusterValuesRef.current[index];
           const clusterValueStr = String(clusterValue);
 
-          console.log("Double-clicked cluster:", {
-            column: selectedColumnRef.current,
-            value: clusterValue,
-            index: index,
-          });
-
           // Only toggle celltype if it's not a numerical cluster
           if (!isNumericalClusterRef.current) {
             // Toggle the cluster in selectedCelltypes
@@ -430,8 +419,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           alpha: 1.0,
         }),
       );
-
-      console.log("Point data created:", pointData.length, "points");
 
       // Create point cloud mesh with custom shaders
       const pointCloud = createPointCloud(pointData, 5);
@@ -462,8 +449,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         dispose();
       };
     } else {
-      console.log("No dataset provided to ThreeScene");
-
       // Initialize scene without dataset
       const { animate, dispose } = initializeScene(containerRef.current);
 
@@ -479,8 +464,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // Effect 2: Update visualization based on mode array
   useEffect(() => {
     if (!pointCloudRef.current || !dataset) return;
-
-    console.log("Updating visualization with mode:", mode);
 
     const updateVisualization = async () => {
       if (!pointCloudRef.current || !dataset) return;
@@ -526,8 +509,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         selectedCelltypes.size > 0
       ) {
         // Combined mode: gene expression on selected celltypes
-        console.log("Using combined gene + celltype visualization");
-
         try {
           setIsLoadingGene(true);
 
@@ -554,8 +535,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         }
       } else if (hasGeneMode && selectedGene) {
         // Gene mode only
-        console.log("Using gene-only visualization");
-
         try {
           setIsLoadingGene(true);
 
@@ -580,7 +559,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         }
       } else if (hasCelltypeMode) {
         // Celltype mode only
-        console.log("Using celltype-only visualization");
         setIsLoadingGene(false);
 
         // Use appropriate visualization function based on column type

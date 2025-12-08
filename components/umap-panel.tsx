@@ -574,12 +574,6 @@ export default function UMAPPanel() {
         const clusterValue = clusterValuesRef.current[index];
         const clusterValueStr = String(clusterValue);
 
-        console.log("[UMAP] Double-clicked cluster:", {
-          column: selectedColumnRef.current,
-          value: clusterValue,
-          index: index,
-        });
-
         // Only toggle celltype if it's not a numerical cluster
         if (!isNumericalClusterRef.current) {
           toggleCelltype(clusterValueStr);
