@@ -8,6 +8,7 @@ import { Button, Progress, Spinner } from "@heroui/react";
 
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
+import UMAPPanel from "@/components/umap-panel";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
@@ -179,6 +180,7 @@ function ViewerByIdContent() {
     <>
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
+      <UMAPPanel />
     </>
   );
 }

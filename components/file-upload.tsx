@@ -97,8 +97,12 @@ export function FileUpload({
     // Check for required chunked dataset files
     const hasManifest = fileNames.some((name) => name === "manifest.json");
     const hasExprIndex = fileNames.some((name) => name === "expr/index.json");
-    const hasChunks = fileNames.some((name) => /^expr\/chunk_\d{5}\.bin\.gz$/.test(name));
-    const hasSpatial = fileNames.some((name) => name === "coords/spatial.bin.gz");
+    const hasChunks = fileNames.some((name) =>
+      /^expr\/chunk_\d{5}\.bin\.gz$/.test(name),
+    );
+    const hasSpatial = fileNames.some(
+      (name) => name === "coords/spatial.bin.gz",
+    );
 
     return hasManifest && hasExprIndex && hasChunks && hasSpatial;
   };
@@ -187,7 +191,7 @@ export function FileUpload({
           // Chunked folder upload - verify it's a valid chunked dataset
           if (!isChunkedDatasetFolder(files)) {
             throw new Error(
-              "Invalid chunked dataset folder. Make sure it contains manifest.json, expr/index.json, expr/chunk_*.bin.gz, and coords/spatial.bin.gz"
+              "Invalid chunked dataset folder. Make sure it contains manifest.json, expr/index.json, expr/chunk_*.bin.gz, and coords/spatial.bin.gz",
             );
           }
           toast.info(`Loading pre-chunked dataset (${files.length} files)...`);
@@ -199,7 +203,9 @@ export function FileUpload({
           const manifestFile = files.find((f) => {
             const path = f.webkitRelativePath || f.name;
             const parts = path.split("/");
-            const relativePath = parts.length > 1 ? parts.slice(1).join("/") : path;
+            const relativePath =
+              parts.length > 1 ? parts.slice(1).join("/") : path;
+
             return relativePath === "manifest.json";
           });
 
@@ -214,10 +220,12 @@ export function FileUpload({
 
           // Create file map for later upload
           const fileMap = new Map<string, File>();
+
           for (const file of files) {
             const relativePath = file.webkitRelativePath;
             const parts = relativePath.split("/");
             const fileKey = parts.slice(1).join("/"); // Remove root folder
+
             fileMap.set(fileKey, file);
           }
 
@@ -225,7 +233,10 @@ export function FileUpload({
 
           // Create a minimal StandardizedDataset from manifest
           // We don't actually load the chunked data, just create metadata
-          dataset = await StandardizedDataset.fromLocalChunked(files, onProgress);
+          dataset = await StandardizedDataset.fromLocalChunked(
+            files,
+            onProgress,
+          );
 
           // Mark dataset as pre-chunked and attach file map
           (dataset as any).isPreChunked = true;
@@ -233,7 +244,10 @@ export function FileUpload({
           (dataset as any).manifestData = manifest;
 
           onProgress(100, "Pre-chunked dataset ready for upload!");
-          console.log("Pre-chunked dataset ready. File map size:", fileMap.size);
+          console.log(
+            "Pre-chunked dataset ready. File map size:",
+            fileMap.size,
+          );
         } else if (type === "h5ad") {
           const file = files[0];
 
@@ -262,21 +276,19 @@ export function FileUpload({
             console.log(
               "=== H5AD detected inside MERSCOPE upload; routing to H5AD parser ===",
             );
-            console.log("File:", h5adFile.name, "Size:", h5adFile.size, "bytes");
-            dataset = await StandardizedDataset.fromH5ad(
-              h5adFile,
-              onProgress,
+            console.log(
+              "File:",
+              h5adFile.name,
+              "Size:",
+              h5adFile.size,
+              "bytes",
             );
+            dataset = await StandardizedDataset.fromH5ad(h5adFile, onProgress);
           } else {
-            toast.info(
-              `Processing MERSCOPE folder (${files.length} files)...`,
-            );
+            toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
             console.log("=== Starting MERSCOPE folder processing ===");
             console.log("Files:", files.length);
-            dataset = await StandardizedDataset.fromMerscope(
-              files,
-              onProgress,
-            );
+            dataset = await StandardizedDataset.fromMerscope(files, onProgress);
           }
         }
 
@@ -334,7 +346,8 @@ export function FileUpload({
   };
 
   const isFolder =
-    !singleMolecule && (type === "xenium" || type === "merscope" || type === "chunked");
+    !singleMolecule &&
+    (type === "xenium" || type === "merscope" || type === "chunked");
 
   // Get isLoading from appropriate store
   const cellIsLoading = useDatasetStore((state) => state.isLoading);

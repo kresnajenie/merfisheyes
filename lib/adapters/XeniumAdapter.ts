@@ -2,9 +2,10 @@
 import Papa, { ParseResult } from "papaparse";
 import { ungzip } from "pako";
 
+import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 import { shouldFilterGene } from "@/lib/utils/gene-filters";
-import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 
 interface XeniumMetadata {
   hasPolygons: boolean;

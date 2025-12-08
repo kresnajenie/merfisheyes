@@ -20,7 +20,11 @@ interface VisualizationPanelProps {
   controlsRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function VisualizationPanel({ mode, onClose, controlsRef }: VisualizationPanelProps) {
+export function VisualizationPanel({
+  mode,
+  onClose,
+  controlsRef,
+}: VisualizationPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100; // Show 100 items per page
@@ -246,7 +250,9 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
             {/* Pagination Info */}
             {filteredItems.length > itemsPerPage && (
               <div className="text-xs text-default-500 text-center">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
+                Showing {startIndex + 1}-
+                {Math.min(endIndex, filteredItems.length)} of{" "}
+                {filteredItems.length}
               </div>
             )}
 
@@ -311,7 +317,9 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
                   isDisabled={currentPage === totalPages}
                   size="sm"
                   variant="flat"
-                  onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onPress={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                 >
                   Next
                 </Button>

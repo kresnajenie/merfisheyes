@@ -57,7 +57,8 @@ const generateBrainPoints = (count: number): BrainPoint[] => {
     const radius = 0.72 + wobble;
 
     const baseX =
-      hemisphere * 0.28 + Math.cos(angle) * radius * (hemisphere === -1 ? 0.42 : 0.46);
+      hemisphere * 0.28 +
+      Math.cos(angle) * radius * (hemisphere === -1 ? 0.42 : 0.46);
     const baseY = Math.sin(angle) * radius * 0.58;
 
     const scatterX = (seeded(i * 19 + 11) - 0.5) * 6.2;
@@ -106,7 +107,11 @@ const generateMoleculePoints = (count: number): MoleculePoint[] => {
   return points.slice(0, count);
 };
 
-export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps) {
+export function BrainToggle({
+  isActive,
+  onToggle,
+  className,
+}: BrainToggleProps) {
   const points = useMemo(() => generateBrainPoints(120), []);
   const molecules = useMemo(() => generateMoleculePoints(42), []);
   const [isHovering, setIsHovering] = useState(false);
@@ -119,40 +124,34 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
 
   return (
     <button
-      type="button"
-      aria-pressed={isActive}
       aria-label={
-        isActive ? "Switch to single cell datasets" : "Switch to single molecule datasets"
+        isActive
+          ? "Switch to single cell datasets"
+          : "Switch to single molecule datasets"
       }
-      onClick={() => onToggle(!isActive)}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      aria-pressed={isActive}
       className={clsx(
         "group relative flex items-center justify-center rounded-full p-2 transition-shadow cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-100/70 focus-visible:ring-offset-slate-950/40",
         className,
       )}
+      type="button"
+      onClick={() => onToggle(!isActive)}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
     >
       <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-900/10 via-slate-500/5 to-slate-50/5 blur-xl" />
       <motion.div
-        className="relative flex h-28 w-28 items-center justify-center rounded-full border border-white/10 bg-slate-900/30 backdrop-blur-xl shadow-[0_25px_45px_rgba(15,23,42,0.25)] overflow-visible"
-        initial={false}
         animate={{
           boxShadow: isActive
             ? "0 30px 60px rgba(168, 85, 247, 0.35)"
             : "0 22px 50px rgba(14, 165, 233, 0.25)",
-          borderColor: isActive ? "rgba(124, 58, 237, 0.35)" : "rgba(59, 130, 246, 0.3)",
+          borderColor: isActive
+            ? "rgba(124, 58, 237, 0.35)"
+            : "rgba(59, 130, 246, 0.3)",
         }}
-        whileHover={
-          isActive
-            ? {
-                scale: 1.04,
-                boxShadow: "0 30px 65px rgba(168, 85, 247, 0.4)",
-              }
-            : {
-                scale: 1.04,
-                boxShadow: "0 30px 65px rgba(14, 165, 233, 0.35)",
-              }
-        }
+        className="relative flex h-28 w-28 items-center justify-center rounded-full border border-white/10 bg-slate-900/30 backdrop-blur-xl shadow-[0_25px_45px_rgba(15,23,42,0.25)] overflow-visible"
+        initial={false}
+        transition={{ duration: 1.1, ease }}
         whileFocus={
           isActive
             ? {
@@ -164,24 +163,34 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
                 boxShadow: "0 30px 65px rgba(14, 165, 233, 0.35)",
               }
         }
+        whileHover={
+          isActive
+            ? {
+                scale: 1.04,
+                boxShadow: "0 30px 65px rgba(168, 85, 247, 0.4)",
+              }
+            : {
+                scale: 1.04,
+                boxShadow: "0 30px 65px rgba(14, 165, 233, 0.35)",
+              }
+        }
         whileTap={{ scale: 0.98 }}
-        transition={{ duration: 1.1, ease }}
       >
         <motion.div
-          className="absolute inset-0 rounded-full bg-gradient-to-br from-sky-500/20 via-purple-400/15 to-fuchsia-500/10"
-          initial={false}
           animate={{
             opacity: isActive ? 0.45 : 0.25,
             scale: isActive ? 1.12 : 1,
           }}
+          className="absolute inset-0 rounded-full bg-gradient-to-br from-sky-500/20 via-purple-400/15 to-fuchsia-500/10"
+          initial={false}
           transition={{ duration: 1.1, ease }}
         />
 
         <motion.div
-          className="absolute inset-0 rounded-full border-2 border-transparent"
-          initial={false}
           animate={{
-            borderColor: isActive ? "rgba(168, 85, 247, 0.35)" : "rgba(59, 130, 246, 0.3)",
+            borderColor: isActive
+              ? "rgba(168, 85, 247, 0.35)"
+              : "rgba(59, 130, 246, 0.3)",
             boxShadow: isActive
               ? [
                   "0 0 0 0 rgba(168, 85, 247, 0.4)",
@@ -192,6 +201,8 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
                   "0 0 0 16px rgba(59, 130, 246, 0)",
                 ],
           }}
+          className="absolute inset-0 rounded-full border-2 border-transparent"
+          initial={false}
           transition={{
             repeat: Infinity,
             repeatDelay: 1.6,
@@ -203,9 +214,6 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
         {points.map((point) => (
           <motion.span
             key={point.id}
-            className="absolute rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.35)]"
-            style={{ width: point.size, height: point.size }}
-            initial={false}
             animate={
               isActive
                 ? {
@@ -219,6 +227,9 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
                     opacity: 0.92,
                   }
             }
+            className="absolute rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.35)]"
+            initial={false}
+            style={{ width: point.size, height: point.size }}
             transition={{
               duration: 1.1,
               ease,
@@ -228,9 +239,6 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
         ))}
 
         <motion.span
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-sky-300/40 via-violet-400/40 to-fuchsia-500/40"
-          style={{ width: 48, height: 48 }}
-          initial={false}
           animate={
             isActive
               ? {
@@ -239,6 +247,9 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
                 }
               : { scale: 1.15, opacity: 0.28 }
           }
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-sky-300/40 via-violet-400/40 to-fuchsia-500/40"
+          initial={false}
+          style={{ width: 48, height: 48 }}
           transition={{
             duration: isHovering ? 0.4 : 1.1,
             ease,
@@ -249,13 +260,13 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
           {isActive && (
             <motion.div
               key="inner-molecules"
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-              initial={{ opacity: 0, scale: 0.35 }}
               animate={{
                 opacity: 1,
                 scale: isHovering ? 1.08 : 1,
               }}
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
               exit={{ opacity: 0, scale: 0.3 }}
+              initial={{ opacity: 0, scale: 0.35 }}
               transition={{
                 duration: isHovering ? 0.45 : 0.9,
                 ease,
@@ -267,15 +278,15 @@ export function BrainToggle({ isActive, onToggle, className }: BrainToggleProps)
                 {molecules.map((point) => (
                   <motion.span
                     key={point.id}
-                    className="absolute rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.4)]"
-                    style={{ width: point.size, height: point.size }}
-                    initial={{ opacity: 0, scale: 0 }}
                     animate={{
                       opacity: 0.95,
                       scale: 1,
                       x: point.position.x * INNER_SCALE + CENTER_OFFSET_X,
                       y: point.position.y * INNER_SCALE + CENTER_OFFSET_Y,
                     }}
+                    className="absolute rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.4)]"
+                    initial={{ opacity: 0, scale: 0 }}
+                    style={{ width: point.size, height: point.size }}
                     transition={{
                       duration: 0.7,
                       ease,
