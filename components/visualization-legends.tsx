@@ -1,12 +1,10 @@
 "use client";
 
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-
 import React, { useEffect, useMemo } from "react";
 import { X } from "lucide-react";
-
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneScalebar } from "@/components/gene-scalebar";
 
 export const VisualizationLegends: React.FC = () => {
@@ -40,7 +38,7 @@ export const VisualizationLegends: React.FC = () => {
     // Type-narrow to StandardizedDataset
     const standardizedDataset = dataset as StandardizedDataset;
     const selectedCluster = standardizedDataset.clusters?.find(
-      (c) => c.column === selectedColumn,
+      (c) => c.column === selectedColumn
     );
 
     return selectedCluster?.palette || {};
@@ -53,7 +51,7 @@ export const VisualizationLegends: React.FC = () => {
 
     const standardizedDataset = dataset as StandardizedDataset;
     const selectedCluster = standardizedDataset.clusters?.find(
-      (c) => c.column === selectedColumn,
+      (c) => c.column === selectedColumn
     );
 
     return selectedCluster?.type === "numerical";
@@ -66,22 +64,21 @@ export const VisualizationLegends: React.FC = () => {
     console.log("dataset.type:", dataset?.type);
     console.log(
       "has clusters property:",
-      dataset ? "clusters" in dataset : false,
+      dataset ? "clusters" in dataset : false
     );
     console.log(
       "dataset.clusters:",
       dataset && "clusters" in dataset
         ? (dataset as StandardizedDataset).clusters
-        : "N/A",
+        : "N/A"
     );
     console.log("selectedColumn:", selectedColumn);
 
     if (dataset && "clusters" in dataset) {
       const standardizedDataset = dataset as StandardizedDataset;
       const selectedCluster = standardizedDataset.clusters?.find(
-        (c) => c.column === selectedColumn,
+        (c) => c.column === selectedColumn
       );
-
       console.log("selectedCluster:", selectedCluster);
       console.log("selectedCluster.palette:", selectedCluster?.palette);
     }
@@ -92,7 +89,6 @@ export const VisualizationLegends: React.FC = () => {
     // Log colors for each selected celltype
     Array.from(selectedCelltypes).forEach((celltype) => {
       const color = colorPalette[celltype];
-
       console.log(`Color for "${celltype}":`, color || "NOT FOUND");
     });
   }, [dataset, colorPalette, selectedCelltypes, selectedColumn]);
@@ -134,17 +130,17 @@ export const VisualizationLegends: React.FC = () => {
         <div className="flex flex-col items-end">
           {mode.includes("gene") && selectedGene ? (
             <GeneScalebar
-              maxValue={geneScaleMax}
               minValue={geneScaleMin}
-              onMaxChange={setGeneScaleMax}
+              maxValue={geneScaleMax}
               onMinChange={setGeneScaleMin}
+              onMaxChange={setGeneScaleMax}
             />
           ) : (
             <GeneScalebar
-              maxValue={numericalScaleMax}
               minValue={numericalScaleMin}
-              onMaxChange={setNumericalScaleMax}
+              maxValue={numericalScaleMax}
               onMinChange={setNumericalScaleMin}
+              onMaxChange={setNumericalScaleMax}
             />
           )}
         </div>
@@ -176,13 +172,13 @@ export const VisualizationLegends: React.FC = () => {
                   style={{
                     backgroundColor: `${color}`, // 70% opacity (B3 in hex)
                   }}
-                  onClick={() => toggleCelltype(celltype)}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = color;
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = `${color}B3`;
                   }}
+                  onClick={() => toggleCelltype(celltype)}
                 >
                   <span className="text-xs font-medium text-black">
                     {celltype}

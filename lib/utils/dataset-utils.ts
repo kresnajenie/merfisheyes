@@ -23,7 +23,6 @@ export function selectBestClusterColumn(
 
   if (leiden) return leiden.column;
   const categoryCluster = clusters.find((c) => c.column === "Cluster");
-
   if (categoryCluster) return categoryCluster.column;
   // Priority 2: Find anything with "celltype" in it
   const celltype = clusters.find((c) =>

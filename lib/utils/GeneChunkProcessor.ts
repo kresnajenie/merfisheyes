@@ -95,7 +95,6 @@ export class GeneChunkProcessor {
 
     // Use cached matrix if available (from worker), otherwise fetch via adapter
     let matrix;
-
     if (dataset.matrix) {
       console.log("Using cached expression matrix from worker");
       matrix = dataset.matrix;
@@ -240,12 +239,7 @@ export class GeneChunkProcessor {
         geneData = dataset.adapter.fetchColumn(matrix, geneIdx);
       } else {
         // Extract column directly from cached matrix (same logic as extractColumnFromMatrix)
-        geneData = this.extractColumnFromMatrix(
-          matrix,
-          geneIdx,
-          geneName,
-          geneNames,
-        );
+        geneData = this.extractColumnFromMatrix(matrix, geneIdx, geneName, geneNames);
       }
 
       if (!geneData || geneData.length === 0) {
@@ -390,11 +384,9 @@ export class GeneChunkProcessor {
     // Case 1: Map<string, Float32Array> (Xenium/MERSCOPE format)
     if (matrix instanceof Map) {
       const gene = allGenes[columnIndex];
-
       if (!gene || !matrix.has(gene)) {
         return [];
       }
-
       return Array.from(matrix.get(gene)!);
     }
 

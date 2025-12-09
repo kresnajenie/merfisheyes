@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
+import { FileUpload } from "@/components/file-upload";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import LightRays from "@/components/react-bits/LightRays";
+import { subtitle, title } from "@/components/primitives";
 
 function ViewerContent() {
   const router = useRouter();
@@ -58,7 +61,6 @@ function ViewerContent() {
     // Add genes to visualization store with their persistent colors
     selectedGenes.forEach((gene) => {
       const geneProps = dataset.geneColors[gene];
-
       addGene(gene, geneProps.color, geneProps.size);
     });
   }, [dataset, addGene, clearGenes]);

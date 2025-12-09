@@ -24,17 +24,8 @@ export function SingleMoleculeControls() {
   });
 
   // Get visualization state
-  const {
-    selectedGenes,
-    selectedGenesLegend,
-    addGene,
-    removeGene,
-    clearGenes,
-    globalScale,
-    setGlobalScale,
-    viewMode,
-    setViewMode,
-  } = useSingleMoleculeVisualizationStore();
+  const { selectedGenes, selectedGenesLegend, addGene, removeGene, clearGenes, globalScale, setGlobalScale, viewMode, setViewMode } =
+    useSingleMoleculeVisualizationStore();
 
   // Filter genes based on search
   const filteredGenes = useMemo(() => {
@@ -90,9 +81,7 @@ export function SingleMoleculeControls() {
 
       {/* Gene Selection Panel */}
       {isPanelOpen && (
-        <div
-          className={`fixed top-28 left-20 z-50 w-[320px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
-        >
+        <div className={`fixed top-28 left-20 z-50 w-[320px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}>
           <div className="p-4 space-y-3">
             {/* Title */}
             <div className="flex items-center justify-between">
@@ -141,7 +130,6 @@ export function SingleMoleculeControls() {
                         removeGene(gene);
                       } else {
                         const geneProps = dataset?.geneColors[gene];
-
                         if (geneProps) {
                           addGene(gene, geneProps.color, geneProps.size);
                         } else {

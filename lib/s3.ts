@@ -17,8 +17,7 @@ export const s3Client = new S3Client({
   // 3. AWS credentials file
 });
 
-export const S3_BUCKET =
-  process.env.AWS_S3_BUCKET || process.env.S3_BUCKET || "";
+export const S3_BUCKET = process.env.AWS_S3_BUCKET || process.env.S3_BUCKET || "";
 export const AWS_REGION = process.env.AWS_REGION || "us-east-1";
 
 // Helper to ensure bucket is configured
@@ -26,7 +25,6 @@ function ensureBucket() {
   if (!S3_BUCKET) {
     throw new Error("AWS_S3_BUCKET environment variable is required");
   }
-
   return S3_BUCKET;
 }
 

@@ -12,7 +12,11 @@ import {
   Suspense,
 } from "react";
 import clsx from "clsx";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 
 import { title, subtitle } from "@/components/primitives";
 import { FileUpload } from "@/components/file-upload";
@@ -81,7 +85,7 @@ function HomeContent() {
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
-    [isSingleMolecule],
+    [isSingleMolecule]
   );
 
   useEffect(() => {
@@ -186,32 +190,29 @@ function HomeContent() {
             </h1>
             <div className="flex items-center gap-6 mt-6 justify-center w-full">
               <button
+                type="button"
                 aria-pressed={!isSingleMolecule}
+                onClick={() => handleModeChange(false)}
                 className={clsx(
                   "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-slate-900",
                   !isSingleMolecule
                     ? "bg-blue-500 text-white shadow-[0_12px_25px_rgba(59,130,246,0.35)]"
-                    : "bg-transparent text-default-500 border border-blue-400/30 hover:bg-blue-500/15 hover:text-white",
+                    : "bg-transparent text-default-500 border border-blue-400/30 hover:bg-blue-500/15 hover:text-white"
                 )}
-                type="button"
-                onClick={() => handleModeChange(false)}
               >
                 single cell
               </button>
-              <BrainToggle
-                isActive={isSingleMolecule}
-                onToggle={handleModeChange}
-              />
+              <BrainToggle isActive={isSingleMolecule} onToggle={handleModeChange} />
               <button
+                type="button"
                 aria-pressed={isSingleMolecule}
+                onClick={() => handleModeChange(true)}
                 className={clsx(
                   "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-400/80 focus-visible:ring-offset-slate-900",
                   isSingleMolecule
                     ? "bg-purple-500 text-white shadow-[0_12px_25px_rgba(168,85,247,0.35)]"
-                    : "bg-transparent text-default-500 border border-purple-400/30 hover:bg-purple-500/15 hover:text-white",
+                    : "bg-transparent text-default-500 border border-purple-400/30 hover:bg-purple-500/15 hover:text-white"
                 )}
-                type="button"
-                onClick={() => handleModeChange(true)}
               >
                 single molecule
               </button>
@@ -233,7 +234,7 @@ function HomeContent() {
             <div
               className={clsx(
                 "hidden lg:flex absolute inset-0 items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
-                isSingleMolecule ? "opacity-100" : "opacity-0",
+                isSingleMolecule ? "opacity-100" : "opacity-0"
               )}
             >
               <div className="h-[120%] w-[120%] rounded-full bg-gradient-to-br from-blue-500 via-purple-500 to-fuchsia-500 opacity-30 blur-3xl" />
@@ -244,7 +245,7 @@ function HomeContent() {
                 "w-full transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-center lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2",
                 isSingleMolecule
                   ? "hidden lg:block lg:scale-[1.2] lg:opacity-0 lg:blur-sm lg:pointer-events-none"
-                  : "block lg:block lg:scale-100 lg:opacity-100 lg:blur-0 lg:pointer-events-auto",
+                  : "block lg:block lg:scale-100 lg:opacity-100 lg:blur-0 lg:pointer-events-auto"
               )}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -276,7 +277,7 @@ function HomeContent() {
                 "w-full max-w-3xl transition-all duration-[1100ms] ease-[cubic-bezier(0.22,1,0.36,1)] lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2",
                 isSingleMolecule
                   ? "block lg:block lg:opacity-100 lg:scale-100 lg:pointer-events-auto"
-                  : "hidden lg:block lg:opacity-0 lg:scale-90 lg:pointer-events-none",
+                  : "hidden lg:block lg:opacity-0 lg:scale-90 lg:pointer-events-none"
               )}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

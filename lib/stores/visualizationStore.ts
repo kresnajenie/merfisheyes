@@ -1,5 +1,4 @@
 import { create } from "zustand";
-
 import { VISUALIZATION_CONFIG } from "../config/visualization.config";
 
 export type VisualizationMode = "celltype" | "gene";
@@ -115,7 +114,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
             : (["gene"] as VisualizationMode[]);
 
         console.log("Gene selected - new mode:", newMode);
-
         return { selectedGene: gene, mode: newMode };
       } else {
         // When clearing gene, remove from mode
@@ -126,7 +124,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         );
 
         console.log("Gene cleared - new mode:", newMode);
-
         return { selectedGene: gene, mode: newMode };
       }
     });
@@ -187,7 +184,6 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
       }
 
       console.log("After toggle - new mode:", newMode);
-
       return { selectedCelltypes: newCelltypes, mode: newMode };
     });
   },

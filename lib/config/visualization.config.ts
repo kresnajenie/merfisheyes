@@ -28,16 +28,6 @@ export const VISUALIZATION_CONFIG = {
   POINT_BASE_SIZE: 0.5,
 
   /**
-   * Single Cell Size Scale Slider Range
-   * Min/max/step values for the size scale slider in single cell viewer
-   * Default: 0.5 to 3.0 with 0.1 steps
-   */
-  SINGLE_CELL_SIZE_SCALE_MIN: 0.5,
-  SINGLE_CELL_SIZE_SCALE_MAX: 6.0,
-  SINGLE_CELL_SIZE_SCALE_STEP: 0.5,
-  SINGLE_CELL_SIZE_SCALE_DEFAULT: 1.0,
-
-  /**
    * Single Molecule Point Base Size
    * Base size for single molecule points (separate from cell visualization)
    * Default: 2.0
@@ -72,7 +62,7 @@ export const VISUALIZATION_CONFIG = {
    * Default: min=0.5, max=2.0 (points range from 50% to 200% of base size)
    */
   POINT_SIZE_MULTIPLIER_MIN: 0.5,
-  POINT_SIZE_MULTIPLIER_MAX: 5.0,
+  POINT_SIZE_MULTIPLIER_MAX: 3.0,
 
   /**
    * Point Alpha (Opacity)
@@ -108,13 +98,6 @@ export const VISUALIZATION_CONFIG = {
    * Default: 3
    */
   SCALE_BAR_DECIMALS: 3,
-
-  /**
-   * UMAP Panel Point Size
-   * Base dot size for UMAP/embedding visualization
-   * Default: 2
-   */
-  UMAP_POINT_SIZE: 0.5,
 } as const;
 
 /**
@@ -126,7 +109,6 @@ export function calculateSizeMultiplier(normalizedValue: number): number {
   if (isNaN(normalizedValue)) {
     return 1.0;
   }
-
   return (
     VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN +
     normalizedValue *

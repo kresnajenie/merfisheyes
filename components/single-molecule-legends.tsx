@@ -7,31 +7,23 @@ import { Tooltip } from "@heroui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/slider";
-
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import {
   ColorPicker,
+  ColorPickerAlpha,
   ColorPickerEyeDropper,
+  ColorPickerFormat,
   ColorPickerHue,
   ColorPickerOutput,
   ColorPickerSelection,
-} from "@/components/ui/shadcn-io/color-picker";
+} from '@/components/ui/shadcn-io/color-picker';
 
 export const SingleMoleculeLegends: React.FC = () => {
-  const {
-    selectedGenes,
-    selectedGenesLegend,
-    geneDataCache,
-    removeGene,
-    toggleGeneVisibility,
-    setGeneColor,
-    setGeneLocalScale,
-  } = useSingleMoleculeVisualizationStore();
+  const { selectedGenes, selectedGenesLegend, geneDataCache, removeGene, toggleGeneVisibility, setGeneColor, setGeneLocalScale } = useSingleMoleculeVisualizationStore();
   const dataset = useSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
-
     return id ? state.datasets.get(id) : null;
   });
 
@@ -40,20 +32,13 @@ export const SingleMoleculeLegends: React.FC = () => {
   // Debug logging
   useEffect(() => {
     console.log("[SingleMoleculeLegends] Component mounted/updated");
-    console.log(
-      "[SingleMoleculeLegends] selectedGenesLegend size:",
-      selectedGenesLegend.size,
-    );
-    console.log(
-      "[SingleMoleculeLegends] selectedGenes size:",
-      selectedGenes.size,
-    );
+    console.log("[SingleMoleculeLegends] selectedGenesLegend size:", selectedGenesLegend.size);
+    console.log("[SingleMoleculeLegends] selectedGenes size:", selectedGenes.size);
   }, [selectedGenesLegend, selectedGenes]);
 
   // Don't render if no genes are in legend
   if (selectedGenesLegend.size === 0) {
     console.log("[SingleMoleculeLegends] No genes in legend, returning null");
-
     return null;
   }
 
@@ -61,15 +46,10 @@ export const SingleMoleculeLegends: React.FC = () => {
   const legendGenesArray = Array.from(selectedGenesLegend).map((gene) => {
     const geneViz = geneDataCache.get(gene);
     const isVisible = selectedGenes.has(gene);
-
     return { gene, geneViz, isVisible };
   });
 
-  console.log(
-    "[SingleMoleculeLegends] Rendering",
-    legendGenesArray.length,
-    "gene badges",
-  );
+  console.log("[SingleMoleculeLegends] Rendering", legendGenesArray.length, "gene badges");
 
   const handleRightClick = (e: React.MouseEvent, gene: string) => {
     e.preventDefault();
@@ -87,14 +67,10 @@ export const SingleMoleculeLegends: React.FC = () => {
         color: color,
       };
       const storageKey = `sm_gene_colors_${dataset.id}`;
-
       try {
         localStorage.setItem(storageKey, JSON.stringify(dataset.geneColors));
       } catch (error) {
-        console.warn(
-          `[SingleMoleculeLegends] Failed to update localStorage:`,
-          error,
-        );
+        console.warn(`[SingleMoleculeLegends] Failed to update localStorage:`, error);
       }
     }
   };
@@ -110,14 +86,10 @@ export const SingleMoleculeLegends: React.FC = () => {
         size: scale,
       };
       const storageKey = `sm_gene_colors_${dataset.id}`;
-
       try {
         localStorage.setItem(storageKey, JSON.stringify(dataset.geneColors));
       } catch (error) {
-        console.warn(
-          `[SingleMoleculeLegends] Failed to update localStorage:`,
-          error,
-        );
+        console.warn(`[SingleMoleculeLegends] Failed to update localStorage:`, error);
       }
     }
   };
@@ -142,58 +114,46 @@ export const SingleMoleculeLegends: React.FC = () => {
           {legendGenesArray.map(({ gene, geneViz, isVisible }) => {
             if (!geneViz) return null;
 
-            console.log(
-              "[SingleMoleculeLegends] Rendering badge for gene:",
-              gene,
-              "color:",
-              geneViz.color,
-              "visible:",
-              isVisible,
-            );
+            console.log("[SingleMoleculeLegends] Rendering badge for gene:", gene, "color:", geneViz.color, "visible:", isVisible);
 
             return (
               <Popover
                 key={gene}
                 isOpen={openPopoverGene === gene}
-                placement="left"
                 onOpenChange={(open) => {
                   if (!open) setOpenPopoverGene(null);
                 }}
+                placement="left"
               >
                 <Tooltip
                   content="Click to change color and size"
-                  delay={0}
                   placement="left"
+                  delay={0}
                 >
                   <PopoverTrigger>
                     <div
                       className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer"
                       style={{
-                        backgroundColor: isVisible
-                          ? geneViz.color
-                          : `${geneViz.color}80`, // 50% opacity when hidden
+                        backgroundColor: isVisible ? geneViz.color : `${geneViz.color}80`, // 50% opacity when hidden
                       }}
                       onClick={() => setOpenPopoverGene(gene)}
                     >
                       {/* Checkbox for visibility toggle */}
                       <Checkbox
+                        size="sm"
+                        isSelected={isVisible}
+                        onValueChange={() => {
+                          console.log("[SingleMoleculeLegends] Toggling visibility for gene:", gene);
+                          toggleGeneVisibility(gene);
+                        }}
                         classNames={{
                           wrapper: "bg-white/20",
-                        }}
-                        isSelected={isVisible}
-                        size="sm"
-                        onValueChange={() => {
-                          console.log(
-                            "[SingleMoleculeLegends] Toggling visibility for gene:",
-                            gene,
-                          );
-                          toggleGeneVisibility(gene);
                         }}
                       />
 
                       {/* Gene name with strikethrough when hidden */}
                       <span
-                        className={`text-xs font-medium text-black ${!isVisible ? "line-through" : ""}`}
+                        className={`text-xs font-medium text-black ${!isVisible ? 'line-through' : ''}`}
                       >
                         {gene}
                       </span>
@@ -203,10 +163,7 @@ export const SingleMoleculeLegends: React.FC = () => {
                         className="w-3 h-3 text-black/70 group-hover:text-black cursor-pointer transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log(
-                            "[SingleMoleculeLegends] Removing gene from legend:",
-                            gene,
-                          );
+                          console.log("[SingleMoleculeLegends] Removing gene from legend:", gene);
                           removeGene(gene);
                         }}
                       />
@@ -218,11 +175,11 @@ export const SingleMoleculeLegends: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold">{gene}</h4>
                       <Button
-                        isIconOnly
-                        className="h-6 w-6 min-w-0"
                         size="sm"
                         variant="light"
+                        isIconOnly
                         onPress={() => setOpenPopoverGene(null)}
+                        className="h-6 w-6 min-w-0"
                       >
                         <X className="w-3 h-3" />
                       </Button>
@@ -231,9 +188,9 @@ export const SingleMoleculeLegends: React.FC = () => {
                     {/* Color Picker */}
                     <ColorPicker
                       key={gene}
-                      className="rounded-md p-2"
                       defaultValue={geneViz.color}
                       onChange={(color) => handleColorChange(gene, color)}
+                      className="rounded-md p-2"
                     >
                       <ColorPickerSelection />
                       <div className="flex items-center gap-2 mt-2">
@@ -254,32 +211,18 @@ export const SingleMoleculeLegends: React.FC = () => {
                         Size: {geneViz.localScale.toFixed(1)}x
                       </label>
                       <Slider
+                        value={geneViz.localScale}
+                        onChange={(value) => handleScaleChange(gene, value as number)}
+                        minValue={VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MIN}
+                        maxValue={VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MAX}
+                        step={VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_STEP}
                         aria-label="Local dot size"
                         className="w-full"
-                        maxValue={
-                          VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MAX
-                        }
-                        minValue={
-                          VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MIN
-                        }
                         size="sm"
-                        step={
-                          VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_STEP
-                        }
-                        value={geneViz.localScale}
-                        onChange={(value) =>
-                          handleScaleChange(gene, value as number)
-                        }
                       />
                       <div className="flex justify-between text-[10px] text-default-400 mt-1">
-                        <span>
-                          {VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MIN}
-                          x
-                        </span>
-                        <span>
-                          {VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MAX}
-                          x
-                        </span>
+                        <span>{VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MIN}x</span>
+                        <span>{VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MAX}x</span>
                       </div>
                     </div>
                   </div>

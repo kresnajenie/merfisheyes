@@ -106,7 +106,6 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(99, "Loading expression matrix...");
     const matrix = adapter.fetchFullMatrix();
-
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates
@@ -180,13 +179,9 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values)
-              ? "categorical"
-              : "numerical",
+            type: isCategoricalData(clusterData.values) ? "categorical" : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values)
-              ? clusterData.palette
-              : null,
+            palette: isCategoricalData(clusterData.values) ? clusterData.palette : null,
           },
         ]
       : null;
@@ -198,7 +193,6 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(99, "Loading expression matrix...");
     const matrix = adapter.fetchFullMatrix();
-
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates
@@ -282,13 +276,9 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values)
-              ? "categorical"
-              : "numerical",
+            type: isCategoricalData(clusterData.values) ? "categorical" : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values)
-              ? clusterData.palette
-              : null,
+            palette: isCategoricalData(clusterData.values) ? clusterData.palette : null,
           },
         ]
       : null;
@@ -300,7 +290,6 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(99, "Loading expression matrix...");
     const matrix = adapter.fetchFullMatrix();
-
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates
@@ -377,7 +366,6 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(95, "Loading expression matrix...");
     const matrix = await adapter.fetchFullMatrix();
-
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates

@@ -107,6 +107,15 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
           </NavbarItem>
         )}
 
+        {/* Show Back to Viewer button on /viewer/[id] */}
+        {pathname?.startsWith("/viewer/") && pathname !== "/viewer" && (
+          <NavbarItem>
+            <Button as={NextLink} color="primary" href="/viewer" variant="flat">
+              Back to Viewer
+            </Button>
+          </NavbarItem>
+        )}
+
         <NavbarItem className="hidden sm:flex gap-2">
           <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>
             <TwitterIcon className="text-default-500" />

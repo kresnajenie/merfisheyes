@@ -17,7 +17,6 @@ export function normalizeCoordinates(coordinates: number[][]): {
 
   // Calculate the mean (center) of each dimension
   const center = new Array(n).fill(0);
-
   for (const coord of coordinates) {
     for (let i = 0; i < n; i++) {
       center[i] += coord[i];

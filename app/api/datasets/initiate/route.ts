@@ -111,7 +111,6 @@ export async function POST(request: NextRequest) {
 
     // Process in batches of 50 to avoid overwhelming S3
     const batchSize = 50;
-
     for (let i = 0; i < files.length; i += batchSize) {
       const batch = files.slice(i, i + batchSize);
       const urlPromises = batch.map(async (file) => {
@@ -121,12 +120,10 @@ export async function POST(request: NextRequest) {
           file.contentType || "application/octet-stream",
           3600, // 1 hour expiration
         );
-
         return { key: file.key, url: presignedUrl.url };
       });
 
       const batchResults = await Promise.all(urlPromises);
-
       for (const { key, url } of batchResults) {
         uploadUrls[key] = url;
       }

@@ -77,7 +77,7 @@ export const useSingleMoleculeVisualizationStore =
         return {
           selectedGenes: newSelectedGenes,
           selectedGenesLegend: newSelectedGenesLegend,
-          geneDataCache: newGeneDataCache,
+          geneDataCache: newGeneDataCache
         };
       }),
 
@@ -95,7 +95,7 @@ export const useSingleMoleculeVisualizationStore =
         return {
           selectedGenes: newSelectedGenes,
           selectedGenesLegend: newSelectedGenesLegend,
-          geneDataCache: newGeneDataCache,
+          geneDataCache: newGeneDataCache
         };
       }),
 
@@ -109,7 +109,6 @@ export const useSingleMoleculeVisualizationStore =
         } else {
           // Gene is hidden, show it (restore from cache)
           const cachedData = state.geneDataCache.get(gene);
-
           if (cachedData) {
             newSelectedGenes.set(gene, cachedData);
           }
@@ -122,12 +121,10 @@ export const useSingleMoleculeVisualizationStore =
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
         const newGeneDataCache = new Map(state.geneDataCache);
-        const geneViz =
-          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+        const geneViz = newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
 
         if (geneViz) {
           const updatedGeneViz = { ...geneViz, color };
-
           // Update in both visible genes (if present) and cache
           if (newSelectedGenes.has(gene)) {
             newSelectedGenes.set(gene, updatedGeneViz);
@@ -135,22 +132,17 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updatedGeneViz);
         }
 
-        return {
-          selectedGenes: newSelectedGenes,
-          geneDataCache: newGeneDataCache,
-        };
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
       }),
 
     setGeneLocalScale: (gene: string, scale: number) =>
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
         const newGeneDataCache = new Map(state.geneDataCache);
-        const geneViz =
-          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+        const geneViz = newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
 
         if (geneViz) {
           const updatedGeneViz = { ...geneViz, localScale: scale };
-
           // Update in both visible genes (if present) and cache
           if (newSelectedGenes.has(gene)) {
             newSelectedGenes.set(gene, updatedGeneViz);
@@ -158,22 +150,14 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updatedGeneViz);
         }
 
-        return {
-          selectedGenes: newSelectedGenes,
-          geneDataCache: newGeneDataCache,
-        };
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
       }),
 
     setGlobalScale: (scale: number) => set({ globalScale: scale }),
 
     setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 
-    clearGenes: () =>
-      set({
-        selectedGenes: new Map(),
-        selectedGenesLegend: new Set(),
-        geneDataCache: new Map(),
-      }),
+    clearGenes: () => set({ selectedGenes: new Map(), selectedGenesLegend: new Set(), geneDataCache: new Map() }),
 
     loadFromLocalStorage: (datasetId: string) => {
       if (typeof window === "undefined") return;
@@ -187,7 +171,6 @@ export const useSingleMoleculeVisualizationStore =
 
           // Reconstruct selectedGenes Map (visible genes)
           const newSelectedGenes = new Map<string, GeneVisualization>();
-
           visibleGenes.forEach((gene: string) => {
             if (geneData[gene]) {
               newSelectedGenes.set(gene, geneData[gene]);
@@ -199,7 +182,6 @@ export const useSingleMoleculeVisualizationStore =
 
           // Reconstruct geneDataCache Map (all legend genes)
           const newGeneDataCache = new Map<string, GeneVisualization>();
-
           legendGenes.forEach((gene: string) => {
             if (geneData[gene]) {
               newGeneDataCache.set(gene, geneData[gene]);
@@ -209,18 +191,13 @@ export const useSingleMoleculeVisualizationStore =
           set({
             selectedGenes: newSelectedGenes,
             selectedGenesLegend: newSelectedGenesLegend,
-            geneDataCache: newGeneDataCache,
+            geneDataCache: newGeneDataCache
           });
 
-          console.log(
-            `[SingleMoleculeVisualizationStore] Loaded visibility state from localStorage for dataset: ${datasetId}`,
-          );
+          console.log(`[SingleMoleculeVisualizationStore] Loaded visibility state from localStorage for dataset: ${datasetId}`);
         }
       } catch (error) {
-        console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to load visibility state from localStorage:`,
-          error,
-        );
+        console.warn(`[SingleMoleculeVisualizationStore] Failed to load visibility state from localStorage:`, error);
       }
     },
 
@@ -237,7 +214,6 @@ export const useSingleMoleculeVisualizationStore =
 
         // Store full gene data from cache (includes hidden genes)
         const geneData: Record<string, GeneVisualization> = {};
-
         state.geneDataCache.forEach((geneViz, gene) => {
           geneData[gene] = geneViz;
         });
@@ -245,18 +221,13 @@ export const useSingleMoleculeVisualizationStore =
         const data = {
           visibleGenes,
           legendGenes,
-          geneData,
+          geneData
         };
 
         localStorage.setItem(storageKey, JSON.stringify(data));
-        console.log(
-          `[SingleMoleculeVisualizationStore] Saved visibility state to localStorage for dataset: ${datasetId}`,
-        );
+        console.log(`[SingleMoleculeVisualizationStore] Saved visibility state to localStorage for dataset: ${datasetId}`);
       } catch (error) {
-        console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to save visibility state to localStorage:`,
-          error,
-        );
+        console.warn(`[SingleMoleculeVisualizationStore] Failed to save visibility state to localStorage:`, error);
       }
-    },
+    }
   }));

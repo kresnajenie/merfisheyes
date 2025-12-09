@@ -443,7 +443,7 @@ export class H5adAdapter {
     // Check if numerical values have limited unique values (threshold: 50)
     const uniqueValues = new Set(values);
 
-    if (uniqueValues.size <= 400) return true;
+    if (uniqueValues.size <= 100) return true;
 
     // If more than 50 unique numerical values, treat as continuous
     return false;

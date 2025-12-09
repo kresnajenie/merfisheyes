@@ -161,7 +161,6 @@ export class StandardizedDataset {
 
     // Find gene index
     const geneIndex = this.genes.indexOf(gene);
-
     if (geneIndex === -1) {
       return null;
     }
@@ -172,10 +171,7 @@ export class StandardizedDataset {
     }
 
     // If adapter has fetchGeneExpression method (ChunkedDataAdapter), use it
-    if (
-      this.adapter &&
-      typeof this.adapter.fetchGeneExpression === "function"
-    ) {
+    if (this.adapter && typeof this.adapter.fetchGeneExpression === 'function') {
       return await this.adapter.fetchGeneExpression(gene);
     }
 
@@ -197,11 +193,9 @@ export class StandardizedDataset {
     // Case 1: Map<string, Float32Array> (Xenium/MERSCOPE format)
     if (matrix instanceof Map) {
       const gene = this.genes[column];
-
       if (!gene || !matrix.has(gene)) {
         return [];
       }
-
       return Array.from(matrix.get(gene)!);
     }
 
@@ -216,7 +210,7 @@ export class StandardizedDataset {
       // Assume it's flattened row-major: [row0col0, row0col1, ..., row1col0, row1col1, ...]
       const numCells = this.spatial.coordinates.length;
       const numGenes = this.genes.length;
-
+      
       if (column >= numGenes) {
         throw new Error("Column index out of bounds");
       }
@@ -381,13 +375,10 @@ export class StandardizedDataset {
 
     // For S3 datasets, create a fresh adapter in the main thread
     // This allows on-demand gene expression loading
-    const { ChunkedDataAdapter } = await import(
-      "./adapters/ChunkedDataAdapter"
-    );
+    const { ChunkedDataAdapter } = await import("./adapters/ChunkedDataAdapter");
     const adapter = new ChunkedDataAdapter(datasetId);
-
     await adapter.initialize();
-
+    
     // Attach adapter for on-demand gene expression queries
     dataset.adapter = adapter;
 
@@ -433,9 +424,7 @@ export class StandardizedDataset {
     await onProgress?.(10, "Initializing local chunked adapter...");
 
     // Create ChunkedDataAdapter in local mode
-    const { ChunkedDataAdapter } = await import(
-      "./adapters/ChunkedDataAdapter"
-    );
+    const { ChunkedDataAdapter } = await import("./adapters/ChunkedDataAdapter");
     const adapter = new ChunkedDataAdapter(datasetId, fileMap);
 
     await adapter.initialize();

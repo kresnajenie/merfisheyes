@@ -58,16 +58,12 @@ export async function POST(req: NextRequest) {
                     <td style="padding: 8px 0; color: #666; font-weight: 500;">Platform:</td>
                     <td style="padding: 8px 0; color: #333; text-transform: uppercase;">${metadata?.platform || "N/A"}</td>
                   </tr>
-                  ${
-                    metadata?.clusterCount
-                      ? `
+                  ${metadata?.clusterCount ? `
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-weight: 500;">Cluster Columns:</td>
                     <td style="padding: 8px 0; color: #333;">${metadata.clusterCount}</td>
                   </tr>
-                  `
-                      : ""
-                  }
+                  ` : ''}
                   <tr>
                     <td style="padding: 8px 0; color: #666; font-weight: 500;">Dataset ID:</td>
                     <td style="padding: 8px 0; color: #333; font-family: monospace; font-size: 12px;">${datasetId}</td>
