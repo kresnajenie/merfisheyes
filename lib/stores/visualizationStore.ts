@@ -21,6 +21,8 @@ interface VisualizationState {
   selectedCelltypes: Set<string>; // Selected celltypes from the list
   numericalScaleMin: number; // Minimum value for numerical cluster scale
   numericalScaleMax: number; // Maximum value for numerical cluster scale
+  celltypeSearchTerm: string;
+  geneSearchTerm: string;
 
   // Embedding settings
   selectedEmbedding: string | null;
@@ -45,6 +47,8 @@ interface VisualizationState {
   setColorPalette: (palette: Record<string, string>) => void;
   setAlphaScale: (alpha: number) => void;
   setSizeScale: (size: number) => void;
+  setCelltypeSearchTerm: (value: string) => void;
+  setGeneSearchTerm: (value: string) => void;
   reset: () => void;
 }
 
@@ -59,6 +63,8 @@ const initialState = {
   selectedCelltypes: new Set<string>(),
   numericalScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
   numericalScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
+  celltypeSearchTerm: "",
+  geneSearchTerm: "",
   selectedEmbedding: null,
   colorPalette: {},
   alphaScale: VISUALIZATION_CONFIG.POINT_BASE_ALPHA,
@@ -230,6 +236,14 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 
   setSizeScale: (size) => {
     set({ sizeScale: Math.max(0.1, size) }); // Minimum 0.1
+  },
+
+  setCelltypeSearchTerm: (value) => {
+    set({ celltypeSearchTerm: value });
+  },
+
+  setGeneSearchTerm: (value) => {
+    set({ geneSearchTerm: value });
   },
 
   reset: () => {
