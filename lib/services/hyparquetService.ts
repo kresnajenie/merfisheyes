@@ -1,16 +1,6 @@
 // lib/services/hyparquetService.ts
-import { parquetRead } from "hyparquet";
+import { parquetRead, type ColumnData } from "hyparquet";
 import { compressors } from "hyparquet-compressors";
-
-/**
- * Column data structure returned by onPage callback from hyparquet
- */
-interface ColumnData {
-  columnName: string;
-  columnData: ArrayLike<any>;
-  rowStart: number;
-  rowEnd: number;
-}
 
 /**
  * Service for reading parquet files using hyparquet
