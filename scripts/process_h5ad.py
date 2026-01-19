@@ -66,10 +66,86 @@ def determine_chunk_size(num_genes: int, custom_chunk_size: Optional[int] = None
         return 1000
 
 
-def is_categorical(values: np.ndarray) -> bool:
-    """Determine if data is categorical (≤100 unique values)"""
-    unique_count = len(np.unique(values))
-    return unique_count <= 100
+def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> bool:
+    """
+    Determine if data is categorical or numerical
+
+    Algorithm:
+    1. Always treat columns named "leiden" or "louvain" as categorical
+    2. Check if values look like floats → numerical
+    3. For integer-like values: if ≥80% are unique → numerical, otherwise categorical
+    4. For non-numeric strings → categorical
+
+    Args:
+        values: Array of column values
+        column_name: Optional column name (for special cases like "leiden")
+
+    Returns:
+        True if categorical, False if numerical
+    """
+    if not isinstance(values, np.ndarray):
+        values = np.asarray(values)
+
+    series = pd.Series(values)
+
+    # Special case: leiden/louvain columns are always categorical
+    if column_name:
+        lower_name = column_name.lower()
+        if "leiden" in lower_name or "louvain" in lower_name:
+            return True
+
+    # Filter out null/NaN values for analysis
+    valid_series = series.dropna()
+    if len(valid_series) == 0:
+        return False
+
+    # Check if values look like floats
+    if pd.api.types.is_float_dtype(valid_series):
+        # Check if any values have fractional parts
+        float_count = 0
+        sample_size = min(1000, len(valid_series))
+        sample = valid_series.sample(n=sample_size, random_state=42) if len(valid_series) > sample_size else valid_series
+
+        for val in sample:
+            if isinstance(val, (float, np.floating)) and not float(val).is_integer():
+                float_count += 1
+
+        float_ratio = float_count / len(sample)
+
+        # If majority (>50%) are floats with fractional parts → numerical
+        if float_ratio > 0.5:
+            return False
+
+    # Check if values are numeric strings or numbers
+    if series.dtype == "object":
+        # Try to convert to numeric
+        numeric_series = pd.to_numeric(valid_series, errors='coerce')
+        numeric_ratio = numeric_series.notna().sum() / len(valid_series)
+
+        # If not numbers at all (>50% non-numeric) → categorical (string labels)
+        if numeric_ratio < 0.5:
+            return True
+
+        # Check for float-like strings (contain decimal point or scientific notation)
+        float_count = 0
+        sample_size = min(1000, len(valid_series))
+        sample = valid_series.sample(n=sample_size, random_state=42) if len(valid_series) > sample_size else valid_series
+
+        for val in sample:
+            val_str = str(val).strip()
+            if '.' in val_str or 'e' in val_str.lower():
+                float_count += 1
+
+        float_ratio = float_count / len(sample)
+        if float_ratio > 0.5:
+            return False
+
+    # At this point, values are integer-like numbers or integer strings
+    # Check uniqueness ratio: if ≥80% unique → numerical, otherwise categorical
+    unique_count = valid_series.nunique()
+    unique_ratio = unique_count / len(valid_series)
+
+    return unique_ratio < 0.8
 
 
 def normalize_coordinates(coords: np.ndarray) -> Tuple[np.ndarray, float]:
@@ -327,7 +403,7 @@ def process_h5ad(input_path: Path, output_dir: Path, custom_chunk_size: Optional
 
     for col in obs_columns:
         values = adata.obs[col].values
-        categorical = is_categorical(values)
+        categorical = is_categorical(values, col)
 
         # Store metadata
         obs_metadata[col] = {

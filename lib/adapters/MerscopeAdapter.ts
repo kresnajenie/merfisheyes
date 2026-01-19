@@ -1,8 +1,9 @@
 // src/data/adapters/MerscopeAdapter.ts
 import Papa, { ParseResult } from "papaparse";
 
-import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+
+import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 
 interface MerscopeMetadata {
   obsKeys: string[];
@@ -160,6 +161,7 @@ export class MerscopeAdapter {
 
     if (!metaIdKey) {
       const keys = Object.keys(metaRows[0] || {});
+
       if (!keys.length) {
         throw new Error(
           "MERSCOPE: could not find an ID column in cell_metadata.csv",

@@ -83,9 +83,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // Helper function: Create tooltip element
   const createTooltip = (): HTMLDivElement => {
     const tooltip = document.createElement("div");
+
     tooltip.className =
       "absolute bg-black/80 text-white px-2.5 py-1.5 rounded text-sm font-sans pointer-events-none hidden z-[1000] shadow-lg min-w-[80px]";
     document.body.appendChild(tooltip);
+
     return tooltip;
   };
 
@@ -94,6 +96,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     if (!pointCloudRef.current) return "#808080";
     const colorAttr = pointCloudRef.current.geometry.attributes
       .color as THREE.BufferAttribute;
+
     if (!colorAttr) return "#808080";
 
     const r = Math.round(colorAttr.getX(index) * 255);
@@ -110,12 +113,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     // Convert 3D position to screen coordinates
     const vector = position.clone();
+
     vector.project(cameraRef.current);
 
-    const x =
-      (vector.x * 0.5 + 0.5) * rendererRef.current.domElement.clientWidth;
-    const y =
-      (-vector.y * 0.5 + 0.5) * rendererRef.current.domElement.clientHeight;
+    // Get canvas position relative to screen coordinates
+    const rect = rendererRef.current.domElement.getBoundingClientRect();
+
+    const x = (vector.x * 0.5 + 0.5) * rect.width + rect.left;
+    const y = (-vector.y * 0.5 + 0.5) * rect.height + rect.top;
 
     // Get point color (gene gradient color in gene mode)
     const pointColor = getPointColor(index);
@@ -171,6 +176,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         // Categorical cluster: show with color circle from palette (not rendered color)
         const clusterColor =
           colorPaletteRef.current[String(clusterValue)] || "#808080";
+
         tooltipContent = `
           <div class="flex items-center">
             <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
@@ -198,16 +204,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     if (
       !pointCloudRef.current ||
       !cameraRef.current ||
-      !rendererRef.current ||
-      !dataset
+      !rendererRef.current
     )
       return;
 
     // Get current camera position to check if we've moved
     const currentCameraPosition = cameraRef.current.position.clone();
     const cameraHasMoved = !currentCameraPosition.equals(
-      lastCameraPositionRef.current
+      lastCameraPositionRef.current,
     );
+
     lastCameraPositionRef.current.copy(currentCameraPosition);
 
     // Calculate camera distance to determine raycaster parameters
@@ -219,6 +225,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     // When zoomed OUT (large distance) = need LARGER threshold for easier selection
     // Note: threshold is in world space units, so it needs to be VERY small
     let threshold;
+
     if (cameraDistance < 150) {
       // Very close zoom: precise selection
       threshold = 0.1;
@@ -246,7 +253,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     // Check for intersections with the points mesh
     const intersects = raycasterRef.current.intersectObject(
-      pointCloudRef.current
+      pointCloudRef.current,
     );
 
     // If we found an intersection
@@ -263,6 +270,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       if (hoveredPointRef.current !== index) {
         hoveredPointRef.current = index;
         const position = intersects[0].point;
+
         showTooltip(position, index);
       }
     } else {
@@ -290,10 +298,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     // If dataset is provided, use its spatial coordinates
     if (dataset) {
-      console.log("dataset");
-      console.log("Creating point cloud from dataset:", dataset.name);
-      console.log("Point count:", dataset.getPointCount());
-      console.log("Spatial dimensions:", dataset.spatial.dimensions);
 
       // Calculate bounding box and center of spatial data
       const bounds = {
@@ -322,14 +326,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         ((bounds.minY + bounds.maxY) / 2) * 500,
         dataset.spatial.dimensions === 3
           ? ((bounds.minZ + bounds.maxZ) / 2) * 500
-          : 0
+          : 0,
       );
 
       // Calculate size of data
       const size = Math.max(
         (bounds.maxX - bounds.minX) * 500,
         (bounds.maxY - bounds.minY) * 500,
-        dataset.spatial.dimensions === 3 ? (bounds.maxZ - bounds.minZ) * 500 : 0
+        dataset.spatial.dimensions === 3
+          ? (bounds.maxZ - bounds.minZ) * 500
+          : 0,
       );
 
       // Position camera at appropriate distance
@@ -337,7 +343,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const cameraPos = new THREE.Vector3(
         center.x,
         center.y,
-        center.z + distance
+        center.z + distance,
       );
 
       // Initialize Three.js scene with options
@@ -347,7 +353,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           is2D: dataset.spatial.dimensions === 2,
           cameraPosition: cameraPos,
           lookAtPosition: center,
-        }
+        },
       );
 
       // Store camera and renderer refs for raycasting
@@ -366,12 +372,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // Mouse move handler
       const handleMouseMove = (event: MouseEvent) => {
         const rect = renderer.domElement.getBoundingClientRect();
+
         mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouseRef.current.y =
           -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         // Throttle intersection checking
         const now = Date.now();
+
         if (now - lastCheckTime > throttleDelay) {
           lastCheckTime = now;
           checkIntersections();
@@ -384,12 +392,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           const index = hoveredPointRef.current;
           const clusterValue = clusterValuesRef.current[index];
           const clusterValueStr = String(clusterValue);
-
-          console.log("Double-clicked cluster:", {
-            column: selectedColumnRef.current,
-            value: clusterValue,
-            index: index,
-          });
 
           // Only toggle celltype if it's not a numerical cluster
           if (!isNumericalClusterRef.current) {
@@ -415,10 +417,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           b: Math.random(),
           size: 1.0,
           alpha: 1.0,
-        })
+        }),
       );
-
-      console.log("Point data created:", pointData.length, "points");
 
       // Create point cloud mesh with custom shaders
       const pointCloud = createPointCloud(pointData, 5);
@@ -449,8 +449,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         dispose();
       };
     } else {
-      console.log("No dataset provided to ThreeScene");
-
       // Initialize scene without dataset
       const { animate, dispose } = initializeScene(containerRef.current);
 
@@ -467,15 +465,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   useEffect(() => {
     if (!pointCloudRef.current || !dataset) return;
 
-    console.log("Updating visualization with mode:", mode);
-
     const updateVisualization = async () => {
       if (!pointCloudRef.current || !dataset) return;
 
       // Store cluster data for tooltip
       const selectedCluster = dataset.clusters?.find(
-        (c) => c.column === selectedColumn
+        (c) => c.column === selectedColumn,
       );
+
       if (selectedCluster) {
         clusterValuesRef.current = selectedCluster.values;
         isNumericalClusterRef.current = selectedCluster.type === "numerical";
@@ -493,12 +490,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Check if gene has changed (for auto-scaling)
       const geneChanged = previousGeneRef.current !== selectedGene;
+
       if (geneChanged) {
         previousGeneRef.current = selectedGene;
       }
 
       // Check if column has changed (for auto-scaling numerical columns)
       const columnChanged = previousColumnRef.current !== selectedColumn;
+
       if (columnChanged) {
         previousColumnRef.current = selectedColumn;
       }
@@ -510,13 +509,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         selectedCelltypes.size > 0
       ) {
         // Combined mode: gene expression on selected celltypes
-        console.log("Using combined gene + celltype visualization");
-
         try {
           setIsLoadingGene(true);
 
           // Fetch gene expression data for tooltip
           const expression = await dataset.getGeneExpression(selectedGene);
+
           geneExpressionRef.current = expression;
 
           result = await updateCombinedVisualization(
@@ -530,20 +528,19 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneScaleMax,
             // Only auto-set scale when gene changes, not when user manually adjusts
             geneChanged ? setGeneScaleMin : undefined,
-            geneChanged ? setGeneScaleMax : undefined
+            geneChanged ? setGeneScaleMax : undefined,
           );
         } finally {
           setIsLoadingGene(false);
         }
       } else if (hasGeneMode && selectedGene) {
         // Gene mode only
-        console.log("Using gene-only visualization");
-
         try {
           setIsLoadingGene(true);
 
           // Fetch gene expression data for tooltip
           const expression = await dataset.getGeneExpression(selectedGene);
+
           geneExpressionRef.current = expression;
 
           result = await updateGeneVisualization(
@@ -555,14 +552,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneScaleMax,
             // Only auto-set scale when gene changes, not when user manually adjusts
             geneChanged ? setGeneScaleMin : undefined,
-            geneChanged ? setGeneScaleMax : undefined
+            geneChanged ? setGeneScaleMax : undefined,
           );
         } finally {
           setIsLoadingGene(false);
         }
       } else if (hasCelltypeMode) {
         // Celltype mode only
-        console.log("Using celltype-only visualization");
         setIsLoadingGene(false);
 
         // Use appropriate visualization function based on column type
@@ -576,7 +572,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               numericalScaleMax,
               // Only auto-set scale when column changes, not when user manually adjusts
               columnChanged ? setNumericalScaleMin : undefined,
-              columnChanged ? setNumericalScaleMax : undefined
+              columnChanged ? setNumericalScaleMax : undefined,
             )
           : updateCelltypeVisualization(
               dataset,
@@ -584,7 +580,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               selectedCelltypes,
               colorPalette,
               alphaScale,
-              sizeScale
+              sizeScale,
             );
       }
 
@@ -594,7 +590,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           pointCloudRef.current,
           result.colors,
           result.sizes,
-          result.alphas
+          result.alphas,
         );
       }
     };

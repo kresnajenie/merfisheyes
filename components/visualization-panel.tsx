@@ -20,7 +20,11 @@ interface VisualizationPanelProps {
   controlsRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function VisualizationPanel({ mode, onClose, controlsRef }: VisualizationPanelProps) {
+export function VisualizationPanel({
+  mode,
+  onClose,
+  controlsRef,
+}: VisualizationPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100; // Show 100 items per page
@@ -34,7 +38,16 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
     toggleCelltype,
     setSelectedGene,
     setMode,
+    celltypeSearchTerm,
+    geneSearchTerm,
+    setCelltypeSearchTerm,
+    setGeneSearchTerm,
   } = useVisualizationStore();
+
+  const currentSearchTerm =
+    mode === "celltype" ? celltypeSearchTerm : geneSearchTerm;
+  const updateSearchTerm =
+    mode === "celltype" ? setCelltypeSearchTerm : setGeneSearchTerm;
 
   // Handle click outside to close panel
   useEffect(() => {
@@ -86,7 +99,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
     if (!dataset?.clusters || !selectedColumn) return false;
 
     const selectedCluster = dataset.clusters.find(
-      (c) => c.column === selectedColumn,
+      (c) => c.column === selectedColumn
     );
 
     return selectedCluster?.type === "numerical";
@@ -103,7 +116,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
 
         // Find the cluster data for the selected column
         const selectedCluster = dataset.clusters.find(
-          (c) => c.column === selectedColumn,
+          (c) => c.column === selectedColumn
         );
 
         if (!selectedCluster) return [];
@@ -147,13 +160,13 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
   }, [dataset, mode, selectedColumn]);
 
   const filteredItems = items.filter((item) =>
-    item.label.toLowerCase().includes(searchTerm.toLowerCase()),
+    item.label.toLowerCase().includes(currentSearchTerm.toLowerCase())
   );
 
   // Reset to page 1 when search term changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, mode]);
+  }, [currentSearchTerm, mode]);
 
   // Pagination logic
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -190,7 +203,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
             onSelectionChange={(key) => {
               const columnKey = (key as string) || null;
               const selectedCluster = dataset?.clusters?.find(
-                (c) => c.column === columnKey,
+                (c) => c.column === columnKey
               );
               const isNumerical = selectedCluster?.type === "numerical";
 
@@ -218,8 +231,8 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
                 input: "text-sm",
               }}
               placeholder={`Search ${getTitle()}`}
-              value={searchTerm}
-              onValueChange={setSearchTerm}
+              value={currentSearchTerm}
+              onValueChange={updateSearchTerm}
             />
 
             {/* Clear Button */}
@@ -228,7 +241,7 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
               color="danger"
               variant="ghost"
               onPress={() => {
-                setSearchTerm("");
+                updateSearchTerm("");
                 if (mode === "celltype") {
                   // Clear all selected celltypes
                   useVisualizationStore.setState({
@@ -246,7 +259,9 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
             {/* Pagination Info */}
             {filteredItems.length > itemsPerPage && (
               <div className="text-xs text-default-500 text-center">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredItems.length)} of {filteredItems.length}
+                Showing {startIndex + 1}-
+                {Math.min(endIndex, filteredItems.length)} of{" "}
+                {filteredItems.length}
               </div>
             )}
 
@@ -311,7 +326,9 @@ export function VisualizationPanel({ mode, onClose, controlsRef }: Visualization
                   isDisabled={currentPage === totalPages}
                   size="sm"
                   variant="flat"
-                  onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onPress={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                 >
                   Next
                 </Button>

@@ -58,9 +58,7 @@ export function getColorFromPalette(index: number): string {
  * Generate a color palette for a list of unique values
  * Returns a map of value -> color
  */
-export function generateColorPalette(
-  values: string[]
-): Record<string, string> {
+export function generateColorPalette(values: string[]): Record<string, string> {
   const palette: Record<string, string> = {};
 
   values.forEach((value, index) => {

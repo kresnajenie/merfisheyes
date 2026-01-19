@@ -6,6 +6,7 @@ import { XeniumAdapter } from "../adapters/XeniumAdapter";
 import { MerscopeAdapter } from "../adapters/MerscopeAdapter";
 import { ChunkedDataAdapter } from "../adapters/ChunkedDataAdapter";
 import { normalizeCoordinates } from "../utils/coordinates";
+import { isCategorical } from "../utils/column-type-detection";
 
 /**
  * Progress callback type that can be proxied by Comlink
@@ -17,18 +18,10 @@ type ProgressCallback = (
 
 /**
  * Determine if data is categorical or numerical
- * (Same logic as H5adAdapter.isCategoricalData)
+ * Now uses centralized detection logic from column-type-detection utility
  */
-function isCategoricalData(values: any[]): boolean {
-  if (!values || values.length === 0) return false;
-
-  // Check if numerical values have limited unique values (threshold: 100)
-  const uniqueValues = new Set(values);
-
-  if (uniqueValues.size <= 100) return true;
-
-  // If more than 100 unique values, treat as continuous/numerical
-  return false;
+function isCategoricalData(values: any[], columnName?: string): boolean {
+  return isCategorical(values, columnName);
 }
 
 /**
@@ -106,6 +99,7 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(99, "Loading expression matrix...");
     const matrix = adapter.fetchFullMatrix();
+
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates
@@ -179,9 +173,13 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values) ? "categorical" : "numerical",
+            type: isCategoricalData(clusterData.values, clusterData.column)
+              ? "categorical"
+              : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values) ? clusterData.palette : null,
+            palette: isCategoricalData(clusterData.values, clusterData.column)
+              ? clusterData.palette
+              : null,
           },
         ]
       : null;
@@ -193,6 +191,7 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(99, "Loading expression matrix...");
     const matrix = adapter.fetchFullMatrix();
+
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates
@@ -276,9 +275,13 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values) ? "categorical" : "numerical",
+            type: isCategoricalData(clusterData.values, clusterData.column)
+              ? "categorical"
+              : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values) ? clusterData.palette : null,
+            palette: isCategoricalData(clusterData.values, clusterData.column)
+              ? clusterData.palette
+              : null,
           },
         ]
       : null;
@@ -290,6 +293,7 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(99, "Loading expression matrix...");
     const matrix = adapter.fetchFullMatrix();
+
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates
@@ -366,6 +370,7 @@ const workerApi = {
     // Load expression matrix for gene visualization
     await onProgress?.(95, "Loading expression matrix...");
     const matrix = await adapter.fetchFullMatrix();
+
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates

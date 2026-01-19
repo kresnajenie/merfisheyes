@@ -1,11 +1,19 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneScalebar } from "@/components/gene-scalebar";
+import {
+  ColorPicker,
+  ColorPickerEyeDropper,
+  ColorPickerHue,
+  ColorPickerOutput,
+  ColorPickerSelection,
+} from "@/components/ui/shadcn-io/color-picker";
 
 export const VisualizationLegends: React.FC = () => {
   const {
@@ -23,26 +31,90 @@ export const VisualizationLegends: React.FC = () => {
     numericalScaleMax,
     setNumericalScaleMin,
     setNumericalScaleMax,
+    colorPalette: storeColorPalette,
+    setColorPalette,
   } = useVisualizationStore();
 
   const { getCurrentDataset } = useDatasetStore();
   const dataset = getCurrentDataset();
+  const [openPopoverCelltype, setOpenPopoverCelltype] = useState<string | null>(
+    null
+  );
 
-  // Get the palette from the dataset's cluster data
-  const colorPalette = useMemo(() => {
-    if (!dataset || !selectedColumn) return {};
+  // Sync palette with selected cluster + local overrides
+  useEffect(() => {
+    if (!dataset || !selectedColumn) {
+      setColorPalette({});
+      return;
+    }
 
-    // Check if dataset has clusters property (StandardizedDataset)
-    if (!("clusters" in dataset)) return {};
+    if (!("clusters" in dataset)) {
+      setColorPalette({});
+      return;
+    }
 
-    // Type-narrow to StandardizedDataset
     const standardizedDataset = dataset as StandardizedDataset;
     const selectedCluster = standardizedDataset.clusters?.find(
       (c) => c.column === selectedColumn
     );
 
-    return selectedCluster?.palette || {};
-  }, [dataset, selectedColumn]);
+    if (!selectedCluster) {
+      setColorPalette({});
+      return;
+    }
+
+    let palette = { ...(selectedCluster.palette || {}) };
+    const storageKey = `cluster_palette_${standardizedDataset.id}_${selectedColumn}`;
+
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const overrides = JSON.parse(stored);
+        palette = { ...palette, ...overrides };
+      }
+    } catch (error) {
+      console.warn(
+        "[VisualizationLegends] Failed to load palette overrides:",
+        error
+      );
+    }
+
+    selectedCluster.palette = palette;
+    setColorPalette(palette);
+  }, [dataset, selectedColumn, setColorPalette]);
+
+  const handleClusterColorChange = useCallback(
+    (celltype: string, color: string) => {
+      if (!dataset || !selectedColumn) return;
+      if (!("clusters" in dataset)) return;
+
+      const standardizedDataset = dataset as StandardizedDataset;
+      const selectedCluster = standardizedDataset.clusters?.find(
+        (c) => c.column === selectedColumn
+      );
+
+      if (!selectedCluster) return;
+
+      const updatedPalette = {
+        ...(selectedCluster.palette || {}),
+        [celltype]: color,
+      };
+
+      selectedCluster.palette = updatedPalette;
+      setColorPalette(updatedPalette);
+
+      const storageKey = `cluster_palette_${standardizedDataset.id}_${selectedColumn}`;
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updatedPalette));
+      } catch (error) {
+        console.warn(
+          "[VisualizationLegends] Failed to persist palette overrides:",
+          error
+        );
+      }
+    },
+    [dataset, selectedColumn, setColorPalette]
+  );
 
   // Check if selected column is numerical
   const isNumericalColumn = useMemo(() => {
@@ -57,41 +129,7 @@ export const VisualizationLegends: React.FC = () => {
     return selectedCluster?.type === "numerical";
   }, [dataset, selectedColumn]);
 
-  // Debug: Log color palette whenever it changes
-  useEffect(() => {
-    console.log("=== VisualizationLegends Debug ===");
-    console.log("dataset:", dataset);
-    console.log("dataset.type:", dataset?.type);
-    console.log(
-      "has clusters property:",
-      dataset ? "clusters" in dataset : false
-    );
-    console.log(
-      "dataset.clusters:",
-      dataset && "clusters" in dataset
-        ? (dataset as StandardizedDataset).clusters
-        : "N/A"
-    );
-    console.log("selectedColumn:", selectedColumn);
-
-    if (dataset && "clusters" in dataset) {
-      const standardizedDataset = dataset as StandardizedDataset;
-      const selectedCluster = standardizedDataset.clusters?.find(
-        (c) => c.column === selectedColumn
-      );
-      console.log("selectedCluster:", selectedCluster);
-      console.log("selectedCluster.palette:", selectedCluster?.palette);
-    }
-
-    console.log("colorPalette:", colorPalette);
-    console.log("selectedCelltypes:", Array.from(selectedCelltypes));
-
-    // Log colors for each selected celltype
-    Array.from(selectedCelltypes).forEach((celltype) => {
-      const color = colorPalette[celltype];
-      console.log(`Color for "${celltype}":`, color || "NOT FOUND");
-    });
-  }, [dataset, colorPalette, selectedCelltypes, selectedColumn]);
+  // Debug logging removed for performance
 
   // Don't render if nothing is selected
   const hasGene = !!selectedGene;
@@ -130,17 +168,17 @@ export const VisualizationLegends: React.FC = () => {
         <div className="flex flex-col items-end">
           {mode.includes("gene") && selectedGene ? (
             <GeneScalebar
-              minValue={geneScaleMin}
               maxValue={geneScaleMax}
-              onMinChange={setGeneScaleMin}
+              minValue={geneScaleMin}
               onMaxChange={setGeneScaleMax}
+              onMinChange={setGeneScaleMin}
             />
           ) : (
             <GeneScalebar
-              minValue={numericalScaleMin}
               maxValue={numericalScaleMax}
-              onMinChange={setNumericalScaleMin}
+              minValue={numericalScaleMin}
               onMaxChange={setNumericalScaleMax}
+              onMinChange={setNumericalScaleMin}
             />
           )}
         </div>
@@ -163,28 +201,70 @@ export const VisualizationLegends: React.FC = () => {
           </div>
           <div className="flex flex-col items-end gap-2 max-h-96 overflow-y-auto">
             {Array.from(selectedCelltypes).map((celltype) => {
-              const color = colorPalette[celltype] || "#888888";
+              const color = storeColorPalette[celltype] || "#888888";
 
               return (
-                <div
+                <Popover
                   key={celltype}
-                  className="group flex items-center gap-2 px-4 py-2 rounded-full transition-colors cursor-pointer"
-                  style={{
-                    backgroundColor: `${color}`, // 70% opacity (B3 in hex)
+                  isOpen={openPopoverCelltype === celltype}
+                  onOpenChange={(open) => {
+                    if (!open) setOpenPopoverCelltype(null);
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = color;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = `${color}B3`;
-                  }}
-                  onClick={() => toggleCelltype(celltype)}
                 >
-                  <span className="text-xs font-medium text-black">
-                    {celltype}
-                  </span>
-                  <X className="w-2 h-2 text-black/70 group-hover:text-black" />
-                </div>
+                  <PopoverTrigger>
+                    <div
+                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer opacity-70 hover:opacity-100"
+                      style={{
+                        backgroundColor: color,
+                      }}
+                      onClick={() => setOpenPopoverCelltype(celltype)}
+                    >
+                      <span className="text-xs font-medium text-black">
+                        {celltype}
+                      </span>
+                      <X
+                        className="w-2 h-2 text-black/70 group-hover:text-black"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCelltype(celltype);
+                        }}
+                      />
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="!bg-[rgba(0,0,0,0.4)] backdrop-blur-[50px] border-white/20 p-3 w-64">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold">{celltype}</h4>
+                        <button
+                          type="button"
+                          className="text-xs text-white/70 hover:text-white transition-colors"
+                          onClick={() => setOpenPopoverCelltype(null)}
+                        >
+                          Close
+                        </button>
+                      </div>
+                      <ColorPicker
+                        key={celltype}
+                        value={color}
+                        onChange={(value) =>
+                          handleClusterColorChange(celltype, value)
+                        }
+                        className="rounded-md p-2"
+                      >
+                        <ColorPickerSelection />
+                        <div className="flex items-center gap-2 mt-2">
+                          <ColorPickerEyeDropper />
+                          <div className="grid w-full gap-1">
+                            <ColorPickerHue />
+                          </div>
+                        </div>
+                        <div className="mt-2 text-center">
+                          <ColorPickerOutput />
+                        </div>
+                      </ColorPicker>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               );
             })}
           </div>

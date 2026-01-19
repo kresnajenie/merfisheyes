@@ -7,6 +7,7 @@
 import h5wasm from "h5wasm";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { isCategorical as detectCategorical } from "../utils/column-type-detection";
 
 // async function loadH5wasm() {
 //   if (h5wasm) return h5wasm;
@@ -433,20 +434,10 @@ export class H5adAdapter {
 
   /**
    * Determine if data is categorical or numerical
+   * Uses centralized detection logic from column-type-detection utility
    */
-  isCategoricalData(values: any[]): boolean {
-    if (!values || values.length === 0) return false;
-
-    // Check if values are strings
-    // if (typeof values[0] === "string") return true;
-
-    // Check if numerical values have limited unique values (threshold: 50)
-    const uniqueValues = new Set(values);
-
-    if (uniqueValues.size <= 100) return true;
-
-    // If more than 50 unique numerical values, treat as continuous
-    return false;
+  isCategoricalData(values: any[], columnName?: string): boolean {
+    return detectCategorical(values, columnName);
   }
 
   /**
@@ -456,8 +447,8 @@ export class H5adAdapter {
     try {
       const values = await this.fetchObs(columnName);
 
-      // Determine if categorical or numerical
-      const isCategorical = this.isCategoricalData(values);
+      // Determine if categorical or numerical (pass columnName for special cases)
+      const isCategorical = this.isCategoricalData(values, columnName);
 
       if (isCategorical) {
         const palette = await this.loadClusterPalette(columnName);

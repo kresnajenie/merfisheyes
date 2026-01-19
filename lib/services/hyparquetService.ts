@@ -3,7 +3,9 @@ import { parquetRead } from "hyparquet";
 import { compressors } from "hyparquet-compressors";
 
 /**
- * Column data structure returned by onPage callback from hyparquet
+ * Column data structure from hyparquet onPage callback
+ * Note: We define this locally to ensure type compatibility across environments
+ * as hyparquet's exported types can vary between TypeScript versions
  */
 interface ColumnData {
   columnName: string;
@@ -70,10 +72,12 @@ class HyparquetService {
     let lastReportedProgress = 10;
 
     // Read parquet file with onPage callback
+    // Note: Type assertion needed due to hyparquet type resolution differences between environments
+    // Runtime provides ColumnData with columnName, but some environments resolve to SubColumnData
     await parquetRead({
       file: arrayBuffer,
       compressors,
-      onPage: (page: ColumnData) => {
+      onPage: ((page: ColumnData) => {
         const columnName = page.columnName;
 
         // Only process requested columns
@@ -96,7 +100,7 @@ class HyparquetService {
           }
         }
         // Silently skip unwanted columns - no processing, no progress reporting
-      },
+      }) as any,
     });
 
     await onProgress?.(25, "Combining column data...");

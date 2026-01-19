@@ -100,7 +100,12 @@ export function UploadSettingsModal({
     setProgressMessage("Generating fingerprint...");
 
     try {
-      let filesToUpload: Array<{ key: string; blob: Blob; size: number; contentType: string }>;
+      let filesToUpload: Array<{
+        key: string;
+        blob: Blob;
+        size: number;
+        contentType: string;
+      }>;
       let datasetId: string;
       let fingerprint: string;
 
@@ -112,7 +117,9 @@ export function UploadSettingsModal({
         const manifest = (dataset as any).manifestData;
 
         if (!chunkedFiles || !manifest) {
-          throw new Error("Pre-chunked dataset is missing file map or manifest data");
+          throw new Error(
+            "Pre-chunked dataset is missing file map or manifest data",
+          );
         }
 
         // Generate fingerprint from manifest (simpler for pre-chunked)
@@ -122,7 +129,10 @@ export function UploadSettingsModal({
           genes: manifest.statistics.total_genes,
           type: dataset.type,
           genes_list: dataset.genes.sort().join(","),
-          clusters: dataset.clusters?.map((c) => c.column).sort().join(","),
+          clusters: dataset.clusters
+            ?.map((c) => c.column)
+            .sort()
+            .join(","),
         });
 
         // Hash the manifest string to create a proper fingerprint
@@ -130,9 +140,15 @@ export function UploadSettingsModal({
         const data = encoder.encode(manifestString);
         const hashBuffer = await crypto.subtle.digest("SHA-256", data);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-        fingerprint = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
-        console.log("Pre-chunked dataset fingerprint:", fingerprint.substring(0, 50));
+        fingerprint = hashArray
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+
+        console.log(
+          "Pre-chunked dataset fingerprint:",
+          fingerprint.substring(0, 50),
+        );
 
         // Check for duplicates
         setProgressMessage("Checking for duplicates...");
@@ -169,7 +185,11 @@ export function UploadSettingsModal({
         filesToUpload = [];
 
         // Add manifest
-        const manifestBlob = new Blob([JSON.stringify(updatedManifest, null, 2)], { type: "application/json" });
+        const manifestBlob = new Blob(
+          [JSON.stringify(updatedManifest, null, 2)],
+          { type: "application/json" },
+        );
+
         filesToUpload.push({
           key: "manifest.json",
           blob: manifestBlob,
@@ -189,7 +209,9 @@ export function UploadSettingsModal({
           }
         }
 
-        console.log(`Prepared ${filesToUpload.length} pre-chunked files for upload`);
+        console.log(
+          `Prepared ${filesToUpload.length} pre-chunked files for upload`,
+        );
         setProgress(55);
       } else {
         // Regular dataset - process and chunk
@@ -335,7 +357,12 @@ export function UploadSettingsModal({
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return (
-    <Modal isOpen={isOpen} size="2xl" onClose={onClose}>
+    <Modal
+      classNames={{ wrapper: "z-[10000]" }}
+      isOpen={isOpen}
+      size="2xl"
+      onClose={onClose}
+    >
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           {uploadComplete ? "Upload Successful!" : "Upload Dataset Settings"}
@@ -428,7 +455,8 @@ export function UploadSettingsModal({
               {isPreChunked && (
                 <div className="bg-primary-50 dark:bg-primary-950 p-3 rounded-lg">
                   <p className="text-sm text-primary-600 dark:text-primary-400">
-                    ✓ This dataset is pre-chunked and ready for upload. No processing needed.
+                    ✓ This dataset is pre-chunked and ready for upload. No
+                    processing needed.
                   </p>
                 </div>
               )}
@@ -461,7 +489,8 @@ export function UploadSettingsModal({
                     )}
                     {isPreChunked && (
                       <p>
-                        <span className="font-medium">Status:</span> Pre-chunked (ready for upload)
+                        <span className="font-medium">Status:</span> Pre-chunked
+                        (ready for upload)
                       </p>
                     )}
                   </div>

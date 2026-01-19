@@ -3,7 +3,7 @@
 import type { VisualizationMode } from "@/lib/stores/visualizationStore";
 
 import { Button } from "@heroui/button";
-import { Slider } from "@heroui/slider";
+import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useRef } from "react";
 
@@ -11,6 +11,7 @@ import { VisualizationPanel } from "./visualization-panel";
 
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { glassButton } from "@/components/primitives";
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 export function VisualizationControls() {
   const { panelMode, setPanelMode, sizeScale, setSizeScale } =
@@ -32,7 +33,10 @@ export function VisualizationControls() {
   const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
 
   return (
-    <div ref={controlsRef} className="fixed top-28 left-4 z-50 flex flex-col gap-2">
+    <div
+      ref={controlsRef}
+      className="fixed top-28 left-4 z-50 flex flex-col gap-2"
+    >
       {/* Celltype Button */}
       <Button
         className={`${buttonBaseClass} ${isPanelOpen && panelMode === "celltype" ? "" : glassButton()}`}
@@ -61,11 +65,11 @@ export function VisualizationControls() {
           <Slider
             aria-label="Dot size"
             className="h-full"
-            maxValue={3}
-            minValue={0.1}
+            maxValue={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX}
+            minValue={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN}
             orientation="vertical"
             size="sm"
-            step={0.1}
+            step={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP}
             value={sizeScale}
             onChange={(value) => setSizeScale(value as number)}
           />
@@ -75,9 +79,9 @@ export function VisualizationControls() {
       {/* Visualization Panel */}
       {isPanelOpen && (
         <VisualizationPanel
+          controlsRef={controlsRef}
           mode={panelMode}
           onClose={() => setIsPanelOpen(false)}
-          controlsRef={controlsRef}
         />
       )}
     </div>
