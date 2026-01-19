@@ -72,10 +72,12 @@ class HyparquetService {
     let lastReportedProgress = 10;
 
     // Read parquet file with onPage callback
+    // Note: Type assertion needed due to hyparquet type resolution differences between environments
+    // Runtime provides ColumnData with columnName, but some environments resolve to SubColumnData
     await parquetRead({
       file: arrayBuffer,
       compressors,
-      onPage: (page: ColumnData) => {
+      onPage: ((page: ColumnData) => {
         const columnName = page.columnName;
 
         // Only process requested columns
@@ -98,7 +100,7 @@ class HyparquetService {
           }
         }
         // Silently skip unwanted columns - no processing, no progress reporting
-      },
+      }) as any,
     });
 
     await onProgress?.(25, "Combining column data...");
