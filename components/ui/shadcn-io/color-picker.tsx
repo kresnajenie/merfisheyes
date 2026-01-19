@@ -14,7 +14,7 @@ import {
 } from "react";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
-import { Slider } from "@heroui/slider";
+import { Slider } from "@heroui/react";
 import { Select, SelectItem } from "@heroui/select";
 
 import { cn } from "@/lib/utils";

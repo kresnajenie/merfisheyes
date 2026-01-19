@@ -3,7 +3,7 @@
 import type { VisualizationMode } from "@/lib/stores/visualizationStore";
 
 import { Button } from "@heroui/button";
-import { Slider } from "@heroui/slider";
+import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useRef } from "react";
 

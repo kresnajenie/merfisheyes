@@ -6,7 +6,7 @@ import { Checkbox } from "@heroui/checkbox";
 import { Tooltip } from "@heroui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 import { Button } from "@heroui/button";
-import { Slider } from "@heroui/slider";
+import { Slider } from "@heroui/react";
 
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
