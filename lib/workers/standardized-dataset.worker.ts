@@ -6,6 +6,7 @@ import { XeniumAdapter } from "../adapters/XeniumAdapter";
 import { MerscopeAdapter } from "../adapters/MerscopeAdapter";
 import { ChunkedDataAdapter } from "../adapters/ChunkedDataAdapter";
 import { normalizeCoordinates } from "../utils/coordinates";
+import { isCategorical } from "../utils/column-type-detection";
 
 /**
  * Progress callback type that can be proxied by Comlink
@@ -17,18 +18,10 @@ type ProgressCallback = (
 
 /**
  * Determine if data is categorical or numerical
- * (Same logic as H5adAdapter.isCategoricalData)
+ * Now uses centralized detection logic from column-type-detection utility
  */
-function isCategoricalData(values: any[]): boolean {
-  if (!values || values.length === 0) return false;
-
-  // Check if numerical values have limited unique values (threshold: 100)
-  const uniqueValues = new Set(values);
-
-  if (uniqueValues.size <= 100) return true;
-
-  // If more than 100 unique values, treat as continuous/numerical
-  return false;
+function isCategoricalData(values: any[], columnName?: string): boolean {
+  return isCategorical(values, columnName);
 }
 
 /**
@@ -180,11 +173,11 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values)
+            type: isCategoricalData(clusterData.values, clusterData.column)
               ? "categorical"
               : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values)
+            palette: isCategoricalData(clusterData.values, clusterData.column)
               ? clusterData.palette
               : null,
           },
@@ -282,11 +275,11 @@ const workerApi = {
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values)
+            type: isCategoricalData(clusterData.values, clusterData.column)
               ? "categorical"
               : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values)
+            palette: isCategoricalData(clusterData.values, clusterData.column)
               ? clusterData.palette
               : null,
           },
