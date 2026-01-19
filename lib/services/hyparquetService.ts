@@ -1,5 +1,5 @@
 // lib/services/hyparquetService.ts
-import { parquetRead, type ColumnData } from "hyparquet";
+import { parquetRead } from "hyparquet";
 import { compressors } from "hyparquet-compressors";
 
 /**
@@ -63,7 +63,7 @@ class HyparquetService {
     await parquetRead({
       file: arrayBuffer,
       compressors,
-      onPage: (page: ColumnData) => {
+      onPage: (page) => {
         const columnName = page.columnName;
 
         // Only process requested columns
