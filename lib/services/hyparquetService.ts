@@ -3,6 +3,18 @@ import { parquetRead } from "hyparquet";
 import { compressors } from "hyparquet-compressors";
 
 /**
+ * Column data structure from hyparquet onPage callback
+ * Note: We define this locally to ensure type compatibility across environments
+ * as hyparquet's exported types can vary between TypeScript versions
+ */
+interface ColumnData {
+  columnName: string;
+  columnData: ArrayLike<any>;
+  rowStart: number;
+  rowEnd: number;
+}
+
+/**
  * Service for reading parquet files using hyparquet
  */
 class HyparquetService {
@@ -63,7 +75,7 @@ class HyparquetService {
     await parquetRead({
       file: arrayBuffer,
       compressors,
-      onPage: (page) => {
+      onPage: (page: ColumnData) => {
         const columnName = page.columnName;
 
         // Only process requested columns
