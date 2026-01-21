@@ -33,7 +33,7 @@ interface ColorPickerContextValue {
 }
 
 const ColorPickerContext = createContext<ColorPickerContextValue | undefined>(
-  undefined
+  undefined,
 );
 
 export const useColorPicker = () => {
@@ -106,7 +106,7 @@ export const ColorPicker = ({
       setAlpha,
       setMode,
     }),
-    [hue, saturation, lightness, alpha, mode]
+    [hue, saturation, lightness, alpha, mode],
   );
 
   return (
@@ -170,7 +170,7 @@ export const ColorPickerSelection = () => {
       setSaturation(saturationValue);
       setLightness(lightnessValue);
     },
-    [setSaturation, setLightness]
+    [setSaturation, setLightness],
   );
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -225,14 +225,14 @@ export const ColorPickerHue = () => {
       }}
       maxValue={360}
       minValue={0}
-      value={hue}
-      onChange={(value) => setHue(value as number)}
       renderThumb={(props) => (
         <div
           {...props}
           className="h-5 w-5 rounded-full bg-white border-2 border-gray-300 shadow-md"
         />
       )}
+      value={hue}
+      onChange={(value) => setHue(value as number)}
     />
   );
 };
@@ -262,7 +262,7 @@ export const ColorPickerOutput = () => {
   const { hue, saturation, lightness, mode } = useColorPicker();
   const color = useMemo(
     () => Color.hsl(hue, saturation, lightness),
-    [hue, saturation, lightness]
+    [hue, saturation, lightness],
   );
 
   const outputValue = useMemo(() => {

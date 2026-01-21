@@ -279,7 +279,13 @@ function HomeContent() {
                   : "hidden lg:block lg:opacity-0 lg:scale-90 lg:pointer-events-none",
               )}
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <FileUpload
+                  description="Pre-processed chunked folder"
+                  singleMolecule={true}
+                  title="Chunked Folder"
+                  type="chunked"
+                />
                 <FileUpload
                   description="Select .parquet or .csv file"
                   singleMolecule={true}

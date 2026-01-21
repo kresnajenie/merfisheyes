@@ -812,4 +812,117 @@ export class SingleMoleculeDataset {
 
     return dataset;
   }
+
+  /**
+   * Create SingleMoleculeDataset from locally uploaded chunked folder
+   * Uses ProcessedSingleMoleculeAdapter for lazy loading from local files
+   */
+  static async fromLocalChunked(
+    files: File[],
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<SingleMoleculeDataset> {
+    const startTime = performance.now();
+
+    console.log(
+      "[SingleMoleculeDataset] Loading from local chunked files...",
+      files.length,
+      "files",
+    );
+
+    await onProgress?.(10, "Preparing file map...");
+
+    // Convert File[] to Map<fileKey, File>
+    // File keys should match the structure: manifest.json.gz, genes/GENE1.bin.gz, etc.
+    const fileMap = new Map<string, File>();
+
+    for (const file of files) {
+      // Extract relative path from webkitRelativePath
+      const relativePath = file.webkitRelativePath;
+
+      if (!relativePath) {
+        console.warn("File missing webkitRelativePath:", file.name);
+        continue;
+      }
+
+      // Remove the root folder name to get the file key
+      // e.g., "my_dataset/manifest.json.gz" -> "manifest.json.gz"
+      const parts = relativePath.split("/");
+      const fileKey = parts.slice(1).join("/"); // Remove first part (root folder)
+
+      fileMap.set(fileKey, file);
+      console.log(`  Mapped file: ${fileKey}`);
+    }
+
+    console.log(`  Total files mapped: ${fileMap.size}`);
+
+    // Generate a temporary dataset ID
+    const datasetId = `local_sm_${Date.now()}`;
+
+    await onProgress?.(30, "Initializing adapter...");
+
+    // Create ProcessedSingleMoleculeAdapter in local mode
+    const { ProcessedSingleMoleculeAdapter } = await import(
+      "./adapters/ProcessedSingleMoleculeAdapter"
+    );
+    const adapter = new ProcessedSingleMoleculeAdapter(datasetId, fileMap);
+
+    await adapter.initialize();
+
+    await onProgress?.(60, "Loading manifest...");
+
+    // Get manifest from adapter
+    const manifest = adapter.getManifest();
+
+    await onProgress?.(80, "Creating dataset...");
+
+    // Create empty gene index - genes will be loaded on-demand
+    const geneIndex = new Map<string, number[]>();
+
+    // Create dataset with lazy-loading capability
+    const dataset = new SingleMoleculeDataset({
+      id: datasetId,
+      name: `local_chunked_${Date.now()}`,
+      type: "processed_chunked",
+      uniqueGenes: manifest.uniqueGenes,
+      geneIndex,
+      dimensions: manifest.dimensions,
+      scalingFactor: manifest.scalingFactor,
+      metadata: {
+        loadedFrom: "local_chunked",
+        totalMolecules: manifest.totalMolecules,
+        geneCount: manifest.geneCount,
+        isPreChunked: true, // Mark as pre-chunked
+      },
+      rawData: null,
+    });
+
+    // Override getCoordinatesByGene to support lazy loading from local files
+    dataset.getCoordinatesByGene = async function (
+      geneName: string,
+    ): Promise<number[]> {
+      // Delegate to adapter which handles caching
+      return adapter.getCoordinatesByGene(geneName);
+    };
+
+    // Attach adapter to dataset for future use
+    (dataset as any).adapter = adapter;
+
+    // Attach file map for upload
+    (dataset as any).fileMap = fileMap;
+
+    const elapsedTime = performance.now() - startTime;
+
+    console.log(
+      `[SingleMoleculeDataset] ✅ Local chunked dataset ready: ${formatElapsedTime(elapsedTime)} | ` +
+        `${manifest.totalMolecules.toLocaleString()} molecules | ` +
+        `${manifest.geneCount.toLocaleString()} genes (lazy-loaded)`,
+    );
+
+    await onProgress?.(
+      100,
+      `Dataset ready in ${formatElapsedTime(elapsedTime)}`,
+    );
+
+    return dataset;
+  }
 }

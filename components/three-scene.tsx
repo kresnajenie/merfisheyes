@@ -201,11 +201,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
   // Helper function: Check intersections with adaptive threshold
   const checkIntersections = () => {
-    if (
-      !pointCloudRef.current ||
-      !cameraRef.current ||
-      !rendererRef.current
-    )
+    if (!pointCloudRef.current || !cameraRef.current || !rendererRef.current)
       return;
 
     // Get current camera position to check if we've moved
@@ -298,7 +294,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     // If dataset is provided, use its spatial coordinates
     if (dataset) {
-
       // Calculate bounding box and center of spatial data
       const bounds = {
         minX: Infinity,
