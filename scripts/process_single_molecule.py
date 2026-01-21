@@ -142,11 +142,9 @@ def read_parquet_file(
     table = pq.read_table(file_path)
     df = table.to_pandas()
 
-    # Verify required columns exist
+    # Verify required columns exist (only gene, x, y are required)
     available_cols = set(df.columns)
     required_cols = {gene_col, x_col, y_col}
-    if z_col:
-        required_cols.add(z_col)
 
     missing_cols = required_cols - available_cols
     if missing_cols:
@@ -154,7 +152,7 @@ def read_parquet_file(
             f"Missing required columns: {missing_cols}\n"
             f"Available columns: {sorted(available_cols)}\n"
             f"Expected columns: gene='{gene_col}', x='{x_col}', y='{y_col}'"
-            + (f", z='{z_col}'" if z_col else " (2D dataset)")
+            + (f", z='{z_col}' (optional for 3D)" if z_col else "")
         )
 
     # Extract data
@@ -167,10 +165,15 @@ def read_parquet_file(
         z = df[z_col].values
         coords = np.column_stack([x, y, z])
         dimensions = 3
+        print(f"  Detected 3D dataset (z column '{z_col}' found)")
     else:
         z = np.zeros_like(x)
         coords = np.column_stack([x, y, z])
         dimensions = 2
+        if z_col:
+            print(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
+        else:
+            print(f"  Detected 2D dataset (no z column specified)")
 
     print(f"  Total molecules: {len(genes):,}")
     print(f"  Dimensions: {dimensions}D")
@@ -198,11 +201,9 @@ def read_csv_file(
     # Read CSV file
     df = pd.read_csv(file_path)
 
-    # Verify required columns exist
+    # Verify required columns exist (only gene, x, y are required)
     available_cols = set(df.columns)
     required_cols = {gene_col, x_col, y_col}
-    if z_col:
-        required_cols.add(z_col)
 
     missing_cols = required_cols - available_cols
     if missing_cols:
@@ -210,7 +211,7 @@ def read_csv_file(
             f"Missing required columns: {missing_cols}\n"
             f"Available columns: {sorted(available_cols)}\n"
             f"Expected columns: gene='{gene_col}', x='{x_col}', y='{y_col}'"
-            + (f", z='{z_col}'" if z_col else " (2D dataset)")
+            + (f", z='{z_col}' (optional for 3D)" if z_col else "")
         )
 
     # Extract data
@@ -223,10 +224,15 @@ def read_csv_file(
         z = df[z_col].values
         coords = np.column_stack([x, y, z])
         dimensions = 3
+        print(f"  Detected 3D dataset (z column '{z_col}' found)")
     else:
         z = np.zeros_like(x)
         coords = np.column_stack([x, y, z])
         dimensions = 2
+        if z_col:
+            print(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
+        else:
+            print(f"  Detected 2D dataset (no z column specified)")
 
     print(f"  Total molecules: {len(genes):,}")
     print(f"  Dimensions: {dimensions}D")
