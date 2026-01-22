@@ -16,6 +16,7 @@ Options:
 """
 
 import argparse
+import datetime
 import gzip
 import json
 import os
@@ -378,12 +379,32 @@ def process_single_molecule_data(
     elapsed = time.time() - start_time
     print(f"[{progress:3d}%] Writing manifest... [{elapsed:.1f}s]")
 
+    # Get source filename without extension
+    source_name = Path(input_file).stem
+
+    # Create manifest in exact browser format
     manifest = {
-        "uniqueGenes": unique_genes,
-        "dimensions": dimensions,
-        "scalingFactor": float(scaling_factor),
-        "totalMolecules": total_molecules,
-        "geneCount": len(unique_genes),
+        "version": "1.0",
+        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "dataset_id": f"temp_{int(time.time() * 1000)}",
+        "name": source_name,
+        "type": dataset_type,
+        "statistics": {
+            "total_molecules": total_molecules,
+            "unique_genes": len(unique_genes),
+            "spatial_dimensions": dimensions,
+        },
+        "genes": {
+            "unique_gene_names": unique_genes,
+        },
+        "processing": {
+            "compression": "gzip",
+            "coordinate_format": "float32_flat_array",
+            "coordinate_range": "normalized_[-1,1]",
+            "scaling_factor": float(scaling_factor),
+            "created_by": "MERFISH Eyes - Single Molecule Viewer",
+            "source_file": source_name,
+        },
     }
 
     manifest_json = json.dumps(manifest, indent=2)

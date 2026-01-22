@@ -18,11 +18,27 @@
 import pako from "pako";
 
 interface Manifest {
-  uniqueGenes: string[];
-  dimensions: 2 | 3;
-  scalingFactor: number;
-  totalMolecules: number;
-  geneCount: number;
+  version: string;
+  created_at: string;
+  dataset_id: string;
+  name: string;
+  type: string;
+  statistics: {
+    total_molecules: number;
+    unique_genes: number;
+    spatial_dimensions: 2 | 3;
+  };
+  genes: {
+    unique_gene_names: string[];
+  };
+  processing: {
+    compression: string;
+    coordinate_format: string;
+    coordinate_range: string;
+    scaling_factor: number;
+    created_by: string;
+    source_file: string;
+  };
 }
 
 export class ProcessedSingleMoleculeAdapter {
@@ -228,9 +244,9 @@ export class ProcessedSingleMoleculeAdapter {
     }
 
     // Check if gene exists
-    if (!this.manifest.uniqueGenes.includes(geneName)) {
+    if (!this.manifest.genes.unique_gene_names.includes(geneName)) {
       throw new Error(
-        `Gene '${geneName}' not found. Available genes: ${this.manifest.geneCount}`,
+        `Gene '${geneName}' not found. Available genes: ${this.manifest.statistics.unique_genes}`,
       );
     }
 
@@ -288,7 +304,7 @@ export class ProcessedSingleMoleculeAdapter {
       throw new Error("Manifest not loaded. Call initialize() first.");
     }
 
-    return this.manifest.uniqueGenes;
+    return this.manifest.genes.unique_gene_names;
   }
 
   /**
@@ -299,7 +315,7 @@ export class ProcessedSingleMoleculeAdapter {
       throw new Error("Manifest not loaded. Call initialize() first.");
     }
 
-    return this.manifest.dimensions;
+    return this.manifest.statistics.spatial_dimensions;
   }
 
   /**
@@ -310,7 +326,7 @@ export class ProcessedSingleMoleculeAdapter {
       throw new Error("Manifest not loaded. Call initialize() first.");
     }
 
-    return this.manifest.scalingFactor;
+    return this.manifest.processing.scaling_factor;
   }
 
   /**
@@ -321,7 +337,7 @@ export class ProcessedSingleMoleculeAdapter {
       throw new Error("Manifest not loaded. Call initialize() first.");
     }
 
-    return this.manifest.totalMolecules;
+    return this.manifest.statistics.total_molecules;
   }
 
   /**
@@ -332,7 +348,7 @@ export class ProcessedSingleMoleculeAdapter {
       throw new Error("Manifest not loaded. Call initialize() first.");
     }
 
-    return this.manifest.geneCount;
+    return this.manifest.statistics.unique_genes;
   }
 
   /**
@@ -349,7 +365,7 @@ export class ProcessedSingleMoleculeAdapter {
   getCacheStats() {
     return {
       cachedGenes: this.geneCache.size,
-      totalGenes: this.manifest?.geneCount || 0,
+      totalGenes: this.manifest?.statistics.unique_genes || 0,
     };
   }
 }

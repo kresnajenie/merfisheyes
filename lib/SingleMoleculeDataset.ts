@@ -883,21 +883,22 @@ export class SingleMoleculeDataset {
       id: datasetId,
       name: `local_chunked_${Date.now()}`,
       type: "processed_chunked",
-      uniqueGenes: manifest.uniqueGenes,
+      uniqueGenes: manifest.genes.unique_gene_names,
       geneIndex,
-      dimensions: manifest.dimensions,
-      scalingFactor: manifest.scalingFactor,
+      dimensions: manifest.statistics.spatial_dimensions,
+      scalingFactor: manifest.processing.scaling_factor,
       metadata: {
         loadedFrom: "local_chunked",
-        totalMolecules: manifest.totalMolecules,
-        geneCount: manifest.geneCount,
+        totalMolecules: manifest.statistics.total_molecules,
+        geneCount: manifest.statistics.unique_genes,
         isPreChunked: true, // Mark as pre-chunked
       },
       rawData: null,
     });
 
     // Override getCoordinatesByGene to support lazy loading from local files
-    dataset.getCoordinatesByGene = async function (
+    // Use type assertion to override the method signature
+    (dataset as any).getCoordinatesByGene = async function (
       geneName: string,
     ): Promise<number[]> {
       // Delegate to adapter which handles caching
@@ -914,8 +915,8 @@ export class SingleMoleculeDataset {
 
     console.log(
       `[SingleMoleculeDataset] ✅ Local chunked dataset ready: ${formatElapsedTime(elapsedTime)} | ` +
-        `${manifest.totalMolecules.toLocaleString()} molecules | ` +
-        `${manifest.geneCount.toLocaleString()} genes (lazy-loaded)`,
+        `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
+        `${manifest.statistics.unique_genes.toLocaleString()} genes (lazy-loaded)`,
     );
 
     await onProgress?.(
