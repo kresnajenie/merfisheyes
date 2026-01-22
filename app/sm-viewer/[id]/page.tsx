@@ -86,17 +86,40 @@ function SingleMoleculeViewerByIdContent() {
       // Wait a bit to see if anything was loaded
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      // If nothing was loaded (first time), auto-select first 3 genes
-      const { selectedGenesLegend } =
+      // Validate that loaded genes exist in current dataset
+      const { selectedGenesLegend, clearGenes } =
         useSingleMoleculeVisualizationStore.getState();
 
-      if (selectedGenesLegend.size === 0) {
-        console.log("No saved state found, auto-selecting first 3 genes");
+      const validGenes = Array.from(selectedGenesLegend).filter((gene) =>
+        smDataset.uniqueGenes.includes(gene)
+      );
+
+      // If loaded genes are invalid, clear them
+      if (validGenes.length !== selectedGenesLegend.size && selectedGenesLegend.size > 0) {
+        console.warn(
+          `Loaded ${selectedGenesLegend.size} genes from localStorage, but only ${validGenes.length} exist in current dataset. Clearing invalid genes.`
+        );
+        clearGenes();
+      }
+
+      // If nothing was loaded or all genes were invalid, auto-select first 3 genes
+      const { selectedGenesLegend: currentSelection } =
+        useSingleMoleculeVisualizationStore.getState();
+
+      if (currentSelection.size === 0) {
+        console.log("No valid saved state, auto-selecting first 3 genes");
         const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
 
         console.log("Auto-selecting genes:", genesToSelect);
+
         genesToSelect.forEach((gene) => {
           const geneProps = smDataset.geneColors[gene];
+
+          if (!geneProps) {
+            console.error(`Missing geneProps for gene: ${gene}`);
+            console.error("This should never happen - gene is in uniqueGenes but not in geneColors");
+            return;
+          }
 
           console.log(
             `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
@@ -105,8 +128,8 @@ function SingleMoleculeViewerByIdContent() {
         });
       } else {
         console.log(
-          "Loaded visibility state from localStorage:",
-          selectedGenesLegend.size,
+          "Loaded valid visibility state from localStorage:",
+          currentSelection.size,
           "genes",
         );
       }
