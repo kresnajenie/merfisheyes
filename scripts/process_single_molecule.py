@@ -6,6 +6,7 @@ Converts .parquet or .csv single molecule data to the binary format expected by 
 Usage:
     python process_single_molecule.py input.parquet output_folder/
     python process_single_molecule.py input.csv output_folder/ --dataset-type xenium
+    python process_single_molecule.py input.parquet output_folder/ --manifest-only
 
 Options:
     --dataset-type    Dataset type for column mappings: xenium, merscope, custom (default: merscope)
@@ -13,6 +14,7 @@ Options:
     --x-col           Custom x coordinate column name (overrides dataset-type)
     --y-col           Custom y coordinate column name (overrides dataset-type)
     --z-col           Custom z coordinate column name (overrides dataset-type, optional for 2D)
+    --manifest-only   Only generate manifest.json.gz without creating gene files (faster)
 """
 
 import argparse
@@ -249,6 +251,7 @@ def process_single_molecule_data(
     x_col: Optional[str] = None,
     y_col: Optional[str] = None,
     z_col: Optional[str] = None,
+    manifest_only: bool = False,
 ):
     """
     Process single molecule data and create S3-compatible folder structure
@@ -341,38 +344,44 @@ def process_single_molecule_data(
     print(f"[{progress:3d}%] Creating output folder structure...")
 
     output_path = Path(output_folder)
-    genes_folder = output_path / "genes"
-    genes_folder.mkdir(parents=True, exist_ok=True)
-
-    # Step 6: Write gene files (90-98%)
-    progress = 90
-    print(f"[{progress:3d}%] Writing gene files...")
 
     unique_genes = sorted(filtered_genes)
     total_genes = len(unique_genes)
 
-    for idx, gene in enumerate(unique_genes):
-        indices = gene_index[gene]
+    if not manifest_only:
+        genes_folder = output_path / "genes"
+        genes_folder.mkdir(parents=True, exist_ok=True)
 
-        # Extract coordinates for this gene (already normalized)
-        gene_coords = normalized_coords[indices].flatten()  # Flat array: [x1,y1,z1, x2,y2,z2, ...]
+        # Step 6: Write gene files (90-98%)
+        progress = 90
+        print(f"[{progress:3d}%] Writing gene files...")
 
-        # Convert to Float32
-        gene_coords_float32 = gene_coords.astype(np.float32)
+        for idx, gene in enumerate(unique_genes):
+            indices = gene_index[gene]
 
-        # Sanitize gene name for filename
-        sanitized_name = sanitize_gene_name(gene)
+            # Extract coordinates for this gene (already normalized)
+            gene_coords = normalized_coords[indices].flatten()  # Flat array: [x1,y1,z1, x2,y2,z2, ...]
 
-        # Write gzipped binary file
-        gene_file = genes_folder / f"{sanitized_name}.bin.gz"
-        with gzip.open(gene_file, 'wb') as f:
-            f.write(gene_coords_float32.tobytes())
+            # Convert to Float32
+            gene_coords_float32 = gene_coords.astype(np.float32)
 
-        # Progress update
-        if idx > 0 and idx % max(1, total_genes // 20) == 0:
-            progress = 90 + int((idx / total_genes) * 8)
-            elapsed = time.time() - start_time
-            print(f"[{progress:3d}%] Writing gene files... ({idx:,}/{total_genes:,}) [{elapsed:.1f}s]")
+            # Sanitize gene name for filename
+            sanitized_name = sanitize_gene_name(gene)
+
+            # Write gzipped binary file
+            gene_file = genes_folder / f"{sanitized_name}.bin.gz"
+            with gzip.open(gene_file, 'wb') as f:
+                f.write(gene_coords_float32.tobytes())
+
+            # Progress update
+            if idx > 0 and idx % max(1, total_genes // 20) == 0:
+                progress = 90 + int((idx / total_genes) * 8)
+                elapsed = time.time() - start_time
+                print(f"[{progress:3d}%] Writing gene files... ({idx:,}/{total_genes:,}) [{elapsed:.1f}s]")
+    else:
+        # Skip gene file writing
+        output_path.mkdir(parents=True, exist_ok=True)
+        print(f"[{90:3d}%] Skipping gene files (--manifest-only mode)...")
 
     # Step 7: Write manifest (98%)
     progress = 98
@@ -423,10 +432,13 @@ def process_single_molecule_data(
     print("Output structure:")
     print(f"  {output_folder}/")
     print(f"    manifest.json.gz")
-    print(f"    genes/")
-    print(f"      {sanitize_gene_name(unique_genes[0])}.bin.gz")
-    print(f"      ...")
-    print(f"      ({len(unique_genes)} total gene files)")
+    if not manifest_only:
+        print(f"    genes/")
+        print(f"      {sanitize_gene_name(unique_genes[0])}.bin.gz")
+        print(f"      ...")
+        print(f"      ({len(unique_genes)} total gene files)")
+    else:
+        print(f"    (genes/ folder not created - use without --manifest-only to generate)")
     print()
     print("Statistics:")
     print(f"  Total molecules: {total_molecules:,}")
@@ -474,6 +486,11 @@ def main():
         "--z-col",
         help="Custom z coordinate column name (overrides dataset-type, optional for 2D)",
     )
+    parser.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="Only generate manifest.json.gz without creating gene files (faster)",
+    )
 
     args = parser.parse_args()
 
@@ -491,6 +508,7 @@ def main():
             x_col=args.x_col,
             y_col=args.y_col,
             z_col=args.z_col,
+            manifest_only=args.manifest_only,
         )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
