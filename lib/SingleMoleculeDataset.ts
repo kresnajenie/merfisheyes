@@ -121,12 +121,28 @@ export class SingleMoleculeDataset {
 
         if (stored) {
           const parsed = JSON.parse(stored);
+          const storedGenes = Object.keys(parsed);
 
-          console.log(
-            `[SingleMoleculeDataset] Loaded gene colors from localStorage for dataset: ${this.id}`,
-          );
+          // Validate that stored genes match current dataset genes
+          const currentGenes = new Set(this.uniqueGenes);
+          const genesMatch = storedGenes.length === this.uniqueGenes.length &&
+            storedGenes.every(gene => currentGenes.has(gene));
 
-          return parsed;
+          if (genesMatch) {
+            console.log(
+              `[SingleMoleculeDataset] Loaded gene colors from localStorage for dataset: ${this.id}`,
+            );
+
+            return parsed;
+          } else {
+            console.warn(
+              `[SingleMoleculeDataset] Stored gene colors don't match current dataset. ` +
+              `Stored: ${storedGenes.length} genes, Current: ${this.uniqueGenes.length} genes. ` +
+              `Regenerating colors...`
+            );
+            // Clear invalid data
+            localStorage.removeItem(storageKey);
+          }
         }
       } catch (error) {
         console.warn(
