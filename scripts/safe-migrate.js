@@ -84,7 +84,11 @@ function hasPendingMigrations() {
   } catch (error) {
     log.error('Failed to check migration status');
     console.error(error.message);
-    return false;
+
+    // If we can't check status, assume migrations might be needed
+    // Better to try and fail than to skip entirely
+    log.warning('Cannot verify migration status - will attempt to apply migrations anyway');
+    return true;  // Changed from false to true
   }
 }
 
