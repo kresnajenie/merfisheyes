@@ -9,6 +9,7 @@
     "build": "NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=4096' next build",
     "build:low-memory": "NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=2048' next build",
     "build:strict": "NODE_OPTIONS='--max-old-space-size=4096' next build",
+    "postbuild": "npx prisma generate && node scripts/safe-migrate.js",
     "start": "next start",
     "lint": "eslint --fix"
   },
