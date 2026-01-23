@@ -111,3 +111,11 @@ storybook-static
 example_data/
 
 deploy.sh
+
+# Private documentation
+docs-private/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo

@@ -99,7 +99,7 @@ export function VisualizationPanel({
     if (!dataset?.clusters || !selectedColumn) return false;
 
     const selectedCluster = dataset.clusters.find(
-      (c) => c.column === selectedColumn
+      (c) => c.column === selectedColumn,
     );
 
     return selectedCluster?.type === "numerical";
@@ -116,7 +116,7 @@ export function VisualizationPanel({
 
         // Find the cluster data for the selected column
         const selectedCluster = dataset.clusters.find(
-          (c) => c.column === selectedColumn
+          (c) => c.column === selectedColumn,
         );
 
         if (!selectedCluster) return [];
@@ -160,7 +160,7 @@ export function VisualizationPanel({
   }, [dataset, mode, selectedColumn]);
 
   const filteredItems = items.filter((item) =>
-    item.label.toLowerCase().includes(currentSearchTerm.toLowerCase())
+    item.label.toLowerCase().includes(currentSearchTerm.toLowerCase()),
   );
 
   // Reset to page 1 when search term changes
@@ -203,7 +203,7 @@ export function VisualizationPanel({
             onSelectionChange={(key) => {
               const columnKey = (key as string) || null;
               const selectedCluster = dataset?.clusters?.find(
-                (c) => c.column === columnKey
+                (c) => c.column === columnKey,
               );
               const isNumerical = selectedCluster?.type === "numerical";
 

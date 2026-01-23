@@ -13,7 +13,10 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
-import { createPointCloud, updatePointCloudAttributes } from "@/lib/webgl/point-cloud";
+import {
+  createPointCloud,
+  updatePointCloudAttributes,
+} from "@/lib/webgl/point-cloud";
 import { normalizeCoordinates } from "@/lib/utils/coordinates";
 import {
   updateGeneVisualization,
@@ -234,6 +237,7 @@ export default function UMAPPanel() {
     // If scene already exists, just mark it ready
     if (sceneRef.current) {
       setSceneReady(true);
+
       return;
     }
 
@@ -346,7 +350,13 @@ export default function UMAPPanel() {
 
   // Create point cloud from embedding data
   useEffect(() => {
-    if (!dataset || !selectedEmbedding || !sceneRef.current || !isOpen || !sceneReady) {
+    if (
+      !dataset ||
+      !selectedEmbedding ||
+      !sceneRef.current ||
+      !isOpen ||
+      !sceneReady
+    ) {
       return;
     }
 
@@ -378,19 +388,24 @@ export default function UMAPPanel() {
     const scaleFactor = 8;
 
     // Create point data from embedding
-    const pointData: PointData[] = normalized.normalized.map((coord: number[]) => ({
-      x: coord[0] * scaleFactor,
-      y: coord[1] * scaleFactor,
-      z: 0, // 2D embedding
-      r: 0.7, // Default gray color
-      g: 0.7,
-      b: 0.7,
-      size: 1.0,
-      alpha: 1.0,
-    }));
+    const pointData: PointData[] = normalized.normalized.map(
+      (coord: number[]) => ({
+        x: coord[0] * scaleFactor,
+        y: coord[1] * scaleFactor,
+        z: 0, // 2D embedding
+        r: 0.7, // Default gray color
+        g: 0.7,
+        b: 0.7,
+        size: 1.0,
+        alpha: 1.0,
+      }),
+    );
 
     // Create point cloud with configurable dot size
-    const pointCloud = createPointCloud(pointData, VISUALIZATION_CONFIG.UMAP_POINT_SIZE);
+    const pointCloud = createPointCloud(
+      pointData,
+      VISUALIZATION_CONFIG.UMAP_POINT_SIZE,
+    );
 
     scene.add(pointCloud);
     pointCloudRef.current = pointCloud;
@@ -411,7 +426,9 @@ export default function UMAPPanel() {
       if (!pointCloudRef.current || !dataset) return;
 
       // Store cluster data for tooltip
-      const selectedCluster = dataset.clusters?.find((c) => c.column === selectedColumn);
+      const selectedCluster = dataset.clusters?.find(
+        (c) => c.column === selectedColumn,
+      );
 
       if (selectedCluster) {
         clusterValuesRef.current = selectedCluster.values;
@@ -424,12 +441,19 @@ export default function UMAPPanel() {
       const hasCelltypeMode = mode.includes("celltype");
 
       // Get cluster data
-      const clusterData = dataset.clusters?.find((c) => c.column === selectedColumn);
+      const clusterData = dataset.clusters?.find(
+        (c) => c.column === selectedColumn,
+      );
       const isNumerical = clusterData?.type === "numerical";
 
       let result = null;
 
-      if (hasGeneMode && hasCelltypeMode && selectedGene && selectedCelltypes.size > 0) {
+      if (
+        hasGeneMode &&
+        hasCelltypeMode &&
+        selectedGene &&
+        selectedCelltypes.size > 0
+      ) {
         // Combined mode: gene expression on selected celltypes
         // Fetch gene expression data for tooltip
         const expression = await dataset.getGeneExpression(selectedGene);
@@ -589,7 +613,14 @@ export default function UMAPPanel() {
       renderer.domElement.removeEventListener("mousemove", handleMouseMove);
       renderer.domElement.removeEventListener("dblclick", handleDoubleClick);
     };
-  }, [isOpen, dataset, toggleCelltype, getPointColor, showTooltip, hideTooltip]);
+  }, [
+    isOpen,
+    dataset,
+    toggleCelltype,
+    getPointColor,
+    showTooltip,
+    hideTooltip,
+  ]);
 
   // Check if embeddings are available
   const hasEmbeddings =

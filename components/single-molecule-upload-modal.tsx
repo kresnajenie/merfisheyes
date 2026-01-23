@@ -121,12 +121,96 @@ export function SingleMoleculeUploadModal({
         }
       }
 
-      // Process and upload to S3
-      setProgressMessage("Processing dataset...");
-      setProgress(5);
+      // Check if this is a pre-chunked dataset
+      const isPreChunked = (dataset as any).isPreChunked === true;
+      let datasetId: string;
+      let uploadId: string;
 
-      const { datasetId, uploadId } =
-        await SingleMoleculeProcessor.processAndUpload(
+      if (isPreChunked) {
+        // Pre-chunked dataset - upload directly without processing
+        setProgressMessage("Uploading pre-chunked dataset...");
+        setProgress(5);
+
+        const fileMap = (dataset as any).fileMap as Map<string, File>;
+
+        if (!fileMap) {
+          throw new Error("Pre-chunked dataset missing file map");
+        }
+
+        const adapter = (dataset as any).adapter;
+        const manifest = adapter.getManifest();
+
+        // Initiate upload with manifest data
+        const initiateResponse = await fetch("/api/single-molecule/initiate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fingerprint,
+            name: datasetName,
+            manifestData: manifest,
+          }),
+        });
+
+        if (!initiateResponse.ok) {
+          const error = await initiateResponse.json();
+
+          throw new Error(error.error || "Failed to initiate upload");
+        }
+
+        const { datasetId: newDatasetId, uploadId: newUploadId, presignedUrls } =
+          await initiateResponse.json();
+
+        datasetId = newDatasetId;
+        uploadId = newUploadId;
+
+        // Upload files directly to S3
+        const files = Array.from(fileMap.entries());
+        const totalFiles = files.length;
+
+        setProgressMessage(`Uploading ${totalFiles} files...`);
+
+        for (let i = 0; i < files.length; i++) {
+          const [key, file] = files[i];
+          const presignedUrl = presignedUrls[key];
+
+          if (!presignedUrl) {
+            console.warn(`No presigned URL for ${key}, skipping...`);
+            continue;
+          }
+
+          // Upload to S3
+          const uploadResponse = await fetch(presignedUrl, {
+            method: "PUT",
+            body: file,
+            headers: {
+              "Content-Type": "application/octet-stream",
+            },
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error(`Failed to upload ${key} to S3`);
+          }
+
+          // Mark file as complete
+          await fetch(`/api/single-molecule/${datasetId}/files/${encodeURIComponent(key)}/complete`, {
+            method: "POST",
+          });
+
+          const progress = 5 + ((i + 1) / totalFiles) * 85;
+
+          setProgress(progress);
+          setProgressMessage(
+            `Uploaded ${i + 1}/${totalFiles} files...`,
+          );
+        }
+
+        setProgress(90);
+      } else {
+        // Regular dataset - process and upload
+        setProgressMessage("Processing dataset...");
+        setProgress(5);
+
+        const result = await SingleMoleculeProcessor.processAndUpload(
           dataset,
           datasetName,
           fingerprint,
@@ -139,6 +223,10 @@ export function SingleMoleculeUploadModal({
             setUploadMessage(msg);
           },
         );
+
+        datasetId = result.datasetId;
+        uploadId = result.uploadId;
+      }
 
       // Complete upload
       setProgressMessage("Completing upload...");
