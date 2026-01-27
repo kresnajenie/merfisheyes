@@ -270,37 +270,18 @@ function HomeContent() {
                   title="Merscope Folder"
                   type="merscope"
                 />
-                <button
-                  className="group relative overflow-hidden rounded-2xl border-2 border-dashed border-blue-400/30 bg-default-50/50 backdrop-blur-sm p-6 transition-all duration-300 hover:border-blue-500/60 hover:bg-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
-                  type="button"
-                  onClick={() => setIsS3ModalOpen(true)}
-                >
-                  <div className="flex flex-col items-center justify-center gap-3 h-full min-h-[180px]">
-                    <div className="rounded-full bg-blue-500/10 p-4 group-hover:bg-blue-500/20 transition-colors">
-                      <svg
-                        className="w-8 h-8 text-blue-500"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                <div className="w-full">
+                  <button
+                    className="relative w-full border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ease-in-out aspect-square flex items-center justify-center border-default-300 hover:border-primary/50 hover:bg-default-100/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    type="button"
+                    onClick={() => setIsS3ModalOpen(true)}
+                  >
+                    <div className="flex flex-col items-center gap-2 w-full">
+                      <p className="text-lg font-semibold text-foreground">Load from S3</p>
+                      <p className="text-xs text-default-500">Your own S3 bucket</p>
                     </div>
-                    <div className="text-center">
-                      <div className="text-sm font-semibold text-default-700 group-hover:text-blue-600">
-                        Load from S3
-                      </div>
-                      <div className="text-xs text-default-500 mt-1">
-                        Your own S3 bucket
-                      </div>
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -331,37 +312,18 @@ function HomeContent() {
                   title="MERSCOPE Parquet/CSV"
                   type="merscope"
                 />
-                <button
-                  className="group relative overflow-hidden rounded-2xl border-2 border-dashed border-purple-400/30 bg-default-50/50 backdrop-blur-sm p-6 transition-all duration-300 hover:border-purple-500/60 hover:bg-purple-500/10 hover:shadow-lg hover:shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50"
-                  type="button"
-                  onClick={() => setIsS3ModalOpen(true)}
-                >
-                  <div className="flex flex-col items-center justify-center gap-3 h-full min-h-[180px]">
-                    <div className="rounded-full bg-purple-500/10 p-4 group-hover:bg-purple-500/20 transition-colors">
-                      <svg
-                        className="w-8 h-8 text-purple-500"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                <div className="w-full">
+                  <button
+                    className="relative w-full border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ease-in-out aspect-square flex items-center justify-center border-default-300 hover:border-primary/50 hover:bg-default-100/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    type="button"
+                    onClick={() => setIsS3ModalOpen(true)}
+                  >
+                    <div className="flex flex-col items-center gap-2 w-full">
+                      <p className="text-lg font-semibold text-foreground">Load from S3</p>
+                      <p className="text-xs text-default-500">Your own S3 bucket</p>
                     </div>
-                    <div className="text-center">
-                      <div className="text-sm font-semibold text-default-700 group-hover:text-purple-600">
-                        Load from S3
-                      </div>
-                      <div className="text-xs text-default-500 mt-1">
-                        Your own S3 bucket
-                      </div>
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
