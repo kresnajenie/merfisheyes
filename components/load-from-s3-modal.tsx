@@ -14,7 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import { parseS3Url, getS3FileUrl, testManifestAccess } from "@/lib/utils/s3-url-parser";
-import { ungzip } from "@/lib/gzip";
+import { ungzip } from "@/lib/utils/gzip";
 
 interface LoadFromS3ModalProps {
   isOpen: boolean;
