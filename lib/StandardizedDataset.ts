@@ -395,6 +395,81 @@ export class StandardizedDataset {
   }
 
   /**
+   * Load dataset from custom S3 URL (user-owned bucket)
+   * @param customS3BaseUrl - Base S3 URL to dataset folder (e.g., https://bucket.s3.region.amazonaws.com/path/to/folder)
+   * @param onProgress - Optional progress callback
+   * @returns StandardizedDataset
+   */
+  static async fromCustomS3(
+    customS3BaseUrl: string,
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<StandardizedDataset> {
+    await onProgress?.(10, "Initializing custom S3 adapter...");
+
+    // Create adapter with custom S3 base URL
+    const { ChunkedDataAdapter } = await import(
+      "./adapters/ChunkedDataAdapter"
+    );
+    const adapter = new ChunkedDataAdapter(
+      "custom", // Dummy dataset ID
+      undefined, // No local files
+      customS3BaseUrl, // Custom S3 base URL
+    );
+
+    await onProgress?.(30, "Loading manifest from custom S3...");
+
+    await adapter.initialize();
+
+    await onProgress?.(50, "Loading spatial coordinates...");
+    const spatial = await adapter.loadSpatialCoordinates();
+
+    await onProgress?.(60, "Loading embeddings...");
+    const embeddings = await adapter.loadEmbeddings();
+
+    await onProgress?.(70, "Loading genes...");
+    const genes = await adapter.loadGenes();
+
+    await onProgress?.(80, "Loading clusters...");
+    const clusters = await adapter.loadClusters();
+
+    const dataInfo = adapter.getDatasetInfo();
+
+    await onProgress?.(90, "Loading expression matrix...");
+    const matrix = await adapter.fetchFullMatrix();
+
+    await onProgress?.(95, "Finalizing dataset...");
+
+    // Create StandardizedDataset
+    const dataset = new StandardizedDataset({
+      id: dataInfo.id || "custom",
+      name: dataInfo.name || "Custom S3 Dataset",
+      type: dataInfo.type || "custom",
+      spatial,
+      embeddings,
+      genes,
+      clusters,
+      metadata: {
+        numCells: dataInfo.numCells,
+        numGenes: dataInfo.numGenes,
+        spatialDimensions: dataInfo.spatialDimensions,
+        availableEmbeddings: dataInfo.availableEmbeddings,
+        clusterCount: dataInfo.clusterCount,
+        loadedFrom: "custom_s3",
+        customS3BaseUrl,
+      },
+      rawData: null,
+      matrix,
+    });
+
+    // Attach adapter for on-demand gene expression queries
+    dataset.adapter = adapter;
+
+    await onProgress?.(100, "Dataset loaded successfully");
+
+    return dataset;
+  }
+
+  /**
    * Load dataset from local chunked files (created by Python script)
    */
   static async fromLocalChunked(
