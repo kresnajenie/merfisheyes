@@ -120,15 +120,32 @@ export function isValidS3Url(url: string): boolean {
 
 /**
  * Test if manifest exists at the given S3 URL
+ * Tries manifest.json.gz first, then falls back to manifest.json
  * @param baseUrl - Base folder URL
- * @returns Promise<boolean> - true if manifest exists and is accessible
+ * @returns Promise<{exists: boolean, url: string}> - manifest info
  */
-export async function testManifestAccess(baseUrl: string): Promise<boolean> {
+export async function testManifestAccess(baseUrl: string): Promise<{exists: boolean, url: string}> {
+  // Try .gz first (single molecule format)
   try {
-    const manifestUrl = getS3FileUrl(baseUrl, 'manifest.json.gz');
-    const response = await fetch(manifestUrl, { method: 'HEAD' });
-    return response.ok;
+    const gzUrl = getS3FileUrl(baseUrl, 'manifest.json.gz');
+    const response = await fetch(gzUrl, { method: 'HEAD' });
+    if (response.ok) {
+      return { exists: true, url: gzUrl };
+    }
   } catch {
-    return false;
+    // Continue to try non-gz
   }
+
+  // Try non-gz (single cell format)
+  try {
+    const jsonUrl = getS3FileUrl(baseUrl, 'manifest.json');
+    const response = await fetch(jsonUrl, { method: 'HEAD' });
+    if (response.ok) {
+      return { exists: true, url: jsonUrl };
+    }
+  } catch {
+    // Both failed
+  }
+
+  return { exists: false, url: '' };
 }

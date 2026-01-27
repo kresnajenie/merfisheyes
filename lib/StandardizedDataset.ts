@@ -458,11 +458,11 @@ export class StandardizedDataset {
         customS3BaseUrl,
       },
       rawData: null,
-      matrix,
+      adapter,
     });
 
-    // Attach adapter for on-demand gene expression queries
-    dataset.adapter = adapter;
+    // Assign matrix (pre-loaded for custom S3)
+    dataset.matrix = matrix;
 
     await onProgress?.(100, "Dataset loaded successfully");
 

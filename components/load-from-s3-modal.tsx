@@ -14,7 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 
 import { parseS3Url, getS3FileUrl, testManifestAccess } from "@/lib/utils/s3-url-parser";
-import { ungzip } from "@/lib/utils/gzip";
+import { ungzip } from "pako";
 
 interface LoadFromS3ModalProps {
   isOpen: boolean;
@@ -46,15 +46,14 @@ export function LoadFromS3Modal({
 
       setValidationStep("Testing manifest access...");
 
-      // Test if manifest exists
-      const manifestUrl = getS3FileUrl(parsed.baseUrl, "manifest.json.gz");
-      const manifestExists = await testManifestAccess(parsed.baseUrl);
+      // Test if manifest exists (tries .gz first, then .json)
+      const manifestTest = await testManifestAccess(parsed.baseUrl);
 
-      if (!manifestExists) {
+      if (!manifestTest.exists) {
         throw new Error(
-          `Cannot access manifest at ${manifestUrl}. Please ensure:\n` +
+          `Cannot access manifest. Please ensure:\n` +
             `1. The folder URL is correct\n` +
-            `2. manifest.json.gz exists in the folder\n` +
+            `2. manifest.json or manifest.json.gz exists in the folder\n` +
             `3. The S3 bucket/folder has public read access\n` +
             `4. CORS is configured to allow requests from ${window.location.origin}`
         );
@@ -63,15 +62,23 @@ export function LoadFromS3Modal({
       setValidationStep("Downloading and parsing manifest...");
 
       // Download and parse manifest to detect dataset type
-      const response = await fetch(manifestUrl);
+      const response = await fetch(manifestTest.url);
       if (!response.ok) {
         throw new Error(`Failed to download manifest: ${response.statusText}`);
       }
 
-      const manifestCompressed = await response.arrayBuffer();
-      const manifestJson = ungzip(new Uint8Array(manifestCompressed), {
-        to: "string",
-      });
+      let manifestJson: string;
+
+      // Check if it's gzipped based on URL
+      if (manifestTest.url.endsWith('.gz')) {
+        const manifestCompressed = await response.arrayBuffer();
+        manifestJson = ungzip(new Uint8Array(manifestCompressed), {
+          to: "string",
+        });
+      } else {
+        manifestJson = await response.text();
+      }
+
       const manifest = JSON.parse(manifestJson);
 
       console.log("Manifest loaded:", manifest);
@@ -170,18 +177,35 @@ export function LoadFromS3Modal({
               </div>
             )}
 
-            <div className="text-xs text-default-500 space-y-2">
-              <p className="font-semibold">Requirements:</p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>S3 bucket/folder must have <strong>public read access</strong></li>
-                <li>
-                  CORS must be configured to allow requests from{" "}
-                  <code className="bg-default-100 px-1 py-0.5 rounded">
-                    {typeof window !== "undefined" ? window.location.origin : "this domain"}
-                  </code>
-                </li>
-                <li>Dataset must be processed using the MERFISHeyes Python scripts</li>
-              </ul>
+            <div className="text-xs text-default-500 space-y-3">
+              <div>
+                <p className="font-semibold mb-2">Requirements:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>S3 bucket/folder must have <strong>public read access</strong></li>
+                  <li>CORS must be configured (see below)</li>
+                  <li>Dataset must be processed using the MERFISHeyes Python scripts</li>
+                </ul>
+              </div>
+
+              <div className="bg-default-100 p-3 rounded-lg">
+                <p className="font-semibold mb-2">CORS Configuration:</p>
+                <p className="mb-2">Go to: <strong>S3 Bucket → Permissions → Cross-origin resource sharing (CORS)</strong></p>
+                <p className="mb-1">Paste this configuration:</p>
+                <pre className="bg-default-50 p-2 rounded text-[10px] overflow-x-auto">
+{`[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedOrigins": [
+      "https://www.merfisheyes.com",
+      "https://merfisheyes.com"
+    ],
+    "ExposeHeaders": [],
+    "MaxAgeSeconds": 3600
+  }
+]`}
+                </pre>
+              </div>
             </div>
 
             {!datasetType && (

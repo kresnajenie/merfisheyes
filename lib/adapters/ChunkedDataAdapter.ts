@@ -98,8 +98,29 @@ export class ChunkedDataAdapter {
       }
 
       // Load manifest
-      this.manifest = await this.fetchJSON("manifest.json");
-      console.log("Loaded manifest:", this.manifest);
+      // For custom S3 mode, try both .json and .json.gz formats
+      if (this.mode === "custom") {
+        try {
+          this.manifest = await this.fetchJSON("manifest.json");
+          console.log("Loaded manifest (uncompressed):", this.manifest);
+        } catch (error) {
+          console.log("Failed to load manifest.json, trying manifest.json.gz...");
+          // If manifest.json doesn't exist, it might be compressed
+          // Try to fetch and decompress it
+          try {
+            const buffer = await this.fetchBinary("manifest.json.gz");
+            const jsonString = new TextDecoder().decode(buffer);
+            this.manifest = JSON.parse(jsonString);
+            console.log("Loaded manifest (compressed):", this.manifest);
+          } catch (gzError) {
+            console.error("Failed to load both manifest.json and manifest.json.gz");
+            throw error; // Throw original error
+          }
+        }
+      } else {
+        this.manifest = await this.fetchJSON("manifest.json");
+        console.log("Loaded manifest:", this.manifest);
+      }
 
       // Load expression index
       this.expressionIndex = await this.fetchJSON("expr/index.json");
@@ -139,7 +160,23 @@ export class ChunkedDataAdapter {
       const text = await file.text();
 
       return JSON.parse(text);
+    } else if (this.mode === "custom") {
+      // Custom S3 mode - construct URL directly
+      const url = `${this.customS3BaseUrl}/${fileKey}`;
+
+      console.log(`Fetching JSON from custom S3: ${url}`);
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${fileKey} from custom S3: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      return await response.json();
     } else {
+      // Remote mode - use presigned URLs from API
       const url = this.downloadUrls[fileKey];
 
       if (!url) {
