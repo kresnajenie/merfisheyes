@@ -10,10 +10,13 @@ function looksLikeNumber(value: any): boolean {
   if (typeof value === "number") return true;
   if (typeof value === "string") {
     const trimmed = value.trim();
+
     if (trimmed === "" || trimmed === "nan" || trimmed === "NaN") return false;
     const num = parseFloat(trimmed);
+
     return !isNaN(num) && isFinite(num);
   }
+
   return false;
 }
 
@@ -27,9 +30,11 @@ function looksLikeFloat(value: any): boolean {
   }
   if (typeof value === "string") {
     const trimmed = value.trim();
+
     // Check for decimal point or scientific notation (e.g., "1.5", "1e-10")
     return /\.|e|E/.test(trimmed);
   }
+
   return false;
 }
 
@@ -46,15 +51,13 @@ function looksLikeFloat(value: any): boolean {
  * @param columnName - Optional column name (for special cases like "leiden")
  * @returns true if categorical, false if numerical
  */
-export function isCategorical(
-  values: any[],
-  columnName?: string,
-): boolean {
+export function isCategorical(values: any[], columnName?: string): boolean {
   if (!values || values.length === 0) return false;
 
   // Special case: leiden/louvain columns are always categorical
   if (columnName) {
     const lowerName = columnName.toLowerCase();
+
     if (lowerName.includes("leiden") || lowerName.includes("louvain")) {
       return true;
     }
@@ -62,12 +65,15 @@ export function isCategorical(
 
   // Filter out null/undefined values for analysis
   const validValues = values.filter((v) => v != null);
+
   if (validValues.length === 0) return false;
 
   // Sample up to 1000 values for performance on large datasets
   const sampleSize = Math.min(1000, validValues.length);
   const step = Math.max(1, Math.floor(validValues.length / sampleSize));
-  const sample = validValues.filter((_, i) => i % step === 0).slice(0, sampleSize);
+  const sample = validValues
+    .filter((_, i) => i % step === 0)
+    .slice(0, sampleSize);
 
   // Check if any values look like floats
   let floatCount = 0;
@@ -106,9 +112,6 @@ export function isCategorical(
 /**
  * Legacy function name for backward compatibility
  */
-export function isCategoricalData(
-  values: any[],
-  columnName?: string,
-): boolean {
+export function isCategoricalData(values: any[], columnName?: string): boolean {
   return isCategorical(values, columnName);
 }

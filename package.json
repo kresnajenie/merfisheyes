@@ -3,12 +3,14 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "test-prisma": "node --loader ts-node/esm prisma/test-prisma.ts",
+    "test-prisma": "tsx tests/prisma/test-prisma.ts",
+    "test:db": "node scripts/test-db-connection.js",
     "test:sm-initiate": "tsx tests/api/test-single-molecule-initiate.ts",
     "dev": "next dev --turbopack",
     "build": "NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=4096' next build",
     "build:low-memory": "NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=2048' next build",
     "build:strict": "NODE_OPTIONS='--max-old-space-size=4096' next build",
+    "postbuild": "npx prisma generate && node scripts/safe-migrate.js",
     "start": "next start",
     "lint": "eslint --fix"
   },

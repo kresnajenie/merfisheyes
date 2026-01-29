@@ -1,9 +1,11 @@
 "use client";
 
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { GeneScalebar } from "@/components/gene-scalebar";
@@ -38,28 +40,31 @@ export const VisualizationLegends: React.FC = () => {
   const { getCurrentDataset } = useDatasetStore();
   const dataset = getCurrentDataset();
   const [openPopoverCelltype, setOpenPopoverCelltype] = useState<string | null>(
-    null
+    null,
   );
 
   // Sync palette with selected cluster + local overrides
   useEffect(() => {
     if (!dataset || !selectedColumn) {
       setColorPalette({});
+
       return;
     }
 
     if (!("clusters" in dataset)) {
       setColorPalette({});
+
       return;
     }
 
     const standardizedDataset = dataset as StandardizedDataset;
     const selectedCluster = standardizedDataset.clusters?.find(
-      (c) => c.column === selectedColumn
+      (c) => c.column === selectedColumn,
     );
 
     if (!selectedCluster) {
       setColorPalette({});
+
       return;
     }
 
@@ -68,14 +73,16 @@ export const VisualizationLegends: React.FC = () => {
 
     try {
       const stored = localStorage.getItem(storageKey);
+
       if (stored) {
         const overrides = JSON.parse(stored);
+
         palette = { ...palette, ...overrides };
       }
     } catch (error) {
       console.warn(
         "[VisualizationLegends] Failed to load palette overrides:",
-        error
+        error,
       );
     }
 
@@ -90,7 +97,7 @@ export const VisualizationLegends: React.FC = () => {
 
       const standardizedDataset = dataset as StandardizedDataset;
       const selectedCluster = standardizedDataset.clusters?.find(
-        (c) => c.column === selectedColumn
+        (c) => c.column === selectedColumn,
       );
 
       if (!selectedCluster) return;
@@ -104,16 +111,17 @@ export const VisualizationLegends: React.FC = () => {
       setColorPalette(updatedPalette);
 
       const storageKey = `cluster_palette_${standardizedDataset.id}_${selectedColumn}`;
+
       try {
         localStorage.setItem(storageKey, JSON.stringify(updatedPalette));
       } catch (error) {
         console.warn(
           "[VisualizationLegends] Failed to persist palette overrides:",
-          error
+          error,
         );
       }
     },
-    [dataset, selectedColumn, setColorPalette]
+    [dataset, selectedColumn, setColorPalette],
   );
 
   // Check if selected column is numerical
@@ -123,7 +131,7 @@ export const VisualizationLegends: React.FC = () => {
 
     const standardizedDataset = dataset as StandardizedDataset;
     const selectedCluster = standardizedDataset.clusters?.find(
-      (c) => c.column === selectedColumn
+      (c) => c.column === selectedColumn,
     );
 
     return selectedCluster?.type === "numerical";
@@ -236,8 +244,8 @@ export const VisualizationLegends: React.FC = () => {
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-semibold">{celltype}</h4>
                         <button
-                          type="button"
                           className="text-xs text-white/70 hover:text-white transition-colors"
+                          type="button"
                           onClick={() => setOpenPopoverCelltype(null)}
                         >
                           Close
@@ -245,11 +253,11 @@ export const VisualizationLegends: React.FC = () => {
                       </div>
                       <ColorPicker
                         key={celltype}
+                        className="rounded-md p-2"
                         value={color}
                         onChange={(value) =>
                           handleClusterColorChange(celltype, value)
                         }
-                        className="rounded-md p-2"
                       >
                         <ColorPickerSelection />
                         <div className="flex items-center gap-2 mt-2">

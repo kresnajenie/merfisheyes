@@ -286,6 +286,12 @@ def write_expression_chunk(
 
 def detect_input_format(input_path: Path) -> str:
     """Detect if input is H5AD, Xenium, or MERSCOPE"""
+    # Debug output
+    print(f"🔍 Detecting format for: {input_path}")
+    print(f"   - Exists: {input_path.exists()}")
+    print(f"   - Is file: {input_path.is_file()}")
+    print(f"   - Is dir: {input_path.is_dir()}")
+
     if input_path.is_file():
         if input_path.suffix == '.h5ad':
             return 'h5ad'
@@ -293,13 +299,24 @@ def detect_input_format(input_path: Path) -> str:
             raise ValueError(f"Unknown file format: {input_path}")
 
     elif input_path.is_dir():
+        # List files in directory for debugging
+        files_in_dir = [f.name for f in input_path.iterdir()]
+        print(f"   - Files in directory: {files_in_dir}")
+
         # Check for Xenium files
         xenium_files = ['cells.csv', 'cells.csv.gz', 'cell_feature_matrix']
         has_xenium = any((input_path / f).exists() for f in xenium_files)
+        print(f"   - Has Xenium files: {has_xenium}")
 
         # Check for MERSCOPE files
         merscope_files = ['cell_metadata.csv', 'cell_by_gene.csv']
         has_merscope = any((input_path / f).exists() for f in merscope_files)
+        print(f"   - Has MERSCOPE files: {has_merscope}")
+
+        # Debug: Check each file individually
+        for f in merscope_files:
+            file_path = input_path / f
+            print(f"   - Checking {f}: exists={file_path.exists()}, is_file={file_path.is_file()}")
 
         if has_xenium:
             return 'xenium'

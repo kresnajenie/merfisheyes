@@ -107,6 +107,28 @@ export function FileUpload({
     return hasManifest && hasExprIndex && hasChunks && hasSpatial;
   };
 
+  /**
+   * Detect if files represent a chunked single molecule dataset folder (from Python script)
+   */
+  const isChunkedSingleMoleculeFolder = (files: File[]): boolean => {
+    const fileNames = files.map((f) => {
+      const path = f.webkitRelativePath || f.name;
+      // Remove root folder name
+      const parts = path.split("/");
+
+      return parts.length > 1 ? parts.slice(1).join("/") : path;
+    });
+
+    // Check for required chunked single molecule files
+    const hasManifest = fileNames.some((name) => name === "manifest.json.gz");
+    const hasGenesFolder = fileNames.some((name) => name.startsWith("genes/"));
+    const hasGeneBinFiles = fileNames.some((name) =>
+      /^genes\/[^\/]+\.bin\.gz$/.test(name),
+    );
+
+    return hasManifest && hasGenesFolder && hasGeneBinFiles;
+  };
+
   const handleFiles = async (files: File[]) => {
     if (files.length === 0) return;
 
@@ -125,66 +147,102 @@ export function FileUpload({
       let dataset: StandardizedDataset | SingleMoleculeDataset;
 
       if (singleMolecule) {
-        // Single molecule mode - expects single parquet/csv file
-        const file = files[0];
-        const fileExtension = file.name.split(".").pop()?.toLowerCase();
+        // Single molecule mode
+        if (type === "chunked") {
+          // Chunked folder upload - verify it's a valid chunked single molecule dataset
+          if (!isChunkedSingleMoleculeFolder(files)) {
+            throw new Error(
+              "Invalid chunked single molecule dataset folder. Make sure it contains manifest.json.gz and genes/*.bin.gz files",
+            );
+          }
 
-        toast.info(`Processing ${file.name}...`);
-        console.log(
-          "=== Starting Single Molecule file processing (in worker) ===",
-        );
-        console.log("File:", file.name, "Size:", file.size, "bytes");
-        console.log("File extension:", fileExtension);
-        console.log(
-          "Dataset type:",
-          type,
-          "→",
-          UPLOAD_TYPE_TO_PARQUET_TYPE[type],
-        );
-
-        const parquetDatasetType = UPLOAD_TYPE_TO_PARQUET_TYPE[type];
-
-        // Get singleton worker instance
-        const workerApi = await getSingleMoleculeWorker();
-
-        // Wrap progress callback with Comlink.proxy for cross-thread communication
-        const proxiedProgress = Comlink.proxy(onProgress);
-
-        // Parse file in web worker
-        let serializedData;
-
-        if (fileExtension === "parquet") {
-          serializedData = await workerApi.parseParquet(
-            file,
-            parquetDatasetType,
-            proxiedProgress,
+          toast.info(
+            `Loading pre-chunked single molecule dataset (${files.length} files)...`,
           );
-        } else if (fileExtension === "csv") {
-          serializedData = await workerApi.parseCSV(
-            file,
-            parquetDatasetType,
-            proxiedProgress,
+          console.log(
+            "=== Loading pre-chunked single molecule dataset (ready for upload) ===",
           );
+          console.log("Files:", files.length);
+
+          onProgress(10, "Creating dataset from chunked files...");
+
+          // Load dataset using ProcessedSingleMoleculeAdapter
+          dataset = await SingleMoleculeDataset.fromLocalChunked(
+            files,
+            onProgress,
+          );
+
+          // Mark dataset as pre-chunked
+          (dataset as any).isPreChunked = true;
+
+          console.log("=== Pre-chunked Single Molecule Dataset loaded ===");
+          console.log("Dataset ID:", dataset.id);
+          console.log("Molecule count:", dataset.getMoleculeCount());
+          console.log("Gene count:", dataset.genes.length);
+          console.log("Spatial dimensions:", dataset.dimensions);
+          console.log("Ready for upload!");
         } else {
-          throw new Error(
-            `Unsupported file type: .${fileExtension}. Only .parquet and .csv files are supported.`,
+          // Single parquet/csv file upload
+          const file = files[0];
+          const fileExtension = file.name.split(".").pop()?.toLowerCase();
+
+          toast.info(`Processing ${file.name}...`);
+          console.log(
+            "=== Starting Single Molecule file processing (in worker) ===",
           );
+          console.log("File:", file.name, "Size:", file.size, "bytes");
+          console.log("File extension:", fileExtension);
+          console.log(
+            "Dataset type:",
+            type,
+            "→",
+            UPLOAD_TYPE_TO_PARQUET_TYPE[type],
+          );
+
+          const parquetDatasetType = UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+
+          // Get singleton worker instance
+          const workerApi = await getSingleMoleculeWorker();
+
+          // Wrap progress callback with Comlink.proxy for cross-thread communication
+          const proxiedProgress = Comlink.proxy(onProgress);
+
+          // Parse file in web worker
+          let serializedData;
+
+          if (fileExtension === "parquet") {
+            serializedData = await workerApi.parseParquet(
+              file,
+              parquetDatasetType,
+              proxiedProgress,
+            );
+          } else if (fileExtension === "csv") {
+            serializedData = await workerApi.parseCSV(
+              file,
+              parquetDatasetType,
+              proxiedProgress,
+            );
+          } else {
+            throw new Error(
+              `Unsupported file type: .${fileExtension}. Only .parquet and .csv files are supported.`,
+            );
+          }
+
+          // Reconstruct dataset from serialized data
+          dataset = SingleMoleculeDataset.fromSerializedData(serializedData);
+
+          console.log(
+            "=== Single Molecule Dataset created successfully (from worker) ===",
+          );
+          console.log("Dataset ID:", dataset.id);
+          console.log("Dataset name:", dataset.name);
+          console.log("Dataset type:", dataset.type);
+          console.log("Molecule count:", dataset.getMoleculeCount());
+          console.log("Gene count:", dataset.genes.length);
+          console.log("Spatial dimensions:", dataset.dimensions);
+          console.log("Scaling factor:", dataset.scalingFactor);
+          console.log("Summary:", dataset.getSummary());
         }
-
-        // Reconstruct dataset from serialized data
-        dataset = SingleMoleculeDataset.fromSerializedData(serializedData);
-
-        console.log(
-          "=== Single Molecule Dataset created successfully (from worker) ===",
-        );
-        console.log("Dataset ID:", dataset.id);
-        console.log("Dataset name:", dataset.name);
-        console.log("Dataset type:", dataset.type);
-        console.log("Molecule count:", dataset.getMoleculeCount());
-        console.log("Gene count:", dataset.genes.length);
-        console.log("Spatial dimensions:", dataset.dimensions);
-        console.log("Scaling factor:", dataset.scalingFactor);
-        console.log("Summary:", dataset.getSummary());
       } else {
         // Single cell mode
         if (type === "chunked") {
@@ -346,8 +404,8 @@ export function FileUpload({
   };
 
   const isFolder =
-    !singleMolecule &&
-    (type === "xenium" || type === "merscope" || type === "chunked");
+    (type === "xenium" || type === "merscope" || type === "chunked") &&
+    (singleMolecule ? type === "chunked" : true);
 
   // Get isLoading from appropriate store
   const cellIsLoading = useDatasetStore((state) => state.isLoading);

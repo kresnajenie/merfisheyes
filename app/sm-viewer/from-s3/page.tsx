@@ -3,7 +3,7 @@
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 
 import { Suspense, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Spinner } from "@heroui/react";
 
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
@@ -14,61 +14,50 @@ import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMolecule
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
-function SingleMoleculeViewerByIdContent() {
-  const params = useParams();
+function SingleMoleculeViewerFromS3Content() {
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { addDataset } = useSingleMoleculeStore();
-  const { addGene, loadFromLocalStorage, saveToLocalStorage } =
-    useSingleMoleculeVisualizationStore();
+  const { addGene } = useSingleMoleculeVisualizationStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const datasetId = params.id as string;
-  const selectedGenesLegend = useSingleMoleculeVisualizationStore(
-    (state) => state.selectedGenesLegend,
-  );
+  const s3Url = searchParams.get("url");
 
   useEffect(() => {
-    if (!datasetId) {
-      setError("No dataset ID provided");
+    if (!s3Url) {
+      setError("No S3 URL provided");
       setIsLoading(false);
 
       return;
     }
 
-    loadDatasetFromServer(datasetId);
-  }, [datasetId]);
+    loadDatasetFromCustomS3(decodeURIComponent(s3Url));
+  }, [s3Url]);
 
-  // Save visibility state to localStorage whenever it changes
-  useEffect(() => {
-    if (datasetId && dataset) {
-      saveToLocalStorage(datasetId);
-    }
-  }, [selectedGenesLegend, datasetId, dataset, saveToLocalStorage]);
-
-  const loadDatasetFromServer = async (id: string) => {
+  const loadDatasetFromCustomS3 = async (baseUrl: string) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log("Loading single molecule dataset from S3:", id);
+      console.log("Loading single molecule dataset from custom S3:", baseUrl);
 
       // Import SingleMoleculeDataset
       const { SingleMoleculeDataset } = await import(
         "@/lib/SingleMoleculeDataset"
       );
 
-      // Load dataset using fromS3 method with lazy loading
-      const smDataset = await SingleMoleculeDataset.fromS3(
-        id,
+      // Load dataset using fromCustomS3 method with lazy loading
+      const smDataset = await SingleMoleculeDataset.fromCustomS3(
+        baseUrl,
         (progress, message) => {
           console.log(`${progress}%: ${message}`);
         },
       );
 
       console.log(
-        "SingleMoleculeDataset loaded from S3:",
+        "SingleMoleculeDataset loaded from custom S3:",
         smDataset.getSummary(),
       );
 
@@ -77,67 +66,29 @@ function SingleMoleculeViewerByIdContent() {
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
 
-      // Wait a tick for store to update
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      // Auto-select first 3 genes
+      const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
 
-      // Try to load visibility state from localStorage first
-      loadFromLocalStorage(id);
+      console.log("Auto-selecting genes:", genesToSelect);
 
-      // Wait a bit to see if anything was loaded
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      genesToSelect.forEach((gene) => {
+        const geneProps = smDataset.geneColors[gene];
 
-      // Validate that loaded genes exist in current dataset
-      const { selectedGenesLegend, clearGenes } =
-        useSingleMoleculeVisualizationStore.getState();
+        if (!geneProps) {
+          console.error(`Missing geneProps for gene: ${gene}`);
+          return;
+        }
 
-      const validGenes = Array.from(selectedGenesLegend).filter((gene) =>
-        smDataset.uniqueGenes.includes(gene)
-      );
-
-      // If loaded genes are invalid, clear them
-      if (validGenes.length !== selectedGenesLegend.size && selectedGenesLegend.size > 0) {
-        console.warn(
-          `Loaded ${selectedGenesLegend.size} genes from localStorage, but only ${validGenes.length} exist in current dataset. Clearing invalid genes.`
-        );
-        clearGenes();
-      }
-
-      // If nothing was loaded or all genes were invalid, auto-select first 3 genes
-      const { selectedGenesLegend: currentSelection } =
-        useSingleMoleculeVisualizationStore.getState();
-
-      if (currentSelection.size === 0) {
-        console.log("No valid saved state, auto-selecting first 3 genes");
-        const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
-
-        console.log("Auto-selecting genes:", genesToSelect);
-
-        genesToSelect.forEach((gene) => {
-          const geneProps = smDataset.geneColors[gene];
-
-          if (!geneProps) {
-            console.error(`Missing geneProps for gene: ${gene}`);
-            console.error("This should never happen - gene is in uniqueGenes but not in geneColors");
-            return;
-          }
-
-          console.log(
-            `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
-          );
-          addGene(gene, geneProps.color, geneProps.size);
-        });
-      } else {
         console.log(
-          "Loaded valid visibility state from localStorage:",
-          currentSelection.size,
-          "genes",
+          `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
         );
-      }
+        addGene(gene, geneProps.color, geneProps.size);
+      });
 
       setIsLoading(false);
     } catch (err) {
-      console.error("Error loading single molecule dataset:", err);
-      setError(err instanceof Error ? err.message : "Failed to load dataset");
+      console.error("Error loading single molecule dataset from custom S3:", err);
+      setError(err instanceof Error ? err.message : "Failed to load dataset from custom S3");
       setIsLoading(false);
     }
   };
@@ -171,7 +122,7 @@ function SingleMoleculeViewerByIdContent() {
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="flex flex-col items-center gap-4">
             <Spinner color="secondary" size="lg" />
-            <p className={subtitle()}>Loading single molecule dataset...</p>
+            <p className={subtitle()}>Loading dataset from S3...</p>
           </div>
         </div>
       </>
@@ -197,7 +148,7 @@ function SingleMoleculeViewerByIdContent() {
           <div className="flex flex-col items-center gap-6 max-w-2xl w-full">
             <div className="text-center">
               <h2 className={title({ size: "md", color: "pink" })}>
-                Failed to load dataset
+                Failed to load dataset from S3
               </h2>
               <p className={subtitle({ class: "mt-4" })}>{error}</p>
             </div>
@@ -211,7 +162,7 @@ function SingleMoleculeViewerByIdContent() {
               <Button
                 color="default"
                 variant="bordered"
-                onPress={() => loadDatasetFromServer(datasetId)}
+                onPress={() => s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))}
               >
                 Retry
               </Button>
@@ -236,7 +187,7 @@ function SingleMoleculeViewerByIdContent() {
   );
 }
 
-export default function SingleMoleculeViewerByIdPage() {
+export default function SingleMoleculeViewerFromS3Page() {
   return (
     <Suspense
       fallback={
@@ -245,7 +196,7 @@ export default function SingleMoleculeViewerByIdPage() {
         </div>
       }
     >
-      <SingleMoleculeViewerByIdContent />
+      <SingleMoleculeViewerFromS3Content />
     </Suspense>
   );
 }

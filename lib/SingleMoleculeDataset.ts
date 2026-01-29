@@ -121,12 +121,28 @@ export class SingleMoleculeDataset {
 
         if (stored) {
           const parsed = JSON.parse(stored);
+          const storedGenes = Object.keys(parsed);
 
-          console.log(
-            `[SingleMoleculeDataset] Loaded gene colors from localStorage for dataset: ${this.id}`,
-          );
+          // Validate that stored genes match current dataset genes
+          const currentGenes = new Set(this.uniqueGenes);
+          const genesMatch = storedGenes.length === this.uniqueGenes.length &&
+            storedGenes.every(gene => currentGenes.has(gene));
 
-          return parsed;
+          if (genesMatch) {
+            console.log(
+              `[SingleMoleculeDataset] Loaded gene colors from localStorage for dataset: ${this.id}`,
+            );
+
+            return parsed;
+          } else {
+            console.warn(
+              `[SingleMoleculeDataset] Stored gene colors don't match current dataset. ` +
+              `Stored: ${storedGenes.length} genes, Current: ${this.uniqueGenes.length} genes. ` +
+              `Regenerating colors...`
+            );
+            // Clear invalid data
+            localStorage.removeItem(storageKey);
+          }
         }
       } catch (error) {
         console.warn(
@@ -805,6 +821,259 @@ export class SingleMoleculeDataset {
         `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
         `${uniqueGenes.length.toLocaleString()} genes (lazy-loaded)`,
     );
+    await onProgress?.(
+      100,
+      `Dataset ready in ${formatElapsedTime(elapsedTime)}`,
+    );
+
+    return dataset;
+  }
+
+  /**
+   * Load dataset from custom S3 URL (user-owned bucket)
+   * Uses lazy loading - genes are loaded on-demand when accessed
+   * @param customS3BaseUrl - Base S3 URL to dataset folder (e.g., https://bucket.s3.region.amazonaws.com/path/to/folder)
+   * @param onProgress - Optional progress callback
+   * @returns SingleMoleculeDataset with lazy-loading capability
+   */
+  static async fromCustomS3(
+    customS3BaseUrl: string,
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<SingleMoleculeDataset> {
+    const startTime = performance.now();
+
+    console.log(`[SingleMoleculeDataset] Loading from custom S3: ${customS3BaseUrl}`);
+
+    await onProgress?.(10, "Fetching manifest from custom S3...");
+
+    // Construct manifest URL
+    const manifestUrl = `${customS3BaseUrl}/manifest.json.gz`;
+
+    // Download and decompress manifest
+    const manifestResponse = await fetch(manifestUrl);
+
+    if (!manifestResponse.ok) {
+      throw new Error(
+        `Failed to download manifest from custom S3: ${manifestResponse.status} ${manifestResponse.statusText}. ` +
+        `Please ensure the bucket has public read access and CORS is configured.`
+      );
+    }
+
+    await onProgress?.(30, "Parsing manifest...");
+
+    const manifestCompressed = await manifestResponse.arrayBuffer();
+    const manifestJson = ungzip(new Uint8Array(manifestCompressed), {
+      to: "string",
+    });
+    const manifest = JSON.parse(manifestJson);
+
+    await onProgress?.(60, "Initializing dataset...");
+
+    // Extract metadata from manifest
+    const uniqueGenes = manifest.genes.unique_gene_names;
+    const dimensions = manifest.statistics.spatial_dimensions;
+    const scalingFactor = manifest.processing.scaling_factor;
+
+    // Create empty gene index - genes will be loaded on-demand
+    const geneIndex = new Map<string, number[]>();
+
+    // Create dataset with lazy-loading capability
+    const dataset = new SingleMoleculeDataset({
+      id: "custom",
+      name: manifest.name || "Custom S3 Dataset",
+      type: manifest.type,
+      uniqueGenes,
+      geneIndex,
+      dimensions,
+      scalingFactor,
+      metadata: {
+        ...manifest,
+        loadedFrom: "custom_s3",
+        customS3BaseUrl,
+        moleculeCount: manifest.statistics.total_molecules,
+        uniqueGeneCount: manifest.statistics.unique_genes,
+      },
+      rawData: null,
+    });
+
+    // Override getCoordinatesByGene to support lazy loading from custom S3
+    const originalGetCoordinates = dataset.getCoordinatesByGene.bind(dataset);
+
+    dataset.getCoordinatesByGene = async function (
+      geneName: string,
+    ): Promise<number[]> {
+      // Check if already cached
+      if (geneIndex.has(geneName)) {
+        return geneIndex.get(geneName)!;
+      }
+
+      // Check if gene exists in manifest
+      if (!uniqueGenes.includes(geneName)) {
+        throw new Error(
+          `Gene '${geneName}' not found. Available genes: ${uniqueGenes.length}`,
+        );
+      }
+
+      console.log(
+        `[SingleMoleculeDataset] Lazy-loading gene '${geneName}' from custom S3...`,
+      );
+
+      // Sanitize gene name to match filename (same logic as processor)
+      const sanitizedName = geneName
+        .replace(/[^a-zA-Z0-9]/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "");
+
+      // Construct gene file URL
+      const geneFileUrl = `${customS3BaseUrl}/genes/${sanitizedName}.bin.gz`;
+
+      // Download and decompress gene file
+      const geneResponse = await fetch(geneFileUrl);
+
+      if (!geneResponse.ok) {
+        throw new Error(
+          `Failed to download gene file for '${geneName}' from custom S3: ${geneResponse.status} ${geneResponse.statusText}`
+        );
+      }
+
+      const geneCompressed = await geneResponse.arrayBuffer();
+      const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+
+      // Convert to Float32Array, then to regular array
+      const float32Array = new Float32Array(geneBuffer.buffer);
+      const coordinates = Array.from(float32Array);
+
+      // Cache for future use
+      geneIndex.set(geneName, coordinates);
+
+      console.log(
+        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${coordinates.length / dimensions} molecules`,
+      );
+
+      return coordinates;
+    } as any; // Type override for lazy loading
+
+    const elapsedTime = performance.now() - startTime;
+
+    console.log(
+      `[SingleMoleculeDataset] ✅ Custom S3 dataset initialized: ${formatElapsedTime(elapsedTime)} | ` +
+        `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
+        `${uniqueGenes.length.toLocaleString()} genes (lazy-loaded)`,
+    );
+    await onProgress?.(
+      100,
+      `Dataset ready in ${formatElapsedTime(elapsedTime)}`,
+    );
+
+    return dataset;
+  }
+
+  /**
+   * Create SingleMoleculeDataset from locally uploaded chunked folder
+   * Uses ProcessedSingleMoleculeAdapter for lazy loading from local files
+   */
+  static async fromLocalChunked(
+    files: File[],
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<SingleMoleculeDataset> {
+    const startTime = performance.now();
+
+    console.log(
+      "[SingleMoleculeDataset] Loading from local chunked files...",
+      files.length,
+      "files",
+    );
+
+    await onProgress?.(10, "Preparing file map...");
+
+    // Convert File[] to Map<fileKey, File>
+    // File keys should match the structure: manifest.json.gz, genes/GENE1.bin.gz, etc.
+    const fileMap = new Map<string, File>();
+
+    for (const file of files) {
+      // Extract relative path from webkitRelativePath
+      const relativePath = file.webkitRelativePath;
+
+      if (!relativePath) {
+        console.warn("File missing webkitRelativePath:", file.name);
+        continue;
+      }
+
+      // Remove the root folder name to get the file key
+      // e.g., "my_dataset/manifest.json.gz" -> "manifest.json.gz"
+      const parts = relativePath.split("/");
+      const fileKey = parts.slice(1).join("/"); // Remove first part (root folder)
+
+      fileMap.set(fileKey, file);
+      console.log(`  Mapped file: ${fileKey}`);
+    }
+
+    console.log(`  Total files mapped: ${fileMap.size}`);
+
+    // Generate a temporary dataset ID
+    const datasetId = `local_sm_${Date.now()}`;
+
+    await onProgress?.(30, "Initializing adapter...");
+
+    // Create ProcessedSingleMoleculeAdapter in local mode
+    const { ProcessedSingleMoleculeAdapter } = await import(
+      "./adapters/ProcessedSingleMoleculeAdapter"
+    );
+    const adapter = new ProcessedSingleMoleculeAdapter(datasetId, fileMap);
+
+    await adapter.initialize();
+
+    await onProgress?.(60, "Loading manifest...");
+
+    // Get manifest from adapter
+    const manifest = adapter.getManifest();
+
+    await onProgress?.(80, "Creating dataset...");
+
+    // Create empty gene index - genes will be loaded on-demand
+    const geneIndex = new Map<string, number[]>();
+
+    // Create dataset with lazy-loading capability
+    const dataset = new SingleMoleculeDataset({
+      id: datasetId,
+      name: `local_chunked_${Date.now()}`,
+      type: "processed_chunked",
+      uniqueGenes: manifest.genes.unique_gene_names,
+      geneIndex,
+      dimensions: manifest.statistics.spatial_dimensions,
+      scalingFactor: manifest.processing.scaling_factor,
+      metadata: {
+        loadedFrom: "local_chunked",
+        totalMolecules: manifest.statistics.total_molecules,
+        geneCount: manifest.statistics.unique_genes,
+        isPreChunked: true, // Mark as pre-chunked
+      },
+      rawData: null,
+    });
+
+    // Override getCoordinatesByGene to support lazy loading from local files
+    // Use type assertion to override the method signature
+    (dataset as any).getCoordinatesByGene = async function (
+      geneName: string,
+    ): Promise<number[]> {
+      // Delegate to adapter which handles caching
+      return adapter.getCoordinatesByGene(geneName);
+    };
+
+    // Attach adapter to dataset for future use
+    (dataset as any).adapter = adapter;
+
+    // Attach file map for upload
+    (dataset as any).fileMap = fileMap;
+
+    const elapsedTime = performance.now() - startTime;
+
+    console.log(
+      `[SingleMoleculeDataset] ✅ Local chunked dataset ready: ${formatElapsedTime(elapsedTime)} | ` +
+        `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
+        `${manifest.statistics.unique_genes.toLocaleString()} genes (lazy-loaded)`,
+    );
+
     await onProgress?.(
       100,
       `Dataset ready in ${formatElapsedTime(elapsedTime)}`,
