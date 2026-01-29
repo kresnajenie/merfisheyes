@@ -1,33 +1,45 @@
 /**
  * Chunked Data Adapter
  * Reconstructs StandardizedDataset from chunked compressed files
- * Supports both:
+ * Supports three modes:
  * - Remote: S3 storage via presigned URLs (dataset ID)
  * - Local: Local files from folder upload (File objects)
+ * - Custom: Direct S3 URLs (custom S3 base URL)
  */
 export class ChunkedDataAdapter {
   private datasetId: string;
   private downloadUrls: Record<string, string> = {};
   private localFiles: Map<string, File> | null = null;
+  private customS3BaseUrl: string | null = null;
   private manifest: any = null;
   private expressionIndex: any = null;
   private loadedChunks = new Map<number, any>();
   private obsMetadata: any = null;
-  private mode: "remote" | "local";
+  private mode: "remote" | "local" | "custom";
 
-  constructor(datasetId: string, localFiles?: Map<string, File>) {
+  constructor(datasetId: string, localFiles?: Map<string, File>, customS3BaseUrl?: string) {
     this.datasetId = datasetId;
     this.localFiles = localFiles || null;
-    this.mode = localFiles ? "local" : "remote";
+    this.customS3BaseUrl = customS3BaseUrl || null;
+
+    // Determine mode based on parameters
+    if (customS3BaseUrl) {
+      this.mode = "custom";
+    } else if (localFiles) {
+      this.mode = "local";
+    } else {
+      this.mode = "remote";
+    }
   }
 
   /**
-   * Initialize adapter by fetching presigned URLs (remote) or using local files (local)
+   * Initialize adapter by fetching presigned URLs (remote), using local files (local), or custom S3 URLs (custom)
    */
   async initialize() {
     console.log("Initializing ChunkedDataAdapter...", {
       datasetId: this.datasetId,
       mode: this.mode,
+      customS3BaseUrl: this.customS3BaseUrl,
     });
 
     try {
@@ -70,6 +82,12 @@ export class ChunkedDataAdapter {
           Object.keys(this.downloadUrls).length,
           "files",
         );
+      } else if (this.mode === "custom") {
+        // Custom S3 mode - files will be fetched directly using base URL
+        console.log(
+          "Custom S3 mode: using base URL",
+          this.customS3BaseUrl,
+        );
       } else {
         // Local mode - files already provided
         console.log(
@@ -80,8 +98,29 @@ export class ChunkedDataAdapter {
       }
 
       // Load manifest
-      this.manifest = await this.fetchJSON("manifest.json");
-      console.log("Loaded manifest:", this.manifest);
+      // For custom S3 mode, try both .json and .json.gz formats
+      if (this.mode === "custom") {
+        try {
+          this.manifest = await this.fetchJSON("manifest.json");
+          console.log("Loaded manifest (uncompressed):", this.manifest);
+        } catch (error) {
+          console.log("Failed to load manifest.json, trying manifest.json.gz...");
+          // If manifest.json doesn't exist, it might be compressed
+          // Try to fetch and decompress it
+          try {
+            const buffer = await this.fetchBinary("manifest.json.gz");
+            const jsonString = new TextDecoder().decode(buffer);
+            this.manifest = JSON.parse(jsonString);
+            console.log("Loaded manifest (compressed):", this.manifest);
+          } catch (gzError) {
+            console.error("Failed to load both manifest.json and manifest.json.gz");
+            throw error; // Throw original error
+          }
+        }
+      } else {
+        this.manifest = await this.fetchJSON("manifest.json");
+        console.log("Loaded manifest:", this.manifest);
+      }
 
       // Load expression index
       this.expressionIndex = await this.fetchJSON("expr/index.json");
@@ -121,7 +160,23 @@ export class ChunkedDataAdapter {
       const text = await file.text();
 
       return JSON.parse(text);
+    } else if (this.mode === "custom") {
+      // Custom S3 mode - construct URL directly
+      const url = `${this.customS3BaseUrl}/${fileKey}`;
+
+      console.log(`Fetching JSON from custom S3: ${url}`);
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${fileKey} from custom S3: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      return await response.json();
     } else {
+      // Remote mode - use presigned URLs from API
       const url = this.downloadUrls[fileKey];
 
       if (!url) {
@@ -155,7 +210,25 @@ export class ChunkedDataAdapter {
 
       // File is already gzipped, decompress it
       return await this.decompress(file);
+    } else if (this.mode === "custom") {
+      // Custom S3 mode - construct URL directly
+      const url = `${this.customS3BaseUrl}/${fileKey}`;
+
+      console.log(`Fetching from custom S3: ${url}`);
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch ${fileKey} from custom S3: ${response.status} ${response.statusText}`,
+        );
+      }
+
+      const compressedBlob = await response.blob();
+
+      return await this.decompress(compressedBlob);
     } else {
+      // Remote mode - use presigned URLs from API
       const url = this.downloadUrls[fileKey];
 
       if (!url) {

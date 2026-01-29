@@ -18,6 +18,7 @@ import { title, subtitle } from "@/components/primitives";
 import { FileUpload } from "@/components/file-upload";
 import LightRays from "@/components/react-bits/LightRays";
 import { BrainToggle } from "@/components/brain-toggle";
+import { LoadFromS3Modal } from "@/components/load-from-s3-modal";
 
 const MemoizedLightRays = memo(LightRays);
 
@@ -78,6 +79,7 @@ function HomeContent() {
   const animationFrameRef = useRef<number | null>(null);
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
+  const [isS3ModalOpen, setIsS3ModalOpen] = useState(false);
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -247,7 +249,7 @@ function HomeContent() {
                   : "block lg:block lg:scale-100 lg:opacity-100 lg:blur-0 lg:pointer-events-auto",
               )}
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
                 <FileUpload
                   description="Single .h5ad file"
                   title="H5AD File"
@@ -268,6 +270,18 @@ function HomeContent() {
                   title="Merscope Folder"
                   type="merscope"
                 />
+                <div className="w-full">
+                  <button
+                    className="relative w-full border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ease-in-out aspect-square flex items-center justify-center border-default-300 hover:border-primary/50 hover:bg-default-100/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    type="button"
+                    onClick={() => setIsS3ModalOpen(true)}
+                  >
+                    <div className="flex flex-col items-center gap-2 w-full">
+                      <p className="text-lg font-semibold text-foreground">Load from S3</p>
+                      <p className="text-xs text-default-500">Your own S3 bucket</p>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -279,7 +293,7 @@ function HomeContent() {
                   : "hidden lg:block lg:opacity-0 lg:scale-90 lg:pointer-events-none",
               )}
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <FileUpload
                   description="Pre-processed chunked folder"
                   singleMolecule={true}
@@ -298,6 +312,18 @@ function HomeContent() {
                   title="MERSCOPE Parquet/CSV"
                   type="merscope"
                 />
+                <div className="w-full">
+                  <button
+                    className="relative w-full border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ease-in-out aspect-square flex items-center justify-center border-default-300 hover:border-primary/50 hover:bg-default-100/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    type="button"
+                    onClick={() => setIsS3ModalOpen(true)}
+                  >
+                    <div className="flex flex-col items-center gap-2 w-full">
+                      <p className="text-lg font-semibold text-foreground">Load from S3</p>
+                      <p className="text-xs text-default-500">Your own S3 bucket</p>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -315,6 +341,12 @@ function HomeContent() {
           </Button>
         </div>
       </section>
+
+      <LoadFromS3Modal
+        isOpen={isS3ModalOpen}
+        datasetType={isSingleMolecule ? "single_molecule" : "single_cell"}
+        onClose={() => setIsS3ModalOpen(false)}
+      />
     </>
   );
 }
