@@ -76,6 +76,7 @@ function SingleMoleculeViewerFromS3Content() {
 
         if (!geneProps) {
           console.error(`Missing geneProps for gene: ${gene}`);
+
           return;
         }
 
@@ -87,8 +88,15 @@ function SingleMoleculeViewerFromS3Content() {
 
       setIsLoading(false);
     } catch (err) {
-      console.error("Error loading single molecule dataset from custom S3:", err);
-      setError(err instanceof Error ? err.message : "Failed to load dataset from custom S3");
+      console.error(
+        "Error loading single molecule dataset from custom S3:",
+        err,
+      );
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load dataset from custom S3",
+      );
       setIsLoading(false);
     }
   };
@@ -162,7 +170,9 @@ function SingleMoleculeViewerFromS3Content() {
               <Button
                 color="default"
                 variant="bordered"
-                onPress={() => s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))}
+                onPress={() =>
+                  s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))
+                }
               >
                 Retry
               </Button>

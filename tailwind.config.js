@@ -16,10 +16,34 @@ const config = {
       backdropBlur: {
         '15': '15px',
       },
+      typography: {
+        DEFAULT: {
+          css: {
+            maxWidth: 'none',
+            color: 'inherit',
+            a: {
+              color: 'inherit',
+              textDecoration: 'none',
+              '&:hover': {
+                color: 'inherit',
+              },
+            },
+            code: {
+              color: 'inherit',
+            },
+            'code::before': {
+              content: '""',
+            },
+            'code::after': {
+              content: '""',
+            },
+          },
+        },
+      },
     },
   },
   darkMode: "class",
-  plugins: [heroui()],
+  plugins: [heroui(), require('@tailwindcss/typography')],
 }
 
 module.exports = config;

@@ -91,13 +91,16 @@ function SingleMoleculeViewerByIdContent() {
         useSingleMoleculeVisualizationStore.getState();
 
       const validGenes = Array.from(selectedGenesLegend).filter((gene) =>
-        smDataset.uniqueGenes.includes(gene)
+        smDataset.uniqueGenes.includes(gene),
       );
 
       // If loaded genes are invalid, clear them
-      if (validGenes.length !== selectedGenesLegend.size && selectedGenesLegend.size > 0) {
+      if (
+        validGenes.length !== selectedGenesLegend.size &&
+        selectedGenesLegend.size > 0
+      ) {
         console.warn(
-          `Loaded ${selectedGenesLegend.size} genes from localStorage, but only ${validGenes.length} exist in current dataset. Clearing invalid genes.`
+          `Loaded ${selectedGenesLegend.size} genes from localStorage, but only ${validGenes.length} exist in current dataset. Clearing invalid genes.`,
         );
         clearGenes();
       }
@@ -117,7 +120,10 @@ function SingleMoleculeViewerByIdContent() {
 
           if (!geneProps) {
             console.error(`Missing geneProps for gene: ${gene}`);
-            console.error("This should never happen - gene is in uniqueGenes but not in geneColors");
+            console.error(
+              "This should never happen - gene is in uniqueGenes but not in geneColors",
+            );
+
             return;
           }
 

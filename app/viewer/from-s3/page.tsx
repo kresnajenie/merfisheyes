@@ -61,7 +61,10 @@ function ViewerFromS3Content() {
         },
       );
 
-      console.log("StandardizedDataset created from custom S3:", standardizedDataset);
+      console.log(
+        "StandardizedDataset created from custom S3:",
+        standardizedDataset,
+      );
 
       // Store dataset in both local state and global store
       setDataset(standardizedDataset);
@@ -71,7 +74,11 @@ function ViewerFromS3Content() {
       setIsLoading(false);
     } catch (err) {
       console.error("Error loading dataset from custom S3:", err);
-      setError(err instanceof Error ? err.message : "Failed to load dataset from custom S3");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load dataset from custom S3",
+      );
       setIsLoading(false);
     }
   };
@@ -160,7 +167,9 @@ function ViewerFromS3Content() {
               <Button
                 color="default"
                 variant="bordered"
-                onPress={() => s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))}
+                onPress={() =>
+                  s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))
+                }
               >
                 Retry
               </Button>
