@@ -146,8 +146,15 @@ export function VisualizationPanel({
       }
 
       case "gene": {
-        // Get all genes
-        return dataset.genes.map((gene) => ({
+        // Get all genes in deterministic, human-friendly order
+        const sortedGenes = [...dataset.genes].sort((a, b) =>
+          a.localeCompare(b, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          }),
+        );
+
+        return sortedGenes.map((gene) => ({
           id: gene,
           label: gene,
           color: "#FFFFFF",
