@@ -289,10 +289,24 @@ export class ChunkedDataAdapter {
     console.log("Loading embeddings...");
     const embeddings: Record<string, number[][]> = {};
 
-    // Load available embeddings from manifest
-    const coordFiles = this.manifest.files.coordinates || [];
+    // Preferred source: manifest.files.coordinates.
+    // Fallback for older manifests: manifest.statistics.available_embeddings.
+    const coordFiles = Array.isArray(this.manifest?.files?.coordinates)
+      ? this.manifest.files.coordinates
+      : [];
+    const fallbackEmbeddings = Array.isArray(
+      this.manifest?.statistics?.available_embeddings,
+    )
+      ? this.manifest.statistics.available_embeddings
+      : [];
 
-    for (const coordType of coordFiles) {
+    const embeddingKeys = Array.from(
+      new Set([...coordFiles, ...fallbackEmbeddings]),
+    )
+      .map((value) => String(value).trim().replace(/\.bin\.gz$/i, ""))
+      .filter((value) => value.length > 0 && value !== "spatial");
+
+    for (const coordType of embeddingKeys) {
       if (coordType !== "spatial") {
         try {
           const buffer = await this.fetchBinary(`coords/${coordType}.bin.gz`);
