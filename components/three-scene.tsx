@@ -18,7 +18,7 @@ import {
   updateNumericalCelltypeVisualization,
   updateCombinedVisualization,
 } from "@/lib/webgl/visualization-utils";
-import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { VisualizationLegends } from "@/components/visualization-legends";
 
 interface ThreeSceneProps {
@@ -64,7 +64,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     setNumericalScaleMin,
     setNumericalScaleMax,
     toggleCelltype,
-  } = useVisualizationStore();
+  } = usePanelVisualizationStore();
 
   // Store current mode and selection in refs to avoid closure issues
   const modeRef = useRef(mode);
@@ -610,13 +610,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     <>
       <div
         ref={containerRef}
-        className="fixed inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
 
       {/* Loading overlay for gene expression fetching */}
       {isLoadingGene && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
           <div className="bg-default-100/90 rounded-lg p-6 shadow-lg flex flex-col items-center gap-3">
             <Spinner color="primary" size="lg" />
             <p className="text-sm font-medium">Loading gene expression...</p>

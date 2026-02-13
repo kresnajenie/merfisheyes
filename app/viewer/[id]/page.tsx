@@ -3,14 +3,17 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { Suspense, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button, Progress, Spinner } from "@heroui/react";
 
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import UMAPPanel from "@/components/umap-panel";
+import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import type { PanelType } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
@@ -18,8 +21,11 @@ import { subtitle, title } from "@/components/primitives";
 function ViewerByIdContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setSelectedColumn } = useVisualizationStore();
   const { addDataset } = useDatasetStore();
+  const { isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType, enableSplit, setRightPanel, setRightPanelS3 } =
+    useSplitScreenStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +33,49 @@ function ViewerByIdContent() {
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
 
   const datasetId = params.id as string;
+
+  // Read split params from URL on mount
+  useEffect(() => {
+    const splitId = searchParams.get("split");
+    const splitS3Url = searchParams.get("splitS3Url");
+    const splitType = searchParams.get("splitType") as PanelType | null;
+
+    if (splitS3Url && splitType) {
+      enableSplit();
+      setRightPanelS3(decodeURIComponent(splitS3Url), splitType);
+    } else if (splitId && splitType) {
+      enableSplit();
+      setRightPanel(splitId, splitType);
+    }
+  }, []);
+
+  // Write split params to URL when split state changes
+  useEffect(() => {
+    if (isSplitMode && rightPanelType) {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      if (rightPanelS3Url) {
+        newParams.set("splitS3Url", encodeURIComponent(rightPanelS3Url));
+        newParams.delete("split");
+      } else if (rightPanelDatasetId) {
+        newParams.set("split", rightPanelDatasetId);
+        newParams.delete("splitS3Url");
+      }
+      newParams.set("splitType", rightPanelType);
+      router.replace(`?${newParams.toString()}`, { scroll: false });
+    } else if (!isSplitMode) {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      newParams.delete("split");
+      newParams.delete("splitS3Url");
+      newParams.delete("splitType");
+      const paramStr = newParams.toString();
+
+      router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
+        scroll: false,
+      });
+    }
+  }, [isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType]);
 
   useEffect(() => {
     if (!datasetId) {
@@ -177,11 +226,11 @@ function ViewerByIdContent() {
   }
 
   return (
-    <>
+    <SplitScreenContainer>
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
       <UMAPPanel />
-    </>
+    </SplitScreenContainer>
   );
 }
 

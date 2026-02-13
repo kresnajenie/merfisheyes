@@ -7,17 +7,19 @@ import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useMemo } from "react";
 
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import { usePanelSingleMoleculeStore, usePanelSingleMoleculeVisualizationStore, usePanelId } from "@/lib/hooks/usePanelStores";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 export function SingleMoleculeControls() {
+  const { isSplitMode, enableSplit } = useSplitScreenStore();
+  const panelId = usePanelId();
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
   // Get dataset
-  const dataset = useSingleMoleculeStore((state) => {
+  const dataset = usePanelSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
 
     return id ? state.datasets.get(id) : null;
@@ -34,7 +36,7 @@ export function SingleMoleculeControls() {
     setGlobalScale,
     viewMode,
     setViewMode,
-  } = useSingleMoleculeVisualizationStore();
+  } = usePanelSingleMoleculeVisualizationStore();
 
   // Filter genes based on search
   const filteredGenes = useMemo(() => {
@@ -46,7 +48,7 @@ export function SingleMoleculeControls() {
   }, [dataset, searchTerm]);
 
   return (
-    <div className="fixed top-28 left-4 z-50 flex flex-col gap-2">
+    <div className="absolute top-28 left-4 z-50 flex flex-col gap-2">
       {/* Gene Selection Button */}
       <Button
         className={`w-14 h-14 min-w-0 rounded-full font-medium text-xs ${
@@ -88,10 +90,36 @@ export function SingleMoleculeControls() {
         {viewMode}
       </Button>
 
+      {/* Split Screen Button */}
+      {!isSplitMode && !panelId && (
+        <Tooltip content="Split screen" placement="right">
+          <Button
+            className={`w-14 h-14 min-w-0 rounded-full font-medium text-xs ${glassButton()}`}
+            color="default"
+            variant="light"
+            onPress={enableSplit}
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5h-15A1.5 1.5 0 003 6v12a1.5 1.5 0 001.5 1.5z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Button>
+        </Tooltip>
+      )}
+
       {/* Gene Selection Panel */}
       {isPanelOpen && (
         <div
-          className={`fixed top-28 left-20 z-50 w-[320px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+          className={`absolute top-28 left-20 z-50 w-[320px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
         >
           <div className="p-4 space-y-3">
             {/* Title */}

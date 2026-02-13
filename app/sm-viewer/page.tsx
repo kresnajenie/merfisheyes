@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
+import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
@@ -74,11 +75,11 @@ function ViewerContent() {
   }
 
   return (
-    <>
+    <SplitScreenContainer>
       <SingleMoleculeControls />
       <SingleMoleculeLegends />
       <SingleMoleculeThreeScene />
-    </>
+    </SplitScreenContainer>
   );
 }
 

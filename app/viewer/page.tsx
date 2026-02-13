@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import UMAPPanel from "@/components/umap-panel";
+import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
@@ -80,11 +81,11 @@ function ViewerContent() {
   }
 
   return (
-    <>
+    <SplitScreenContainer>
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
       <UMAPPanel />
-    </>
+    </SplitScreenContainer>
   );
 }
 

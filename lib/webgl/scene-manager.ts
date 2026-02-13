@@ -110,18 +110,24 @@ export function initializeScene(
     renderer.render(scene, camera);
   };
 
-  // Handle window resize
+  // Handle container resize via ResizeObserver (supports split screen panels)
   const handleResize = () => {
-    camera.aspect = container.clientWidth / container.clientHeight;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    if (width === 0 || height === 0) return;
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setSize(width, height);
   };
 
-  window.addEventListener("resize", handleResize);
+  const resizeObserver = new ResizeObserver(handleResize);
+
+  resizeObserver.observe(container);
 
   // Cleanup function
   const dispose = () => {
-    window.removeEventListener("resize", handleResize);
+    resizeObserver.disconnect();
     cancelAnimationFrame(animationId);
     controls.dispose();
     renderer.dispose();

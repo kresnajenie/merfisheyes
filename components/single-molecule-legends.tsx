@@ -8,8 +8,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/react";
 
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { usePanelSingleMoleculeVisualizationStore, usePanelSingleMoleculeStore } from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import {
   ColorPicker,
@@ -28,8 +27,8 @@ export const SingleMoleculeLegends: React.FC = () => {
     toggleGeneVisibility,
     setGeneColor,
     setGeneLocalScale,
-  } = useSingleMoleculeVisualizationStore();
-  const dataset = useSingleMoleculeStore((state) => {
+  } = usePanelSingleMoleculeVisualizationStore();
+  const dataset = usePanelSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
 
     return id ? state.datasets.get(id) : null;
@@ -123,7 +122,7 @@ export const SingleMoleculeLegends: React.FC = () => {
   };
 
   return (
-    <div className="fixed right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
+    <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
       {/* Selected Genes Badges */}
       <div className="flex flex-col items-end gap-2">
         <div

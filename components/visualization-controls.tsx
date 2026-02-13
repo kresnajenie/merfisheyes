@@ -1,6 +1,6 @@
 "use client";
 
-import type { VisualizationMode } from "@/lib/stores/visualizationStore";
+import type { VisualizationMode } from "@/lib/stores/createVisualizationStore";
 
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/react";
@@ -9,13 +9,16 @@ import { useState, useRef } from "react";
 
 import { VisualizationPanel } from "./visualization-panel";
 
-import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import { usePanelVisualizationStore, usePanelId } from "@/lib/hooks/usePanelStores";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 export function VisualizationControls() {
   const { panelMode, setPanelMode, sizeScale, setSizeScale } =
-    useVisualizationStore();
+    usePanelVisualizationStore();
+  const { isSplitMode, enableSplit } = useSplitScreenStore();
+  const panelId = usePanelId();
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +38,7 @@ export function VisualizationControls() {
   return (
     <div
       ref={controlsRef}
-      className="fixed top-28 left-4 z-50 flex flex-col gap-2"
+      className="absolute top-28 left-4 z-50 flex flex-col gap-2"
     >
       {/* Celltype Button */}
       <Button
@@ -75,6 +78,32 @@ export function VisualizationControls() {
           />
         </div>
       </Tooltip>
+
+      {/* Split Screen Button — only show on left panel (no panelId) when not already in split mode */}
+      {!isSplitMode && !panelId && (
+        <Tooltip content="Split screen" placement="right">
+          <Button
+            className={`${buttonBaseClass} ${glassButton()}`}
+            color="default"
+            variant="light"
+            onPress={enableSplit}
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M9 4.5v15m6-15v15M4.5 19.5h15a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5h-15A1.5 1.5 0 003 6v12a1.5 1.5 0 001.5 1.5z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Button>
+        </Tooltip>
+      )}
 
       {/* Visualization Panel */}
       {isPanelOpen && (
