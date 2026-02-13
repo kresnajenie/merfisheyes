@@ -289,38 +289,30 @@ export class ChunkedDataAdapter {
     console.log("Loading embeddings...");
     const embeddings: Record<string, number[][]> = {};
 
-    // Preferred source: manifest.files.coordinates.
-    // Fallback for older manifests: manifest.statistics.available_embeddings.
-    const coordFiles = Array.isArray(this.manifest?.files?.coordinates)
-      ? this.manifest.files.coordinates
-      : [];
-    const fallbackEmbeddings = Array.isArray(
+    // Use manifest.statistics.available_embeddings as the source of truth.
+    const availableEmbeddings = Array.isArray(
       this.manifest?.statistics?.available_embeddings,
     )
       ? this.manifest.statistics.available_embeddings
       : [];
 
-    const embeddingKeys = Array.from(
-      new Set([...coordFiles, ...fallbackEmbeddings]),
-    )
+    const embeddingKeys = Array.from(new Set(availableEmbeddings))
       .map((value) => String(value).trim().replace(/\.bin\.gz$/i, ""))
-      .filter((value) => value.length > 0 && value !== "spatial");
+      .filter((value) => value.length > 0);
 
     for (const coordType of embeddingKeys) {
-      if (coordType !== "spatial") {
-        try {
-          const buffer = await this.fetchBinary(`coords/${coordType}.bin.gz`);
-          const coordinates = this.parseCoordinateBuffer(buffer);
+      try {
+        const buffer = await this.fetchBinary(`coords/${coordType}.bin.gz`);
+        const coordinates = this.parseCoordinateBuffer(buffer);
 
-          embeddings[coordType] = coordinates.data;
-          console.log(
-            `Loaded ${coordType} embedding:`,
-            coordinates.data.length,
-            "points",
-          );
-        } catch (error) {
-          console.warn(`Failed to load ${coordType} embedding:`, error);
-        }
+        embeddings[coordType] = coordinates.data;
+        console.log(
+          `Loaded ${coordType} embedding:`,
+          coordinates.data.length,
+          "points",
+        );
+      } catch (error) {
+        console.warn(`Failed to load ${coordType} embedding:`, error);
       }
     }
 
