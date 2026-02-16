@@ -7,7 +7,7 @@
  * 3. If all genes start with a digit, fall back to the first 3
  */
 
-const PRIORITY_GENES = ["Aqp4", "Gad2", "Cldn5"];
+const PRIORITY_GENES = ["Igfbpl1", "Drd1", "Th"];
 const AUTO_SELECT_COUNT = 3;
 
 export function pickDefaultGenes(uniqueGenes: string[]): string[] {
