@@ -14,6 +14,7 @@ import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SplitScreenContainer } from "@/components/split-screen-container";
 import { LocalDatasetReuploadModal } from "@/components/local-dataset-reupload-modal";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import {
@@ -198,7 +199,7 @@ function SingleMoleculeViewerByIdContent() {
         useSingleMoleculeVisualizationStore.getState();
 
       if (currentSelection.size === 0) {
-        const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
+        const genesToSelect = pickDefaultGenes(smDataset.uniqueGenes);
 
         genesToSelect.forEach((gene) => {
           const geneProps = smDataset.geneColors[gene];
