@@ -1,6 +1,6 @@
 "use client";
 
-import type { VisualizationMode } from "@/lib/stores/visualizationStore";
+import type { VisualizationMode } from "@/lib/stores/createVisualizationStore";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { Input } from "@heroui/input";
@@ -10,8 +10,7 @@ import { RadioGroup, Radio } from "@heroui/radio";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
 
-import { useDatasetStore } from "@/lib/stores/datasetStore";
-import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import { usePanelDatasetStore, usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { glassButton } from "@/components/primitives";
 
 interface VisualizationPanelProps {
@@ -29,7 +28,7 @@ export function VisualizationPanel({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100; // Show 100 items per page
   const panelRef = useRef<HTMLDivElement>(null);
-  const { getCurrentDataset } = useDatasetStore();
+  const { getCurrentDataset } = usePanelDatasetStore();
   const {
     selectedColumn,
     setSelectedColumn,
@@ -42,7 +41,7 @@ export function VisualizationPanel({
     geneSearchTerm,
     setCelltypeSearchTerm,
     setGeneSearchTerm,
-  } = useVisualizationStore();
+  } = usePanelVisualizationStore();
 
   const currentSearchTerm =
     mode === "celltype" ? celltypeSearchTerm : geneSearchTerm;
@@ -188,7 +187,7 @@ export function VisualizationPanel({
   return (
     <div
       ref={panelRef}
-      className={`fixed top-28 left-20 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+      className={`absolute top-0 left-16 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
     >
       {/* Content */}
       <div className="p-4 space-y-3">
@@ -244,9 +243,7 @@ export function VisualizationPanel({
                 updateSearchTerm("");
                 if (mode === "celltype") {
                   // Clear all selected celltypes
-                  useVisualizationStore.setState({
-                    selectedCelltypes: new Set<string>(),
-                  });
+                  selectedCelltypes.forEach((ct) => toggleCelltype(ct));
                 } else if (mode === "gene") {
                   // Clear selected gene
                   setSelectedGene(null);

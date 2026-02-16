@@ -1,32 +1,111 @@
 "use client";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type { PanelType } from "@/lib/stores/splitScreenStore";
+import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
 import { Suspense, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button, Progress, Spinner } from "@heroui/react";
 
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import UMAPPanel from "@/components/umap-panel";
+import { SplitScreenContainer } from "@/components/split-screen-container";
+import { LocalDatasetReuploadModal } from "@/components/local-dataset-reupload-modal";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+import {
+  isLocalDatasetId,
+  getLocalDatasetMeta,
+  saveLocalDatasetMeta,
+} from "@/lib/services/localDatasetDB";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
 function ViewerByIdContent() {
   const params = useParams();
   const router = useRouter();
-  const { setSelectedColumn } = useVisualizationStore();
+  const searchParams = useSearchParams();
+  const vizStore = useVisualizationStore();
   const { addDataset } = useDatasetStore();
+  const {
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    enableSplit,
+    setRightPanel,
+    setRightPanelS3,
+  } = useSplitScreenStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
+  const [localMetadata, setLocalMetadata] =
+    useState<LocalDatasetMetadata | null>(null);
+  const [showReuploadModal, setShowReuploadModal] = useState(false);
 
   const datasetId = params.id as string;
+
+  // URL visualization state sync
+  const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+
+  // Read split params from URL on mount
+  useEffect(() => {
+    const splitId = searchParams.get("split");
+    const splitS3Url = searchParams.get("splitS3Url");
+    const splitType = searchParams.get("splitType") as PanelType | null;
+
+    if (splitS3Url && splitType) {
+      enableSplit();
+      setRightPanelS3(decodeURIComponent(splitS3Url), splitType);
+    } else if (splitId && splitType) {
+      enableSplit();
+      setRightPanel(splitId, splitType);
+    }
+  }, []);
+
+  // Write split params to URL when split state changes
+  useEffect(() => {
+    // Preserve v/rv params written by replaceState (not in Next.js searchParams)
+    const currentUrl = new URLSearchParams(window.location.search);
+    const currentV = currentUrl.get("v");
+    const currentRv = currentUrl.get("rv");
+
+    if (isSplitMode && rightPanelType) {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      if (rightPanelS3Url) {
+        newParams.set("splitS3Url", encodeURIComponent(rightPanelS3Url));
+        newParams.delete("split");
+      } else if (rightPanelDatasetId) {
+        newParams.set("split", rightPanelDatasetId);
+        newParams.delete("splitS3Url");
+      }
+      newParams.set("splitType", rightPanelType);
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
+      router.replace(`?${newParams.toString()}`, { scroll: false });
+    } else if (!isSplitMode) {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      newParams.delete("split");
+      newParams.delete("splitS3Url");
+      newParams.delete("splitType");
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
+      const paramStr = newParams.toString();
+
+      router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
+        scroll: false,
+      });
+    }
+  }, [isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType]);
 
   useEffect(() => {
     if (!datasetId) {
@@ -36,10 +115,48 @@ function ViewerByIdContent() {
       return;
     }
 
-    loadDatasetFromServer(datasetId);
+    resolveDataset(datasetId);
   }, [datasetId]);
 
-  const loadDatasetFromServer = async (id: string) => {
+  const resolveDataset = async (id: string) => {
+    // Step 1: Check Zustand store first
+    const storeDataset = useDatasetStore.getState().datasets.get(id);
+
+    if (storeDataset && "spatial" in storeDataset) {
+      console.log("Dataset found in store:", id);
+      setDataset(storeDataset as StandardizedDataset);
+      setIsLoading(false);
+
+      return;
+    }
+
+    // Step 2: Check if this is a local dataset
+    if (isLocalDatasetId(id)) {
+      const meta = await getLocalDatasetMeta(id);
+
+      if (meta) {
+        console.log("Local dataset metadata found in IndexedDB:", meta);
+        setLocalMetadata(meta);
+        setShowReuploadModal(true);
+        setIsLoading(false);
+
+        return;
+      }
+
+      // Metadata not found (evicted)
+      setError(
+        "This local dataset is no longer available. The metadata was evicted after loading newer datasets.",
+      );
+      setIsLoading(false);
+
+      return;
+    }
+
+    // Step 3: Load from S3
+    loadDatasetFromS3(id);
+  };
+
+  const loadDatasetFromS3 = async (id: string) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -48,10 +165,8 @@ function ViewerByIdContent() {
 
       console.log("Loading dataset from server:", id);
 
-      // Import StandardizedDataset
       const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
 
-      // Load dataset using fromS3 method
       const standardizedDataset = await StandardizedDataset.fromS3(
         id,
         (progress, message) => {
@@ -63,7 +178,6 @@ function ViewerByIdContent() {
 
       console.log("StandardizedDataset created:", standardizedDataset);
 
-      // Store dataset in both local state and global store
       setDataset(standardizedDataset);
       addDataset(standardizedDataset);
       console.log("Dataset added to datasetStore");
@@ -76,15 +190,41 @@ function ViewerByIdContent() {
     }
   };
 
-  // Auto-select best cluster column when dataset changes
+  const handleLocalDatasetLoaded = (ds: any) => {
+    const standardizedDataset = ds as StandardizedDataset;
+
+    setDataset(standardizedDataset);
+    addDataset(standardizedDataset);
+    setShowReuploadModal(false);
+
+    // Refresh timestamp in IndexedDB
+    if (localMetadata) {
+      saveLocalDatasetMeta({ ...localMetadata, createdAt: Date.now() });
+    }
+  };
+
+  // Auto-select best cluster column when dataset changes (skip if URL state was applied)
   useEffect(() => {
-    if (dataset) {
+    if (dataset && !hasUrlStateRef.current) {
       const bestColumn = selectBestClusterColumn(dataset);
 
-      setSelectedColumn(bestColumn);
+      vizStore.setSelectedColumn(bestColumn);
       console.log("Auto-selected column:", bestColumn);
     }
-  }, [dataset, setSelectedColumn]);
+  }, [dataset]);
+
+  // Re-upload modal for local datasets
+  if (showReuploadModal && localMetadata) {
+    return (
+      <LocalDatasetReuploadModal
+        expectedDatasetId={datasetId}
+        isOpen={showReuploadModal}
+        metadata={localMetadata}
+        onClose={() => router.push("/")}
+        onDatasetLoaded={handleLocalDatasetLoaded}
+      />
+    );
+  }
 
   // Loading state
   if (isLoading) {
@@ -160,7 +300,7 @@ function ViewerByIdContent() {
               <Button
                 color="default"
                 variant="bordered"
-                onPress={() => loadDatasetFromServer(datasetId)}
+                onPress={() => resolveDataset(datasetId)}
               >
                 Retry
               </Button>
@@ -177,11 +317,11 @@ function ViewerByIdContent() {
   }
 
   return (
-    <>
+    <SplitScreenContainer>
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
       <UMAPPanel />
-    </>
+    </SplitScreenContainer>
   );
 }
 

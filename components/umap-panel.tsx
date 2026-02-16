@@ -11,8 +11,7 @@ import { IoClose } from "react-icons/io5";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import { useDatasetStore } from "@/lib/stores/datasetStore";
-import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import { usePanelDatasetStore, usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import {
   createPointCloud,
   updatePointCloudAttributes,
@@ -46,7 +45,7 @@ export default function UMAPPanel() {
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoveredPointRef = useRef<number | null>(null);
 
-  const dataset = useDatasetStore((state) => state.getCurrentDataset()) as
+  const dataset = usePanelDatasetStore((state) => state.getCurrentDataset()) as
     | StandardizedDataset
     | null
     | undefined;
@@ -65,7 +64,7 @@ export default function UMAPPanel() {
     numericalScaleMin,
     numericalScaleMax,
     toggleCelltype,
-  } = useVisualizationStore();
+  } = usePanelVisualizationStore();
 
   // Store current visualization data for tooltips
   const geneExpressionRef = useRef<number[] | null>(null);
@@ -633,17 +632,17 @@ export default function UMAPPanel() {
         {isOpen && (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
-            className="!fixed bottom-4 right-4 md:bottom-8 md:right-8
+            className="!absolute bottom-4 right-4 md:bottom-8 md:right-8
                        w-[50vh] h-[50vh]
                        bg-black
                        rounded-3xl
                        shadow-2xl
                        border border-white/10
                        z-[9999]
-                       relative"
+                       "
             exit={{ opacity: 0, y: 100 }}
             initial={{ opacity: 0, y: 100 }}
-            style={{ position: "fixed" }}
+            style={{ position: "absolute" }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
           >
             {/* Floating Embedding Selector */}
@@ -692,10 +691,10 @@ export default function UMAPPanel() {
         {!isOpen && (
           <motion.div
             animate={{ opacity: 1, scale: 1 }}
-            className="!fixed bottom-4 right-4 md:bottom-8 md:right-8 z-[9999]"
+            className="!absolute bottom-4 right-4 md:bottom-8 md:right-8 z-[9999]"
             exit={{ opacity: 0, scale: 0.8 }}
             initial={{ opacity: 0, scale: 0.8 }}
-            style={{ position: "fixed" }}
+            style={{ position: "absolute" }}
             transition={{ duration: 0.2 }}
           >
             <Tooltip
