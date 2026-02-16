@@ -15,13 +15,14 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
 function ViewerFromS3Content() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { setSelectedColumn } = useVisualizationStore();
+  const vizStore = useVisualizationStore();
   const { addDataset } = useDatasetStore();
   const { isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType, enableSplit, setRightPanel, setRightPanelS3 } =
     useSplitScreenStore();
@@ -32,6 +33,9 @@ function ViewerFromS3Content() {
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
 
   const s3Url = searchParams.get("url");
+
+  // URL visualization state sync
+  const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
 
   // Read split params from URL on mount
   useEffect(() => {
@@ -50,6 +54,11 @@ function ViewerFromS3Content() {
 
   // Write split params to URL when split state changes
   useEffect(() => {
+    // Preserve v/rv params written by replaceState (not in Next.js searchParams)
+    const currentUrl = new URLSearchParams(window.location.search);
+    const currentV = currentUrl.get("v");
+    const currentRv = currentUrl.get("rv");
+
     if (isSplitMode && rightPanelType) {
       const newParams = new URLSearchParams(searchParams.toString());
 
@@ -61,6 +70,8 @@ function ViewerFromS3Content() {
         newParams.delete("splitS3Url");
       }
       newParams.set("splitType", rightPanelType);
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
       router.replace(`?${newParams.toString()}`, { scroll: false });
     } else if (!isSplitMode) {
       const newParams = new URLSearchParams(searchParams.toString());
@@ -68,6 +79,8 @@ function ViewerFromS3Content() {
       newParams.delete("split");
       newParams.delete("splitS3Url");
       newParams.delete("splitType");
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
       const paramStr = newParams.toString();
 
       router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
@@ -124,15 +137,15 @@ function ViewerFromS3Content() {
     }
   };
 
-  // Auto-select best cluster column when dataset changes
+  // Auto-select best cluster column when dataset changes (skip if URL state was applied)
   useEffect(() => {
-    if (dataset) {
+    if (dataset && !hasUrlStateRef.current) {
       const bestColumn = selectBestClusterColumn(dataset);
 
-      setSelectedColumn(bestColumn);
+      vizStore.setSelectedColumn(bestColumn);
       console.log("Auto-selected column:", bestColumn);
     }
-  }, [dataset, setSelectedColumn]);
+  }, [dataset]);
 
   // Loading state
   if (isLoading) {

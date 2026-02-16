@@ -14,6 +14,7 @@ import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
+import { useSMVizUrlSync, tryReadSMVizFromUrl, applySMVizState } from "@/lib/hooks/useUrlVizSync";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -21,7 +22,8 @@ function SingleMoleculeViewerFromS3Content() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { addDataset } = useSingleMoleculeStore();
-  const { addGene } = useSingleMoleculeVisualizationStore();
+  const smVizStore = useSingleMoleculeVisualizationStore();
+  const { addGene } = smVizStore;
   const { isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType, enableSplit, setRightPanel, setRightPanelS3 } =
     useSplitScreenStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
@@ -29,6 +31,9 @@ function SingleMoleculeViewerFromS3Content() {
   const [error, setError] = useState<string | null>(null);
 
   const s3Url = searchParams.get("url");
+
+  // URL visualization state sync
+  useSMVizUrlSync(!!dataset, dataset, smVizStore);
 
   // Read split params from URL on mount
   useEffect(() => {
@@ -47,6 +52,11 @@ function SingleMoleculeViewerFromS3Content() {
 
   // Write split params to URL when split state changes
   useEffect(() => {
+    // Preserve v/rv params written by replaceState (not in Next.js searchParams)
+    const currentUrl = new URLSearchParams(window.location.search);
+    const currentV = currentUrl.get("v");
+    const currentRv = currentUrl.get("rv");
+
     if (isSplitMode && rightPanelType) {
       const newParams = new URLSearchParams(searchParams.toString());
 
@@ -58,6 +68,8 @@ function SingleMoleculeViewerFromS3Content() {
         newParams.delete("splitS3Url");
       }
       newParams.set("splitType", rightPanelType);
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
       router.replace(`?${newParams.toString()}`, { scroll: false });
     } else if (!isSplitMode) {
       const newParams = new URLSearchParams(searchParams.toString());
@@ -65,6 +77,8 @@ function SingleMoleculeViewerFromS3Content() {
       newParams.delete("split");
       newParams.delete("splitS3Url");
       newParams.delete("splitType");
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
       const paramStr = newParams.toString();
 
       router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
@@ -114,24 +128,32 @@ function SingleMoleculeViewerFromS3Content() {
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
 
-      // Auto-select first 3 genes
-      const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
+      // Check if URL has viz state
+      const urlVizState = tryReadSMVizFromUrl("left");
 
-      console.log("Auto-selecting genes:", genesToSelect);
+      if (urlVizState) {
+        console.log("Applying visualization state from URL");
+        applySMVizState(urlVizState, smVizStore, smDataset);
+      } else {
+        // Auto-select first 3 genes
+        const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
 
-      genesToSelect.forEach((gene) => {
-        const geneProps = smDataset.geneColors[gene];
+        console.log("Auto-selecting genes:", genesToSelect);
 
-        if (!geneProps) {
-          console.error(`Missing geneProps for gene: ${gene}`);
-          return;
-        }
+        genesToSelect.forEach((gene) => {
+          const geneProps = smDataset.geneColors[gene];
 
-        console.log(
-          `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
-        );
-        addGene(gene, geneProps.color, geneProps.size);
-      });
+          if (!geneProps) {
+            console.error(`Missing geneProps for gene: ${gene}`);
+            return;
+          }
+
+          console.log(
+            `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
+          );
+          addGene(gene, geneProps.color, geneProps.size);
+        });
+      }
 
       setIsLoading(false);
     } catch (err) {
