@@ -187,7 +187,7 @@ export function VisualizationPanel({
   return (
     <div
       ref={panelRef}
-      className={`absolute top-28 left-20 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+      className={`absolute top-0 left-16 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
     >
       {/* Content */}
       <div className="p-4 space-y-3">

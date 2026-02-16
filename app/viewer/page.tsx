@@ -12,13 +12,17 @@ import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
 
 function ViewerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { datasets, currentDatasetId, getCurrentDataset } = useDatasetStore();
-  const { setSelectedColumn } = useVisualizationStore();
+  const vizStore = useVisualizationStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
+
+  // URL visualization state sync
+  const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
 
   useEffect(() => {
     // Helper function to check if dataset is StandardizedDataset
@@ -58,23 +62,32 @@ function ViewerContent() {
     }
   }, [searchParams, datasets, currentDatasetId, getCurrentDataset]);
 
-  // Auto-select best cluster column when dataset changes
+  // Auto-select best cluster column when dataset changes (skip if URL state was applied)
   useEffect(() => {
-    const bestColumn = selectBestClusterColumn(dataset);
+    if (!hasUrlStateRef.current) {
+      const bestColumn = selectBestClusterColumn(dataset);
 
-    setSelectedColumn(bestColumn);
-    console.log("Auto-selected column:", bestColumn);
-    console.log("Dataset:", dataset);
-  }, [dataset, setSelectedColumn]);
+      vizStore.setSelectedColumn(bestColumn);
+      console.log("Auto-selected column:", bestColumn);
+      console.log("Dataset:", dataset);
+    }
+  }, [dataset]);
 
   const isLoading = useDatasetStore((state) => state.isLoading);
   const datasetCount = useDatasetStore((state) => state.datasets.size);
 
   useEffect(() => {
+    // If we have a current dataset, redirect to /viewer/{id} so the URL is shareable
+    if (currentDatasetId && datasets.has(currentDatasetId)) {
+      router.replace(`/viewer/${currentDatasetId}`);
+
+      return;
+    }
+
     if (!dataset && !isLoading && datasetCount === 0) {
       router.replace("/");
     }
-  }, [dataset, datasetCount, isLoading, router]);
+  }, [dataset, datasetCount, isLoading, router, currentDatasetId, datasets]);
 
   if (!dataset) {
     return null;

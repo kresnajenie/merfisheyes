@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Spinner, Progress } from "@heroui/react";
-
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
-import { usePanelDatasetStore, usePanelVisualizationStore, usePanelSingleMoleculeStore, usePanelSingleMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
-import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
+import { Spinner, Progress } from "@heroui/react";
+import { useEffect, useState } from "react";
+
+import { LocalDatasetReuploadModal } from "./local-dataset-reupload-modal";
 import { ThreeScene } from "./three-scene";
 import { VisualizationControls } from "./visualization-controls";
 import UMAPPanel from "./umap-panel";
@@ -15,13 +16,38 @@ import { SingleMoleculeThreeScene } from "./single-molecule-three-scene";
 import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 
+import {
+  isLocalDatasetId,
+  getLocalDatasetMeta,
+  saveLocalDatasetMeta,
+} from "@/lib/services/localDatasetDB";
+import {
+  tryReadCellVizFromUrl,
+  tryReadSMVizFromUrl,
+  useCellVizUrlSync,
+  useSMVizUrlSync,
+} from "@/lib/hooks/useUrlVizSync";
+import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useDatasetStore } from "@/lib/stores/datasetStore";
+import {
+  usePanelDatasetStore,
+  usePanelVisualizationStore,
+  usePanelSingleMoleculeStore,
+  usePanelSingleMoleculeVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
+
 interface SplitPanelViewerProps {
   datasetId: string | null;
   s3Url: string | null;
   type: PanelType;
 }
 
-export function SplitPanelViewer({ datasetId, s3Url, type }: SplitPanelViewerProps) {
+export function SplitPanelViewer({
+  datasetId,
+  s3Url,
+  type,
+}: SplitPanelViewerProps) {
   if (type === "cell") {
     return <CellViewer datasetId={datasetId} s3Url={s3Url} />;
   }
@@ -29,14 +55,27 @@ export function SplitPanelViewer({ datasetId, s3Url, type }: SplitPanelViewerPro
   return <SingleMoleculeViewer datasetId={datasetId} s3Url={s3Url} />;
 }
 
-function CellViewer({ datasetId, s3Url }: { datasetId: string | null; s3Url: string | null }) {
+function CellViewer({
+  datasetId,
+  s3Url,
+}: {
+  datasetId: string | null;
+  s3Url: string | null;
+}) {
   const { addDataset } = usePanelDatasetStore();
-  const { setSelectedColumn } = usePanelVisualizationStore();
+  const vizStore = usePanelVisualizationStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Initializing...");
+  const [datasetReady, setDatasetReady] = useState(false);
+  const [localMetadata, setLocalMetadata] =
+    useState<LocalDatasetMetadata | null>(null);
+  const [showReupload, setShowReupload] = useState(false);
+
+  // URL sync hook (handles reading after datasetReady + writing)
+  useCellVizUrlSync(datasetReady, dataset, vizStore);
 
   // Use a stable key to track which source to load
   const sourceKey = s3Url || datasetId;
@@ -45,13 +84,57 @@ function CellViewer({ datasetId, s3Url }: { datasetId: string | null; s3Url: str
     if (!sourceKey) return;
     let cancelled = false;
 
-    async function loadDataset() {
+    async function resolveDataset() {
+      // If no S3 URL, check store first
+      if (!s3Url && datasetId) {
+        const storeDataset = useDatasetStore.getState().datasets.get(datasetId);
+
+        if (storeDataset && "spatial" in storeDataset) {
+          const ds = storeDataset as StandardizedDataset;
+
+          setDataset(ds);
+          addDataset(ds);
+
+          const urlState = tryReadCellVizFromUrl("right");
+
+          if (!urlState) {
+            vizStore.setSelectedColumn(selectBestClusterColumn(ds));
+          }
+
+          setDatasetReady(true);
+          setIsLoading(false);
+
+          return;
+        }
+
+        // Check if local dataset
+        if (isLocalDatasetId(datasetId)) {
+          const meta = await getLocalDatasetMeta(datasetId);
+
+          if (meta) {
+            setLocalMetadata(meta);
+            setShowReupload(true);
+            setIsLoading(false);
+
+            return;
+          }
+
+          setError("Local dataset metadata not found (evicted).");
+          setIsLoading(false);
+
+          return;
+        }
+      }
+
+      // Load from S3
       try {
         setIsLoading(true);
         setError(null);
         setProgress(0);
 
-        const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
+        const { StandardizedDataset } = await import(
+          "@/lib/StandardizedDataset"
+        );
 
         let ds: StandardizedDataset;
 
@@ -75,25 +158,65 @@ function CellViewer({ datasetId, s3Url }: { datasetId: string | null; s3Url: str
           setDataset(ds);
           addDataset(ds);
 
-          const bestColumn = selectBestClusterColumn(ds);
+          const urlState = tryReadCellVizFromUrl("right");
 
-          setSelectedColumn(bestColumn);
+          if (!urlState) {
+            vizStore.setSelectedColumn(selectBestClusterColumn(ds));
+          }
+
+          setDatasetReady(true);
           setIsLoading(false);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load dataset");
+          setError(
+            err instanceof Error ? err.message : "Failed to load dataset",
+          );
           setIsLoading(false);
         }
       }
     }
 
-    loadDataset();
+    resolveDataset();
 
     return () => {
       cancelled = true;
     };
   }, [sourceKey]);
+
+  const handleLocalDatasetLoaded = (ds: any) => {
+    const standardizedDataset = ds as StandardizedDataset;
+
+    setDataset(standardizedDataset);
+    addDataset(standardizedDataset);
+    setShowReupload(false);
+
+    const urlState = tryReadCellVizFromUrl("right");
+
+    if (!urlState) {
+      vizStore.setSelectedColumn(selectBestClusterColumn(standardizedDataset));
+    }
+
+    setDatasetReady(true);
+
+    if (localMetadata) {
+      saveLocalDatasetMeta({ ...localMetadata, createdAt: Date.now() });
+    }
+  };
+
+  if (showReupload && localMetadata && datasetId) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-black">
+        <LocalDatasetReuploadModal
+          expectedDatasetId={datasetId}
+          isOpen={showReupload}
+          metadata={localMetadata}
+          onClose={() => setShowReupload(false)}
+          onDatasetLoaded={handleLocalDatasetLoaded}
+        />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -135,28 +258,100 @@ function CellViewer({ datasetId, s3Url }: { datasetId: string | null; s3Url: str
   );
 }
 
-function SingleMoleculeViewer({ datasetId, s3Url }: { datasetId: string | null; s3Url: string | null }) {
+function SingleMoleculeViewer({
+  datasetId,
+  s3Url,
+}: {
+  datasetId: string | null;
+  s3Url: string | null;
+}) {
   const { addDataset } = usePanelSingleMoleculeStore();
-  const { addGene } = usePanelSingleMoleculeVisualizationStore();
+  const smVizStore = usePanelSingleMoleculeVisualizationStore();
+  const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Initializing...");
-  const [loaded, setLoaded] = useState(false);
+  const [datasetReady, setDatasetReady] = useState(false);
+  const [localMetadata, setLocalMetadata] =
+    useState<LocalDatasetMetadata | null>(null);
+  const [showReupload, setShowReupload] = useState(false);
+
+  // URL sync hook (handles reading after datasetReady + writing)
+  useSMVizUrlSync(datasetReady, smDataset, smVizStore);
 
   const sourceKey = s3Url || datasetId;
+
+  const autoSelectGenes = (ds: SingleMoleculeDataset) => {
+    const urlState = tryReadSMVizFromUrl("right");
+
+    if (!urlState) {
+      const genesToSelect = ds.uniqueGenes.slice(0, 3);
+
+      genesToSelect.forEach((gene) => {
+        const geneProps = ds.geneColors?.[gene];
+
+        if (geneProps) {
+          smVizStore.addGene(gene, geneProps.color, geneProps.size);
+        } else {
+          smVizStore.addGene(gene);
+        }
+      });
+    }
+  };
 
   useEffect(() => {
     if (!sourceKey) return;
     let cancelled = false;
 
-    async function loadDataset() {
+    async function resolveDataset() {
+      // If no S3 URL, check store first
+      if (!s3Url && datasetId) {
+        const storeDataset = useSingleMoleculeStore
+          .getState()
+          .datasets.get(datasetId);
+
+        if (storeDataset && "uniqueGenes" in storeDataset) {
+          const ds = storeDataset as SingleMoleculeDataset;
+
+          addDataset(ds);
+          setSmDataset(ds);
+          autoSelectGenes(ds);
+          setDatasetReady(true);
+          setIsLoading(false);
+
+          return;
+        }
+
+        if (isLocalDatasetId(datasetId)) {
+          const meta = await getLocalDatasetMeta(datasetId);
+
+          if (meta) {
+            setLocalMetadata(meta);
+            setShowReupload(true);
+            setIsLoading(false);
+
+            return;
+          }
+
+          setError("Local dataset metadata not found (evicted).");
+          setIsLoading(false);
+
+          return;
+        }
+      }
+
+      // Load from S3
       try {
         setIsLoading(true);
         setError(null);
         setProgress(0);
 
-        const { SingleMoleculeDataset } = await import("@/lib/SingleMoleculeDataset");
+        const { SingleMoleculeDataset } = await import(
+          "@/lib/SingleMoleculeDataset"
+        );
 
         let ds;
 
@@ -178,38 +373,55 @@ function SingleMoleculeViewer({ datasetId, s3Url }: { datasetId: string | null; 
 
         if (!cancelled) {
           addDataset(ds);
-
-          // Auto-select first 3 genes
-          const genesToSelect = ds.uniqueGenes.slice(0, 3);
-
-          genesToSelect.forEach((gene) => {
-            // Use geneColors if available (from-s3 datasets have them)
-            const geneProps = ds.geneColors?.[gene];
-
-            if (geneProps) {
-              addGene(gene, geneProps.color, geneProps.size);
-            } else {
-              addGene(gene);
-            }
-          });
-
-          setLoaded(true);
+          setSmDataset(ds);
+          autoSelectGenes(ds);
+          setDatasetReady(true);
           setIsLoading(false);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load dataset");
+          setError(
+            err instanceof Error ? err.message : "Failed to load dataset",
+          );
           setIsLoading(false);
         }
       }
     }
 
-    loadDataset();
+    resolveDataset();
 
     return () => {
       cancelled = true;
     };
   }, [sourceKey]);
+
+  const handleLocalDatasetLoaded = (ds: any) => {
+    const smDs = ds as SingleMoleculeDataset;
+
+    addDataset(smDs);
+    setSmDataset(smDs);
+    setShowReupload(false);
+    autoSelectGenes(smDs);
+    setDatasetReady(true);
+
+    if (localMetadata) {
+      saveLocalDatasetMeta({ ...localMetadata, createdAt: Date.now() });
+    }
+  };
+
+  if (showReupload && localMetadata && datasetId) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-black">
+        <LocalDatasetReuploadModal
+          expectedDatasetId={datasetId}
+          isOpen={showReupload}
+          metadata={localMetadata}
+          onClose={() => setShowReupload(false)}
+          onDatasetLoaded={handleLocalDatasetLoaded}
+        />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -240,7 +452,7 @@ function SingleMoleculeViewer({ datasetId, s3Url }: { datasetId: string | null; 
     );
   }
 
-  if (!loaded) return null;
+  if (!datasetReady) return null;
 
   return (
     <>
