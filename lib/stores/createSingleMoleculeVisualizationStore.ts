@@ -1,12 +1,9 @@
 import { createStore } from "zustand";
 
-function generateBrightColor(): string {
-  const hue = Math.random() * 360;
-  const saturation = 70 + Math.random() * 30;
-  const lightness = 50 + Math.random() * 20;
-
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-}
+import {
+  getColorForSlot,
+  findLowestAvailableSlot,
+} from "@/lib/utils/gene-color-palette";
 
 export interface GeneVisualization {
   gene: string;
@@ -20,6 +17,7 @@ export interface SingleMoleculeVisualizationState {
   selectedGenes: Map<string, GeneVisualization>;
   selectedGenesLegend: Set<string>;
   geneDataCache: Map<string, GeneVisualization>;
+  geneColorSlots: Map<string, number>;
   globalScale: number;
   viewMode: ViewMode;
 
@@ -40,6 +38,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
     selectedGenes: new Map(),
     selectedGenesLegend: new Set(),
     geneDataCache: new Map(),
+    geneColorSlots: new Map(),
     globalScale: 1.0,
     viewMode: "2D",
 
@@ -48,10 +47,32 @@ export function createSingleMoleculeVisualizationStoreInstance() {
         const newSelectedGenes = new Map(state.selectedGenes);
         const newSelectedGenesLegend = new Set(state.selectedGenesLegend);
         const newGeneDataCache = new Map(state.geneDataCache);
+        const newGeneColorSlots = new Map(state.geneColorSlots);
+
+        // Assign color by lowest-available-slot if no explicit color provided
+        let assignedColor = color;
+
+        if (!assignedColor) {
+          let slot = newGeneColorSlots.get(gene);
+
+          if (slot === undefined) {
+            const usedSlots = new Set(newGeneColorSlots.values());
+
+            slot = findLowestAvailableSlot(usedSlots);
+            newGeneColorSlots.set(gene, slot);
+          }
+          assignedColor = getColorForSlot(slot);
+        } else if (!newGeneColorSlots.has(gene)) {
+          // Even with explicit color (URL restore), assign a slot
+          const usedSlots = new Set(newGeneColorSlots.values());
+          const slot = findLowestAvailableSlot(usedSlots);
+
+          newGeneColorSlots.set(gene, slot);
+        }
 
         const geneViz = {
           gene,
-          color: color || generateBrightColor(),
+          color: assignedColor,
           localScale: localScale || 1.0,
         };
 
@@ -66,6 +87,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
           selectedGenes: newSelectedGenes,
           selectedGenesLegend: newSelectedGenesLegend,
           geneDataCache: newGeneDataCache,
+          geneColorSlots: newGeneColorSlots,
         };
       }),
 
@@ -74,15 +96,18 @@ export function createSingleMoleculeVisualizationStoreInstance() {
         const newSelectedGenes = new Map(state.selectedGenes);
         const newSelectedGenesLegend = new Set(state.selectedGenesLegend);
         const newGeneDataCache = new Map(state.geneDataCache);
+        const newGeneColorSlots = new Map(state.geneColorSlots);
 
         newSelectedGenes.delete(gene);
         newSelectedGenesLegend.delete(gene);
         newGeneDataCache.delete(gene);
+        newGeneColorSlots.delete(gene);
 
         return {
           selectedGenes: newSelectedGenes,
           selectedGenesLegend: newSelectedGenesLegend,
           geneDataCache: newGeneDataCache,
+          geneColorSlots: newGeneColorSlots,
         };
       }),
 
@@ -156,6 +181,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
         selectedGenes: new Map(),
         selectedGenesLegend: new Set(),
         geneDataCache: new Map(),
+        geneColorSlots: new Map(),
       }),
 
     loadFromLocalStorage: (datasetId: string) => {
@@ -186,10 +212,18 @@ export function createSingleMoleculeVisualizationStoreInstance() {
             }
           });
 
+          // Rebuild color slots: assign slots in legend order
+          const newGeneColorSlots = new Map<string, number>();
+
+          legendGenes.forEach((gene: string, index: number) => {
+            newGeneColorSlots.set(gene, index);
+          });
+
           set({
             selectedGenes: newSelectedGenes,
             selectedGenesLegend: newSelectedGenesLegend,
             geneDataCache: newGeneDataCache,
+            geneColorSlots: newGeneColorSlots,
           });
         }
       } catch (error) {

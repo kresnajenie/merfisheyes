@@ -10,6 +10,7 @@ import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSMVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 
 function ViewerContent() {
   const router = useRouter();
@@ -33,46 +34,16 @@ function ViewerContent() {
     smVizStore,
   );
 
-  // Auto-select LEF1 + 4 random genes when dataset loads (skip if URL state was applied)
+  // Auto-select default genes when dataset loads (skip if URL state was applied)
   useEffect(() => {
     if (!dataset || hasUrlStateRef.current) return;
 
-    console.log("[sm-viewer] Dataset loaded, selecting LEF1 + 4 random genes");
-    console.log("Available genes:", dataset.uniqueGenes.length);
-
-    // Clear previous selections
     clearGenes();
 
-    const selectedGenes: string[] = [];
+    const genesToSelect = pickDefaultGenes(dataset.uniqueGenes);
 
-    // Always add LEF1 if it exists
-    if (dataset.uniqueGenes.includes("LEF1")) {
-      selectedGenes.push("LEF1");
-      console.log("Added LEF1 (always included)");
-    } else {
-      console.warn("LEF1 not found in dataset");
-    }
-
-    // Pick 4 additional random genes
-    const availableGenes = dataset.uniqueGenes.filter(
-      (gene) => gene !== "LEF1",
-    );
-    const numRandomGenes = Math.min(4, availableGenes.length);
-
-    for (let i = 0; i < numRandomGenes; i++) {
-      const randomIndex = Math.floor(Math.random() * availableGenes.length);
-
-      selectedGenes.push(availableGenes[randomIndex]);
-      availableGenes.splice(randomIndex, 1); // Remove to avoid duplicates
-    }
-
-    console.log("Selected genes:", selectedGenes);
-
-    // Add genes to visualization store with their persistent colors
-    selectedGenes.forEach((gene) => {
-      const geneProps = dataset.geneColors[gene];
-
-      addGene(gene, geneProps.color, geneProps.size);
+    genesToSelect.forEach((gene) => {
+      addGene(gene);
     });
   }, [dataset, addGene, clearGenes]);
 

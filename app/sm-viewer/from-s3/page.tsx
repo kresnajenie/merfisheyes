@@ -11,6 +11,7 @@ import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
@@ -135,23 +136,10 @@ function SingleMoleculeViewerFromS3Content() {
         console.log("Applying visualization state from URL");
         applySMVizState(urlVizState, smVizStore, smDataset);
       } else {
-        // Auto-select first 3 genes
-        const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
-
-        console.log("Auto-selecting genes:", genesToSelect);
+        const genesToSelect = pickDefaultGenes(smDataset.uniqueGenes);
 
         genesToSelect.forEach((gene) => {
-          const geneProps = smDataset.geneColors[gene];
-
-          if (!geneProps) {
-            console.error(`Missing geneProps for gene: ${gene}`);
-            return;
-          }
-
-          console.log(
-            `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
-          );
-          addGene(gene, geneProps.color, geneProps.size);
+          addGene(gene);
         });
       }
 

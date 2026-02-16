@@ -7,6 +7,7 @@ import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
 import { Spinner, Progress } from "@heroui/react";
 import { useEffect, useState } from "react";
+import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 
 import { LocalDatasetReuploadModal } from "./local-dataset-reupload-modal";
 import { ThreeScene } from "./three-scene";
@@ -288,16 +289,10 @@ function SingleMoleculeViewer({
     const urlState = tryReadSMVizFromUrl("right");
 
     if (!urlState) {
-      const genesToSelect = ds.uniqueGenes.slice(0, 3);
+      const genesToSelect = pickDefaultGenes(ds.uniqueGenes);
 
       genesToSelect.forEach((gene) => {
-        const geneProps = ds.geneColors?.[gene];
-
-        if (geneProps) {
-          smVizStore.addGene(gene, geneProps.color, geneProps.size);
-        } else {
-          smVizStore.addGene(gene);
-        }
+        smVizStore.addGene(gene);
       });
     }
   };

@@ -137,7 +137,7 @@ export const SingleMoleculeLegends: React.FC = () => {
         >
           Selected Genes ({selectedGenesLegend.size}) - Clear All
         </div>
-        <div className="flex flex-col items-end gap-2 max-h-96 overflow-y-auto">
+        <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto">
           {legendGenesArray.map(({ gene, geneViz, isVisible }) => {
             if (!geneViz) return null;
 
