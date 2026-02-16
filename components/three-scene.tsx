@@ -18,7 +18,13 @@ import {
   updateNumericalCelltypeVisualization,
   updateCombinedVisualization,
 } from "@/lib/webgl/visualization-utils";
-import { useVisualizationStore } from "@/lib/stores/visualizationStore";
+import {
+  usePanelVisualizationStore,
+  usePanelId,
+} from "@/lib/hooks/usePanelStores";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import { getDatasetLinkConfig } from "@/lib/config/dataset-links";
+import { toast } from "react-toastify";
 import { VisualizationLegends } from "@/components/visualization-legends";
 
 interface ThreeSceneProps {
@@ -64,7 +70,19 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     setNumericalScaleMin,
     setNumericalScaleMax,
     toggleCelltype,
-  } = useVisualizationStore();
+  } = usePanelVisualizationStore();
+
+  // Split screen support
+  const panelId = usePanelId();
+  const { enableSplit, setRightPanelS3 } = useSplitScreenStore();
+  const linkConfigRef = useRef(
+    dataset ? getDatasetLinkConfig(dataset) : null,
+  );
+
+  // Update link config ref when dataset changes
+  useEffect(() => {
+    linkConfigRef.current = dataset ? getDatasetLinkConfig(dataset) : null;
+  }, [dataset]);
 
   // Store current mode and selection in refs to avoid closure issues
   const modeRef = useRef(mode);
@@ -397,9 +415,49 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         }
       };
 
+      // Right-click handler: open split screen with linked SM dataset
+      const handleContextMenu = (event: MouseEvent) => {
+        // Only works on left panel (not inside a split right panel)
+        if (panelId) return;
+        // Need a hovered point
+        if (hoveredPointRef.current === null) return;
+        // Need a link config for this dataset
+        const linkConfig = linkConfigRef.current;
+        if (!linkConfig) return;
+
+        event.preventDefault();
+
+        const index = hoveredPointRef.current;
+
+        // Find the link column in dataset clusters (always reads the configured column,
+        // regardless of which column is currently selected for visualization)
+        const linkCluster = dataset!.clusters?.find(
+          (c) => c.column === linkConfig.linkColumn,
+        );
+        if (!linkCluster) {
+          console.warn(
+            `Link column "${linkConfig.linkColumn}" not found in dataset clusters`,
+          );
+          return;
+        }
+
+        const setValue = String(linkCluster.values[index]);
+        const smUrl = linkConfig.links[setValue];
+
+        if (!smUrl) {
+          toast.warning(`No single molecule data available for "${setValue}"`);
+          return;
+        }
+
+        enableSplit();
+        setRightPanelS3(smUrl, "sm");
+        toast.info(`Opening SM dataset for ${setValue}`);
+      };
+
       // Add event listeners
       renderer.domElement.addEventListener("mousemove", handleMouseMove);
       renderer.domElement.addEventListener("dblclick", handleDoubleClick);
+      renderer.domElement.addEventListener("contextmenu", handleContextMenu);
 
       // Convert dataset spatial coordinates to PointData format
       const pointData: PointData[] = dataset.spatial.coordinates.map(
@@ -430,6 +488,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         // Remove event listeners
         renderer.domElement.removeEventListener("mousemove", handleMouseMove);
         renderer.domElement.removeEventListener("dblclick", handleDoubleClick);
+        renderer.domElement.removeEventListener(
+          "contextmenu",
+          handleContextMenu,
+        );
 
         // Hide tooltip
         hideTooltip();
@@ -610,13 +672,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     <>
       <div
         ref={containerRef}
-        className="fixed inset-0 w-full h-full"
+        className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
 
       {/* Loading overlay for gene expression fetching */}
       {isLoadingGene && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
           <div className="bg-default-100/90 rounded-lg p-6 shadow-lg flex flex-col items-center gap-3">
             <Spinner color="primary" size="lg" />
             <p className="text-sm font-medium">Loading gene expression...</p>

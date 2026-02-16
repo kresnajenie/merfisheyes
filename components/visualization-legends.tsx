@@ -6,8 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 
-import { useVisualizationStore } from "@/lib/stores/visualizationStore";
-import { useDatasetStore } from "@/lib/stores/datasetStore";
+import { usePanelVisualizationStore, usePanelDatasetStore } from "@/lib/hooks/usePanelStores";
 import { GeneScalebar } from "@/components/gene-scalebar";
 import {
   ColorPicker,
@@ -35,9 +34,9 @@ export const VisualizationLegends: React.FC = () => {
     setNumericalScaleMax,
     colorPalette: storeColorPalette,
     setColorPalette,
-  } = useVisualizationStore();
+  } = usePanelVisualizationStore();
 
-  const { getCurrentDataset } = useDatasetStore();
+  const { getCurrentDataset } = usePanelDatasetStore();
   const dataset = getCurrentDataset();
   const [openPopoverCelltype, setOpenPopoverCelltype] = useState<string | null>(
     null,
@@ -154,7 +153,7 @@ export const VisualizationLegends: React.FC = () => {
   }
 
   return (
-    <div className="fixed right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
+    <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
       {/* Selected Gene Badge */}
       {hasGene && (
         <div className="flex flex-col items-end gap-2">

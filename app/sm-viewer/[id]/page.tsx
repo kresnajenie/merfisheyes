@@ -1,30 +1,113 @@
 "use client";
 
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { PanelType } from "@/lib/stores/splitScreenStore";
+import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
 import { Suspense, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button, Spinner } from "@heroui/react";
 
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
+import { SplitScreenContainer } from "@/components/split-screen-container";
+import { LocalDatasetReuploadModal } from "@/components/local-dataset-reupload-modal";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import {
+  useSMVizUrlSync,
+  tryReadSMVizFromUrl,
+  applySMVizState,
+} from "@/lib/hooks/useUrlVizSync";
+import {
+  isLocalDatasetId,
+  getLocalDatasetMeta,
+  saveLocalDatasetMeta,
+} from "@/lib/services/localDatasetDB";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
 function SingleMoleculeViewerByIdContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addDataset } = useSingleMoleculeStore();
-  const { addGene, loadFromLocalStorage, saveToLocalStorage } =
-    useSingleMoleculeVisualizationStore();
+  const smVizStore = useSingleMoleculeVisualizationStore();
+  const { addGene, loadFromLocalStorage, saveToLocalStorage } = smVizStore;
+  const {
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    enableSplit,
+    setRightPanel,
+    setRightPanelS3,
+  } = useSplitScreenStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [localMetadata, setLocalMetadata] =
+    useState<LocalDatasetMetadata | null>(null);
+  const [showReuploadModal, setShowReuploadModal] = useState(false);
   const datasetId = params.id as string;
+
+  // URL visualization state sync
+  useSMVizUrlSync(!!dataset, dataset, smVizStore);
+
+  // Read split params from URL on mount
+  useEffect(() => {
+    const splitId = searchParams.get("split");
+    const splitS3Url = searchParams.get("splitS3Url");
+    const splitType = searchParams.get("splitType") as PanelType | null;
+
+    if (splitS3Url && splitType) {
+      enableSplit();
+      setRightPanelS3(decodeURIComponent(splitS3Url), splitType);
+    } else if (splitId && splitType) {
+      enableSplit();
+      setRightPanel(splitId, splitType);
+    }
+  }, []);
+
+  // Write split params to URL when split state changes
+  useEffect(() => {
+    // Preserve v/rv params written by replaceState (not in Next.js searchParams)
+    const currentUrl = new URLSearchParams(window.location.search);
+    const currentV = currentUrl.get("v");
+    const currentRv = currentUrl.get("rv");
+
+    if (isSplitMode && rightPanelType) {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      if (rightPanelS3Url) {
+        newParams.set("splitS3Url", encodeURIComponent(rightPanelS3Url));
+        newParams.delete("split");
+      } else if (rightPanelDatasetId) {
+        newParams.set("split", rightPanelDatasetId);
+        newParams.delete("splitS3Url");
+      }
+      newParams.set("splitType", rightPanelType);
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
+      router.replace(`?${newParams.toString()}`, { scroll: false });
+    } else if (!isSplitMode) {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      newParams.delete("split");
+      newParams.delete("splitS3Url");
+      newParams.delete("splitType");
+      if (currentV) newParams.set("v", currentV);
+      if (currentRv) newParams.set("rv", currentRv);
+      const paramStr = newParams.toString();
+
+      router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
+        scroll: false,
+      });
+    }
+  }, [isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType]);
   const selectedGenesLegend = useSingleMoleculeVisualizationStore(
     (state) => state.selectedGenesLegend,
   );
@@ -37,7 +120,7 @@ function SingleMoleculeViewerByIdContent() {
       return;
     }
 
-    loadDatasetFromServer(datasetId);
+    resolveDataset(datasetId);
   }, [datasetId]);
 
   // Save visibility state to localStorage whenever it changes
@@ -47,19 +130,95 @@ function SingleMoleculeViewerByIdContent() {
     }
   }, [selectedGenesLegend, datasetId, dataset, saveToLocalStorage]);
 
-  const loadDatasetFromServer = async (id: string) => {
+  const resolveDataset = async (id: string) => {
+    // Step 1: Check Zustand store first
+    const storeDataset = useSingleMoleculeStore.getState().datasets.get(id);
+
+    if (storeDataset && "uniqueGenes" in storeDataset) {
+      console.log("SM dataset found in store:", id);
+      setDataset(storeDataset as SingleMoleculeDataset);
+      applyVizStateForDataset(storeDataset as SingleMoleculeDataset, id);
+      setIsLoading(false);
+
+      return;
+    }
+
+    // Step 2: Check if this is a local dataset
+    if (isLocalDatasetId(id)) {
+      const meta = await getLocalDatasetMeta(id);
+
+      if (meta) {
+        console.log("Local SM dataset metadata found in IndexedDB:", meta);
+        setLocalMetadata(meta);
+        setShowReuploadModal(true);
+        setIsLoading(false);
+
+        return;
+      }
+
+      setError(
+        "This local dataset is no longer available. The metadata was evicted after loading newer datasets.",
+      );
+      setIsLoading(false);
+
+      return;
+    }
+
+    // Step 3: Load from S3
+    loadDatasetFromS3(id);
+  };
+
+  const applyVizStateForDataset = async (
+    smDataset: SingleMoleculeDataset,
+    id: string,
+  ) => {
+    const urlVizState = tryReadSMVizFromUrl("left");
+
+    if (urlVizState) {
+      console.log("Applying visualization state from URL");
+      applySMVizState(urlVizState, smVizStore, smDataset);
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      loadFromLocalStorage(id);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      const { selectedGenesLegend, clearGenes } =
+        useSingleMoleculeVisualizationStore.getState();
+      const validGenes = Array.from(selectedGenesLegend).filter((gene) =>
+        smDataset.uniqueGenes.includes(gene),
+      );
+
+      if (
+        validGenes.length !== selectedGenesLegend.size &&
+        selectedGenesLegend.size > 0
+      ) {
+        clearGenes();
+      }
+
+      const { selectedGenesLegend: currentSelection } =
+        useSingleMoleculeVisualizationStore.getState();
+
+      if (currentSelection.size === 0) {
+        const genesToSelect = pickDefaultGenes(smDataset.uniqueGenes);
+
+        genesToSelect.forEach((gene) => {
+          addGene(gene);
+        });
+      }
+    }
+  };
+
+  const loadDatasetFromS3 = async (id: string) => {
     try {
       setIsLoading(true);
       setError(null);
 
       console.log("Loading single molecule dataset from S3:", id);
 
-      // Import SingleMoleculeDataset
       const { SingleMoleculeDataset } = await import(
         "@/lib/SingleMoleculeDataset"
       );
 
-      // Load dataset using fromS3 method with lazy loading
       const smDataset = await SingleMoleculeDataset.fromS3(
         id,
         (progress, message) => {
@@ -72,67 +231,11 @@ function SingleMoleculeViewerByIdContent() {
         smDataset.getSummary(),
       );
 
-      // Store dataset in both local state and global store
       setDataset(smDataset);
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
 
-      // Wait a tick for store to update
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // Try to load visibility state from localStorage first
-      loadFromLocalStorage(id);
-
-      // Wait a bit to see if anything was loaded
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      // Validate that loaded genes exist in current dataset
-      const { selectedGenesLegend, clearGenes } =
-        useSingleMoleculeVisualizationStore.getState();
-
-      const validGenes = Array.from(selectedGenesLegend).filter((gene) =>
-        smDataset.uniqueGenes.includes(gene)
-      );
-
-      // If loaded genes are invalid, clear them
-      if (validGenes.length !== selectedGenesLegend.size && selectedGenesLegend.size > 0) {
-        console.warn(
-          `Loaded ${selectedGenesLegend.size} genes from localStorage, but only ${validGenes.length} exist in current dataset. Clearing invalid genes.`
-        );
-        clearGenes();
-      }
-
-      // If nothing was loaded or all genes were invalid, auto-select first 3 genes
-      const { selectedGenesLegend: currentSelection } =
-        useSingleMoleculeVisualizationStore.getState();
-
-      if (currentSelection.size === 0) {
-        console.log("No valid saved state, auto-selecting first 3 genes");
-        const genesToSelect = smDataset.uniqueGenes.slice(0, 3);
-
-        console.log("Auto-selecting genes:", genesToSelect);
-
-        genesToSelect.forEach((gene) => {
-          const geneProps = smDataset.geneColors[gene];
-
-          if (!geneProps) {
-            console.error(`Missing geneProps for gene: ${gene}`);
-            console.error("This should never happen - gene is in uniqueGenes but not in geneColors");
-            return;
-          }
-
-          console.log(
-            `Adding gene to visualization: ${gene} with color ${geneProps.color}`,
-          );
-          addGene(gene, geneProps.color, geneProps.size);
-        });
-      } else {
-        console.log(
-          "Loaded valid visibility state from localStorage:",
-          currentSelection.size,
-          "genes",
-        );
-      }
+      await applyVizStateForDataset(smDataset, id);
 
       setIsLoading(false);
     } catch (err) {
@@ -141,6 +244,35 @@ function SingleMoleculeViewerByIdContent() {
       setIsLoading(false);
     }
   };
+
+  const handleLocalDatasetLoaded = (ds: any) => {
+    const smDataset = ds as SingleMoleculeDataset;
+
+    setDataset(smDataset);
+    addDataset(smDataset);
+    setShowReuploadModal(false);
+
+    // Refresh timestamp in IndexedDB
+    if (localMetadata) {
+      saveLocalDatasetMeta({ ...localMetadata, createdAt: Date.now() });
+    }
+
+    // Apply viz state
+    applyVizStateForDataset(smDataset, datasetId);
+  };
+
+  // Re-upload modal for local datasets
+  if (showReuploadModal && localMetadata) {
+    return (
+      <LocalDatasetReuploadModal
+        expectedDatasetId={datasetId}
+        isOpen={showReuploadModal}
+        metadata={localMetadata}
+        onClose={() => router.push("/?mode=sm")}
+        onDatasetLoaded={handleLocalDatasetLoaded}
+      />
+    );
+  }
 
   // Loading state
   if (isLoading) {
@@ -211,7 +343,7 @@ function SingleMoleculeViewerByIdContent() {
               <Button
                 color="default"
                 variant="bordered"
-                onPress={() => loadDatasetFromServer(datasetId)}
+                onPress={() => resolveDataset(datasetId)}
               >
                 Retry
               </Button>
@@ -228,11 +360,11 @@ function SingleMoleculeViewerByIdContent() {
   }
 
   return (
-    <>
+    <SplitScreenContainer>
       <SingleMoleculeControls />
       <SingleMoleculeLegends />
       <SingleMoleculeThreeScene />
-    </>
+    </SplitScreenContainer>
   );
 }
 

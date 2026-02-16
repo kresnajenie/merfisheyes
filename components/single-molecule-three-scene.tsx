@@ -6,8 +6,7 @@ import { Spinner } from "@heroui/react";
 import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import { usePanelSingleMoleculeStore, usePanelSingleMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 // Create solid circular sprite texture for points
@@ -51,16 +50,16 @@ export function SingleMoleculeThreeScene() {
   const globalScaleRef = useRef<number>(1);
 
   // Get dataset from store - using stable selector to prevent re-renders
-  const currentDatasetId = useSingleMoleculeStore(
+  const currentDatasetId = usePanelSingleMoleculeStore(
     (state) => state.currentDatasetId,
   );
-  const dataset = useSingleMoleculeStore((state) =>
+  const dataset = usePanelSingleMoleculeStore((state) =>
     currentDatasetId ? state.datasets.get(currentDatasetId) : null,
   );
 
   // Get visualization settings from store
   const { selectedGenes, globalScale, viewMode } =
-    useSingleMoleculeVisualizationStore();
+    usePanelSingleMoleculeVisualizationStore();
 
   // Keep refs in sync with store values
   selectedGenesRef.current = selectedGenes;
@@ -512,7 +511,7 @@ export function SingleMoleculeThreeScene() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 w-full h-full"
+      className="absolute inset-0 w-full h-full"
       style={{ margin: 0, padding: 0 }}
     />
   );

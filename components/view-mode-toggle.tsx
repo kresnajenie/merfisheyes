@@ -2,13 +2,13 @@
 
 import { Button } from "@heroui/react";
 
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import { usePanelSingleMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 
 export function ViewModeToggle() {
-  const { viewMode, setViewMode } = useSingleMoleculeVisualizationStore();
+  const { viewMode, setViewMode } = usePanelSingleMoleculeVisualizationStore();
 
   return (
-    <div className="fixed top-20 right-4 z-50">
+    <div className="absolute top-20 right-4 z-50">
       <Button
         className="font-semibold"
         color={viewMode === "2D" ? "primary" : "default"}

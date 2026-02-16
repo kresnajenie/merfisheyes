@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { createStore } from "zustand";
 
 import {
   getColorForSlot,
@@ -8,31 +8,19 @@ import {
 export interface GeneVisualization {
   gene: string;
   color: string;
-  localScale: number; // Local scale multiplier for this gene
+  localScale: number;
 }
 
 export type ViewMode = "2D" | "3D";
 
-interface SingleMoleculeVisualizationState {
-  // Selected genes with their visualization properties (visible in scene)
+export interface SingleMoleculeVisualizationState {
   selectedGenes: Map<string, GeneVisualization>;
-
-  // Genes that appear in legend panel (may be hidden from scene)
   selectedGenesLegend: Set<string>;
-
-  // Cache of gene visualization data for all legend genes (even if hidden)
   geneDataCache: Map<string, GeneVisualization>;
-
-  // Maps gene name to its color slot index
   geneColorSlots: Map<string, number>;
-
-  // Global scale multiplier (affects all genes)
   globalScale: number;
-
-  // Camera view mode
   viewMode: ViewMode;
 
-  // Actions
   addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
   toggleGeneVisibility: (gene: string) => void;
@@ -45,8 +33,8 @@ interface SingleMoleculeVisualizationState {
   saveToLocalStorage: (datasetId: string) => void;
 }
 
-export const useSingleMoleculeVisualizationStore =
-  create<SingleMoleculeVisualizationState>((set, get) => ({
+export function createSingleMoleculeVisualizationStoreInstance() {
+  return createStore<SingleMoleculeVisualizationState>((set, get) => ({
     selectedGenes: new Map(),
     selectedGenesLegend: new Set(),
     geneDataCache: new Map(),
@@ -92,7 +80,6 @@ export const useSingleMoleculeVisualizationStore =
           newSelectedGenes.set(gene, geneViz);
         }
 
-        // Also add to legend and cache
         newSelectedGenesLegend.add(gene);
         newGeneDataCache.set(gene, geneViz);
 
@@ -111,7 +98,6 @@ export const useSingleMoleculeVisualizationStore =
         const newGeneDataCache = new Map(state.geneDataCache);
         const newGeneColorSlots = new Map(state.geneColorSlots);
 
-        // Remove from visibility, legend, cache, and color slot
         newSelectedGenes.delete(gene);
         newSelectedGenesLegend.delete(gene);
         newGeneDataCache.delete(gene);
@@ -130,10 +116,8 @@ export const useSingleMoleculeVisualizationStore =
         const newSelectedGenes = new Map(state.selectedGenes);
 
         if (newSelectedGenes.has(gene)) {
-          // Gene is visible, hide it (but keep in legend and cache)
           newSelectedGenes.delete(gene);
         } else {
-          // Gene is hidden, show it (restore from cache)
           const cachedData = state.geneDataCache.get(gene);
 
           if (cachedData) {
@@ -154,7 +138,6 @@ export const useSingleMoleculeVisualizationStore =
         if (geneViz) {
           const updatedGeneViz = { ...geneViz, color };
 
-          // Update in both visible genes (if present) and cache
           if (newSelectedGenes.has(gene)) {
             newSelectedGenes.set(gene, updatedGeneViz);
           }
@@ -177,7 +160,6 @@ export const useSingleMoleculeVisualizationStore =
         if (geneViz) {
           const updatedGeneViz = { ...geneViz, localScale: scale };
 
-          // Update in both visible genes (if present) and cache
           if (newSelectedGenes.has(gene)) {
             newSelectedGenes.set(gene, updatedGeneViz);
           }
@@ -212,7 +194,6 @@ export const useSingleMoleculeVisualizationStore =
         if (stored) {
           const { visibleGenes, legendGenes, geneData } = JSON.parse(stored);
 
-          // Reconstruct selectedGenes Map (visible genes)
           const newSelectedGenes = new Map<string, GeneVisualization>();
 
           visibleGenes.forEach((gene: string) => {
@@ -221,10 +202,8 @@ export const useSingleMoleculeVisualizationStore =
             }
           });
 
-          // Reconstruct selectedGenesLegend Set
           const newSelectedGenesLegend = new Set<string>(legendGenes);
 
-          // Reconstruct geneDataCache Map (all legend genes)
           const newGeneDataCache = new Map<string, GeneVisualization>();
 
           legendGenes.forEach((gene: string) => {
@@ -249,7 +228,7 @@ export const useSingleMoleculeVisualizationStore =
         }
       } catch (error) {
         console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to load visibility state from localStorage:`,
+          `[SingleMoleculeVisualizationStore] Failed to load from localStorage:`,
           error,
         );
       }
@@ -262,29 +241,28 @@ export const useSingleMoleculeVisualizationStore =
         const state = get();
         const storageKey = `sm_gene_visibility_${datasetId}`;
 
-        // Convert Map and Set to serializable format
         const visibleGenes = Array.from(state.selectedGenes.keys());
         const legendGenes = Array.from(state.selectedGenesLegend);
 
-        // Store full gene data from cache (includes hidden genes)
         const geneData: Record<string, GeneVisualization> = {};
 
         state.geneDataCache.forEach((geneViz, gene) => {
           geneData[gene] = geneViz;
         });
 
-        const data = {
-          visibleGenes,
-          legendGenes,
-          geneData,
-        };
+        const data = { visibleGenes, legendGenes, geneData };
 
         localStorage.setItem(storageKey, JSON.stringify(data));
       } catch (error) {
         console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to save visibility state to localStorage:`,
+          `[SingleMoleculeVisualizationStore] Failed to save to localStorage:`,
           error,
         );
       }
     },
   }));
+}
+
+export type SingleMoleculeVisualizationStore = ReturnType<
+  typeof createSingleMoleculeVisualizationStoreInstance
+>;
