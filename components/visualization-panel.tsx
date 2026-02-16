@@ -26,7 +26,7 @@ export function VisualizationPanel({
 }: VisualizationPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100; // Show 100 items per page
+  const itemsPerPage = 1000; // Show 1000 items per page
   const panelRef = useRef<HTMLDivElement>(null);
   const { getCurrentDataset } = usePanelDatasetStore();
   const {
@@ -145,8 +145,15 @@ export function VisualizationPanel({
       }
 
       case "gene": {
-        // Get all genes
-        return dataset.genes.map((gene) => ({
+        // Get all genes in deterministic, human-friendly order
+        const sortedGenes = [...dataset.genes].sort((a, b) =>
+          a.localeCompare(b, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          }),
+        );
+
+        return sortedGenes.map((gene) => ({
           id: gene,
           label: gene,
           color: "#FFFFFF",
