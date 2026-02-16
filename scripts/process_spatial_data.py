@@ -1058,7 +1058,7 @@ def process_dataset(
             'created_by': 'process_spatial_data.py'
         },
         'files': {
-            'coordinates': ['spatial'],
+            'coordinates': ['spatial'] + available_embeddings,
             'expression_chunks': num_chunks,
             'observation_columns': list(obs_metadata.keys())
         }
