@@ -202,11 +202,7 @@ function SingleMoleculeViewerByIdContent() {
         const genesToSelect = pickDefaultGenes(smDataset.uniqueGenes);
 
         genesToSelect.forEach((gene) => {
-          const geneProps = smDataset.geneColors[gene];
-
-          if (geneProps) {
-            addGene(gene, geneProps.color, geneProps.size);
-          }
+          addGene(gene);
         });
       }
     }

@@ -168,13 +168,7 @@ export function SingleMoleculeControls() {
                       if (selectedGenes.has(gene)) {
                         removeGene(gene);
                       } else {
-                        const geneProps = dataset?.geneColors[gene];
-
-                        if (geneProps) {
-                          addGene(gene, geneProps.color, geneProps.size);
-                        } else {
-                          addGene(gene);
-                        }
+                        addGene(gene);
                       }
                     }}
                   >

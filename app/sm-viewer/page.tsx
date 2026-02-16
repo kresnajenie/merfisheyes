@@ -43,11 +43,7 @@ function ViewerContent() {
     const genesToSelect = pickDefaultGenes(dataset.uniqueGenes);
 
     genesToSelect.forEach((gene) => {
-      const geneProps = dataset.geneColors[gene];
-
-      if (geneProps) {
-        addGene(gene, geneProps.color, geneProps.size);
-      }
+      addGene(gene);
     });
   }, [dataset, addGene, clearGenes]);
 

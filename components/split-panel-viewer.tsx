@@ -292,13 +292,7 @@ function SingleMoleculeViewer({
       const genesToSelect = pickDefaultGenes(ds.uniqueGenes);
 
       genesToSelect.forEach((gene) => {
-        const geneProps = ds.geneColors?.[gene];
-
-        if (geneProps) {
-          smVizStore.addGene(gene, geneProps.color, geneProps.size);
-        } else {
-          smVizStore.addGene(gene);
-        }
+        smVizStore.addGene(gene);
       });
     }
   };
