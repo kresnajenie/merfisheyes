@@ -54,12 +54,27 @@ function looksLikeFloat(value: any): boolean {
 export function isCategorical(values: any[], columnName?: string): boolean {
   if (!values || values.length === 0) return false;
 
-  // Special case: leiden/louvain columns are always categorical
+  // Special case: known categorical columns
   if (columnName) {
     const lowerName = columnName.toLowerCase();
 
     if (lowerName.includes("leiden") || lowerName.includes("louvain")) {
       return true;
+    }
+
+    // Known numerical columns (counts, QC metrics)
+    const numericalPatterns = [
+      "n_genes",
+      "total_counts",
+      "n_counts",
+      "pct_counts",
+      "log1p_",
+      "n_cells",
+      "doublet_score",
+    ];
+
+    if (numericalPatterns.some((p) => lowerName.includes(p))) {
+      return false;
     }
   }
 
