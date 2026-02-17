@@ -37,9 +37,11 @@ function ViewerByIdContent() {
     rightPanelDatasetId,
     rightPanelS3Url,
     rightPanelType,
+    syncEnabled,
     enableSplit,
     setRightPanel,
     setRightPanelS3,
+    setSyncEnabled,
   } = useSplitScreenStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +70,10 @@ function ViewerByIdContent() {
       enableSplit();
       setRightPanel(splitId, splitType);
     }
+
+    if (searchParams.get("sync") === "1") {
+      setSyncEnabled(true);
+    }
   }, []);
 
   // Write split params to URL when split state changes
@@ -88,6 +94,11 @@ function ViewerByIdContent() {
         newParams.delete("splitS3Url");
       }
       newParams.set("splitType", rightPanelType);
+      if (syncEnabled) {
+        newParams.set("sync", "1");
+      } else {
+        newParams.delete("sync");
+      }
       if (currentV) newParams.set("v", currentV);
       if (currentRv) newParams.set("rv", currentRv);
       router.replace(`?${newParams.toString()}`, { scroll: false });
@@ -97,6 +108,7 @@ function ViewerByIdContent() {
       newParams.delete("split");
       newParams.delete("splitS3Url");
       newParams.delete("splitType");
+      newParams.delete("sync");
       if (currentV) newParams.set("v", currentV);
       if (currentRv) newParams.set("rv", currentRv);
       const paramStr = newParams.toString();
@@ -105,7 +117,13 @@ function ViewerByIdContent() {
         scroll: false,
       });
     }
-  }, [isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType]);
+  }, [
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    syncEnabled,
+  ]);
 
   useEffect(() => {
     if (!datasetId) {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { PanelType } from "@/lib/stores/splitScreenStore";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,8 +15,11 @@ import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
-import type { PanelType } from "@/lib/stores/splitScreenStore";
-import { useSMVizUrlSync, tryReadSMVizFromUrl, applySMVizState } from "@/lib/hooks/useUrlVizSync";
+import {
+  useSMVizUrlSync,
+  tryReadSMVizFromUrl,
+  applySMVizState,
+} from "@/lib/hooks/useUrlVizSync";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -25,8 +29,17 @@ function SingleMoleculeViewerFromS3Content() {
   const { addDataset } = useSingleMoleculeStore();
   const smVizStore = useSingleMoleculeVisualizationStore();
   const { addGene } = smVizStore;
-  const { isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType, enableSplit, setRightPanel, setRightPanelS3 } =
-    useSplitScreenStore();
+  const {
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    syncEnabled,
+    enableSplit,
+    setRightPanel,
+    setRightPanelS3,
+    setSyncEnabled,
+  } = useSplitScreenStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +62,10 @@ function SingleMoleculeViewerFromS3Content() {
       enableSplit();
       setRightPanel(splitId, splitType);
     }
+
+    if (searchParams.get("sync") === "1") {
+      setSyncEnabled(true);
+    }
   }, []);
 
   // Write split params to URL when split state changes
@@ -69,6 +86,11 @@ function SingleMoleculeViewerFromS3Content() {
         newParams.delete("splitS3Url");
       }
       newParams.set("splitType", rightPanelType);
+      if (syncEnabled) {
+        newParams.set("sync", "1");
+      } else {
+        newParams.delete("sync");
+      }
       if (currentV) newParams.set("v", currentV);
       if (currentRv) newParams.set("rv", currentRv);
       router.replace(`?${newParams.toString()}`, { scroll: false });
@@ -78,6 +100,7 @@ function SingleMoleculeViewerFromS3Content() {
       newParams.delete("split");
       newParams.delete("splitS3Url");
       newParams.delete("splitType");
+      newParams.delete("sync");
       if (currentV) newParams.set("v", currentV);
       if (currentRv) newParams.set("rv", currentRv);
       const paramStr = newParams.toString();
@@ -86,7 +109,13 @@ function SingleMoleculeViewerFromS3Content() {
         scroll: false,
       });
     }
-  }, [isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType]);
+  }, [
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    syncEnabled,
+  ]);
 
   useEffect(() => {
     if (!s3Url) {
@@ -145,8 +174,15 @@ function SingleMoleculeViewerFromS3Content() {
 
       setIsLoading(false);
     } catch (err) {
-      console.error("Error loading single molecule dataset from custom S3:", err);
-      setError(err instanceof Error ? err.message : "Failed to load dataset from custom S3");
+      console.error(
+        "Error loading single molecule dataset from custom S3:",
+        err,
+      );
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load dataset from custom S3",
+      );
       setIsLoading(false);
     }
   };
@@ -220,7 +256,9 @@ function SingleMoleculeViewerFromS3Content() {
               <Button
                 color="default"
                 variant="bordered"
-                onPress={() => s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))}
+                onPress={() =>
+                  s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))
+                }
               >
                 Retry
               </Button>

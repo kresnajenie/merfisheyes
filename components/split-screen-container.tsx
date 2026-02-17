@@ -2,23 +2,32 @@
 
 import { useMemo } from "react";
 
+import { ResizableDivider } from "./resizable-divider";
+import { SplitPanelPicker } from "./split-panel-picker";
+import { SplitPanelViewer } from "./split-panel-viewer";
+
 import { PanelContext } from "@/lib/contexts/PanelContext";
 import { createVisualizationStoreInstance } from "@/lib/stores/createVisualizationStore";
 import { createDatasetStoreInstance } from "@/lib/stores/createDatasetStore";
 import { createSingleMoleculeStoreInstance } from "@/lib/stores/createSingleMoleculeStore";
 import { createSingleMoleculeVisualizationStoreInstance } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
-import { ResizableDivider } from "./resizable-divider";
-import { SplitPanelPicker } from "./split-panel-picker";
-import { SplitPanelViewer } from "./split-panel-viewer";
+import { useSyncVisualization } from "@/lib/hooks/useSyncVisualization";
+import { useSyncSingleMoleculeVisualization } from "@/lib/hooks/useSyncSingleMoleculeVisualization";
 
 interface SplitScreenContainerProps {
   children: React.ReactNode;
 }
 
 export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
-  const { isSplitMode, dividerPosition, rightPanelDatasetId, rightPanelS3Url, rightPanelType, closeSplit } =
-    useSplitScreenStore();
+  const {
+    isSplitMode,
+    dividerPosition,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    closeSplit,
+  } = useSplitScreenStore();
 
   // Create stable store instances for the right panel
   const rightPanelStores = useMemo(
@@ -31,6 +40,16 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
         createSingleMoleculeVisualizationStoreInstance(),
     }),
     [],
+  );
+
+  // Bidirectional sync between left and right visualization stores
+  useSyncVisualization(
+    rightPanelStores.visualizationStore,
+    rightPanelStores.datasetStore,
+  );
+  useSyncSingleMoleculeVisualization(
+    rightPanelStores.singleMoleculeVisualizationStore,
+    rightPanelStores.singleMoleculeStore,
   );
 
   // Always render the same DOM tree so {children} (ThreeScene) never unmounts.
