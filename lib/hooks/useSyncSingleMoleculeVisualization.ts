@@ -69,6 +69,8 @@ export function useSyncSingleMoleculeVisualization(
 
   const syncEnabled = useSplitScreenStore((s) => s.syncEnabled);
   const rightPanelType = useSplitScreenStore((s) => s.rightPanelType);
+  const syncFromUrl = useSplitScreenStore((s) => s.syncFromUrl);
+  const settlingRef = useRef(false);
 
   const isActive = syncEnabled && rightPanelType === "sm";
 
@@ -76,6 +78,7 @@ export function useSyncSingleMoleculeVisualization(
     if (!isActive) {
       prevLeftRef.current = null;
       prevRightRef.current = null;
+      settlingRef.current = false;
 
       return;
     }
@@ -167,20 +170,37 @@ export function useSyncSingleMoleculeVisualization(
       }
     };
 
-    // Initial sync: push left panel state → right panel
-    const leftFields = pickSMSyncFields(
+    // When sync was restored from URL, both panels need time to restore their
+    // own URL state before sync subscriptions start propagating changes.
+    const isFromUrl = syncFromUrl;
+
+    if (isFromUrl) {
+      settlingRef.current = true;
+    }
+
+    if (!isFromUrl) {
+      // Manual toggle: push left panel state → right panel immediately
+      const leftFields = pickSMSyncFields(
+        useSingleMoleculeVisualizationStore.getState(),
+      );
+
+      propagate(leftFields, null, rightSMVizStore, rightSMDatasetStore);
+    }
+
+    // Initialize prev snapshots
+    prevLeftRef.current = pickSMSyncFields(
       useSingleMoleculeVisualizationStore.getState(),
     );
-
-    propagate(leftFields, null, rightSMVizStore, rightSMDatasetStore);
-
-    // Initialize prev snapshots after initial sync
-    prevLeftRef.current = leftFields;
     prevRightRef.current = pickSMSyncFields(rightSMVizStore.getState());
 
     const unsubLeft = useSingleMoleculeVisualizationStore.subscribe((state) => {
       const fields = pickSMSyncFields(state);
 
+      if (settlingRef.current) {
+        prevLeftRef.current = fields;
+
+        return;
+      }
       propagate(
         fields,
         prevLeftRef.current,
@@ -193,6 +213,11 @@ export function useSyncSingleMoleculeVisualization(
     const unsubRight = rightSMVizStore.subscribe((state) => {
       const fields = pickSMSyncFields(state);
 
+      if (settlingRef.current) {
+        prevRightRef.current = fields;
+
+        return;
+      }
       propagate(
         fields,
         prevRightRef.current,
@@ -202,9 +227,24 @@ export function useSyncSingleMoleculeVisualization(
       prevRightRef.current = fields;
     });
 
+    // After settling period, take fresh snapshots and enable propagation
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+    if (isFromUrl) {
+      settleTimer = setTimeout(() => {
+        settlingRef.current = false;
+        prevLeftRef.current = pickSMSyncFields(
+          useSingleMoleculeVisualizationStore.getState(),
+        );
+        prevRightRef.current = pickSMSyncFields(rightSMVizStore.getState());
+        useSplitScreenStore.getState().setSyncFromUrl(false);
+      }, 3000);
+    }
+
     return () => {
       unsubLeft();
       unsubRight();
+      if (settleTimer) clearTimeout(settleTimer);
     };
   }, [isActive, rightSMVizStore, rightSMDatasetStore]);
 }
