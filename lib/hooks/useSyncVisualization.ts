@@ -96,6 +96,8 @@ export function useSyncVisualization(
 
   const syncEnabled = useSplitScreenStore((s) => s.syncEnabled);
   const rightPanelType = useSplitScreenStore((s) => s.rightPanelType);
+  const syncFromUrl = useSplitScreenStore((s) => s.syncFromUrl);
+  const settlingRef = useRef(false);
 
   const isActive = syncEnabled && rightPanelType === "cell";
 
@@ -103,6 +105,7 @@ export function useSyncVisualization(
     if (!isActive) {
       prevLeftRef.current = null;
       prevRightRef.current = null;
+      settlingRef.current = false;
 
       return;
     }
@@ -245,18 +248,35 @@ export function useSyncVisualization(
       }
     };
 
-    // Initial sync: push left panel state → right panel
-    const leftFields = pickSyncFields(useVisualizationStore.getState());
+    // When sync was restored from URL, both panels need time to restore their
+    // own URL state before sync subscriptions start propagating changes.
+    // During settling, subscriptions only update prev-state snapshots.
+    const isFromUrl = syncFromUrl;
 
-    propagate(leftFields, null, rightVizStore, rightDatasetStore);
+    if (isFromUrl) {
+      settlingRef.current = true;
+    }
 
-    // Initialize prev snapshots after initial sync
-    prevLeftRef.current = leftFields;
+    if (!isFromUrl) {
+      // Manual toggle: push left panel state → right panel immediately
+      const leftFields = pickSyncFields(useVisualizationStore.getState());
+
+      propagate(leftFields, null, rightVizStore, rightDatasetStore);
+    }
+
+    // Initialize prev snapshots
+    prevLeftRef.current = pickSyncFields(useVisualizationStore.getState());
     prevRightRef.current = pickSyncFields(rightVizStore.getState());
 
     const unsubLeft = useVisualizationStore.subscribe((state) => {
       const fields = pickSyncFields(state);
 
+      if (settlingRef.current) {
+        // During settling, only track state — don't propagate
+        prevLeftRef.current = fields;
+
+        return;
+      }
       propagate(fields, prevLeftRef.current, rightVizStore, rightDatasetStore);
       prevLeftRef.current = fields;
     });
@@ -264,6 +284,12 @@ export function useSyncVisualization(
     const unsubRight = rightVizStore.subscribe((state) => {
       const fields = pickSyncFields(state);
 
+      if (settlingRef.current) {
+        // During settling, only track state — don't propagate
+        prevRightRef.current = fields;
+
+        return;
+      }
       propagate(
         fields,
         prevRightRef.current,
@@ -273,9 +299,24 @@ export function useSyncVisualization(
       prevRightRef.current = fields;
     });
 
+    // After settling period, take fresh snapshots and enable propagation
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+    if (isFromUrl) {
+      settleTimer = setTimeout(() => {
+        settlingRef.current = false;
+        prevLeftRef.current = pickSyncFields(
+          useVisualizationStore.getState(),
+        );
+        prevRightRef.current = pickSyncFields(rightVizStore.getState());
+        useSplitScreenStore.getState().setSyncFromUrl(false);
+      }, 3000);
+    }
+
     return () => {
       unsubLeft();
       unsubRight();
+      if (settleTimer) clearTimeout(settleTimer);
     };
   }, [isActive, rightVizStore, rightDatasetStore]);
 }

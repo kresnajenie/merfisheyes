@@ -9,6 +9,7 @@ interface SplitScreenState {
   rightPanelType: PanelType | null;
   dividerPosition: number; // percentage, default 50
   syncEnabled: boolean;
+  syncFromUrl: boolean; // true when sync was restored from URL (needs settling)
 
   enableSplit: () => void;
   closeSplit: () => void;
@@ -17,6 +18,7 @@ interface SplitScreenState {
   setDividerPosition: (pos: number) => void;
   toggleSync: () => void;
   setSyncEnabled: (enabled: boolean) => void;
+  setSyncFromUrl: (fromUrl: boolean) => void;
 }
 
 export const useSplitScreenStore = create<SplitScreenState>((set) => ({
@@ -26,6 +28,7 @@ export const useSplitScreenStore = create<SplitScreenState>((set) => ({
   rightPanelType: null,
   dividerPosition: 50,
   syncEnabled: false,
+  syncFromUrl: false,
 
   enableSplit: () => set({ isSplitMode: true }),
 
@@ -37,6 +40,7 @@ export const useSplitScreenStore = create<SplitScreenState>((set) => ({
       rightPanelType: null,
       dividerPosition: 50,
       syncEnabled: false,
+      syncFromUrl: false,
     }),
 
   setRightPanel: (id, type) =>
@@ -58,4 +62,5 @@ export const useSplitScreenStore = create<SplitScreenState>((set) => ({
 
   toggleSync: () => set((state) => ({ syncEnabled: !state.syncEnabled })),
   setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
+  setSyncFromUrl: (fromUrl) => set({ syncFromUrl: fromUrl }),
 }));

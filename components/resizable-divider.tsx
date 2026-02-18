@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Tooltip } from "@heroui/tooltip";
 
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
@@ -13,6 +14,7 @@ export function ResizableDivider() {
     toggleSync,
     rightPanelType,
   } = useSplitScreenStore();
+  const pathname = usePathname();
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -48,7 +50,8 @@ export function ResizableDivider() {
     };
   }, [isDragging, setDividerPosition]);
 
-  const showSyncButton = rightPanelType === "cell" || rightPanelType === "sm";
+  const leftPanelType = pathname.startsWith("/sm-viewer") ? "sm" : "cell";
+  const showSyncButton = rightPanelType !== null && leftPanelType === rightPanelType;
 
   return (
     <div

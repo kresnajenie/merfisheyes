@@ -9,6 +9,7 @@ import { Checkbox } from "@heroui/checkbox";
 import { RadioGroup, Radio } from "@heroui/radio";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
+import { Tooltip } from "@heroui/tooltip";
 
 import { usePanelDatasetStore, usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { glassButton } from "@/components/primitives";
@@ -89,7 +90,8 @@ export function VisualizationPanel({
 
     return dataset.clusters.map((cluster) => ({
       key: cluster.column,
-      label: `${cluster.column} (${cluster.type})`,
+      label: cluster.column,
+      type: cluster.type as "categorical" | "numerical",
     }));
   }, [dataset]);
 
@@ -141,7 +143,9 @@ export function VisualizationPanel({
           }
         });
 
-        return Array.from(itemsMap.values());
+        return Array.from(itemsMap.values()).sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { numeric: true }),
+        );
       }
 
       case "gene": {
@@ -221,7 +225,26 @@ export function VisualizationPanel({
             }}
           >
             {clusterColumns.map((column) => (
-              <AutocompleteItem key={column.key}>
+              <AutocompleteItem
+                key={column.key}
+                startContent={
+                  <Tooltip content={column.type === "numerical" ? "Numerical" : "Categorical"} delay={300} placement="left">
+                    {column.type === "numerical" ? (
+                      <svg className="w-4 h-4 text-default-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M7 16l4-8 4 5 5-9" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-default-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <circle cx="8" cy="8" r="3" />
+                        <circle cx="16" cy="8" r="3" />
+                        <circle cx="8" cy="16" r="3" />
+                        <circle cx="16" cy="16" r="3" />
+                      </svg>
+                    )}
+                  </Tooltip>
+                }
+              >
                 {column.label}
               </AutocompleteItem>
             ))}

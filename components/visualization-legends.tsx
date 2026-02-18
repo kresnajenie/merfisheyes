@@ -206,7 +206,7 @@ export const VisualizationLegends: React.FC = () => {
             {selectedColumn || "Celltypes"} ({selectedCelltypes.size}) - Clear
             All
           </div>
-          <div className="flex flex-col items-end gap-2 max-h-96 overflow-y-auto">
+          <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto">
             {Array.from(selectedCelltypes).map((celltype) => {
               const color = storeColorPalette[celltype] || "#888888";
 
@@ -220,7 +220,7 @@ export const VisualizationLegends: React.FC = () => {
                 >
                   <PopoverTrigger>
                     <div
-                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer opacity-70 hover:opacity-100"
+                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer"
                       style={{
                         backgroundColor: color,
                       }}
