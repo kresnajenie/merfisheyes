@@ -1,6 +1,7 @@
 "use client";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type { PanelType } from "@/lib/stores/splitScreenStore";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -13,7 +14,6 @@ import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
-import type { PanelType } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
 import LightRays from "@/components/react-bits/LightRays";
@@ -24,8 +24,18 @@ function ViewerFromS3Content() {
   const router = useRouter();
   const vizStore = useVisualizationStore();
   const { addDataset } = useDatasetStore();
-  const { isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType, enableSplit, setRightPanel, setRightPanelS3 } =
-    useSplitScreenStore();
+  const {
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    syncEnabled,
+    enableSplit,
+    setRightPanel,
+    setRightPanelS3,
+    setSyncEnabled,
+    setSyncFromUrl,
+  } = useSplitScreenStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,18 +60,19 @@ function ViewerFromS3Content() {
       enableSplit();
       setRightPanel(splitId, splitType);
     }
+
+    if (searchParams.get("sync") === "1") {
+      setSyncEnabled(true);
+      setSyncFromUrl(true);
+    }
   }, []);
 
   // Write split params to URL when split state changes
   useEffect(() => {
-    // Preserve v/rv params written by replaceState (not in Next.js searchParams)
-    const currentUrl = new URLSearchParams(window.location.search);
-    const currentV = currentUrl.get("v");
-    const currentRv = currentUrl.get("rv");
+    // Use window.location.search as base to avoid stale Next.js searchParams
+    const newParams = new URLSearchParams(window.location.search);
 
     if (isSplitMode && rightPanelType) {
-      const newParams = new URLSearchParams(searchParams.toString());
-
       if (rightPanelS3Url) {
         newParams.set("splitS3Url", encodeURIComponent(rightPanelS3Url));
         newParams.delete("split");
@@ -70,24 +81,30 @@ function ViewerFromS3Content() {
         newParams.delete("splitS3Url");
       }
       newParams.set("splitType", rightPanelType);
-      if (currentV) newParams.set("v", currentV);
-      if (currentRv) newParams.set("rv", currentRv);
+      if (syncEnabled) {
+        newParams.set("sync", "1");
+      } else {
+        newParams.delete("sync");
+      }
       router.replace(`?${newParams.toString()}`, { scroll: false });
     } else if (!isSplitMode) {
-      const newParams = new URLSearchParams(searchParams.toString());
-
       newParams.delete("split");
       newParams.delete("splitS3Url");
       newParams.delete("splitType");
-      if (currentV) newParams.set("v", currentV);
-      if (currentRv) newParams.set("rv", currentRv);
+      newParams.delete("sync");
       const paramStr = newParams.toString();
 
       router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
         scroll: false,
       });
     }
-  }, [isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType]);
+  }, [
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    syncEnabled,
+  ]);
 
   useEffect(() => {
     if (!s3Url) {
@@ -122,7 +139,10 @@ function ViewerFromS3Content() {
         },
       );
 
-      console.log("StandardizedDataset created from custom S3:", standardizedDataset);
+      console.log(
+        "StandardizedDataset created from custom S3:",
+        standardizedDataset,
+      );
 
       // Store dataset in both local state and global store
       setDataset(standardizedDataset);
@@ -132,7 +152,11 @@ function ViewerFromS3Content() {
       setIsLoading(false);
     } catch (err) {
       console.error("Error loading dataset from custom S3:", err);
-      setError(err instanceof Error ? err.message : "Failed to load dataset from custom S3");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load dataset from custom S3",
+      );
       setIsLoading(false);
     }
   };
@@ -221,7 +245,9 @@ function ViewerFromS3Content() {
               <Button
                 color="default"
                 variant="bordered"
-                onPress={() => s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))}
+                onPress={() =>
+                  s3Url && loadDatasetFromCustomS3(decodeURIComponent(s3Url))
+                }
               >
                 Retry
               </Button>

@@ -42,9 +42,12 @@ function SingleMoleculeViewerByIdContent() {
     rightPanelDatasetId,
     rightPanelS3Url,
     rightPanelType,
+    syncEnabled,
     enableSplit,
     setRightPanel,
     setRightPanelS3,
+    setSyncEnabled,
+    setSyncFromUrl,
   } = useSplitScreenStore();
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,18 +73,19 @@ function SingleMoleculeViewerByIdContent() {
       enableSplit();
       setRightPanel(splitId, splitType);
     }
+
+    if (searchParams.get("sync") === "1") {
+      setSyncEnabled(true);
+      setSyncFromUrl(true);
+    }
   }, []);
 
   // Write split params to URL when split state changes
   useEffect(() => {
-    // Preserve v/rv params written by replaceState (not in Next.js searchParams)
-    const currentUrl = new URLSearchParams(window.location.search);
-    const currentV = currentUrl.get("v");
-    const currentRv = currentUrl.get("rv");
+    // Use window.location.search as base to avoid stale Next.js searchParams
+    const newParams = new URLSearchParams(window.location.search);
 
     if (isSplitMode && rightPanelType) {
-      const newParams = new URLSearchParams(searchParams.toString());
-
       if (rightPanelS3Url) {
         newParams.set("splitS3Url", encodeURIComponent(rightPanelS3Url));
         newParams.delete("split");
@@ -90,24 +94,30 @@ function SingleMoleculeViewerByIdContent() {
         newParams.delete("splitS3Url");
       }
       newParams.set("splitType", rightPanelType);
-      if (currentV) newParams.set("v", currentV);
-      if (currentRv) newParams.set("rv", currentRv);
+      if (syncEnabled) {
+        newParams.set("sync", "1");
+      } else {
+        newParams.delete("sync");
+      }
       router.replace(`?${newParams.toString()}`, { scroll: false });
     } else if (!isSplitMode) {
-      const newParams = new URLSearchParams(searchParams.toString());
-
       newParams.delete("split");
       newParams.delete("splitS3Url");
       newParams.delete("splitType");
-      if (currentV) newParams.set("v", currentV);
-      if (currentRv) newParams.set("rv", currentRv);
+      newParams.delete("sync");
       const paramStr = newParams.toString();
 
       router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
         scroll: false,
       });
     }
-  }, [isSplitMode, rightPanelDatasetId, rightPanelS3Url, rightPanelType]);
+  }, [
+    isSplitMode,
+    rightPanelDatasetId,
+    rightPanelS3Url,
+    rightPanelType,
+    syncEnabled,
+  ]);
   const selectedGenesLegend = useSingleMoleculeVisualizationStore(
     (state) => state.selectedGenesLegend,
   );
