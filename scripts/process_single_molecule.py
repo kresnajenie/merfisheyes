@@ -93,18 +93,22 @@ def sanitize_gene_name(gene_name: str) -> str:
     return sanitized
 
 
-def normalize_coordinates(coordinates: np.ndarray) -> Tuple[np.ndarray, float, np.ndarray]:
+def normalize_coordinates(coordinates: np.ndarray) -> Tuple[np.ndarray, float, np.ndarray, float]:
     """
     Normalize coordinates to [-1, 1] range
     Mirrors lib/utils/coordinates.ts normalizeCoordinates()
 
     Returns:
-        normalized: Normalized coordinates
+        normalized: Normalized coordinates (rounded to 2 decimal places)
         scaling_factor: The max absolute value used for scaling
         center: The center point (mean of each dimension)
+        max_raw_coordinate: The max absolute value of the raw (un-centered) coordinates
     """
     if len(coordinates) == 0:
-        return coordinates, 1.0, np.array([0.0, 0.0, 0.0])
+        return coordinates, 1.0, np.array([0.0, 0.0, 0.0]), 0.0
+
+    # Compute max absolute raw coordinate before any transforms
+    max_raw_coordinate = float(np.max(np.abs(coordinates)))
 
     # Calculate center (mean of each dimension)
     center = np.mean(coordinates, axis=0)
@@ -116,12 +120,12 @@ def normalize_coordinates(coordinates: np.ndarray) -> Tuple[np.ndarray, float, n
     max_abs = np.max(np.abs(centered))
 
     if max_abs == 0:
-        return centered, 1.0, center
+        return np.round(centered, 2), 1.0, center, max_raw_coordinate
 
-    # Scale to [-1, 1]
-    normalized = centered / max_abs
+    # Scale to [-1, 1] and round to 2 decimal places
+    normalized = np.round(centered / max_abs, 2)
 
-    return normalized, max_abs, center
+    return normalized, max_abs, center, max_raw_coordinate
 
 
 def read_parquet_file(
@@ -301,9 +305,10 @@ def process_single_molecule_data(
     progress = 30
     print(f"[{progress:3d}%] Normalizing coordinates...")
 
-    normalized_coords, scaling_factor, center = normalize_coordinates(coords)
+    normalized_coords, scaling_factor, center, max_raw_coordinate = normalize_coordinates(coords)
 
     print(f"  Scaling factor: {scaling_factor:.2f}")
+    print(f"  Max raw coordinate: {max_raw_coordinate:.2f}")
     print(f"  Center: {center}")
 
     # Step 3: Build gene index (50-70%)
@@ -402,6 +407,7 @@ def process_single_molecule_data(
             "total_molecules": total_molecules,
             "unique_genes": len(unique_genes),
             "spatial_dimensions": dimensions,
+            "max_raw_coordinate": max_raw_coordinate,
         },
         "genes": {
             "unique_gene_names": unique_genes,
@@ -445,6 +451,7 @@ def process_single_molecule_data(
     print(f"  Unique genes: {len(unique_genes):,}")
     print(f"  Dimensions: {dimensions}D")
     print(f"  Scaling factor: {scaling_factor:.2f}")
+    print(f"  Max raw coordinate: {max_raw_coordinate:.2f}")
     print()
     print("Ready for S3 upload! Upload the entire output folder to:")
     print(f"  s3://your-bucket/datasets/{{datasetId}}/")

@@ -370,10 +370,12 @@ export class SingleMoleculeDataset {
     const normalized = normalizeCoordinates(coords2D);
     let scalingFactor = 1;
     let normalizedCoords = coords2D;
+    let maxRawCoordinate = 0;
 
     if (normalized) {
       scalingFactor = normalized.scalingFactor;
       normalizedCoords = normalized.normalized;
+      maxRawCoordinate = normalized.maxRawCoordinate || 0;
     }
 
     await onProgress?.(70, "Building gene index...");
@@ -459,6 +461,7 @@ export class SingleMoleculeDataset {
         originalFileName: file.name,
         moleculeCount: xCoords.length,
         uniqueGeneCount: uniqueGenes.length,
+        maxRawCoordinate,
         datasetType,
         columnMapping,
       },
@@ -574,10 +577,12 @@ export class SingleMoleculeDataset {
     const normalized = normalizeCoordinates(coords2D);
     let scalingFactor = 1;
     let normalizedCoords = coords2D;
+    let maxRawCoordinate = 0;
 
     if (normalized) {
       scalingFactor = normalized.scalingFactor;
       normalizedCoords = normalized.normalized;
+      maxRawCoordinate = normalized.maxRawCoordinate || 0;
     }
 
     await onProgress?.(70, "Building gene index...");
@@ -663,6 +668,7 @@ export class SingleMoleculeDataset {
         originalFileName: file.name,
         moleculeCount: xCoords.length,
         uniqueGeneCount: uniqueGenes.length,
+        maxRawCoordinate,
         datasetType,
         columnMapping,
       },

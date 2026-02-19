@@ -15,6 +15,7 @@ interface SingleMoleculeManifest {
     total_molecules: number;
     unique_genes: number;
     spatial_dimensions: number;
+    max_raw_coordinate?: number;
   };
   genes: {
     unique_gene_names: string[];
@@ -52,6 +53,7 @@ export class SingleMoleculeProcessor {
         total_molecules: dataset.getMoleculeCount(),
         unique_genes: dataset.uniqueGenes.length,
         spatial_dimensions: dataset.dimensions,
+        max_raw_coordinate: dataset.metadata?.maxRawCoordinate || 0,
       },
       genes: {
         unique_gene_names: [...dataset.uniqueGenes],
