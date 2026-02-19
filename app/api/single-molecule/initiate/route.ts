@@ -53,6 +53,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Debug: log what the API actually receives
+    console.log("[API initiate] metadata:", JSON.stringify(metadata));
+    console.log("[API initiate] manifest stats:", JSON.stringify(manifest?.statistics));
+    console.log("[API initiate] manifest genes count:", manifest?.genes?.unique_gene_names?.length);
+
     // Resolve molecule/gene counts from metadata or manifest fallback
     const numMolecules =
       metadata.numMolecules ||
