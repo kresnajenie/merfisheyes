@@ -171,27 +171,31 @@ export function SingleMoleculeUploadModal({
         console.log("[PreChunked] dataset.uniqueGenes.length:", dataset.uniqueGenes.length);
 
         // Initiate upload with correct request body
+        const requestBody = {
+          fingerprint,
+          metadata: {
+            title: datasetName,
+            numMolecules:
+              manifest?.statistics?.total_molecules ||
+              dataset.metadata?.totalMolecules ||
+              dataset.getMoleculeCount(),
+            numGenes:
+              manifest?.statistics?.unique_genes ||
+              manifest?.genes?.unique_gene_names?.length ||
+              dataset.uniqueGenes.length,
+            platform: dataset.type,
+            description: "",
+          },
+          manifest,
+          files: filesList,
+        };
+
+        console.log("[PreChunked] REQUEST BODY:", JSON.stringify(requestBody.metadata));
+
         const initiateResponse = await fetch("/api/single-molecule/initiate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fingerprint,
-            metadata: {
-              title: datasetName,
-              numMolecules:
-                manifest?.statistics?.total_molecules ||
-                dataset.metadata?.totalMolecules ||
-                dataset.getMoleculeCount(),
-              numGenes:
-                manifest?.statistics?.unique_genes ||
-                manifest?.genes?.unique_gene_names?.length ||
-                dataset.uniqueGenes.length,
-              platform: dataset.type,
-              description: "",
-            },
-            manifest,
-            files: filesList,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!initiateResponse.ok) {
