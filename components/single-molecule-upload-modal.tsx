@@ -172,8 +172,14 @@ export function SingleMoleculeUploadModal({
             fingerprint,
             metadata: {
               title: datasetName,
-              numMolecules: dataset.getMoleculeCount(),
-              numGenes: dataset.uniqueGenes.length,
+              numMolecules:
+                manifest?.statistics?.total_molecules ||
+                dataset.metadata?.totalMolecules ||
+                dataset.getMoleculeCount(),
+              numGenes:
+                manifest?.statistics?.unique_genes ||
+                manifest?.genes?.unique_gene_names?.length ||
+                dataset.uniqueGenes.length,
               platform: dataset.type,
               description: "",
             },
