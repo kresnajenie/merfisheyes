@@ -1,31 +1,64 @@
-"use client";
-
+import { prisma } from "@/lib/prisma";
 import { title } from "@/components/primitives";
-import { DatasetCard } from "@/components/dataset-card";
-import { exampleDatasets } from "@/lib/data/example-datasets";
-import LightRays from "@/components/react-bits/LightRays";
+import { ExplorePageClient } from "@/components/explore/explore-page-client";
+import { ExploreBackground } from "@/components/explore/explore-background";
 
-export default function ExplorePage() {
+export const dynamic = "force-dynamic";
+
+export default async function ExplorePage() {
+  // SSR: fetch initial data directly from DB
+  const [items, featured, speciesRaw, tissueRaw, platformRaw] = await Promise.all([
+    prisma.catalogDataset.findMany({
+      where: { isPublished: true },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take: 20,
+    }),
+    prisma.catalogDataset.findMany({
+      where: { isPublished: true, isFeatured: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.catalogDataset.findMany({
+      where: { isPublished: true, species: { not: null } },
+      select: { species: true },
+      distinct: ["species"],
+      orderBy: { species: "asc" },
+    }),
+    prisma.catalogDataset.findMany({
+      where: { isPublished: true, tissue: { not: null } },
+      select: { tissue: true },
+      distinct: ["tissue"],
+      orderBy: { tissue: "asc" },
+    }),
+    prisma.catalogDataset.findMany({
+      where: { isPublished: true, platform: { not: null } },
+      select: { platform: true },
+      distinct: ["platform"],
+      orderBy: { platform: "asc" },
+    }),
+  ]);
+
+  const total = await prisma.catalogDataset.count({ where: { isPublished: true } });
+
+  const filters = {
+    species: speciesRaw.map((r) => r.species).filter(Boolean) as string[],
+    tissues: tissueRaw.map((r) => r.tissue).filter(Boolean) as string[],
+    platforms: platformRaw.map((r) => r.platform).filter(Boolean) as string[],
+  };
+
+  // Serialize dates for client
+  const serialize = (list: typeof items) =>
+    JSON.parse(JSON.stringify(list));
+
   return (
     <>
-      <div className="fixed inset-0 w-full h-full z-0">
-        <LightRays
-          lightSpread={1.2}
-          mouseInfluence={0.1}
-          pulsating={false}
-          rayLength={10}
-          raysColor="#FF1CF7"
-          raysOrigin="top-left"
-          raysSpeed={1.0}
-        />
-      </div>
-      <div className="w-full">
+      <ExploreBackground />
+      <div className="w-full relative z-10">
         <div className="mb-8">
           <h1 className={title({ size: "lg" })}>
             <span className={title({ color: "violet", size: "lg" })}>
               Explore
             </span>{" "}
-            Example Datasets
+            Datasets
           </h1>
           <p className="text-default-500 mt-4">
             Browse and visualize our curated collection of spatial
@@ -33,11 +66,12 @@ export default function ExplorePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {exampleDatasets.map((dataset) => (
-            <DatasetCard key={dataset.id} dataset={dataset} />
-          ))}
-        </div>
+        <ExplorePageClient
+          initialFeatured={serialize(featured)}
+          initialFilters={filters}
+          initialItems={serialize(items)}
+          initialTotal={total}
+        />
       </div>
     </>
   );

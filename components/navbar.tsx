@@ -26,6 +26,7 @@ import {
   HeartFilledIcon,
   SearchIcon,
 } from "@/components/icons";
+import { UserMenu } from "@/components/auth/user-menu";
 
 interface NavbarProps {
   onUploadClick?: () => void;
@@ -130,6 +131,9 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
           >
             Sponsor
           </Button>
+        </NavbarItem>
+        <NavbarItem>
+          <UserMenu />
         </NavbarItem>
       </NavbarContent>
 
