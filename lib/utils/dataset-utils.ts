@@ -45,3 +45,38 @@ export function selectBestClusterColumn(
   // Priority 5: Use the first available column
   return clusters[0].column;
 }
+
+/**
+ * Lightweight version that works on column names + types without needing loaded values.
+ * Used during deferred cluster loading to pick the priority column before values are fetched.
+ */
+export function selectBestClusterColumnByName(
+  columnNames: string[],
+  columnTypes: Record<string, string>,
+): string | null {
+  if (!columnNames || columnNames.length === 0) return null;
+
+  // Priority 1: "class_name"
+  if (columnNames.includes("class_name")) return "class_name";
+
+  // Priority 2: "leiden"
+  if (columnNames.includes("leiden")) return "leiden";
+
+  // Priority 3: "Cluster"
+  if (columnNames.includes("Cluster")) return "Cluster";
+
+  // Priority 4: contains "celltype"
+  const celltype = columnNames.find((name) =>
+    name.toLowerCase().includes("celltype"),
+  );
+  if (celltype) return celltype;
+
+  // Priority 5: first categorical column
+  const categoricalColumn = columnNames.find(
+    (name) => columnTypes[name] !== "numerical",
+  );
+  if (categoricalColumn) return categoricalColumn;
+
+  // Priority 6: first available column
+  return columnNames[0];
+}

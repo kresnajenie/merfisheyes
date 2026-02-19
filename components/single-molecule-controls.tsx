@@ -7,7 +7,11 @@ import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useMemo } from "react";
 
-import { usePanelSingleMoleculeStore, usePanelSingleMoleculeVisualizationStore, usePanelId } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelSingleMoleculeStore,
+  usePanelSingleMoleculeVisualizationStore,
+  usePanelId,
+} from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";

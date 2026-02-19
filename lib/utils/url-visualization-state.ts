@@ -1,6 +1,7 @@
-import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import type { VisualizationMode } from "@/lib/stores/createVisualizationStore";
 import type { ViewMode } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 // --- Compact JSON shapes for URL encoding ---
 
@@ -109,9 +110,7 @@ export function encodeCellVizState(state: {
   return toBase64Url(obj);
 }
 
-export function decodeCellVizState(
-  encoded: string,
-): CellVizUrlState | null {
+export function decodeCellVizState(encoded: string): CellVizUrlState | null {
   const obj = fromBase64Url<CellVizUrlState>(encoded);
 
   if (!obj || typeof obj !== "object") return null;
@@ -134,8 +133,14 @@ export function decodeCellVizState(
 // --- Single Molecule Codec ---
 
 export function encodeSMVizState(state: {
-  selectedGenes: Map<string, { gene: string; color: string; localScale: number }>;
-  geneDataCache: Map<string, { gene: string; color: string; localScale: number }>;
+  selectedGenes: Map<
+    string,
+    { gene: string; color: string; localScale: number }
+  >;
+  geneDataCache: Map<
+    string,
+    { gene: string; color: string; localScale: number }
+  >;
   globalScale: number;
   viewMode: ViewMode;
 }): string | null {
@@ -162,9 +167,7 @@ export function encodeSMVizState(state: {
   return toBase64Url(obj);
 }
 
-export function decodeSMVizState(
-  encoded: string,
-): SMVizUrlState | null {
+export function decodeSMVizState(encoded: string): SMVizUrlState | null {
   const obj = fromBase64Url<SMVizUrlState>(encoded);
 
   if (!obj || typeof obj !== "object") return null;

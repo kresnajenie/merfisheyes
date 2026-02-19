@@ -277,8 +277,12 @@ function HomeContent() {
                     onClick={() => setIsS3ModalOpen(true)}
                   >
                     <div className="flex flex-col items-center gap-2 w-full">
-                      <p className="text-lg font-semibold text-foreground">Load from S3</p>
-                      <p className="text-xs text-default-500">Your own S3 bucket</p>
+                      <p className="text-lg font-semibold text-foreground">
+                        Load from S3
+                      </p>
+                      <p className="text-xs text-default-500">
+                        Your own S3 bucket
+                      </p>
                     </div>
                   </button>
                 </div>
@@ -319,8 +323,12 @@ function HomeContent() {
                     onClick={() => setIsS3ModalOpen(true)}
                   >
                     <div className="flex flex-col items-center gap-2 w-full">
-                      <p className="text-lg font-semibold text-foreground">Load from S3</p>
-                      <p className="text-xs text-default-500">Your own S3 bucket</p>
+                      <p className="text-lg font-semibold text-foreground">
+                        Load from S3
+                      </p>
+                      <p className="text-xs text-default-500">
+                        Your own S3 bucket
+                      </p>
                     </div>
                   </button>
                 </div>
@@ -343,8 +351,8 @@ function HomeContent() {
       </section>
 
       <LoadFromS3Modal
-        isOpen={isS3ModalOpen}
         datasetType={isSingleMolecule ? "single_molecule" : "single_cell"}
+        isOpen={isS3ModalOpen}
         onClose={() => setIsS3ModalOpen(false)}
       />
     </>

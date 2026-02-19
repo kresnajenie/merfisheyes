@@ -305,9 +305,7 @@ export function useSyncVisualization(
     if (isFromUrl) {
       settleTimer = setTimeout(() => {
         settlingRef.current = false;
-        prevLeftRef.current = pickSyncFields(
-          useVisualizationStore.getState(),
-        );
+        prevLeftRef.current = pickSyncFields(useVisualizationStore.getState());
         prevRightRef.current = pickSyncFields(rightVizStore.getState());
         useSplitScreenStore.getState().setSyncFromUrl(false);
       }, 3000);

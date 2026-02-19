@@ -1,11 +1,11 @@
 "use client";
 
-import { createContext } from "react";
-
 import type { VisualizationStore } from "../stores/createVisualizationStore";
 import type { DatasetStore } from "../stores/createDatasetStore";
 import type { SingleMoleculeStore } from "../stores/createSingleMoleculeStore";
 import type { SingleMoleculeVisualizationStore } from "../stores/createSingleMoleculeVisualizationStore";
+
+import { createContext } from "react";
 
 export interface PanelContextValue {
   panelId: string;

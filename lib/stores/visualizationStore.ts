@@ -32,6 +32,7 @@ interface VisualizationState {
   colorPalette: Record<string, string>;
   alphaScale: number; // 0-1
   sizeScale: number; // multiplier
+  clusterVersion: number;
 
   // Actions
   setMode: (mode: VisualizationMode[]) => void;
@@ -50,6 +51,7 @@ interface VisualizationState {
   setSizeScale: (size: number) => void;
   setCelltypeSearchTerm: (value: string) => void;
   setGeneSearchTerm: (value: string) => void;
+  incrementClusterVersion: () => void;
   reset: () => void;
 }
 
@@ -70,6 +72,7 @@ const initialState = {
   colorPalette: {},
   alphaScale: VISUALIZATION_CONFIG.POINT_BASE_ALPHA,
   sizeScale: 1.0,
+  clusterVersion: 0,
 };
 
 // Helper function to update mode array
@@ -225,6 +228,10 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 
   setGeneSearchTerm: (value) => {
     set({ geneSearchTerm: value });
+  },
+
+  incrementClusterVersion: () => {
+    set((state) => ({ clusterVersion: state.clusterVersion + 1 }));
   },
 
   reset: () => {

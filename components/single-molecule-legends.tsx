@@ -8,7 +8,10 @@ import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/react";
 
-import { usePanelSingleMoleculeVisualizationStore, usePanelSingleMoleculeStore } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelSingleMoleculeVisualizationStore,
+  usePanelSingleMoleculeStore,
+} from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import {
   ColorPicker,

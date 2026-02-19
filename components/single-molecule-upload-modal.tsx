@@ -157,8 +157,11 @@ export function SingleMoleculeUploadModal({
           throw new Error(error.error || "Failed to initiate upload");
         }
 
-        const { datasetId: newDatasetId, uploadId: newUploadId, presignedUrls } =
-          await initiateResponse.json();
+        const {
+          datasetId: newDatasetId,
+          uploadId: newUploadId,
+          presignedUrls,
+        } = await initiateResponse.json();
 
         datasetId = newDatasetId;
         uploadId = newUploadId;
@@ -192,16 +195,17 @@ export function SingleMoleculeUploadModal({
           }
 
           // Mark file as complete
-          await fetch(`/api/single-molecule/${datasetId}/files/${encodeURIComponent(key)}/complete`, {
-            method: "POST",
-          });
+          await fetch(
+            `/api/single-molecule/${datasetId}/files/${encodeURIComponent(key)}/complete`,
+            {
+              method: "POST",
+            },
+          );
 
           const progress = 5 + ((i + 1) / totalFiles) * 85;
 
           setProgress(progress);
-          setProgressMessage(
-            `Uploaded ${i + 1}/${totalFiles} files...`,
-          );
+          setProgressMessage(`Uploaded ${i + 1}/${totalFiles} files...`);
         }
 
         setProgress(90);

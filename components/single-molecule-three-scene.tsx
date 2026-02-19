@@ -6,8 +6,12 @@ import { Spinner } from "@heroui/react";
 import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
-import { usePanelSingleMoleculeStore, usePanelSingleMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelSingleMoleculeStore,
+  usePanelSingleMoleculeVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+
 
 // Create solid circular sprite texture for points
 function createCircleTexture(): THREE.Texture {
@@ -509,10 +513,13 @@ export function SingleMoleculeThreeScene() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 w-full h-full"
-      style={{ margin: 0, padding: 0 }}
-    />
+    <>
+      <div
+        ref={containerRef}
+        className="absolute inset-0 w-full h-full"
+        style={{ margin: 0, padding: 0 }}
+      />
+
+    </>
   );
 }
