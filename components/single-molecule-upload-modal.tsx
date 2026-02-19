@@ -172,9 +172,9 @@ export function SingleMoleculeUploadModal({
             fingerprint,
             metadata: {
               title: datasetName,
-              numMolecules: manifest.statistics.total_molecules,
-              numGenes: manifest.statistics.unique_genes,
-              platform: manifest.type,
+              numMolecules: dataset.getMoleculeCount(),
+              numGenes: dataset.uniqueGenes.length,
+              platform: dataset.type,
               description: "",
             },
             manifest,
