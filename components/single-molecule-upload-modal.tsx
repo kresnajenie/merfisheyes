@@ -164,12 +164,6 @@ export function SingleMoleculeUploadModal({
             : "application/octet-stream",
         }));
 
-        // Debug: log all possible molecule count sources
-        console.log("[PreChunked] manifest keys:", Object.keys(manifest || {}));
-        console.log("[PreChunked] manifest.statistics:", manifest?.statistics);
-        console.log("[PreChunked] dataset.metadata:", dataset.metadata);
-        console.log("[PreChunked] dataset.uniqueGenes.length:", dataset.uniqueGenes.length);
-
         // Initiate upload with correct request body
         const requestBody = {
           fingerprint,
@@ -189,8 +183,6 @@ export function SingleMoleculeUploadModal({
           manifest,
           files: filesList,
         };
-
-        console.log("[PreChunked] REQUEST BODY:", JSON.stringify(requestBody.metadata));
 
         const initiateResponse = await fetch("/api/single-molecule/initiate", {
           method: "POST",
