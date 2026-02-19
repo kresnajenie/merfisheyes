@@ -51,7 +51,8 @@ export function ResizableDivider() {
   }, [isDragging, setDividerPosition]);
 
   const leftPanelType = pathname.startsWith("/sm-viewer") ? "sm" : "cell";
-  const showSyncButton = rightPanelType !== null && leftPanelType === rightPanelType;
+  const showSyncButton =
+    rightPanelType !== null && leftPanelType === rightPanelType;
 
   return (
     <div

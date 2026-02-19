@@ -6,6 +6,7 @@ import type { PointData } from "@/lib/webgl/types";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Spinner } from "@heroui/react";
+import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
@@ -24,8 +25,8 @@ import {
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { getDatasetLinkConfig } from "@/lib/config/dataset-links";
-import { toast } from "react-toastify";
 import { VisualizationLegends } from "@/components/visualization-legends";
+
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -42,6 +43,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const cameraRef = useRef<THREE.Camera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const controlsRef = useRef<any>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoveredPointRef = useRef<number | null>(null);
   const lastCameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -70,14 +72,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     setNumericalScaleMin,
     setNumericalScaleMax,
     toggleCelltype,
+    clusterVersion,
   } = usePanelVisualizationStore();
 
   // Split screen support
   const panelId = usePanelId();
   const { enableSplit, setRightPanelS3 } = useSplitScreenStore();
-  const linkConfigRef = useRef(
-    dataset ? getDatasetLinkConfig(dataset) : null,
-  );
+  const linkConfigRef = useRef(dataset ? getDatasetLinkConfig(dataset) : null);
 
   // Update link config ref when dataset changes
   useEffect(() => {
@@ -360,18 +361,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       );
 
       // Initialize Three.js scene with options
-      const { scene, camera, renderer, animate, dispose } = initializeScene(
-        containerRef.current,
-        {
+      const { scene, camera, renderer, controls, animate, dispose } =
+        initializeScene(containerRef.current, {
           is2D: dataset.spatial.dimensions === 2,
           cameraPosition: cameraPos,
           lookAtPosition: center,
-        },
-      );
+        });
 
-      // Store camera and renderer refs for raycasting
+      // Store camera, renderer, and controls refs for raycasting + scale bar
       cameraRef.current = camera;
       rendererRef.current = renderer;
+      controlsRef.current = controls;
 
       // Create tooltip
       if (!tooltipRef.current) {
@@ -423,6 +423,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         if (hoveredPointRef.current === null) return;
         // Need a link config for this dataset
         const linkConfig = linkConfigRef.current;
+
         if (!linkConfig) return;
 
         event.preventDefault();
@@ -434,10 +435,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         const linkCluster = dataset!.clusters?.find(
           (c) => c.column === linkConfig.linkColumn,
         );
+
         if (!linkCluster) {
           console.warn(
             `Link column "${linkConfig.linkColumn}" not found in dataset clusters`,
           );
+
           return;
         }
 
@@ -446,6 +449,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         if (!smUrl) {
           toast.warning(`No single molecule data available for "${setValue}"`);
+
           return;
         }
 
@@ -503,6 +507,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         sceneRef.current = null;
         cameraRef.current = null;
         rendererRef.current = null;
+        controlsRef.current = null;
         dispose();
       };
     } else {
@@ -666,6 +671,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     numericalScaleMin,
     numericalScaleMax,
     mode,
+    clusterVersion,
   ]);
 
   return (
@@ -691,6 +697,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
+
     </>
   );
 }

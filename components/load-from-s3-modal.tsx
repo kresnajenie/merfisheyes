@@ -12,9 +12,9 @@ import {
   Spinner,
 } from "@heroui/react";
 import { useRouter } from "next/navigation";
-
-import { parseS3Url, getS3FileUrl, testManifestAccess } from "@/lib/utils/s3-url-parser";
 import { ungzip } from "pako";
+
+import { parseS3Url, testManifestAccess } from "@/lib/utils/s3-url-parser";
 
 interface LoadFromS3ModalProps {
   isOpen: boolean;
@@ -42,6 +42,7 @@ export function LoadFromS3Modal({
 
       // Parse and normalize S3 URL
       const parsed = parseS3Url(s3Url);
+
       console.log("Parsed S3 URL:", parsed);
 
       setValidationStep("Testing manifest access...");
@@ -55,7 +56,7 @@ export function LoadFromS3Modal({
             `1. The folder URL is correct\n` +
             `2. manifest.json or manifest.json.gz exists in the folder\n` +
             `3. The S3 bucket/folder has public read access\n` +
-            `4. CORS is configured to allow requests from ${window.location.origin}`
+            `4. CORS is configured to allow requests from ${window.location.origin}`,
         );
       }
 
@@ -63,6 +64,7 @@ export function LoadFromS3Modal({
 
       // Download and parse manifest to detect dataset type
       const response = await fetch(manifestTest.url);
+
       if (!response.ok) {
         throw new Error(`Failed to download manifest: ${response.statusText}`);
       }
@@ -70,8 +72,9 @@ export function LoadFromS3Modal({
       let manifestJson: string;
 
       // Check if it's gzipped based on URL
-      if (manifestTest.url.endsWith('.gz')) {
+      if (manifestTest.url.endsWith(".gz")) {
         const manifestCompressed = await response.arrayBuffer();
+
         manifestJson = ungzip(new Uint8Array(manifestCompressed), {
           to: "string",
         });
@@ -90,13 +93,20 @@ export function LoadFromS3Modal({
         detectedType = datasetType;
       } else {
         // Detect based on manifest structure
-        if (manifest.type === "single_molecule" || manifest.genes?.unique_gene_names) {
+        if (
+          manifest.type === "single_molecule" ||
+          manifest.genes?.unique_gene_names
+        ) {
           detectedType = "single_molecule";
-        } else if (manifest.type === "single_cell" || manifest.cells || manifest.spatial_dimensions) {
+        } else if (
+          manifest.type === "single_cell" ||
+          manifest.cells ||
+          manifest.spatial_dimensions
+        ) {
           detectedType = "single_cell";
         } else {
           throw new Error(
-            "Could not auto-detect dataset type from manifest. Please specify dataset type explicitly."
+            "Could not auto-detect dataset type from manifest. Please specify dataset type explicitly.",
           );
         }
       }
@@ -119,7 +129,9 @@ export function LoadFromS3Modal({
       onClose();
     } catch (err) {
       console.error("Error loading from S3:", err);
-      setError(err instanceof Error ? err.message : "Failed to load dataset from S3");
+      setError(
+        err instanceof Error ? err.message : "Failed to load dataset from S3",
+      );
       setIsLoading(false);
     }
   };
@@ -134,24 +146,24 @@ export function LoadFromS3Modal({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      size="2xl"
-      onClose={handleClose}
-    >
+    <Modal isOpen={isOpen} size="2xl" onClose={handleClose}>
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           Load Dataset from S3
           {datasetType && (
             <span className="text-sm font-normal text-default-500">
-              {datasetType === "single_cell" ? "Single Cell" : "Single Molecule"} Dataset
+              {datasetType === "single_cell"
+                ? "Single Cell"
+                : "Single Molecule"}{" "}
+              Dataset
             </span>
           )}
         </ModalHeader>
         <ModalBody>
           <div className="flex flex-col gap-4">
             <p className="text-sm text-default-600">
-              Enter the S3 URL to your dataset folder. The folder should contain a{" "}
+              Enter the S3 URL to your dataset folder. The folder should contain
+              a{" "}
               <code className="text-xs bg-default-100 px-1 py-0.5 rounded">
                 manifest.json.gz
               </code>{" "}
@@ -159,15 +171,15 @@ export function LoadFromS3Modal({
             </p>
 
             <Input
+              description="Can be a folder URL or direct manifest URL"
+              errorMessage={error}
+              isDisabled={isLoading}
+              isInvalid={!!error}
               label="S3 Folder URL"
               placeholder="https://my-bucket.s3.us-east-1.amazonaws.com/datasets/my-data"
               value={s3Url}
               variant="bordered"
-              isDisabled={isLoading}
-              isInvalid={!!error}
-              errorMessage={error}
               onValueChange={setS3Url}
-              description="Can be a folder URL or direct manifest URL"
             />
 
             {isLoading && (
@@ -181,18 +193,30 @@ export function LoadFromS3Modal({
               <div>
                 <p className="font-semibold mb-2">Requirements:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li>S3 bucket/folder must have <strong>public read access</strong></li>
+                  <li>
+                    S3 bucket/folder must have{" "}
+                    <strong>public read access</strong>
+                  </li>
                   <li>CORS must be configured (see below)</li>
-                  <li>Dataset must be processed using the MERFISHeyes Python scripts</li>
+                  <li>
+                    Dataset must be processed using the MERFISHeyes Python
+                    scripts
+                  </li>
                 </ul>
               </div>
 
               <div className="bg-default-100 p-3 rounded-lg">
                 <p className="font-semibold mb-2">CORS Configuration:</p>
-                <p className="mb-2">Go to: <strong>S3 Bucket → Permissions → Cross-origin resource sharing (CORS)</strong></p>
+                <p className="mb-2">
+                  Go to:{" "}
+                  <strong>
+                    S3 Bucket → Permissions → Cross-origin resource sharing
+                    (CORS)
+                  </strong>
+                </p>
                 <p className="mb-1">Paste this configuration:</p>
                 <pre className="bg-default-50 p-2 rounded text-[10px] overflow-x-auto">
-{`[
+                  {`[
   {
     "AllowedHeaders": ["*"],
     "AllowedMethods": ["GET", "HEAD"],
@@ -210,10 +234,12 @@ export function LoadFromS3Modal({
 
             {!datasetType && (
               <div className="text-xs text-default-500 p-3 bg-primary-50 rounded-lg">
-                <p className="font-semibold text-primary">Auto-detection enabled</p>
+                <p className="font-semibold text-primary">
+                  Auto-detection enabled
+                </p>
                 <p className="mt-1">
-                  Dataset type (Single Cell vs Single Molecule) will be automatically detected
-                  from the manifest file.
+                  Dataset type (Single Cell vs Single Molecule) will be
+                  automatically detected from the manifest file.
                 </p>
               </div>
             )}
@@ -222,17 +248,17 @@ export function LoadFromS3Modal({
         <ModalFooter>
           <Button
             color="danger"
+            isDisabled={isLoading}
             variant="light"
             onPress={handleClose}
-            isDisabled={isLoading}
           >
             Cancel
           </Button>
           <Button
             color="primary"
-            onPress={handleLoad}
             isDisabled={!s3Url.trim() || isLoading}
             isLoading={isLoading}
+            onPress={handleLoad}
           >
             Load Dataset
           </Button>
