@@ -121,12 +121,61 @@ export class ProcessedSingleMoleculeAdapter {
   }
 
   /**
-   * Fetch and parse manifest.json.gz
+   * Fetch and parse manifest - supports both manifest.json.gz and manifest.json
    */
   private async fetchManifest(): Promise<Manifest> {
-    const data = await this.fetchGzippedJSON("manifest.json.gz");
+    // In local mode, check which manifest format is available
+    if (this.mode === "local") {
+      const hasGzipped = this.localFiles?.has("manifest.json.gz");
+      const hasPlain = this.localFiles?.has("manifest.json");
 
-    return data as Manifest;
+      if (hasGzipped) {
+        return (await this.fetchGzippedJSON("manifest.json.gz")) as Manifest;
+      } else if (hasPlain) {
+        return (await this.fetchPlainJSON("manifest.json")) as Manifest;
+      }
+
+      throw new Error(
+        "Manifest not found in local files. Expected manifest.json.gz or manifest.json",
+      );
+    }
+
+    // Remote mode always uses gzipped format
+    return (await this.fetchGzippedJSON("manifest.json.gz")) as Manifest;
+  }
+
+  /**
+   * Fetch and parse a plain (non-gzipped) JSON file
+   */
+  private async fetchPlainJSON(fileKey: string): Promise<any> {
+    console.log(`[ProcessedSingleMoleculeAdapter] Fetching plain JSON ${fileKey}...`);
+
+    if (this.mode === "local") {
+      const file = this.localFiles?.get(fileKey);
+
+      if (!file) {
+        throw new Error(`File not found in local files: ${fileKey}`);
+      }
+
+      const text = await file.text();
+
+      return JSON.parse(text);
+    }
+
+    // Remote mode
+    const url = this.downloadUrls[fileKey];
+
+    if (!url) {
+      throw new Error(`No download URL for file: ${fileKey}`);
+    }
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${fileKey}: ${response.statusText}`);
+    }
+
+    return response.json();
   }
 
   /**

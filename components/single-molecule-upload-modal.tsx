@@ -10,6 +10,7 @@ import {
   Button,
   Input,
 } from "@heroui/react";
+import { gzip } from "pako";
 import { toast } from "react-toastify";
 
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
@@ -140,14 +141,44 @@ export function SingleMoleculeUploadModal({
         const adapter = (dataset as any).adapter;
         const manifest = adapter.getManifest();
 
-        // Initiate upload with manifest data
+        // Normalize manifest format: ensure manifest.json.gz exists for S3 consistency
+        if (fileMap.has("manifest.json") && !fileMap.has("manifest.json.gz")) {
+          const plainManifestFile = fileMap.get("manifest.json")!;
+          const manifestText = await plainManifestFile.text();
+          const compressed = gzip(manifestText);
+          const gzippedBlob = new Blob([compressed], { type: "application/gzip" });
+          const gzippedFile = new File([gzippedBlob], "manifest.json.gz", {
+            type: "application/gzip",
+          });
+
+          fileMap.delete("manifest.json");
+          fileMap.set("manifest.json.gz", gzippedFile);
+        }
+
+        // Build files list from fileMap for the API
+        const filesList = Array.from(fileMap.entries()).map(([key, file]) => ({
+          key,
+          size: file.size,
+          contentType: key.endsWith(".gz")
+            ? "application/gzip"
+            : "application/octet-stream",
+        }));
+
+        // Initiate upload with correct request body
         const initiateResponse = await fetch("/api/single-molecule/initiate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fingerprint,
-            name: datasetName,
-            manifestData: manifest,
+            metadata: {
+              title: datasetName,
+              numMolecules: manifest.statistics.total_molecules,
+              numGenes: manifest.statistics.unique_genes,
+              platform: manifest.type,
+              description: "",
+            },
+            manifest,
+            files: filesList,
           }),
         });
 
@@ -157,7 +188,7 @@ export function SingleMoleculeUploadModal({
           throw new Error(error.error || "Failed to initiate upload");
         }
 
-        const { datasetId: newDatasetId, uploadId: newUploadId, presignedUrls } =
+        const { datasetId: newDatasetId, uploadId: newUploadId, uploadUrls } =
           await initiateResponse.json();
 
         datasetId = newDatasetId;
@@ -171,7 +202,7 @@ export function SingleMoleculeUploadModal({
 
         for (let i = 0; i < files.length; i++) {
           const [key, file] = files[i];
-          const presignedUrl = presignedUrls[key];
+          const presignedUrl = uploadUrls[key];
 
           if (!presignedUrl) {
             console.warn(`No presigned URL for ${key}, skipping...`);
@@ -183,7 +214,9 @@ export function SingleMoleculeUploadModal({
             method: "PUT",
             body: file,
             headers: {
-              "Content-Type": "application/octet-stream",
+              "Content-Type": key.endsWith(".gz")
+                ? "application/gzip"
+                : "application/octet-stream",
             },
           });
 
@@ -194,6 +227,8 @@ export function SingleMoleculeUploadModal({
           // Mark file as complete
           await fetch(`/api/single-molecule/${datasetId}/files/${encodeURIComponent(key)}/complete`, {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uploadId }),
           });
 
           const progress = 5 + ((i + 1) / totalFiles) * 85;

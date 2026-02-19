@@ -123,7 +123,10 @@ export function FileUpload({
     });
 
     // Check for required chunked single molecule files
-    const hasManifest = fileNames.some((name) => name === "manifest.json.gz");
+    // Accept both compressed (manifest.json.gz) and uncompressed (manifest.json) manifests
+    const hasManifest = fileNames.some(
+      (name) => name === "manifest.json.gz" || name === "manifest.json",
+    );
     const hasGenesFolder = fileNames.some((name) => name.startsWith("genes/"));
     const hasGeneBinFiles = fileNames.some((name) =>
       /^genes\/[^\/]+\.bin\.gz$/.test(name),
