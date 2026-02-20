@@ -93,39 +93,18 @@ def sanitize_gene_name(gene_name: str) -> str:
     return sanitized
 
 
-def normalize_coordinates(coordinates: np.ndarray) -> Tuple[np.ndarray, float, np.ndarray, float]:
+def round_coordinates(coordinates: np.ndarray) -> np.ndarray:
     """
-    Normalize coordinates to [-1, 1] range
-    Mirrors lib/utils/coordinates.ts normalizeCoordinates()
+    Round coordinates to 2 decimal places.
+    No normalization is performed — raw coordinates are preserved.
 
     Returns:
-        normalized: Normalized coordinates (rounded to 2 decimal places)
-        scaling_factor: The max absolute value used for scaling
-        center: The center point (mean of each dimension)
-        max_raw_coordinate: The max absolute value of the raw (un-centered) coordinates
+        rounded: Coordinates rounded to 2 decimal places
     """
     if len(coordinates) == 0:
-        return coordinates, 1.0, np.array([0.0, 0.0, 0.0]), 0.0
+        return coordinates
 
-    # Compute max absolute raw coordinate before any transforms
-    max_raw_coordinate = float(np.max(np.abs(coordinates)))
-
-    # Calculate center (mean of each dimension)
-    center = np.mean(coordinates, axis=0)
-
-    # Center the coordinates
-    centered = coordinates - center
-
-    # Find max absolute value
-    max_abs = np.max(np.abs(centered))
-
-    if max_abs == 0:
-        return np.round(centered, 2), 1.0, center, max_raw_coordinate
-
-    # Scale to [-1, 1] and round to 2 decimal places
-    normalized = np.round(centered / max_abs, 2)
-
-    return normalized, max_abs, center, max_raw_coordinate
+    return np.round(coordinates, 2)
 
 
 def read_parquet_file(
@@ -303,13 +282,11 @@ def process_single_molecule_data(
 
     # Step 2: Normalize coordinates (30%)
     progress = 30
-    print(f"[{progress:3d}%] Normalizing coordinates...")
+    print(f"[{progress:3d}%] Rounding coordinates to 2 decimal places...")
 
-    normalized_coords, scaling_factor, center, max_raw_coordinate = normalize_coordinates(coords)
+    rounded_coords = round_coordinates(coords)
 
-    print(f"  Scaling factor: {scaling_factor:.2f}")
-    print(f"  Max raw coordinate: {max_raw_coordinate:.2f}")
-    print(f"  Center: {center}")
+    print(f"  Coordinate range: [{coords.min():.2f}, {coords.max():.2f}]")
 
     # Step 3: Build gene index (50-70%)
     progress = 50
@@ -364,8 +341,8 @@ def process_single_molecule_data(
         for idx, gene in enumerate(unique_genes):
             indices = gene_index[gene]
 
-            # Extract coordinates for this gene (already normalized)
-            gene_coords = normalized_coords[indices].flatten()  # Flat array: [x1,y1,z1, x2,y2,z2, ...]
+            # Extract coordinates for this gene (rounded to 2dp)
+            gene_coords = rounded_coords[indices].flatten()  # Flat array: [x1,y1,z1, x2,y2,z2, ...]
 
             # Convert to Float32
             gene_coords_float32 = gene_coords.astype(np.float32)
@@ -407,7 +384,6 @@ def process_single_molecule_data(
             "total_molecules": total_molecules,
             "unique_genes": len(unique_genes),
             "spatial_dimensions": dimensions,
-            "max_raw_coordinate": max_raw_coordinate,
         },
         "genes": {
             "unique_gene_names": unique_genes,
@@ -415,8 +391,8 @@ def process_single_molecule_data(
         "processing": {
             "compression": "gzip",
             "coordinate_format": "float32_flat_array",
-            "coordinate_range": "normalized_[-1,1]",
-            "scaling_factor": float(scaling_factor),
+            "coordinate_range": "raw_rounded_2dp",
+            "scaling_factor": 1.0,
             "created_by": "MERFISH Eyes - Single Molecule Viewer",
             "source_file": source_name,
         },
@@ -450,8 +426,7 @@ def process_single_molecule_data(
     print(f"  Total molecules: {total_molecules:,}")
     print(f"  Unique genes: {len(unique_genes):,}")
     print(f"  Dimensions: {dimensions}D")
-    print(f"  Scaling factor: {scaling_factor:.2f}")
-    print(f"  Max raw coordinate: {max_raw_coordinate:.2f}")
+    print(f"  Coordinates: raw (rounded to 2dp)")
     print()
     print("Ready for S3 upload! Upload the entire output folder to:")
     print(f"  s3://your-bucket/datasets/{{datasetId}}/")

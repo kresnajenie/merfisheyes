@@ -2,7 +2,6 @@ import Papa from "papaparse";
 import { ungzip } from "pako";
 
 import { hyparquetService } from "./services/hyparquetService";
-import { normalizeCoordinates } from "./utils/coordinates";
 import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
@@ -358,29 +357,11 @@ export class SingleMoleculeDataset {
 
     const dimensions: 2 | 3 = zData ? 3 : 2;
 
-    await onProgress?.(60, "Normalizing coordinates...");
-
-    // Normalize coordinates to [-1, 1]
-    const coords2D: number[][] = [];
-
-    for (let i = 0; i < xCoords.length; i++) {
-      coords2D.push([xCoords[i], yCoords[i], zCoords[i]]);
-    }
-
-    const normalized = normalizeCoordinates(coords2D);
-    let scalingFactor = 1;
-    let normalizedCoords = coords2D;
-    let maxRawCoordinate = 0;
-
-    if (normalized) {
-      scalingFactor = normalized.scalingFactor;
-      normalizedCoords = normalized.normalized;
-      maxRawCoordinate = normalized.maxRawCoordinate || 0;
-    }
+    await onProgress?.(60, "Rounding coordinates...");
 
     await onProgress?.(70, "Building gene index...");
 
-    // Build gene index with pre-computed normalized coordinates
+    // Build gene index with raw coordinates rounded to 2 decimal places
     const geneIndex = new Map<string, number[]>();
     const uniqueGenesSet = new Set<string>();
 
@@ -396,13 +377,13 @@ export class SingleMoleculeDataset {
         geneIndex.set(gene, []);
       }
 
-      // Store normalized coordinates [x, y, z] for this molecule
+      // Store raw coordinates rounded to 2dp [x, y, z]
       const coords = geneIndex.get(gene)!;
 
       coords.push(
-        normalizedCoords[i][0],
-        normalizedCoords[i][1],
-        normalizedCoords[i][2],
+        Math.round(xCoords[i] * 100) / 100,
+        Math.round(yCoords[i] * 100) / 100,
+        Math.round(zCoords[i] * 100) / 100,
       );
 
       // Report progress every 5% and yield to browser
@@ -456,12 +437,11 @@ export class SingleMoleculeDataset {
       uniqueGenes,
       geneIndex,
       dimensions,
-      scalingFactor,
+      scalingFactor: 1,
       metadata: {
         originalFileName: file.name,
         moleculeCount: xCoords.length,
         uniqueGeneCount: uniqueGenes.length,
-        maxRawCoordinate,
         datasetType,
         columnMapping,
       },
@@ -565,29 +545,11 @@ export class SingleMoleculeDataset {
 
     const dimensions: 2 | 3 = hasZ ? 3 : 2;
 
-    await onProgress?.(60, "Normalizing coordinates...");
-
-    // Normalize coordinates to [-1, 1]
-    const coords2D: number[][] = [];
-
-    for (let i = 0; i < xCoords.length; i++) {
-      coords2D.push([xCoords[i], yCoords[i], zCoords[i]]);
-    }
-
-    const normalized = normalizeCoordinates(coords2D);
-    let scalingFactor = 1;
-    let normalizedCoords = coords2D;
-    let maxRawCoordinate = 0;
-
-    if (normalized) {
-      scalingFactor = normalized.scalingFactor;
-      normalizedCoords = normalized.normalized;
-      maxRawCoordinate = normalized.maxRawCoordinate || 0;
-    }
+    await onProgress?.(60, "Rounding coordinates...");
 
     await onProgress?.(70, "Building gene index...");
 
-    // Build gene index with pre-computed normalized coordinates
+    // Build gene index with raw coordinates rounded to 2 decimal places
     const geneIndex = new Map<string, number[]>();
     const uniqueGenesSet = new Set<string>();
 
@@ -603,13 +565,13 @@ export class SingleMoleculeDataset {
         geneIndex.set(gene, []);
       }
 
-      // Store normalized coordinates [x, y, z] for this molecule
+      // Store raw coordinates rounded to 2dp [x, y, z]
       const coords = geneIndex.get(gene)!;
 
       coords.push(
-        normalizedCoords[i][0],
-        normalizedCoords[i][1],
-        normalizedCoords[i][2],
+        Math.round(xCoords[i] * 100) / 100,
+        Math.round(yCoords[i] * 100) / 100,
+        Math.round(zCoords[i] * 100) / 100,
       );
 
       // Report progress every 5% and yield to browser
@@ -663,12 +625,11 @@ export class SingleMoleculeDataset {
       uniqueGenes,
       geneIndex,
       dimensions,
-      scalingFactor,
+      scalingFactor: 1,
       metadata: {
         originalFileName: file.name,
         moleculeCount: xCoords.length,
         uniqueGeneCount: uniqueGenes.length,
-        maxRawCoordinate,
         datasetType,
         columnMapping,
       },

@@ -48,6 +48,7 @@ export function SingleMoleculeThreeScene() {
   const animationFrameIdRef = useRef<number | null>(null);
   const selectedGenesRef = useRef<Map<string, any>>(new Map());
   const globalScaleRef = useRef<number>(1);
+  const cameraFittedRef = useRef<boolean>(false);
 
   // Get dataset from store - using stable selector to prevent re-renders
   const currentDatasetId = usePanelSingleMoleculeStore(
@@ -129,6 +130,7 @@ export function SingleMoleculeThreeScene() {
     // Update last dataset ID and viewMode
     lastDatasetIdRef.current = dataset.id;
     lastViewModeRef.current = viewMode;
+    cameraFittedRef.current = false;
 
     // Clear any existing canvas before creating new one
     if (containerRef.current) {
@@ -353,12 +355,12 @@ export function SingleMoleculeThreeScene() {
             // Create new point cloud
             const positions: number[] = [];
 
-            // Extract coordinates (already normalized to [-1, 1]) and scale by 100
+            // Use raw coordinates directly (already rounded to 2dp)
             for (let i = 0; i < coords.length; i += 3) {
               positions.push(
-                coords[i] * 100,
-                coords[i + 1] * 100,
-                coords[i + 2] * 100,
+                coords[i],
+                coords[i + 1],
+                coords[i + 2],
               );
             }
 
@@ -488,6 +490,45 @@ export function SingleMoleculeThreeScene() {
         "Final point clouds genes:",
         Array.from(pointCloudsRef.current.keys()),
       );
+
+      // Auto-fit camera to data bounds on first load
+      if (!cameraFittedRef.current && pointCloudsRef.current.size > 0 && cameraRef.current && controlsRef.current) {
+        const box = new THREE.Box3();
+
+        pointCloudsRef.current.forEach((pc) => {
+          box.expandByObject(pc);
+        });
+
+        const center = new THREE.Vector3();
+        const size = new THREE.Vector3();
+
+        box.getCenter(center);
+        box.getSize(size);
+
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const camera = cameraRef.current as THREE.PerspectiveCamera;
+        const fov = camera.fov * (Math.PI / 180);
+        const cameraDistance = (maxDim / 2) / Math.tan(fov / 2) * 1.5;
+
+        camera.position.set(center.x, center.y, center.z + cameraDistance);
+        camera.lookAt(center);
+        camera.far = cameraDistance * 10;
+        camera.updateProjectionMatrix();
+
+        // Update controls target to center of data
+        const controls = controlsRef.current;
+
+        if (controls.target) {
+          controls.target.copy(center);
+        }
+        controls.update();
+
+        // Update baseline camera distance for zoom-based point sizing
+        baselineCameraDistanceRef.current = cameraDistance;
+
+        cameraFittedRef.current = true;
+        console.log(`[SingleMoleculeThreeScene] Camera auto-fitted: center=(${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}), distance=${cameraDistance.toFixed(1)}`);
+      }
     });
 
     // Cleanup: cancel the async operation if effect is cleaned up

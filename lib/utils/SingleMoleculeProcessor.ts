@@ -15,7 +15,6 @@ interface SingleMoleculeManifest {
     total_molecules: number;
     unique_genes: number;
     spatial_dimensions: number;
-    max_raw_coordinate?: number;
   };
   genes: {
     unique_gene_names: string[];
@@ -53,7 +52,6 @@ export class SingleMoleculeProcessor {
         total_molecules: dataset.getMoleculeCount(),
         unique_genes: dataset.uniqueGenes.length,
         spatial_dimensions: dataset.dimensions,
-        max_raw_coordinate: dataset.metadata?.maxRawCoordinate || 0,
       },
       genes: {
         unique_gene_names: [...dataset.uniqueGenes],
@@ -61,8 +59,8 @@ export class SingleMoleculeProcessor {
       processing: {
         compression: "gzip",
         coordinate_format: "float32_flat_array",
-        coordinate_range: "normalized_[-1,1]",
-        scaling_factor: dataset.scalingFactor,
+        coordinate_range: "raw_rounded_2dp",
+        scaling_factor: 1,
         created_by: "MERFISH Eyes - Single Molecule Viewer",
         source_file: dataset.name || "unknown",
       },
