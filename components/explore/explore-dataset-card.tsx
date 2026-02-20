@@ -13,6 +13,8 @@ interface ExploreDatasetCardProps {
   dataset: CatalogDatasetItem;
   /** Use portal-based dropdown instead of inline expansion (for horizontal scroll rows) */
   usePopover?: boolean;
+  /** When provided, calls this instead of navigating via router */
+  onSelect?: (dataset: CatalogDatasetItem, entry: CatalogDatasetEntry) => void;
 }
 
 function navigateToEntry(entry: CatalogDatasetEntry, router: ReturnType<typeof useRouter>) {
@@ -26,11 +28,15 @@ function navigateToEntry(entry: CatalogDatasetEntry, router: ReturnType<typeof u
 }
 
 function EntryList({
+  dataset,
   entries,
   router,
+  onSelect,
 }: {
+  dataset: CatalogDatasetItem;
   entries: CatalogDatasetEntry[];
   router: ReturnType<typeof useRouter>;
+  onSelect?: (dataset: CatalogDatasetItem, entry: CatalogDatasetEntry) => void;
 }) {
   return (
     <div className="bg-content1 dark:bg-default-100 rounded-xl shadow-lg border border-default-200 p-2 flex flex-col gap-1">
@@ -45,7 +51,14 @@ function EntryList({
                 : "opacity-50 cursor-default"
             }`}
             disabled={!hasLink}
-            onClick={() => hasLink && navigateToEntry(entry, router)}
+            onClick={() => {
+              if (!hasLink) return;
+              if (onSelect) {
+                onSelect(dataset, entry);
+              } else {
+                navigateToEntry(entry, router);
+              }
+            }}
           >
             <Chip
               color={entry.datasetType === "single_cell" ? "primary" : "secondary"}
@@ -62,7 +75,7 @@ function EntryList({
   );
 }
 
-export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardProps) {
+export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDatasetCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -118,9 +131,13 @@ export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardPr
       return;
     }
 
-    // Single entry: navigate directly
+    // Single entry: navigate directly (or call onSelect)
     if (entries.length === 1) {
-      navigateToEntry(entries[0], router);
+      if (onSelect) {
+        onSelect(dataset, entries[0]);
+      } else {
+        navigateToEntry(entries[0], router);
+      }
       return;
     }
 
@@ -148,7 +165,7 @@ export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardPr
               initial={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.15 }}
             >
-              <EntryList entries={entries} router={router} />
+              <EntryList dataset={dataset} entries={entries} router={router} onSelect={onSelect} />
             </motion.div>
           </div>,
           document.body,
@@ -196,8 +213,9 @@ export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardPr
               )}
               {/* External link icon */}
               {dataset.externalLink && (
-                <button
-                  className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors"
+                <div
+                  className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+                  role="link"
                   title="Open source page"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -217,7 +235,7 @@ export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardPr
                       strokeLinejoin="round"
                     />
                   </svg>
-                </button>
+                </div>
               )}
             </div>
           )}
@@ -243,8 +261,9 @@ export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardPr
                   </Chip>
                 )}
                 {dataset.externalLink && (
-                  <button
-                    className="ml-auto w-6 h-6 rounded-full bg-default-200/60 flex items-center justify-center hover:bg-default-300/80 transition-colors"
+                  <div
+                    className="ml-auto w-6 h-6 rounded-full bg-default-200/60 flex items-center justify-center hover:bg-default-300/80 transition-colors cursor-pointer"
+                    role="link"
                     title="Open source page"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -264,7 +283,7 @@ export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardPr
                         strokeLinejoin="round"
                       />
                     </svg>
-                  </button>
+                  </div>
                 )}
               </div>
             )}
@@ -328,7 +347,7 @@ export function ExploreDatasetCard({ dataset, usePopover }: ExploreDatasetCardPr
               initial={{ opacity: 0, y: -4, height: 0 }}
               transition={{ duration: 0.2 }}
             >
-              <EntryList entries={entries} router={router} />
+              <EntryList dataset={dataset} entries={entries} router={router} onSelect={onSelect} />
             </motion.div>
           )}
         </AnimatePresence>
