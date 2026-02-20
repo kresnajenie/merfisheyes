@@ -24,12 +24,19 @@ declare module "papaparse" {
     resume(): void;
   }
 
+  export interface ParseStepResult<T> {
+    data: T;
+    errors: ParseError[];
+    meta: ParseMeta;
+  }
+
   export interface ParseConfig<T> {
     header?: boolean;
     skipEmptyLines?: boolean | "greedy";
     worker?: boolean;
     dynamicTyping?: boolean;
     transformHeader?: (header: string | undefined) => string;
+    step?: (result: ParseStepResult<T>, parser: ParseParser) => void;
     chunk?: (results: ParseResult<T>, parser: ParseParser) => void;
     complete?: (results: ParseResult<T>, file?: File) => void;
     error?: (error: unknown, file?: File) => void;
@@ -45,6 +52,7 @@ declare module "papaparse" {
   const Papa: PapaParser;
   export {
     ParseResult,
+    ParseStepResult,
     ParseMeta,
     ParseError,
     ParseConfig,

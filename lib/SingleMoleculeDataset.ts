@@ -474,144 +474,100 @@ export class SingleMoleculeDataset {
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
 
-    console.log(`[SingleMoleculeDataset] Starting CSV parsing: ${file.name}`);
+    console.log(`[SingleMoleculeDataset] Starting CSV streaming parse: ${file.name}`);
 
-    await onProgress?.(10, "Reading CSV file...");
+    await onProgress?.(10, "Preparing to stream CSV...");
 
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
 
-    // Parse CSV file
-    const text = await file.text();
-
-    await onProgress?.(30, "Parsing CSV data...");
-
-    const parseResult = Papa.parse(text, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: true,
-    });
-
-    if (parseResult.errors.length > 0) {
-      console.warn("CSV parsing warnings:", parseResult.errors);
-    }
-
-    const rows = parseResult.data as any[];
-
-    await onProgress?.(50, "Extracting columns...");
-
-    // Extract columns from parsed data
-    const moleculeGenes: string[] = [];
-    const xCoords: number[] = [];
-    const yCoords: number[] = [];
-    const zCoords: number[] = [];
-
+    // Build gene index directly while streaming — no intermediate arrays needed
+    const geneIndex = new Map<string, number[]>();
+    const uniqueGenesSet = new Set<string>();
     let hasZ = false;
+    let totalRows = 0;
+    let errorCount = 0;
+    const fileSize = file.size;
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+    await onProgress?.(15, "Streaming CSV file...");
 
-      // Skip invalid rows
-      if (!row || !row[columnMapping.gene]) continue;
+    // Stream-parse the CSV file row by row using PapaParse step mode
+    await new Promise<void>((resolve, reject) => {
+      let lastProgressReport = 0;
 
-      moleculeGenes.push(String(row[columnMapping.gene]));
-      xCoords.push(Number(row[columnMapping.x]) || 0);
-      yCoords.push(Number(row[columnMapping.y]) || 0);
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        step: (result: any) => {
+          const row = result.data as Record<string, unknown>;
 
-      if (
-        columnMapping.z &&
-        row[columnMapping.z] !== undefined &&
-        row[columnMapping.z] !== null
-      ) {
-        zCoords.push(Number(row[columnMapping.z]) || 0);
-        hasZ = true;
-      } else {
-        zCoords.push(0);
-      }
+          // Skip invalid rows
+          if (!row || !row[columnMapping.gene]) return;
 
-      // Report progress every 5% and yield to browser
-      if (i > 0 && i % Math.max(1, Math.floor(rows.length / 20)) === 0) {
-        const elapsed = performance.now() - startTime;
-        const progress = 50 + Math.floor((i / rows.length) * 10); // 50-60%
+          const gene = String(row[columnMapping.gene]);
+          const x = Math.round((Number(row[columnMapping.x]) || 0) * 100) / 100;
+          const y = Math.round((Number(row[columnMapping.y]) || 0) * 100) / 100;
+          let z = 0;
 
-        await onProgress?.(
-          progress,
-          `Extracting data: ${((i / rows.length) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
-        );
-        // Yield to browser to allow UI updates
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    }
+          if (
+            columnMapping.z &&
+            row[columnMapping.z] !== undefined &&
+            row[columnMapping.z] !== null
+          ) {
+            z = Math.round((Number(row[columnMapping.z]) || 0) * 100) / 100;
+            hasZ = true;
+          }
+
+          // Skip control genes immediately
+          if (shouldFilterGene(gene)) return;
+
+          uniqueGenesSet.add(gene);
+
+          if (!geneIndex.has(gene)) {
+            geneIndex.set(gene, []);
+          }
+
+          geneIndex.get(gene)!.push(x, y, z);
+          totalRows++;
+
+          // Report progress based on bytes read (approximate from row count)
+          if (totalRows - lastProgressReport >= 100000) {
+            lastProgressReport = totalRows;
+            const elapsed = performance.now() - startTime;
+            // Estimate progress from cursor position (PapaParse doesn't expose byte offset,
+            // so we estimate based on rows processed)
+            const progress = Math.min(85, 15 + 70 * (totalRows / (fileSize / 50)));
+
+            onProgress?.(
+              progress,
+              `Streaming: ${totalRows.toLocaleString()} molecules (${formatElapsedTime(elapsed)})`,
+            );
+          }
+        },
+        error: (error: unknown) => {
+          errorCount++;
+          console.warn("CSV streaming error:", error);
+          if (errorCount > 10) {
+            reject(new Error(`Too many CSV parsing errors: ${error}`));
+          }
+        },
+        complete: () => {
+          resolve();
+        },
+      });
+    });
 
     const dimensions: 2 | 3 = hasZ ? 3 : 2;
 
-    await onProgress?.(60, "Rounding coordinates...");
-
-    await onProgress?.(70, "Building gene index...");
-
-    // Build gene index with raw coordinates rounded to 2 decimal places
-    const geneIndex = new Map<string, number[]>();
-    const uniqueGenesSet = new Set<string>();
-
-    const totalMolecules = moleculeGenes.length;
-    const progressInterval = Math.max(1, Math.floor(totalMolecules / 20)); // Report every 5%
-
-    for (let i = 0; i < moleculeGenes.length; i++) {
-      const gene = moleculeGenes[i];
-
-      uniqueGenesSet.add(gene);
-
-      if (!geneIndex.has(gene)) {
-        geneIndex.set(gene, []);
-      }
-
-      // Store raw coordinates rounded to 2dp [x, y, z]
-      const coords = geneIndex.get(gene)!;
-
-      coords.push(
-        Math.round(xCoords[i] * 100) / 100,
-        Math.round(yCoords[i] * 100) / 100,
-        Math.round(zCoords[i] * 100) / 100,
-      );
-
-      // Report progress every 5% and yield to browser
-      if (i > 0 && i % progressInterval === 0) {
-        const elapsed = performance.now() - startTime;
-        const progress = 70 + Math.floor((i / totalMolecules) * 20); // 70-90%
-
-        await onProgress?.(
-          progress,
-          `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
-        );
-        // Yield to browser to allow UI updates
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    }
-
-    await onProgress?.(85, "Filtering control genes...");
-
-    // Filter out control/unassigned genes
-    const filteredGenes: string[] = [];
-    let filteredCount = 0;
-
-    for (const gene of Array.from(uniqueGenesSet)) {
-      if (shouldFilterGene(gene)) {
-        geneIndex.delete(gene);
-        filteredCount++;
-      } else {
-        filteredGenes.push(gene);
-      }
-    }
-
-    if (filteredCount > 0) {
-      console.log(
-        `[SingleMoleculeDataset] Filtered ${filteredCount} control/unassigned genes from CSV dataset`,
-      );
-    }
-
-    const uniqueGenes = filteredGenes;
-
     await onProgress?.(90, "Creating dataset...");
+
+    const uniqueGenes = Array.from(uniqueGenesSet);
+
+    console.log(
+      `[SingleMoleculeDataset] Streamed ${totalRows.toLocaleString()} molecules, ${uniqueGenes.length} genes`,
+    );
 
     // Generate dataset ID
     const timestamp = Date.now();
@@ -628,7 +584,7 @@ export class SingleMoleculeDataset {
       scalingFactor: 1,
       metadata: {
         originalFileName: file.name,
-        moleculeCount: xCoords.length,
+        moleculeCount: totalRows,
         uniqueGeneCount: uniqueGenes.length,
         datasetType,
         columnMapping,
@@ -639,7 +595,7 @@ export class SingleMoleculeDataset {
     const elapsedTime = performance.now() - startTime;
 
     console.log(
-      `[SingleMoleculeDataset] ✅ CSV parsing complete: ${formatElapsedTime(elapsedTime)} | ` +
+      `[SingleMoleculeDataset] ✅ CSV streaming complete: ${formatElapsedTime(elapsedTime)} | ` +
         `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
         `${dataset.genes.length.toLocaleString()} genes`,
     );
