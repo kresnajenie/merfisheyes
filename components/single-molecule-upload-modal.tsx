@@ -359,7 +359,7 @@ export function SingleMoleculeUploadModal({
                   </p>
                   <p>
                     <span className="font-medium">Total Molecules:</span>{" "}
-                    {dataset.getMoleculeCount().toLocaleString()}
+                    {(dataset.metadata?.totalMolecules || dataset.getMoleculeCount()).toLocaleString()}
                   </p>
                   <p>
                     <span className="font-medium">Unique Genes:</span>{" "}
