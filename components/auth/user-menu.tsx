@@ -34,6 +34,7 @@ export function UserMenu() {
           as="button"
           className="transition-transform"
           color="primary"
+          imgProps={{ style: { opacity: 1 } }}
           name={session.user.name ?? undefined}
           size="sm"
           src={session.user.image ?? undefined}

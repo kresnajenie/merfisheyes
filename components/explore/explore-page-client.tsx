@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 
 import { FeaturedDatasets } from "./featured-datasets";
+import { BilDatasets } from "./bil-datasets";
 import { ExploreSearchBar } from "./explore-search-bar";
 import { ExploreFilterChips } from "./explore-filter-chips";
 import { ExploreDatasetGrid } from "./explore-dataset-grid";
@@ -12,6 +13,7 @@ interface ExplorePageClientProps {
   initialItems: CatalogDatasetItem[];
   initialTotal: number;
   initialFeatured: CatalogDatasetItem[];
+  initialBil: CatalogDatasetItem[];
   initialFilters: ExploreFilters;
 }
 
@@ -19,11 +21,13 @@ export function ExplorePageClient({
   initialItems,
   initialTotal,
   initialFeatured,
+  initialBil,
   initialFilters,
 }: ExplorePageClientProps) {
   const [items, setItems] = useState(initialItems);
   const [total, setTotal] = useState(initialTotal);
   const [featured] = useState(initialFeatured);
+  const [bil] = useState(initialBil);
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(false);
 
@@ -73,6 +77,8 @@ export function ExplorePageClient({
   return (
     <>
       <FeaturedDatasets datasets={featured} />
+
+      <BilDatasets datasets={bil} />
 
       <ExploreSearchBar
         filters={filters}

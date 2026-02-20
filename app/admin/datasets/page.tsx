@@ -14,10 +14,16 @@ import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import NextLink from "next/link";
 
+interface CatalogEntry {
+  id: string;
+  label: string;
+  datasetType: string;
+}
+
 interface CatalogItem {
   id: string;
   title: string;
-  datasetType: string;
+  entries: CatalogEntry[];
   species: string | null;
   tissue: string | null;
   platform: string | null;
@@ -79,7 +85,7 @@ export default function AdminDatasetsPage() {
         <Table aria-label="Catalog datasets">
           <TableHeader>
             <TableColumn>Title</TableColumn>
-            <TableColumn>Type</TableColumn>
+            <TableColumn>Entries</TableColumn>
             <TableColumn>Species</TableColumn>
             <TableColumn>Published</TableColumn>
             <TableColumn>Featured</TableColumn>
@@ -92,13 +98,22 @@ export default function AdminDatasetsPage() {
                   <span className="font-medium">{item.title}</span>
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    color={item.datasetType === "single_cell" ? "primary" : "secondary"}
-                    size="sm"
-                    variant="flat"
-                  >
-                    {item.datasetType === "single_cell" ? "SC" : "SM"}
-                  </Chip>
+                  <div className="flex flex-wrap gap-1">
+                    {item.entries.length === 0 ? (
+                      <span className="text-default-400 text-xs">None</span>
+                    ) : (
+                      item.entries.map((entry) => (
+                        <Chip
+                          key={entry.id}
+                          color={entry.datasetType === "single_cell" ? "primary" : "secondary"}
+                          size="sm"
+                          variant="flat"
+                        >
+                          {entry.label || (entry.datasetType === "single_cell" ? "SC" : "SM")}
+                        </Chip>
+                      ))
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>{item.species ?? "—"}</TableCell>
                 <TableCell>

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
+const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
+
 // GET /api/admin/catalog/[id]
 export async function GET(
   _req: NextRequest,
@@ -12,7 +14,10 @@ export async function GET(
   if (error) return error;
 
   const { id } = await params;
-  const item = await prisma.catalogDataset.findUnique({ where: { id } });
+  const item = await prisma.catalogDataset.findUnique({
+    where: { id },
+    include: includeEntries,
+  });
 
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -41,12 +46,10 @@ export async function PATCH(
     "platform",
     "tags",
     "thumbnailUrl",
-    "datasetType",
-    "s3BaseUrl",
-    "datasetId",
     "externalLink",
     "isPublished",
     "isFeatured",
+    "isBil",
     "sortOrder",
     "numCells",
     "numGenes",
@@ -59,9 +62,24 @@ export async function PATCH(
     }
   }
 
+  // Handle entries with delete-and-recreate
+  if ("entries" in body && Array.isArray(body.entries)) {
+    await prisma.catalogDatasetEntry.deleteMany({ where: { catalogId: id } });
+    data.entries = {
+      create: body.entries.map((e: { label: string; datasetType: string; s3BaseUrl?: string; datasetId?: string; sortOrder?: number }, i: number) => ({
+        label: e.label,
+        datasetType: e.datasetType,
+        s3BaseUrl: e.s3BaseUrl || null,
+        datasetId: e.datasetId || null,
+        sortOrder: e.sortOrder ?? i,
+      })),
+    };
+  }
+
   const item = await prisma.catalogDataset.update({
     where: { id },
     data,
+    include: includeEntries,
   });
 
   return NextResponse.json(item);

@@ -7,11 +7,11 @@ import { ScrollShadow } from "@heroui/scroll-shadow";
 import { SearchIcon } from "@/components/icons";
 
 import { CompactDatasetCard } from "./compact-dataset-card";
-import type { CatalogDatasetItem } from "./types";
+import type { CatalogDatasetItem, CatalogDatasetEntry } from "./types";
 
 interface DatasetPickerInlineProps {
-  /** Called when user selects a dataset */
-  onSelect: (dataset: CatalogDatasetItem) => void;
+  /** Called when user selects a specific entry from a dataset */
+  onSelect: (dataset: CatalogDatasetItem, entry: CatalogDatasetEntry) => void;
 }
 
 export function DatasetPickerInline({ onSelect }: DatasetPickerInlineProps) {

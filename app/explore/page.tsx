@@ -5,16 +5,25 @@ import { ExploreBackground } from "@/components/explore/explore-background";
 
 export const dynamic = "force-dynamic";
 
+const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
+
 export default async function ExplorePage() {
   // SSR: fetch initial data directly from DB
-  const [items, featured, speciesRaw, tissueRaw, platformRaw] = await Promise.all([
+  const [items, featured, bil, speciesRaw, tissueRaw, platformRaw] = await Promise.all([
     prisma.catalogDataset.findMany({
       where: { isPublished: true },
+      include: includeEntries,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       take: 20,
     }),
     prisma.catalogDataset.findMany({
       where: { isPublished: true, isFeatured: true },
+      include: includeEntries,
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.catalogDataset.findMany({
+      where: { isPublished: true, isBil: true },
+      include: includeEntries,
       orderBy: { sortOrder: "asc" },
     }),
     prisma.catalogDataset.findMany({
@@ -67,6 +76,7 @@ export default async function ExplorePage() {
         </div>
 
         <ExplorePageClient
+          initialBil={serialize(bil)}
           initialFeatured={serialize(featured)}
           initialFilters={filters}
           initialItems={serialize(items)}

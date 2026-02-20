@@ -5,16 +5,16 @@ import { ScrollShadow } from "@heroui/scroll-shadow";
 import { ExploreDatasetCard } from "./explore-dataset-card";
 import type { CatalogDatasetItem } from "./types";
 
-interface FeaturedDatasetsProps {
+interface BilDatasetsProps {
   datasets: CatalogDatasetItem[];
 }
 
-export function FeaturedDatasets({ datasets }: FeaturedDatasetsProps) {
+export function BilDatasets({ datasets }: BilDatasetsProps) {
   if (datasets.length === 0) return null;
 
   return (
     <section className="mb-8">
-      <h2 className="text-lg font-semibold mb-4">Featured Datasets</h2>
+      <h2 className="text-lg font-semibold mb-4">From Brain Image Library</h2>
       <ScrollShadow orientation="horizontal" className="pb-4">
         <div className="flex gap-4">
           {datasets.map((dataset) => (

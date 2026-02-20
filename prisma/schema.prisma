@@ -88,15 +88,16 @@ model CatalogDataset {
   tags         String[] @default([])
   thumbnailUrl String? @map("thumbnail_url") @db.VarChar(1000)
 
-  // Link to actual data (one of these is set)
-  datasetType  String  @map("dataset_type") @db.VarChar(50) // "single_cell" | "single_molecule"
-  s3BaseUrl    String? @map("s3_base_url") @db.VarChar(1000)
-  datasetId    String? @map("dataset_id") @db.VarChar(50)
+  // Original source link (BIL page, publication, data repository)
   externalLink String? @map("external_link") @db.VarChar(1000)
+
+  // Sub-entries (each links to a viewer dataset)
+  entries      CatalogDatasetEntry[]
 
   // Publishing
   isPublished  Boolean @default(false) @map("is_published")
   isFeatured   Boolean @default(false) @map("is_featured")
+  isBil        Boolean @default(false) @map("is_bil")
   sortOrder    Int     @default(0) @map("sort_order")
 
   // Stats (manually entered)
@@ -111,8 +112,24 @@ model CatalogDataset {
 
   @@index([isPublished])
   @@index([isFeatured])
+  @@index([isBil])
   @@index([sortOrder])
   @@map("catalog_datasets")
+}
+
+model CatalogDatasetEntry {
+  id           String  @id @default(cuid())
+  catalogId    String  @map("catalog_id")
+  label        String  @db.VarChar(200)
+  datasetType  String  @map("dataset_type") @db.VarChar(50)
+  s3BaseUrl    String? @map("s3_base_url") @db.VarChar(1000)
+  datasetId    String? @map("dataset_id") @db.VarChar(50)
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  catalog      CatalogDataset @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+
+  @@index([catalogId])
+  @@map("catalog_dataset_entries")
 }
 
 // ─── Dataset Upload (existing) ──────────────────────────────────

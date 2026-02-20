@@ -1,3 +1,12 @@
+export interface CatalogDatasetEntry {
+  id: string;
+  label: string;
+  datasetType: string;
+  s3BaseUrl: string | null;
+  datasetId: string | null;
+  sortOrder: number;
+}
+
 export interface CatalogDatasetItem {
   id: string;
   title: string;
@@ -9,12 +18,11 @@ export interface CatalogDatasetItem {
   platform: string | null;
   tags: string[];
   thumbnailUrl: string | null;
-  datasetType: string;
-  s3BaseUrl: string | null;
-  datasetId: string | null;
   externalLink: string | null;
+  entries: CatalogDatasetEntry[];
   isPublished: boolean;
   isFeatured: boolean;
+  isBil: boolean;
   sortOrder: number;
   numCells: number | null;
   numGenes: number | null;
@@ -32,5 +40,6 @@ export interface ExploreApiResponse {
   page: number;
   limit: number;
   featured: CatalogDatasetItem[];
+  bil: CatalogDatasetItem[];
   filters: ExploreFilters;
 }

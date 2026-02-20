@@ -12,20 +12,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
-  session: { strategy: "database" },
+  session: { strategy: "jwt" },
   callbacks: {
-    async session({ session, user }) {
-      // Fetch full user with role from DB
-      const dbUser = await prisma.user.findUnique({
-        where: { id: user.id },
-        select: { id: true, role: true },
-      });
-
-      if (dbUser) {
-        session.user.id = dbUser.id;
-        session.user.role = dbUser.role;
+    async jwt({ token, user }) {
+      if (user) {
+        // First sign-in: fetch role from DB
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true },
+        });
+        token.id = user.id;
+        token.role = dbUser?.role ?? "USER";
       }
-
+      return token;
+    },
+    async session({ session, token }) {
+      session.user.id = token.id as string;
+      session.user.role = token.role as "USER" | "ADMIN";
       return session;
     },
   },

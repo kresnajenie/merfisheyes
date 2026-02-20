@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
+const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
+
 // GET /api/explore — public endpoint for browsing published datasets
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -30,14 +32,15 @@ export async function GET(req: NextRequest) {
   if (species) conditions.push({ species: { equals: species, mode: "insensitive" } });
   if (tissue) conditions.push({ tissue: { equals: tissue, mode: "insensitive" } });
   if (platform) conditions.push({ platform: { equals: platform, mode: "insensitive" } });
-  if (datasetType) conditions.push({ datasetType });
+  if (datasetType) conditions.push({ entries: { some: { datasetType } } });
 
   const where: Prisma.CatalogDatasetWhereInput = { AND: conditions };
 
   // Fetch results, featured separately
-  const [items, total, featured, filters] = await Promise.all([
+  const [items, total, featured, bil, filters] = await Promise.all([
     prisma.catalogDataset.findMany({
       where,
+      include: includeEntries,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       skip,
       take: limit,
@@ -45,13 +48,19 @@ export async function GET(req: NextRequest) {
     prisma.catalogDataset.count({ where }),
     prisma.catalogDataset.findMany({
       where: { isPublished: true, isFeatured: true },
+      include: includeEntries,
+      orderBy: { sortOrder: "asc" },
+    }),
+    prisma.catalogDataset.findMany({
+      where: { isPublished: true, isBil: true },
+      include: includeEntries,
       orderBy: { sortOrder: "asc" },
     }),
     // Get distinct filter values
     getDistinctFilters(),
   ]);
 
-  return NextResponse.json({ items, total, page, limit, featured, filters });
+  return NextResponse.json({ items, total, page, limit, featured, bil, filters });
 }
 
 async function getDistinctFilters() {

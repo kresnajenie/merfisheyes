@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 
+const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
+
 // GET /api/admin/catalog — list all catalog datasets
 export async function GET(req: NextRequest) {
   const { error } = await requireAdmin();
@@ -26,6 +28,7 @@ export async function GET(req: NextRequest) {
   const [items, total] = await Promise.all([
     prisma.catalogDataset.findMany({
       where,
+      include: includeEntries,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
       skip,
       take: limit,
@@ -43,6 +46,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
 
+  const entries = Array.isArray(body.entries) ? body.entries : [];
+
   const item = await prisma.catalogDataset.create({
     data: {
       title: body.title,
@@ -54,17 +59,25 @@ export async function POST(req: NextRequest) {
       platform: body.platform ?? null,
       tags: body.tags ?? [],
       thumbnailUrl: body.thumbnailUrl ?? null,
-      datasetType: body.datasetType,
-      s3BaseUrl: body.s3BaseUrl ?? null,
-      datasetId: body.datasetId ?? null,
       externalLink: body.externalLink ?? null,
       isPublished: body.isPublished ?? false,
       isFeatured: body.isFeatured ?? false,
+      isBil: body.isBil ?? false,
       sortOrder: body.sortOrder ?? 0,
       numCells: body.numCells ?? null,
       numGenes: body.numGenes ?? null,
       createdBy: session!.user.id,
+      entries: {
+        create: entries.map((e: { label: string; datasetType: string; s3BaseUrl?: string; datasetId?: string; sortOrder?: number }, i: number) => ({
+          label: e.label,
+          datasetType: e.datasetType,
+          s3BaseUrl: e.s3BaseUrl || null,
+          datasetId: e.datasetId || null,
+          sortOrder: e.sortOrder ?? i,
+        })),
+      },
     },
+    include: includeEntries,
   });
 
   return NextResponse.json(item, { status: 201 });

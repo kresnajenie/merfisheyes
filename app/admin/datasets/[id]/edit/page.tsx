@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Spinner } from "@heroui/spinner";
 
-import { CatalogForm, CatalogFormData } from "@/components/admin/catalog-form";
+import { CatalogForm, CatalogFormData, CatalogEntryFormData } from "@/components/admin/catalog-form";
 
 export default function EditCatalogDatasetPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,12 +19,20 @@ export default function EditCatalogDatasetPage() {
         return;
       }
       const item = await res.json();
+
+      const entries: CatalogEntryFormData[] = (item.entries ?? []).map(
+        (e: { label: string; datasetType: string; s3BaseUrl: string | null; datasetId: string | null; sortOrder: number }) => ({
+          label: e.label ?? "",
+          datasetType: e.datasetType ?? "single_cell",
+          s3BaseUrl: e.s3BaseUrl ?? "",
+          datasetId: e.datasetId ?? "",
+          sortOrder: e.sortOrder ?? 0,
+        }),
+      );
+
       setInitialData({
         title: item.title ?? "",
         description: item.description ?? "",
-        datasetType: item.datasetType ?? "single_cell",
-        s3BaseUrl: item.s3BaseUrl ?? "",
-        datasetId: item.datasetId ?? "",
         externalLink: item.externalLink ?? "",
         species: item.species ?? "",
         disease: item.disease ?? "",
@@ -37,7 +45,9 @@ export default function EditCatalogDatasetPage() {
         numGenes: item.numGenes != null ? String(item.numGenes) : "",
         isPublished: item.isPublished ?? false,
         isFeatured: item.isFeatured ?? false,
+        isBil: item.isBil ?? false,
         sortOrder: String(item.sortOrder ?? 0),
+        entries,
       });
       setLoading(false);
     })();
