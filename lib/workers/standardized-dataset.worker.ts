@@ -7,6 +7,7 @@ import { MerscopeAdapter } from "../adapters/MerscopeAdapter";
 import { ChunkedDataAdapter } from "../adapters/ChunkedDataAdapter";
 import { normalizeCoordinates } from "../utils/coordinates";
 import { isCategorical } from "../utils/column-type-detection";
+import { selectBestClusterColumnByName } from "../utils/dataset-utils";
 
 /**
  * Progress callback type that can be proxied by Comlink
@@ -56,6 +57,8 @@ export interface SerializableStandardizedDataset {
   clusters: SerializableClusterData[] | null;
   metadata: Record<string, any>;
   matrix: any; // Pre-loaded expression matrix for gene visualization
+  allClusterColumnNames?: string[];
+  allClusterColumnTypes?: Record<string, string>;
 }
 
 /**
@@ -346,6 +349,13 @@ const workerApi = {
 
     await adapter.initialize();
 
+    // Get cluster column info for deferred loading
+    const clusterColumnInfo = adapter.getClusterColumnInfo();
+    const priorityColumn = selectBestClusterColumnByName(
+      clusterColumnInfo.names,
+      clusterColumnInfo.types,
+    );
+
     // Load all data through adapter (all methods return Promises)
     await onProgress?.(30, "Loading spatial coordinates...");
     const spatial = await adapter.loadSpatialCoordinates();
@@ -359,10 +369,13 @@ const workerApi = {
     const genes = await adapter.loadGenes();
 
     console.log("[Worker] Genes:", genes.length, "genes loaded");
-    await onProgress?.(90, "Loading clusters...");
-    const clusters = await adapter.loadClusters();
+    await onProgress?.(85, "Loading priority cluster column...");
+    // Only load the priority cluster column (rest loaded in background on main thread)
+    const clusters = priorityColumn
+      ? await adapter.loadClusters([priorityColumn])
+      : null;
 
-    console.log("[Worker] Clusters:", clusters);
+    console.log("[Worker] Priority cluster loaded:", priorityColumn);
     const dataInfo = adapter.getDatasetInfo();
 
     console.log("[Worker] Dataset info:", dataInfo);
@@ -397,6 +410,8 @@ const workerApi = {
         spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
       },
       matrix: matrix,
+      allClusterColumnNames: clusterColumnInfo.names,
+      allClusterColumnTypes: clusterColumnInfo.types,
     };
 
     console.log("[Worker] S3 loading complete");

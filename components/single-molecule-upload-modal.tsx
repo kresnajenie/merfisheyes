@@ -146,7 +146,9 @@ export function SingleMoleculeUploadModal({
           const plainManifestFile = fileMap.get("manifest.json")!;
           const manifestText = await plainManifestFile.text();
           const compressed = gzip(manifestText);
-          const gzippedBlob = new Blob([compressed], { type: "application/gzip" });
+          const gzippedBlob = new Blob([compressed], {
+            type: "application/gzip",
+          });
           const gzippedFile = new File([gzippedBlob], "manifest.json.gz", {
             type: "application/gzip",
           });
@@ -196,8 +198,11 @@ export function SingleMoleculeUploadModal({
           throw new Error(error.error || "Failed to initiate upload");
         }
 
-        const { datasetId: newDatasetId, uploadId: newUploadId, uploadUrls } =
-          await initiateResponse.json();
+        const {
+          datasetId: newDatasetId,
+          uploadId: newUploadId,
+          uploadUrls,
+        } = await initiateResponse.json();
 
         datasetId = newDatasetId;
         uploadId = newUploadId;
@@ -233,18 +238,19 @@ export function SingleMoleculeUploadModal({
           }
 
           // Mark file as complete
-          await fetch(`/api/single-molecule/${datasetId}/files/${encodeURIComponent(key)}/complete`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ uploadId }),
-          });
+          await fetch(
+            `/api/single-molecule/${datasetId}/files/${encodeURIComponent(key)}/complete`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uploadId }),
+            },
+          );
 
           const progress = 5 + ((i + 1) / totalFiles) * 85;
 
           setProgress(progress);
-          setProgressMessage(
-            `Uploaded ${i + 1}/${totalFiles} files...`,
-          );
+          setProgressMessage(`Uploaded ${i + 1}/${totalFiles} files...`);
         }
 
         setProgress(90);
@@ -359,7 +365,10 @@ export function SingleMoleculeUploadModal({
                   </p>
                   <p>
                     <span className="font-medium">Total Molecules:</span>{" "}
-                    {(dataset.metadata?.totalMolecules || dataset.getMoleculeCount()).toLocaleString()}
+                    {(
+                      dataset.metadata?.totalMolecules ||
+                      dataset.getMoleculeCount()
+                    ).toLocaleString()}
                   </p>
                   <p>
                     <span className="font-medium">Unique Genes:</span>{" "}

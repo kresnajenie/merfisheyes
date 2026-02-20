@@ -6,7 +6,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 
-import { usePanelVisualizationStore, usePanelDatasetStore } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelVisualizationStore,
+  usePanelDatasetStore,
+} from "@/lib/hooks/usePanelStores";
 import { GeneScalebar } from "@/components/gene-scalebar";
 import {
   ColorPicker,
@@ -34,6 +37,7 @@ export const VisualizationLegends: React.FC = () => {
     setNumericalScaleMax,
     colorPalette: storeColorPalette,
     setColorPalette,
+    clusterVersion,
   } = usePanelVisualizationStore();
 
   const { getCurrentDataset } = usePanelDatasetStore();
@@ -87,7 +91,7 @@ export const VisualizationLegends: React.FC = () => {
 
     selectedCluster.palette = palette;
     setColorPalette(palette);
-  }, [dataset, selectedColumn, setColorPalette]);
+  }, [dataset, selectedColumn, setColorPalette, clusterVersion]);
 
   const handleClusterColorChange = useCallback(
     (celltype: string, color: string) => {
@@ -134,7 +138,7 @@ export const VisualizationLegends: React.FC = () => {
     );
 
     return selectedCluster?.type === "numerical";
-  }, [dataset, selectedColumn]);
+  }, [dataset, selectedColumn, clusterVersion]);
 
   // Debug logging removed for performance
 

@@ -24,9 +24,9 @@ export const DATASET_LINK_REGISTRY: Record<string, DatasetLinkConfig> = {
     },
 };
 
-export function getDatasetLinkConfig(
-  dataset: { metadata?: Record<string, any> },
-): DatasetLinkConfig | null {
+export function getDatasetLinkConfig(dataset: {
+  metadata?: Record<string, any>;
+}): DatasetLinkConfig | null {
   const s3Url = dataset.metadata?.customS3BaseUrl;
 
   return s3Url ? (DATASET_LINK_REGISTRY[s3Url] ?? null) : null;

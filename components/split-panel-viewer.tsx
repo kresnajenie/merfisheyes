@@ -7,7 +7,6 @@ import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
 import { Spinner, Progress } from "@heroui/react";
 import { useEffect, useState } from "react";
-import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 
 import { LocalDatasetReuploadModal } from "./local-dataset-reupload-modal";
 import { ThreeScene } from "./three-scene";
@@ -17,6 +16,7 @@ import { SingleMoleculeThreeScene } from "./single-molecule-three-scene";
 import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 
+import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import {
   isLocalDatasetId,
   getLocalDatasetMeta,
@@ -37,6 +37,7 @@ import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
+import { useBackgroundClusterLoader } from "@/lib/hooks/useBackgroundClusterLoader";
 
 interface SplitPanelViewerProps {
   datasetId: string | null;
@@ -77,6 +78,9 @@ function CellViewer({
 
   // URL sync hook (handles reading after datasetReady + writing)
   useCellVizUrlSync(datasetReady, dataset, vizStore);
+
+  // Background-load remaining cluster columns after priority column
+  useBackgroundClusterLoader(dataset, vizStore.incrementClusterVersion);
 
   // Use a stable key to track which source to load
   const sourceKey = s3Url || datasetId;

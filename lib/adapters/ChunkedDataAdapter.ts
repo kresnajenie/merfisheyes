@@ -17,7 +17,11 @@ export class ChunkedDataAdapter {
   private obsMetadata: any = null;
   private mode: "remote" | "local" | "custom";
 
-  constructor(datasetId: string, localFiles?: Map<string, File>, customS3BaseUrl?: string) {
+  constructor(
+    datasetId: string,
+    localFiles?: Map<string, File>,
+    customS3BaseUrl?: string,
+  ) {
     this.datasetId = datasetId;
     this.localFiles = localFiles || null;
     this.customS3BaseUrl = customS3BaseUrl || null;
@@ -84,10 +88,7 @@ export class ChunkedDataAdapter {
         );
       } else if (this.mode === "custom") {
         // Custom S3 mode - files will be fetched directly using base URL
-        console.log(
-          "Custom S3 mode: using base URL",
-          this.customS3BaseUrl,
-        );
+        console.log("Custom S3 mode: using base URL", this.customS3BaseUrl);
       } else {
         // Local mode - files already provided
         console.log(
@@ -104,16 +105,21 @@ export class ChunkedDataAdapter {
           this.manifest = await this.fetchJSON("manifest.json");
           console.log("Loaded manifest (uncompressed):", this.manifest);
         } catch (error) {
-          console.log("Failed to load manifest.json, trying manifest.json.gz...");
+          console.log(
+            "Failed to load manifest.json, trying manifest.json.gz...",
+          );
           // If manifest.json doesn't exist, it might be compressed
           // Try to fetch and decompress it
           try {
             const buffer = await this.fetchBinary("manifest.json.gz");
             const jsonString = new TextDecoder().decode(buffer);
+
             this.manifest = JSON.parse(jsonString);
             console.log("Loaded manifest (compressed):", this.manifest);
           } catch (gzError) {
-            console.error("Failed to load both manifest.json and manifest.json.gz");
+            console.error(
+              "Failed to load both manifest.json and manifest.json.gz",
+            );
             throw error; // Throw original error
           }
         }
@@ -297,7 +303,11 @@ export class ChunkedDataAdapter {
       : [];
 
     const embeddingKeys = Array.from(new Set(availableEmbeddings))
-      .map((value) => String(value).trim().replace(/\.bin\.gz$/i, ""))
+      .map((value) =>
+        String(value)
+          .trim()
+          .replace(/\.bin\.gz$/i, ""),
+      )
       .filter((value) => value.length > 0);
 
     for (const coordType of embeddingKeys) {
@@ -360,13 +370,31 @@ export class ChunkedDataAdapter {
   /**
    * Load clusters and color palettes
    */
-  async loadClusters(): Promise<Array<{
+  /**
+   * Returns cluster column names and types from cached obsMetadata.
+   * Zero network cost — obsMetadata is loaded during initialize().
+   */
+  getClusterColumnInfo(): { names: string[]; types: Record<string, string> } {
+    if (!this.obsMetadata) {
+      return { names: [], types: {} };
+    }
+
+    const names = Object.keys(this.obsMetadata);
+    const types: Record<string, string> = {};
+    for (const name of names) {
+      types[name] = this.obsMetadata[name].type || "categorical";
+    }
+
+    return { names, types };
+  }
+
+  async loadClusters(columns?: string[]): Promise<Array<{
     column: string;
     type: string;
     values: any[];
     palette: Record<string, string> | null;
   }> | null> {
-    console.log("Loading clusters...");
+    console.log("Loading clusters...", columns ? `(filtered: ${columns.join(", ")})` : "(all)");
 
     try {
       // Use cached observation metadata to load all cluster columns
@@ -378,7 +406,7 @@ export class ChunkedDataAdapter {
         Object.keys(this.obsMetadata),
       );
 
-      const availableColumns = Object.keys(this.obsMetadata);
+      const availableColumns = columns || Object.keys(this.obsMetadata);
 
       if (availableColumns.length === 0) {
         console.warn("No observation columns found");

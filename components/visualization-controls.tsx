@@ -9,7 +9,10 @@ import { useState, useRef } from "react";
 
 import { VisualizationPanel } from "./visualization-panel";
 
-import { usePanelVisualizationStore, usePanelId } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelVisualizationStore,
+  usePanelId,
+} from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";

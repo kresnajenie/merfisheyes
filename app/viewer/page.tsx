@@ -13,6 +13,7 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+import { useBackgroundClusterLoader } from "@/lib/hooks/useBackgroundClusterLoader";
 
 function ViewerContent() {
   const router = useRouter();
@@ -23,6 +24,9 @@ function ViewerContent() {
 
   // URL visualization state sync
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+
+  // Background-load remaining cluster columns after priority column
+  useBackgroundClusterLoader(dataset, vizStore.incrementClusterVersion);
 
   useEffect(() => {
     // Helper function to check if dataset is StandardizedDataset

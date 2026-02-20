@@ -1,4 +1,5 @@
 import { normalizeCoordinates } from "./utils/coordinates";
+import { selectBestClusterColumnByName } from "./utils/dataset-utils";
 
 interface SpatialData {
   coordinates: number[][];
@@ -45,6 +46,9 @@ export class StandardizedDataset {
   rawData: any;
   adapter: any;
   matrix: any | null;
+  allClusterColumnNames: string[];
+  allClusterColumnTypes: Record<string, string>;
+  clustersFullyLoaded: boolean;
 
   constructor({
     id,
@@ -81,6 +85,9 @@ export class StandardizedDataset {
     this.rawData = rawData;
     this.adapter = adapter;
     this.matrix = null;
+    this.allClusterColumnNames = [];
+    this.allClusterColumnTypes = {};
+    this.clustersFullyLoaded = true; // Default true; S3/chunked paths set false
 
     this.validateStructure();
   }
@@ -122,6 +129,29 @@ export class StandardizedDataset {
       ) {
         throw new Error("Spatial coordinates format is invalid");
       }
+    }
+  }
+
+  /**
+   * Adds newly loaded cluster columns, deduplicating by column name.
+   * Used by the background cluster loader to append remaining columns.
+   */
+  addClusters(
+    newClusters: Array<{
+      column: string;
+      type: string;
+      values: any[];
+      palette: Record<string, string> | null;
+    }>,
+  ) {
+    if (!newClusters || newClusters.length === 0) return;
+
+    const existing = this.clusters || [];
+    const existingNames = new Set(existing.map((c) => c.column));
+    const toAdd = newClusters.filter((c) => !existingNames.has(c.column));
+
+    if (toAdd.length > 0) {
+      this.clusters = [...existing, ...toAdd];
     }
   }
 
@@ -257,6 +287,8 @@ export class StandardizedDataset {
       | null;
     metadata: Record<string, any>;
     matrix?: any;
+    allClusterColumnNames?: string[];
+    allClusterColumnTypes?: Record<string, string>;
   }): StandardizedDataset {
     const dataset = new StandardizedDataset({
       id: data.id,
@@ -274,6 +306,19 @@ export class StandardizedDataset {
     // Pre-cache the matrix if provided (from worker)
     if (data.matrix) {
       dataset.matrix = data.matrix;
+    }
+
+    // Set deferred cluster loading info if provided
+    if (data.allClusterColumnNames) {
+      dataset.allClusterColumnNames = data.allClusterColumnNames;
+      dataset.allClusterColumnTypes = data.allClusterColumnTypes || {};
+      // If not all columns are loaded yet, mark as not fully loaded
+      const loadedColumns = new Set(
+        (data.clusters || []).map((c) => c.column),
+      );
+      dataset.clustersFullyLoaded = data.allClusterColumnNames.every((name) =>
+        loadedColumns.has(name),
+      );
     }
 
     return dataset;
@@ -380,7 +425,7 @@ export class StandardizedDataset {
     const dataset = StandardizedDataset.fromSerializedData(serializedData);
 
     // For S3 datasets, create a fresh adapter in the main thread
-    // This allows on-demand gene expression loading
+    // This allows on-demand gene expression loading and background cluster loading
     const { ChunkedDataAdapter } = await import(
       "./adapters/ChunkedDataAdapter"
     );
@@ -390,6 +435,11 @@ export class StandardizedDataset {
 
     // Attach adapter for on-demand gene expression queries
     dataset.adapter = adapter;
+
+    // Read column info from adapter (already cached from initialize())
+    const columnInfo = adapter.getClusterColumnInfo();
+    dataset.allClusterColumnNames = columnInfo.names;
+    dataset.allClusterColumnTypes = columnInfo.types;
 
     return dataset;
   }
@@ -429,8 +479,17 @@ export class StandardizedDataset {
     await onProgress?.(70, "Loading genes...");
     const genes = await adapter.loadGenes();
 
-    await onProgress?.(80, "Loading clusters...");
-    const clusters = await adapter.loadClusters();
+    // Deferred cluster loading: only load priority column
+    const columnInfo = adapter.getClusterColumnInfo();
+    const priorityColumn = selectBestClusterColumnByName(
+      columnInfo.names,
+      columnInfo.types,
+    );
+
+    await onProgress?.(80, "Loading priority cluster column...");
+    const clusters = priorityColumn
+      ? await adapter.loadClusters([priorityColumn])
+      : null;
 
     const dataInfo = adapter.getDatasetInfo();
 
@@ -463,6 +522,11 @@ export class StandardizedDataset {
 
     // Assign matrix (pre-loaded for custom S3)
     dataset.matrix = matrix;
+
+    // Set deferred cluster column info
+    dataset.allClusterColumnNames = columnInfo.names;
+    dataset.allClusterColumnTypes = columnInfo.types;
+    dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
 
     await onProgress?.(100, "Dataset loaded successfully");
 
@@ -524,8 +588,17 @@ export class StandardizedDataset {
     await onProgress?.(70, "Loading genes...");
     const genes = await adapter.loadGenes();
 
-    await onProgress?.(90, "Loading clusters...");
-    const clusters = await adapter.loadClusters();
+    // Deferred cluster loading: only load priority column
+    const columnInfo = adapter.getClusterColumnInfo();
+    const priorityColumn = selectBestClusterColumnByName(
+      columnInfo.names,
+      columnInfo.types,
+    );
+
+    await onProgress?.(85, "Loading priority cluster column...");
+    const clusters = priorityColumn
+      ? await adapter.loadClusters([priorityColumn])
+      : null;
 
     const dataInfo = adapter.getDatasetInfo();
 
@@ -559,6 +632,11 @@ export class StandardizedDataset {
 
     // Attach matrix (even though it's null for chunked datasets)
     dataset.matrix = matrix;
+
+    // Set deferred cluster column info
+    dataset.allClusterColumnNames = columnInfo.names;
+    dataset.allClusterColumnTypes = columnInfo.types;
+    dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
 
     await onProgress?.(100, "Dataset loaded successfully!");
 

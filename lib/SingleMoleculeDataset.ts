@@ -125,8 +125,9 @@ export class SingleMoleculeDataset {
 
           // Validate that stored genes match current dataset genes
           const currentGenes = new Set(this.uniqueGenes);
-          const genesMatch = storedGenes.length === this.uniqueGenes.length &&
-            storedGenes.every(gene => currentGenes.has(gene));
+          const genesMatch =
+            storedGenes.length === this.uniqueGenes.length &&
+            storedGenes.every((gene) => currentGenes.has(gene));
 
           if (genesMatch) {
             console.log(
@@ -137,8 +138,8 @@ export class SingleMoleculeDataset {
           } else {
             console.warn(
               `[SingleMoleculeDataset] Stored gene colors don't match current dataset. ` +
-              `Stored: ${storedGenes.length} genes, Current: ${this.uniqueGenes.length} genes. ` +
-              `Regenerating colors...`
+                `Stored: ${storedGenes.length} genes, Current: ${this.uniqueGenes.length} genes. ` +
+                `Regenerating colors...`,
             );
             // Clear invalid data
             localStorage.removeItem(storageKey);
@@ -842,7 +843,9 @@ export class SingleMoleculeDataset {
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
 
-    console.log(`[SingleMoleculeDataset] Loading from custom S3: ${customS3BaseUrl}`);
+    console.log(
+      `[SingleMoleculeDataset] Loading from custom S3: ${customS3BaseUrl}`,
+    );
 
     await onProgress?.(10, "Fetching manifest from custom S3...");
 
@@ -855,7 +858,7 @@ export class SingleMoleculeDataset {
     if (!manifestResponse.ok) {
       throw new Error(
         `Failed to download manifest from custom S3: ${manifestResponse.status} ${manifestResponse.statusText}. ` +
-        `Please ensure the bucket has public read access and CORS is configured.`
+          `Please ensure the bucket has public read access and CORS is configured.`,
       );
     }
 
@@ -932,7 +935,7 @@ export class SingleMoleculeDataset {
 
       if (!geneResponse.ok) {
         throw new Error(
-          `Failed to download gene file for '${geneName}' from custom S3: ${geneResponse.status} ${geneResponse.statusText}`
+          `Failed to download gene file for '${geneName}' from custom S3: ${geneResponse.status} ${geneResponse.statusText}`,
         );
       }
 

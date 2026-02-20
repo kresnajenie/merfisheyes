@@ -11,7 +11,10 @@ import { IoClose } from "react-icons/io5";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import { usePanelDatasetStore, usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelDatasetStore,
+  usePanelVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
 import {
   createPointCloud,
   updatePointCloudAttributes,

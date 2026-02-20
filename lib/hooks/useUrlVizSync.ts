@@ -1,5 +1,10 @@
 "use client";
 
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { VisualizationState } from "@/lib/stores/createVisualizationStore";
+import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+
 import React, { useEffect, useRef, useState } from "react";
 
 import { usePanelId } from "@/lib/hooks/usePanelStores";
@@ -17,10 +22,6 @@ import {
 } from "@/lib/utils/url-state-writer";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
-import type { VisualizationState } from "@/lib/stores/createVisualizationStore";
-import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 
 // --- Panel helpers ---
 
@@ -123,7 +124,9 @@ export function applySMVizState(
 
   // If URL had no genes (or none were valid), fall back to auto-select defaults
   if (store.selectedGenes.size === 0) {
-    pickDefaultGenes(dataset.uniqueGenes).forEach((gene) => store.addGene(gene));
+    pickDefaultGenes(dataset.uniqueGenes).forEach((gene) =>
+      store.addGene(gene),
+    );
   }
 
   if (decoded.gs !== undefined) {
