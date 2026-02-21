@@ -73,12 +73,14 @@ def determine_chunk_size(num_genes: int, custom_chunk_size: Optional[int] = None
 def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> bool:
     """
     Determine if data is categorical or numerical
+    (Synced with lib/utils/column-type-detection.ts)
 
     Algorithm:
     1. Always treat columns named "leiden" or "louvain" as categorical
-    2. Check if values look like floats → numerical
-    3. For integer-like values: if ≥80% are unique → numerical, otherwise categorical
+    2. Known numerical columns (n_genes, total_counts, etc.) → numerical
+    3. Check if values look like floats → numerical
     4. For non-numeric strings → categorical
+    5. For integer-like values: if ≥80% are unique → numerical, otherwise categorical
 
     Args:
         values: Array of column values
@@ -97,6 +99,19 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
         lower_name = column_name.lower()
         if "leiden" in lower_name or "louvain" in lower_name:
             return True
+
+        # Known numerical columns (counts, QC metrics) — synced with column-type-detection.ts
+        numerical_patterns = [
+            "n_genes",
+            "total_counts",
+            "n_counts",
+            "pct_counts",
+            "log1p_",
+            "n_cells",
+            "doublet_score",
+        ]
+        if any(p in lower_name for p in numerical_patterns):
+            return False
 
     # Filter out null/NaN values for analysis
     valid_series = series.dropna()
