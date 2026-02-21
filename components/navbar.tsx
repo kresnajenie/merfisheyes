@@ -90,7 +90,7 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
         justify="end"
       >
         {/* Show Upload & Save button on /viewer when dataset is loaded */}
-        {pathname === "/viewer" && onUploadClick && (
+        {pathname?.startsWith("/viewer") && onUploadClick && (
           <NavbarItem>
             <Button color="primary" onPress={onUploadClick}>
               Upload & Save
@@ -99,7 +99,7 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
         )}
 
         {/* Show Upload & Save button on /sm-viewer when dataset is loaded */}
-        {pathname === "/sm-viewer" && onUploadClick && (
+        {pathname?.startsWith("/sm-viewer") && onUploadClick && (
           <NavbarItem>
             <Button color="primary" onPress={onUploadClick}>
               Upload & Save
