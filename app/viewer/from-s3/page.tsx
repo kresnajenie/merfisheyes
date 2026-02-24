@@ -16,7 +16,7 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
-import { useBackgroundClusterLoader } from "@/lib/hooks/useBackgroundClusterLoader";
+
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -48,8 +48,6 @@ function ViewerFromS3Content() {
   // URL visualization state sync
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
 
-  // Background-load remaining cluster columns after priority column
-  useBackgroundClusterLoader(dataset, vizStore.incrementClusterVersion);
 
   // Read split params from URL on mount
   useEffect(() => {

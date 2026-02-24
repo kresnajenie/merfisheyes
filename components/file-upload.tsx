@@ -417,9 +417,9 @@ export function FileUpload({
       toast.success(`Dataset loaded successfully!`);
       setLoading(false);
 
-      // Navigate to viewer page with dataset ID in URL
+      // Navigate to from-local viewer (not /{id} which is for already-uploaded datasets)
       router.push(
-        singleMolecule ? `/sm-viewer/${dataset.id}` : `/viewer/${dataset.id}`,
+        singleMolecule ? `/sm-viewer/from-local` : `/viewer/from-local`,
       );
     } catch (error) {
       console.error(`Error processing ${type} data:`, error);

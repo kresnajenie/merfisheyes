@@ -55,10 +55,21 @@ function datasetHasGene(dataset: StandardizedDataset, gene: string): boolean {
 function getColumnValues(
   dataset: StandardizedDataset,
   column: string,
+  overrides: Record<string, "categorical" | "numerical"> = {},
 ): Set<string> {
+  // If override says numerical, treat as no categorical values
+  if (overrides[column] === "numerical") return new Set();
+
   const cluster = dataset.clusters?.find((c) => c.column === column);
 
-  if (!cluster || cluster.type === "numerical") return new Set();
+  if (!cluster) return new Set();
+
+  // If override says categorical, ignore the stored type
+  if (overrides[column] === "categorical") {
+    return new Set(cluster.values?.map(String) ?? []);
+  }
+
+  if (cluster.type === "numerical") return new Set();
 
   return new Set(cluster.values?.map(String) ?? []);
 }
@@ -66,7 +77,10 @@ function getColumnValues(
 function isNumericalColumn(
   dataset: StandardizedDataset,
   column: string,
+  overrides: Record<string, "categorical" | "numerical"> = {},
 ): boolean {
+  if (overrides[column]) return overrides[column] === "numerical";
+
   const cluster = dataset.clusters?.find((c) => c.column === column);
 
   return cluster?.type === "numerical";
@@ -124,6 +138,7 @@ export function useSyncVisualization(
         if (!targetDataset) return;
 
         const targetState = targetStore.getState();
+        const overrides = targetState.columnTypeOverrides ?? {};
 
         // 1. selectedColumn changed
         if (sourceFields.selectedColumn !== prevFields?.selectedColumn) {
@@ -135,13 +150,13 @@ export function useSyncVisualization(
                 `Column "${column}" not found in the other dataset`,
               );
             } else {
-              const numerical = isNumericalColumn(targetDataset, column);
+              const numerical = isNumericalColumn(targetDataset, column, overrides);
 
               targetStore.getState().setSelectedColumn(column, numerical);
 
               // Re-apply celltypes after column change (setSelectedColumn clears them)
               if (!numerical) {
-                const targetValues = getColumnValues(targetDataset, column);
+                const targetValues = getColumnValues(targetDataset, column, overrides);
 
                 for (const ct of sourceFields.selectedCelltypes) {
                   if (targetValues.has(ct)) {
@@ -165,7 +180,7 @@ export function useSyncVisualization(
           const column = sourceFields.selectedColumn;
 
           if (column && datasetHasColumn(targetDataset, column)) {
-            const targetValues = getColumnValues(targetDataset, column);
+            const targetValues = getColumnValues(targetDataset, column, overrides);
             const prevCelltypes = prevFields?.selectedCelltypes ?? new Set();
             const currentTargetCelltypes = targetState.selectedCelltypes;
 
@@ -215,7 +230,7 @@ export function useSyncVisualization(
           const column = sourceFields.selectedColumn;
 
           if (column && datasetHasColumn(targetDataset, column)) {
-            const targetValues = getColumnValues(targetDataset, column);
+            const targetValues = getColumnValues(targetDataset, column, overrides);
             // Only sync colors for celltypes that exist in both datasets
             const currentTargetPalette = targetState.colorPalette;
             const newPalette = { ...currentTargetPalette };
