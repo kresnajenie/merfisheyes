@@ -17,6 +17,10 @@ import {
   usePanelVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { glassButton } from "@/components/primitives";
+import {
+  getEffectiveColumnType,
+  canTreatAsNumerical,
+} from "@/lib/utils/column-type-utils";
 
 interface VisualizationPanelProps {
   mode: VisualizationMode; // This is panelMode, not the visualization mode array
@@ -48,6 +52,8 @@ export function VisualizationPanel({
     setGeneSearchTerm,
     clusterVersion,
     incrementClusterVersion,
+    columnTypeOverrides,
+    toggleColumnType,
   } = usePanelVisualizationStore();
 
   const currentSearchTerm =
@@ -67,6 +73,14 @@ export function VisualizationPanel({
 
       // Don't close if clicking on the controls
       if (controlsRef?.current && controlsRef.current.contains(target)) {
+        return;
+      }
+
+      // Don't close if clicking inside a popover/listbox (autocomplete dropdown rendered via portal)
+      if (
+        target instanceof HTMLElement &&
+        target.closest('[role="listbox"], [data-slot="content"]')
+      ) {
         return;
       }
 
@@ -103,9 +117,7 @@ export function VisualizationPanel({
       return dataset.allClusterColumnNames.map((name) => ({
         key: name,
         label: name,
-        type: (dataset.allClusterColumnTypes?.[name] || "categorical") as
-          | "categorical"
-          | "numerical",
+        type: getEffectiveColumnType(name, dataset, columnTypeOverrides),
         loaded: loadedColumns.has(name),
       }));
     }
@@ -114,21 +126,36 @@ export function VisualizationPanel({
     return (dataset.clusters || []).map((cluster) => ({
       key: cluster.column,
       label: cluster.column,
-      type: cluster.type as "categorical" | "numerical",
+      type: getEffectiveColumnType(
+        cluster.column,
+        dataset,
+        columnTypeOverrides,
+      ),
       loaded: true,
     }));
-  }, [dataset, clusterVersion]);
+  }, [dataset, clusterVersion, columnTypeOverrides]);
 
   // Check if the selected column is numerical
   const isNumericalColumn = useMemo(() => {
-    if (!dataset?.clusters || !selectedColumn) return false;
+    if (!dataset || !selectedColumn) return false;
 
-    const selectedCluster = dataset.clusters.find(
-      (c) => c.column === selectedColumn,
+    return (
+      getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) ===
+      "numerical"
     );
+  }, [dataset, selectedColumn, clusterVersion, columnTypeOverrides]);
 
-    return selectedCluster?.type === "numerical";
-  }, [dataset, selectedColumn, clusterVersion]);
+  // Whether the selected column can be toggled to numerical
+  // (only show toggle when the values are actually number-like)
+  const showTypeToggle = useMemo(() => {
+    if (!dataset || !selectedColumn) return false;
+
+    // Always allow switching back from numerical to categorical
+    if (isNumericalColumn) return true;
+
+    // Only offer "Treat as Numerical" when values parse as numbers
+    return canTreatAsNumerical(selectedColumn, dataset);
+  }, [dataset, selectedColumn, isNumericalColumn, clusterVersion]);
 
   // Get items based on mode and dataset
   const items = useMemo(() => {
@@ -148,7 +175,14 @@ export function VisualizationPanel({
 
         // Skip expensive unique-value computation for numerical columns
         // (the list is hidden anyway — only the column dropdown is shown)
-        if (selectedCluster.type === "numerical") return [];
+        if (
+          getEffectiveColumnType(
+            selectedColumn,
+            dataset,
+            columnTypeOverrides,
+          ) === "numerical"
+        )
+          return [];
 
         const uniqueTypes = new Set<string>();
         const itemsMap = new Map<
@@ -232,6 +266,7 @@ export function VisualizationPanel({
       <div className="p-4 space-y-3">
         {/* Select celltypes - only show for celltype mode */}
         {mode === "celltype" && (
+          <>
           <Autocomplete
             className="max-w-xs"
             color="primary"
@@ -252,15 +287,24 @@ export function VisualizationPanel({
               );
 
               if (loadedCluster) {
-                // Already loaded — use it directly
-                const isNumerical = loadedCluster.type === "numerical";
+                // Already loaded — use effective type (respects overrides)
+                const isNumerical =
+                  getEffectiveColumnType(
+                    columnKey,
+                    dataset,
+                    columnTypeOverrides,
+                  ) === "numerical";
 
                 setSelectedColumn(columnKey, isNumerical);
                 setMode(["celltype"]);
               } else if (dataset.adapter) {
                 // Not loaded yet — fetch on demand
                 const isNumerical =
-                  dataset.allClusterColumnTypes?.[columnKey] === "numerical";
+                  getEffectiveColumnType(
+                    columnKey,
+                    dataset,
+                    columnTypeOverrides,
+                  ) === "numerical";
 
                 setSelectedColumn(columnKey, isNumerical);
                 setMode(["celltype"]);
@@ -372,6 +416,65 @@ export function VisualizationPanel({
               </AutocompleteItem>
             ))}
           </Autocomplete>
+
+          {/* Column type toggle for the selected column */}
+          {showTypeToggle && selectedColumn && (
+            <Button
+              className="w-full"
+              size="sm"
+              variant="flat"
+              startContent={
+                isNumericalColumn ? (
+                  <svg
+                    className="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M3 3v18h18"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M7 16l4-8 4 5 5-9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="8" cy="8" r="3" />
+                    <circle cx="16" cy="8" r="3" />
+                    <circle cx="8" cy="16" r="3" />
+                    <circle cx="16" cy="16" r="3" />
+                  </svg>
+                )
+              }
+              onPress={() => {
+                const currentType = isNumericalColumn
+                  ? "numerical"
+                  : "categorical";
+                const newType =
+                  currentType === "categorical" ? "numerical" : "categorical";
+
+                toggleColumnType(selectedColumn, currentType as "categorical" | "numerical");
+                toast.info(`"${selectedColumn}" set to ${newType}`, {
+                  autoClose: 2000,
+                });
+              }}
+            >
+              Treat as {isNumericalColumn ? "Categorical" : "Numerical"}
+            </Button>
+          )}
+          </>
         )}
 
         {/* Only show search, clear, and list if not numerical column in celltype mode */}

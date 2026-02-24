@@ -11,6 +11,7 @@ import {
   usePanelDatasetStore,
 } from "@/lib/hooks/usePanelStores";
 import { GeneScalebar } from "@/components/gene-scalebar";
+import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import {
   ColorPicker,
   ColorPickerEyeDropper,
@@ -38,6 +39,7 @@ export const VisualizationLegends: React.FC = () => {
     colorPalette: storeColorPalette,
     setColorPalette,
     clusterVersion,
+    columnTypeOverrides,
   } = usePanelVisualizationStore();
 
   const { getCurrentDataset } = usePanelDatasetStore();
@@ -132,13 +134,14 @@ export const VisualizationLegends: React.FC = () => {
     if (!dataset || !selectedColumn) return false;
     if (!("clusters" in dataset)) return false;
 
-    const standardizedDataset = dataset as StandardizedDataset;
-    const selectedCluster = standardizedDataset.clusters?.find(
-      (c) => c.column === selectedColumn,
+    return (
+      getEffectiveColumnType(
+        selectedColumn,
+        dataset as StandardizedDataset,
+        columnTypeOverrides,
+      ) === "numerical"
     );
-
-    return selectedCluster?.type === "numerical";
-  }, [dataset, selectedColumn, clusterVersion]);
+  }, [dataset, selectedColumn, clusterVersion, columnTypeOverrides]);
 
   // Debug logging removed for performance
 

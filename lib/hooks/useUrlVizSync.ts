@@ -52,8 +52,15 @@ export async function applyCellVizState(
     validColumn = selectBestClusterColumn(dataset);
   }
 
-  const isNumerical =
-    dataset.allClusterColumnTypes?.[validColumn ?? ""] === "numerical";
+  // Apply type overrides before resolving isNumerical
+  if (decoded.to && typeof decoded.to === "object") {
+    store.setColumnTypeOverrides(decoded.to);
+  }
+
+  const overrides = decoded.to ?? {};
+  const isNumerical = overrides[validColumn ?? ""]
+    ? overrides[validColumn ?? ""] === "numerical"
+    : dataset.allClusterColumnTypes?.[validColumn ?? ""] === "numerical";
 
   store.setSelectedColumn(validColumn, isNumerical);
 
@@ -269,6 +276,7 @@ export function useCellVizUrlSync(
     numericalScaleMax,
     sizeScale,
     selectedEmbedding,
+    columnTypeOverrides,
   } = store;
 
   useEffect(() => {
@@ -285,6 +293,7 @@ export function useCellVizUrlSync(
       numericalScaleMax,
       sizeScale,
       selectedEmbedding,
+      columnTypeOverrides,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -301,6 +310,7 @@ export function useCellVizUrlSync(
     numericalScaleMax,
     sizeScale,
     selectedEmbedding,
+    columnTypeOverrides,
   ]);
 
   return { hasUrlState, hasUrlStateRef };

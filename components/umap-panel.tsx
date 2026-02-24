@@ -28,6 +28,7 @@ import {
   updateCombinedVisualization,
 } from "@/lib/webgl/visualization-utils";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 
 export default function UMAPPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -69,6 +70,7 @@ export default function UMAPPanel() {
     numericalScaleMin,
     numericalScaleMax,
     toggleCelltype,
+    columnTypeOverrides,
   } = usePanelVisualizationStore();
 
   // Store current visualization data for tooltips
@@ -517,7 +519,9 @@ export default function UMAPPanel() {
 
       if (selectedCluster) {
         clusterValuesRef.current = selectedCluster.values;
-        isNumericalClusterRef.current = selectedCluster.type === "numerical";
+        isNumericalClusterRef.current = selectedColumn
+          ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+          : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
 
@@ -525,11 +529,10 @@ export default function UMAPPanel() {
       const hasGeneMode = mode.includes("gene");
       const hasCelltypeMode = mode.includes("celltype");
 
-      // Get cluster data
-      const clusterData = dataset.clusters?.find(
-        (c) => c.column === selectedColumn,
-      );
-      const isNumerical = clusterData?.type === "numerical";
+      // Check if the selected column is numerical (respects overrides)
+      const isNumerical = selectedColumn
+        ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+        : false;
 
       let result = null;
 
@@ -620,6 +623,7 @@ export default function UMAPPanel() {
     numericalScaleMax,
     sceneReady,
     selectedEmbedding, // Re-run visualization when embedding changes
+    columnTypeOverrides,
     pointCloudVersion,
   ]);
 

@@ -25,6 +25,7 @@ import {
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { getDatasetLinkConfig } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
+import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 
 
 interface ThreeSceneProps {
@@ -73,6 +74,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     setNumericalScaleMax,
     toggleCelltype,
     clusterVersion,
+    columnTypeOverrides,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -538,7 +540,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       if (selectedCluster) {
         clusterValuesRef.current = selectedCluster.values;
-        isNumericalClusterRef.current = selectedCluster.type === "numerical";
+        isNumericalClusterRef.current = selectedColumn
+          ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+          : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
 
@@ -546,8 +550,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const hasGeneMode = mode.includes("gene");
       const hasCelltypeMode = mode.includes("celltype");
 
-      // Check if the selected column is numerical
-      const isNumerical = selectedCluster?.type === "numerical";
+      // Check if the selected column is numerical (respects overrides)
+      const isNumerical = selectedColumn
+        ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+        : false;
 
       let result = null;
 
@@ -686,6 +692,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     numericalScaleMax,
     mode,
     clusterVersion,
+    columnTypeOverrides,
     pointCloudVersion,
   ]);
 
