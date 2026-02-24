@@ -14,6 +14,7 @@ export interface CellVizUrlState {
   ns?: [number, number]; // [numericalScaleMin, numericalScaleMax]
   sz?: number; // sizeScale
   e?: string; // selectedEmbedding
+  to?: Record<string, "categorical" | "numerical">; // columnTypeOverrides
 }
 
 // Gene tuple: [name, color, localScale, isVisible]
@@ -75,6 +76,7 @@ export function encodeCellVizState(state: {
   numericalScaleMax: number;
   sizeScale: number;
   selectedEmbedding: string | null;
+  columnTypeOverrides: Record<string, "categorical" | "numerical">;
 }): string | null {
   const obj: CellVizUrlState = {};
 
@@ -103,6 +105,8 @@ export function encodeCellVizState(state: {
 
   if (state.sizeScale !== 1.0) obj.sz = state.sizeScale;
   if (state.selectedEmbedding) obj.e = state.selectedEmbedding;
+  if (Object.keys(state.columnTypeOverrides).length > 0)
+    obj.to = state.columnTypeOverrides;
 
   // Don't encode if nothing interesting
   if (Object.keys(obj).length === 0) return null;
@@ -126,6 +130,8 @@ export function decodeCellVizState(encoded: string): CellVizUrlState | null {
     return null;
   if (obj.sz !== undefined && typeof obj.sz !== "number") return null;
   if (obj.e !== undefined && typeof obj.e !== "string") return null;
+  if (obj.to !== undefined && (typeof obj.to !== "object" || obj.to === null))
+    return null;
 
   return obj;
 }

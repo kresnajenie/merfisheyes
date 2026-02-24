@@ -17,8 +17,11 @@ import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
-import { useBackgroundClusterLoader } from "@/lib/hooks/useBackgroundClusterLoader";
+import {
+  useCellVizUrlSync,
+  tryReadCellVizFromUrl,
+} from "@/lib/hooks/useUrlVizSync";
+
 import {
   isLocalDatasetId,
   getLocalDatasetMeta,
@@ -59,8 +62,6 @@ function ViewerByIdContent() {
   // URL visualization state sync
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
 
-  // Background-load remaining cluster columns after priority column
-  useBackgroundClusterLoader(dataset, vizStore.incrementClusterVersion);
 
   // Read split params from URL on mount
   useEffect(() => {
@@ -181,6 +182,10 @@ function ViewerByIdContent() {
 
       const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
 
+      // Read URL column hint so the worker loads it as priority
+      const urlState = tryReadCellVizFromUrl("left");
+      const priorityColumn = urlState?.c || undefined;
+
       const standardizedDataset = await StandardizedDataset.fromS3(
         id,
         (progress, message) => {
@@ -188,6 +193,7 @@ function ViewerByIdContent() {
           setLoadingProgress(progress);
           setLoadingMessage(message);
         },
+        priorityColumn,
       );
 
       console.log("StandardizedDataset created:", standardizedDataset);

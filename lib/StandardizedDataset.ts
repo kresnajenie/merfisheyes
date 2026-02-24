@@ -49,6 +49,8 @@ export class StandardizedDataset {
   allClusterColumnNames: string[];
   allClusterColumnTypes: Record<string, string>;
   clustersFullyLoaded: boolean;
+  allEmbeddingNames: string[];
+  embeddingsFullyLoaded: boolean;
 
   constructor({
     id,
@@ -88,6 +90,8 @@ export class StandardizedDataset {
     this.allClusterColumnNames = [];
     this.allClusterColumnTypes = {};
     this.clustersFullyLoaded = true; // Default true; S3/chunked paths set false
+    this.allEmbeddingNames = [];
+    this.embeddingsFullyLoaded = true; // Default true; S3/chunked paths set false
 
     this.validateStructure();
   }
@@ -153,6 +157,13 @@ export class StandardizedDataset {
     if (toAdd.length > 0) {
       this.clusters = [...existing, ...toAdd];
     }
+  }
+
+  /**
+   * Add a single embedding that was loaded on demand.
+   */
+  addEmbedding(name: string, data: number[][]) {
+    this.embeddings[name] = data;
   }
 
   /**
@@ -289,6 +300,7 @@ export class StandardizedDataset {
     matrix?: any;
     allClusterColumnNames?: string[];
     allClusterColumnTypes?: Record<string, string>;
+    allEmbeddingNames?: string[];
   }): StandardizedDataset {
     const dataset = new StandardizedDataset({
       id: data.id,
@@ -318,6 +330,15 @@ export class StandardizedDataset {
       );
       dataset.clustersFullyLoaded = data.allClusterColumnNames.every((name) =>
         loadedColumns.has(name),
+      );
+    }
+
+    // Set deferred embedding loading info if provided
+    if (data.allEmbeddingNames && data.allEmbeddingNames.length > 0) {
+      dataset.allEmbeddingNames = data.allEmbeddingNames;
+      const loadedEmbeddings = new Set(Object.keys(data.embeddings || {}));
+      dataset.embeddingsFullyLoaded = data.allEmbeddingNames.every((name) =>
+        loadedEmbeddings.has(name),
       );
     }
 
@@ -405,6 +426,7 @@ export class StandardizedDataset {
   static async fromS3(
     datasetId: string,
     onProgress?: (progress: number, message: string) => Promise<void> | void,
+    priorityColumn?: string,
   ): Promise<StandardizedDataset> {
     // Use web worker for parsing
     const { getStandardizedDatasetWorker } = await import(
@@ -419,10 +441,15 @@ export class StandardizedDataset {
     const serializedData = await worker.parseS3(
       datasetId,
       onProgress ? Comlink.proxy(onProgress) : undefined,
+      priorityColumn,
     );
 
     // Reconstruct StandardizedDataset from serialized data
     const dataset = StandardizedDataset.fromSerializedData(serializedData);
+
+    // Override manifest's dataset_id with the actual database ID
+    // (manifest may contain a client-generated ID that differs from the db-assigned ds_... ID)
+    dataset.id = datasetId;
 
     // For S3 datasets, create a fresh adapter in the main thread
     // This allows on-demand gene expression loading and background cluster loading
@@ -453,6 +480,7 @@ export class StandardizedDataset {
   static async fromCustomS3(
     customS3BaseUrl: string,
     onProgress?: (progress: number, message: string) => Promise<void> | void,
+    priorityColumnHint?: string,
   ): Promise<StandardizedDataset> {
     await onProgress?.(10, "Initializing custom S3 adapter...");
 
@@ -473,18 +501,27 @@ export class StandardizedDataset {
     await onProgress?.(50, "Loading spatial coordinates...");
     const spatial = await adapter.loadSpatialCoordinates();
 
-    await onProgress?.(60, "Loading embeddings...");
-    const embeddings = await adapter.loadEmbeddings();
+    // Skip eager embedding loading — embeddings are loaded on demand
+    const embeddings: Record<string, number[][]> = {};
 
     await onProgress?.(70, "Loading genes...");
     const genes = await adapter.loadGenes();
 
-    // Deferred cluster loading: only load priority column
+    // Deferred cluster loading: use URL hint if valid, otherwise auto-detect
     const columnInfo = adapter.getClusterColumnInfo();
-    const priorityColumn = selectBestClusterColumnByName(
-      columnInfo.names,
-      columnInfo.types,
-    );
+    let priorityColumn: string | null = null;
+
+    if (
+      priorityColumnHint &&
+      columnInfo.names.includes(priorityColumnHint)
+    ) {
+      priorityColumn = priorityColumnHint;
+    } else {
+      priorityColumn = selectBestClusterColumnByName(
+        columnInfo.names,
+        columnInfo.types,
+      );
+    }
 
     await onProgress?.(80, "Loading priority cluster column...");
     const clusters = priorityColumn
@@ -528,6 +565,10 @@ export class StandardizedDataset {
     dataset.allClusterColumnTypes = columnInfo.types;
     dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
 
+    // Set deferred embedding loading info
+    dataset.allEmbeddingNames = dataInfo.availableEmbeddings || [];
+    dataset.embeddingsFullyLoaded = false;
+
     await onProgress?.(100, "Dataset loaded successfully");
 
     return dataset;
@@ -539,6 +580,7 @@ export class StandardizedDataset {
   static async fromLocalChunked(
     files: File[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
+    priorityColumnHint?: string,
   ): Promise<StandardizedDataset> {
     console.log("[StandardizedDataset] Loading from local chunked files...");
 
@@ -582,18 +624,27 @@ export class StandardizedDataset {
     await onProgress?.(30, "Loading spatial coordinates...");
     const spatial = await adapter.loadSpatialCoordinates();
 
-    await onProgress?.(50, "Loading embeddings...");
-    const embeddings = await adapter.loadEmbeddings();
+    // Skip eager embedding loading — embeddings are loaded on demand
+    const embeddings: Record<string, number[][]> = {};
 
     await onProgress?.(70, "Loading genes...");
     const genes = await adapter.loadGenes();
 
-    // Deferred cluster loading: only load priority column
+    // Deferred cluster loading: use URL hint if valid, otherwise auto-detect
     const columnInfo = adapter.getClusterColumnInfo();
-    const priorityColumn = selectBestClusterColumnByName(
-      columnInfo.names,
-      columnInfo.types,
-    );
+    let priorityColumn: string | null = null;
+
+    if (
+      priorityColumnHint &&
+      columnInfo.names.includes(priorityColumnHint)
+    ) {
+      priorityColumn = priorityColumnHint;
+    } else {
+      priorityColumn = selectBestClusterColumnByName(
+        columnInfo.names,
+        columnInfo.types,
+      );
+    }
 
     await onProgress?.(85, "Loading priority cluster column...");
     const clusters = priorityColumn
@@ -637,6 +688,10 @@ export class StandardizedDataset {
     dataset.allClusterColumnNames = columnInfo.names;
     dataset.allClusterColumnTypes = columnInfo.types;
     dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
+
+    // Set deferred embedding loading info
+    dataset.allEmbeddingNames = dataInfo.availableEmbeddings || [];
+    dataset.embeddingsFullyLoaded = false;
 
     await onProgress?.(100, "Dataset loaded successfully!");
 

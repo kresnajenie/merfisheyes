@@ -89,23 +89,16 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
         className="hidden sm:flex basis-1/5 sm:basis-full"
         justify="end"
       >
-        {/* Show Upload & Save button on /viewer when dataset is loaded */}
-        {pathname === "/viewer" && onUploadClick && (
-          <NavbarItem>
-            <Button color="primary" onPress={onUploadClick}>
-              Upload & Save
-            </Button>
-          </NavbarItem>
-        )}
-
-        {/* Show Upload & Save button on /sm-viewer when dataset is loaded */}
-        {pathname === "/sm-viewer" && onUploadClick && (
-          <NavbarItem>
-            <Button color="primary" onPress={onUploadClick}>
-              Upload & Save
-            </Button>
-          </NavbarItem>
-        )}
+        {/* Show Upload & Save button only for locally loaded datasets */}
+        {(pathname === "/viewer/from-local" ||
+          pathname === "/sm-viewer/from-local") &&
+          onUploadClick && (
+            <NavbarItem>
+              <Button color="primary" onPress={onUploadClick}>
+                Upload & Save
+              </Button>
+            </NavbarItem>
+          )}
 
         <NavbarItem className="hidden sm:flex gap-2">
           <Link isExternal aria-label="Twitter" href={siteConfig.links.twitter}>

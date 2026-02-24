@@ -590,12 +590,11 @@ async function createManifest(
     spatialDimensions = dataset.spatial.coordinates[0].length;
   }
 
-  // Get available embeddings
-  const availableEmbeddings: string[] = [];
-
-  if (dataset.embeddings) {
-    availableEmbeddings.push(...Object.keys(dataset.embeddings));
-  }
+  // Get available embeddings (prefer allEmbeddingNames for lazy-loaded datasets)
+  const availableEmbeddings: string[] =
+    dataset.allEmbeddingNames && dataset.allEmbeddingNames.length > 0
+      ? [...dataset.allEmbeddingNames]
+      : Object.keys(dataset.embeddings ?? {});
 
   // Count clusters
   let clusterCount = 0;

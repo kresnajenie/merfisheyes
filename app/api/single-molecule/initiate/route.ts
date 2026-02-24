@@ -53,9 +53,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!metadata.numMolecules || !metadata.numGenes) {
+    // Resolve molecule/gene counts from metadata or manifest fallback
+    const numMolecules =
+      metadata.numMolecules ||
+      manifest?.statistics?.total_molecules ||
+      0;
+    const numGenes =
+      metadata.numGenes ||
+      manifest?.statistics?.unique_genes ||
+      manifest?.genes?.unique_gene_names?.length ||
+      0;
+
+    if (!numMolecules || !numGenes) {
       return NextResponse.json(
-        { error: "metadata.numMolecules and metadata.numGenes are required" },
+        { error: "Could not determine numMolecules or numGenes from metadata or manifest" },
         { status: 400, headers: corsHeaders },
       );
     }
@@ -74,8 +85,8 @@ export async function POST(request: NextRequest) {
             id: datasetId,
             fingerprint,
             title: metadata.title || "Untitled Single Molecule Dataset",
-            numCells: metadata.numMolecules, // Store molecule count in numCells field
-            numGenes: metadata.numGenes,
+            numCells: numMolecules, // Store molecule count in numCells field
+            numGenes: numGenes,
             datasetType: "single_molecule",
             manifestJson: manifest,
             status: "UPLOADING",
