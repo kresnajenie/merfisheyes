@@ -38,6 +38,7 @@ class HyparquetService {
     file: File,
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
+    optionalColumns?: string[],
   ): Promise<Map<string, any[]>> {
     if (typeof window === "undefined") {
       throw new Error("Hyparquet service can only be used in browser");
@@ -61,11 +62,29 @@ class HyparquetService {
 
     await onProgress?.(10, "Parsing parquet structure...");
 
+    // Determine which optional columns actually exist in the parquet schema
+    const allRequestedColumns = [...columnNames];
+
+    if (optionalColumns && optionalColumns.length > 0) {
+      // Read parquet metadata to check which optional columns exist
+      const { parquetMetadata } = await import("hyparquet");
+      const metadata = parquetMetadata(arrayBuffer);
+      const schemaColumns = new Set(
+        metadata.schema.slice(1).map((s: { name: string }) => s.name),
+      );
+
+      for (const col of optionalColumns) {
+        if (schemaColumns.has(col)) {
+          allRequestedColumns.push(col);
+        }
+      }
+    }
+
     // Map to store accumulated column data as arrays of chunks
     // This avoids repeated array concatenation which creates many copies
     const columnChunks = new Map<string, any[][]>();
 
-    columnNames.forEach((name) => columnChunks.set(name, []));
+    allRequestedColumns.forEach((name) => columnChunks.set(name, []));
 
     let totalPages = 0;
     let relevantPages = 0;
@@ -81,7 +100,7 @@ class HyparquetService {
         const columnName = page.columnName;
 
         // Only process requested columns
-        if (columnNames.includes(columnName)) {
+        if (allRequestedColumns.includes(columnName)) {
           totalPages++;
           relevantPages++;
 
@@ -92,7 +111,7 @@ class HyparquetService {
 
           // Only report progress every 5% to reduce spam
           const progress =
-            10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20); // 10-30% estimate
+            10 + Math.floor((relevantPages / (allRequestedColumns.length * 10)) * 20); // 10-30% estimate
 
           if (progress >= lastReportedProgress + 5) {
             onProgress?.(progress, `Reading parquet data...`);
@@ -114,7 +133,7 @@ class HyparquetService {
 
     await onProgress?.(30, "Column extraction complete");
 
-    // Validate all requested columns were found
+    // Validate all required columns were found (not optional ones)
     for (const columnName of columnNames) {
       const data = columnData.get(columnName);
 

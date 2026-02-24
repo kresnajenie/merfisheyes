@@ -6,7 +6,11 @@ import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
 } from "./config/moleculeColumnMappings";
-import { shouldFilterGene } from "./utils/gene-filters";
+import {
+  isUnassignedCell,
+  shouldFilterGene,
+  UNASSIGNED_SUFFIX,
+} from "./utils/gene-filters";
 
 /**
  * Generate a random bright color for dark background
@@ -325,11 +329,19 @@ export class SingleMoleculeDataset {
       columnsToRead.push(columnMapping.z);
     }
 
+    // Request cell_id as optional column if configured
+    const optionalColumns: string[] = [];
+
+    if (columnMapping.cellId) {
+      optionalColumns.push(columnMapping.cellId);
+    }
+
     // Read parquet file using hyparquet
     const columnData = await hyparquetService.readParquetColumns(
       file,
       columnsToRead,
       onProgress,
+      optionalColumns.length > 0 ? optionalColumns : undefined,
     );
 
     await onProgress?.(30, "Extracting columns...");
@@ -339,6 +351,12 @@ export class SingleMoleculeDataset {
     const xData = columnData.get(columnMapping.x);
     const yData = columnData.get(columnMapping.y);
     const zData = columnData.get(columnMapping.z || "");
+
+    // Extract optional cell_id column (may be undefined)
+    const cellIdData = columnMapping.cellId
+      ? columnData.get(columnMapping.cellId)
+      : undefined;
+    const hasCellId = cellIdData && cellIdData.length > 0;
 
     if (!moleculeGenes || !xData || !yData) {
       throw new Error(
@@ -368,17 +386,29 @@ export class SingleMoleculeDataset {
     const totalMolecules = moleculeGenes.length;
     const progressInterval = Math.max(1, Math.floor(totalMolecules / 20)); // Report every 5%
 
+    if (hasCellId) {
+      console.log(
+        `[SingleMoleculeDataset] cell_id column found, splitting assigned/unassigned molecules`,
+      );
+    }
+
     for (let i = 0; i < moleculeGenes.length; i++) {
       const gene = moleculeGenes[i];
 
-      uniqueGenesSet.add(gene);
+      // Determine gene key based on cell_id assignment
+      const geneKey =
+        hasCellId && isUnassignedCell(cellIdData[i])
+          ? gene + UNASSIGNED_SUFFIX
+          : gene;
 
-      if (!geneIndex.has(gene)) {
-        geneIndex.set(gene, []);
+      uniqueGenesSet.add(geneKey);
+
+      if (!geneIndex.has(geneKey)) {
+        geneIndex.set(geneKey, []);
       }
 
       // Store raw coordinates rounded to 2dp [x, y, z]
-      const coords = geneIndex.get(gene)!;
+      const coords = geneIndex.get(geneKey)!;
 
       coords.push(
         Math.round(xCoords[i] * 100) / 100,
@@ -480,6 +510,7 @@ export class SingleMoleculeDataset {
 
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
+    const cellIdCol = columnMapping.cellId;
 
     // Build gene index directly while streaming — no intermediate arrays needed
     const geneIndex = new Map<string, number[]>();
@@ -487,6 +518,7 @@ export class SingleMoleculeDataset {
     let hasZ = false;
     let totalRows = 0;
     let errorCount = 0;
+    let hasCellId = false;
     const fileSize = file.size;
 
     await onProgress?.(15, "Streaming CSV file...");
@@ -520,16 +552,26 @@ export class SingleMoleculeDataset {
             hasZ = true;
           }
 
-          // Skip control genes immediately
-          if (shouldFilterGene(gene)) return;
+          // Determine gene key based on cell_id assignment
+          let geneKey = gene;
 
-          uniqueGenesSet.add(gene);
-
-          if (!geneIndex.has(gene)) {
-            geneIndex.set(gene, []);
+          if (cellIdCol && cellIdCol in row) {
+            hasCellId = true;
+            if (isUnassignedCell(row[cellIdCol])) {
+              geneKey = gene + UNASSIGNED_SUFFIX;
+            }
           }
 
-          geneIndex.get(gene)!.push(x, y, z);
+          // Skip control genes immediately
+          if (shouldFilterGene(geneKey)) return;
+
+          uniqueGenesSet.add(geneKey);
+
+          if (!geneIndex.has(geneKey)) {
+            geneIndex.set(geneKey, []);
+          }
+
+          geneIndex.get(geneKey)!.push(x, y, z);
           totalRows++;
 
           // Report progress based on bytes read (approximate from row count)
@@ -558,6 +600,12 @@ export class SingleMoleculeDataset {
         },
       });
     });
+
+    if (hasCellId) {
+      console.log(
+        `[SingleMoleculeDataset] cell_id column found, split assigned/unassigned molecules`,
+      );
+    }
 
     const dimensions: 2 | 3 = hasZ ? 3 : 2;
 

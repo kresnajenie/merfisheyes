@@ -14,6 +14,7 @@ Options:
     --x-col           Custom x coordinate column name (overrides dataset-type)
     --y-col           Custom y coordinate column name (overrides dataset-type)
     --z-col           Custom z coordinate column name (overrides dataset-type, optional for 2D)
+    --cell-id-col     Custom cell_id column name (overrides dataset-type, optional)
     --manifest-only   Only generate manifest.json.gz without creating gene files (faster)
 """
 
@@ -34,6 +35,10 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 
+# Suffix appended to gene names for unassigned molecules
+# Mirrors lib/utils/gene-filters.ts UNASSIGNED_SUFFIX
+UNASSIGNED_SUFFIX = " (unassigned)"
+
 # Column mappings from lib/config/moleculeColumnMappings.ts
 COLUMN_MAPPINGS = {
     "xenium": {
@@ -41,12 +46,14 @@ COLUMN_MAPPINGS = {
         "x": "x_location",
         "y": "y_location",
         "z": "z_location",
+        "cell_id": "cell_id",
     },
     "merscope": {
         "gene": "gene",
         "x": "global_x",
         "y": "global_y",
         "z": "global_z",
+        "cell_id": "cell_id",
     },
     "custom": {
         "gene": "feature_name",
@@ -57,12 +64,46 @@ COLUMN_MAPPINGS = {
 }
 
 
+def is_unassigned_cell(cell_id) -> bool:
+    """
+    Determines if a cell_id value represents an unassigned molecule.
+    Mirrors lib/utils/gene-filters.ts isUnassignedCell()
+    """
+    if cell_id is None or (isinstance(cell_id, float) and np.isnan(cell_id)):
+        return True
+
+    if isinstance(cell_id, str):
+        trimmed = cell_id.strip()
+        if trimmed == "":
+            return True
+        if trimmed.lower() == "unassigned":
+            return True
+        # Check if string represents a negative number
+        try:
+            num = float(trimmed)
+            if num < 0:
+                return True
+        except ValueError:
+            pass
+        return False
+
+    if isinstance(cell_id, (int, float)):
+        return cell_id < 0
+
+    return False
+
+
 def should_filter_gene(gene: str) -> bool:
     """
     Filter control probes and unassigned genes
     Mirrors lib/utils/gene-filters.ts shouldFilterGene()
     """
-    g = gene.lower()
+    # Strip unassigned suffix before checking patterns
+    base_name = gene
+    if gene.endswith(UNASSIGNED_SUFFIX):
+        base_name = gene[:-len(UNASSIGNED_SUFFIX)]
+
+    g = base_name.lower()
     patterns = [
         r"negative[\s_-]*control",
         r"neg[\s_-]*ctrl",
@@ -113,14 +154,16 @@ def read_parquet_file(
     x_col: str,
     y_col: str,
     z_col: Optional[str],
-) -> Tuple[np.ndarray, np.ndarray, int]:
+    cell_id_col: Optional[str] = None,
+) -> Tuple[np.ndarray, np.ndarray, int, Optional[np.ndarray]]:
     """
-    Read parquet file and extract gene names and coordinates
+    Read parquet file and extract gene names, coordinates, and optionally cell_ids
 
     Returns:
         genes: Array of gene names
         coords: Array of coordinates (N x dimensions)
         dimensions: 2 or 3
+        cell_ids: Array of cell_id values (or None if column not found)
     """
     print(f"Reading parquet file: {file_path}")
 
@@ -161,10 +204,18 @@ def read_parquet_file(
         else:
             print(f"  Detected 2D dataset (no z column specified)")
 
+    # Extract cell_id if available
+    cell_ids = None
+    if cell_id_col and cell_id_col in df.columns:
+        cell_ids = df[cell_id_col].values
+        print(f"  Cell ID column '{cell_id_col}' found")
+    elif cell_id_col:
+        print(f"  Cell ID column '{cell_id_col}' not found — all molecules treated as assigned")
+
     print(f"  Total molecules: {len(genes):,}")
     print(f"  Dimensions: {dimensions}D")
 
-    return genes, coords, dimensions
+    return genes, coords, dimensions, cell_ids
 
 
 def read_csv_file(
@@ -173,14 +224,16 @@ def read_csv_file(
     x_col: str,
     y_col: str,
     z_col: Optional[str],
-) -> Tuple[np.ndarray, np.ndarray, int]:
+    cell_id_col: Optional[str] = None,
+) -> Tuple[np.ndarray, np.ndarray, int, Optional[np.ndarray]]:
     """
-    Read CSV file and extract gene names and coordinates
+    Read CSV file and extract gene names, coordinates, and optionally cell_ids
 
     Returns:
         genes: Array of gene names
         coords: Array of coordinates (N x dimensions)
         dimensions: 2 or 3
+        cell_ids: Array of cell_id values (or None if column not found)
     """
     print(f"Reading CSV file: {file_path}")
 
@@ -220,10 +273,18 @@ def read_csv_file(
         else:
             print(f"  Detected 2D dataset (no z column specified)")
 
+    # Extract cell_id if available
+    cell_ids = None
+    if cell_id_col and cell_id_col in df.columns:
+        cell_ids = df[cell_id_col].values
+        print(f"  Cell ID column '{cell_id_col}' found")
+    elif cell_id_col:
+        print(f"  Cell ID column '{cell_id_col}' not found — all molecules treated as assigned")
+
     print(f"  Total molecules: {len(genes):,}")
     print(f"  Dimensions: {dimensions}D")
 
-    return genes, coords, dimensions
+    return genes, coords, dimensions, cell_ids
 
 
 def process_single_molecule_data(
@@ -234,6 +295,7 @@ def process_single_molecule_data(
     x_col: Optional[str] = None,
     y_col: Optional[str] = None,
     z_col: Optional[str] = None,
+    cell_id_col: Optional[str] = None,
     manifest_only: bool = False,
 ):
     """
@@ -253,6 +315,9 @@ def process_single_molecule_data(
     x_col = x_col or mapping["x"]
     y_col = y_col or mapping["y"]
     z_col = z_col or mapping["z"]
+    # cell_id_col: use explicit arg, fall back to mapping (may be None for custom)
+    if cell_id_col is None:
+        cell_id_col = mapping.get("cell_id")
 
     print(f"Processing single molecule data...")
     print(f"  Dataset type: {dataset_type}")
@@ -260,6 +325,7 @@ def process_single_molecule_data(
     print(f"  X column: {x_col}")
     print(f"  Y column: {y_col}")
     print(f"  Z column: {z_col}")
+    print(f"  Cell ID column: {cell_id_col or '(none)'}")
     print()
 
     # Step 1: Read input file (10%)
@@ -268,17 +334,18 @@ def process_single_molecule_data(
 
     file_ext = Path(input_file).suffix.lower()
     if file_ext == ".parquet":
-        genes, coords, dimensions = read_parquet_file(
-            input_file, gene_col, x_col, y_col, z_col
+        genes, coords, dimensions, cell_ids = read_parquet_file(
+            input_file, gene_col, x_col, y_col, z_col, cell_id_col
         )
     elif file_ext == ".csv":
-        genes, coords, dimensions = read_csv_file(
-            input_file, gene_col, x_col, y_col, z_col
+        genes, coords, dimensions, cell_ids = read_csv_file(
+            input_file, gene_col, x_col, y_col, z_col, cell_id_col
         )
     else:
         raise ValueError(f"Unsupported file type: {file_ext} (expected .parquet or .csv)")
 
     total_molecules = len(genes)
+    has_cell_id = cell_ids is not None
 
     # Step 2: Normalize coordinates (30%)
     progress = 30
@@ -289,17 +356,26 @@ def process_single_molecule_data(
     print(f"  Coordinate range: [{coords.min():.2f}, {coords.max():.2f}]")
 
     # Step 3: Build gene index (50-70%)
+    # When cell_id data is available, split into assigned/unassigned gene keys
     progress = 50
     print(f"[{progress:3d}%] Building gene index...")
+
+    if has_cell_id:
+        print(f"  Splitting molecules by cell assignment...")
 
     gene_index: Dict[str, List[int]] = {}
 
     progress_interval = max(1, total_molecules // 20)  # Report every 5%
 
     for i, gene in enumerate(genes):
-        if gene not in gene_index:
-            gene_index[gene] = []
-        gene_index[gene].append(i)
+        # Determine gene key based on cell_id assignment
+        gene_key = gene
+        if has_cell_id and is_unassigned_cell(cell_ids[i]):
+            gene_key = str(gene) + UNASSIGNED_SUFFIX
+
+        if gene_key not in gene_index:
+            gene_index[gene_key] = []
+        gene_index[gene_key].append(i)
 
         # Progress update every 5%
         if i > 0 and i % progress_interval == 0:
@@ -309,7 +385,13 @@ def process_single_molecule_data(
 
     progress = 70
     elapsed = time.time() - start_time
-    print(f"[{progress:3d}%] Gene index built. Unique genes: {len(gene_index):,} [{elapsed:.1f}s]")
+    print(f"[{progress:3d}%] Gene index built. Unique gene keys: {len(gene_index):,} [{elapsed:.1f}s]")
+
+    if has_cell_id:
+        assigned_count = sum(1 for k in gene_index if not k.endswith(UNASSIGNED_SUFFIX))
+        unassigned_count = sum(1 for k in gene_index if k.endswith(UNASSIGNED_SUFFIX))
+        print(f"  Assigned gene entries: {assigned_count:,}")
+        print(f"  Unassigned gene entries: {unassigned_count:,}")
 
     # Step 4: Filter genes (85%)
     progress = 85
@@ -427,6 +509,8 @@ def process_single_molecule_data(
     print(f"  Unique genes: {len(unique_genes):,}")
     print(f"  Dimensions: {dimensions}D")
     print(f"  Coordinates: raw (rounded to 2dp)")
+    if has_cell_id:
+        print(f"  Cell ID splitting: enabled")
     print()
     print("Ready for S3 upload! Upload the entire output folder to:")
     print(f"  s3://your-bucket/datasets/{{datasetId}}/")
@@ -469,6 +553,10 @@ def main():
         help="Custom z coordinate column name (overrides dataset-type, optional for 2D)",
     )
     parser.add_argument(
+        "--cell-id-col",
+        help="Custom cell_id column name (overrides dataset-type, optional)",
+    )
+    parser.add_argument(
         "--manifest-only",
         action="store_true",
         help="Only generate manifest.json.gz without creating gene files (faster)",
@@ -490,6 +578,7 @@ def main():
             x_col=args.x_col,
             y_col=args.y_col,
             z_col=args.z_col,
+            cell_id_col=args.cell_id_col,
             manifest_only=args.manifest_only,
         )
     except Exception as e:
