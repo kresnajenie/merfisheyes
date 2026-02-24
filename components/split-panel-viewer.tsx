@@ -37,7 +37,7 @@ import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
-import { useBackgroundClusterLoader } from "@/lib/hooks/useBackgroundClusterLoader";
+
 
 interface SplitPanelViewerProps {
   datasetId: string | null;
@@ -79,8 +79,6 @@ function CellViewer({
   // URL sync hook (handles reading after datasetReady + writing)
   useCellVizUrlSync(datasetReady, dataset, vizStore);
 
-  // Background-load remaining cluster columns after priority column
-  useBackgroundClusterLoader(dataset, vizStore.incrementClusterVersion);
 
   // Use a stable key to track which source to load
   const sourceKey = s3Url || datasetId;
@@ -141,22 +139,34 @@ function CellViewer({
           "@/lib/StandardizedDataset"
         );
 
+        // Read URL column hint so the loader uses it as priority
+        const urlColumnHint =
+          tryReadCellVizFromUrl("right")?.c || undefined;
+
         let ds: StandardizedDataset;
 
         if (s3Url) {
-          ds = await StandardizedDataset.fromCustomS3(s3Url, (p, msg) => {
-            if (!cancelled) {
-              setProgress(p);
-              setMessage(msg);
-            }
-          });
+          ds = await StandardizedDataset.fromCustomS3(
+            s3Url,
+            (p, msg) => {
+              if (!cancelled) {
+                setProgress(p);
+                setMessage(msg);
+              }
+            },
+            urlColumnHint,
+          );
         } else {
-          ds = await StandardizedDataset.fromS3(datasetId!, (p, msg) => {
-            if (!cancelled) {
-              setProgress(p);
-              setMessage(msg);
-            }
-          });
+          ds = await StandardizedDataset.fromS3(
+            datasetId!,
+            (p, msg) => {
+              if (!cancelled) {
+                setProgress(p);
+                setMessage(msg);
+              }
+            },
+            urlColumnHint,
+          );
         }
 
         if (!cancelled) {

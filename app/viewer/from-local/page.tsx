@@ -15,7 +15,7 @@ import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
 
 
-function ViewerContent() {
+function ViewerFromLocalContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { datasets, currentDatasetId, getCurrentDataset } = useDatasetStore();
@@ -36,17 +36,11 @@ function ViewerContent() {
     const urlDatasetId = searchParams.get("dataset");
 
     if (urlDatasetId) {
-      // Try to get dataset from URL param
       const datasetFromUrl = datasets.get(urlDatasetId);
 
       if (datasetFromUrl && isStandardizedDataset(datasetFromUrl)) {
-        console.log("Loading dataset from URL param:", urlDatasetId);
         setDataset(datasetFromUrl);
       } else {
-        console.warn(
-          `Dataset with ID ${urlDatasetId} not found in store or is not a StandardizedDataset`,
-        );
-        // Fall back to current dataset
         const current = getCurrentDataset();
 
         if (current && isStandardizedDataset(current)) {
@@ -54,10 +48,8 @@ function ViewerContent() {
         }
       }
     } else {
-      // Use current dataset from store
       const current = getCurrentDataset();
 
-      console.log("Loading current dataset:", current?.id);
       if (current && isStandardizedDataset(current)) {
         setDataset(current);
       }
@@ -70,8 +62,6 @@ function ViewerContent() {
       const bestColumn = selectBestClusterColumn(dataset);
 
       vizStore.setSelectedColumn(bestColumn);
-      console.log("Auto-selected column:", bestColumn);
-      console.log("Dataset:", dataset);
     }
   }, [dataset]);
 
@@ -79,17 +69,10 @@ function ViewerContent() {
   const datasetCount = useDatasetStore((state) => state.datasets.size);
 
   useEffect(() => {
-    // If we have a current dataset, redirect to /viewer/{id} so the URL is shareable
-    if (currentDatasetId && datasets.has(currentDatasetId)) {
-      router.replace(`/viewer/${currentDatasetId}`);
-
-      return;
-    }
-
     if (!dataset && !isLoading && datasetCount === 0) {
       router.replace("/");
     }
-  }, [dataset, datasetCount, isLoading, router, currentDatasetId, datasets]);
+  }, [dataset, datasetCount, isLoading, router]);
 
   if (!dataset) {
     return null;
@@ -104,10 +87,10 @@ function ViewerContent() {
   );
 }
 
-export default function ViewerPage() {
+export default function ViewerFromLocalPage() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <ViewerContent />
+      <ViewerFromLocalContent />
     </Suspense>
   );
 }

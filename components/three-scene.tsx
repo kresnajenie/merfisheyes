@@ -5,7 +5,6 @@ import type { PointData } from "@/lib/webgl/types";
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Spinner } from "@heroui/react";
 import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
@@ -35,8 +34,9 @@ interface ThreeSceneProps {
 export function ThreeScene({ dataset }: ThreeSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
+  const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const [isLoadingGene, setIsLoadingGene] = useState(false);
+  const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
@@ -469,11 +469,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           x: coord[0] * 500, // Scale coordinates
           y: coord[1] * 500,
           z: coord[2] !== undefined ? coord[2] * 500 : 0,
-          r: Math.random(), // Random colors for now
-          g: Math.random(),
-          b: Math.random(),
+          r: 0,
+          g: 0,
+          b: 0,
           size: 1.0,
-          alpha: 1.0,
+          alpha: 0, // Hidden until visualization effect applies correct colors
         }),
       );
 
@@ -483,6 +483,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
       scene.add(pointCloud);
+      setPointCloudVersion((v) => v + 1); // Trigger visualization update
 
       // Start animation
       animate();
@@ -572,7 +573,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       ) {
         // Combined mode: gene expression on selected celltypes
         try {
-          setIsLoadingGene(true);
+          if (geneChanged) {
+            geneToastIdRef.current = toast.loading(
+              `Loading expression for "${selectedGene}"...`,
+            );
+          }
 
           // Fetch gene expression data for tooltip
           const expression = await dataset.getGeneExpression(selectedGene);
@@ -593,12 +598,19 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneChanged ? setGeneScaleMax : undefined,
           );
         } finally {
-          setIsLoadingGene(false);
+          if (geneToastIdRef.current != null) {
+            toast.dismiss(geneToastIdRef.current);
+            geneToastIdRef.current = null;
+          }
         }
       } else if (hasGeneMode && selectedGene) {
         // Gene mode only
         try {
-          setIsLoadingGene(true);
+          if (geneChanged) {
+            geneToastIdRef.current = toast.loading(
+              `Loading expression for "${selectedGene}"...`,
+            );
+          }
 
           // Fetch gene expression data for tooltip
           const expression = await dataset.getGeneExpression(selectedGene);
@@ -617,11 +629,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneChanged ? setGeneScaleMax : undefined,
           );
         } finally {
-          setIsLoadingGene(false);
+          if (geneToastIdRef.current != null) {
+            toast.dismiss(geneToastIdRef.current);
+            geneToastIdRef.current = null;
+          }
         }
       } else if (hasCelltypeMode) {
         // Celltype mode only
-        setIsLoadingGene(false);
 
         // Use appropriate visualization function based on column type
         result = isNumerical
@@ -672,6 +686,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     numericalScaleMax,
     mode,
     clusterVersion,
+    pointCloudVersion,
   ]);
 
   return (
@@ -681,19 +696,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
-
-      {/* Loading overlay for gene expression fetching */}
-      {isLoadingGene && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
-          <div className="bg-default-100/90 rounded-lg p-6 shadow-lg flex flex-col items-center gap-3">
-            <Spinner color="primary" size="lg" />
-            <p className="text-sm font-medium">Loading gene expression...</p>
-            {selectedGene && (
-              <p className="text-xs text-default-500">{selectedGene}</p>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />

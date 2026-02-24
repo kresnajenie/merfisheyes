@@ -330,6 +330,37 @@ export class ChunkedDataAdapter {
   }
 
   /**
+   * Load a single embedding by name (on-demand).
+   * Reuses fetchBinary + parseCoordinateBuffer.
+   */
+  async loadEmbedding(
+    name: string,
+  ): Promise<{ name: string; data: number[][] } | null> {
+    const coordType = name
+      .trim()
+      .replace(/\.bin\.gz$/i, "");
+
+    if (!coordType) return null;
+
+    try {
+      const buffer = await this.fetchBinary(`coords/${coordType}.bin.gz`);
+      const coordinates = this.parseCoordinateBuffer(buffer);
+
+      console.log(
+        `Loaded ${coordType} embedding on demand:`,
+        coordinates.data.length,
+        "points",
+      );
+
+      return { name: coordType, data: coordinates.data };
+    } catch (error) {
+      console.warn(`Failed to load ${coordType} embedding on demand:`, error);
+
+      return null;
+    }
+  }
+
+  /**
    * Parse binary coordinate buffer
    */
   private parseCoordinateBuffer(buffer: ArrayBuffer) {

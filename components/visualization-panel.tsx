@@ -10,6 +10,7 @@ import { RadioGroup, Radio } from "@heroui/radio";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
 import { Tooltip } from "@heroui/tooltip";
+import { toast } from "react-toastify";
 
 import {
   usePanelDatasetStore,
@@ -46,6 +47,7 @@ export function VisualizationPanel({
     setCelltypeSearchTerm,
     setGeneSearchTerm,
     clusterVersion,
+    incrementClusterVersion,
   } = usePanelVisualizationStore();
 
   const currentSearchTerm =
@@ -88,14 +90,32 @@ export function VisualizationPanel({
       ? (rawDataset as StandardizedDataset)
       : null;
 
-  // Get cluster columns for dropdown
+  // Get all cluster columns for dropdown (including unloaded ones)
   const clusterColumns = useMemo(() => {
-    if (!dataset?.clusters) return [];
+    if (!dataset) return [];
 
-    return dataset.clusters.map((cluster) => ({
+    const loadedColumns = new Set(
+      (dataset.clusters || []).map((c) => c.column),
+    );
+
+    // Use allClusterColumnNames if available (S3/chunked datasets)
+    if (dataset.allClusterColumnNames?.length > 0) {
+      return dataset.allClusterColumnNames.map((name) => ({
+        key: name,
+        label: name,
+        type: (dataset.allClusterColumnTypes?.[name] || "categorical") as
+          | "categorical"
+          | "numerical",
+        loaded: loadedColumns.has(name),
+      }));
+    }
+
+    // Fallback: use loaded clusters only (local file uploads)
+    return (dataset.clusters || []).map((cluster) => ({
       key: cluster.column,
       label: cluster.column,
       type: cluster.type as "categorical" | "numerical",
+      loaded: true,
     }));
   }, [dataset, clusterVersion]);
 
@@ -125,6 +145,10 @@ export function VisualizationPanel({
         );
 
         if (!selectedCluster) return [];
+
+        // Skip expensive unique-value computation for numerical columns
+        // (the list is hidden anyway — only the column dropdown is shown)
+        if (selectedCluster.type === "numerical") return [];
 
         const uniqueTypes = new Set<string>();
         const itemsMap = new Map<
@@ -214,17 +238,81 @@ export function VisualizationPanel({
             label="Cluster Column"
             placeholder="Select a column"
             selectedKey={selectedColumn}
-            onSelectionChange={(key) => {
+            onSelectionChange={async (key) => {
               const columnKey = (key as string) || null;
-              const selectedCluster = dataset?.clusters?.find(
+
+              if (!columnKey || !dataset) {
+                setSelectedColumn(null);
+                return;
+              }
+
+              // Check if this column is already loaded
+              const loadedCluster = dataset.clusters?.find(
                 (c) => c.column === columnKey,
               );
-              const isNumerical = selectedCluster?.type === "numerical";
 
-              setSelectedColumn(columnKey, isNumerical);
-              // When a cluster column is selected, switch visualization mode to celltype
-              if (key) {
+              if (loadedCluster) {
+                // Already loaded — use it directly
+                const isNumerical = loadedCluster.type === "numerical";
+
+                setSelectedColumn(columnKey, isNumerical);
                 setMode(["celltype"]);
+              } else if (dataset.adapter) {
+                // Not loaded yet — fetch on demand
+                const isNumerical =
+                  dataset.allClusterColumnTypes?.[columnKey] === "numerical";
+
+                setSelectedColumn(columnKey, isNumerical);
+                setMode(["celltype"]);
+
+                const toastId = toast.loading(
+                  `Loading cluster column "${columnKey}"...`,
+                );
+
+                try {
+                  let newClusters: Array<{
+                    column: string;
+                    type: string;
+                    values: any[];
+                    palette: Record<string, string> | null;
+                  }> | null = null;
+
+                  if (dataset.adapter.mode === "local") {
+                    // Local datasets: load on main thread
+                    newClusters = await dataset.adapter.loadClusters([
+                      columnKey,
+                    ]);
+                  } else {
+                    // S3 / custom S3: load in worker to avoid freezing UI
+                    const { getStandardizedDatasetWorker } = await import(
+                      "@/lib/workers/standardizedDatasetWorkerManager"
+                    );
+                    const worker = await getStandardizedDatasetWorker();
+
+                    newClusters = await worker.loadClusterFromS3(
+                      dataset.id,
+                      [columnKey],
+                      dataset.metadata?.customS3BaseUrl,
+                    );
+                  }
+
+                  if (newClusters && newClusters.length > 0) {
+                    dataset.addClusters(newClusters);
+                    incrementClusterVersion();
+                  }
+                  toast.dismiss(toastId);
+                } catch (error) {
+                  console.warn(
+                    `Failed to load cluster column ${columnKey}:`,
+                    error,
+                  );
+                  toast.update(toastId, {
+                    render: `Failed to load "${columnKey}"`,
+                    type: "error",
+                    isLoading: false,
+                    autoClose: 3000,
+                  });
+                }
               }
             }}
           >
@@ -273,6 +361,11 @@ export function VisualizationPanel({
                       </svg>
                     )}
                   </Tooltip>
+                }
+                endContent={
+                  column.loaded ? (
+                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                  ) : null
                 }
               >
                 {column.label}
