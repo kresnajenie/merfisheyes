@@ -447,6 +447,10 @@ export class StandardizedDataset {
     // Reconstruct StandardizedDataset from serialized data
     const dataset = StandardizedDataset.fromSerializedData(serializedData);
 
+    // Override manifest's dataset_id with the actual database ID
+    // (manifest may contain a client-generated ID that differs from the db-assigned ds_... ID)
+    dataset.id = datasetId;
+
     // For S3 datasets, create a fresh adapter in the main thread
     // This allows on-demand gene expression loading and background cluster loading
     const { ChunkedDataAdapter } = await import(
