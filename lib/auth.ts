@@ -16,12 +16,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        // First sign-in: fetch role from DB
+        token.id = user.id;
+      }
+      // Always refresh role from DB so admin changes take effect immediately
+      if (token.id) {
         const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
+          where: { id: token.id as string },
           select: { role: true },
         });
-        token.id = user.id;
         token.role = dbUser?.role ?? "USER";
       }
       return token;
