@@ -8,6 +8,136 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ─── Auth (NextAuth v5) ─────────────────────────────────────────
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts        Account[]
+  sessions        Session[]
+  catalogDatasets CatalogDataset[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─── Catalog ────────────────────────────────────────────────────
+
+model CatalogDataset {
+  id           String  @id @default(cuid())
+
+  // Display metadata
+  title        String  @db.VarChar(500)
+  description  String? @db.Text
+  species      String? @db.VarChar(200)
+  disease      String? @db.VarChar(200)
+  institute    String? @db.VarChar(500)
+  tissue       String? @db.VarChar(200)
+  platform     String? @db.VarChar(200)
+  tags         String[] @default([])
+  thumbnailUrl String? @map("thumbnail_url") @db.VarChar(1000)
+
+  // Original source link (BIL page, publication, data repository)
+  externalLink    String? @map("external_link") @db.VarChar(1000)
+  publicationLink String? @map("publication_link") @db.VarChar(1000)
+
+  // Sub-entries (each links to a viewer dataset)
+  entries      CatalogDatasetEntry[]
+
+  // Publishing
+  isPublished  Boolean @default(false) @map("is_published")
+  isFeatured   Boolean @default(false) @map("is_featured")
+  isBil        Boolean @default(false) @map("is_bil")
+  isInternal   Boolean @default(false) @map("is_internal")
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  // Stats (manually entered)
+  numCells     Int?    @map("num_cells")
+  numGenes     Int?    @map("num_genes")
+
+  // Audit
+  createdBy     String?   @map("created_by")
+  createdByUser User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([isPublished])
+  @@index([isFeatured])
+  @@index([isBil])
+  @@index([isInternal])
+  @@index([sortOrder])
+  @@map("catalog_datasets")
+}
+
+model CatalogDatasetEntry {
+  id           String  @id @default(cuid())
+  catalogId    String  @map("catalog_id")
+  label        String  @db.VarChar(200)
+  datasetType  String  @map("dataset_type") @db.VarChar(50)
+  s3BaseUrl    String? @map("s3_base_url") @db.VarChar(1000)
+  datasetId    String? @map("dataset_id") @db.VarChar(50)
+  sortOrder    Int     @default(0) @map("sort_order")
+
+  catalog      CatalogDataset @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+
+  @@index([catalogId])
+  @@map("catalog_dataset_entries")
+}
+
+// ─── Dataset Upload (existing) ──────────────────────────────────
+
 model Dataset {
   id             String          @id @db.VarChar(50)
   fingerprint    String          @unique @db.VarChar(64)
