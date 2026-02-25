@@ -5,7 +5,7 @@ import type { PointData } from "@/lib/webgl/types";
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Spinner } from "@heroui/react";
+import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
@@ -24,8 +24,9 @@ import {
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { getDatasetLinkConfig } from "@/lib/config/dataset-links";
-import { toast } from "react-toastify";
 import { VisualizationLegends } from "@/components/visualization-legends";
+import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -34,14 +35,16 @@ interface ThreeSceneProps {
 export function ThreeScene({ dataset }: ThreeSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
+  const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const [isLoadingGene, setIsLoadingGene] = useState(false);
+  const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const cameraRef = useRef<THREE.Camera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const controlsRef = useRef<any>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoveredPointRef = useRef<number | null>(null);
   const lastCameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -70,14 +73,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     setNumericalScaleMin,
     setNumericalScaleMax,
     toggleCelltype,
+    clusterVersion,
+    columnTypeOverrides,
   } = usePanelVisualizationStore();
 
   // Split screen support
   const panelId = usePanelId();
   const { enableSplit, setRightPanelS3 } = useSplitScreenStore();
-  const linkConfigRef = useRef(
-    dataset ? getDatasetLinkConfig(dataset) : null,
-  );
+  const linkConfigRef = useRef(dataset ? getDatasetLinkConfig(dataset) : null);
 
   // Update link config ref when dataset changes
   useEffect(() => {
@@ -360,18 +363,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       );
 
       // Initialize Three.js scene with options
-      const { scene, camera, renderer, animate, dispose } = initializeScene(
-        containerRef.current,
-        {
+      const { scene, camera, renderer, controls, animate, dispose } =
+        initializeScene(containerRef.current, {
           is2D: dataset.spatial.dimensions === 2,
           cameraPosition: cameraPos,
           lookAtPosition: center,
-        },
-      );
+        });
 
-      // Store camera and renderer refs for raycasting
+      // Store camera, renderer, and controls refs for raycasting + scale bar
       cameraRef.current = camera;
       rendererRef.current = renderer;
+      controlsRef.current = controls;
 
       // Create tooltip
       if (!tooltipRef.current) {
@@ -423,6 +425,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         if (hoveredPointRef.current === null) return;
         // Need a link config for this dataset
         const linkConfig = linkConfigRef.current;
+
         if (!linkConfig) return;
 
         event.preventDefault();
@@ -434,10 +437,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         const linkCluster = dataset!.clusters?.find(
           (c) => c.column === linkConfig.linkColumn,
         );
+
         if (!linkCluster) {
           console.warn(
             `Link column "${linkConfig.linkColumn}" not found in dataset clusters`,
           );
+
           return;
         }
 
@@ -446,6 +451,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         if (!smUrl) {
           toast.warning(`No single molecule data available for "${setValue}"`);
+
           return;
         }
 
@@ -465,11 +471,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           x: coord[0] * 500, // Scale coordinates
           y: coord[1] * 500,
           z: coord[2] !== undefined ? coord[2] * 500 : 0,
-          r: Math.random(), // Random colors for now
-          g: Math.random(),
-          b: Math.random(),
+          r: 0,
+          g: 0,
+          b: 0,
           size: 1.0,
-          alpha: 1.0,
+          alpha: 0, // Hidden until visualization effect applies correct colors
         }),
       );
 
@@ -479,6 +485,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
       scene.add(pointCloud);
+      setPointCloudVersion((v) => v + 1); // Trigger visualization update
 
       // Start animation
       animate();
@@ -503,6 +510,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         sceneRef.current = null;
         cameraRef.current = null;
         rendererRef.current = null;
+        controlsRef.current = null;
         dispose();
       };
     } else {
@@ -532,7 +540,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       if (selectedCluster) {
         clusterValuesRef.current = selectedCluster.values;
-        isNumericalClusterRef.current = selectedCluster.type === "numerical";
+        isNumericalClusterRef.current = selectedColumn
+          ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+          : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
 
@@ -540,8 +550,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const hasGeneMode = mode.includes("gene");
       const hasCelltypeMode = mode.includes("celltype");
 
-      // Check if the selected column is numerical
-      const isNumerical = selectedCluster?.type === "numerical";
+      // Check if the selected column is numerical (respects overrides)
+      const isNumerical = selectedColumn
+        ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+        : false;
 
       let result = null;
 
@@ -567,7 +579,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       ) {
         // Combined mode: gene expression on selected celltypes
         try {
-          setIsLoadingGene(true);
+          if (geneChanged) {
+            geneToastIdRef.current = toast.loading(
+              `Loading expression for "${selectedGene}"...`,
+            );
+          }
 
           // Fetch gene expression data for tooltip
           const expression = await dataset.getGeneExpression(selectedGene);
@@ -588,12 +604,19 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneChanged ? setGeneScaleMax : undefined,
           );
         } finally {
-          setIsLoadingGene(false);
+          if (geneToastIdRef.current != null) {
+            toast.dismiss(geneToastIdRef.current);
+            geneToastIdRef.current = null;
+          }
         }
       } else if (hasGeneMode && selectedGene) {
         // Gene mode only
         try {
-          setIsLoadingGene(true);
+          if (geneChanged) {
+            geneToastIdRef.current = toast.loading(
+              `Loading expression for "${selectedGene}"...`,
+            );
+          }
 
           // Fetch gene expression data for tooltip
           const expression = await dataset.getGeneExpression(selectedGene);
@@ -612,11 +635,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneChanged ? setGeneScaleMax : undefined,
           );
         } finally {
-          setIsLoadingGene(false);
+          if (geneToastIdRef.current != null) {
+            toast.dismiss(geneToastIdRef.current);
+            geneToastIdRef.current = null;
+          }
         }
       } else if (hasCelltypeMode) {
         // Celltype mode only
-        setIsLoadingGene(false);
 
         // Use appropriate visualization function based on column type
         result = isNumerical
@@ -666,6 +691,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     numericalScaleMin,
     numericalScaleMax,
     mode,
+    clusterVersion,
+    columnTypeOverrides,
+    pointCloudVersion,
   ]);
 
   return (
@@ -676,21 +704,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         style={{ margin: 0, padding: 0 }}
       />
 
-      {/* Loading overlay for gene expression fetching */}
-      {isLoadingGene && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50 pointer-events-none">
-          <div className="bg-default-100/90 rounded-lg p-6 shadow-lg flex flex-col items-center gap-3">
-            <Spinner color="primary" size="lg" />
-            <p className="text-sm font-medium">Loading gene expression...</p>
-            {selectedGene && (
-              <p className="text-xs text-default-500">{selectedGene}</p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
+
     </>
   );
 }

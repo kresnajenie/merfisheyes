@@ -7,7 +7,6 @@ import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
 import { Spinner, Progress } from "@heroui/react";
 import { useEffect, useState } from "react";
-import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 
 import { LocalDatasetReuploadModal } from "./local-dataset-reupload-modal";
 import { ThreeScene } from "./three-scene";
@@ -17,6 +16,7 @@ import { SingleMoleculeThreeScene } from "./single-molecule-three-scene";
 import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 
+import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import {
   isLocalDatasetId,
   getLocalDatasetMeta,
@@ -37,6 +37,7 @@ import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
+
 
 interface SplitPanelViewerProps {
   datasetId: string | null;
@@ -77,6 +78,7 @@ function CellViewer({
 
   // URL sync hook (handles reading after datasetReady + writing)
   useCellVizUrlSync(datasetReady, dataset, vizStore);
+
 
   // Use a stable key to track which source to load
   const sourceKey = s3Url || datasetId;
@@ -137,22 +139,34 @@ function CellViewer({
           "@/lib/StandardizedDataset"
         );
 
+        // Read URL column hint so the loader uses it as priority
+        const urlColumnHint =
+          tryReadCellVizFromUrl("right")?.c || undefined;
+
         let ds: StandardizedDataset;
 
         if (s3Url) {
-          ds = await StandardizedDataset.fromCustomS3(s3Url, (p, msg) => {
-            if (!cancelled) {
-              setProgress(p);
-              setMessage(msg);
-            }
-          });
+          ds = await StandardizedDataset.fromCustomS3(
+            s3Url,
+            (p, msg) => {
+              if (!cancelled) {
+                setProgress(p);
+                setMessage(msg);
+              }
+            },
+            urlColumnHint,
+          );
         } else {
-          ds = await StandardizedDataset.fromS3(datasetId!, (p, msg) => {
-            if (!cancelled) {
-              setProgress(p);
-              setMessage(msg);
-            }
-          });
+          ds = await StandardizedDataset.fromS3(
+            datasetId!,
+            (p, msg) => {
+              if (!cancelled) {
+                setProgress(p);
+                setMessage(msg);
+              }
+            },
+            urlColumnHint,
+          );
         }
 
         if (!cancelled) {

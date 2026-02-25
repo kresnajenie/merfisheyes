@@ -21,6 +21,8 @@ export interface VisualizationState {
   colorPalette: Record<string, string>;
   alphaScale: number;
   sizeScale: number;
+  clusterVersion: number;
+  columnTypeOverrides: Record<string, "categorical" | "numerical">;
 
   setMode: (mode: VisualizationMode[]) => void;
   setPanelMode: (mode: VisualizationMode) => void;
@@ -38,6 +40,14 @@ export interface VisualizationState {
   setSizeScale: (size: number) => void;
   setCelltypeSearchTerm: (value: string) => void;
   setGeneSearchTerm: (value: string) => void;
+  incrementClusterVersion: () => void;
+  toggleColumnType: (
+    column: string,
+    currentType: "categorical" | "numerical",
+  ) => void;
+  setColumnTypeOverrides: (
+    overrides: Record<string, "categorical" | "numerical">,
+  ) => void;
   reset: () => void;
 }
 
@@ -58,6 +68,8 @@ const initialState = {
   colorPalette: {},
   alphaScale: VISUALIZATION_CONFIG.POINT_BASE_ALPHA,
   sizeScale: 1.0,
+  clusterVersion: 0,
+  columnTypeOverrides: {} as Record<string, "categorical" | "numerical">,
 };
 
 const updateModeArray = (
@@ -204,6 +216,39 @@ export function createVisualizationStoreInstance() {
 
     setGeneSearchTerm: (value) => {
       set({ geneSearchTerm: value });
+    },
+
+    incrementClusterVersion: () => {
+      set((state) => ({ clusterVersion: state.clusterVersion + 1 }));
+    },
+
+    toggleColumnType: (column, currentType) => {
+      set((state) => {
+        const newType: "categorical" | "numerical" =
+          currentType === "categorical" ? "numerical" : "categorical";
+        const newOverrides: Record<string, "categorical" | "numerical"> = {
+          ...state.columnTypeOverrides,
+          [column]: newType,
+        };
+
+        const updates: Partial<VisualizationState> = {
+          columnTypeOverrides: newOverrides,
+          clusterVersion: state.clusterVersion + 1,
+        };
+
+        // If toggling the currently selected column to numerical, clear gene/celltypes
+        if (state.selectedColumn === column && newType === "numerical") {
+          updates.selectedGene = null;
+          updates.selectedCelltypes = new Set<string>();
+          updates.mode = ["celltype"];
+        }
+
+        return updates;
+      });
+    },
+
+    setColumnTypeOverrides: (overrides) => {
+      set({ columnTypeOverrides: overrides });
     },
 
     reset: () => {

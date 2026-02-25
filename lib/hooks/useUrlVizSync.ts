@@ -1,5 +1,10 @@
 "use client";
 
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { VisualizationState } from "@/lib/stores/createVisualizationStore";
+import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+
 import React, { useEffect, useRef, useState } from "react";
 
 import { usePanelId } from "@/lib/hooks/usePanelStores";
@@ -17,10 +22,6 @@ import {
 } from "@/lib/utils/url-state-writer";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
-import type { VisualizationState } from "@/lib/stores/createVisualizationStore";
-import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 
 // --- Panel helpers ---
 
@@ -30,25 +31,85 @@ function getPanel(panelId: string | null): "left" | "right" {
 
 // --- Apply decoded state to stores (exported for imperative use) ---
 
-export function applyCellVizState(
+export async function applyCellVizState(
   decoded: CellVizUrlState,
   store: VisualizationState,
   dataset: StandardizedDataset,
 ) {
-  const columnNames = dataset.clusters?.map((c) => c.column) ?? [];
+  // Check loaded clusters first, then fall back to all known column names
+  const loadedColumnNames = dataset.clusters?.map((c) => c.column) ?? [];
+  const allColumnNames =
+    dataset.allClusterColumnNames && dataset.allClusterColumnNames.length > 0
+      ? dataset.allClusterColumnNames
+      : loadedColumnNames;
   let validColumn: string | null = null;
 
-  if (decoded.c && columnNames.includes(decoded.c)) {
+  if (decoded.c && allColumnNames.includes(decoded.c)) {
     validColumn = decoded.c;
   }
 
   if (!validColumn) {
     validColumn = selectBestClusterColumn(dataset);
   }
-  store.setSelectedColumn(validColumn);
+
+  // Apply type overrides before resolving isNumerical
+  if (decoded.to && typeof decoded.to === "object") {
+    store.setColumnTypeOverrides(decoded.to);
+  }
+
+  const overrides = decoded.to ?? {};
+  const isNumerical = overrides[validColumn ?? ""]
+    ? overrides[validColumn ?? ""] === "numerical"
+    : dataset.allClusterColumnTypes?.[validColumn ?? ""] === "numerical";
+
+  store.setSelectedColumn(validColumn, isNumerical);
+
+  // If the selected column is known but not loaded, fetch it on demand
+  if (
+    validColumn &&
+    !dataset.clusters?.some((c) => c.column === validColumn) &&
+    dataset.adapter
+  ) {
+    try {
+      let newClusters: Array<{
+        column: string;
+        type: string;
+        values: any[];
+        palette: Record<string, string> | null;
+      }> | null = null;
+
+      if (dataset.adapter.mode === "local") {
+        newClusters = await dataset.adapter.loadClusters([validColumn]);
+      } else {
+        const { getStandardizedDatasetWorker } = await import(
+          "@/lib/workers/standardizedDatasetWorkerManager"
+        );
+        const worker = await getStandardizedDatasetWorker();
+
+        newClusters = await worker.loadClusterFromS3(
+          dataset.id,
+          [validColumn],
+          dataset.metadata?.customS3BaseUrl,
+        );
+      }
+
+      if (newClusters && newClusters.length > 0) {
+        dataset.addClusters(newClusters);
+        store.incrementClusterVersion();
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to load cluster column "${validColumn}" from URL:`,
+        error,
+      );
+    }
+  }
 
   if (decoded.e) {
-    const embeddingNames = Object.keys(dataset.embeddings ?? {});
+    const embeddingNames =
+      dataset.allEmbeddingNames && dataset.allEmbeddingNames.length > 0
+        ? dataset.allEmbeddingNames
+        : Object.keys(dataset.embeddings ?? {});
 
     if (embeddingNames.includes(decoded.e)) {
       store.setSelectedEmbedding(decoded.e);
@@ -59,6 +120,7 @@ export function applyCellVizState(
     store.setSelectedGene(decoded.g);
   }
 
+  // Apply celltypes (cluster data should now be loaded from the on-demand fetch above)
   if (decoded.ct && decoded.ct.length > 0 && validColumn) {
     const cluster = dataset.clusters?.find((c) => c.column === validColumn);
 
@@ -123,7 +185,9 @@ export function applySMVizState(
 
   // If URL had no genes (or none were valid), fall back to auto-select defaults
   if (store.selectedGenes.size === 0) {
-    pickDefaultGenes(dataset.uniqueGenes).forEach((gene) => store.addGene(gene));
+    pickDefaultGenes(dataset.uniqueGenes).forEach((gene) =>
+      store.addGene(gene),
+    );
   }
 
   if (decoded.gs !== undefined) {
@@ -192,9 +256,12 @@ export function useCellVizUrlSync(
 
     if (!decoded) return;
 
-    applyCellVizState(decoded, store, dataset);
+    // Set flag synchronously so auto-select effects skip
     hasUrlStateRef.current = true;
     setHasUrlState(true);
+
+    // Apply state (may trigger async cluster loading for unloaded columns)
+    applyCellVizState(decoded, store, dataset);
   }, [datasetReady, dataset, store, panel]);
 
   // Writing: encode state changes to URL (debounced)
@@ -209,6 +276,7 @@ export function useCellVizUrlSync(
     numericalScaleMax,
     sizeScale,
     selectedEmbedding,
+    columnTypeOverrides,
   } = store;
 
   useEffect(() => {
@@ -225,6 +293,7 @@ export function useCellVizUrlSync(
       numericalScaleMax,
       sizeScale,
       selectedEmbedding,
+      columnTypeOverrides,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -241,6 +310,7 @@ export function useCellVizUrlSync(
     numericalScaleMax,
     sizeScale,
     selectedEmbedding,
+    columnTypeOverrides,
   ]);
 
   return { hasUrlState, hasUrlStateRef };

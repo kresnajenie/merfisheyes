@@ -4,14 +4,18 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { PointData } from "@/lib/webgl/types";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Tooltip, Select, SelectItem } from "@heroui/react";
+import { toast } from "react-toastify";
 import { TbChartDots3 } from "react-icons/tb";
 import { IoClose } from "react-icons/io5";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import { usePanelDatasetStore, usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelDatasetStore,
+  usePanelVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
 import {
   createPointCloud,
   updatePointCloudAttributes,
@@ -24,12 +28,14 @@ import {
   updateCombinedVisualization,
 } from "@/lib/webgl/visualization-utils";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 
 export default function UMAPPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedEmbedding, setSelectedEmbedding] = useState<string>("");
   const [availableEmbeddings, setAvailableEmbeddings] = useState<string[]>([]);
   const [sceneReady, setSceneReady] = useState(false);
+  const [pointCloudVersion, setPointCloudVersion] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -64,6 +70,7 @@ export default function UMAPPanel() {
     numericalScaleMin,
     numericalScaleMax,
     toggleCelltype,
+    columnTypeOverrides,
   } = usePanelVisualizationStore();
 
   // Store current visualization data for tooltips
@@ -86,28 +93,29 @@ export default function UMAPPanel() {
 
   // Check if embeddings are available and auto-select
   useEffect(() => {
-    if (!dataset?.embeddings) {
+    if (!dataset) {
       setAvailableEmbeddings([]);
       setSelectedEmbedding("");
 
       return;
     }
 
-    const embeddingKeys = Object.keys(dataset.embeddings);
+    // Prefer allEmbeddingNames (lazy-load aware) over loaded keys
+    const embeddingKeys =
+      dataset.allEmbeddingNames && dataset.allEmbeddingNames.length > 0
+        ? dataset.allEmbeddingNames
+        : Object.keys(dataset.embeddings ?? {});
 
     setAvailableEmbeddings(embeddingKeys);
 
-    // Auto-select: umap > pca > first available
+    // Auto-select: umap > pca > first available (panel stays closed by default)
     if (embeddingKeys.length > 0) {
       if (embeddingKeys.includes("umap")) {
         setSelectedEmbedding("umap");
-        setIsOpen(true); // Auto-open panel when UMAP is found
       } else if (embeddingKeys.includes("pca")) {
         setSelectedEmbedding("pca");
-        setIsOpen(true); // Auto-open panel when PCA is found
       } else {
         setSelectedEmbedding(embeddingKeys[0]);
-        setIsOpen(true); // Auto-open panel for any embedding
       }
     }
   }, [dataset]);
@@ -347,7 +355,60 @@ export default function UMAPPanel() {
     };
   }, [isOpen]);
 
-  // Create point cloud from embedding data
+  // Helper: create point cloud from embedding data array
+  const buildPointCloud = useCallback(
+    (embeddingData: number[][], scene: THREE.Scene) => {
+      // Remove existing point cloud
+      if (pointCloudRef.current) {
+        scene.remove(pointCloudRef.current);
+        pointCloudRef.current.geometry.dispose();
+        if (pointCloudRef.current.material instanceof THREE.Material) {
+          pointCloudRef.current.material.dispose();
+        }
+        pointCloudRef.current = null;
+      }
+
+      // Normalize coordinates to [-1, 1] range
+      const normalized = normalizeCoordinates(embeddingData);
+
+      if (!normalized) return;
+
+      // Scale factor to fit in view (frustum size is 20)
+      const scaleFactor = 8;
+
+      // Create point data from embedding
+      const pointData: PointData[] = normalized.normalized.map(
+        (coord: number[]) => ({
+          x: coord[0] * scaleFactor,
+          y: coord[1] * scaleFactor,
+          z: 0, // 2D embedding
+          r: 0.7, // Default gray color
+          g: 0.7,
+          b: 0.7,
+          size: 1.0,
+          alpha: 1.0,
+        }),
+      );
+
+      // Create point cloud with configurable dot size
+      const pointCloud = createPointCloud(
+        pointData,
+        VISUALIZATION_CONFIG.UMAP_POINT_SIZE,
+      );
+
+      scene.add(pointCloud);
+      pointCloudRef.current = pointCloud;
+      setPointCloudVersion((v) => v + 1); // Trigger visualization update
+
+      // Force a render after adding point cloud
+      if (rendererRef.current && cameraRef.current) {
+        rendererRef.current.render(scene, cameraRef.current);
+      }
+    },
+    [],
+  );
+
+  // Create point cloud from embedding data (with on-demand loading)
   useEffect(() => {
     if (
       !dataset ||
@@ -360,60 +421,87 @@ export default function UMAPPanel() {
     }
 
     const scene = sceneRef.current;
-    const embeddingData = dataset.embeddings[selectedEmbedding];
+    let cancelled = false;
 
-    if (!embeddingData || embeddingData.length === 0) {
-      return;
-    }
+    const loadAndBuild = async () => {
+      // Check if embedding is already loaded
+      let embeddingData = dataset.embeddings[selectedEmbedding];
 
-    // Remove existing point cloud
-    if (pointCloudRef.current) {
-      scene.remove(pointCloudRef.current);
-      pointCloudRef.current.geometry.dispose();
-      if (pointCloudRef.current.material instanceof THREE.Material) {
-        pointCloudRef.current.material.dispose();
+      if (!embeddingData || embeddingData.length === 0) {
+        if (!dataset.adapter) return;
+
+        const toastId = toast.loading(
+          `Loading ${selectedEmbedding.toUpperCase()} embedding...`,
+        );
+
+        try {
+          let result: { name: string; data: number[][] } | null = null;
+
+          if (dataset.adapter.mode === "local") {
+            // Local datasets: load on main thread (File objects can't be sent to worker)
+            result = await dataset.adapter.loadEmbedding(selectedEmbedding);
+          } else {
+            // S3 / custom S3: load in worker to avoid freezing UI
+            const { getStandardizedDatasetWorker } = await import(
+              "@/lib/workers/standardizedDatasetWorkerManager"
+            );
+            const worker = await getStandardizedDatasetWorker();
+
+            result = await worker.loadEmbeddingFromS3(
+              dataset.id,
+              selectedEmbedding,
+              dataset.metadata?.customS3BaseUrl,
+            );
+          }
+
+          if (cancelled) {
+            toast.dismiss(toastId);
+
+            return;
+          }
+
+          if (result) {
+            dataset.addEmbedding(result.name, result.data);
+            embeddingData = result.data;
+            toast.dismiss(toastId);
+          } else {
+            toast.update(toastId, {
+              render: `Failed to load ${selectedEmbedding.toUpperCase()} embedding`,
+              type: "error",
+              isLoading: false,
+              autoClose: 3000,
+            });
+
+            return;
+          }
+        } catch (error) {
+          if (cancelled) {
+            toast.dismiss(toastId);
+
+            return;
+          }
+          toast.update(toastId, {
+            render: `Error loading ${selectedEmbedding.toUpperCase()} embedding`,
+            type: "error",
+            isLoading: false,
+            autoClose: 3000,
+          });
+
+          return;
+        }
       }
-      pointCloudRef.current = null;
-    }
 
-    // Normalize coordinates to [-1, 1] range
-    const normalized = normalizeCoordinates(embeddingData);
+      if (!cancelled && embeddingData && embeddingData.length > 0) {
+        buildPointCloud(embeddingData, scene);
+      }
+    };
 
-    if (!normalized) {
-      return;
-    }
+    loadAndBuild();
 
-    // Scale factor to fit in view (frustum size is 20)
-    const scaleFactor = 8;
-
-    // Create point data from embedding
-    const pointData: PointData[] = normalized.normalized.map(
-      (coord: number[]) => ({
-        x: coord[0] * scaleFactor,
-        y: coord[1] * scaleFactor,
-        z: 0, // 2D embedding
-        r: 0.7, // Default gray color
-        g: 0.7,
-        b: 0.7,
-        size: 1.0,
-        alpha: 1.0,
-      }),
-    );
-
-    // Create point cloud with configurable dot size
-    const pointCloud = createPointCloud(
-      pointData,
-      VISUALIZATION_CONFIG.UMAP_POINT_SIZE,
-    );
-
-    scene.add(pointCloud);
-    pointCloudRef.current = pointCloud;
-
-    // Force a render after adding point cloud
-    if (rendererRef.current && cameraRef.current) {
-      rendererRef.current.render(scene, cameraRef.current);
-    }
-  }, [dataset, selectedEmbedding, isOpen, sceneReady]);
+    return () => {
+      cancelled = true;
+    };
+  }, [dataset, selectedEmbedding, isOpen, sceneReady, buildPointCloud]);
 
   // Update visualization colors based on mode (sync with main viewer)
   useEffect(() => {
@@ -431,7 +519,9 @@ export default function UMAPPanel() {
 
       if (selectedCluster) {
         clusterValuesRef.current = selectedCluster.values;
-        isNumericalClusterRef.current = selectedCluster.type === "numerical";
+        isNumericalClusterRef.current = selectedColumn
+          ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+          : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
 
@@ -439,11 +529,10 @@ export default function UMAPPanel() {
       const hasGeneMode = mode.includes("gene");
       const hasCelltypeMode = mode.includes("celltype");
 
-      // Get cluster data
-      const clusterData = dataset.clusters?.find(
-        (c) => c.column === selectedColumn,
-      );
-      const isNumerical = clusterData?.type === "numerical";
+      // Check if the selected column is numerical (respects overrides)
+      const isNumerical = selectedColumn
+        ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+        : false;
 
       let result = null;
 
@@ -534,6 +623,8 @@ export default function UMAPPanel() {
     numericalScaleMax,
     sceneReady,
     selectedEmbedding, // Re-run visualization when embedding changes
+    columnTypeOverrides,
+    pointCloudVersion,
   ]);
 
   // Mouse interaction handlers
@@ -621,9 +712,10 @@ export default function UMAPPanel() {
     hideTooltip,
   ]);
 
-  // Check if embeddings are available
+  // Check if embeddings are available (either loaded or available for lazy loading)
   const hasEmbeddings =
-    dataset?.embeddings && Object.keys(dataset.embeddings).length > 0;
+    (dataset?.allEmbeddingNames && dataset.allEmbeddingNames.length > 0) ||
+    (dataset?.embeddings && Object.keys(dataset.embeddings).length > 0);
 
   return (
     <>

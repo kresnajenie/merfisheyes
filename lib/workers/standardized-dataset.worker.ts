@@ -7,6 +7,7 @@ import { MerscopeAdapter } from "../adapters/MerscopeAdapter";
 import { ChunkedDataAdapter } from "../adapters/ChunkedDataAdapter";
 import { normalizeCoordinates } from "../utils/coordinates";
 import { isCategorical } from "../utils/column-type-detection";
+import { selectBestClusterColumnByName } from "../utils/dataset-utils";
 
 /**
  * Progress callback type that can be proxied by Comlink
@@ -56,6 +57,9 @@ export interface SerializableStandardizedDataset {
   clusters: SerializableClusterData[] | null;
   metadata: Record<string, any>;
   matrix: any; // Pre-loaded expression matrix for gene visualization
+  allClusterColumnNames?: string[];
+  allClusterColumnTypes?: Record<string, string>;
+  allEmbeddingNames?: string[];
 }
 
 /**
@@ -339,6 +343,7 @@ const workerApi = {
   async parseS3(
     datasetId: string,
     onProgress?: ProgressCallback,
+    priorityColumnHint?: string,
   ): Promise<SerializableStandardizedDataset> {
     console.log("[Worker] Starting S3 loading:", datasetId);
 
@@ -346,29 +351,50 @@ const workerApi = {
 
     await adapter.initialize();
 
+    // Get cluster column info for deferred loading
+    const clusterColumnInfo = adapter.getClusterColumnInfo();
+
+    // Use URL-specified column if it exists in the dataset, otherwise auto-detect
+    let priorityColumn: string | null = null;
+
+    if (
+      priorityColumnHint &&
+      clusterColumnInfo.names.includes(priorityColumnHint)
+    ) {
+      priorityColumn = priorityColumnHint;
+    } else {
+      priorityColumn = selectBestClusterColumnByName(
+        clusterColumnInfo.names,
+        clusterColumnInfo.types,
+      );
+    }
+
     // Load all data through adapter (all methods return Promises)
     await onProgress?.(30, "Loading spatial coordinates...");
     const spatial = await adapter.loadSpatialCoordinates();
 
     console.log("[Worker] Spatial data:", spatial);
-    await onProgress?.(50, "Loading embeddings...");
-    const embeddings = await adapter.loadEmbeddings();
 
-    console.log("[Worker] Embeddings:", embeddings);
-    await onProgress?.(70, "Loading genes...");
+    // Skip eager embedding loading — embeddings are loaded on demand in the UI
+    const embeddings: Record<string, number[][]> = {};
+
+    await onProgress?.(60, "Loading genes...");
     const genes = await adapter.loadGenes();
 
     console.log("[Worker] Genes:", genes.length, "genes loaded");
-    await onProgress?.(90, "Loading clusters...");
-    const clusters = await adapter.loadClusters();
+    await onProgress?.(75, "Loading priority cluster column...");
+    // Only load the priority cluster column (rest loaded in background on main thread)
+    const clusters = priorityColumn
+      ? await adapter.loadClusters([priorityColumn])
+      : null;
 
-    console.log("[Worker] Clusters:", clusters);
+    console.log("[Worker] Priority cluster loaded:", priorityColumn);
     const dataInfo = adapter.getDatasetInfo();
 
     console.log("[Worker] Dataset info:", dataInfo);
 
     // Load expression matrix for gene visualization
-    await onProgress?.(95, "Loading expression matrix...");
+    await onProgress?.(90, "Loading expression matrix...");
     const matrix = await adapter.fetchFullMatrix();
 
     console.log("[Worker] Expression matrix loaded");
@@ -397,11 +423,55 @@ const workerApi = {
         spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
       },
       matrix: matrix,
+      allClusterColumnNames: clusterColumnInfo.names,
+      allClusterColumnTypes: clusterColumnInfo.types,
+      allEmbeddingNames: dataInfo.availableEmbeddings || [],
     };
 
     console.log("[Worker] S3 loading complete");
 
     return serializable;
+  },
+
+  /**
+   * Load a single embedding on demand (off main thread).
+   * Creates a temporary adapter, initializes it, loads the embedding.
+   */
+  async loadEmbeddingFromS3(
+    datasetId: string,
+    embeddingName: string,
+    customS3BaseUrl?: string,
+  ): Promise<{ name: string; data: number[][] } | null> {
+    const adapter = customS3BaseUrl
+      ? new ChunkedDataAdapter("custom", undefined, customS3BaseUrl)
+      : new ChunkedDataAdapter(datasetId);
+
+    await adapter.initialize();
+
+    return adapter.loadEmbedding(embeddingName);
+  },
+
+  /**
+   * Load cluster column(s) on demand (off main thread).
+   * Creates a temporary adapter, initializes it, loads the cluster data.
+   */
+  async loadClusterFromS3(
+    datasetId: string,
+    columnNames: string[],
+    customS3BaseUrl?: string,
+  ): Promise<Array<{
+    column: string;
+    type: string;
+    values: any[];
+    palette: Record<string, string> | null;
+  }> | null> {
+    const adapter = customS3BaseUrl
+      ? new ChunkedDataAdapter("custom", undefined, customS3BaseUrl)
+      : new ChunkedDataAdapter(datasetId);
+
+    await adapter.initialize();
+
+    return adapter.loadClusters(columnNames);
   },
 };
 

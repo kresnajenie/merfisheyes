@@ -41,7 +41,9 @@ export function parseS3Url(url: string): ParsedS3Url {
 
     // Format 1: bucket.s3.region.amazonaws.com
     // Example: my-bucket.s3.us-east-1.amazonaws.com
-    const virtualHostedMatch = hostname.match(/^(.+?)\.s3\.(.+?)\.amazonaws\.com$/);
+    const virtualHostedMatch = hostname.match(
+      /^(.+?)\.s3\.(.+?)\.amazonaws\.com$/,
+    );
 
     if (virtualHostedMatch) {
       bucket = virtualHostedMatch[1];
@@ -55,23 +57,26 @@ export function parseS3Url(url: string): ParsedS3Url {
 
       if (pathHostedMatch) {
         region = pathHostedMatch[1];
-        const pathParts = pathname.substring(1).split('/');
+        const pathParts = pathname.substring(1).split("/");
+
         bucket = pathParts[0];
-        prefix = pathParts.slice(1).join('/');
+        prefix = pathParts.slice(1).join("/");
       } else {
-        throw new Error('Invalid S3 URL format. Expected format: https://bucket.s3.region.amazonaws.com/path or https://s3.region.amazonaws.com/bucket/path');
+        throw new Error(
+          "Invalid S3 URL format. Expected format: https://bucket.s3.region.amazonaws.com/path or https://s3.region.amazonaws.com/bucket/path",
+        );
       }
     }
 
     // Remove trailing slash from prefix
-    prefix = prefix.replace(/\/$/, '');
+    prefix = prefix.replace(/\/$/, "");
 
     // If URL ends with manifest.json.gz, strip it
-    if (prefix.endsWith('/manifest.json.gz')) {
-      prefix = prefix.slice(0, -'/manifest.json.gz'.length);
-    } else if (prefix.endsWith('manifest.json.gz')) {
+    if (prefix.endsWith("/manifest.json.gz")) {
+      prefix = prefix.slice(0, -"/manifest.json.gz".length);
+    } else if (prefix.endsWith("manifest.json.gz")) {
       // Handle case without leading slash
-      prefix = prefix.slice(0, -'manifest.json.gz'.length).replace(/\/$/, '');
+      prefix = prefix.slice(0, -"manifest.json.gz".length).replace(/\/$/, "");
     }
 
     // Construct normalized base URL (virtual-hosted style)
@@ -84,7 +89,9 @@ export function parseS3Url(url: string): ParsedS3Url {
       prefix,
     };
   } catch (error) {
-    throw new Error(`Failed to parse S3 URL: ${error instanceof Error ? error.message : 'Invalid URL'}`);
+    throw new Error(
+      `Failed to parse S3 URL: ${error instanceof Error ? error.message : "Invalid URL"}`,
+    );
   }
 }
 
@@ -96,10 +103,10 @@ export function parseS3Url(url: string): ParsedS3Url {
  */
 export function getS3FileUrl(baseUrl: string, filePath: string): string {
   // Remove leading slash from filePath if present
-  filePath = filePath.replace(/^\//, '');
+  filePath = filePath.replace(/^\//, "");
 
   // Ensure baseUrl doesn't have trailing slash
-  baseUrl = baseUrl.replace(/\/$/, '');
+  baseUrl = baseUrl.replace(/\/$/, "");
 
   return `${baseUrl}/${filePath}`;
 }
@@ -112,6 +119,7 @@ export function getS3FileUrl(baseUrl: string, filePath: string): string {
 export function isValidS3Url(url: string): boolean {
   try {
     parseS3Url(url);
+
     return true;
   } catch {
     return false;
@@ -124,11 +132,14 @@ export function isValidS3Url(url: string): boolean {
  * @param baseUrl - Base folder URL
  * @returns Promise<{exists: boolean, url: string}> - manifest info
  */
-export async function testManifestAccess(baseUrl: string): Promise<{exists: boolean, url: string}> {
+export async function testManifestAccess(
+  baseUrl: string,
+): Promise<{ exists: boolean; url: string }> {
   // Try .gz first (single molecule format)
   try {
-    const gzUrl = getS3FileUrl(baseUrl, 'manifest.json.gz');
-    const response = await fetch(gzUrl, { method: 'HEAD' });
+    const gzUrl = getS3FileUrl(baseUrl, "manifest.json.gz");
+    const response = await fetch(gzUrl, { method: "HEAD" });
+
     if (response.ok) {
       return { exists: true, url: gzUrl };
     }
@@ -138,8 +149,9 @@ export async function testManifestAccess(baseUrl: string): Promise<{exists: bool
 
   // Try non-gz (single cell format)
   try {
-    const jsonUrl = getS3FileUrl(baseUrl, 'manifest.json');
-    const response = await fetch(jsonUrl, { method: 'HEAD' });
+    const jsonUrl = getS3FileUrl(baseUrl, "manifest.json");
+    const response = await fetch(jsonUrl, { method: "HEAD" });
+
     if (response.ok) {
       return { exists: true, url: jsonUrl };
     }
@@ -147,5 +159,5 @@ export async function testManifestAccess(baseUrl: string): Promise<{exists: bool
     // Both failed
   }
 
-  return { exists: false, url: '' };
+  return { exists: false, url: "" };
 }

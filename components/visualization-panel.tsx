@@ -10,9 +10,17 @@ import { RadioGroup, Radio } from "@heroui/radio";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
 import { Tooltip } from "@heroui/tooltip";
+import { toast } from "react-toastify";
 
-import { usePanelDatasetStore, usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelDatasetStore,
+  usePanelVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
 import { glassButton } from "@/components/primitives";
+import {
+  getEffectiveColumnType,
+  canTreatAsNumerical,
+} from "@/lib/utils/column-type-utils";
 
 interface VisualizationPanelProps {
   mode: VisualizationMode; // This is panelMode, not the visualization mode array
@@ -42,6 +50,10 @@ export function VisualizationPanel({
     geneSearchTerm,
     setCelltypeSearchTerm,
     setGeneSearchTerm,
+    clusterVersion,
+    incrementClusterVersion,
+    columnTypeOverrides,
+    toggleColumnType,
   } = usePanelVisualizationStore();
 
   const currentSearchTerm =
@@ -61,6 +73,14 @@ export function VisualizationPanel({
 
       // Don't close if clicking on the controls
       if (controlsRef?.current && controlsRef.current.contains(target)) {
+        return;
+      }
+
+      // Don't close if clicking inside a popover/listbox (autocomplete dropdown rendered via portal)
+      if (
+        target instanceof HTMLElement &&
+        target.closest('[role="listbox"], [data-slot="content"]')
+      ) {
         return;
       }
 
@@ -84,27 +104,58 @@ export function VisualizationPanel({
       ? (rawDataset as StandardizedDataset)
       : null;
 
-  // Get cluster columns for dropdown
+  // Get all cluster columns for dropdown (including unloaded ones)
   const clusterColumns = useMemo(() => {
-    if (!dataset?.clusters) return [];
+    if (!dataset) return [];
 
-    return dataset.clusters.map((cluster) => ({
+    const loadedColumns = new Set(
+      (dataset.clusters || []).map((c) => c.column),
+    );
+
+    // Use allClusterColumnNames if available (S3/chunked datasets)
+    if (dataset.allClusterColumnNames?.length > 0) {
+      return dataset.allClusterColumnNames.map((name) => ({
+        key: name,
+        label: name,
+        type: getEffectiveColumnType(name, dataset, columnTypeOverrides),
+        loaded: loadedColumns.has(name),
+      }));
+    }
+
+    // Fallback: use loaded clusters only (local file uploads)
+    return (dataset.clusters || []).map((cluster) => ({
       key: cluster.column,
       label: cluster.column,
-      type: cluster.type as "categorical" | "numerical",
+      type: getEffectiveColumnType(
+        cluster.column,
+        dataset,
+        columnTypeOverrides,
+      ),
+      loaded: true,
     }));
-  }, [dataset]);
+  }, [dataset, clusterVersion, columnTypeOverrides]);
 
   // Check if the selected column is numerical
   const isNumericalColumn = useMemo(() => {
-    if (!dataset?.clusters || !selectedColumn) return false;
+    if (!dataset || !selectedColumn) return false;
 
-    const selectedCluster = dataset.clusters.find(
-      (c) => c.column === selectedColumn,
+    return (
+      getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) ===
+      "numerical"
     );
+  }, [dataset, selectedColumn, clusterVersion, columnTypeOverrides]);
 
-    return selectedCluster?.type === "numerical";
-  }, [dataset, selectedColumn]);
+  // Whether the selected column can be toggled to numerical
+  // (only show toggle when the values are actually number-like)
+  const showTypeToggle = useMemo(() => {
+    if (!dataset || !selectedColumn) return false;
+
+    // Always allow switching back from numerical to categorical
+    if (isNumericalColumn) return true;
+
+    // Only offer "Treat as Numerical" when values parse as numbers
+    return canTreatAsNumerical(selectedColumn, dataset);
+  }, [dataset, selectedColumn, isNumericalColumn, clusterVersion]);
 
   // Get items based on mode and dataset
   const items = useMemo(() => {
@@ -121,6 +172,17 @@ export function VisualizationPanel({
         );
 
         if (!selectedCluster) return [];
+
+        // Skip expensive unique-value computation for numerical columns
+        // (the list is hidden anyway — only the column dropdown is shown)
+        if (
+          getEffectiveColumnType(
+            selectedColumn,
+            dataset,
+            columnTypeOverrides,
+          ) === "numerical"
+        )
+          return [];
 
         const uniqueTypes = new Set<string>();
         const itemsMap = new Map<
@@ -167,7 +229,7 @@ export function VisualizationPanel({
       default:
         return [];
     }
-  }, [dataset, mode, selectedColumn]);
+  }, [dataset, mode, selectedColumn, clusterVersion]);
 
   const filteredItems = items.filter((item) =>
     item.label.toLowerCase().includes(currentSearchTerm.toLowerCase()),
@@ -204,23 +266,97 @@ export function VisualizationPanel({
       <div className="p-4 space-y-3">
         {/* Select celltypes - only show for celltype mode */}
         {mode === "celltype" && (
+          <>
           <Autocomplete
             className="max-w-xs"
             color="primary"
             label="Cluster Column"
             placeholder="Select a column"
             selectedKey={selectedColumn}
-            onSelectionChange={(key) => {
+            onSelectionChange={async (key) => {
               const columnKey = (key as string) || null;
-              const selectedCluster = dataset?.clusters?.find(
+
+              if (!columnKey || !dataset) {
+                setSelectedColumn(null);
+                return;
+              }
+
+              // Check if this column is already loaded
+              const loadedCluster = dataset.clusters?.find(
                 (c) => c.column === columnKey,
               );
-              const isNumerical = selectedCluster?.type === "numerical";
 
-              setSelectedColumn(columnKey, isNumerical);
-              // When a cluster column is selected, switch visualization mode to celltype
-              if (key) {
+              if (loadedCluster) {
+                // Already loaded — use effective type (respects overrides)
+                const isNumerical =
+                  getEffectiveColumnType(
+                    columnKey,
+                    dataset,
+                    columnTypeOverrides,
+                  ) === "numerical";
+
+                setSelectedColumn(columnKey, isNumerical);
                 setMode(["celltype"]);
+              } else if (dataset.adapter) {
+                // Not loaded yet — fetch on demand
+                const isNumerical =
+                  getEffectiveColumnType(
+                    columnKey,
+                    dataset,
+                    columnTypeOverrides,
+                  ) === "numerical";
+
+                setSelectedColumn(columnKey, isNumerical);
+                setMode(["celltype"]);
+
+                const toastId = toast.loading(
+                  `Loading cluster column "${columnKey}"...`,
+                );
+
+                try {
+                  let newClusters: Array<{
+                    column: string;
+                    type: string;
+                    values: any[];
+                    palette: Record<string, string> | null;
+                  }> | null = null;
+
+                  if (dataset.adapter.mode === "local") {
+                    // Local datasets: load on main thread
+                    newClusters = await dataset.adapter.loadClusters([
+                      columnKey,
+                    ]);
+                  } else {
+                    // S3 / custom S3: load in worker to avoid freezing UI
+                    const { getStandardizedDatasetWorker } = await import(
+                      "@/lib/workers/standardizedDatasetWorkerManager"
+                    );
+                    const worker = await getStandardizedDatasetWorker();
+
+                    newClusters = await worker.loadClusterFromS3(
+                      dataset.id,
+                      [columnKey],
+                      dataset.metadata?.customS3BaseUrl,
+                    );
+                  }
+
+                  if (newClusters && newClusters.length > 0) {
+                    dataset.addClusters(newClusters);
+                    incrementClusterVersion();
+                  }
+                  toast.dismiss(toastId);
+                } catch (error) {
+                  console.warn(
+                    `Failed to load cluster column ${columnKey}:`,
+                    error,
+                  );
+                  toast.update(toastId, {
+                    render: `Failed to load "${columnKey}"`,
+                    type: "error",
+                    isLoading: false,
+                    autoClose: 3000,
+                  });
+                }
               }
             }}
           >
@@ -228,14 +364,40 @@ export function VisualizationPanel({
               <AutocompleteItem
                 key={column.key}
                 startContent={
-                  <Tooltip content={column.type === "numerical" ? "Numerical" : "Categorical"} delay={300} placement="left">
+                  <Tooltip
+                    content={
+                      column.type === "numerical" ? "Numerical" : "Categorical"
+                    }
+                    delay={300}
+                    placement="left"
+                  >
                     {column.type === "numerical" ? (
-                      <svg className="w-4 h-4 text-default-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M7 16l4-8 4 5 5-9" strokeLinecap="round" strokeLinejoin="round" />
+                      <svg
+                        className="w-4 h-4 text-default-500 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M3 3v18h18"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M7 16l4-8 4 5 5-9"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     ) : (
-                      <svg className="w-4 h-4 text-default-500 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <svg
+                        className="w-4 h-4 text-default-500 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                      >
                         <circle cx="8" cy="8" r="3" />
                         <circle cx="16" cy="8" r="3" />
                         <circle cx="8" cy="16" r="3" />
@@ -244,11 +406,75 @@ export function VisualizationPanel({
                     )}
                   </Tooltip>
                 }
+                endContent={
+                  column.loaded ? (
+                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                  ) : null
+                }
               >
                 {column.label}
               </AutocompleteItem>
             ))}
           </Autocomplete>
+
+          {/* Column type toggle for the selected column */}
+          {showTypeToggle && selectedColumn && (
+            <Button
+              className="w-full"
+              size="sm"
+              variant="flat"
+              startContent={
+                isNumericalColumn ? (
+                  <svg
+                    className="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M3 3v18h18"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M7 16l4-8 4 5 5-9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="8" cy="8" r="3" />
+                    <circle cx="16" cy="8" r="3" />
+                    <circle cx="8" cy="16" r="3" />
+                    <circle cx="16" cy="16" r="3" />
+                  </svg>
+                )
+              }
+              onPress={() => {
+                const currentType = isNumericalColumn
+                  ? "numerical"
+                  : "categorical";
+                const newType =
+                  currentType === "categorical" ? "numerical" : "categorical";
+
+                toggleColumnType(selectedColumn, currentType as "categorical" | "numerical");
+                toast.info(`"${selectedColumn}" set to ${newType}`, {
+                  autoClose: 2000,
+                });
+              }}
+            >
+              Treat as {isNumericalColumn ? "Categorical" : "Numerical"}
+            </Button>
+          )}
+          </>
         )}
 
         {/* Only show search, clear, and list if not numerical column in celltype mode */}

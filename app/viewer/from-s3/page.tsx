@@ -16,6 +16,7 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -46,6 +47,7 @@ function ViewerFromS3Content() {
 
   // URL visualization state sync
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+
 
   // Read split params from URL on mount
   useEffect(() => {

@@ -1,5 +1,10 @@
 "use client";
 
+import type { VisualizationState } from "../stores/createVisualizationStore";
+import type { DatasetState } from "../stores/createDatasetStore";
+import type { SingleMoleculeState } from "../stores/createSingleMoleculeStore";
+import type { SingleMoleculeVisualizationState } from "../stores/createSingleMoleculeVisualizationStore";
+
 import { useContext } from "react";
 import { useStore } from "zustand";
 
@@ -8,10 +13,6 @@ import { useVisualizationStore } from "../stores/visualizationStore";
 import { useDatasetStore } from "../stores/datasetStore";
 import { useSingleMoleculeStore } from "../stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "../stores/singleMoleculeVisualizationStore";
-import type { VisualizationState } from "../stores/createVisualizationStore";
-import type { DatasetState } from "../stores/createDatasetStore";
-import type { SingleMoleculeState } from "../stores/createSingleMoleculeStore";
-import type { SingleMoleculeVisualizationState } from "../stores/createSingleMoleculeVisualizationStore";
 
 // Overloads: with selector returns T, without selector returns full state
 export function usePanelVisualizationStore(): VisualizationState;
@@ -32,9 +33,7 @@ export function usePanelVisualizationStore<T>(
 }
 
 export function usePanelDatasetStore(): DatasetState;
-export function usePanelDatasetStore<T>(
-  selector: (s: DatasetState) => T,
-): T;
+export function usePanelDatasetStore<T>(selector: (s: DatasetState) => T): T;
 export function usePanelDatasetStore<T>(selector?: (s: DatasetState) => T) {
   const ctx = useContext(PanelContext);
   const sel = selector ?? ((s: DatasetState) => s as unknown as T);
@@ -72,8 +71,7 @@ export function usePanelSingleMoleculeVisualizationStore<T>(
 ) {
   const ctx = useContext(PanelContext);
   const sel =
-    selector ??
-    ((s: SingleMoleculeVisualizationState) => s as unknown as T);
+    selector ?? ((s: SingleMoleculeVisualizationState) => s as unknown as T);
 
   if (ctx) {
     return useStore(ctx.singleMoleculeVisualizationStore, sel);

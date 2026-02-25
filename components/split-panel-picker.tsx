@@ -1,11 +1,12 @@
 "use client";
 
+import type { PanelType } from "@/lib/stores/splitScreenStore";
+
 import { useState } from "react";
 import { Button, Input } from "@heroui/react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
-import type { PanelType } from "@/lib/stores/splitScreenStore";
 
 export function SplitPanelPicker() {
   const { setRightPanel, setRightPanelS3 } = useSplitScreenStore();
@@ -28,7 +29,12 @@ export function SplitPanelPicker() {
     // For from-s3 pages, return the S3 URL
     if (isFromS3Page) {
       const s3Url = searchParams.get("url");
-      return { id: null, s3Url: s3Url ? decodeURIComponent(s3Url) : null, type };
+
+      return {
+        id: null,
+        s3Url: s3Url ? decodeURIComponent(s3Url) : null,
+        type,
+      };
     }
 
     // Extract ID from /viewer/[id] or /sm-viewer/[id]
@@ -57,7 +63,11 @@ export function SplitPanelPicker() {
   const isRawS3Url = (url: string): boolean => {
     try {
       const parsed = new URL(url);
-      return parsed.hostname.includes("s3") && parsed.hostname.includes("amazonaws.com");
+
+      return (
+        parsed.hostname.includes("s3") &&
+        parsed.hostname.includes("amazonaws.com")
+      );
     } catch {
       return false;
     }
@@ -71,7 +81,9 @@ export function SplitPanelPicker() {
     // Check if it's a raw S3 URL
     if (isRawS3Url(input)) {
       const isSm = pathname.startsWith("/sm-viewer");
+
       setRightPanelS3(input, isSm ? "sm" : "cell");
+
       return;
     }
 
@@ -87,8 +99,10 @@ export function SplitPanelPicker() {
         if (pathParts[1] === "from-s3") {
           // Handle from-s3 URLs: /sm-viewer/from-s3?url=...
           const s3UrlParam = url.searchParams.get("url");
+
           if (s3UrlParam) {
             setRightPanelS3(decodeURIComponent(s3UrlParam), type);
+
             return;
           }
         } else if (pathParts.length >= 2) {
@@ -99,8 +113,10 @@ export function SplitPanelPicker() {
         if (pathParts[1] === "from-s3") {
           // Handle from-s3 URLs: /viewer/from-s3?url=...
           const s3UrlParam = url.searchParams.get("url");
+
           if (s3UrlParam) {
             setRightPanelS3(decodeURIComponent(s3UrlParam), type);
+
             return;
           }
         } else if (pathParts.length >= 2) {
@@ -115,6 +131,7 @@ export function SplitPanelPicker() {
       // Invalid URL — try treating as dataset ID
       if (input.length > 0) {
         const isSm = pathname.startsWith("/sm-viewer");
+
         setRightPanel(input, isSm ? "sm" : "cell");
       }
     }
@@ -127,9 +144,7 @@ export function SplitPanelPicker() {
     <div className="absolute inset-0 flex items-center justify-center bg-black">
       <div className="flex flex-col items-center gap-6 max-w-sm w-full px-8">
         <div className="text-center mb-2">
-          <h3 className="text-lg font-semibold text-white">
-            Choose a Dataset
-          </h3>
+          <h3 className="text-lg font-semibold text-white">Choose a Dataset</h3>
           <p className="text-sm text-white/50 mt-1">
             Select what to display in this panel
           </p>
@@ -167,8 +182,7 @@ export function SplitPanelPicker() {
               <Input
                 classNames={{
                   input: "text-white",
-                  inputWrapper:
-                    "bg-white/5 border-white/20 hover:bg-white/10",
+                  inputWrapper: "bg-white/5 border-white/20 hover:bg-white/10",
                 }}
                 placeholder="Paste dataset URL or ID..."
                 size="sm"

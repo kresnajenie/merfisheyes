@@ -6,8 +6,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 
-import { usePanelVisualizationStore, usePanelDatasetStore } from "@/lib/hooks/usePanelStores";
+import {
+  usePanelVisualizationStore,
+  usePanelDatasetStore,
+} from "@/lib/hooks/usePanelStores";
 import { GeneScalebar } from "@/components/gene-scalebar";
+import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import {
   ColorPicker,
   ColorPickerEyeDropper,
@@ -34,6 +38,8 @@ export const VisualizationLegends: React.FC = () => {
     setNumericalScaleMax,
     colorPalette: storeColorPalette,
     setColorPalette,
+    clusterVersion,
+    columnTypeOverrides,
   } = usePanelVisualizationStore();
 
   const { getCurrentDataset } = usePanelDatasetStore();
@@ -87,7 +93,7 @@ export const VisualizationLegends: React.FC = () => {
 
     selectedCluster.palette = palette;
     setColorPalette(palette);
-  }, [dataset, selectedColumn, setColorPalette]);
+  }, [dataset, selectedColumn, setColorPalette, clusterVersion]);
 
   const handleClusterColorChange = useCallback(
     (celltype: string, color: string) => {
@@ -128,13 +134,14 @@ export const VisualizationLegends: React.FC = () => {
     if (!dataset || !selectedColumn) return false;
     if (!("clusters" in dataset)) return false;
 
-    const standardizedDataset = dataset as StandardizedDataset;
-    const selectedCluster = standardizedDataset.clusters?.find(
-      (c) => c.column === selectedColumn,
+    return (
+      getEffectiveColumnType(
+        selectedColumn,
+        dataset as StandardizedDataset,
+        columnTypeOverrides,
+      ) === "numerical"
     );
-
-    return selectedCluster?.type === "numerical";
-  }, [dataset, selectedColumn]);
+  }, [dataset, selectedColumn, clusterVersion, columnTypeOverrides]);
 
   // Debug logging removed for performance
 

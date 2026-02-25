@@ -123,7 +123,10 @@ export function FileUpload({
     });
 
     // Check for required chunked single molecule files
-    const hasManifest = fileNames.some((name) => name === "manifest.json.gz");
+    // Accept both compressed (manifest.json.gz) and uncompressed (manifest.json) manifests
+    const hasManifest = fileNames.some(
+      (name) => name === "manifest.json.gz" || name === "manifest.json",
+    );
     const hasGenesFolder = fileNames.some((name) => name.startsWith("genes/"));
     const hasGeneBinFiles = fileNames.some((name) =>
       /^genes\/[^\/]+\.bin\.gz$/.test(name),
@@ -414,9 +417,9 @@ export function FileUpload({
       toast.success(`Dataset loaded successfully!`);
       setLoading(false);
 
-      // Navigate to viewer page with dataset ID in URL
+      // Navigate to from-local viewer (not /{id} which is for already-uploaded datasets)
       router.push(
-        singleMolecule ? `/sm-viewer/${dataset.id}` : `/viewer/${dataset.id}`,
+        singleMolecule ? `/sm-viewer/from-local` : `/viewer/from-local`,
       );
     } catch (error) {
       console.error(`Error processing ${type} data:`, error);
