@@ -14,7 +14,9 @@ export default async function AdminLayout({
     redirect("/auth/signin?callbackUrl=/admin");
   }
 
-  if (session.user.role !== "ADMIN") {
+  const role = session.user.role;
+
+  if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
     redirect("/");
   }
 
@@ -32,6 +34,14 @@ export default async function AdminLayout({
           >
             Datasets
           </NextLink>
+          {role === "SUPER_ADMIN" && (
+            <NextLink
+              className="text-sm px-3 py-2 rounded-lg hover:bg-default-100 transition-colors"
+              href="/admin/users"
+            >
+              Users
+            </NextLink>
+          )}
         </nav>
       </aside>
 

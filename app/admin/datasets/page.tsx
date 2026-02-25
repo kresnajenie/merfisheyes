@@ -29,6 +29,7 @@ interface CatalogItem {
   platform: string | null;
   isPublished: boolean;
   isFeatured: boolean;
+  isInternal: boolean;
   numCells: number | null;
   numGenes: number | null;
 }
@@ -49,7 +50,7 @@ export default function AdminDatasetsPage() {
     fetchItems();
   }, [fetchItems]);
 
-  const toggleField = async (id: string, field: "isPublished" | "isFeatured", current: boolean) => {
+  const toggleField = async (id: string, field: "isPublished" | "isFeatured" | "isInternal", current: boolean) => {
     await fetch(`/api/admin/catalog/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -89,6 +90,7 @@ export default function AdminDatasetsPage() {
             <TableColumn>Species</TableColumn>
             <TableColumn>Published</TableColumn>
             <TableColumn>Featured</TableColumn>
+            <TableColumn>Internal</TableColumn>
             <TableColumn>Actions</TableColumn>
           </TableHeader>
           <TableBody>
@@ -136,6 +138,17 @@ export default function AdminDatasetsPage() {
                     onClick={() => toggleField(item.id, "isFeatured", item.isFeatured)}
                   >
                     {item.isFeatured ? "Featured" : "—"}
+                  </Chip>
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    className="cursor-pointer"
+                    color={item.isInternal ? "secondary" : "default"}
+                    size="sm"
+                    variant="flat"
+                    onClick={() => toggleField(item.id, "isInternal", item.isInternal)}
+                  >
+                    {item.isInternal ? "Internal" : "—"}
                   </Chip>
                 </TableCell>
                 <TableCell>

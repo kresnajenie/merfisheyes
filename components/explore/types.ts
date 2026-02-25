@@ -19,10 +19,12 @@ export interface CatalogDatasetItem {
   tags: string[];
   thumbnailUrl: string | null;
   externalLink: string | null;
+  publicationLink: string | null;
   entries: CatalogDatasetEntry[];
   isPublished: boolean;
   isFeatured: boolean;
   isBil: boolean;
+  isInternal: boolean;
   sortOrder: number;
   numCells: number | null;
   numGenes: number | null;

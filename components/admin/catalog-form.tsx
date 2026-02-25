@@ -19,6 +19,7 @@ export interface CatalogFormData {
   title: string;
   description: string;
   externalLink: string;
+  publicationLink: string;
   species: string;
   disease: string;
   institute: string;
@@ -31,6 +32,7 @@ export interface CatalogFormData {
   isPublished: boolean;
   isFeatured: boolean;
   isBil: boolean;
+  isInternal: boolean;
   sortOrder: string;
   entries: CatalogEntryFormData[];
 }
@@ -47,6 +49,7 @@ const emptyForm: CatalogFormData = {
   title: "",
   description: "",
   externalLink: "",
+  publicationLink: "",
   species: "",
   disease: "",
   institute: "",
@@ -59,6 +62,7 @@ const emptyForm: CatalogFormData = {
   isPublished: false,
   isFeatured: false,
   isBil: false,
+  isInternal: false,
   sortOrder: "0",
   entries: [],
 };
@@ -114,6 +118,7 @@ export function CatalogForm({ initialData, submitUrl, method }: CatalogFormProps
       title: form.title.trim(),
       description: form.description.trim() || null,
       externalLink: form.externalLink.trim() || null,
+      publicationLink: form.publicationLink.trim() || null,
       species: form.species.trim() || null,
       disease: form.disease.trim() || null,
       institute: form.institute.trim() || null,
@@ -129,6 +134,7 @@ export function CatalogForm({ initialData, submitUrl, method }: CatalogFormProps
       isPublished: form.isPublished,
       isFeatured: form.isFeatured,
       isBil: form.isBil,
+      isInternal: form.isInternal,
       sortOrder: Number(form.sortOrder) || 0,
       entries: form.entries.map((entry, i) => ({
         label: entry.label.trim() || (entry.datasetType === "single_cell" ? "Single Cell" : "Single Molecule"),
@@ -182,6 +188,13 @@ export function CatalogForm({ initialData, submitUrl, method }: CatalogFormProps
         label="Source Link"
         value={form.externalLink}
         onValueChange={set("externalLink")}
+      />
+
+      <Input
+        description="Link to the publication (DOI, PubMed, journal page)"
+        label="Publication Link"
+        value={form.publicationLink}
+        onValueChange={set("publicationLink")}
       />
 
       {/* Data Entries */}
@@ -307,6 +320,9 @@ export function CatalogForm({ initialData, submitUrl, method }: CatalogFormProps
         </Switch>
         <Switch isSelected={form.isBil} onValueChange={set("isBil")}>
           BIL
+        </Switch>
+        <Switch isSelected={form.isInternal} onValueChange={set("isInternal")}>
+          Internal
         </Switch>
       </div>
 

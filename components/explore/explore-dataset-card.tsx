@@ -39,7 +39,7 @@ function EntryList({
   onSelect?: (dataset: CatalogDatasetItem, entry: CatalogDatasetEntry) => void;
 }) {
   return (
-    <div className="bg-content1 dark:bg-default-100 rounded-xl shadow-lg border border-default-200 p-2 flex flex-col gap-1">
+    <div className="bg-content1 dark:bg-default-100 rounded-xl shadow-lg border border-default-200 p-2 flex flex-col gap-1 max-h-[220px] overflow-y-auto">
       {entries.map((entry) => {
         const hasLink = entry.s3BaseUrl || entry.datasetId;
         return (
@@ -81,23 +81,49 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
   const cardRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [expandUp, setExpandUp] = useState(false);
 
   const entries = dataset.entries ?? [];
   const hasMultipleEntries = entries.length > 1;
   const uniqueTypes = [...new Set(entries.map((e) => e.datasetType))];
 
-  // Position the portal dropdown below the card
-  useEffect(() => {
-    if (!isExpanded || !usePopover || !cardRef.current) return;
+  // Recompute dropdown position from current card rect
+  const updatePosition = useCallback(() => {
+    if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
-    setDropdownStyle({
-      position: "fixed",
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
-      zIndex: 9999,
-    });
-  }, [isExpanded, usePopover]);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const shouldExpandUp = spaceBelow < 250;
+    setExpandUp(shouldExpandUp);
+
+    if (usePopover) {
+      if (shouldExpandUp) {
+        setDropdownStyle({
+          position: "fixed",
+          bottom: window.innerHeight - rect.top + 4,
+          left: rect.left,
+          width: rect.width,
+          zIndex: 9999,
+        });
+      } else {
+        setDropdownStyle({
+          position: "fixed",
+          top: rect.bottom + 4,
+          left: rect.left,
+          width: rect.width,
+          zIndex: 9999,
+        });
+      }
+    }
+  }, [usePopover]);
+
+  // Position on open + reposition on scroll
+  useEffect(() => {
+    if (!isExpanded) return;
+    updatePosition();
+    const onScroll = () => updatePosition();
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [isExpanded, updatePosition]);
 
   // Close dropdown when clicking outside
   const handleClickOutside = useCallback(
@@ -114,11 +140,8 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
   useEffect(() => {
     if (!isExpanded) return;
     document.addEventListener("mousedown", handleClickOutside);
-    const closeOnScroll = () => setIsExpanded(false);
-    window.addEventListener("scroll", closeOnScroll, true);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("scroll", closeOnScroll, true);
     };
   }, [isExpanded, handleClickOutside]);
 
@@ -161,8 +184,8 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
           <div ref={dropdownRef} style={dropdownStyle}>
             <motion.div
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              initial={{ opacity: 0, y: -4 }}
+              exit={{ opacity: 0, y: expandUp ? 4 : -4 }}
+              initial={{ opacity: 0, y: expandUp ? 4 : -4 }}
               transition={{ duration: 0.15 }}
             >
               <EntryList dataset={dataset} entries={entries} router={router} onSelect={onSelect} />
@@ -211,30 +234,59 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                   </Chip>
                 </div>
               )}
-              {/* External link icon */}
-              {dataset.externalLink && (
-                <div
-                  className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
-                  role="link"
-                  title="Open source page"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(dataset.externalLink!, "_blank", "noopener,noreferrer");
-                  }}
-                >
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+              {/* Link icons */}
+              {(dataset.externalLink || dataset.publicationLink) && (
+                <div className="absolute bottom-2 right-2 flex gap-1.5">
+                  {dataset.publicationLink && (
+                    <div
+                      className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+                      role="link"
+                      title="Open publication"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(dataset.publicationLink!, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      <svg
+                        className="w-3.5 h-3.5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  )}
+                  {dataset.externalLink && (
+                    <div
+                      className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+                      role="link"
+                      title="Open source page"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(dataset.externalLink!, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      <svg
+                        className="w-3.5 h-3.5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -260,29 +312,58 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                     {entries.length} entries
                   </Chip>
                 )}
-                {dataset.externalLink && (
-                  <div
-                    className="ml-auto w-6 h-6 rounded-full bg-default-200/60 flex items-center justify-center hover:bg-default-300/80 transition-colors cursor-pointer"
-                    role="link"
-                    title="Open source page"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(dataset.externalLink!, "_blank", "noopener,noreferrer");
-                    }}
-                  >
-                    <svg
-                      className="w-3 h-3 text-default-600"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                {(dataset.externalLink || dataset.publicationLink) && (
+                  <div className="ml-auto flex gap-1">
+                    {dataset.publicationLink && (
+                      <div
+                        className="w-6 h-6 rounded-full bg-default-200/60 flex items-center justify-center hover:bg-default-300/80 transition-colors cursor-pointer"
+                        role="link"
+                        title="Open publication"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(dataset.publicationLink!, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        <svg
+                          className="w-3 h-3 text-default-600"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                    {dataset.externalLink && (
+                      <div
+                        className="w-6 h-6 rounded-full bg-default-200/60 flex items-center justify-center hover:bg-default-300/80 transition-colors cursor-pointer"
+                        role="link"
+                        title="Open source page"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(dataset.externalLink!, "_blank", "noopener,noreferrer");
+                        }}
+                      >
+                        <svg
+                          className="w-3 h-3 text-default-600"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -342,9 +423,10 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
           {isExpanded && hasMultipleEntries && (
             <motion.div
               animate={{ opacity: 1, y: 0, height: "auto" }}
-              className="mt-2"
-              exit={{ opacity: 0, y: -4, height: 0 }}
-              initial={{ opacity: 0, y: -4, height: 0 }}
+              className={expandUp ? "mb-2 order-first" : "mt-2"}
+              exit={{ opacity: 0, y: expandUp ? 4 : -4, height: 0 }}
+              initial={{ opacity: 0, y: expandUp ? 4 : -4, height: 0 }}
+              style={expandUp ? { position: "absolute", bottom: "100%", left: 0, right: 0, zIndex: 50 } : undefined}
               transition={{ duration: 0.2 }}
             >
               <EntryList dataset={dataset} entries={entries} router={router} onSelect={onSelect} />

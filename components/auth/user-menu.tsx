@@ -24,7 +24,7 @@ export function UserMenu() {
     );
   }
 
-  const isAdmin = session.user.role === "ADMIN";
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
 
   return (
     <Dropdown placement="bottom-end">

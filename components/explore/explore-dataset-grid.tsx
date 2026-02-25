@@ -41,8 +41,26 @@ export function ExploreDatasetGrid({
     );
   }
 
+  const rangeStart = (page - 1) * limit + 1;
+  const rangeEnd = Math.min(page * limit, total);
+
   return (
     <div>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-default-500">
+          Showing {rangeStart}–{rangeEnd} of {total} dataset{total !== 1 ? "s" : ""}
+        </p>
+        {totalPages > 1 && (
+          <Pagination
+            showControls
+            page={page}
+            size="sm"
+            total={totalPages}
+            onChange={onPageChange}
+          />
+        )}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {datasets.map((dataset) => (
           <ExploreDatasetCard key={dataset.id} dataset={dataset} />
@@ -50,7 +68,10 @@ export function ExploreDatasetGrid({
       </div>
 
       {totalPages > 1 && (
-        <div className="flex justify-center mt-8">
+        <div className="flex items-center justify-between mt-8">
+          <p className="text-sm text-default-500">
+            Page {page} of {totalPages}
+          </p>
           <Pagination
             showControls
             page={page}

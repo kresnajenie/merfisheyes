@@ -13,6 +13,7 @@ datasource db {
 enum UserRole {
   USER
   ADMIN
+  SUPER_ADMIN
 }
 
 model User {
@@ -89,7 +90,8 @@ model CatalogDataset {
   thumbnailUrl String? @map("thumbnail_url") @db.VarChar(1000)
 
   // Original source link (BIL page, publication, data repository)
-  externalLink String? @map("external_link") @db.VarChar(1000)
+  externalLink    String? @map("external_link") @db.VarChar(1000)
+  publicationLink String? @map("publication_link") @db.VarChar(1000)
 
   // Sub-entries (each links to a viewer dataset)
   entries      CatalogDatasetEntry[]
@@ -98,6 +100,7 @@ model CatalogDataset {
   isPublished  Boolean @default(false) @map("is_published")
   isFeatured   Boolean @default(false) @map("is_featured")
   isBil        Boolean @default(false) @map("is_bil")
+  isInternal   Boolean @default(false) @map("is_internal")
   sortOrder    Int     @default(0) @map("sort_order")
 
   // Stats (manually entered)
@@ -113,6 +116,7 @@ model CatalogDataset {
   @@index([isPublished])
   @@index([isFeatured])
   @@index([isBil])
+  @@index([isInternal])
   @@index([sortOrder])
   @@map("catalog_datasets")
 }
