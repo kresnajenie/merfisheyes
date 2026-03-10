@@ -67,39 +67,31 @@ class HyparquetService {
 
     columnNames.forEach((name) => columnChunks.set(name, []));
 
-    let totalPages = 0;
     let relevantPages = 0;
     let lastReportedProgress = 10;
 
-    // Read parquet file with onPage callback
-    // Note: Type assertion needed due to hyparquet type resolution differences between environments
-    // Runtime provides ColumnData with columnName, but some environments resolve to SubColumnData
+    // Read parquet file with columns filter + onPage callback
+    // The `columns` option tells hyparquet to skip decompressing/parsing unwanted columns
     await parquetRead({
       file: arrayBuffer,
+      columns: columnNames,
       compressors,
       onPage: ((page: ColumnData) => {
         const columnName = page.pathInSchema[0];
+        const chunks = columnChunks.get(columnName);
 
-        // Only process requested columns
-        if (columnNames.includes(columnName)) {
-          totalPages++;
+        if (chunks) {
           relevantPages++;
-
-          // Store chunks instead of concatenating - more memory efficient
-          const chunks = columnChunks.get(columnName)!;
-
           chunks.push(Array.from(page.columnData));
 
-          // Only report progress every 5% to reduce spam
           const progress =
-            10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20); // 10-30% estimate
+            10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20);
 
           if (progress >= lastReportedProgress + 5) {
             onProgress?.(progress, `Reading parquet data...`);
             lastReportedProgress = progress;
           }
         }
-        // Silently skip unwanted columns - no processing, no progress reporting
       }) as any,
     });
 
