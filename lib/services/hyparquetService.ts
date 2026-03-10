@@ -39,7 +39,7 @@ class HyparquetService {
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<Map<string, any[]>> {
-    if (typeof window === "undefined") {
+    if (typeof self === "undefined") {
       throw new Error("Hyparquet service can only be used in browser");
     }
 
