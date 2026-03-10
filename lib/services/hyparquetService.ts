@@ -52,12 +52,17 @@ class HyparquetService {
       );
     }
 
-    await onProgress?.(5, "Reading file into memory...");
+    await onProgress?.(5, "Preparing file for reading...");
     console.log(columnNames);
 
-    // Convert File to ArrayBuffer (hyparquet accepts ArrayBuffer as AsyncBuffer in browser)
-    // Note: This loads entire file into memory - may fail for very large files (>2-3GB)
-    const arrayBuffer = await file.arrayBuffer();
+    // Wrap File as an AsyncBuffer so hyparquet reads slices on demand
+    // instead of loading the entire file into memory at once
+    const asyncFile = {
+      byteLength: file.size,
+      slice(start: number, end?: number): Promise<ArrayBuffer> {
+        return file.slice(start, end).arrayBuffer();
+      },
+    };
 
     await onProgress?.(10, "Parsing parquet structure...");
 
@@ -76,7 +81,7 @@ class HyparquetService {
     // Read parquet file with columns filter + onPage callback
     // The `columns` option tells hyparquet to skip decompressing/parsing unwanted columns
     await parquetRead({
-      file: arrayBuffer,
+      file: asyncFile,
       columns: columnNames,
       compressors,
       onPage: ((page: ColumnData) => {
