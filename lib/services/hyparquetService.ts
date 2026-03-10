@@ -8,7 +8,7 @@ import { compressors } from "hyparquet-compressors";
  * as hyparquet's exported types can vary between TypeScript versions
  */
 interface ColumnData {
-  columnName: string;
+  pathInSchema: string[];
   columnData: ArrayLike<any>;
   rowStart: number;
   rowEnd: number;
@@ -78,7 +78,7 @@ class HyparquetService {
       file: arrayBuffer,
       compressors,
       onPage: ((page: ColumnData) => {
-        const columnName = page.columnName;
+        const columnName = page.pathInSchema[0];
 
         // Only process requested columns
         if (columnNames.includes(columnName)) {
