@@ -61,11 +61,14 @@ class HyparquetService {
 
     await onProgress?.(10, "Parsing parquet structure...");
 
-    // Map to store accumulated column data as arrays of chunks
-    // This avoids repeated array concatenation which creates many copies
-    const columnChunks = new Map<string, any[][]>();
+    // Store raw chunk references per column — no copying until the end
+    const columnChunks = new Map<string, ArrayLike<any>[]>();
+    const columnLengths = new Map<string, number>();
 
-    columnNames.forEach((name) => columnChunks.set(name, []));
+    columnNames.forEach((name) => {
+      columnChunks.set(name, []);
+      columnLengths.set(name, 0);
+    });
 
     let relevantPages = 0;
     let lastReportedProgress = 10;
@@ -82,7 +85,12 @@ class HyparquetService {
 
         if (chunks) {
           relevantPages++;
-          chunks.push(Array.from(page.columnData));
+          // Store reference to raw data — avoid Array.from() copy
+          chunks.push(page.columnData);
+          columnLengths.set(
+            columnName,
+            columnLengths.get(columnName)! + page.columnData.length,
+          );
 
           const progress =
             10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20);
@@ -97,11 +105,20 @@ class HyparquetService {
 
     await onProgress?.(25, "Combining column data...");
 
-    // Flatten chunks into final arrays (done once at the end)
+    // Concatenate chunks into final arrays (single allocation + copy)
     const columnData = new Map<string, any[]>();
 
     for (const [columnName, chunks] of columnChunks.entries()) {
-      columnData.set(columnName, chunks.flat());
+      const totalLen = columnLengths.get(columnName)!;
+      const result = new Array(totalLen);
+      let offset = 0;
+
+      for (const chunk of chunks) {
+        for (let i = 0; i < chunk.length; i++) {
+          result[offset++] = chunk[i];
+        }
+      }
+      columnData.set(columnName, result);
     }
 
     await onProgress?.(30, "Column extraction complete");
