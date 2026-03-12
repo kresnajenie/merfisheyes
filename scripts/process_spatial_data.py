@@ -637,6 +637,9 @@ def load_merscope_data(input_path: Path):
     if expr_file.exists():
         print(f"  Loading {expr_file.name}...")
         expr_df = pd.read_csv(expr_file, index_col=0)
+        expr_df.index = expr_df.index.astype(str)
+        metadata_ids = metadata_df["id"].astype(str).values
+        expr_df = expr_df.loc[metadata_ids]
         gene_names = expr_df.columns.tolist()
         expr_matrix = expr_df.values
         print(f"  ✓ Loaded expression matrix: {len(gene_names)} genes")
