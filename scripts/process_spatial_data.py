@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Spatial Transcriptomics Data Processor
 Converts H5AD, Xenium, and MERSCOPE datasets to chunked binary format for MERFISH Eyes
@@ -323,15 +323,19 @@ def detect_input_format(input_path: Path) -> str:
         has_xenium = any((input_path / f).exists() for f in xenium_files)
         print(f"   - Has Xenium files: {has_xenium}")
 
-        # Check for MERSCOPE files
-        merscope_files = ['cell_metadata.csv', 'cell_by_gene.csv']
-        has_merscope = any((input_path / f).exists() for f in merscope_files)
-        print(f"   - Has MERSCOPE files: {has_merscope}")
+###############################################################################################################
+        # CHANGED FROM ORIGINAL (fuzzy name logic)
 
-        # Debug: Check each file individually
-        for f in merscope_files:
-            file_path = input_path / f
-            print(f"   - Checking {f}: exists={file_path.exists()}, is_file={file_path.is_file()}")
+        # Check for MERSCOPE files (fuzzy — handles prefixed names like cellpose_metadata.csv)
+        files = [f.name for f in input_path.iterdir() if f.is_file()]
+        has_merscope = any(
+            ('metadata' in f and 'gene' not in f and f.endswith('.csv')) or
+            ('cell' in f and 'gene' in f and f.endswith('.csv'))
+            for f in files
+        )
+        print(f"   - Has MERSCOPE files: {has_merscope}")
+        print(f"   - Files checked: {files}")
+###############################################################################################################
 
         if has_xenium:
             return 'xenium'
@@ -621,20 +625,36 @@ def load_merscope_data(input_path: Path):
     print(f"📂 Loading MERSCOPE folder: {input_path.name}")
 
     # Load cell_metadata.csv
-    metadata_file = input_path / 'cell_metadata.csv'
-    if not metadata_file.exists():
-        raise FileNotFoundError("cell_metadata.csv not found in MERSCOPE folder")
+
+###############################################################################################################
+    # CHANGED FROM ORIGINAL (fuzzy name logic)
+    metadata_file = next(
+        (f for f in input_path.iterdir()
+        if f.is_file() and 'metadata' in f.name and 'gene' not in f.name and f.suffix == '.csv'),
+        None
+    )
+    if metadata_file is None:
+        raise FileNotFoundError("No metadata CSV found in MERSCOPE folder")
+###############################################################################################################
 
     print(f"  Loading {metadata_file.name}...")
     metadata_df = pd.read_csv(metadata_file)
     print(f"  ✓ Loaded {len(metadata_df)} cells")
 
     # Load cell_by_gene.csv (expression matrix)
-    expr_file = input_path / 'cell_by_gene.csv'
+###############################################################################################################
+    # CHANGED FROM ORIGINAL (fuzzy name logic)
+    expr_file = next(
+    (f for f in input_path.iterdir()
+     if f.is_file() and 'cell' in f.name and 'gene' in f.name and f.suffix == '.csv'),
+    None
+    )
+###############################################################################################################
+    # CHANGED FROM ORIGINAL (combine data check)
     expr_matrix = None
     gene_names = None
 
-    if expr_file.exists():
+    if expr_file is not None:
         print(f"  Loading {expr_file.name}...")
         expr_df = pd.read_csv(expr_file, index_col=0)
         expr_df.index = expr_df.index.astype(str)
@@ -649,7 +669,7 @@ def load_merscope_data(input_path: Path):
         expr_matrix = np.zeros((len(metadata_df), 1))
 
     return metadata_df, expr_matrix, gene_names
-
+###############################################################################################
 
 def process_dataset(
     input_path: Path,
