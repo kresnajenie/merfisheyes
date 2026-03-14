@@ -13,6 +13,7 @@ Options:
 """
 
 import argparse
+import gc
 import gzip
 import json
 import os
@@ -679,25 +680,32 @@ def load_merscope_data(input_path: Path):
     gene_names = None
 
     if expr_file is not None:
-        log(f"  Loading {expr_file.name}...", _t_start)
+        log(f"  Reading header of {expr_file.name}...", _t_start)
         t_load = time.perf_counter()
-        expr_df = pd.read_csv(expr_file, index_col=0)
-        log(f"  Read {expr_file.name}: {len(expr_df):,} rows (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
-        if len(expr_df) != len(metadata_df):
+        # Only read header + count rows — do NOT load entire matrix into memory
+        header_df = pd.read_csv(expr_file, index_col=0, nrows=0)
+        gene_names = header_df.columns.tolist()
+
+        # Count rows to validate
+        expr_row_count = 0
+        for chunk in pd.read_csv(expr_file, index_col=0, usecols=[0], chunksize=100_000):
+            expr_row_count += len(chunk)
+
+        log(f"  Header read: {len(gene_names)} genes, {expr_row_count:,} rows (in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
+
+        if expr_row_count != len(metadata_df):
             raise ValueError(
                 f"Row count mismatch: {metadata_file.name} has {len(metadata_df):,} rows, "
-                f"{expr_file.name} has {len(expr_df):,} rows. "
+                f"{expr_file.name} has {expr_row_count:,} rows. "
                 f"Both files must have the same number of rows in the same order."
             )
-        gene_names = expr_df.columns.tolist()
-        expr_matrix = expr_df.values
-        log(f"  Loaded expression matrix: {len(gene_names)} genes ({len(expr_df):,} rows, matched positionally)", _t_start)
+        log(f"  Expression matrix: {len(gene_names)} genes ({expr_row_count:,} rows, will load per-chunk)", _t_start)
     else:
-        print("  ⚠ cell_by_gene.csv not found, creating placeholder")
+        log("  cell_by_gene.csv not found, creating placeholder", _t_start)
         gene_names = ['Gene1']
-        expr_matrix = np.zeros((len(metadata_df), 1))
+        expr_file = None
 
-    return metadata_df, expr_matrix, gene_names
+    return metadata_df, expr_file, gene_names
 ###############################################################################################
 
 def process_dataset(
@@ -724,6 +732,9 @@ def process_dataset(
 
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # merscope_expr_file is set only for MERSCOPE (per-chunk CSV loading)
+    merscope_expr_file = None
 
     # Load data based on format
     if data_format == 'h5ad':
@@ -914,10 +925,17 @@ def process_dataset(
             shutil.rmtree(analysis_extract_dir, ignore_errors=True)
 
     elif data_format == 'merscope':
-        metadata_df, expr_matrix, gene_names = load_merscope_data(input_path)
+        metadata_df, merscope_expr_file, gene_names = load_merscope_data(input_path)
         dataset_name = input_path.name
         dataset_type = 'merscope'
         embeddings = {}  # No embeddings for MERSCOPE
+
+        if merscope_expr_file is not None:
+            expr_matrix = None  # Will be loaded per-chunk from CSV
+        else:
+            # No expression file found — placeholder
+            merscope_expr_file = None
+            expr_matrix = np.zeros((len(metadata_df), 1))
 
         # Extract spatial coordinates
         coord_candidates_x = ['center_x', 'centroid_x', 'x']
@@ -949,6 +967,11 @@ def process_dataset(
         for col in metadata_df.columns:
             if col not in exclude_cols:
                 obs_columns[col] = metadata_df[col].values
+
+        # Free metadata_df — we've extracted everything we need
+        del metadata_df
+        gc.collect()
+        log("  Freed metadata_df from memory", _t_start)
 
     else:
         raise ValueError(f"Unknown format: {data_format}")
@@ -1047,6 +1070,10 @@ def process_dataset(
     num_chunks = (num_genes + chunk_size - 1) // chunk_size
 
     log(f"=== STEP 4: Processing expression matrix ({num_genes:,} genes, {num_chunks} chunks, {chunk_size} genes/chunk) ===", _t_start)
+    if merscope_expr_file is not None:
+        log(f"  Mode: per-chunk CSV loading (memory-optimized for MERSCOPE)", _t_start)
+    elif expr_matrix is not None:
+        log(f"  Mode: in-memory matrix ({'sparse' if sparse.issparse(expr_matrix) else 'dense'})", _t_start)
     t_step = time.perf_counter()
 
     # Build expression index
@@ -1064,33 +1091,62 @@ def process_dataset(
         t_chunk = time.perf_counter()
         start_gene = chunk_id * chunk_size
         end_gene = min(start_gene + chunk_size, num_genes)
+        chunk_gene_names = gene_names[start_gene:end_gene]
 
         gene_indices = []
         gene_data_list = []
 
-        for gene_idx in range(start_gene, end_gene):
-            gene_name = gene_names[gene_idx]
+        if merscope_expr_file is not None:
+            # MERSCOPE memory-optimized: read only this chunk's gene columns from CSV
+            # index_col=0 skips the cell ID column; usecols reads only needed genes
+            t_read = time.perf_counter()
+            chunk_df = pd.read_csv(merscope_expr_file, index_col=0, usecols=[0] + [g for g in chunk_gene_names])
+            log(f"    Read {len(chunk_gene_names)} gene columns ({len(chunk_df):,} rows, {fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
 
-            # Extract gene expression column
-            if sparse.issparse(expr_matrix):
-                gene_col = expr_matrix[:, gene_idx].toarray().flatten()
-            else:
-                gene_col = expr_matrix[:, gene_idx]
+            for local_idx, gene_name in enumerate(chunk_gene_names):
+                gene_idx = start_gene + local_idx
+                gene_col = chunk_df[gene_name].values
 
-            # Get non-zero indices and values
-            non_zero_mask = gene_col != 0
-            non_zero_indices = np.where(non_zero_mask)[0]
-            non_zero_values = gene_col[non_zero_mask]
+                non_zero_mask = gene_col != 0
+                non_zero_indices = np.where(non_zero_mask)[0]
+                non_zero_values = gene_col[non_zero_mask].astype(np.float32)
 
-            gene_indices.append(gene_idx)
-            gene_data_list.append((non_zero_indices, non_zero_values))
+                gene_indices.append(gene_idx)
+                gene_data_list.append((non_zero_indices, non_zero_values))
 
-            # Add to expression index
-            expr_index['genes'].append({
-                'name': gene_name,
-                'chunk_id': chunk_id,
-                'position_in_chunk': gene_idx - start_gene
-            })
+                expr_index['genes'].append({
+                    'name': gene_name,
+                    'chunk_id': chunk_id,
+                    'position_in_chunk': local_idx
+                })
+
+            del chunk_df
+            gc.collect()
+        else:
+            # H5AD / Xenium: expression matrix already in memory
+            for gene_idx in range(start_gene, end_gene):
+                gene_name = gene_names[gene_idx]
+
+                # Extract gene expression column
+                if sparse.issparse(expr_matrix):
+                    gene_col = expr_matrix[:, gene_idx].toarray().flatten()
+                else:
+                    gene_col = expr_matrix[:, gene_idx]
+
+                # Get non-zero indices and values
+                non_zero_mask = gene_col != 0
+                non_zero_indices = np.where(non_zero_mask)[0]
+                non_zero_values = gene_col[non_zero_mask]
+
+                gene_indices.append(gene_idx)
+                gene_data_list.append((non_zero_indices, non_zero_values))
+
+                # Add to expression index
+                expr_index['genes'].append({
+                    'name': gene_name,
+                    'chunk_id': chunk_id,
+                    'position_in_chunk': gene_idx - start_gene
+                })
 
         # Write chunk
         chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
