@@ -683,12 +683,13 @@ def load_merscope_data(input_path: Path):
         log(f"  Reading header of {expr_file.name}...", _t_start)
         t_load = time.perf_counter()
         # Only read header + count rows — do NOT load entire matrix into memory
-        header_df = pd.read_csv(expr_file, index_col=0, nrows=0)
-        gene_names = header_df.columns.tolist()
+        all_cols = pd.read_csv(expr_file, nrows=0).columns.tolist()
+        index_col_name = all_cols[0]  # first column is the cell ID / index
+        gene_names = all_cols[1:]     # remaining columns are genes
 
-        # Count rows to validate
+        # Count rows to validate (read only the index column)
         expr_row_count = 0
-        for chunk in pd.read_csv(expr_file, index_col=0, usecols=[0], chunksize=100_000):
+        for chunk in pd.read_csv(expr_file, usecols=[index_col_name], chunksize=100_000):
             expr_row_count += len(chunk)
 
         log(f"  Header read: {len(gene_names)} genes, {expr_row_count:,} rows (in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
@@ -705,7 +706,7 @@ def load_merscope_data(input_path: Path):
         gene_names = ['Gene1']
         expr_file = None
 
-    return metadata_df, expr_file, gene_names
+    return metadata_df, expr_file, gene_names, index_col_name if expr_file is not None else None
 ###############################################################################################
 
 def process_dataset(
@@ -925,7 +926,7 @@ def process_dataset(
             shutil.rmtree(analysis_extract_dir, ignore_errors=True)
 
     elif data_format == 'merscope':
-        metadata_df, merscope_expr_file, gene_names = load_merscope_data(input_path)
+        metadata_df, merscope_expr_file, gene_names, merscope_index_col = load_merscope_data(input_path)
         dataset_name = input_path.name
         dataset_type = 'merscope'
         embeddings = {}  # No embeddings for MERSCOPE
@@ -1100,7 +1101,7 @@ def process_dataset(
             # MERSCOPE memory-optimized: read only this chunk's gene columns from CSV
             # index_col=0 skips the cell ID column; usecols reads only needed genes
             t_read = time.perf_counter()
-            chunk_df = pd.read_csv(merscope_expr_file, index_col=0, usecols=[0] + [g for g in chunk_gene_names])
+            chunk_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col, usecols=[merscope_index_col] + chunk_gene_names)
             log(f"    Read {len(chunk_gene_names)} gene columns ({len(chunk_df):,} rows, {fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
 
             for local_idx, gene_name in enumerate(chunk_gene_names):
