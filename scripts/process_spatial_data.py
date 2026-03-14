@@ -19,6 +19,7 @@ import os
 import shutil
 import struct
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional, Union
 
@@ -26,6 +27,26 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from scipy.io import mmread
+
+
+# ─────────────────────────────────────────────
+# LOGGING
+# ─────────────────────────────────────────────
+_t_start = None
+
+def fmt_elapsed(seconds):
+    """Format elapsed time as human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m, s = divmod(seconds, 60)
+    return f"{int(m)}m {s:.1f}s"
+
+def log(msg, t0=None):
+    """Print a timestamped log message. If t0 given, also prints elapsed."""
+    elapsed = ""
+    if t0 is not None:
+        elapsed = f" [{fmt_elapsed(time.perf_counter() - t0)}]"
+    print(f"[{time.strftime('%H:%M:%S')}]{elapsed} {msg}", flush=True)
 
 
 # Color palette from lib/utils/color-palette.ts
@@ -355,9 +376,10 @@ def load_h5ad_data(input_path: Path):
     except ImportError:
         raise ImportError("anndata is required for H5AD files. Install with: pip install anndata")
 
-    print(f"📂 Loading H5AD file: {input_path.name}")
+    log(f"Loading H5AD file: {input_path.name}", _t_start)
+    t_load = time.perf_counter()
     adata = ad.read_h5ad(input_path)
-    print(f"  ✓ Loaded: {adata.n_obs} cells × {adata.n_vars} genes")
+    log(f"  Loaded: {adata.n_obs} cells x {adata.n_vars} genes (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Extract spatial coordinates
     spatial_coords = None
@@ -433,7 +455,7 @@ def load_h5ad_data(input_path: Path):
 
 def load_xenium_data(input_path: Path):
     """Load Xenium folder structure"""
-    print(f"📂 Loading Xenium folder: {input_path.name}")
+    log(f"Loading Xenium folder: {input_path.name}", _t_start)
 
     # Load cells.csv or cells.csv.gz
     cells_file = None
@@ -446,13 +468,14 @@ def load_xenium_data(input_path: Path):
     if cells_file is None:
         raise FileNotFoundError("cells.csv or cells.csv.gz not found in Xenium folder")
 
-    print(f"  Loading {cells_file.name}...")
+    log(f"  Loading {cells_file.name}...", _t_start)
+    t_load = time.perf_counter()
     if cells_file.suffix == '.gz':
         cells_df = pd.read_csv(cells_file, compression='gzip')
     else:
         cells_df = pd.read_csv(cells_file)
 
-    print(f"  ✓ Loaded {len(cells_df)} cells")
+    log(f"  Loaded {len(cells_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Try to load expression matrix (cell_feature_matrix or cell_by_gene)
     expr_matrix = None
@@ -622,7 +645,7 @@ def load_xenium_data(input_path: Path):
 
 def load_merscope_data(input_path: Path):
     """Load MERSCOPE folder structure"""
-    print(f"📂 Loading MERSCOPE folder: {input_path.name}")
+    log(f"Loading MERSCOPE folder: {input_path.name}", _t_start)
 
     # Load cell_metadata.csv
 
@@ -637,9 +660,10 @@ def load_merscope_data(input_path: Path):
         raise FileNotFoundError("No metadata CSV found in MERSCOPE folder")
 ###############################################################################################################
 
-    print(f"  Loading {metadata_file.name}...")
+    log(f"  Loading {metadata_file.name}...", _t_start)
+    t_load = time.perf_counter()
     metadata_df = pd.read_csv(metadata_file)
-    print(f"  ✓ Loaded {len(metadata_df)} cells")
+    log(f"  Loaded {len(metadata_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Load cell_by_gene.csv (expression matrix)
 ###############################################################################################################
@@ -655,8 +679,10 @@ def load_merscope_data(input_path: Path):
     gene_names = None
 
     if expr_file is not None:
-        print(f"  Loading {expr_file.name}...")
+        log(f"  Loading {expr_file.name}...", _t_start)
+        t_load = time.perf_counter()
         expr_df = pd.read_csv(expr_file, index_col=0)
+        log(f"  Read {expr_file.name}: {len(expr_df):,} rows (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
         if len(expr_df) != len(metadata_df):
             raise ValueError(
                 f"Row count mismatch: {metadata_file.name} has {len(metadata_df):,} rows, "
@@ -665,7 +691,7 @@ def load_merscope_data(input_path: Path):
             )
         gene_names = expr_df.columns.tolist()
         expr_matrix = expr_df.values
-        print(f"  ✓ Loaded expression matrix: {len(gene_names)} genes ({len(expr_df):,} rows, matched positionally)")
+        log(f"  Loaded expression matrix: {len(gene_names)} genes ({len(expr_df):,} rows, matched positionally)", _t_start)
     else:
         print("  ⚠ cell_by_gene.csv not found, creating placeholder")
         gene_names = ['Gene1']
@@ -681,18 +707,20 @@ def process_dataset(
     data_format: Optional[str] = None
 ):
     """Main processing function that handles all formats"""
+    global _t_start
+    _t_start = time.perf_counter()
 
-    print(f"\n{'='*60}")
-    print(f"Processing Spatial Transcriptomics Data")
-    print(f"Input: {input_path}")
-    print(f"Output: {output_dir}")
-    print(f"{'='*60}\n")
+    log(f"{'='*60}")
+    log(f"Processing Spatial Transcriptomics Data")
+    log(f"Input: {input_path}")
+    log(f"Output: {output_dir}")
+    log(f"{'='*60}")
 
     # Auto-detect format if not specified
     if data_format is None:
         data_format = detect_input_format(input_path)
 
-    print(f"📋 Detected format: {data_format.upper()}\n")
+    log(f"Detected format: {data_format.upper()}", _t_start)
 
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -930,38 +958,41 @@ def process_dataset(
     num_genes = len(gene_names)
     spatial_dims = spatial_coords.shape[1]
 
-    print(f"\n📊 Dataset Summary:")
-    print(f"  Cells: {num_cells:,}")
-    print(f"  Genes: {num_genes:,}")
-    print(f"  Spatial dimensions: {spatial_dims}D\n")
+    log(f"=== Dataset Summary ===", _t_start)
+    log(f"  Cells: {num_cells:,}", _t_start)
+    log(f"  Genes: {num_genes:,}", _t_start)
+    log(f"  Spatial dimensions: {spatial_dims}D", _t_start)
 
-    # Process using the same logic as H5AD
-    # 1. Normalize and write spatial coordinates
-    print("📍 Processing spatial coordinates...")
+    # Step 1: Normalize and write spatial coordinates
+    log(f"=== STEP 1: Processing spatial coordinates ===", _t_start)
+    t_step = time.perf_counter()
     normalized_spatial, scaling_factor = normalize_coordinates(spatial_coords)
     coords_dir = output_dir / 'coords'
     write_coordinate_binary(normalized_spatial, coords_dir / 'spatial.bin.gz')
+    log(f"  Spatial coordinates done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
-    # 2. Process embeddings (if any)
+    # Step 2: Process embeddings (if any)
     available_embeddings = []
     if embeddings:
-        print("\n🗺️  Processing embeddings...")
+        log(f"=== STEP 2: Processing {len(embeddings)} embedding(s) ===", _t_start)
         for emb_name, emb_coords in embeddings.items():
+            t_emb = time.perf_counter()
             normalized_emb, _ = normalize_coordinates(emb_coords)
             write_coordinate_binary(normalized_emb, coords_dir / f'{emb_name}.bin.gz')
             available_embeddings.append(emb_name)
-            print(f"  ✓ {emb_name}: {emb_coords.shape[1]}D")
+            log(f"  {emb_name}: {emb_coords.shape[1]}D ({fmt_elapsed(time.perf_counter() - t_emb)})", _t_start)
     else:
-        print("\n  ℹ No embeddings to process")
+        log(f"=== STEP 2: No embeddings to process ===", _t_start)
 
-    # 3. Process observation columns (clusters)
-    print("\n🏷️  Processing observation columns...")
+    # Step 3: Process observation columns (clusters)
+    log(f"=== STEP 3: Processing {len(obs_columns)} observation column(s) ===", _t_start)
+    t_step = time.perf_counter()
     obs_dir = output_dir / 'obs'
     palettes_dir = output_dir / 'palettes'
     obs_metadata = {}
     cluster_count = 0
 
-    for col_name, col_values in obs_columns.items():
+    for col_idx, (col_name, col_values) in enumerate(obs_columns.items(), 1):
         categorical = is_categorical(col_values, col_name)
         series = pd.Series(col_values)
         series_for_unique = (
@@ -988,7 +1019,7 @@ def process_dataset(
         with gzip.open(obs_file, 'wt', encoding='utf-8') as f:
             json.dump(values_list, f)
 
-        print(f"  ✓ {col_name}: {obs_metadata[col_name]['type']} ({obs_metadata[col_name]['unique_values']} unique)")
+        log(f"  [{col_idx}/{len(obs_columns)}] {col_name}: {obs_metadata[col_name]['type']} ({unique_count} unique)", _t_start)
 
         # Generate palette for categorical
         if categorical:
@@ -1004,19 +1035,19 @@ def process_dataset(
             with open(palette_file, 'w') as f:
                 json.dump(palette, f, indent=2)
 
-            print(f"    → Palette generated with {len(unique_values)} colors")
+            log(f"       Palette: {len(unique_values)} colors", _t_start)
 
     # Write obs metadata
     with open(obs_dir / 'metadata.json', 'w') as f:
         json.dump(obs_metadata, f, indent=2)
+    log(f"  Observation columns done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
-    # 3. Process expression matrix
-    print("\n🧬 Processing expression matrix...")
+    # Step 4: Process expression matrix
     chunk_size = determine_chunk_size(num_genes, custom_chunk_size)
     num_chunks = (num_genes + chunk_size - 1) // chunk_size
 
-    print(f"  Chunk size: {chunk_size} genes/chunk")
-    print(f"  Total chunks: {num_chunks}")
+    log(f"=== STEP 4: Processing expression matrix ({num_genes:,} genes, {num_chunks} chunks, {chunk_size} genes/chunk) ===", _t_start)
+    t_step = time.perf_counter()
 
     # Build expression index
     expr_index = {
@@ -1030,6 +1061,7 @@ def process_dataset(
 
     # Process chunks
     for chunk_id in range(num_chunks):
+        t_chunk = time.perf_counter()
         start_gene = chunk_id * chunk_size
         end_gene = min(start_gene + chunk_size, num_genes)
 
@@ -1064,13 +1096,16 @@ def process_dataset(
         chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
         write_expression_chunk(chunk_id, gene_indices, gene_data_list, num_cells, chunk_file)
 
+        pct = (chunk_id + 1) / num_chunks * 100
+        log(f"  [{chunk_id + 1}/{num_chunks}] chunk_{chunk_id:05d} ({end_gene - start_gene} genes, {pct:.0f}%, {fmt_elapsed(time.perf_counter() - t_chunk)})", _t_start)
+
     # Write expression index
     with open(expr_dir / 'index.json', 'w') as f:
         json.dump(expr_index, f, indent=2)
-    print(f"\n  ✓ Expression index written")
+    log(f"  Expression matrix done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
-    # 4. Create manifest
-    print("\n📋 Creating manifest...")
+    # Step 5: Create manifest
+    log(f"=== STEP 5: Creating manifest ===", _t_start)
     manifest = {
         'version': '1.0',
         'dataset_id': 'local_dataset',
@@ -1099,12 +1134,19 @@ def process_dataset(
     with open(output_dir / 'manifest.json', 'w') as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"  ✓ Manifest written")
+    log(f"  Manifest written", _t_start)
 
     # Summary
-    print(f"\n{'='*60}")
-    print(f"✅ Processing complete!")
-    print(f"{'='*60}\n")
+    log(f"{'='*60}", _t_start)
+    log(f"=== COMPLETE ===", _t_start)
+    log(f"  Format: {data_format.upper()}", _t_start)
+    log(f"  Cells: {num_cells:,}", _t_start)
+    log(f"  Genes: {num_genes:,}", _t_start)
+    log(f"  Chunks: {num_chunks}", _t_start)
+    log(f"  Obs columns: {len(obs_metadata)}", _t_start)
+    log(f"  Output: {output_dir}", _t_start)
+    log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}", _t_start)
+    log(f"{'='*60}", _t_start)
 
 
 def main():
