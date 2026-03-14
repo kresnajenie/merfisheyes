@@ -75,7 +75,6 @@ class HyparquetService {
     // The `columns` option tells hyparquet to skip decompressing/parsing unwanted columns
     await parquetRead({
       file: arrayBuffer,
-      columns: columnNames,
       compressors,
       onPage: ((page: ColumnData) => {
         const columnName = page.pathInSchema[0];
