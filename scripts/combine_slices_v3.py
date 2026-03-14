@@ -267,7 +267,7 @@ log(f"Target folder: {target}", t_start)
 # ─────────────────────────────────────────────
 # STEP 1: DISCOVER DIRECTORIES
 # ─────────────────────────────────────────────
-log("=== STEP 1/6: Discovering sample directories (BFS) ===", t_start)
+log("=== STEP 1/7: Discovering sample directories (BFS) ===", t_start)
 candidate_dirs = discover_sample_dirs_bfs(target, t_start)
 
 if not candidate_dirs:
@@ -284,7 +284,7 @@ for d in candidate_dirs:
 #   bounding boxes only, record file paths,
 #   validate row counts, then FREE the DataFrame
 # ─────────────────────────────────────────────
-log(f"=== STEP 2/6: First pass — bounding boxes & validation ({len(candidate_dirs)} samples) ===", t_start)
+log(f"=== STEP 2/7: First pass — bounding boxes & validation ({len(candidate_dirs)} samples) ===", t_start)
 
 x_col = "center_x"
 y_col = "center_y"
@@ -365,7 +365,7 @@ log(f"All samples validated. Total rows: {total_rows:,}", t_start)
 # ─────────────────────────────────────────────
 # STEP 3: COMPUTE GRID LAYOUT (from bboxes)
 # ─────────────────────────────────────────────
-log("=== STEP 3/6: Computing grid layout ===", t_start)
+log("=== STEP 3/7: Computing grid layout ===", t_start)
 
 n = len(sample_info)
 bboxes = [s['bbox'] for s in sample_info]
@@ -401,7 +401,7 @@ log(f"Grid: {n_rows} rows x {n_cols} cols, padding={padding}", t_start)
 # STEP 4: WRITE cell_metadata.csv INCREMENTALLY
 #   Re-read each sample, shift coords, append to file
 # ─────────────────────────────────────────────
-log("=== STEP 4/6: Writing cell_metadata.csv (incremental) ===", t_start)
+log("=== STEP 4/7: Writing cell_metadata.csv (incremental) ===", t_start)
 
 out_dir = Path.cwd() / args.output_dir / "combined_output"
 out_dir.mkdir(parents=True, exist_ok=True)
@@ -443,10 +443,41 @@ log(f"Saved {out_meta_path} ({rows_written:,} rows)", t_start)
 
 
 # ─────────────────────────────────────────────
-# STEP 5: WRITE cell_by_gene.csv INCREMENTALLY
+# STEP 5: SPATIAL SANITY CHECK PLOT
+#   Re-read combined cell_metadata per sample for scatter
+# ─────────────────────────────────────────────
+log("=== STEP 5/7: Generating spatial layout plot ===", t_start)
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+cmap = plt.colormaps.get_cmap("tab20")
+colors = [cmap(i / max(n - 1, 1)) for i in range(n)]
+
+fig, ax = plt.subplots(figsize=(10, 10))
+
+row_offset = 0
+for i, info in enumerate(sample_info):
+    nrows = info['num_rows']
+    chunk = pd.read_csv(out_meta_path, skiprows=range(1, row_offset + 1), nrows=nrows)
+    ax.scatter(chunk[x_col], chunk[y_col], c=[colors[i]], s=0.5, alpha=0.4, rasterized=True)
+    row_offset += nrows
+    del chunk
+    gc.collect()
+
+ax.set_title(f"Cell metadata spatial layout -- {rows_written:,} cells")
+ax.set_aspect("equal")
+plt.tight_layout()
+plt.savefig(out_dir / "check_spatial.png", dpi=150)
+plt.close()
+log(f"  Saved {out_dir / 'check_spatial.png'}", t_start)
+
+
+# ─────────────────────────────────────────────
+# STEP 6: WRITE cell_by_gene.csv INCREMENTALLY
 #   Read each sample's file and append directly
 # ─────────────────────────────────────────────
-log("=== STEP 5/6: Writing cell_by_gene.csv (incremental) ===", t_start)
+log("=== STEP 6/7: Writing cell_by_gene.csv (incremental) ===", t_start)
 
 out_cbg_path = out_dir / "cell_by_gene.csv"
 cbg_rows_written = 0
@@ -482,40 +513,11 @@ log(f"Saved {out_cbg_path} ({cbg_rows_written:,} rows)", t_start)
 
 
 # ─────────────────────────────────────────────
-# STEP 6: SANITY CHECK PLOTS
-#   Plot 1: re-read combined cell_metadata in chunks for scatter
-#   Plot 2: re-read combined cell_by_gene in chunks for histogram
+# STEP 7: EXPRESSION SANITY CHECK PLOT
+#   Read combined cell_by_gene in chunks for histogram
 # ─────────────────────────────────────────────
-log("=== STEP 6/6: Generating sanity check plots ===", t_start)
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+log("=== STEP 7/7: Generating expression distribution plot ===", t_start)
 
-cmap = plt.colormaps.get_cmap("tab20")
-colors = [cmap(i / max(n - 1, 1)) for i in range(n)]
-
-# Plot 1: spatial layout — re-read per sample from combined CSV
-log("  Generating spatial layout plot...", t_start)
-fig, ax = plt.subplots(figsize=(10, 10))
-
-row_offset = 0
-for i, info in enumerate(sample_info):
-    nrows = info['num_rows']
-    chunk = pd.read_csv(out_meta_path, skiprows=range(1, row_offset + 1), nrows=nrows)
-    ax.scatter(chunk[x_col], chunk[y_col], c=[colors[i]], s=0.5, alpha=0.4, rasterized=True)
-    row_offset += nrows
-    del chunk
-    gc.collect()
-
-ax.set_title(f"Cell metadata spatial layout -- {rows_written:,} cells")
-ax.set_aspect("equal")
-plt.tight_layout()
-plt.savefig(out_dir / "check_spatial.png", dpi=150)
-plt.close()
-log(f"  Saved {out_dir / 'check_spatial.png'}", t_start)
-
-# Plot 2: gene count distribution — read cell_by_gene in chunks
-log("  Generating expression distribution plot...", t_start)
 all_gene_sums = []
 header_cols = None
 
