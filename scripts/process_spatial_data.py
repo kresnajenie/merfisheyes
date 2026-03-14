@@ -657,12 +657,15 @@ def load_merscope_data(input_path: Path):
     if expr_file is not None:
         print(f"  Loading {expr_file.name}...")
         expr_df = pd.read_csv(expr_file, index_col=0)
-        expr_df.index = expr_df.index.astype(str)
-        metadata_ids = metadata_df["id"].astype(str).values
-        expr_df = expr_df.loc[metadata_ids]
+        if len(expr_df) != len(metadata_df):
+            raise ValueError(
+                f"Row count mismatch: {metadata_file.name} has {len(metadata_df):,} rows, "
+                f"{expr_file.name} has {len(expr_df):,} rows. "
+                f"Both files must have the same number of rows in the same order."
+            )
         gene_names = expr_df.columns.tolist()
         expr_matrix = expr_df.values
-        print(f"  ✓ Loaded expression matrix: {len(gene_names)} genes")
+        print(f"  ✓ Loaded expression matrix: {len(gene_names)} genes ({len(expr_df):,} rows, matched positionally)")
     else:
         print("  ⚠ cell_by_gene.csv not found, creating placeholder")
         gene_names = ['Gene1']
@@ -836,7 +839,6 @@ def process_dataset(
                 )
             )
             print(f"  ℹ Found {len(cluster_files)} candidate cluster files")
-            id_candidates = ['cell_id', 'cell', 'id', 'barcode', 'barcodes', 'cellid', 'cellId']
             label_candidates = [
                 'cluster',
                 'clusters',
@@ -850,10 +852,6 @@ def process_dataset(
                 'subclass',
                 'class',
             ]
-            cell_id_key = (
-                find_column(cells_columns_lower, ['cell_id', 'id', 'barcode', 'barcodes', 'cell'])
-                or cells_df.columns[0]
-            )
             for cluster_file in cluster_files:
                 print(f"    ℹ Trying {cluster_file}")
                 try:
@@ -868,23 +866,19 @@ def process_dataset(
                     print(f"    ⚠ Failed to read {cluster_file.name}: {e}")
                     continue
                 cluster_columns_lower = {col.lower(): col for col in cluster_df.columns}
-                id_col = find_column(cluster_columns_lower, id_candidates)
                 label_col = find_column(cluster_columns_lower, label_candidates)
-                if not id_col or not label_col:
-                    print(f"    ⚠ Missing id/label columns in {cluster_file.name}")
+                if not label_col:
+                    print(f"    ⚠ No label column found in {cluster_file.name}")
                     continue
-                joined = cells_df.merge(
-                    cluster_df[[id_col, label_col]],
-                    left_on=cell_id_key,
-                    right_on=id_col,
-                    how='left'
-                )
-                non_null = joined[label_col].notna().sum()
+                if len(cluster_df) != len(cells_df):
+                    print(f"    ⚠ Row count mismatch: {cluster_file.name} has {len(cluster_df):,} rows, cells has {len(cells_df):,} rows. Skipping.")
+                    continue
+                non_null = cluster_df[label_col].notna().sum()
                 if non_null == 0:
-                    print(f"    ⚠ No matching rows when joining {cluster_file.name}")
+                    print(f"    ⚠ No non-null values in {cluster_file.name}")
                     continue
-                obs_columns[label_col] = joined[label_col].fillna('').values
-                print(f"    ✓ Imported clusters from {cluster_file.name} using column '{label_col}' ({non_null} matches)")
+                obs_columns[label_col] = cluster_df[label_col].fillna('').values
+                print(f"    ✓ Imported clusters from {cluster_file.name} using column '{label_col}' ({non_null:,} values, matched positionally)")
                 break
             else:
                 print("  ⚠ Exhausted cluster files without importing labels")
@@ -923,7 +917,7 @@ def process_dataset(
 
         # Extract observation columns
         obs_columns = {}
-        exclude_cols = [x_col, y_col, z_col, 'cell_id', 'id', 'EntityID']
+        exclude_cols = [x_col, y_col, z_col, 'cell_id', 'EntityID']
         for col in metadata_df.columns:
             if col not in exclude_cols:
                 obs_columns[col] = metadata_df[col].values
