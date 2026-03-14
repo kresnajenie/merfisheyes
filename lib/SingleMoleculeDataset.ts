@@ -2,7 +2,7 @@ import Papa from "papaparse";
 import { ungzip } from "pako";
 
 import { hyparquetService } from "./services/hyparquetService";
-import { normalizeCoordinates } from "./utils/coordinates";
+
 import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
@@ -359,27 +359,11 @@ export class SingleMoleculeDataset {
 
     const dimensions: 2 | 3 = zData ? 3 : 2;
 
-    await onProgress?.(60, "Normalizing coordinates...");
-
-    // Normalize coordinates to [-1, 1]
-    const coords2D: number[][] = [];
-
-    for (let i = 0; i < xCoords.length; i++) {
-      coords2D.push([xCoords[i], yCoords[i], zCoords[i]]);
-    }
-
-    const normalized = normalizeCoordinates(coords2D);
-    let scalingFactor = 1;
-    let normalizedCoords = coords2D;
-
-    if (normalized) {
-      scalingFactor = normalized.scalingFactor;
-      normalizedCoords = normalized.normalized;
-    }
+    await onProgress?.(60, "Rounding coordinates...");
 
     await onProgress?.(70, "Building gene index...");
 
-    // Build gene index with pre-computed normalized coordinates
+    // Build gene index with raw coordinates rounded to 2 decimal places
     const geneIndex = new Map<string, number[]>();
     const uniqueGenesSet = new Set<string>();
 
@@ -395,13 +379,13 @@ export class SingleMoleculeDataset {
         geneIndex.set(gene, []);
       }
 
-      // Store normalized coordinates [x, y, z] for this molecule
+      // Store raw coordinates rounded to 2dp [x, y, z]
       const coords = geneIndex.get(gene)!;
 
       coords.push(
-        normalizedCoords[i][0],
-        normalizedCoords[i][1],
-        normalizedCoords[i][2],
+        Math.round(xCoords[i] * 100) / 100,
+        Math.round(yCoords[i] * 100) / 100,
+        Math.round(zCoords[i] * 100) / 100,
       );
 
       // Report progress every 5% and yield to browser
@@ -507,10 +491,6 @@ export class SingleMoleculeDataset {
     let errorCount = 0;
     const fileSize = file.size;
 
-    // Collect raw coordinates for normalization
-    const allCoords: number[][] = [];
-    const allGenes: string[] = [];
-
     await onProgress?.(15, "Streaming CSV file...");
 
     // Stream-parse the CSV file row by row using PapaParse step mode
@@ -530,8 +510,8 @@ export class SingleMoleculeDataset {
           if (!row || !row[columnMapping.gene]) return;
 
           const gene = String(row[columnMapping.gene]);
-          const x = Number(row[columnMapping.x]) || 0;
-          const y = Number(row[columnMapping.y]) || 0;
+          const x = Math.round((Number(row[columnMapping.x]) || 0) * 100) / 100;
+          const y = Math.round((Number(row[columnMapping.y]) || 0) * 100) / 100;
           let z = 0;
 
           if (
@@ -539,7 +519,7 @@ export class SingleMoleculeDataset {
             row[columnMapping.z] !== undefined &&
             row[columnMapping.z] !== null
           ) {
-            z = Number(row[columnMapping.z]) || 0;
+            z = Math.round((Number(row[columnMapping.z]) || 0) * 100) / 100;
             hasZ = true;
           }
 
@@ -547,15 +527,19 @@ export class SingleMoleculeDataset {
           if (shouldFilterGene(gene)) return;
 
           uniqueGenesSet.add(gene);
-          allGenes.push(gene);
-          allCoords.push([x, y, z]);
+
+          if (!geneIndex.has(gene)) {
+            geneIndex.set(gene, []);
+          }
+
+          geneIndex.get(gene)!.push(x, y, z);
           totalRows++;
 
           // Report progress based on rows processed
           if (totalRows - lastProgressReport >= 100000) {
             lastProgressReport = totalRows;
             const elapsed = performance.now() - startTime;
-            const progress = Math.min(55, 15 + 40 * (totalRows / (fileSize / 50)));
+            const progress = Math.min(85, 15 + 70 * (totalRows / (fileSize / 50)));
 
             onProgress?.(
               progress,
@@ -578,49 +562,6 @@ export class SingleMoleculeDataset {
 
     const dimensions: 2 | 3 = hasZ ? 3 : 2;
 
-    await onProgress?.(60, "Normalizing coordinates...");
-
-    const normalized = normalizeCoordinates(allCoords);
-    let scalingFactor = 1;
-    let normalizedCoords = allCoords;
-
-    if (normalized) {
-      scalingFactor = normalized.scalingFactor;
-      normalizedCoords = normalized.normalized;
-    }
-
-    await onProgress?.(70, "Building gene index...");
-
-    const totalMolecules = allGenes.length;
-    const progressInterval = Math.max(1, Math.floor(totalMolecules / 20));
-
-    for (let i = 0; i < totalMolecules; i++) {
-      const gene = allGenes[i];
-
-      if (!geneIndex.has(gene)) {
-        geneIndex.set(gene, []);
-      }
-
-      const coords = geneIndex.get(gene)!;
-
-      coords.push(
-        normalizedCoords[i][0],
-        normalizedCoords[i][1],
-        normalizedCoords[i][2],
-      );
-
-      if (i > 0 && i % progressInterval === 0) {
-        const elapsed = performance.now() - startTime;
-        const progress = 70 + Math.floor((i / totalMolecules) * 20);
-
-        await onProgress?.(
-          progress,
-          `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    }
-
     await onProgress?.(90, "Creating dataset...");
 
     const uniqueGenes = Array.from(uniqueGenesSet);
@@ -641,7 +582,7 @@ export class SingleMoleculeDataset {
       uniqueGenes,
       geneIndex,
       dimensions,
-      scalingFactor,
+      scalingFactor: 1,
       metadata: {
         originalFileName: file.name,
         moleculeCount: totalRows,
