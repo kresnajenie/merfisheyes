@@ -386,7 +386,9 @@ for r in range(n_rows):
     row_heights.append(max(heights[i] for i in indices) + padding)
 
 col_offsets = [sum(col_widths[:c]) for c in range(n_cols)]
-row_offsets = [sum(row_heights[:r]) for r in range(n_rows)]
+row_offsets = [0]
+for r in range(1, n_rows):
+    row_offsets.append(row_offsets[-1] + row_heights[r])
 
 grid_origins = []
 for i in range(n):
