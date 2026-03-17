@@ -267,7 +267,7 @@ log(f"Target folder: {target}", t_start)
 # ─────────────────────────────────────────────
 # STEP 1: DISCOVER DIRECTORIES
 # ─────────────────────────────────────────────
-log("=== STEP 1/7: Discovering sample directories (BFS) ===", t_start)
+log("=== STEP 1/8: Discovering sample directories (BFS) ===", t_start)
 candidate_dirs = discover_sample_dirs_bfs(target, t_start)
 
 if not candidate_dirs:
@@ -284,7 +284,7 @@ for d in candidate_dirs:
 #   bounding boxes only, record file paths,
 #   validate row counts, then FREE the DataFrame
 # ─────────────────────────────────────────────
-log(f"=== STEP 2/7: First pass — bounding boxes & validation ({len(candidate_dirs)} samples) ===", t_start)
+log(f"=== STEP 2/8: First pass — bounding boxes & validation ({len(candidate_dirs)} samples) ===", t_start)
 
 x_col = "center_x"
 y_col = "center_y"
@@ -365,7 +365,7 @@ log(f"All samples validated. Total rows: {total_rows:,}", t_start)
 # ─────────────────────────────────────────────
 # STEP 3: COMPUTE GRID LAYOUT (from bboxes)
 # ─────────────────────────────────────────────
-log("=== STEP 3/7: Computing grid layout ===", t_start)
+log("=== STEP 3/8: Computing grid layout ===", t_start)
 
 n = len(sample_info)
 bboxes = [s['bbox'] for s in sample_info]
@@ -403,7 +403,7 @@ log(f"Grid: {n_rows} rows x {n_cols} cols, padding={padding}", t_start)
 # STEP 4: WRITE cell_metadata.csv INCREMENTALLY
 #   Re-read each sample, shift coords, append to file
 # ─────────────────────────────────────────────
-log("=== STEP 4/7: Writing cell_metadata.csv (incremental) ===", t_start)
+log("=== STEP 4/8: Writing cell_metadata.csv (incremental) ===", t_start)
 
 out_dir = Path.cwd() / args.output_dir / "combined_output"
 out_dir.mkdir(parents=True, exist_ok=True)
@@ -448,7 +448,7 @@ log(f"Saved {out_meta_path} ({rows_written:,} rows)", t_start)
 # STEP 5: SPATIAL SANITY CHECK PLOT
 #   Re-read combined cell_metadata per sample for scatter
 # ─────────────────────────────────────────────
-log("=== STEP 5/7: Generating spatial layout plot ===", t_start)
+log("=== STEP 5/8: Generating spatial layout plot ===", t_start)
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -479,7 +479,7 @@ log(f"  Saved {out_dir / 'check_spatial.png'}", t_start)
 # STEP 6: WRITE cell_by_gene.csv INCREMENTALLY
 #   Read each sample's file and append directly
 # ─────────────────────────────────────────────
-log("=== STEP 6/7: Writing cell_by_gene.csv (incremental) ===", t_start)
+log("=== STEP 6/8: Writing cell_by_gene.csv (incremental) ===", t_start)
 
 out_cbg_path = out_dir / "cell_by_gene.csv"
 cbg_rows_written = 0
@@ -523,10 +523,67 @@ log(f"Saved {out_cbg_path} ({cbg_rows_written:,} rows)", t_start)
 
 
 # ─────────────────────────────────────────────
-# STEP 7: EXPRESSION SANITY CHECK PLOT
+# STEP 7: PER-GENE SPATIAL SANITY CHECK PLOTS
+#   Plot expression of known marker genes on spatial coords
+# ─────────────────────────────────────────────
+log("=== STEP 7/8: Generating per-gene expression plots ===", t_start)
+
+MARKER_GENES = ["Apoe", "Slc17a6", "Slc17a7", "Gfap", "Aqp4", "Gad1", "Gad2", "Drd1", "Drd2"]
+
+# Read available columns from combined cell_by_gene header
+cbg_all_cols = pd.read_csv(out_cbg_path, nrows=0).columns.tolist()
+genes_to_plot = [g for g in MARKER_GENES if g in cbg_all_cols]
+
+if not genes_to_plot:
+    log(f"  No marker genes found in cell_by_gene columns. Checked: {MARKER_GENES}", t_start)
+else:
+    log(f"  Found {len(genes_to_plot)} marker gene(s): {genes_to_plot}", t_start)
+
+    # Read spatial coordinates from combined cell_metadata
+    t_plot = time.perf_counter()
+    log(f"  Reading spatial coordinates from cell_metadata...", t_start)
+    meta_coords = pd.read_csv(out_meta_path, usecols=[x_col, y_col])
+    cx = meta_coords[x_col].values
+    cy = meta_coords[y_col].values
+    del meta_coords
+    gc.collect()
+
+    for gene in genes_to_plot:
+        t_gene = time.perf_counter()
+        log(f"  Plotting {gene}...", t_start)
+
+        # Read only this gene's column
+        expr = pd.read_csv(out_cbg_path, usecols=[gene])[gene].values
+        expr_norm = expr / expr.max() if expr.max() > 0 else expr
+        nmax = np.percentile(expr_norm, 80)
+        if nmax > 0:
+            expr_norm = np.clip(expr_norm, 0, nmax) / nmax
+
+        cmap = plt.cm.coolwarm(expr_norm)
+
+        plt.style.use("dark_background")
+        plt.figure(figsize=(20, 20))
+        plt.scatter(cx, cy, s=1, c=cmap)
+        plt.axis("equal")
+        plt.title(f"{gene} expression -- {rows_written:,} cells")
+        plt.tight_layout()
+        plt.savefig(out_dir / f"check_gene_{gene}.png", dpi=150)
+        plt.close()
+
+        del expr, expr_norm, cmap
+        gc.collect()
+        log(f"    Saved check_gene_{gene}.png ({fmt_elapsed(time.perf_counter() - t_gene)})", t_start)
+
+    del cx, cy
+    gc.collect()
+    log(f"  Per-gene plots done ({fmt_elapsed(time.perf_counter() - t_plot)})", t_start)
+
+
+# ─────────────────────────────────────────────
+# STEP 8: EXPRESSION SANITY CHECK PLOT
 #   Read combined cell_by_gene in chunks for histogram
 # ─────────────────────────────────────────────
-log("=== STEP 7/7: Generating expression distribution plot ===", t_start)
+log("=== STEP 8/8: Generating expression distribution plot ===", t_start)
 
 all_gene_sums = []
 header_cols = None
