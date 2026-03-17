@@ -1115,56 +1115,28 @@ def process_dataset(
     all_gene_sparse = [None] * num_genes
 
     if merscope_expr_file is not None:
-        # MERSCOPE: single-pass CSV read — read the file ONCE, extract all genes
-        # NOTE: Do NOT use index_col here — it can reorder rows within chunks.
-        # We only need positional row indices, and access gene columns by name.
-        log(f"  Reading entire CSV in one pass...", _t_start)
+        # MERSCOPE: read entire CSV into memory, then extract sparse data per gene
+        log(f"  Loading entire CSV into memory...", _t_start)
         t_read = time.perf_counter()
-        ROW_CHUNK_SIZE = 500_000
-        reader = pd.read_csv(merscope_expr_file, chunksize=ROW_CHUNK_SIZE)
+        expr_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col)
+        log(f"  CSV loaded: {len(expr_df):,} rows x {len(expr_df.columns)} columns ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
 
-        # Accumulate sparse data per gene across row-batches
-        # Each gene gets a list of (offset, indices, values) from each batch
-        gene_parts = [[] for _ in range(num_genes)]
-        row_offset = 0
+        # Extract sparse data for each gene (same approach as original per-gene code)
+        log(f"  Extracting sparse data for {num_genes} genes...", _t_start)
+        t_extract = time.perf_counter()
+        for gene_idx, gene_name in enumerate(gene_names):
+            gene_col = expr_df[gene_name].values
+            non_zero_mask = gene_col != 0
+            non_zero_indices = np.where(non_zero_mask)[0]
+            non_zero_values = gene_col[non_zero_mask].astype(np.float32)
+            all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
 
-        for batch_idx, batch_df in enumerate(reader):
-            batch_size = len(batch_df)
-            log(f"    Batch {batch_idx + 1}: rows {row_offset:,}-{row_offset + batch_size - 1:,} ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
+            if (gene_idx + 1) % 100 == 0 or gene_idx == num_genes - 1:
+                log(f"    {gene_idx + 1}/{num_genes} genes extracted ({fmt_elapsed(time.perf_counter() - t_extract)})", _t_start)
 
-            for gene_idx, gene_name in enumerate(gene_names):
-                gene_col = batch_df[gene_name].values
-                non_zero_mask = gene_col != 0
-                if non_zero_mask.any():
-                    local_indices = np.where(non_zero_mask)[0]
-                    gene_parts[gene_idx].append((
-                        local_indices + row_offset,
-                        gene_col[non_zero_mask].astype(np.float32)
-                    ))
-
-            row_offset += batch_size
-            del batch_df
-            gc.collect()
-
-        log(f"  CSV read complete ({row_offset:,} rows, {fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
-
-        # Concatenate parts for each gene
-        log(f"  Concatenating sparse data for {num_genes} genes...", _t_start)
-        t_concat = time.perf_counter()
-        for gene_idx in range(num_genes):
-            parts = gene_parts[gene_idx]
-            if not parts:
-                all_gene_sparse[gene_idx] = (np.array([], dtype=np.uint32), np.array([], dtype=np.float32))
-            elif len(parts) == 1:
-                all_gene_sparse[gene_idx] = (parts[0][0].astype(np.uint32), parts[0][1])
-            else:
-                all_gene_sparse[gene_idx] = (
-                    np.concatenate([p[0] for p in parts]).astype(np.uint32),
-                    np.concatenate([p[1] for p in parts])
-                )
-        del gene_parts
+        del expr_df
         gc.collect()
-        log(f"  Concatenation done ({fmt_elapsed(time.perf_counter() - t_concat)})", _t_start)
+        log(f"  Sparse extraction done ({fmt_elapsed(time.perf_counter() - t_extract)})", _t_start)
 
     else:
         # H5AD / Xenium: expression matrix already in memory
