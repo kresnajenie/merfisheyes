@@ -483,6 +483,7 @@ log("=== STEP 6/7: Writing cell_by_gene.csv (incremental) ===", t_start)
 
 out_cbg_path = out_dir / "cell_by_gene.csv"
 cbg_rows_written = 0
+canonical_columns = None  # Column order from first sample — all others must match
 
 for i, info in enumerate(sample_info):
     t_sample = time.perf_counter()
@@ -494,6 +495,13 @@ for i, info in enumerate(sample_info):
     sample_rows = 0
 
     for chunk in pd.read_csv(info['cbg_path'], chunksize=50_000):
+        if canonical_columns is None:
+            canonical_columns = list(chunk.columns)
+        else:
+            # Reorder columns to match first sample's order
+            # (different MERSCOPE slices may have genes in different column orders)
+            chunk = chunk[canonical_columns]
+
         if write_header and first_chunk:
             chunk.to_csv(out_cbg_path, mode='w', header=True, index=False)
             first_chunk = False
