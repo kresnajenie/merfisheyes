@@ -21,6 +21,7 @@ import shutil
 import struct
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional, Union
 
@@ -216,22 +217,17 @@ def write_coordinate_binary(coords: np.ndarray, output_path: Path):
     """
     num_points, dimensions = coords.shape
 
-    # Create binary data
-    data = bytearray()
-
     # Header
-    data.extend(struct.pack('<I', num_points))  # uint32 little-endian
-    data.extend(struct.pack('<I', dimensions))  # uint32 little-endian
+    header = struct.pack('<II', num_points, dimensions)
 
-    # Coordinates (flatten row-major)
-    for point in coords:
-        for coord in point:
-            data.extend(struct.pack('<f', coord))  # float32 little-endian
+    # Coordinates as contiguous float32 bytes (row-major)
+    coord_bytes = np.ascontiguousarray(coords, dtype=np.float32).tobytes()
 
     # Compress and write
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(output_path, 'wb') as f:
-        f.write(data)
+        f.write(header)
+        f.write(coord_bytes)
 
     print(f"  ✓ Wrote {output_path.name}: {num_points} points, {dimensions}D")
 
@@ -241,24 +237,16 @@ def write_sparse_gene_data(indices: np.ndarray, values: np.ndarray) -> bytes:
     Write sparse gene data to binary format
     Format: [num_cells: uint32, num_non_zero: uint32, [indices: uint32[]], [values: float32[]]]
     """
-    num_cells = len(indices)
     num_non_zero = len(indices)
 
-    data = bytearray()
+    # Header
+    header = struct.pack('<II', num_non_zero, num_non_zero)
 
-    # Sparse data header
-    data.extend(struct.pack('<I', num_cells))  # uint32
-    data.extend(struct.pack('<I', num_non_zero))  # uint32
+    # Indices and values as contiguous typed arrays
+    idx_bytes = np.asarray(indices, dtype=np.uint32).tobytes()
+    val_bytes = np.asarray(values, dtype=np.float32).tobytes()
 
-    # Indices (cell indices with non-zero values)
-    for idx in indices:
-        data.extend(struct.pack('<I', int(idx)))  # uint32
-
-    # Values (expression values)
-    for val in values:
-        data.extend(struct.pack('<f', float(val)))  # float32
-
-    return bytes(data)
+    return header + idx_bytes + val_bytes
 
 
 def write_expression_chunk(
@@ -279,46 +267,91 @@ def write_expression_chunk(
         gene_data = write_sparse_gene_data(indices, values)
         gene_data_sections.append(gene_data)
 
-    # Build the binary chunk
-    data = bytearray()
-
     # Header (16 bytes)
-    data.extend(struct.pack('<I', 1))  # version
-    data.extend(struct.pack('<I', num_genes))
-    data.extend(struct.pack('<I', chunk_id))
-    data.extend(struct.pack('<I', total_cells))
+    header = struct.pack('<IIII', 1, num_genes, chunk_id, total_cells)
 
     # Calculate gene table offset (after header)
     gene_table_start = 16
     gene_table_size = num_genes * 24  # 24 bytes per gene
     first_gene_data_offset = gene_table_start + gene_table_size
 
-    # Write gene table (24 bytes per gene)
+    # Build gene table (24 bytes per gene) as a single array
+    gene_table = bytearray()
     current_offset = first_gene_data_offset
     for i, (gene_idx, gene_data) in enumerate(zip(gene_indices, gene_data_sections)):
-        indices, values = gene_data_list[i]
-        num_non_zero = len(indices)
+        num_non_zero = len(gene_data_list[i][0])
         data_size = len(gene_data)
 
-        data.extend(struct.pack('<I', gene_idx))  # gene_index: uint32
-        data.extend(struct.pack('<I', current_offset))  # data_offset: uint32
-        data.extend(struct.pack('<I', data_size))  # data_size: uint32
-        data.extend(struct.pack('<I', data_size))  # uncompressed_size: uint32
-        data.extend(struct.pack('<I', num_non_zero))  # num_non_zero: uint32
-        data.extend(struct.pack('<I', 0))  # reserved: uint32
+        gene_table.extend(struct.pack('<IIIIII',
+            gene_idx, current_offset, data_size, data_size, num_non_zero, 0))
 
         current_offset += data_size
-
-    # Write gene data sections
-    for gene_data in gene_data_sections:
-        data.extend(gene_data)
 
     # Compress and write
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(output_path, 'wb') as f:
-        f.write(data)
+        f.write(header)
+        f.write(gene_table)
+        for gene_data in gene_data_sections:
+            f.write(gene_data)
 
-    print(f"  ✓ Wrote chunk_{chunk_id:05d}.bin.gz: {num_genes} genes, {len(data)} bytes (uncompressed)")
+
+def _write_chunk_worker(args):
+    """Worker function for parallel chunk writing. Must be top-level for pickling."""
+    chunk_id, gene_indices, gene_data_list, total_cells, output_path = args
+    write_expression_chunk(chunk_id, gene_indices, gene_data_list, total_cells, Path(output_path))
+    return chunk_id
+
+
+def _process_obs_column_worker(args):
+    """Worker function for parallel obs column processing. Must be top-level for pickling."""
+    col_name, col_values, obs_dir, palettes_dir = args
+    obs_dir = Path(obs_dir)
+    palettes_dir = Path(palettes_dir)
+
+    categorical = is_categorical(col_values, col_name)
+    series = pd.Series(col_values)
+    series_for_unique = (
+        series.astype("string") if series.dtype == "object" else series
+    )
+    unique_count = int(series_for_unique.nunique(dropna=False))
+
+    metadata_entry = {
+        'type': 'categorical' if categorical else 'numerical',
+        'unique_values': unique_count
+    }
+
+    # Write column values
+    if categorical:
+        cat_series = series.astype("string")
+        values_list = cat_series.fillna("").tolist()
+    else:
+        numeric_series = pd.to_numeric(series, errors="coerce")
+        values_list = [
+            None if pd.isna(v) else float(v) for v in numeric_series.tolist()
+        ]
+    obs_file = obs_dir / f'{col_name}.json.gz'
+    obs_file.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(obs_file, 'wt', encoding='utf-8') as f:
+        json.dump(values_list, f)
+
+    # Generate palette for categorical
+    palette_info = None
+    if categorical:
+        unique_values = [
+            str(v)
+            for v in cat_series.dropna().unique().tolist()
+        ]
+        palette = generate_color_palette(unique_values)
+
+        palette_file = palettes_dir / f'{col_name}.json'
+        palette_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(palette_file, 'w') as f:
+            json.dump(palette, f, indent=2)
+
+        palette_info = len(unique_values)
+
+    return col_name, metadata_entry, palette_info
 
 
 def detect_input_format(input_path: Path) -> str:
@@ -713,7 +746,8 @@ def process_dataset(
     input_path: Path,
     output_dir: Path,
     custom_chunk_size: Optional[int] = None,
-    data_format: Optional[str] = None
+    data_format: Optional[str] = None,
+    num_workers: int = 1
 ):
     """Main processing function that handles all formats"""
     global _t_start
@@ -1009,57 +1043,45 @@ def process_dataset(
         log(f"=== STEP 2: No embeddings to process ===", _t_start)
 
     # Step 3: Process observation columns (clusters)
-    log(f"=== STEP 3: Processing {len(obs_columns)} observation column(s) ===", _t_start)
+    log(f"=== STEP 3: Processing {len(obs_columns)} observation column(s) (workers={num_workers}) ===", _t_start)
     t_step = time.perf_counter()
     obs_dir = output_dir / 'obs'
     palettes_dir = output_dir / 'palettes'
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    palettes_dir.mkdir(parents=True, exist_ok=True)
     obs_metadata = {}
     cluster_count = 0
 
-    for col_idx, (col_name, col_values) in enumerate(obs_columns.items(), 1):
-        categorical = is_categorical(col_values, col_name)
-        series = pd.Series(col_values)
-        series_for_unique = (
-            series.astype("string") if series.dtype == "object" else series
-        )
-        unique_count = int(series_for_unique.nunique(dropna=False))
+    if num_workers > 1 and len(obs_columns) > 1:
+        # Parallel obs column processing
+        worker_args = [
+            (col_name, col_values, str(obs_dir), str(palettes_dir))
+            for col_name, col_values in obs_columns.items()
+        ]
+        effective_workers = min(num_workers, len(obs_columns))
+        log(f"  Launching {effective_workers} workers for {len(obs_columns)} obs columns...", _t_start)
 
-        obs_metadata[col_name] = {
-            'type': 'categorical' if categorical else 'numerical',
-            'unique_values': unique_count
-        }
-
-        # Write column values
-        if categorical:
-            cat_series = series.astype("string")
-            values_list = cat_series.fillna("").tolist()
-        else:
-            numeric_series = pd.to_numeric(series, errors="coerce")
-            values_list = [
-                None if pd.isna(v) else float(v) for v in numeric_series.tolist()
-            ]
-        obs_file = obs_dir / f'{col_name}.json.gz'
-        obs_file.parent.mkdir(parents=True, exist_ok=True)
-        with gzip.open(obs_file, 'wt', encoding='utf-8') as f:
-            json.dump(values_list, f)
-
-        log(f"  [{col_idx}/{len(obs_columns)}] {col_name}: {obs_metadata[col_name]['type']} ({unique_count} unique)", _t_start)
-
-        # Generate palette for categorical
-        if categorical:
-            cluster_count += 1
-            unique_values = [
-                str(v)
-                for v in cat_series.dropna().unique().tolist()
-            ]
-            palette = generate_color_palette(unique_values)
-
-            palette_file = palettes_dir / f'{col_name}.json'
-            palette_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(palette_file, 'w') as f:
-                json.dump(palette, f, indent=2)
-
-            log(f"       Palette: {len(unique_values)} colors", _t_start)
+        with ProcessPoolExecutor(max_workers=effective_workers) as pool:
+            futures = {pool.submit(_process_obs_column_worker, a): a[0] for a in worker_args}
+            done_count = 0
+            for future in as_completed(futures):
+                col_name, metadata_entry, palette_info = future.result()
+                obs_metadata[col_name] = metadata_entry
+                if palette_info is not None:
+                    cluster_count += 1
+                done_count += 1
+                palette_msg = f" (palette: {palette_info} colors)" if palette_info else ""
+                log(f"  [{done_count}/{len(obs_columns)}] {col_name}: {metadata_entry['type']} ({metadata_entry['unique_values']} unique){palette_msg}", _t_start)
+    else:
+        # Serial fallback
+        for col_idx, (col_name, col_values) in enumerate(obs_columns.items(), 1):
+            col_name, metadata_entry, palette_info = _process_obs_column_worker(
+                (col_name, col_values, str(obs_dir), str(palettes_dir)))
+            obs_metadata[col_name] = metadata_entry
+            if palette_info is not None:
+                cluster_count += 1
+            palette_msg = f" (palette: {palette_info} colors)" if palette_info else ""
+            log(f"  [{col_idx}/{len(obs_columns)}] {col_name}: {metadata_entry['type']} ({metadata_entry['unique_values']} unique){palette_msg}", _t_start)
 
     # Write obs metadata
     with open(obs_dir / 'metadata.json', 'w') as f:
@@ -1070,9 +1092,9 @@ def process_dataset(
     chunk_size = determine_chunk_size(num_genes, custom_chunk_size)
     num_chunks = (num_genes + chunk_size - 1) // chunk_size
 
-    log(f"=== STEP 4: Processing expression matrix ({num_genes:,} genes, {num_chunks} chunks, {chunk_size} genes/chunk) ===", _t_start)
+    log(f"=== STEP 4: Processing expression matrix ({num_genes:,} genes, {num_chunks} chunks, {chunk_size} genes/chunk, workers={num_workers}) ===", _t_start)
     if merscope_expr_file is not None:
-        log(f"  Mode: per-chunk CSV loading (memory-optimized for MERSCOPE)", _t_start)
+        log(f"  Mode: single-pass CSV loading for MERSCOPE", _t_start)
     elif expr_matrix is not None:
         log(f"  Mode: in-memory matrix ({'sparse' if sparse.issparse(expr_matrix) else 'dense'})", _t_start)
     t_step = time.perf_counter()
@@ -1086,75 +1108,130 @@ def process_dataset(
     }
 
     expr_dir = output_dir / 'expr'
+    expr_dir.mkdir(parents=True, exist_ok=True)
 
-    # Process chunks
+    # --- Extract sparse data for ALL genes ---
+    # all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
+    all_gene_sparse = [None] * num_genes
+
+    if merscope_expr_file is not None:
+        # MERSCOPE: single-pass CSV read — read the file ONCE, extract all genes
+        log(f"  Reading entire CSV in one pass...", _t_start)
+        t_read = time.perf_counter()
+        ROW_CHUNK_SIZE = 500_000
+        reader = pd.read_csv(merscope_expr_file, index_col=merscope_index_col, chunksize=ROW_CHUNK_SIZE)
+
+        # Accumulate sparse data per gene across row-batches
+        # Each gene gets a list of (offset, indices, values) from each batch
+        gene_parts = [[] for _ in range(num_genes)]
+        row_offset = 0
+
+        for batch_idx, batch_df in enumerate(reader):
+            batch_size = len(batch_df)
+            log(f"    Batch {batch_idx + 1}: rows {row_offset:,}-{row_offset + batch_size - 1:,} ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
+
+            for gene_idx, gene_name in enumerate(gene_names):
+                gene_col = batch_df[gene_name].values
+                non_zero_mask = gene_col != 0
+                if non_zero_mask.any():
+                    local_indices = np.where(non_zero_mask)[0]
+                    gene_parts[gene_idx].append((
+                        local_indices + row_offset,
+                        gene_col[non_zero_mask].astype(np.float32)
+                    ))
+
+            row_offset += batch_size
+            del batch_df
+            gc.collect()
+
+        log(f"  CSV read complete ({row_offset:,} rows, {fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
+
+        # Concatenate parts for each gene
+        log(f"  Concatenating sparse data for {num_genes} genes...", _t_start)
+        t_concat = time.perf_counter()
+        for gene_idx in range(num_genes):
+            parts = gene_parts[gene_idx]
+            if not parts:
+                all_gene_sparse[gene_idx] = (np.array([], dtype=np.uint32), np.array([], dtype=np.float32))
+            elif len(parts) == 1:
+                all_gene_sparse[gene_idx] = (parts[0][0].astype(np.uint32), parts[0][1])
+            else:
+                all_gene_sparse[gene_idx] = (
+                    np.concatenate([p[0] for p in parts]).astype(np.uint32),
+                    np.concatenate([p[1] for p in parts])
+                )
+        del gene_parts
+        gc.collect()
+        log(f"  Concatenation done ({fmt_elapsed(time.perf_counter() - t_concat)})", _t_start)
+
+    else:
+        # H5AD / Xenium: expression matrix already in memory
+        for gene_idx in range(num_genes):
+            if sparse.issparse(expr_matrix):
+                gene_col = expr_matrix[:, gene_idx].toarray().flatten()
+            else:
+                gene_col = expr_matrix[:, gene_idx]
+
+            non_zero_mask = gene_col != 0
+            non_zero_indices = np.where(non_zero_mask)[0]
+            non_zero_values = gene_col[non_zero_mask].astype(np.float32)
+            all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
+
+    # --- Build expression index (must be ordered) ---
     for chunk_id in range(num_chunks):
-        t_chunk = time.perf_counter()
         start_gene = chunk_id * chunk_size
         end_gene = min(start_gene + chunk_size, num_genes)
-        chunk_gene_names = gene_names[start_gene:end_gene]
+        for local_idx, gene_idx in enumerate(range(start_gene, end_gene)):
+            expr_index['genes'].append({
+                'name': gene_names[gene_idx],
+                'chunk_id': chunk_id,
+                'position_in_chunk': local_idx
+            })
 
-        gene_indices = []
-        gene_data_list = []
+    # --- Write chunks (parallel or serial) ---
+    log(f"  Writing {num_chunks} chunk files...", _t_start)
+    t_write = time.perf_counter()
 
-        if merscope_expr_file is not None:
-            # MERSCOPE memory-optimized: read only this chunk's gene columns from CSV
-            # index_col=0 skips the cell ID column; usecols reads only needed genes
-            t_read = time.perf_counter()
-            chunk_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col, usecols=[merscope_index_col] + chunk_gene_names)
-            log(f"    Read {len(chunk_gene_names)} gene columns ({len(chunk_df):,} rows, {fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
+    if num_workers > 1 and num_chunks > 1:
+        # Parallel chunk writing
+        effective_workers = min(num_workers, num_chunks)
+        log(f"  Launching {effective_workers} workers for {num_chunks} chunks...", _t_start)
 
-            for local_idx, gene_name in enumerate(chunk_gene_names):
-                gene_idx = start_gene + local_idx
-                gene_col = chunk_df[gene_name].values
+        worker_args = []
+        for chunk_id in range(num_chunks):
+            start_gene = chunk_id * chunk_size
+            end_gene = min(start_gene + chunk_size, num_genes)
+            gene_indices = list(range(start_gene, end_gene))
+            gene_data_list = [all_gene_sparse[gi] for gi in gene_indices]
+            chunk_file = str(expr_dir / f'chunk_{chunk_id:05d}.bin.gz')
+            worker_args.append((chunk_id, gene_indices, gene_data_list, num_cells, chunk_file))
 
-                non_zero_mask = gene_col != 0
-                non_zero_indices = np.where(non_zero_mask)[0]
-                non_zero_values = gene_col[non_zero_mask].astype(np.float32)
+        with ProcessPoolExecutor(max_workers=effective_workers) as pool:
+            futures = {pool.submit(_write_chunk_worker, a): a[0] for a in worker_args}
+            done_count = 0
+            for future in as_completed(futures):
+                cid = future.result()
+                done_count += 1
+                if done_count % max(1, num_chunks // 10) == 0 or done_count == num_chunks:
+                    log(f"    {done_count}/{num_chunks} chunks written ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
+    else:
+        # Serial chunk writing
+        for chunk_id in range(num_chunks):
+            t_chunk = time.perf_counter()
+            start_gene = chunk_id * chunk_size
+            end_gene = min(start_gene + chunk_size, num_genes)
+            gene_indices = list(range(start_gene, end_gene))
+            gene_data_list = [all_gene_sparse[gi] for gi in gene_indices]
+            chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
+            write_expression_chunk(chunk_id, gene_indices, gene_data_list, num_cells, chunk_file)
 
-                gene_indices.append(gene_idx)
-                gene_data_list.append((non_zero_indices, non_zero_values))
+            pct = (chunk_id + 1) / num_chunks * 100
+            log(f"  [{chunk_id + 1}/{num_chunks}] chunk_{chunk_id:05d} ({end_gene - start_gene} genes, {pct:.0f}%, {fmt_elapsed(time.perf_counter() - t_chunk)})", _t_start)
 
-                expr_index['genes'].append({
-                    'name': gene_name,
-                    'chunk_id': chunk_id,
-                    'position_in_chunk': local_idx
-                })
+    log(f"  Chunk writing done ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
 
-            del chunk_df
-            gc.collect()
-        else:
-            # H5AD / Xenium: expression matrix already in memory
-            for gene_idx in range(start_gene, end_gene):
-                gene_name = gene_names[gene_idx]
-
-                # Extract gene expression column
-                if sparse.issparse(expr_matrix):
-                    gene_col = expr_matrix[:, gene_idx].toarray().flatten()
-                else:
-                    gene_col = expr_matrix[:, gene_idx]
-
-                # Get non-zero indices and values
-                non_zero_mask = gene_col != 0
-                non_zero_indices = np.where(non_zero_mask)[0]
-                non_zero_values = gene_col[non_zero_mask]
-
-                gene_indices.append(gene_idx)
-                gene_data_list.append((non_zero_indices, non_zero_values))
-
-                # Add to expression index
-                expr_index['genes'].append({
-                    'name': gene_name,
-                    'chunk_id': chunk_id,
-                    'position_in_chunk': gene_idx - start_gene
-                })
-
-        # Write chunk
-        chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
-        write_expression_chunk(chunk_id, gene_indices, gene_data_list, num_cells, chunk_file)
-
-        pct = (chunk_id + 1) / num_chunks * 100
-        log(f"  [{chunk_id + 1}/{num_chunks}] chunk_{chunk_id:05d} ({end_gene - start_gene} genes, {pct:.0f}%, {fmt_elapsed(time.perf_counter() - t_chunk)})", _t_start)
+    del all_gene_sparse
+    gc.collect()
 
     # Write expression index
     with open(expr_dir / 'index.json', 'w') as f:
@@ -1232,6 +1309,8 @@ Examples:
                         help='Genes per chunk (default: auto-determined)')
     parser.add_argument('--format', type=str, choices=['h5ad', 'xenium', 'merscope'],
                         help='Force input format (auto-detected if not specified)')
+    parser.add_argument('--workers', type=int, default=1,
+                        help='Number of parallel workers for chunk writing and obs processing (default: 1)')
 
     args = parser.parse_args()
 
@@ -1242,7 +1321,7 @@ Examples:
 
     # Process
     try:
-        process_dataset(args.input, args.output, args.chunk_size, args.format)
+        process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback
