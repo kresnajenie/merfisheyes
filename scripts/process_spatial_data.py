@@ -312,7 +312,7 @@ def _process_obs_column_worker(args):
     categorical = is_categorical(col_values, col_name)
     series = pd.Series(col_values)
     series_for_unique = (
-        series.astype("string") if series.dtype == "object" else series
+        series.astype(str) if series.dtype == "object" else series
     )
     unique_count = int(series_for_unique.nunique(dropna=False))
 
@@ -323,7 +323,7 @@ def _process_obs_column_worker(args):
 
     # Write column values
     if categorical:
-        cat_series = series.astype("string")
+        cat_series = series.astype(str)
         values_list = cat_series.fillna("").tolist()
     else:
         numeric_series = pd.to_numeric(series, errors="coerce")
@@ -340,7 +340,7 @@ def _process_obs_column_worker(args):
     if categorical:
         unique_values = [
             str(v)
-            for v in cat_series.dropna().unique().tolist()
+            for v in list(cat_series.dropna().unique())
         ]
         palette = generate_color_palette(unique_values)
 
