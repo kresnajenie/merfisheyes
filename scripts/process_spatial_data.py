@@ -1116,10 +1116,12 @@ def process_dataset(
 
     if merscope_expr_file is not None:
         # MERSCOPE: single-pass CSV read — read the file ONCE, extract all genes
+        # NOTE: Do NOT use index_col here — it can reorder rows within chunks.
+        # We only need positional row indices, and access gene columns by name.
         log(f"  Reading entire CSV in one pass...", _t_start)
         t_read = time.perf_counter()
         ROW_CHUNK_SIZE = 500_000
-        reader = pd.read_csv(merscope_expr_file, index_col=merscope_index_col, chunksize=ROW_CHUNK_SIZE)
+        reader = pd.read_csv(merscope_expr_file, chunksize=ROW_CHUNK_SIZE)
 
         # Accumulate sparse data per gene across row-batches
         # Each gene gets a list of (offset, indices, values) from each batch
