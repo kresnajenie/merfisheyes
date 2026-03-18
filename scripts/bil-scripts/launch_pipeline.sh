@@ -2,20 +2,20 @@
 # ═══════════════════════════════════════════════════════════════
 # launch_pipeline.sh
 #
-# Reads samples.tsv and for each sample submits:
+# Reads samples.csv (sample_name,input_path) and for each sample submits:
 #   1. combine_slices  (no dependency)
 #   2. process_spatial  (after combine_slices finishes)
 #   3. s3_sync_sample   (after process_spatial finishes)
 #
 # Usage:
-#   ./launch_pipeline.sh                  # uses samples.tsv in same dir
-#   ./launch_pipeline.sh my_samples.tsv   # custom sample list
+#   ./launch_pipeline.sh                  # uses samples.csv in same dir
+#   ./launch_pipeline.sh my_samples.csv   # custom sample list
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.tsv}"
+SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
 MEYES_BASE="/bil/data/meyes"
 
 if [ ! -f "$SAMPLE_FILE" ]; then
@@ -32,10 +32,14 @@ echo ""
 
 count=0
 
-while IFS=$'\t' read -r input_path sample_name; do
-    # Skip comments and empty lines
-    [[ "$input_path" =~ ^#.*$ ]] && continue
-    [[ -z "$input_path" ]] && continue
+while IFS=',' read -r sample_name input_path; do
+    # Trim leading/trailing whitespace
+    sample_name="$(echo "$sample_name" | xargs)"
+    input_path="$(echo "$input_path" | xargs)"
+
+    # Skip comments, empty lines, and header
+    [[ "$sample_name" =~ ^#.*$ ]] && continue
+    [[ -z "$sample_name" ]] && continue
 
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
