@@ -327,9 +327,11 @@ for i, d in enumerate(candidate_dirs, 1):
             metadata_id_col = candidate
             break
     if metadata_id_col is None:
-        log(f"ERROR: No ID column ('EntityID' or 'id') in {meta_path.name}. "
-            f"Columns: {list(df.columns)}", t_start)
-        sys.exit(1)
+        first_col = df.columns[0]
+        log(f"WARNING: No named ID column in {meta_path.name}. "
+            f"Falling back to first column: '{first_col}'. Renaming to 'id'.", t_start)
+        df.rename(columns={first_col: 'id'}, inplace=True)
+        metadata_id_col = 'id'
 
     # Validate metadata IDs are numeric
     if df[metadata_id_col].dtype == 'object':
@@ -351,14 +353,18 @@ for i, d in enumerate(candidate_dirs, 1):
     # --- read cell_by_gene cell IDs ---
     t_read = time.perf_counter()
     cbg_all_cols = pd.read_csv(cbg_path, nrows=0).columns.tolist()
-    if 'cell' not in cbg_all_cols:
-        log(f"ERROR: Column 'cell' not found in {cbg_path.name}. "
-            f"Available columns: {cbg_all_cols}", t_start)
-        sys.exit(1)
-
-    id_chunks = []
-    for chunk in pd.read_csv(cbg_path, usecols=['cell'], chunksize=100_000):
-        id_chunks.append(chunk['cell'])
+    if 'cell' in cbg_all_cols:
+        cbg_id_col = 'cell'
+    else:
+        cbg_id_col = cbg_all_cols[0]
+        log(f"WARNING: No named ID column in {cbg_path.name}. "
+            f"Falling back to first column: '{cbg_id_col}'. Renaming to 'cell'.", t_start)
+        
+        id_chunks = []
+        for chunk in pd.read_csv(cbg_path, usecols=[cbg_id_col], chunksize=100_000):
+            if cbg_id_col != 'cell':
+                chunk = chunk.rename(columns={cbg_id_col: 'cell'})
+            id_chunks.append(chunk['cell'])
     expr_ids = pd.concat(id_chunks, ignore_index=True)
     del id_chunks
 
@@ -427,6 +433,7 @@ for i, d in enumerate(candidate_dirs, 1):
         'meta_columns': meta_columns,
         'metadata_id_col': metadata_id_col,
         'valid_cell_ids': valid_cell_ids,
+        'cbg_id_col': cbg_id_col
     })
 
 total_rows = sum(s['num_rows'] for s in sample_info)
@@ -577,6 +584,8 @@ for i, info in enumerate(sample_info):
     valid_id_set = set(info['valid_cell_ids'])
     for chunk in pd.read_csv(info['cbg_path'], chunksize=50_000):
         # Filter to aligned cell IDs
+        if cbg_id_col != 'cell':
+            chunk = chunk.rename(columns={cbg_id_col: 'cell'})
         if chunk['cell'].dtype == 'object':
             chunk['cell'] = pd.to_numeric(chunk['cell']).astype(np.int64)
         elif pd.api.types.is_float_dtype(chunk['cell']):
