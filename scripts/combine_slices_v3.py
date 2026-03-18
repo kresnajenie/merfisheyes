@@ -322,28 +322,19 @@ for i, d in enumerate(candidate_dirs, 1):
 
     # Find metadata ID column (EntityID or id)
     metadata_id_col = None
-    for candidate in ['EntityID', 'id']:
+    for candidate in ['EntityID', 'id', 'cell_id']:
         if candidate in df.columns:
             metadata_id_col = candidate
             break
     if metadata_id_col is None:
         first_col = df.columns[0]
         log(f"WARNING: No named ID column in {meta_path.name}. "
-            f"Falling back to first column: '{first_col}'. Renaming to 'id'.", t_start)
-        df.rename(columns={first_col: 'id'}, inplace=True)
-        metadata_id_col = 'id'
+            f"Falling back to first column: '{first_col}'. Renaming to 'cell_id'.", t_start)
+        df.rename(columns={first_col: 'cell_id'}, inplace=True)
+        metadata_id_col = 'cell_id'
 
     # Validate metadata IDs are numeric
-    if df[metadata_id_col].dtype == 'object':
-        converted = pd.to_numeric(df[metadata_id_col], errors='coerce')
-        if converted.isna().any():
-            non_numeric = df[metadata_id_col][converted.isna()].head(5).tolist()
-            log(f"ERROR: Non-numeric IDs in {meta_path.name} column '{metadata_id_col}': "
-                f"{non_numeric}", t_start)
-            sys.exit(1)
-        df[metadata_id_col] = converted.astype(np.int64)
-    elif pd.api.types.is_float_dtype(df[metadata_id_col]):
-        df[metadata_id_col] = df[metadata_id_col].astype(np.int64)
+    df[metadata_id_col] = df[metadata_id_col].astype(str)
 
     meta_id_set = set(df[metadata_id_col].values)
     meta_columns = list(df.columns)
@@ -360,24 +351,15 @@ for i, d in enumerate(candidate_dirs, 1):
         log(f"WARNING: No named ID column in {cbg_path.name}. "
             f"Falling back to first column: '{cbg_id_col}'. Renaming to 'cell'.", t_start)
         
-        id_chunks = []
-        for chunk in pd.read_csv(cbg_path, usecols=[cbg_id_col], chunksize=100_000):
-            if cbg_id_col != 'cell':
-                chunk = chunk.rename(columns={cbg_id_col: 'cell'})
-            id_chunks.append(chunk['cell'])
+    id_chunks = []
+    for chunk in pd.read_csv(cbg_path, usecols=[cbg_id_col], chunksize=100_000):
+        if cbg_id_col != 'cell':
+            chunk = chunk.rename(columns={cbg_id_col: 'cell'})
+        id_chunks.append(chunk['cell'])
     expr_ids = pd.concat(id_chunks, ignore_index=True)
     del id_chunks
 
-    if expr_ids.dtype == 'object':
-        converted = pd.to_numeric(expr_ids, errors='coerce')
-        if converted.isna().any():
-            non_numeric = expr_ids[converted.isna()].head(5).tolist()
-            log(f"ERROR: Non-numeric IDs in {cbg_path.name} column 'cell': "
-                f"{non_numeric}", t_start)
-            sys.exit(1)
-        expr_ids = converted.astype(np.int64)
-    elif pd.api.types.is_float_dtype(expr_ids):
-        expr_ids = expr_ids.astype(np.int64)
+    expr_ids = expr_ids.astype(str)
 
     cbg_rows_raw = len(expr_ids)
     expr_id_set = set(expr_ids.values)
@@ -497,10 +479,7 @@ for i, info in enumerate(sample_info):
 
     # Align rows to cell_by_gene order (inner join by cell ID)
     id_col = info['metadata_id_col']
-    if df[id_col].dtype == 'object':
-        df[id_col] = pd.to_numeric(df[id_col]).astype(np.int64)
-    elif pd.api.types.is_float_dtype(df[id_col]):
-        df[id_col] = df[id_col].astype(np.int64)
+    df[id_col] = df[id_col].astype(str)
     df = df.set_index(id_col).loc[info['valid_cell_ids']].reset_index()
 
     df["_source_file"] = str(info['meta_path'])
@@ -584,12 +563,9 @@ for i, info in enumerate(sample_info):
     valid_id_set = set(info['valid_cell_ids'])
     for chunk in pd.read_csv(info['cbg_path'], chunksize=50_000):
         # Filter to aligned cell IDs
-        if cbg_id_col != 'cell':
-            chunk = chunk.rename(columns={cbg_id_col: 'cell'})
-        if chunk['cell'].dtype == 'object':
-            chunk['cell'] = pd.to_numeric(chunk['cell']).astype(np.int64)
-        elif pd.api.types.is_float_dtype(chunk['cell']):
-            chunk['cell'] = chunk['cell'].astype(np.int64)
+        if info['cbg_id_col'] != 'cell':
+            chunk = chunk.rename(columns={info['cbg_id_col']: 'cell'})
+        chunk['cell'] = chunk['cell'].astype(str)
         chunk = chunk[chunk['cell'].isin(valid_id_set)]
 
         if len(chunk) == 0:
