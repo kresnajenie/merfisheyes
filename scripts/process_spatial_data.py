@@ -699,6 +699,40 @@ def load_merscope_data(input_path: Path):
     metadata_df = pd.read_csv(metadata_file)
     log(f"  Loaded {len(metadata_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
+    # --- Find metadata ID column (EntityID or id) ---
+    metadata_id_col = None
+    for candidate in ['EntityID', 'id']:
+        if candidate in metadata_df.columns:
+            metadata_id_col = candidate
+            break
+    if metadata_id_col is None:
+        raise ValueError(
+            f"No ID column found in {metadata_file.name}. "
+            f"Expected 'EntityID' or 'id'. Available columns: {list(metadata_df.columns)}"
+        )
+    log(f"  Metadata ID column: '{metadata_id_col}'", _t_start)
+
+    # Validate metadata IDs are numeric
+    metadata_ids_raw = metadata_df[metadata_id_col]
+    if metadata_ids_raw.dtype == 'object':
+        converted = pd.to_numeric(metadata_ids_raw, errors='coerce')
+        if converted.isna().any():
+            non_numeric = metadata_ids_raw[converted.isna()].head(5).tolist()
+            raise ValueError(
+                f"Non-numeric IDs found in {metadata_file.name} column '{metadata_id_col}': "
+                f"{non_numeric}. IDs must be numeric."
+            )
+        metadata_df[metadata_id_col] = converted.astype(np.int64)
+        log(f"  Converted metadata IDs from string to int64", _t_start)
+    elif pd.api.types.is_float_dtype(metadata_ids_raw):
+        metadata_df[metadata_id_col] = metadata_ids_raw.astype(np.int64)
+
+    if metadata_df[metadata_id_col].duplicated().any():
+        dup_count = int(metadata_df[metadata_id_col].duplicated().sum())
+        raise ValueError(
+            f"Duplicate IDs in {metadata_file.name} column '{metadata_id_col}': {dup_count} duplicates"
+        )
+
     # Load cell_by_gene.csv (expression matrix)
 ###############################################################################################################
     # CHANGED FROM ORIGINAL (fuzzy name logic)
@@ -708,38 +742,97 @@ def load_merscope_data(input_path: Path):
     None
     )
 ###############################################################################################################
-    # CHANGED FROM ORIGINAL (combine data check)
-    expr_matrix = None
+    # Align rows between metadata and cell_by_gene by cell ID (inner join)
     gene_names = None
+    valid_cell_ids = None
 
     if expr_file is not None:
         log(f"  Reading header of {expr_file.name}...", _t_start)
         t_load = time.perf_counter()
-        # Only read header + count rows — do NOT load entire matrix into memory
         all_cols = pd.read_csv(expr_file, nrows=0).columns.tolist()
-        index_col_name = all_cols[0]  # first column is the cell ID / index
-        gene_names = all_cols[1:]     # remaining columns are genes
 
-        # Count rows to validate (read only the index column)
-        expr_row_count = 0
-        for chunk in pd.read_csv(expr_file, usecols=[index_col_name], chunksize=100_000):
-            expr_row_count += len(chunk)
-
-        log(f"  Header read: {len(gene_names)} genes, {expr_row_count:,} rows (in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
-
-        if expr_row_count != len(metadata_df):
+        # Validate 'cell' column exists
+        if 'cell' not in all_cols:
             raise ValueError(
-                f"Row count mismatch: {metadata_file.name} has {len(metadata_df):,} rows, "
-                f"{expr_file.name} has {expr_row_count:,} rows. "
-                f"Both files must have the same number of rows in the same order."
+                f"Column 'cell' not found in {expr_file.name}. "
+                f"Available columns: {all_cols}"
             )
-        log(f"  Expression matrix: {len(gene_names)} genes ({expr_row_count:,} rows, will load per-chunk)", _t_start)
+
+        gene_names = [c for c in all_cols if c != 'cell']
+
+        # Read cell IDs from expression file
+        log(f"  Reading cell IDs from {expr_file.name}...", _t_start)
+        id_chunks = []
+        for chunk in pd.read_csv(expr_file, usecols=['cell'], chunksize=100_000):
+            id_chunks.append(chunk['cell'])
+        expr_ids = pd.concat(id_chunks, ignore_index=True)
+        del id_chunks
+
+        # Validate expression IDs are numeric
+        if expr_ids.dtype == 'object':
+            converted = pd.to_numeric(expr_ids, errors='coerce')
+            if converted.isna().any():
+                non_numeric = expr_ids[converted.isna()].head(5).tolist()
+                raise ValueError(
+                    f"Non-numeric IDs found in {expr_file.name} column 'cell': "
+                    f"{non_numeric}. IDs must be numeric."
+                )
+            expr_ids = converted.astype(np.int64)
+            log(f"  Converted expression cell IDs from string to int64", _t_start)
+        elif pd.api.types.is_float_dtype(expr_ids):
+            expr_ids = expr_ids.astype(np.int64)
+
+        if expr_ids.duplicated().any():
+            dup_count = int(expr_ids.duplicated().sum())
+            raise ValueError(
+                f"Duplicate IDs in {expr_file.name} column 'cell': {dup_count} duplicates"
+            )
+
+        log(f"  Header read: {len(gene_names)} genes, {len(expr_ids):,} rows "
+            f"(in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
+
+        # --- Inner join on cell IDs ---
+        expr_id_set = set(expr_ids.values)
+        meta_id_set = set(metadata_df[metadata_id_col].values)
+        common_ids = expr_id_set & meta_id_set
+
+        if len(common_ids) == 0:
+            raise ValueError(
+                f"No matching cell IDs between {metadata_file.name} (col '{metadata_id_col}') "
+                f"and {expr_file.name} (col 'cell'). "
+                f"Metadata IDs (first 5): {sorted(meta_id_set)[:5]}, "
+                f"Expression IDs (first 5): {sorted(expr_id_set)[:5]}"
+            )
+
+        expr_only = expr_id_set - common_ids
+        meta_only = meta_id_set - common_ids
+
+        log(f"  Cell ID alignment: {len(common_ids):,} in common, "
+            f"{len(expr_only):,} expr-only, {len(meta_only):,} meta-only", _t_start)
+
+        if expr_only:
+            log(f"  ⚠ Discarding {len(expr_only):,} cells from {expr_file.name} (not in metadata)", _t_start)
+            sample = sorted(expr_only)[:20]
+            log(f"    IDs (up to 20): {sample}{'...' if len(expr_only) > 20 else ''}", _t_start)
+        if meta_only:
+            log(f"  ⚠ Discarding {len(meta_only):,} cells from {metadata_file.name} (not in expression)", _t_start)
+            sample = sorted(meta_only)[:20]
+            log(f"    IDs (up to 20): {sample}{'...' if len(meta_only) > 20 else ''}", _t_start)
+
+        # Keep cell_by_gene order, filter to common IDs
+        mask = expr_ids.isin(common_ids)
+        valid_cell_ids = expr_ids[mask].values  # int64 array in cell_by_gene order
+
+        # Reorder metadata to match cell_by_gene order
+        metadata_df = metadata_df.set_index(metadata_id_col).loc[valid_cell_ids].reset_index()
+        log(f"  Aligned {len(valid_cell_ids):,} cells (metadata reordered to match expression order)", _t_start)
+        log(f"  Expression matrix: {len(gene_names)} genes (will load per-chunk)", _t_start)
     else:
         log("  cell_by_gene.csv not found, creating placeholder", _t_start)
         gene_names = ['Gene1']
         expr_file = None
 
-    return metadata_df, expr_file, gene_names, index_col_name if expr_file is not None else None
+    return metadata_df, expr_file, gene_names, valid_cell_ids
 ###############################################################################################
 
 def process_dataset(
@@ -960,7 +1053,7 @@ def process_dataset(
             shutil.rmtree(analysis_extract_dir, ignore_errors=True)
 
     elif data_format == 'merscope':
-        metadata_df, merscope_expr_file, gene_names, merscope_index_col = load_merscope_data(input_path)
+        metadata_df, merscope_expr_file, gene_names, merscope_valid_ids = load_merscope_data(input_path)
         dataset_name = input_path.name
         dataset_type = 'merscope'
         embeddings = {}  # No embeddings for MERSCOPE
@@ -998,7 +1091,7 @@ def process_dataset(
 
         # Extract observation columns
         obs_columns = {}
-        exclude_cols = [x_col, y_col, z_col, 'cell_id', 'EntityID']
+        exclude_cols = [x_col, y_col, z_col, 'cell_id', 'EntityID', 'id']
         for col in metadata_df.columns:
             if col not in exclude_cols:
                 obs_columns[col] = metadata_df[col].values
@@ -1115,11 +1208,17 @@ def process_dataset(
     all_gene_sparse = [None] * num_genes
 
     if merscope_expr_file is not None:
-        # MERSCOPE: read entire CSV into memory, then extract sparse data per gene
+        # MERSCOPE: read entire CSV into memory, align to valid cells, then extract sparse data per gene
         log(f"  Loading entire CSV into memory...", _t_start)
         t_read = time.perf_counter()
-        expr_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col)
+        expr_df = pd.read_csv(merscope_expr_file, index_col='cell')
+        expr_df.index = expr_df.index.astype(np.int64)
         log(f"  CSV loaded: {len(expr_df):,} rows x {len(expr_df.columns)} columns ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
+
+        # Filter and reorder to aligned cell IDs
+        if merscope_valid_ids is not None:
+            expr_df = expr_df.loc[merscope_valid_ids]
+            log(f"  Filtered to {len(expr_df):,} aligned cells", _t_start)
 
         # Extract sparse data for each gene (same approach as original per-gene code)
         log(f"  Extracting sparse data for {num_genes} genes...", _t_start)
