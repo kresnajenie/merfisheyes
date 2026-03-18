@@ -315,47 +315,118 @@ for i, d in enumerate(candidate_dirs, 1):
         log(f"ERROR: No cell_by_gene file found in {d}", t_start)
         sys.exit(1)
 
-    # --- read cell_metadata to get bbox ---
+    # --- read cell_metadata ---
     t_read = time.perf_counter()
     df = pd.read_csv(meta_path)
-    meta_rows = len(df)
+    meta_rows_raw = len(df)
 
+    # Find metadata ID column (EntityID or id)
+    metadata_id_col = None
+    for candidate in ['EntityID', 'id']:
+        if candidate in df.columns:
+            metadata_id_col = candidate
+            break
+    if metadata_id_col is None:
+        log(f"ERROR: No ID column ('EntityID' or 'id') in {meta_path.name}. "
+            f"Columns: {list(df.columns)}", t_start)
+        sys.exit(1)
+
+    # Validate metadata IDs are numeric
+    if df[metadata_id_col].dtype == 'object':
+        converted = pd.to_numeric(df[metadata_id_col], errors='coerce')
+        if converted.isna().any():
+            non_numeric = df[metadata_id_col][converted.isna()].head(5).tolist()
+            log(f"ERROR: Non-numeric IDs in {meta_path.name} column '{metadata_id_col}': "
+                f"{non_numeric}", t_start)
+            sys.exit(1)
+        df[metadata_id_col] = converted.astype(np.int64)
+    elif pd.api.types.is_float_dtype(df[metadata_id_col]):
+        df[metadata_id_col] = df[metadata_id_col].astype(np.int64)
+
+    meta_id_set = set(df[metadata_id_col].values)
+    meta_columns = list(df.columns)
+    log(f"    cell_metadata  : {meta_path.name} ({meta_rows_raw:,} rows, "
+        f"ID col='{metadata_id_col}', read in {fmt_elapsed(time.perf_counter() - t_read)})", t_start)
+
+    # --- read cell_by_gene cell IDs ---
+    t_read = time.perf_counter()
+    cbg_all_cols = pd.read_csv(cbg_path, nrows=0).columns.tolist()
+    if 'cell' not in cbg_all_cols:
+        log(f"ERROR: Column 'cell' not found in {cbg_path.name}. "
+            f"Available columns: {cbg_all_cols}", t_start)
+        sys.exit(1)
+
+    id_chunks = []
+    for chunk in pd.read_csv(cbg_path, usecols=['cell'], chunksize=100_000):
+        id_chunks.append(chunk['cell'])
+    expr_ids = pd.concat(id_chunks, ignore_index=True)
+    del id_chunks
+
+    if expr_ids.dtype == 'object':
+        converted = pd.to_numeric(expr_ids, errors='coerce')
+        if converted.isna().any():
+            non_numeric = expr_ids[converted.isna()].head(5).tolist()
+            log(f"ERROR: Non-numeric IDs in {cbg_path.name} column 'cell': "
+                f"{non_numeric}", t_start)
+            sys.exit(1)
+        expr_ids = converted.astype(np.int64)
+    elif pd.api.types.is_float_dtype(expr_ids):
+        expr_ids = expr_ids.astype(np.int64)
+
+    cbg_rows_raw = len(expr_ids)
+    expr_id_set = set(expr_ids.values)
+    log(f"    cell_by_gene   : {cbg_path.name} ({cbg_rows_raw:,} rows, "
+        f"IDs read in {fmt_elapsed(time.perf_counter() - t_read)})", t_start)
+
+    # --- Inner join on cell IDs ---
+    common_ids = expr_id_set & meta_id_set
+    if len(common_ids) == 0:
+        log(f"ERROR: No matching cell IDs between {meta_path.name} (col '{metadata_id_col}') "
+            f"and {cbg_path.name} (col 'cell'). "
+            f"Meta IDs (first 5): {sorted(meta_id_set)[:5]}, "
+            f"Expr IDs (first 5): {sorted(expr_id_set)[:5]}", t_start)
+        sys.exit(1)
+
+    expr_only = expr_id_set - common_ids
+    meta_only = meta_id_set - common_ids
+    log(f"    ID alignment   : {len(common_ids):,} common, "
+        f"{len(expr_only):,} expr-only, {len(meta_only):,} meta-only", t_start)
+
+    if expr_only:
+        sample_ids_list = sorted(expr_only)[:20]
+        log(f"      ⚠ Discarding {len(expr_only):,} from {cbg_path.name}: "
+            f"{sample_ids_list}{'...' if len(expr_only) > 20 else ''}", t_start)
+    if meta_only:
+        sample_ids_list = sorted(meta_only)[:20]
+        log(f"      ⚠ Discarding {len(meta_only):,} from {meta_path.name}: "
+            f"{sample_ids_list}{'...' if len(meta_only) > 20 else ''}", t_start)
+
+    # Valid cell IDs in cell_by_gene order
+    mask = expr_ids.isin(common_ids)
+    valid_cell_ids = expr_ids[mask].values
+    del expr_ids
+    gc.collect()
+
+    # Filter metadata to aligned cells, compute bbox
+    df = df.set_index(metadata_id_col).loc[valid_cell_ids].reset_index()
     bbox = (
         df[x_col].min(), df[y_col].min(),
         df[x_col].max(), df[y_col].max(),
     )
-
-    # get column names for header (needed for first-write detection)
-    meta_columns = list(df.columns)
+    log(f"    bbox (aligned) : x=[{bbox[0]:.1f}, {bbox[2]:.1f}] y=[{bbox[1]:.1f}, {bbox[3]:.1f}]", t_start)
 
     del df
     gc.collect()
-    log(f"    cell_metadata  : {meta_path.name} ({meta_rows:,} rows, bbox computed, read in {fmt_elapsed(time.perf_counter() - t_read)})", t_start)
-
-    # --- validate cell_by_gene row count without loading entire file ---
-    t_read = time.perf_counter()
-    # count rows by reading just the first column
-    cbg_row_count = 0
-    for chunk in pd.read_csv(cbg_path, usecols=[0], chunksize=100_000):
-        cbg_row_count += len(chunk)
-    log(f"    cell_by_gene   : {cbg_path.name} ({cbg_row_count:,} rows, counted in {fmt_elapsed(time.perf_counter() - t_read)})", t_start)
-
-    if cbg_row_count != meta_rows:
-        log(
-            f"ERROR: Row count mismatch in {d}:\n"
-            f"  {meta_path.name}  -> {meta_rows:,} rows\n"
-            f"  {cbg_path.name}   -> {cbg_row_count:,} rows",
-            t_start
-        )
-        sys.exit(1)
 
     sample_info.append({
         'meta_path': meta_path,
         'cbg_path': cbg_path,
         'bbox': bbox,
-        'num_rows': meta_rows,
+        'num_rows': len(valid_cell_ids),
         'sample_id': meta_path.relative_to(target).parts[0],
         'meta_columns': meta_columns,
+        'metadata_id_col': metadata_id_col,
+        'valid_cell_ids': valid_cell_ids,
     })
 
 total_rows = sum(s['num_rows'] for s in sample_info)
@@ -416,6 +487,15 @@ for i, info in enumerate(sample_info):
     log(f"  [{i + 1}/{n}] Processing {info['meta_path'].name}...", t_start)
 
     df = pd.read_csv(info['meta_path'])
+
+    # Align rows to cell_by_gene order (inner join by cell ID)
+    id_col = info['metadata_id_col']
+    if df[id_col].dtype == 'object':
+        df[id_col] = pd.to_numeric(df[id_col]).astype(np.int64)
+    elif pd.api.types.is_float_dtype(df[id_col]):
+        df[id_col] = df[id_col].astype(np.int64)
+    df = df.set_index(id_col).loc[info['valid_cell_ids']].reset_index()
+
     df["_source_file"] = str(info['meta_path'])
     df["_sample_id"] = info['sample_id']
 
@@ -494,7 +574,18 @@ for i, info in enumerate(sample_info):
     first_chunk = True
     sample_rows = 0
 
+    valid_id_set = set(info['valid_cell_ids'])
     for chunk in pd.read_csv(info['cbg_path'], chunksize=50_000):
+        # Filter to aligned cell IDs
+        if chunk['cell'].dtype == 'object':
+            chunk['cell'] = pd.to_numeric(chunk['cell']).astype(np.int64)
+        elif pd.api.types.is_float_dtype(chunk['cell']):
+            chunk['cell'] = chunk['cell'].astype(np.int64)
+        chunk = chunk[chunk['cell'].isin(valid_id_set)]
+
+        if len(chunk) == 0:
+            continue
+
         if canonical_columns is None:
             canonical_columns = list(chunk.columns)
         else:
