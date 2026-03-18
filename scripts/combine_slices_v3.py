@@ -479,6 +479,9 @@ for i, info in enumerate(sample_info):
 
     # Align rows to cell_by_gene order (inner join by cell ID)
     id_col = info['metadata_id_col']
+    # Re-apply rename if original column was unnamed (fallback case)
+    if id_col not in df.columns:
+        df.rename(columns={df.columns[0]: id_col}, inplace=True)
     df[id_col] = df[id_col].astype(str)
     df = df.set_index(id_col).loc[info['valid_cell_ids']].reset_index()
 
