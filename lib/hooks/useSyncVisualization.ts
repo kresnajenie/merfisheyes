@@ -41,11 +41,92 @@ function getStandardizedDataset(
   return null;
 }
 
-function datasetHasColumn(
+function datasetHasColumnLoaded(
   dataset: StandardizedDataset,
   column: string,
 ): boolean {
   return dataset.clusters?.some((c) => c.column === column) ?? false;
+}
+
+/**
+ * Checks if the dataset knows about a column (available in manifest metadata)
+ * even if it hasn't been lazily loaded yet.
+ */
+function datasetKnowsColumn(
+  dataset: StandardizedDataset,
+  column: string,
+): boolean {
+  if (datasetHasColumnLoaded(dataset, column)) return true;
+
+  return dataset.allClusterColumnNames?.includes(column) ?? false;
+}
+
+/**
+ * Lazily loads a cluster column on demand for sync.
+ * Returns true if loading succeeded and the column is now available.
+ */
+async function loadColumnOnDemand(
+  dataset: StandardizedDataset,
+  column: string,
+  targetVizStore: VisualizationStore | typeof useVisualizationStore,
+): Promise<boolean> {
+  if (datasetHasColumnLoaded(dataset, column)) return true;
+  if (!dataset.adapter) return false;
+
+  const toastId = toast.loading(
+    `Sync: Loading cluster column "${column}"...`,
+  );
+
+  try {
+    let newClusters: Array<{
+      column: string;
+      type: string;
+      values: any[];
+      palette: Record<string, string> | null;
+    }> | null = null;
+
+    if (dataset.adapter.mode === "local") {
+      newClusters = await dataset.adapter.loadClusters([column]);
+    } else {
+      const { getStandardizedDatasetWorker } = await import(
+        "@/lib/workers/standardizedDatasetWorkerManager"
+      );
+      const worker = await getStandardizedDatasetWorker();
+
+      newClusters = await worker.loadClusterFromS3(
+        dataset.id,
+        [column],
+        dataset.metadata?.customS3BaseUrl,
+      );
+    }
+
+    if (newClusters && newClusters.length > 0) {
+      dataset.addClusters(newClusters);
+      targetVizStore.getState().incrementClusterVersion();
+      toast.dismiss(toastId);
+
+      return true;
+    }
+
+    toast.update(toastId, {
+      render: `Failed to load "${column}". Please retry.`,
+      type: "error",
+      isLoading: false,
+      autoClose: 3000,
+    });
+
+    return false;
+  } catch (error) {
+    console.warn(`[Sync] Failed to load cluster column "${column}":`, error);
+    toast.update(toastId, {
+      render: `Failed to load "${column}". Please retry.`,
+      type: "error",
+      isLoading: false,
+      autoClose: 3000,
+    });
+
+    return false;
+  }
 }
 
 function datasetHasGene(dataset: StandardizedDataset, gene: string): boolean {
@@ -124,7 +205,7 @@ export function useSyncVisualization(
       return;
     }
 
-    const propagate = (
+    const propagate = async (
       sourceFields: SyncFields,
       prevFields: SyncFields | null,
       targetStore: VisualizationStore | typeof useVisualizationStore,
@@ -145,10 +226,24 @@ export function useSyncVisualization(
           const column = sourceFields.selectedColumn;
 
           if (column) {
-            if (!datasetHasColumn(targetDataset, column)) {
-              throttledToast(
-                `Column "${column}" not found in the other dataset`,
+            let columnReady = datasetHasColumnLoaded(targetDataset, column);
+
+            // Column not loaded but exists in manifest — lazy load it
+            if (!columnReady && datasetKnowsColumn(targetDataset, column)) {
+              columnReady = await loadColumnOnDemand(
+                targetDataset,
+                column,
+                targetStore,
               );
+            }
+
+            if (!columnReady) {
+              if (!datasetKnowsColumn(targetDataset, column)) {
+                throttledToast(
+                  `Column "${column}" not found in the other dataset`,
+                );
+              }
+              // If loadColumnOnDemand failed, toast was already shown there
             } else {
               const numerical = isNumericalColumn(targetDataset, column, overrides);
 
@@ -179,7 +274,7 @@ export function useSyncVisualization(
         ) {
           const column = sourceFields.selectedColumn;
 
-          if (column && datasetHasColumn(targetDataset, column)) {
+          if (column && datasetHasColumnLoaded(targetDataset, column)) {
             const targetValues = getColumnValues(targetDataset, column, overrides);
             const prevCelltypes = prevFields?.selectedCelltypes ?? new Set();
             const currentTargetCelltypes = targetState.selectedCelltypes;
@@ -229,7 +324,7 @@ export function useSyncVisualization(
         ) {
           const column = sourceFields.selectedColumn;
 
-          if (column && datasetHasColumn(targetDataset, column)) {
+          if (column && datasetHasColumnLoaded(targetDataset, column)) {
             const targetValues = getColumnValues(targetDataset, column, overrides);
             // Only sync colors for celltypes that exist in both datasets
             const currentTargetPalette = targetState.colorPalette;
@@ -320,6 +415,58 @@ export function useSyncVisualization(
     if (isFromUrl) {
       settleTimer = setTimeout(() => {
         settlingRef.current = false;
+
+        const leftFields = pickSyncFields(useVisualizationStore.getState());
+        const rightFields = pickSyncFields(rightVizStore.getState());
+
+        // After settling, reconcile palette: left is source of truth for colors
+        if (
+          leftFields.selectedColumn &&
+          leftFields.selectedColumn === rightFields.selectedColumn &&
+          !shallowEqual(leftFields.colorPalette, rightFields.colorPalette)
+        ) {
+          const rightDataset = getStandardizedDataset(rightDatasetStore);
+
+          if (rightDataset) {
+            const overrides =
+              rightVizStore.getState().columnTypeOverrides ?? {};
+            const targetValues = getColumnValues(
+              rightDataset,
+              leftFields.selectedColumn,
+              overrides,
+            );
+            const currentRightPalette = rightFields.colorPalette;
+            const newPalette = { ...currentRightPalette };
+            let changed = false;
+
+            for (const [key, value] of Object.entries(
+              leftFields.colorPalette,
+            )) {
+              if (targetValues.has(key) && newPalette[key] !== value) {
+                newPalette[key] = value;
+                changed = true;
+              }
+            }
+
+            if (changed) {
+              syncingRef.current = true;
+              try {
+                rightVizStore.getState().setColorPalette(newPalette);
+
+                const rightCluster = rightDataset.clusters?.find(
+                  (c) => c.column === leftFields.selectedColumn,
+                );
+
+                if (rightCluster) {
+                  rightCluster.palette = newPalette;
+                }
+              } finally {
+                syncingRef.current = false;
+              }
+            }
+          }
+        }
+
         prevLeftRef.current = pickSyncFields(useVisualizationStore.getState());
         prevRightRef.current = pickSyncFields(rightVizStore.getState());
         useSplitScreenStore.getState().setSyncFromUrl(false);
