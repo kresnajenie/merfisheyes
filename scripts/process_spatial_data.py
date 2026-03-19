@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Spatial Transcriptomics Data Processor
 Converts H5AD, Xenium, and MERSCOPE datasets to chunked binary format for MERFISH Eyes
@@ -13,12 +13,15 @@ Options:
 """
 
 import argparse
+import gc
 import gzip
 import json
 import os
 import shutil
 import struct
 import sys
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional, Union
 
@@ -26,6 +29,26 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from scipy.io import mmread
+
+
+# ─────────────────────────────────────────────
+# LOGGING
+# ─────────────────────────────────────────────
+_t_start = None
+
+def fmt_elapsed(seconds):
+    """Format elapsed time as human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m, s = divmod(seconds, 60)
+    return f"{int(m)}m {s:.1f}s"
+
+def log(msg, t0=None):
+    """Print a timestamped log message. If t0 given, also prints elapsed."""
+    elapsed = ""
+    if t0 is not None:
+        elapsed = f" [{fmt_elapsed(time.perf_counter() - t0)}]"
+    print(f"[{time.strftime('%H:%M:%S')}]{elapsed} {msg}", flush=True)
 
 
 # Color palette from lib/utils/color-palette.ts
@@ -194,22 +217,17 @@ def write_coordinate_binary(coords: np.ndarray, output_path: Path):
     """
     num_points, dimensions = coords.shape
 
-    # Create binary data
-    data = bytearray()
-
     # Header
-    data.extend(struct.pack('<I', num_points))  # uint32 little-endian
-    data.extend(struct.pack('<I', dimensions))  # uint32 little-endian
+    header = struct.pack('<II', num_points, dimensions)
 
-    # Coordinates (flatten row-major)
-    for point in coords:
-        for coord in point:
-            data.extend(struct.pack('<f', coord))  # float32 little-endian
+    # Coordinates as contiguous float32 bytes (row-major)
+    coord_bytes = np.ascontiguousarray(coords, dtype=np.float32).tobytes()
 
     # Compress and write
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(output_path, 'wb') as f:
-        f.write(data)
+        f.write(header)
+        f.write(coord_bytes)
 
     print(f"  ✓ Wrote {output_path.name}: {num_points} points, {dimensions}D")
 
@@ -219,24 +237,16 @@ def write_sparse_gene_data(indices: np.ndarray, values: np.ndarray) -> bytes:
     Write sparse gene data to binary format
     Format: [num_cells: uint32, num_non_zero: uint32, [indices: uint32[]], [values: float32[]]]
     """
-    num_cells = len(indices)
     num_non_zero = len(indices)
 
-    data = bytearray()
+    # Header
+    header = struct.pack('<II', num_non_zero, num_non_zero)
 
-    # Sparse data header
-    data.extend(struct.pack('<I', num_cells))  # uint32
-    data.extend(struct.pack('<I', num_non_zero))  # uint32
+    # Indices and values as contiguous typed arrays
+    idx_bytes = np.asarray(indices, dtype=np.uint32).tobytes()
+    val_bytes = np.asarray(values, dtype=np.float32).tobytes()
 
-    # Indices (cell indices with non-zero values)
-    for idx in indices:
-        data.extend(struct.pack('<I', int(idx)))  # uint32
-
-    # Values (expression values)
-    for val in values:
-        data.extend(struct.pack('<f', float(val)))  # float32
-
-    return bytes(data)
+    return header + idx_bytes + val_bytes
 
 
 def write_expression_chunk(
@@ -257,46 +267,91 @@ def write_expression_chunk(
         gene_data = write_sparse_gene_data(indices, values)
         gene_data_sections.append(gene_data)
 
-    # Build the binary chunk
-    data = bytearray()
-
     # Header (16 bytes)
-    data.extend(struct.pack('<I', 1))  # version
-    data.extend(struct.pack('<I', num_genes))
-    data.extend(struct.pack('<I', chunk_id))
-    data.extend(struct.pack('<I', total_cells))
+    header = struct.pack('<IIII', 1, num_genes, chunk_id, total_cells)
 
     # Calculate gene table offset (after header)
     gene_table_start = 16
     gene_table_size = num_genes * 24  # 24 bytes per gene
     first_gene_data_offset = gene_table_start + gene_table_size
 
-    # Write gene table (24 bytes per gene)
+    # Build gene table (24 bytes per gene) as a single array
+    gene_table = bytearray()
     current_offset = first_gene_data_offset
     for i, (gene_idx, gene_data) in enumerate(zip(gene_indices, gene_data_sections)):
-        indices, values = gene_data_list[i]
-        num_non_zero = len(indices)
+        num_non_zero = len(gene_data_list[i][0])
         data_size = len(gene_data)
 
-        data.extend(struct.pack('<I', gene_idx))  # gene_index: uint32
-        data.extend(struct.pack('<I', current_offset))  # data_offset: uint32
-        data.extend(struct.pack('<I', data_size))  # data_size: uint32
-        data.extend(struct.pack('<I', data_size))  # uncompressed_size: uint32
-        data.extend(struct.pack('<I', num_non_zero))  # num_non_zero: uint32
-        data.extend(struct.pack('<I', 0))  # reserved: uint32
+        gene_table.extend(struct.pack('<IIIIII',
+            gene_idx, current_offset, data_size, data_size, num_non_zero, 0))
 
         current_offset += data_size
-
-    # Write gene data sections
-    for gene_data in gene_data_sections:
-        data.extend(gene_data)
 
     # Compress and write
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(output_path, 'wb') as f:
-        f.write(data)
+        f.write(header)
+        f.write(gene_table)
+        for gene_data in gene_data_sections:
+            f.write(gene_data)
 
-    print(f"  ✓ Wrote chunk_{chunk_id:05d}.bin.gz: {num_genes} genes, {len(data)} bytes (uncompressed)")
+
+def _write_chunk_worker(args):
+    """Worker function for parallel chunk writing. Must be top-level for pickling."""
+    chunk_id, gene_indices, gene_data_list, total_cells, output_path = args
+    write_expression_chunk(chunk_id, gene_indices, gene_data_list, total_cells, Path(output_path))
+    return chunk_id
+
+
+def _process_obs_column_worker(args):
+    """Worker function for parallel obs column processing. Must be top-level for pickling."""
+    col_name, col_values, obs_dir, palettes_dir = args
+    obs_dir = Path(obs_dir)
+    palettes_dir = Path(palettes_dir)
+
+    categorical = is_categorical(col_values, col_name)
+    series = pd.Series(col_values)
+    series_for_unique = (
+        series.astype("string") if series.dtype == "object" else series
+    )
+    unique_count = int(series_for_unique.nunique(dropna=False))
+
+    metadata_entry = {
+        'type': 'categorical' if categorical else 'numerical',
+        'unique_values': unique_count
+    }
+
+    # Write column values
+    if categorical:
+        cat_series = series.astype("string")
+        values_list = cat_series.fillna("").tolist()
+    else:
+        numeric_series = pd.to_numeric(series, errors="coerce")
+        values_list = [
+            None if pd.isna(v) else float(v) for v in numeric_series.tolist()
+        ]
+    obs_file = obs_dir / f'{col_name}.json.gz'
+    obs_file.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(obs_file, 'wt', encoding='utf-8') as f:
+        json.dump(values_list, f)
+
+    # Generate palette for categorical
+    palette_info = None
+    if categorical:
+        unique_values = [
+            str(v)
+            for v in cat_series.dropna().unique().tolist()
+        ]
+        palette = generate_color_palette(unique_values)
+
+        palette_file = palettes_dir / f'{col_name}.json'
+        palette_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(palette_file, 'w') as f:
+            json.dump(palette, f, indent=2)
+
+        palette_info = len(unique_values)
+
+    return col_name, metadata_entry, palette_info
 
 
 def detect_input_format(input_path: Path) -> str:
@@ -323,15 +378,19 @@ def detect_input_format(input_path: Path) -> str:
         has_xenium = any((input_path / f).exists() for f in xenium_files)
         print(f"   - Has Xenium files: {has_xenium}")
 
-        # Check for MERSCOPE files
-        merscope_files = ['cell_metadata.csv', 'cell_by_gene.csv']
-        has_merscope = any((input_path / f).exists() for f in merscope_files)
-        print(f"   - Has MERSCOPE files: {has_merscope}")
+###############################################################################################################
+        # CHANGED FROM ORIGINAL (fuzzy name logic)
 
-        # Debug: Check each file individually
-        for f in merscope_files:
-            file_path = input_path / f
-            print(f"   - Checking {f}: exists={file_path.exists()}, is_file={file_path.is_file()}")
+        # Check for MERSCOPE files (fuzzy — handles prefixed names like cellpose_metadata.csv)
+        files = [f.name for f in input_path.iterdir() if f.is_file()]
+        has_merscope = any(
+            ('metadata' in f and 'gene' not in f and f.endswith('.csv')) or
+            ('cell' in f and 'gene' in f and f.endswith('.csv'))
+            for f in files
+        )
+        print(f"   - Has MERSCOPE files: {has_merscope}")
+        print(f"   - Files checked: {files}")
+###############################################################################################################
 
         if has_xenium:
             return 'xenium'
@@ -351,9 +410,10 @@ def load_h5ad_data(input_path: Path):
     except ImportError:
         raise ImportError("anndata is required for H5AD files. Install with: pip install anndata")
 
-    print(f"📂 Loading H5AD file: {input_path.name}")
+    log(f"Loading H5AD file: {input_path.name}", _t_start)
+    t_load = time.perf_counter()
     adata = ad.read_h5ad(input_path)
-    print(f"  ✓ Loaded: {adata.n_obs} cells × {adata.n_vars} genes")
+    log(f"  Loaded: {adata.n_obs} cells x {adata.n_vars} genes (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Extract spatial coordinates
     spatial_coords = None
@@ -429,7 +489,7 @@ def load_h5ad_data(input_path: Path):
 
 def load_xenium_data(input_path: Path):
     """Load Xenium folder structure"""
-    print(f"📂 Loading Xenium folder: {input_path.name}")
+    log(f"Loading Xenium folder: {input_path.name}", _t_start)
 
     # Load cells.csv or cells.csv.gz
     cells_file = None
@@ -442,13 +502,14 @@ def load_xenium_data(input_path: Path):
     if cells_file is None:
         raise FileNotFoundError("cells.csv or cells.csv.gz not found in Xenium folder")
 
-    print(f"  Loading {cells_file.name}...")
+    log(f"  Loading {cells_file.name}...", _t_start)
+    t_load = time.perf_counter()
     if cells_file.suffix == '.gz':
         cells_df = pd.read_csv(cells_file, compression='gzip')
     else:
         cells_df = pd.read_csv(cells_file)
 
-    print(f"  ✓ Loaded {len(cells_df)} cells")
+    log(f"  Loaded {len(cells_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Try to load expression matrix (cell_feature_matrix or cell_by_gene)
     expr_matrix = None
@@ -618,58 +679,97 @@ def load_xenium_data(input_path: Path):
 
 def load_merscope_data(input_path: Path):
     """Load MERSCOPE folder structure"""
-    print(f"📂 Loading MERSCOPE folder: {input_path.name}")
+    log(f"Loading MERSCOPE folder: {input_path.name}", _t_start)
 
     # Load cell_metadata.csv
-    metadata_file = input_path / 'cell_metadata.csv'
-    if not metadata_file.exists():
-        raise FileNotFoundError("cell_metadata.csv not found in MERSCOPE folder")
 
-    print(f"  Loading {metadata_file.name}...")
+###############################################################################################################
+    # CHANGED FROM ORIGINAL (fuzzy name logic)
+    metadata_file = next(
+        (f for f in input_path.iterdir()
+        if f.is_file() and 'metadata' in f.name and 'gene' not in f.name and f.suffix == '.csv'),
+        None
+    )
+    if metadata_file is None:
+        raise FileNotFoundError("No metadata CSV found in MERSCOPE folder")
+###############################################################################################################
+
+    log(f"  Loading {metadata_file.name}...", _t_start)
+    t_load = time.perf_counter()
     metadata_df = pd.read_csv(metadata_file)
-    print(f"  ✓ Loaded {len(metadata_df)} cells")
+    log(f"  Loaded {len(metadata_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Load cell_by_gene.csv (expression matrix)
-    expr_file = input_path / 'cell_by_gene.csv'
+###############################################################################################################
+    # CHANGED FROM ORIGINAL (fuzzy name logic)
+    expr_file = next(
+    (f for f in input_path.iterdir()
+     if f.is_file() and 'cell' in f.name and 'gene' in f.name and f.suffix == '.csv'),
+    None
+    )
+###############################################################################################################
+    # CHANGED FROM ORIGINAL (combine data check)
     expr_matrix = None
     gene_names = None
 
-    if expr_file.exists():
-        print(f"  Loading {expr_file.name}...")
-        expr_df = pd.read_csv(expr_file, index_col=0)
-        gene_names = expr_df.columns.tolist()
-        expr_matrix = expr_df.values
-        print(f"  ✓ Loaded expression matrix: {len(gene_names)} genes")
+    if expr_file is not None:
+        log(f"  Reading header of {expr_file.name}...", _t_start)
+        t_load = time.perf_counter()
+        # Only read header + count rows — do NOT load entire matrix into memory
+        all_cols = pd.read_csv(expr_file, nrows=0).columns.tolist()
+        index_col_name = all_cols[0]  # first column is the cell ID / index
+        gene_names = all_cols[1:]     # remaining columns are genes
+
+        # Count rows to validate (read only the index column)
+        expr_row_count = 0
+        for chunk in pd.read_csv(expr_file, usecols=[index_col_name], chunksize=100_000):
+            expr_row_count += len(chunk)
+
+        log(f"  Header read: {len(gene_names)} genes, {expr_row_count:,} rows (in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
+
+        if expr_row_count != len(metadata_df):
+            raise ValueError(
+                f"Row count mismatch: {metadata_file.name} has {len(metadata_df):,} rows, "
+                f"{expr_file.name} has {expr_row_count:,} rows. "
+                f"Both files must have the same number of rows in the same order."
+            )
+        log(f"  Expression matrix: {len(gene_names)} genes ({expr_row_count:,} rows, will load per-chunk)", _t_start)
     else:
-        print("  ⚠ cell_by_gene.csv not found, creating placeholder")
+        log("  cell_by_gene.csv not found, creating placeholder", _t_start)
         gene_names = ['Gene1']
-        expr_matrix = np.zeros((len(metadata_df), 1))
+        expr_file = None
 
-    return metadata_df, expr_matrix, gene_names
-
+    return metadata_df, expr_file, gene_names, index_col_name if expr_file is not None else None
+###############################################################################################
 
 def process_dataset(
     input_path: Path,
     output_dir: Path,
     custom_chunk_size: Optional[int] = None,
-    data_format: Optional[str] = None
+    data_format: Optional[str] = None,
+    num_workers: int = 1
 ):
     """Main processing function that handles all formats"""
+    global _t_start
+    _t_start = time.perf_counter()
 
-    print(f"\n{'='*60}")
-    print(f"Processing Spatial Transcriptomics Data")
-    print(f"Input: {input_path}")
-    print(f"Output: {output_dir}")
-    print(f"{'='*60}\n")
+    log(f"{'='*60}")
+    log(f"Processing Spatial Transcriptomics Data")
+    log(f"Input: {input_path}")
+    log(f"Output: {output_dir}")
+    log(f"{'='*60}")
 
     # Auto-detect format if not specified
     if data_format is None:
         data_format = detect_input_format(input_path)
 
-    print(f"📋 Detected format: {data_format.upper()}\n")
+    log(f"Detected format: {data_format.upper()}", _t_start)
 
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # merscope_expr_file is set only for MERSCOPE (per-chunk CSV loading)
+    merscope_expr_file = None
 
     # Load data based on format
     if data_format == 'h5ad':
@@ -813,7 +913,6 @@ def process_dataset(
                 )
             )
             print(f"  ℹ Found {len(cluster_files)} candidate cluster files")
-            id_candidates = ['cell_id', 'cell', 'id', 'barcode', 'barcodes', 'cellid', 'cellId']
             label_candidates = [
                 'cluster',
                 'clusters',
@@ -827,10 +926,6 @@ def process_dataset(
                 'subclass',
                 'class',
             ]
-            cell_id_key = (
-                find_column(cells_columns_lower, ['cell_id', 'id', 'barcode', 'barcodes', 'cell'])
-                or cells_df.columns[0]
-            )
             for cluster_file in cluster_files:
                 print(f"    ℹ Trying {cluster_file}")
                 try:
@@ -845,23 +940,19 @@ def process_dataset(
                     print(f"    ⚠ Failed to read {cluster_file.name}: {e}")
                     continue
                 cluster_columns_lower = {col.lower(): col for col in cluster_df.columns}
-                id_col = find_column(cluster_columns_lower, id_candidates)
                 label_col = find_column(cluster_columns_lower, label_candidates)
-                if not id_col or not label_col:
-                    print(f"    ⚠ Missing id/label columns in {cluster_file.name}")
+                if not label_col:
+                    print(f"    ⚠ No label column found in {cluster_file.name}")
                     continue
-                joined = cells_df.merge(
-                    cluster_df[[id_col, label_col]],
-                    left_on=cell_id_key,
-                    right_on=id_col,
-                    how='left'
-                )
-                non_null = joined[label_col].notna().sum()
+                if len(cluster_df) != len(cells_df):
+                    print(f"    ⚠ Row count mismatch: {cluster_file.name} has {len(cluster_df):,} rows, cells has {len(cells_df):,} rows. Skipping.")
+                    continue
+                non_null = cluster_df[label_col].notna().sum()
                 if non_null == 0:
-                    print(f"    ⚠ No matching rows when joining {cluster_file.name}")
+                    print(f"    ⚠ No non-null values in {cluster_file.name}")
                     continue
-                obs_columns[label_col] = joined[label_col].fillna('').values
-                print(f"    ✓ Imported clusters from {cluster_file.name} using column '{label_col}' ({non_null} matches)")
+                obs_columns[label_col] = cluster_df[label_col].fillna('').values
+                print(f"    ✓ Imported clusters from {cluster_file.name} using column '{label_col}' ({non_null:,} values, matched positionally)")
                 break
             else:
                 print("  ⚠ Exhausted cluster files without importing labels")
@@ -869,10 +960,17 @@ def process_dataset(
             shutil.rmtree(analysis_extract_dir, ignore_errors=True)
 
     elif data_format == 'merscope':
-        metadata_df, expr_matrix, gene_names = load_merscope_data(input_path)
+        metadata_df, merscope_expr_file, gene_names, merscope_index_col = load_merscope_data(input_path)
         dataset_name = input_path.name
         dataset_type = 'merscope'
         embeddings = {}  # No embeddings for MERSCOPE
+
+        if merscope_expr_file is not None:
+            expr_matrix = None  # Will be loaded per-chunk from CSV
+        else:
+            # No expression file found — placeholder
+            merscope_expr_file = None
+            expr_matrix = np.zeros((len(metadata_df), 1))
 
         # Extract spatial coordinates
         coord_candidates_x = ['center_x', 'centroid_x', 'x']
@@ -900,10 +998,15 @@ def process_dataset(
 
         # Extract observation columns
         obs_columns = {}
-        exclude_cols = [x_col, y_col, z_col, 'cell_id', 'id', 'EntityID']
+        exclude_cols = [x_col, y_col, z_col, 'cell_id', 'EntityID']
         for col in metadata_df.columns:
             if col not in exclude_cols:
                 obs_columns[col] = metadata_df[col].values
+
+        # Free metadata_df — we've extracted everything we need
+        del metadata_df
+        gc.collect()
+        log("  Freed metadata_df from memory", _t_start)
 
     else:
         raise ValueError(f"Unknown format: {data_format}")
@@ -913,93 +1016,88 @@ def process_dataset(
     num_genes = len(gene_names)
     spatial_dims = spatial_coords.shape[1]
 
-    print(f"\n📊 Dataset Summary:")
-    print(f"  Cells: {num_cells:,}")
-    print(f"  Genes: {num_genes:,}")
-    print(f"  Spatial dimensions: {spatial_dims}D\n")
+    log(f"=== Dataset Summary ===", _t_start)
+    log(f"  Cells: {num_cells:,}", _t_start)
+    log(f"  Genes: {num_genes:,}", _t_start)
+    log(f"  Spatial dimensions: {spatial_dims}D", _t_start)
 
-    # Process using the same logic as H5AD
-    # 1. Normalize and write spatial coordinates
-    print("📍 Processing spatial coordinates...")
+    # Step 1: Normalize and write spatial coordinates
+    log(f"=== STEP 1: Processing spatial coordinates ===", _t_start)
+    t_step = time.perf_counter()
     normalized_spatial, scaling_factor = normalize_coordinates(spatial_coords)
     coords_dir = output_dir / 'coords'
     write_coordinate_binary(normalized_spatial, coords_dir / 'spatial.bin.gz')
+    log(f"  Spatial coordinates done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
-    # 2. Process embeddings (if any)
+    # Step 2: Process embeddings (if any)
     available_embeddings = []
     if embeddings:
-        print("\n🗺️  Processing embeddings...")
+        log(f"=== STEP 2: Processing {len(embeddings)} embedding(s) ===", _t_start)
         for emb_name, emb_coords in embeddings.items():
+            t_emb = time.perf_counter()
             normalized_emb, _ = normalize_coordinates(emb_coords)
             write_coordinate_binary(normalized_emb, coords_dir / f'{emb_name}.bin.gz')
             available_embeddings.append(emb_name)
-            print(f"  ✓ {emb_name}: {emb_coords.shape[1]}D")
+            log(f"  {emb_name}: {emb_coords.shape[1]}D ({fmt_elapsed(time.perf_counter() - t_emb)})", _t_start)
     else:
-        print("\n  ℹ No embeddings to process")
+        log(f"=== STEP 2: No embeddings to process ===", _t_start)
 
-    # 3. Process observation columns (clusters)
-    print("\n🏷️  Processing observation columns...")
+    # Step 3: Process observation columns (clusters)
+    log(f"=== STEP 3: Processing {len(obs_columns)} observation column(s) (workers={num_workers}) ===", _t_start)
+    t_step = time.perf_counter()
     obs_dir = output_dir / 'obs'
     palettes_dir = output_dir / 'palettes'
+    obs_dir.mkdir(parents=True, exist_ok=True)
+    palettes_dir.mkdir(parents=True, exist_ok=True)
     obs_metadata = {}
     cluster_count = 0
 
-    for col_name, col_values in obs_columns.items():
-        categorical = is_categorical(col_values, col_name)
-        series = pd.Series(col_values)
-        series_for_unique = (
-            series.astype("string") if series.dtype == "object" else series
-        )
-        unique_count = int(series_for_unique.nunique(dropna=False))
+    if num_workers > 1 and len(obs_columns) > 1:
+        # Parallel obs column processing
+        worker_args = [
+            (col_name, col_values, str(obs_dir), str(palettes_dir))
+            for col_name, col_values in obs_columns.items()
+        ]
+        effective_workers = min(num_workers, len(obs_columns))
+        log(f"  Launching {effective_workers} workers for {len(obs_columns)} obs columns...", _t_start)
 
-        obs_metadata[col_name] = {
-            'type': 'categorical' if categorical else 'numerical',
-            'unique_values': unique_count
-        }
-
-        # Write column values
-        if categorical:
-            cat_series = series.astype("string")
-            values_list = cat_series.fillna("").tolist()
-        else:
-            numeric_series = pd.to_numeric(series, errors="coerce")
-            values_list = [
-                None if pd.isna(v) else float(v) for v in numeric_series.tolist()
-            ]
-        obs_file = obs_dir / f'{col_name}.json.gz'
-        obs_file.parent.mkdir(parents=True, exist_ok=True)
-        with gzip.open(obs_file, 'wt', encoding='utf-8') as f:
-            json.dump(values_list, f)
-
-        print(f"  ✓ {col_name}: {obs_metadata[col_name]['type']} ({obs_metadata[col_name]['unique_values']} unique)")
-
-        # Generate palette for categorical
-        if categorical:
-            cluster_count += 1
-            unique_values = [
-                str(v)
-                for v in cat_series.dropna().unique().tolist()
-            ]
-            palette = generate_color_palette(unique_values)
-
-            palette_file = palettes_dir / f'{col_name}.json'
-            palette_file.parent.mkdir(parents=True, exist_ok=True)
-            with open(palette_file, 'w') as f:
-                json.dump(palette, f, indent=2)
-
-            print(f"    → Palette generated with {len(unique_values)} colors")
+        with ProcessPoolExecutor(max_workers=effective_workers) as pool:
+            futures = {pool.submit(_process_obs_column_worker, a): a[0] for a in worker_args}
+            done_count = 0
+            for future in as_completed(futures):
+                col_name, metadata_entry, palette_info = future.result()
+                obs_metadata[col_name] = metadata_entry
+                if palette_info is not None:
+                    cluster_count += 1
+                done_count += 1
+                palette_msg = f" (palette: {palette_info} colors)" if palette_info else ""
+                log(f"  [{done_count}/{len(obs_columns)}] {col_name}: {metadata_entry['type']} ({metadata_entry['unique_values']} unique){palette_msg}", _t_start)
+    else:
+        # Serial fallback
+        for col_idx, (col_name, col_values) in enumerate(obs_columns.items(), 1):
+            col_name, metadata_entry, palette_info = _process_obs_column_worker(
+                (col_name, col_values, str(obs_dir), str(palettes_dir)))
+            obs_metadata[col_name] = metadata_entry
+            if palette_info is not None:
+                cluster_count += 1
+            palette_msg = f" (palette: {palette_info} colors)" if palette_info else ""
+            log(f"  [{col_idx}/{len(obs_columns)}] {col_name}: {metadata_entry['type']} ({metadata_entry['unique_values']} unique){palette_msg}", _t_start)
 
     # Write obs metadata
     with open(obs_dir / 'metadata.json', 'w') as f:
         json.dump(obs_metadata, f, indent=2)
+    log(f"  Observation columns done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
-    # 3. Process expression matrix
-    print("\n🧬 Processing expression matrix...")
+    # Step 4: Process expression matrix
     chunk_size = determine_chunk_size(num_genes, custom_chunk_size)
     num_chunks = (num_genes + chunk_size - 1) // chunk_size
 
-    print(f"  Chunk size: {chunk_size} genes/chunk")
-    print(f"  Total chunks: {num_chunks}")
+    log(f"=== STEP 4: Processing expression matrix ({num_genes:,} genes, {num_chunks} chunks, {chunk_size} genes/chunk, workers={num_workers}) ===", _t_start)
+    if merscope_expr_file is not None:
+        log(f"  Mode: single-pass CSV loading for MERSCOPE", _t_start)
+    elif expr_matrix is not None:
+        log(f"  Mode: in-memory matrix ({'sparse' if sparse.issparse(expr_matrix) else 'dense'})", _t_start)
+    t_step = time.perf_counter()
 
     # Build expression index
     expr_index = {
@@ -1010,50 +1108,112 @@ def process_dataset(
     }
 
     expr_dir = output_dir / 'expr'
+    expr_dir.mkdir(parents=True, exist_ok=True)
 
-    # Process chunks
-    for chunk_id in range(num_chunks):
-        start_gene = chunk_id * chunk_size
-        end_gene = min(start_gene + chunk_size, num_genes)
+    # --- Extract sparse data for ALL genes ---
+    # all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
+    all_gene_sparse = [None] * num_genes
 
-        gene_indices = []
-        gene_data_list = []
+    if merscope_expr_file is not None:
+        # MERSCOPE: read entire CSV into memory, then extract sparse data per gene
+        log(f"  Loading entire CSV into memory...", _t_start)
+        t_read = time.perf_counter()
+        expr_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col)
+        log(f"  CSV loaded: {len(expr_df):,} rows x {len(expr_df.columns)} columns ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
 
-        for gene_idx in range(start_gene, end_gene):
-            gene_name = gene_names[gene_idx]
+        # Extract sparse data for each gene (same approach as original per-gene code)
+        log(f"  Extracting sparse data for {num_genes} genes...", _t_start)
+        t_extract = time.perf_counter()
+        for gene_idx, gene_name in enumerate(gene_names):
+            gene_col = expr_df[gene_name].values
+            non_zero_mask = gene_col != 0
+            non_zero_indices = np.where(non_zero_mask)[0]
+            non_zero_values = gene_col[non_zero_mask].astype(np.float32)
+            all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
 
-            # Extract gene expression column
+            if (gene_idx + 1) % 100 == 0 or gene_idx == num_genes - 1:
+                log(f"    {gene_idx + 1}/{num_genes} genes extracted ({fmt_elapsed(time.perf_counter() - t_extract)})", _t_start)
+
+        del expr_df
+        gc.collect()
+        log(f"  Sparse extraction done ({fmt_elapsed(time.perf_counter() - t_extract)})", _t_start)
+
+    else:
+        # H5AD / Xenium: expression matrix already in memory
+        for gene_idx in range(num_genes):
             if sparse.issparse(expr_matrix):
                 gene_col = expr_matrix[:, gene_idx].toarray().flatten()
             else:
                 gene_col = expr_matrix[:, gene_idx]
 
-            # Get non-zero indices and values
             non_zero_mask = gene_col != 0
             non_zero_indices = np.where(non_zero_mask)[0]
-            non_zero_values = gene_col[non_zero_mask]
+            non_zero_values = gene_col[non_zero_mask].astype(np.float32)
+            all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
 
-            gene_indices.append(gene_idx)
-            gene_data_list.append((non_zero_indices, non_zero_values))
-
-            # Add to expression index
+    # --- Build expression index (must be ordered) ---
+    for chunk_id in range(num_chunks):
+        start_gene = chunk_id * chunk_size
+        end_gene = min(start_gene + chunk_size, num_genes)
+        for local_idx, gene_idx in enumerate(range(start_gene, end_gene)):
             expr_index['genes'].append({
-                'name': gene_name,
+                'name': gene_names[gene_idx],
                 'chunk_id': chunk_id,
-                'position_in_chunk': gene_idx - start_gene
+                'position_in_chunk': local_idx
             })
 
-        # Write chunk
-        chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
-        write_expression_chunk(chunk_id, gene_indices, gene_data_list, num_cells, chunk_file)
+    # --- Write chunks (parallel or serial) ---
+    log(f"  Writing {num_chunks} chunk files...", _t_start)
+    t_write = time.perf_counter()
+
+    if num_workers > 1 and num_chunks > 1:
+        # Parallel chunk writing
+        effective_workers = min(num_workers, num_chunks)
+        log(f"  Launching {effective_workers} workers for {num_chunks} chunks...", _t_start)
+
+        worker_args = []
+        for chunk_id in range(num_chunks):
+            start_gene = chunk_id * chunk_size
+            end_gene = min(start_gene + chunk_size, num_genes)
+            gene_indices = list(range(start_gene, end_gene))
+            gene_data_list = [all_gene_sparse[gi] for gi in gene_indices]
+            chunk_file = str(expr_dir / f'chunk_{chunk_id:05d}.bin.gz')
+            worker_args.append((chunk_id, gene_indices, gene_data_list, num_cells, chunk_file))
+
+        with ProcessPoolExecutor(max_workers=effective_workers) as pool:
+            futures = {pool.submit(_write_chunk_worker, a): a[0] for a in worker_args}
+            done_count = 0
+            for future in as_completed(futures):
+                cid = future.result()
+                done_count += 1
+                if done_count % max(1, num_chunks // 10) == 0 or done_count == num_chunks:
+                    log(f"    {done_count}/{num_chunks} chunks written ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
+    else:
+        # Serial chunk writing
+        for chunk_id in range(num_chunks):
+            t_chunk = time.perf_counter()
+            start_gene = chunk_id * chunk_size
+            end_gene = min(start_gene + chunk_size, num_genes)
+            gene_indices = list(range(start_gene, end_gene))
+            gene_data_list = [all_gene_sparse[gi] for gi in gene_indices]
+            chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
+            write_expression_chunk(chunk_id, gene_indices, gene_data_list, num_cells, chunk_file)
+
+            pct = (chunk_id + 1) / num_chunks * 100
+            log(f"  [{chunk_id + 1}/{num_chunks}] chunk_{chunk_id:05d} ({end_gene - start_gene} genes, {pct:.0f}%, {fmt_elapsed(time.perf_counter() - t_chunk)})", _t_start)
+
+    log(f"  Chunk writing done ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
+
+    del all_gene_sparse
+    gc.collect()
 
     # Write expression index
     with open(expr_dir / 'index.json', 'w') as f:
         json.dump(expr_index, f, indent=2)
-    print(f"\n  ✓ Expression index written")
+    log(f"  Expression matrix done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
-    # 4. Create manifest
-    print("\n📋 Creating manifest...")
+    # Step 5: Create manifest
+    log(f"=== STEP 5: Creating manifest ===", _t_start)
     manifest = {
         'version': '1.0',
         'dataset_id': 'local_dataset',
@@ -1082,12 +1242,19 @@ def process_dataset(
     with open(output_dir / 'manifest.json', 'w') as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"  ✓ Manifest written")
+    log(f"  Manifest written", _t_start)
 
     # Summary
-    print(f"\n{'='*60}")
-    print(f"✅ Processing complete!")
-    print(f"{'='*60}\n")
+    log(f"{'='*60}", _t_start)
+    log(f"=== COMPLETE ===", _t_start)
+    log(f"  Format: {data_format.upper()}", _t_start)
+    log(f"  Cells: {num_cells:,}", _t_start)
+    log(f"  Genes: {num_genes:,}", _t_start)
+    log(f"  Chunks: {num_chunks}", _t_start)
+    log(f"  Obs columns: {len(obs_metadata)}", _t_start)
+    log(f"  Output: {output_dir}", _t_start)
+    log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}", _t_start)
+    log(f"{'='*60}", _t_start)
 
 
 def main():
@@ -1116,6 +1283,8 @@ Examples:
                         help='Genes per chunk (default: auto-determined)')
     parser.add_argument('--format', type=str, choices=['h5ad', 'xenium', 'merscope'],
                         help='Force input format (auto-detected if not specified)')
+    parser.add_argument('--workers', type=int, default=1,
+                        help='Number of parallel workers for chunk writing and obs processing (default: 1)')
 
     args = parser.parse_args()
 
@@ -1126,7 +1295,7 @@ Examples:
 
     # Process
     try:
-        process_dataset(args.input, args.output, args.chunk_size, args.format)
+        process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback
