@@ -20,7 +20,7 @@ echo "Started at $(date)"
 
 # ── Environment setup ────────────────────────────────────────
 module load gcc/11.2.0
-source ~/merfisheyes/.venv/bin/activate
+source ~/merfisheyes_env/bin/activate
 
 # ── Run ──────────────────────────────────────────────────────
 cd ~/merfisheyes/scripts
