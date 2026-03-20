@@ -93,6 +93,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const selectedColumnRef = useRef(selectedColumn);
   const previousGeneRef = useRef<string | null>(null);
   const previousColumnRef = useRef<string | null>(null);
+  const previousColumnTypeRef = useRef<boolean>(false);
 
   // Update refs when store values change
   useEffect(() => {
@@ -564,12 +565,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         previousGeneRef.current = selectedGene;
       }
 
-      // Check if column has changed (for auto-scaling numerical columns)
+      // Check if column or its effective type has changed (for auto-scaling numerical columns)
       const columnChanged = previousColumnRef.current !== selectedColumn;
+      const typeChanged = previousColumnTypeRef.current !== isNumerical;
 
       if (columnChanged) {
         previousColumnRef.current = selectedColumn;
       }
+      if (typeChanged) {
+        previousColumnTypeRef.current = isNumerical;
+      }
+
+      const shouldAutoScale = columnChanged || typeChanged;
 
       if (
         hasGeneMode &&
@@ -652,9 +659,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               sizeScale,
               numericalScaleMin,
               numericalScaleMax,
-              // Only auto-set scale when column changes, not when user manually adjusts
-              columnChanged ? setNumericalScaleMin : undefined,
-              columnChanged ? setNumericalScaleMax : undefined,
+              // Only auto-set scale when column or type changes, not when user manually adjusts
+              shouldAutoScale ? setNumericalScaleMin : undefined,
+              shouldAutoScale ? setNumericalScaleMax : undefined,
             )
           : updateCelltypeVisualization(
               dataset,
