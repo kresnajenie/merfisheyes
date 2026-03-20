@@ -33,14 +33,6 @@ function useModeToggleState() {
       return modeParam === "sm";
     }
 
-    if (typeof window !== "undefined") {
-      const storedMode = window.localStorage.getItem("lastDatasetMode");
-
-      if (storedMode) {
-        return storedMode === "sm";
-      }
-    }
-
     return false;
   }, [modeParam]);
 
