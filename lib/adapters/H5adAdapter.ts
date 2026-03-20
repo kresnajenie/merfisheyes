@@ -450,6 +450,11 @@ export class H5adAdapter {
       // Determine if categorical or numerical (pass columnName for special cases)
       const isCategorical = this.isCategoricalData(values, columnName);
 
+      // Pre-compute unique values (sorted) so the UI doesn't have to iterate all values
+      const uniqueValues = [...new Set(values.map(String))].sort(
+        (a, b) => a.localeCompare(b, undefined, { numeric: true }),
+      );
+
       if (isCategorical) {
         const palette = await this.loadClusterPalette(columnName);
 
@@ -458,6 +463,7 @@ export class H5adAdapter {
           type: "categorical",
           values: values,
           palette: palette,
+          uniqueValues: uniqueValues,
         };
       } else {
         return {
@@ -465,6 +471,7 @@ export class H5adAdapter {
           type: "numerical",
           values: values,
           palette: null,
+          uniqueValues: uniqueValues,
         };
       }
     } catch (error) {

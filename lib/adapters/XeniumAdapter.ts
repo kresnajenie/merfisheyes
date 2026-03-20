@@ -23,6 +23,7 @@ interface ClusterData {
   column: string;
   values: string[];
   palette: Record<string, string>;
+  uniqueValues?: string[];
 }
 
 type RowData = Record<string, any>;
@@ -335,7 +336,7 @@ export class XeniumAdapter {
       palette[u] = DEFAULT_COLOR_PALETTE[i % DEFAULT_COLOR_PALETTE.length];
     });
 
-    return { column: clusterColumn, values: vals, palette };
+    return { column: clusterColumn, values: vals, palette, uniqueValues: uniq };
   }
 
   // ---- obs/var interface expected by StandardizedDataset ----

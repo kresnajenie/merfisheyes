@@ -21,6 +21,7 @@ interface ClusterData {
   column: string;
   values: string[];
   palette: Record<string, string>;
+  uniqueValues?: string[];
 }
 
 type RowData = Record<string, any>;
@@ -423,7 +424,7 @@ export class MerscopeAdapter {
       palette[u] = DEFAULT_COLOR_PALETTE[i % DEFAULT_COLOR_PALETTE.length];
     });
 
-    return { column: clusterColumn, values: vals, palette };
+    return { column: clusterColumn, values: vals, palette, uniqueValues: uniq };
   }
 
   // ========= StandardizedDataset adapter surface =========

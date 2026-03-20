@@ -12,6 +12,7 @@ interface ClusterData {
   type: string;
   values: any[];
   palette: Record<string, string> | null;
+  uniqueValues?: string[];
 }
 
 interface StandardizedDatasetParams {
@@ -146,6 +147,7 @@ export class StandardizedDataset {
       type: string;
       values: any[];
       palette: Record<string, string> | null;
+      uniqueValues?: string[];
     }>,
   ) {
     if (!newClusters || newClusters.length === 0) return;

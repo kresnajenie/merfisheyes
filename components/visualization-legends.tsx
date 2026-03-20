@@ -81,9 +81,8 @@ export const VisualizationLegends: React.FC = () => {
       !basePalette ||
       Object.keys(basePalette).length === 0
     ) {
-      const uniqueValues = [
-        ...new Set(selectedCluster.values?.map(String) ?? []),
-      ];
+      const uniqueValues = selectedCluster.uniqueValues
+        ?? [...new Set(selectedCluster.values?.map(String) ?? [])];
 
       basePalette = generateColorPalette(uniqueValues);
     }

@@ -83,6 +83,7 @@ async function loadColumnOnDemand(
       type: string;
       values: any[];
       palette: Record<string, string> | null;
+      uniqueValues?: string[];
     }> | null = null;
 
     if (dataset.adapter.mode === "local") {

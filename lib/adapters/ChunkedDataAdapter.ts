@@ -424,6 +424,7 @@ export class ChunkedDataAdapter {
     type: string;
     values: any[];
     palette: Record<string, string> | null;
+    uniqueValues: string[];
   }> | null> {
     console.log("Loading clusters...", columns ? `(filtered: ${columns.join(", ")})` : "(all)");
 
@@ -479,11 +480,17 @@ export class ChunkedDataAdapter {
             console.log(`Skipping palette for numerical column: ${columnName}`);
           }
 
+          // Pre-compute unique values (sorted) so the UI doesn't have to iterate all values
+          const uniqueValues = [...new Set((clusterValues as any[]).map(String))].sort(
+            (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true }),
+          );
+
           clusters.push({
             column: columnName,
             type: columnType,
             values: clusterValues,
             palette: palette,
+            uniqueValues: uniqueValues,
           });
         } catch (error) {
           console.warn(`Failed to load cluster column ${columnName}:`, error);

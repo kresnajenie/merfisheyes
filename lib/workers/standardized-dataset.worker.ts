@@ -33,6 +33,7 @@ interface SerializableClusterData {
   type: string;
   values: any[];
   palette: Record<string, string> | null;
+  uniqueValues?: string[];
 }
 
 /**
@@ -184,6 +185,7 @@ const workerApi = {
             palette: isCategoricalData(clusterData.values, clusterData.column)
               ? clusterData.palette
               : null,
+            uniqueValues: clusterData.uniqueValues,
           },
         ]
       : null;
@@ -286,6 +288,7 @@ const workerApi = {
             palette: isCategoricalData(clusterData.values, clusterData.column)
               ? clusterData.palette
               : null,
+            uniqueValues: clusterData.uniqueValues,
           },
         ]
       : null;
@@ -464,6 +467,7 @@ const workerApi = {
     type: string;
     values: any[];
     palette: Record<string, string> | null;
+    uniqueValues?: string[];
   }> | null> {
     const adapter = customS3BaseUrl
       ? new ChunkedDataAdapter("custom", undefined, customS3BaseUrl)
