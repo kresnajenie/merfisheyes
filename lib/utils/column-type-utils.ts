@@ -46,12 +46,12 @@ export function canTreatAsNumerical(
 
   if (loadedCluster.type === "numerical") return true;
 
-  // Sample up to 50 values to check if they parse as numbers
-  const values = loadedCluster.values;
-  const sampleSize = Math.min(values.length, 50);
+  // Check unique values (much smaller than raw values array) to see if they parse as numbers
+  const valuesToCheck = loadedCluster.uniqueValues ?? loadedCluster.values;
+  const sampleSize = Math.min(valuesToCheck.length, 50);
 
   for (let i = 0; i < sampleSize; i++) {
-    const v = values[i];
+    const v = valuesToCheck[i];
 
     if (v === null || v === undefined || v === "") continue;
     if (typeof v === "number") continue;

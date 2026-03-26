@@ -126,7 +126,7 @@ export async function applyCellVizState(
     const cluster = dataset.clusters?.find((c) => c.column === validColumn);
 
     if (cluster) {
-      const validValues = new Set(cluster.values.map(String));
+      const validValues = new Set(cluster.uniqueValues ?? cluster.values.map(String));
 
       decoded.ct.forEach((ct) => {
         if (validValues.has(ct)) {

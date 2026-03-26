@@ -22,6 +22,7 @@ interface SpatialCoordinates {
 interface ClusterData {
   column: string;
   values: string[];
+  valueIndices?: Uint16Array | Uint32Array;
   palette: Record<string, string>;
   uniqueValues?: string[];
 }
@@ -336,7 +337,18 @@ export class XeniumAdapter {
       palette[u] = DEFAULT_COLOR_PALETTE[i % DEFAULT_COLOR_PALETTE.length];
     });
 
-    return { column: clusterColumn, values: vals, palette, uniqueValues: uniq };
+    // Build indexed representation
+    const sortedIndexMap = new Map<string, number>();
+
+    uniq.forEach((u, i) => { sortedIndexMap.set(u, i); });
+    const IndexArray = uniq.length <= 65535 ? Uint16Array : Uint32Array;
+    const valueIndices = new IndexArray(vals.length);
+
+    for (let i = 0; i < vals.length; i++) {
+      valueIndices[i] = sortedIndexMap.get(vals[i])!;
+    }
+
+    return { column: clusterColumn, values: [], valueIndices, palette, uniqueValues: uniq };
   }
 
   // ---- obs/var interface expected by StandardizedDataset ----

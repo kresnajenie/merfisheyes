@@ -31,12 +31,22 @@ export async function generateDatasetFingerprint(
   // 3. Sample spatial coordinates (every 5th cell)
   if (dataset.spatial && dataset.spatial.coordinates) {
     const coords = dataset.spatial.coordinates;
+    const dims = dataset.spatial.dimensions;
+    const isFlat = coords instanceof Float32Array;
+    const numPts = isFlat ? coords.length / dims : (coords as number[][]).length;
     const sampledCoords: string[] = [];
 
-    for (let i = 0; i < coords.length; i += 5) {
-      const cellCoords = coords[i];
+    for (let i = 0; i < numPts; i += 5) {
+      if (isFlat) {
+        const parts: number[] = [];
 
-      sampledCoords.push(cellCoords.join(","));
+        for (let d = 0; d < dims; d++) {
+          parts.push(coords[i * dims + d]);
+        }
+        sampledCoords.push(parts.join(","));
+      } else {
+        sampledCoords.push((coords as number[][])[i].join(","));
+      }
     }
     parts.push(`spatial:${sampledCoords.join(";")}`);
   }

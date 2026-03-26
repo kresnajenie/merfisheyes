@@ -148,12 +148,12 @@ function getColumnValues(
 
   // If override says categorical, ignore the stored type
   if (overrides[column] === "categorical") {
-    return new Set(cluster.values?.map(String) ?? []);
+    return new Set(cluster.uniqueValues ?? cluster.values?.map(String) ?? []);
   }
 
   if (cluster.type === "numerical") return new Set();
 
-  return new Set(cluster.values?.map(String) ?? []);
+  return new Set(cluster.uniqueValues ?? cluster.values?.map(String) ?? []);
 }
 
 function isNumericalColumn(
