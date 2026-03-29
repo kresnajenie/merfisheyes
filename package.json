@@ -3,6 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test-prisma": "tsx tests/prisma/test-prisma.ts",
     "test:db": "node scripts/test-db-connection.js",
     "test:sm-initiate": "tsx tests/api/test-single-molecule-initiate.ts",
@@ -124,6 +126,7 @@
     "tailwindcss": "4.1.11",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   }
 }
