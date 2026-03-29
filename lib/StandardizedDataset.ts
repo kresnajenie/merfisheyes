@@ -1,17 +1,57 @@
-import { normalizeCoordinates } from "./utils/coordinates";
+import { normalizeCoordinates, normalizeCoordinatesFlat } from "./utils/coordinates";
 import { selectBestClusterColumnByName } from "./utils/dataset-utils";
 
 interface SpatialData {
-  coordinates: number[][];
+  coordinates: Float32Array | number[][];
   dimensions: number;
   scalingFactor: number;
+}
+
+/**
+ * Get the coordinate for a specific point at a given dimension.
+ * Works with both flat Float32Array and nested number[][] formats.
+ */
+export function getCoord(spatial: SpatialData, pointIndex: number, dim: number): number {
+  const coords = spatial.coordinates;
+
+  if (coords instanceof Float32Array) {
+    return coords[pointIndex * spatial.dimensions + dim];
+  }
+
+  return (coords as number[][])[pointIndex][dim];
+}
+
+/**
+ * Get the total number of points in the spatial data.
+ */
+export function getPointCountFromSpatial(spatial: SpatialData): number {
+  const coords = spatial.coordinates;
+
+  if (coords instanceof Float32Array) {
+    return coords.length / spatial.dimensions;
+  }
+
+  return (coords as number[][]).length;
 }
 
 interface ClusterData {
   column: string;
   type: string;
   values: any[];
+  valueIndices?: Uint16Array | Uint32Array;
   palette: Record<string, string> | null;
+  uniqueValues?: string[];
+}
+
+/**
+ * Get the cluster value for a specific cell index.
+ * Uses indexed lookup if available, falls back to raw values array.
+ */
+export function getClusterValue(cluster: ClusterData, cellIndex: number): string {
+  if (cluster.valueIndices && cluster.uniqueValues) {
+    return cluster.uniqueValues[cluster.valueIndices[cellIndex]];
+  }
+  return String(cluster.values[cellIndex]);
 }
 
 interface StandardizedDatasetParams {
@@ -19,7 +59,7 @@ interface StandardizedDatasetParams {
   name: string;
   type: string;
   spatial: {
-    coordinates: number[][];
+    coordinates: Float32Array | number[][];
     dimensions: number;
   };
   embeddings?: Record<string, number[][]>;
@@ -69,20 +109,32 @@ export class StandardizedDataset {
     this.type = type;
 
     // Normalize spatial coordinates to [-1, 1]
-    const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
+    const coords = spatial.coordinates;
 
-    this.spatial = {
-      coordinates: normalizedSpatial?.normalized || spatial.coordinates,
-      dimensions: spatial.dimensions,
-      scalingFactor: normalizedSpatial?.scalingFactor || 1,
-    };
+    if (coords instanceof Float32Array) {
+      const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
+
+      this.spatial = {
+        coordinates: result?.normalized || coords,
+        dimensions: spatial.dimensions,
+        scalingFactor: result?.scalingFactor || 1,
+      };
+    } else {
+      const result = normalizeCoordinates(coords);
+
+      this.spatial = {
+        coordinates: result?.normalized || coords,
+        dimensions: spatial.dimensions,
+        scalingFactor: result?.scalingFactor || 1,
+      };
+    }
 
     this.embeddings = embeddings;
     this.genes = genes;
     this.clusters = clusters;
     this.metadata = {
       ...metadata,
-      spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
+      spatialScalingFactor: this.spatial.scalingFactor || 1,
     };
     this.rawData = rawData;
     this.adapter = adapter;
@@ -115,7 +167,7 @@ export class StandardizedDataset {
     if (
       !this.spatial ||
       !this.spatial.coordinates ||
-      !Array.isArray(this.spatial.coordinates)
+      (!(this.spatial.coordinates instanceof Float32Array) && !Array.isArray(this.spatial.coordinates))
     ) {
       throw new Error("Dataset must have valid spatial coordinates");
     }
@@ -125,13 +177,20 @@ export class StandardizedDataset {
     }
 
     if (this.spatial.coordinates.length > 0) {
-      const firstCoord = this.spatial.coordinates[0];
+      if (this.spatial.coordinates instanceof Float32Array) {
+        // Flat Float32Array: validate length is divisible by dimensions
+        if (this.spatial.coordinates.length % this.spatial.dimensions !== 0) {
+          throw new Error("Spatial coordinates length is not divisible by dimensions");
+        }
+      } else {
+        const firstCoord = this.spatial.coordinates[0];
 
-      if (
-        !Array.isArray(firstCoord) ||
-        firstCoord.length < this.spatial.dimensions
-      ) {
-        throw new Error("Spatial coordinates format is invalid");
+        if (
+          !Array.isArray(firstCoord) ||
+          firstCoord.length < this.spatial.dimensions
+        ) {
+          throw new Error("Spatial coordinates format is invalid");
+        }
       }
     }
   }
@@ -145,7 +204,9 @@ export class StandardizedDataset {
       column: string;
       type: string;
       values: any[];
+      valueIndices?: Uint16Array | Uint32Array;
       palette: Record<string, string> | null;
+      uniqueValues?: string[];
     }>,
   ) {
     if (!newClusters || newClusters.length === 0) return;
@@ -170,7 +231,7 @@ export class StandardizedDataset {
    * Get the number of data points
    */
   getPointCount(): number {
-    return this.spatial.coordinates.length;
+    return getPointCountFromSpatial(this.spatial);
   }
 
   /**
@@ -282,7 +343,7 @@ export class StandardizedDataset {
     name: string;
     type: string;
     spatial: {
-      coordinates: number[][];
+      coordinates: Float32Array | number[][];
       dimensions: number;
       scalingFactor: number;
     };
@@ -293,7 +354,9 @@ export class StandardizedDataset {
           column: string;
           type: string;
           values: any[];
+          valueIndices?: Uint16Array | Uint32Array;
           palette: Record<string, string> | null;
+          uniqueValues?: string[];
         }[]
       | null;
     metadata: Record<string, any>;

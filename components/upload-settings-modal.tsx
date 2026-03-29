@@ -587,7 +587,7 @@ async function createManifest(
     dataset.spatial.coordinates &&
     dataset.spatial.coordinates.length > 0
   ) {
-    spatialDimensions = dataset.spatial.coordinates[0].length;
+    spatialDimensions = dataset.spatial.dimensions;
   }
 
   // Get available embeddings (prefer allEmbeddingNames for lazy-loaded datasets)

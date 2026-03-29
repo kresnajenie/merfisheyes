@@ -173,8 +173,7 @@ export function VisualizationPanel({
 
         if (!selectedCluster) return [];
 
-        // Skip expensive unique-value computation for numerical columns
-        // (the list is hidden anyway — only the column dropdown is shown)
+        // Skip for numerical columns (list is hidden — only column dropdown shown)
         if (
           getEffectiveColumnType(
             selectedColumn,
@@ -184,30 +183,19 @@ export function VisualizationPanel({
         )
           return [];
 
-        const uniqueTypes = new Set<string>();
-        const itemsMap = new Map<
-          string,
-          { id: string; label: string; color: string }
-        >();
+        // Use pre-computed uniqueValues if available (already sorted),
+        // otherwise fall back to computing from raw values
+        const palette = selectedCluster.palette || {};
+        const uniqueVals = selectedCluster.uniqueValues
+          ?? [...new Set(selectedCluster.values.map(String))].sort(
+            (a, b) => a.localeCompare(b, undefined, { numeric: true }),
+          );
 
-        selectedCluster.values.forEach((value) => {
-          const typeStr = String(value);
-
-          if (!uniqueTypes.has(typeStr)) {
-            uniqueTypes.add(typeStr);
-            const palette = selectedCluster.palette || {};
-
-            itemsMap.set(typeStr, {
-              id: typeStr,
-              label: typeStr,
-              color: palette[typeStr] || "#808080",
-            });
-          }
-        });
-
-        return Array.from(itemsMap.values()).sort((a, b) =>
-          a.label.localeCompare(b.label, undefined, { numeric: true }),
-        );
+        return uniqueVals.map((val) => ({
+          id: val,
+          label: val,
+          color: palette[val] || "#808080",
+        }));
       }
 
       case "gene": {
@@ -319,6 +307,7 @@ export function VisualizationPanel({
                     type: string;
                     values: any[];
                     palette: Record<string, string> | null;
+                    uniqueValues?: string[];
                   }> | null = null;
 
                   if (dataset.adapter.mode === "local") {

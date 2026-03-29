@@ -1,5 +1,6 @@
 import type { StandardizedDataset } from "../StandardizedDataset";
 
+import { getClusterValue } from "../StandardizedDataset";
 import {
   VISUALIZATION_CONFIG,
   calculateSizeMultiplier,
@@ -280,14 +281,21 @@ export function updateNumericalCelltypeVisualization(
     return null;
   }
 
-  // Get the numerical values
-  const values = selectedCluster.values.map((v) => Number(v));
+  // Get the numerical values using indexed lookup
+  const numCount = selectedCluster.valueIndices
+    ? selectedCluster.valueIndices.length
+    : selectedCluster.values.length;
+  const values = new Float32Array(numCount);
+
+  for (let i = 0; i < numCount; i++) {
+    values[i] = Number(getClusterValue(selectedCluster, i));
+  }
 
   console.log("Numerical celltype values loaded:", values.slice(0, 10));
 
   // Calculate 95th percentile for auto-scaling
   const percentile95 = calculateGenePercentile(
-    values,
+    Array.from(values),
     VISUALIZATION_CONFIG.NUMERICAL_CLUSTER_PERCENTILE,
   );
 
@@ -304,16 +312,19 @@ export function updateNumericalCelltypeVisualization(
   console.log("Using scale range for visualization:", scaleMin, "-", scaleMax);
 
   // Normalize values to 0-1 range using manual scale values
-  const normalizedValues = values.map((value) => {
-    if (isNaN(value) || value === null) {
-      return NaN;
-    }
-    // Map [scaleMin, scaleMax] to [0, 1]
-    const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+  const normalizedValues = new Float32Array(numCount);
 
-    // Clamp to [0, 1]
-    return Math.max(0, Math.min(1, normalized));
-  });
+  for (let i = 0; i < numCount; i++) {
+    const value = values[i];
+
+    if (isNaN(value)) {
+      normalizedValues[i] = NaN;
+    } else {
+      const normalized = (value - scaleMin) / (scaleMax - scaleMin);
+
+      normalizedValues[i] = Math.max(0, Math.min(1, normalized));
+    }
+  }
 
   console.log("Normalized values:", normalizedValues.slice(0, 10));
 
@@ -382,7 +393,6 @@ export function updateCelltypeVisualization(
     return null;
   }
 
-  const values = selectedCluster.values;
   const palette = selectedCluster.palette || colorPalette;
 
   // Initialize arrays
@@ -395,7 +405,7 @@ export function updateCelltypeVisualization(
 
   // Apply colors and sizes based on celltype selection
   for (let i = 0; i < count; i++) {
-    const category = String(values[i]);
+    const category = getClusterValue(selectedCluster, i);
     const isSelected =
       selectedCelltypes.size === 0 || selectedCelltypes.has(category);
 
@@ -478,8 +488,6 @@ export async function updateCombinedVisualization(
     return null;
   }
 
-  const clusterValues = selectedCluster.values;
-
   // Calculate 95th percentile for auto-scaling
   const percentile95 = calculateGenePercentile(
     expression,
@@ -520,7 +528,7 @@ export async function updateCombinedVisualization(
 
   // Apply combined visualization
   for (let i = 0; i < count; i++) {
-    const category = String(clusterValues[i]);
+    const category = getClusterValue(selectedCluster, i);
     const isSelected =
       selectedCelltypes.size === 0 || selectedCelltypes.has(category);
 

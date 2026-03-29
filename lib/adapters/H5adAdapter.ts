@@ -450,21 +450,55 @@ export class H5adAdapter {
       // Determine if categorical or numerical (pass columnName for special cases)
       const isCategorical = this.isCategoricalData(values, columnName);
 
+      // Build indexed representation
+      const valueToIndex = new Map<string, number>();
+      const uniqueValuesList: string[] = [];
+
+      for (let i = 0; i < values.length; i++) {
+        const str = String(values[i]);
+
+        if (!valueToIndex.has(str)) {
+          valueToIndex.set(str, uniqueValuesList.length);
+          uniqueValuesList.push(str);
+        }
+      }
+
+      const uniqueValues = uniqueValuesList.sort(
+        (a, b) => a.localeCompare(b, undefined, { numeric: true }),
+      );
+
+      const sortedIndexMap = new Map<string, number>();
+
+      for (let i = 0; i < uniqueValues.length; i++) {
+        sortedIndexMap.set(uniqueValues[i], i);
+      }
+
+      const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
+      const valueIndices = new IndexArray(values.length);
+
+      for (let i = 0; i < values.length; i++) {
+        valueIndices[i] = sortedIndexMap.get(String(values[i]))!;
+      }
+
       if (isCategorical) {
         const palette = await this.loadClusterPalette(columnName);
 
         return {
           column: columnName,
           type: "categorical",
-          values: values,
+          values: [],
+          valueIndices: valueIndices,
           palette: palette,
+          uniqueValues: uniqueValues,
         };
       } else {
         return {
           column: columnName,
           type: "numerical",
-          values: values,
+          values: [],
+          valueIndices: valueIndices,
           palette: null,
+          uniqueValues: uniqueValues,
         };
       }
     } catch (error) {
