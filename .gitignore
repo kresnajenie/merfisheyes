@@ -90,7 +90,6 @@ $RECYCLE.BIN/
 # Lock files
 pnpm-lock.yaml
 yarn.lock
-package-lock.json
 bun.lockb
 
 # Storybook
