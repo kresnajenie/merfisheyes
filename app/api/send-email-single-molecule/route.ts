@@ -1,9 +1,17 @@
-import sgMail from "@sendgrid/mail";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+const ses = new SESClient({
+  region: process.env.AWS_SES_REGION || "us-west-2",
+  credentials: {
+    accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY!,
+  },
+});
+
+const FROM_EMAIL = process.env.SES_FROM_EMAIL || "noreply@merfisheyes.com";
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,12 +41,16 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     const datasetUrl = `${baseUrl}/sm-viewer/${datasetId}`;
 
-    // Send email using SendGrid
-    const msg = {
-      to: email,
-      from: process.env.SENDGRID_FROM_EMAIL || "noreply@merfisheyes.com",
-      subject: "Your Single Molecule Dataset is Ready!",
-      html: `
+    const command = new SendEmailCommand({
+      Source: FROM_EMAIL,
+      Destination: {
+        ToAddresses: [email],
+      },
+      Message: {
+        Subject: { Data: "Your Single Molecule Dataset is Ready!" },
+        Body: {
+          Html: {
+            Data: `
         <!DOCTYPE html>
         <html>
           <head>
@@ -87,7 +99,7 @@ export async function POST(request: NextRequest) {
 
               <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 20px 0;">
                 <p style="margin: 0; color: #856404; font-size: 14px;">
-                  <strong>📋 Note:</strong> Save this link to access your dataset anytime:
+                  <strong>Note:</strong> Save this link to access your dataset anytime:
                 </p>
                 <p style="margin: 10px 0 0 0; word-break: break-all;">
                   <a href="${datasetUrl}" style="color: #667eea; text-decoration: none; font-family: monospace; font-size: 12px;">${datasetUrl}</a>
@@ -102,19 +114,22 @@ export async function POST(request: NextRequest) {
             </div>
 
             <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-              <p style="margin: 0;">© ${new Date().getFullYear()} MERFISH Eyes - Single Molecule Viewer</p>
+              <p style="margin: 0;">&copy; ${new Date().getFullYear()} MERFISH Eyes - Single Molecule Viewer</p>
               <p style="margin: 10px 0 0 0;">Powered by spatial transcriptomics visualization technology</p>
             </div>
           </body>
         </html>
       `,
-    };
+          },
+        },
+      },
+    });
 
-    await sgMail.send(msg);
+    await ses.send(command);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("SendGrid error:", error);
+    console.error("SES error:", error);
 
     return NextResponse.json(
       {
