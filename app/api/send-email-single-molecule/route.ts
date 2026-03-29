@@ -24,12 +24,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get dataset info
     const dataset = await prisma.dataset.findUnique({
       where: { id: datasetId },
       select: {
         title: true,
-        numCells: true, // molecule count
+        numCells: true,
         numGenes: true,
       },
     });
@@ -47,79 +46,52 @@ export async function POST(request: NextRequest) {
         ToAddresses: [email],
       },
       Message: {
-        Subject: { Data: "Your Single Molecule Dataset is Ready!" },
+        Subject: { Data: "Your Single Molecule Dataset is Ready - MERFISHEYES" },
         Body: {
           Html: {
-            Data: `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Single Molecule Dataset Ready</title>
-          </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">MERFISH Eyes</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Single Molecule Viewer</p>
-            </div>
-
-            <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
-              <h2 style="color: #667eea; margin-top: 0;">Your Dataset is Ready!</h2>
-
-              <p>Your single molecule dataset has been successfully processed and is now ready to explore.</p>
-
-              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #333; font-size: 16px;">Dataset Information</h3>
-                <table style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Name:</td>
-                    <td style="padding: 8px 0; color: #333;">${dataset.title || "Untitled Dataset"}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Total Molecules:</td>
-                    <td style="padding: 8px 0; color: #333;">${dataset.numCells.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Unique Genes:</td>
-                    <td style="padding: 8px 0; color: #333;">${dataset.numGenes.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Dataset ID:</td>
-                    <td style="padding: 8px 0; color: #333; font-family: monospace; font-size: 12px;">${datasetId}</td>
-                  </tr>
-                </table>
-              </div>
-
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${datasetUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
-                  View Dataset
-                </a>
-              </div>
-
-              <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                <p style="margin: 0; color: #856404; font-size: 14px;">
-                  <strong>Note:</strong> Save this link to access your dataset anytime:
-                </p>
-                <p style="margin: 10px 0 0 0; word-break: break-all;">
-                  <a href="${datasetUrl}" style="color: #667eea; text-decoration: none; font-family: monospace; font-size: 12px;">${datasetUrl}</a>
-                </p>
-              </div>
-
-              <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
-
-              <p style="color: #666; font-size: 14px; margin-bottom: 0;">
-                Need help? Visit our <a href="${baseUrl}" style="color: #667eea; text-decoration: none;">documentation</a> or contact support.
-              </p>
-            </div>
-
-            <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-              <p style="margin: 0;">&copy; ${new Date().getFullYear()} MERFISH Eyes - Single Molecule Viewer</p>
-              <p style="margin: 10px 0 0 0;">Powered by spatial transcriptomics visualization technology</p>
-            </div>
-          </body>
-        </html>
-      `,
+            Data: `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 520px; margin: 0 auto; padding: 20px;">
+    <div style="padding: 24px 0 16px 0;">
+      <span style="font-size: 14px; font-weight: 600; color: #111; letter-spacing: 0.5px;">MERFISHEYES</span>
+    </div>
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
+      <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">Your dataset is ready</p>
+      <h2 style="margin: 0 0 24px 0; font-size: 22px; font-weight: 600; color: #111;">${dataset.title || "Untitled Dataset"}</h2>
+      <a href="${datasetUrl}" style="display: inline-block; background: #111; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>
+    </div>
+    <div style="margin-top: 32px; padding: 16px; background: #f8f8f8; border-radius: 6px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <tr>
+          <td style="padding: 4px 0; color: #888;">Molecules</td>
+          <td style="padding: 4px 0; color: #333; text-align: right;">${dataset.numCells.toLocaleString()}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #888;">Genes</td>
+          <td style="padding: 4px 0; color: #333; text-align: right;">${dataset.numGenes.toLocaleString()}</td>
+        </tr>
+      </table>
+    </div>
+    <div style="margin-top: 24px; font-size: 12px; color: #999; word-break: break-all;">${datasetUrl}</div>
+    <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+      <table style="width: 100%;">
+        <tr>
+          <td style="font-size: 11px; color: #bbb;">&copy; ${new Date().getFullYear()} MERFISHEYES</td>
+          <td style="text-align: right; font-size: 12px;">
+            <a href="https://github.com/kresnajenie/merfisheyes" style="color: #999; text-decoration: none; margin-left: 12px;">GitHub</a>
+            <a href="https://x.com/merfisheyes" style="color: #999; text-decoration: none; margin-left: 12px;">X</a>
+            <a href="https://discord.gg/BRp6C2EVHU" style="color: #999; text-decoration: none; margin-left: 12px;">Discord</a>
+            <a href="https://www.patreon.com/cw/MERFISHEYES" style="color: #999; text-decoration: none; margin-left: 12px;">Patreon</a>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>`,
           },
         },
       },
