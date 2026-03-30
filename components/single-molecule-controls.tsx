@@ -48,6 +48,8 @@ export function SingleMoleculeControls() {
     setGlobalScale,
     viewMode,
     setViewMode,
+    showAssigned,
+    setShowAssigned,
     showUnassigned,
     setShowUnassigned,
   } = usePanelSingleMoleculeVisualizationStore();
@@ -144,17 +146,29 @@ export function SingleMoleculeControls() {
               </span>
             </div>
 
-            {/* Global Unassigned Toggle */}
+            {/* Global Assigned/Unassigned Toggles */}
             {dataset?.hasUnassigned && (
-              <div className="flex items-center justify-between py-1">
-                <span className="text-xs text-default-400">
-                  Show Unassigned
-                </span>
-                <Switch
-                  isSelected={showUnassigned}
-                  size="sm"
-                  onValueChange={setShowUnassigned}
-                />
+              <div className="flex flex-col gap-1 py-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-default-400">
+                    Show Assigned
+                  </span>
+                  <Switch
+                    isSelected={showAssigned}
+                    size="sm"
+                    onValueChange={setShowAssigned}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-default-400">
+                    Show Unassigned
+                  </span>
+                  <Switch
+                    isSelected={showUnassigned}
+                    size="sm"
+                    onValueChange={setShowUnassigned}
+                  />
+                </div>
               </div>
             )}
 

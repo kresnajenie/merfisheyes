@@ -110,7 +110,7 @@ export function SingleMoleculeThreeScene() {
   );
 
   // Get visualization settings from store
-  const { selectedGenes, globalScale, viewMode, showUnassigned } =
+  const { selectedGenes, globalScale, viewMode, showAssigned, showUnassigned } =
     usePanelSingleMoleculeVisualizationStore();
 
   // Keep refs in sync with store values
@@ -658,7 +658,7 @@ export function SingleMoleculeThreeScene() {
       console.log("[SingleMoleculeThreeScene] Cancelling point cloud updates");
       isCancelled = true;
     };
-  }, [dataset, selectedGenes, globalScale, viewMode, showUnassigned]);
+  }, [dataset, selectedGenes, globalScale, viewMode, showAssigned, showUnassigned]);
 
   if (!dataset) {
     return (

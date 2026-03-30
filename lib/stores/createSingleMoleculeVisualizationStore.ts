@@ -28,6 +28,7 @@ export interface SingleMoleculeVisualizationState {
   geneColorSlots: Map<string, number>;
   globalScale: number;
   viewMode: ViewMode;
+  showAssigned: boolean;
   showUnassigned: boolean;
 
   addGene: (gene: string, color?: string, localScale?: number) => void;
@@ -37,6 +38,7 @@ export interface SingleMoleculeVisualizationState {
   setGeneLocalScale: (gene: string, scale: number) => void;
   setGlobalScale: (scale: number) => void;
   setViewMode: (mode: ViewMode) => void;
+  setShowAssigned: (show: boolean) => void;
   setShowUnassigned: (show: boolean) => void;
   setGeneShowAssigned: (gene: string, show: boolean) => void;
   setGeneShowUnassigned: (gene: string, show: boolean) => void;
@@ -55,6 +57,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
     geneColorSlots: new Map(),
     globalScale: 1.0,
     viewMode: "2D",
+    showAssigned: true,
     showUnassigned: true,
 
     addGene: (gene: string, color?: string, localScale?: number) =>
@@ -197,7 +200,43 @@ export function createSingleMoleculeVisualizationStoreInstance() {
 
     setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 
-    setShowUnassigned: (show: boolean) => set({ showUnassigned: show }),
+    setShowAssigned: (show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+
+        for (const [key, geneViz] of newSelectedGenes) {
+          newSelectedGenes.set(key, { ...geneViz, showAssigned: show });
+        }
+        for (const [key, geneViz] of newGeneDataCache) {
+          newGeneDataCache.set(key, { ...geneViz, showAssigned: show });
+        }
+
+        return {
+          showAssigned: show,
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
+      }),
+
+    setShowUnassigned: (show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+
+        for (const [key, geneViz] of newSelectedGenes) {
+          newSelectedGenes.set(key, { ...geneViz, showUnassigned: show });
+        }
+        for (const [key, geneViz] of newGeneDataCache) {
+          newGeneDataCache.set(key, { ...geneViz, showUnassigned: show });
+        }
+
+        return {
+          showUnassigned: show,
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
+      }),
 
     setGeneShowAssigned: (gene: string, show: boolean) =>
       set((state) => {
