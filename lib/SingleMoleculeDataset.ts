@@ -754,6 +754,10 @@ export class SingleMoleculeDataset {
     // Create empty gene index - genes will be loaded on-demand
     const geneIndex = new Map<string, number[]>();
 
+    // Extract unassigned info from manifest
+    const hasUnassigned = manifest.has_unassigned ?? false;
+    const moleculeCounts = manifest.genes?.molecule_counts ?? null;
+
     // Create dataset with lazy-loading capability
     const dataset = new SingleMoleculeDataset({
       id: datasetId,
@@ -763,6 +767,8 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions,
       scalingFactor,
+      hasUnassigned,
+      moleculeCounts,
       metadata: {
         ...manifest,
         loadedFrom: "s3",
@@ -834,6 +840,75 @@ export class SingleMoleculeDataset {
       return coordinates;
     } as any; // Type override for lazy loading
 
+    // Override getUnassignedCoordinatesByGene for lazy loading from S3
+    if (hasUnassigned) {
+      const unassignedGeneIndex = new Map<string, number[]>();
+
+      (dataset as any).getUnassignedCoordinatesByGene = async function (
+        geneName: string,
+      ): Promise<number[]> {
+        // Check cache
+        if (unassignedGeneIndex.has(geneName)) {
+          return unassignedGeneIndex.get(geneName)!;
+        }
+
+        if (!uniqueGenes.includes(geneName)) {
+          return [];
+        }
+
+        console.log(
+          `[SingleMoleculeDataset] Lazy-loading unassigned '${geneName}' from S3...`,
+        );
+
+        try {
+          // Get presigned URL with ?unassigned=true
+          const urlResponse = await fetch(
+            `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}?unassigned=true`,
+          );
+
+          if (!urlResponse.ok) {
+            console.warn(
+              `[SingleMoleculeDataset] No unassigned file for gene '${geneName}'`,
+            );
+            unassignedGeneIndex.set(geneName, []);
+
+            return [];
+          }
+
+          const { url: geneUrl } = await urlResponse.json();
+
+          const geneResponse = await fetch(geneUrl);
+
+          if (!geneResponse.ok) {
+            unassignedGeneIndex.set(geneName, []);
+
+            return [];
+          }
+
+          const geneCompressed = await geneResponse.arrayBuffer();
+          const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+          const float32Array = new Float32Array(geneBuffer.buffer);
+          const coordinates = Array.from(float32Array);
+
+          unassignedGeneIndex.set(geneName, coordinates);
+
+          console.log(
+            `[SingleMoleculeDataset] ✅ Loaded unassigned '${geneName}': ${coordinates.length / dimensions} molecules`,
+          );
+
+          return coordinates;
+        } catch (error) {
+          console.warn(
+            `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
+            error,
+          );
+          unassignedGeneIndex.set(geneName, []);
+
+          return [];
+        }
+      };
+    }
+
     const elapsedTime = performance.now() - startTime;
 
     console.log(
@@ -895,6 +970,19 @@ export class SingleMoleculeDataset {
     const uniqueGenes = manifest.genes.unique_gene_names;
     const dimensions = manifest.statistics.spatial_dimensions;
     const scalingFactor = manifest.processing.scaling_factor;
+    const hasUnassigned = manifest.has_unassigned ?? false;
+    const moleculeCounts = manifest.genes?.molecule_counts ?? null;
+
+    console.log(
+      `[SingleMoleculeDataset] Custom S3 manifest parsed:`,
+      {
+        uniqueGenes: uniqueGenes.length,
+        dimensions,
+        hasUnassigned,
+        hasMoleculeCounts: !!moleculeCounts,
+        moleculeCountsKeys: moleculeCounts ? Object.keys(moleculeCounts).length : 0,
+      },
+    );
 
     // Create empty gene index - genes will be loaded on-demand
     const geneIndex = new Map<string, number[]>();
@@ -908,6 +996,8 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions,
       scalingFactor,
+      hasUnassigned,
+      moleculeCounts,
       metadata: {
         ...manifest,
         loadedFrom: "custom_s3",
@@ -917,6 +1007,14 @@ export class SingleMoleculeDataset {
       },
       rawData: null,
     });
+
+    console.log(
+      `[SingleMoleculeDataset] Custom S3 dataset created:`,
+      {
+        hasUnassigned: dataset.hasUnassigned,
+        moleculeCounts: dataset.moleculeCounts ? `${Object.keys(dataset.moleculeCounts).length} genes` : "null",
+      },
+    );
 
     // Override getCoordinatesByGene to support lazy loading from custom S3
     const originalGetCoordinates = dataset.getCoordinatesByGene.bind(dataset);
@@ -974,6 +1072,76 @@ export class SingleMoleculeDataset {
 
       return coordinates;
     } as any; // Type override for lazy loading
+
+    // Override getUnassignedCoordinatesByGene for lazy loading from custom S3
+    if (hasUnassigned) {
+      const unassignedGeneIndex = new Map<string, number[]>();
+
+      console.log(
+        `[SingleMoleculeDataset] Custom S3: enabling unassigned gene loading`,
+      );
+
+      (dataset as any).getUnassignedCoordinatesByGene = async function (
+        geneName: string,
+      ): Promise<number[]> {
+        if (unassignedGeneIndex.has(geneName)) {
+          return unassignedGeneIndex.get(geneName)!;
+        }
+
+        if (!uniqueGenes.includes(geneName)) {
+          return [];
+        }
+
+        const sanitizedName = geneName
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "");
+
+        const geneFileUrl = `${customS3BaseUrl}/genes/${sanitizedName}_uuuuuuuuuu.bin.gz`;
+
+        console.log(
+          `[SingleMoleculeDataset] Lazy-loading unassigned '${geneName}' from custom S3: ${geneFileUrl}`,
+        );
+
+        try {
+          const geneResponse = await fetch(geneFileUrl);
+
+          if (!geneResponse.ok) {
+            console.warn(
+              `[SingleMoleculeDataset] No unassigned file for '${geneName}': ${geneResponse.status}`,
+            );
+            unassignedGeneIndex.set(geneName, []);
+
+            return [];
+          }
+
+          const geneCompressed = await geneResponse.arrayBuffer();
+          const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+          const float32Array = new Float32Array(geneBuffer.buffer);
+          const coordinates = Array.from(float32Array);
+
+          unassignedGeneIndex.set(geneName, coordinates);
+
+          console.log(
+            `[SingleMoleculeDataset] ✅ Loaded unassigned '${geneName}': ${coordinates.length / dimensions} molecules`,
+          );
+
+          return coordinates;
+        } catch (error) {
+          console.warn(
+            `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
+            error,
+          );
+          unassignedGeneIndex.set(geneName, []);
+
+          return [];
+        }
+      };
+    } else {
+      console.log(
+        `[SingleMoleculeDataset] Custom S3: no unassigned data in manifest (has_unassigned=${manifest.has_unassigned})`,
+      );
+    }
 
     const elapsedTime = performance.now() - startTime;
 

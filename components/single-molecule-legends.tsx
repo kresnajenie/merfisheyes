@@ -32,6 +32,7 @@ export const SingleMoleculeLegends: React.FC = () => {
     toggleGeneVisibility,
     setGeneColor,
     setGeneLocalScale,
+    setGeneShowAssigned,
     setGeneShowUnassigned,
     setGeneAssignedShape,
     setGeneUnassignedShape,
@@ -282,27 +283,35 @@ export const SingleMoleculeLegends: React.FC = () => {
                             Unassigned
                           </Button>
                         </div>
-                        {/* Per-gene unassigned visibility toggle */}
-                        {popoverMode === "unassigned" && (
-                          <Tooltip
-                            content={
-                              geneViz.showUnassigned
+                        {/* Per-gene visibility toggle for current mode */}
+                        <Tooltip
+                          content={
+                            popoverMode === "assigned"
+                              ? geneViz.showAssigned
+                                ? "Hide assigned"
+                                : "Show assigned"
+                              : geneViz.showUnassigned
                                 ? "Hide unassigned"
                                 : "Show unassigned"
-                            }
-                            placement="top"
-                          >
-                            <div>
-                              <Switch
-                                isSelected={geneViz.showUnassigned}
-                                size="sm"
-                                onValueChange={(val) =>
-                                  setGeneShowUnassigned(gene, val)
-                                }
-                              />
-                            </div>
-                          </Tooltip>
-                        )}
+                          }
+                          placement="top"
+                        >
+                          <div>
+                            <Switch
+                              isSelected={
+                                popoverMode === "assigned"
+                                  ? geneViz.showAssigned
+                                  : geneViz.showUnassigned
+                              }
+                              size="sm"
+                              onValueChange={(val) =>
+                                popoverMode === "assigned"
+                                  ? setGeneShowAssigned(gene, val)
+                                  : setGeneShowUnassigned(gene, val)
+                              }
+                            />
+                          </div>
+                        </Tooltip>
                       </div>
                     )}
 

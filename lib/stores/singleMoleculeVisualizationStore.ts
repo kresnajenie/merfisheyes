@@ -11,6 +11,7 @@ export interface GeneVisualization {
   gene: string;
   color: string;
   localScale: number;
+  showAssigned: boolean;
   showUnassigned: boolean;
   assignedShape: MoleculeShape;
   unassignedShape: MoleculeShape;
@@ -51,6 +52,7 @@ interface SingleMoleculeVisualizationState {
   setGlobalScale: (scale: number) => void;
   setViewMode: (mode: ViewMode) => void;
   setShowUnassigned: (show: boolean) => void;
+  setGeneShowAssigned: (gene: string, show: boolean) => void;
   setGeneShowUnassigned: (gene: string, show: boolean) => void;
   setGeneAssignedShape: (gene: string, shape: MoleculeShape) => void;
   setGeneUnassignedShape: (gene: string, shape: MoleculeShape) => void;
@@ -101,6 +103,7 @@ export const useSingleMoleculeVisualizationStore =
           gene,
           color: assignedColor,
           localScale: localScale || 1.0,
+          showAssigned: true,
           showUnassigned: true,
           assignedShape: "circle",
           unassignedShape: "square",
@@ -215,6 +218,23 @@ export const useSingleMoleculeVisualizationStore =
     setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 
     setShowUnassigned: (show: boolean) => set({ showUnassigned: show }),
+
+    setGeneShowAssigned: (gene: string, show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, showAssigned: show };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
 
     setGeneShowUnassigned: (gene: string, show: boolean) =>
       set((state) => {

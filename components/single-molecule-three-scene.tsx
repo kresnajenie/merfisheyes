@@ -503,40 +503,44 @@ export function SingleMoleculeThreeScene() {
               : circleTextureRef.current;
 
           // --- Assigned point cloud ---
-          let pointCloud = currentPointClouds.get(aKey);
+          if (geneViz.showAssigned) {
+            let pointCloud = currentPointClouds.get(aKey);
 
-          if (!pointCloud) {
-            pointCloud = createPointCloud(
-              coords,
-              geneViz,
-              getTexture(geneViz.assignedShape),
-              0,
-            );
+            if (!pointCloud) {
+              pointCloud = createPointCloud(
+                coords,
+                geneViz,
+                getTexture(geneViz.assignedShape),
+                0,
+              );
 
-            if (isCancelled) {
-              pointCloud.geometry.dispose();
-              if (pointCloud.material instanceof THREE.Material) {
-                pointCloud.material.dispose();
+              if (isCancelled) {
+                pointCloud.geometry.dispose();
+                if (pointCloud.material instanceof THREE.Material) {
+                  pointCloud.material.dispose();
+                }
+                toast.dismiss(toastId);
+
+                return;
               }
-              toast.dismiss(toastId);
 
-              return;
+              scene.add(pointCloud);
+              currentPointClouds.set(aKey, pointCloud);
+
+              console.log(
+                `  ✅ Assigned point cloud created with ${moleculeCount} molecules`,
+              );
+            } else {
+              updatePointCloudAppearance(pointCloud, geneViz);
+              // Update texture if shape changed
+              const mat = pointCloud.material as THREE.PointsMaterial;
+
+              mat.map = getTexture(geneViz.assignedShape);
+              mat.needsUpdate = true;
+              console.log(`  ✅ Assigned point cloud updated`);
             }
-
-            scene.add(pointCloud);
-            currentPointClouds.set(aKey, pointCloud);
-
-            console.log(
-              `  ✅ Assigned point cloud created with ${moleculeCount} molecules`,
-            );
           } else {
-            updatePointCloudAppearance(pointCloud, geneViz);
-            // Update texture if shape changed
-            const mat = pointCloud.material as THREE.PointsMaterial;
-
-            mat.map = getTexture(geneViz.assignedShape);
-            mat.needsUpdate = true;
-            console.log(`  ✅ Assigned point cloud updated`);
+            removePointCloud(aKey);
           }
 
           // --- Unassigned point cloud ---
