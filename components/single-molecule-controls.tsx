@@ -3,6 +3,7 @@
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Checkbox } from "@heroui/checkbox";
+import { Switch } from "@heroui/switch";
 import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useMemo } from "react";
@@ -15,6 +16,13 @@ import {
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+
+  return n.toString();
+}
 
 export function SingleMoleculeControls() {
   const { isSplitMode, enableSplit } = useSplitScreenStore();
@@ -40,6 +48,8 @@ export function SingleMoleculeControls() {
     setGlobalScale,
     viewMode,
     setViewMode,
+    showUnassigned,
+    setShowUnassigned,
   } = usePanelSingleMoleculeVisualizationStore();
 
   // Filter genes based on search
@@ -134,6 +144,20 @@ export function SingleMoleculeControls() {
               </span>
             </div>
 
+            {/* Global Unassigned Toggle */}
+            {dataset?.hasUnassigned && (
+              <div className="flex items-center justify-between py-1">
+                <span className="text-xs text-default-400">
+                  Show Unassigned
+                </span>
+                <Switch
+                  isSelected={showUnassigned}
+                  size="sm"
+                  onValueChange={setShowUnassigned}
+                />
+              </div>
+            )}
+
             {/* Search Input */}
             <Input
               classNames={{
@@ -162,23 +186,48 @@ export function SingleMoleculeControls() {
             {/* Gene List */}
             <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
               {filteredGenes.length > 0 ? (
-                filteredGenes.map((gene) => (
-                  <Checkbox
-                    key={gene}
-                    className="w-full"
-                    isSelected={selectedGenes.has(gene)}
-                    size="sm"
-                    onValueChange={() => {
-                      if (selectedGenes.has(gene)) {
-                        removeGene(gene);
-                      } else {
-                        addGene(gene);
+                filteredGenes.map((gene) => {
+                  const counts = dataset?.moleculeCounts?.[gene];
+
+                  return (
+                    <Tooltip
+                      key={gene}
+                      content={
+                        counts
+                          ? `${counts.assigned.toLocaleString()} assigned${counts.unassigned != null ? ` | ${counts.unassigned.toLocaleString()} unassigned` : ""}`
+                          : gene
                       }
-                    }}
-                  >
-                    <span className="text-sm">{gene}</span>
-                  </Checkbox>
-                ))
+                      delay={300}
+                      placement="right"
+                    >
+                      <div>
+                        <Checkbox
+                          className="w-full"
+                          isSelected={selectedGenes.has(gene)}
+                          size="sm"
+                          onValueChange={() => {
+                            if (selectedGenes.has(gene)) {
+                              removeGene(gene);
+                            } else {
+                              addGene(gene);
+                            }
+                          }}
+                        >
+                          <span className="text-sm">
+                            {gene}
+                            {counts && (
+                              <span className="text-default-400 ml-1">
+                                {formatCount(counts.assigned)}
+                                {counts.unassigned != null &&
+                                  ` | ${formatCount(counts.unassigned)}`}
+                              </span>
+                            )}
+                          </span>
+                        </Checkbox>
+                      </div>
+                    </Tooltip>
+                  );
+                })
               ) : (
                 <p className="text-sm text-default-400 text-center py-4">
                   {searchTerm ? "No genes found" : "No genes available"}

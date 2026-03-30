@@ -5,10 +5,17 @@ import {
   findLowestAvailableSlot,
 } from "@/lib/utils/gene-color-palette";
 
+export type MoleculeShape = "circle" | "square";
+
 export interface GeneVisualization {
   gene: string;
   color: string;
-  localScale: number; // Local scale multiplier for this gene
+  localScale: number;
+  showUnassigned: boolean;
+  assignedShape: MoleculeShape;
+  unassignedShape: MoleculeShape;
+  unassignedColor: string;
+  unassignedLocalScale: number;
 }
 
 export type ViewMode = "2D" | "3D";
@@ -32,6 +39,9 @@ interface SingleMoleculeVisualizationState {
   // Camera view mode
   viewMode: ViewMode;
 
+  // Unassigned molecule visibility
+  showUnassigned: boolean;
+
   // Actions
   addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
@@ -40,6 +50,12 @@ interface SingleMoleculeVisualizationState {
   setGeneLocalScale: (gene: string, scale: number) => void;
   setGlobalScale: (scale: number) => void;
   setViewMode: (mode: ViewMode) => void;
+  setShowUnassigned: (show: boolean) => void;
+  setGeneShowUnassigned: (gene: string, show: boolean) => void;
+  setGeneAssignedShape: (gene: string, shape: MoleculeShape) => void;
+  setGeneUnassignedShape: (gene: string, shape: MoleculeShape) => void;
+  setGeneUnassignedColor: (gene: string, color: string) => void;
+  setGeneUnassignedLocalScale: (gene: string, scale: number) => void;
   clearGenes: () => void;
 }
 
@@ -51,6 +67,7 @@ export const useSingleMoleculeVisualizationStore =
     geneColorSlots: new Map(),
     globalScale: 1.0,
     viewMode: "2D",
+    showUnassigned: true,
 
     addGene: (gene: string, color?: string, localScale?: number) =>
       set((state) => {
@@ -80,10 +97,15 @@ export const useSingleMoleculeVisualizationStore =
           newGeneColorSlots.set(gene, slot);
         }
 
-        const geneViz = {
+        const geneViz: GeneVisualization = {
           gene,
           color: assignedColor,
           localScale: localScale || 1.0,
+          showUnassigned: true,
+          assignedShape: "circle",
+          unassignedShape: "square",
+          unassignedColor: assignedColor,
+          unassignedLocalScale: localScale || 1.0,
         };
 
         if (!newSelectedGenes.has(gene)) {
@@ -191,6 +213,93 @@ export const useSingleMoleculeVisualizationStore =
     setGlobalScale: (scale: number) => set({ globalScale: scale }),
 
     setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
+
+    setShowUnassigned: (show: boolean) => set({ showUnassigned: show }),
+
+    setGeneShowUnassigned: (gene: string, show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, showUnassigned: show };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneAssignedShape: (gene: string, shape: MoleculeShape) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, assignedShape: shape };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneUnassignedShape: (gene: string, shape: MoleculeShape) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, unassignedShape: shape };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneUnassignedColor: (gene: string, color: string) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, unassignedColor: color };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneUnassignedLocalScale: (gene: string, scale: number) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, unassignedLocalScale: scale };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
 
     clearGenes: () =>
       set({

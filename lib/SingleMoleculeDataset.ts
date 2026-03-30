@@ -67,6 +67,10 @@ export class SingleMoleculeDataset {
   metadata: Record<string, any>;
   rawData: any;
 
+  // Unassigned molecule support
+  hasUnassigned: boolean;
+  moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null;
+
   constructor({
     id,
     name,
@@ -77,6 +81,8 @@ export class SingleMoleculeDataset {
     scalingFactor,
     metadata = {},
     rawData = null,
+    hasUnassigned = false,
+    moleculeCounts = null,
   }: {
     id: string;
     name: string;
@@ -87,6 +93,8 @@ export class SingleMoleculeDataset {
     scalingFactor: number;
     metadata?: Record<string, any>;
     rawData?: any;
+    hasUnassigned?: boolean;
+    moleculeCounts?: Record<string, { assigned: number; unassigned?: number }> | null;
   }) {
     this.id = id;
     this.name = name;
@@ -95,6 +103,8 @@ export class SingleMoleculeDataset {
     this.geneIndex = geneIndex;
     this.dimensions = dimensions;
     this.scalingFactor = scalingFactor;
+    this.hasUnassigned = hasUnassigned;
+    this.moleculeCounts = moleculeCounts ?? null;
     this.metadata = {
       ...metadata,
       spatialScalingFactor: scalingFactor,
@@ -288,6 +298,15 @@ export class SingleMoleculeDataset {
 
     // Direct lookup - already pre-computed!
     return this.geneIndex.get(geneName)!;
+  }
+
+  /**
+   * Get pre-computed normalized coordinates for unassigned molecules of a specific gene
+   * Returns empty array if no unassigned data exists
+   * Overridden by factory methods (fromS3, fromLocalChunked) for lazy loading
+   */
+  async getUnassignedCoordinatesByGene(_geneName: string): Promise<number[]> {
+    return [];
   }
 
   /**
@@ -1045,6 +1064,8 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions: manifest.statistics.spatial_dimensions,
       scalingFactor: manifest.processing.scaling_factor,
+      hasUnassigned: adapter.hasUnassigned(),
+      moleculeCounts: adapter.getMoleculeCounts(),
       metadata: {
         loadedFrom: "local_chunked",
         totalMolecules: manifest.statistics.total_molecules,
@@ -1062,6 +1083,15 @@ export class SingleMoleculeDataset {
       // Delegate to adapter which handles caching
       return adapter.getCoordinatesByGene(geneName);
     };
+
+    // Override getUnassignedCoordinatesByGene for lazy loading
+    if (adapter.hasUnassigned()) {
+      (dataset as any).getUnassignedCoordinatesByGene = async function (
+        geneName: string,
+      ): Promise<number[]> {
+        return adapter.getUnassignedCoordinatesByGene(geneName);
+      };
+    }
 
     // Attach adapter to dataset for future use
     (dataset as any).adapter = adapter;
