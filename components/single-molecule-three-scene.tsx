@@ -506,20 +506,67 @@ export function SingleMoleculeThreeScene() {
           if (geneViz.showAssigned) {
             let pointCloud = currentPointClouds.get(aKey);
 
-            if (!pointCloud) {
-              pointCloud = createPointCloud(
-                coords,
-                geneViz,
-                getTexture(geneViz.assignedShape),
-                0,
-              );
+          if (!pointCloud) {
+            // Create new point cloud
+            const positions: number[] = [];
 
-              if (isCancelled) {
-                pointCloud.geometry.dispose();
-                if (pointCloud.material instanceof THREE.Material) {
-                  pointCloud.material.dispose();
-                }
-                toast.dismiss(toastId);
+            // Use raw coordinates directly (already rounded to 2dp)
+            for (let i = 0; i < coords.length; i += 3) {
+              positions.push(
+                coords[i],
+                coords[i + 1],
+                coords[i + 2],
+              );
+            }
+
+            // Create point cloud with single color
+            const geometry = new THREE.BufferGeometry();
+
+            geometry.setAttribute(
+              "position",
+              new THREE.Float32BufferAttribute(positions, 3),
+            );
+
+            // Parse HSL color and convert to RGB
+            const color = new THREE.Color(geneViz.color);
+            const colors = new Float32Array(moleculeCount * 3);
+
+            for (let i = 0; i < moleculeCount; i++) {
+              colors[i * 3] = color.r;
+              colors[i * 3 + 1] = color.g;
+              colors[i * 3 + 2] = color.b;
+            }
+            geometry.setAttribute(
+              "color",
+              new THREE.BufferAttribute(colors, 3),
+            );
+
+            // Create material with circular texture
+            const material = new THREE.PointsMaterial({
+              size:
+                geneViz.localScale *
+                globalScale *
+                VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
+              vertexColors: true,
+              transparent: true,
+              opacity: 1.0,
+              sizeAttenuation: false,
+              map: circleTextureRef.current,
+              alphaTest: 0.5,
+            });
+
+            pointCloud = new THREE.Points(geometry, material);
+
+            // Final check before adding to scene
+            if (isCancelled) {
+              console.log(
+                `[SingleMoleculeThreeScene] Cancelled before adding point cloud for: ${gene}`,
+              );
+              pointCloud.geometry.dispose();
+              if (pointCloud.material instanceof THREE.Material) {
+                pointCloud.material.dispose();
+              }
+              toast.dismiss(toastId);
 
                 return;
               }
@@ -651,6 +698,52 @@ export function SingleMoleculeThreeScene() {
         "Final point clouds keys:",
         Array.from(pointCloudsRef.current.keys()),
       );
+
+      // Auto-fit camera to data bounds after loading point clouds
+      if (
+        pointCloudsRef.current.size > 0 &&
+        cameraRef.current &&
+        controlsRef.current
+      ) {
+        const box = new THREE.Box3();
+
+        pointCloudsRef.current.forEach((pc) => {
+          box.expandByObject(pc);
+        });
+
+        const center = new THREE.Vector3();
+        const size = new THREE.Vector3();
+
+        box.getCenter(center);
+        box.getSize(size);
+
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const camera = cameraRef.current as THREE.PerspectiveCamera;
+        const fov = camera.fov * (Math.PI / 180);
+        const cameraDistance =
+          ((maxDim / 2) / Math.tan(fov / 2)) * 1.5;
+
+        camera.position.set(center.x, center.y, center.z + cameraDistance);
+        camera.lookAt(center);
+        camera.near = cameraDistance * 0.001;
+        camera.far = cameraDistance * 10;
+        camera.updateProjectionMatrix();
+
+        // Update controls target to center of data
+        const controls = controlsRef.current;
+
+        if (controls.target) {
+          controls.target.copy(center);
+        }
+        controls.update();
+
+        // Update baseline camera distance for zoom-based point sizing
+        baselineCameraDistanceRef.current = cameraDistance;
+
+        console.log(
+          `[SingleMoleculeThreeScene] Camera auto-fitted: center=(${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}), distance=${cameraDistance.toFixed(1)}`,
+        );
+      }
     });
 
     // Cleanup: cancel the async operation if effect is cleaned up
