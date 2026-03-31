@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import anndata
@@ -252,14 +253,35 @@ def print_summary(enriched_metadata_path, query_h5ad_path, original_cbg_gene_cou
     print(enriched_df[cluster_col].value_counts().head(5).to_string())
 
 
+def timed(label):
+    """Context manager to time a step and print duration."""
+    class Timer:
+        def __enter__(self):
+            self.start = time.time()
+            print(f"\n[STEP] {label}...")
+            return self
+        def __exit__(self, *args):
+            elapsed = time.time() - self.start
+            m, s = divmod(elapsed, 60)
+            print(f"[DONE] {label} — {int(m)}m {s:.1f}s")
+    return Timer()
+
+
 if __name__ == "__main__":
     args = parse_args()
+    total_start = time.time()
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
         stream=sys.stdout,
     )
+
+    # Log thread settings
+    print(f"MKL_NUM_THREADS={os.environ.get('MKL_NUM_THREADS', '(not set)')}")
+    print(f"OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS', '(not set)')}")
+    print(f"n_processors={args.n_processors}")
+    print(f"TMPDIR={os.environ.get('TMPDIR', '(not set)')}")
 
     input_dir = Path(args.input_dir).expanduser()
     metadata_path = input_dir / "cell_metadata.csv"
@@ -274,16 +296,35 @@ if __name__ == "__main__":
     output_dir = Path(args.output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    metadata_df, cbg_df = load_inputs(metadata_path, cbg_path)
-    original_gene_count = len(cbg_df.columns) - 1
+    with timed("1/6 Load inputs"):
+        metadata_df, cbg_df = load_inputs(metadata_path, cbg_path)
+        original_gene_count = len(cbg_df.columns) - 1
+        print(f"     Cells: {len(metadata_df):,}  Genes: {original_gene_count:,}")
 
-    gene_mapping_path = reference_dir / TAXONOMY_CONFIG[args.species]["gene_mapping"]
-    cbg_df = translate_genes_to_ensembl(cbg_df, gene_mapping_path)
+    with timed("2/6 Translate genes to Ensembl"):
+        gene_mapping_path = reference_dir / TAXONOMY_CONFIG[args.species]["gene_mapping"]
+        cbg_df = translate_genes_to_ensembl(cbg_df, gene_mapping_path)
+        print(f"     Genes after translation: {len(cbg_df.columns) - 1:,}")
 
-    query_h5ad_path = build_h5ad(cbg_df, metadata_df, output_dir)
-    mapping_csv_path = run_mapping(
-        query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors
-    )
-    enriched_metadata_path = join_results(mapping_csv_path, metadata_df, output_dir)
-    plot_cell_types(enriched_metadata_path, output_dir)
+    with timed("3/6 Build query H5AD"):
+        query_h5ad_path = build_h5ad(cbg_df, metadata_df, output_dir)
+        print(f"     Written to: {query_h5ad_path}")
+
+    with timed("4/6 Run MapMyCells mapping"):
+        mapping_csv_path = run_mapping(
+            query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors
+        )
+
+    with timed("5/6 Join results"):
+        enriched_metadata_path = join_results(mapping_csv_path, metadata_df, output_dir)
+
+    with timed("6/6 Plot cell types"):
+        plot_cell_types(enriched_metadata_path, output_dir)
+
     print_summary(enriched_metadata_path, query_h5ad_path, original_gene_count)
+
+    total_elapsed = time.time() - total_start
+    m, s = divmod(total_elapsed, 60)
+    print(f"\n{'='*40}")
+    print(f"  Total pipeline time: {int(m)}m {s:.1f}s")
+    print(f"{'='*40}")
