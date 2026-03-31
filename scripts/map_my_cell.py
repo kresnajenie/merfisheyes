@@ -164,11 +164,13 @@ def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_proce
         "extended_result_path": str(output_dir / "mapping_output.json"),
         "csv_result_path": str(output_dir / "mapping_output.csv"),
         "drop_level": config["drop_level"],
+        "tmp_dir": os.environ.get("TMPDIR", "/tmp"),  # Use SLURM local scratch or /tmp
         "precomputed_stats": {"path": str(reference_dir / config["precomputed_stats"])},
         "query_markers": {"serialized_lookup": str(reference_dir / config["markers"])},
         "type_assignment": {
             "normalization": config["normalization"],
             "n_processors": n_processors,
+            "chunk_size": 500,
         },
     }
     runner = FromSpecifiedMarkersRunner(args=[], input_data=config_dict)

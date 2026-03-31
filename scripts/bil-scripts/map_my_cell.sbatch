@@ -2,7 +2,7 @@
 #SBATCH --job-name=map_my_cell
 #SBATCH --output=/bil/users/ijenie/meyes_process_logs/map_my_cell_%j.log
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=64
 #SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
 #SBATCH --partition=compute
@@ -12,6 +12,7 @@
 # ── Arguments ────────────────────────────────────────────────
 INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output
 OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dip-use/mmc_output
+REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
 
 echo "=== map my cells ==="
 echo "Input:  $INPUT_PATH"
@@ -26,6 +27,8 @@ source ~/merfisheyes_env/bin/activate
 cd ~/merfisheyes/scripts
 python map_my_cell.py \
     "$INPUT_PATH" \
-    "$OUTPUT_BASE"
+    "$OUTPUT_BASE" \
+    --n_processors 64 \
+    --reference-dir "$REFERENCE_DIR"
 
 echo "Job finished at $(date)"
