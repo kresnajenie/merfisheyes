@@ -3,6 +3,8 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { PointData } from "@/lib/webgl/types";
 
+import { getClusterValue } from "@/lib/StandardizedDataset";
+
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { toast } from "react-toastify";
@@ -52,7 +54,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // Store current visualization data for tooltips
   const geneExpressionRef = useRef<number[] | null>(null);
   const colorPaletteRef = useRef<Record<string, string>>({});
-  const clusterValuesRef = useRef<(string | number)[]>([]);
+  const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
 
   // Get visualization settings from store
@@ -93,6 +95,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const selectedColumnRef = useRef(selectedColumn);
   const previousGeneRef = useRef<string | null>(null);
   const previousColumnRef = useRef<string | null>(null);
+  const previousColumnTypeRef = useRef<boolean>(false);
 
   // Update refs when store values change
   useEffect(() => {
@@ -148,7 +151,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     // Determine what to show based on current mode and cluster type
     const isNumerical = isNumericalClusterRef.current;
-    const clusterValue = clusterValuesRef.current[index];
+    const clusterValue = clusterRef.current
+      ? getClusterValue(clusterRef.current, index)
+      : undefined;
     const geneValue = geneExpressionRef.current?.[index];
 
     // Get current values from refs
@@ -325,16 +330,27 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         maxZ: -Infinity,
       };
 
-      dataset.spatial.coordinates.forEach((coord) => {
-        bounds.minX = Math.min(bounds.minX, coord[0]);
-        bounds.maxX = Math.max(bounds.maxX, coord[0]);
-        bounds.minY = Math.min(bounds.minY, coord[1]);
-        bounds.maxY = Math.max(bounds.maxY, coord[1]);
-        if (dataset.spatial.dimensions === 3 && coord[2] !== undefined) {
-          bounds.minZ = Math.min(bounds.minZ, coord[2]);
-          bounds.maxZ = Math.max(bounds.maxZ, coord[2]);
+      const coords = dataset.spatial.coordinates;
+      const dims = dataset.spatial.dimensions;
+      const numPts = dataset.getPointCount();
+
+      for (let p = 0; p < numPts; p++) {
+        const x = coords instanceof Float32Array ? coords[p * dims] : (coords as number[][])[p][0];
+        const y = coords instanceof Float32Array ? coords[p * dims + 1] : (coords as number[][])[p][1];
+
+        bounds.minX = Math.min(bounds.minX, x);
+        bounds.maxX = Math.max(bounds.maxX, x);
+        bounds.minY = Math.min(bounds.minY, y);
+        bounds.maxY = Math.max(bounds.maxY, y);
+        if (dims === 3) {
+          const z = coords instanceof Float32Array ? coords[p * dims + 2] : (coords as number[][])[p][2];
+
+          if (z !== undefined) {
+            bounds.minZ = Math.min(bounds.minZ, z);
+            bounds.maxZ = Math.max(bounds.maxZ, z);
+          }
         }
-      });
+      }
 
       // Calculate center point (scaled)
       const center = new THREE.Vector3(
@@ -405,8 +421,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const handleDoubleClick = () => {
         if (hoveredPointRef.current !== null && dataset.clusters) {
           const index = hoveredPointRef.current;
-          const clusterValue = clusterValuesRef.current[index];
-          const clusterValueStr = String(clusterValue);
+          const clusterValueStr = clusterRef.current
+            ? getClusterValue(clusterRef.current, index)
+            : "";
 
           // Only toggle celltype if it's not a numerical cluster
           if (!isNumericalClusterRef.current) {
@@ -446,7 +463,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           return;
         }
 
-        const setValue = String(linkCluster.values[index]);
+        const setValue = getClusterValue(linkCluster, index);
         const smUrl = linkConfig.links[setValue];
 
         if (!smUrl) {
@@ -466,18 +483,32 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       renderer.domElement.addEventListener("contextmenu", handleContextMenu);
 
       // Convert dataset spatial coordinates to PointData format
-      const pointData: PointData[] = dataset.spatial.coordinates.map(
-        (coord) => ({
-          x: coord[0] * 500, // Scale coordinates
-          y: coord[1] * 500,
-          z: coord[2] !== undefined ? coord[2] * 500 : 0,
+      const spatialCoords = dataset.spatial.coordinates;
+      const spatialDims = dataset.spatial.dimensions;
+      const ptCount = dataset.getPointCount();
+      const pointData: PointData[] = new Array(ptCount);
+
+      for (let p = 0; p < ptCount; p++) {
+        const x = spatialCoords instanceof Float32Array
+          ? spatialCoords[p * spatialDims] : (spatialCoords as number[][])[p][0];
+        const y = spatialCoords instanceof Float32Array
+          ? spatialCoords[p * spatialDims + 1] : (spatialCoords as number[][])[p][1];
+        const z = spatialDims === 3
+          ? (spatialCoords instanceof Float32Array
+              ? spatialCoords[p * spatialDims + 2] : (spatialCoords as number[][])[p][2]) ?? 0
+          : 0;
+
+        pointData[p] = {
+          x: x * 500,
+          y: y * 500,
+          z: z * 500,
           r: 0,
           g: 0,
           b: 0,
           size: 1.0,
-          alpha: 0, // Hidden until visualization effect applies correct colors
-        }),
-      );
+          alpha: 0,
+        };
+      }
 
       // Create point cloud mesh with custom shaders
       const pointCloud = createPointCloud(pointData, 5);
@@ -539,7 +570,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       );
 
       if (selectedCluster) {
-        clusterValuesRef.current = selectedCluster.values;
+        clusterRef.current = selectedCluster;
         isNumericalClusterRef.current = selectedColumn
           ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
           : false;
@@ -564,12 +595,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         previousGeneRef.current = selectedGene;
       }
 
-      // Check if column has changed (for auto-scaling numerical columns)
+      // Check if column or its effective type has changed (for auto-scaling numerical columns)
       const columnChanged = previousColumnRef.current !== selectedColumn;
+      const typeChanged = previousColumnTypeRef.current !== isNumerical;
 
       if (columnChanged) {
         previousColumnRef.current = selectedColumn;
       }
+      if (typeChanged) {
+        previousColumnTypeRef.current = isNumerical;
+      }
+
+      const shouldAutoScale = columnChanged || typeChanged;
 
       if (
         hasGeneMode &&
@@ -652,9 +689,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               sizeScale,
               numericalScaleMin,
               numericalScaleMax,
-              // Only auto-set scale when column changes, not when user manually adjusts
-              columnChanged ? setNumericalScaleMin : undefined,
-              columnChanged ? setNumericalScaleMax : undefined,
+              // Only auto-set scale when column or type changes, not when user manually adjusts
+              shouldAutoScale ? setNumericalScaleMin : undefined,
+              shouldAutoScale ? setNumericalScaleMax : undefined,
             )
           : updateCelltypeVisualization(
               dataset,

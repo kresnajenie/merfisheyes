@@ -3,6 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test-prisma": "tsx tests/prisma/test-prisma.ts",
     "test:db": "node scripts/test-db-connection.js",
     "test:sm-initiate": "tsx tests/api/test-single-molecule-initiate.ts",
@@ -17,6 +19,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
     "@aws-sdk/client-s3": "^3.901.0",
+    "@aws-sdk/client-ses": "^3.1019.0",
     "@aws-sdk/s3-request-presigner": "^3.901.0",
     "@heroui/accordion": "2.2.23",
     "@heroui/alert": "2.2.26",
@@ -62,7 +65,6 @@
     "@prisma/client": "^6.17.0",
     "@react-aria/ssr": "3.9.10",
     "@react-aria/visually-hidden": "3.8.27",
-    "@sendgrid/mail": "^8.1.6",
     "@types/three": "^0.180.0",
     "@vercel/analytics": "^1.6.1",
     "clsx": "2.1.1",
@@ -124,6 +126,7 @@
     "tailwindcss": "4.1.11",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   }
 }

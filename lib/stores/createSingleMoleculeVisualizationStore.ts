@@ -29,8 +29,6 @@ export interface SingleMoleculeVisualizationState {
   setGlobalScale: (scale: number) => void;
   setViewMode: (mode: ViewMode) => void;
   clearGenes: () => void;
-  loadFromLocalStorage: (datasetId: string) => void;
-  saveToLocalStorage: (datasetId: string) => void;
 }
 
 export function createSingleMoleculeVisualizationStoreInstance() {
@@ -184,82 +182,6 @@ export function createSingleMoleculeVisualizationStoreInstance() {
         geneColorSlots: new Map(),
       }),
 
-    loadFromLocalStorage: (datasetId: string) => {
-      if (typeof window === "undefined") return;
-
-      try {
-        const storageKey = `sm_gene_visibility_${datasetId}`;
-        const stored = localStorage.getItem(storageKey);
-
-        if (stored) {
-          const { visibleGenes, legendGenes, geneData } = JSON.parse(stored);
-
-          const newSelectedGenes = new Map<string, GeneVisualization>();
-
-          visibleGenes.forEach((gene: string) => {
-            if (geneData[gene]) {
-              newSelectedGenes.set(gene, geneData[gene]);
-            }
-          });
-
-          const newSelectedGenesLegend = new Set<string>(legendGenes);
-
-          const newGeneDataCache = new Map<string, GeneVisualization>();
-
-          legendGenes.forEach((gene: string) => {
-            if (geneData[gene]) {
-              newGeneDataCache.set(gene, geneData[gene]);
-            }
-          });
-
-          // Rebuild color slots: assign slots in legend order
-          const newGeneColorSlots = new Map<string, number>();
-
-          legendGenes.forEach((gene: string, index: number) => {
-            newGeneColorSlots.set(gene, index);
-          });
-
-          set({
-            selectedGenes: newSelectedGenes,
-            selectedGenesLegend: newSelectedGenesLegend,
-            geneDataCache: newGeneDataCache,
-            geneColorSlots: newGeneColorSlots,
-          });
-        }
-      } catch (error) {
-        console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to load from localStorage:`,
-          error,
-        );
-      }
-    },
-
-    saveToLocalStorage: (datasetId: string) => {
-      if (typeof window === "undefined") return;
-
-      try {
-        const state = get();
-        const storageKey = `sm_gene_visibility_${datasetId}`;
-
-        const visibleGenes = Array.from(state.selectedGenes.keys());
-        const legendGenes = Array.from(state.selectedGenesLegend);
-
-        const geneData: Record<string, GeneVisualization> = {};
-
-        state.geneDataCache.forEach((geneViz, gene) => {
-          geneData[gene] = geneViz;
-        });
-
-        const data = { visibleGenes, legendGenes, geneData };
-
-        localStorage.setItem(storageKey, JSON.stringify(data));
-      } catch (error) {
-        console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to save to localStorage:`,
-          error,
-        );
-      }
-    },
   }));
 }
 

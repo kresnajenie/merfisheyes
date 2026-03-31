@@ -3,12 +3,10 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
-import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
 import { Spinner, Progress } from "@heroui/react";
 import { useEffect, useState } from "react";
 
-import { LocalDatasetReuploadModal } from "./local-dataset-reupload-modal";
 import { ThreeScene } from "./three-scene";
 import { VisualizationControls } from "./visualization-controls";
 import UMAPPanel from "./umap-panel";
@@ -17,11 +15,6 @@ import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
-import {
-  isLocalDatasetId,
-  getLocalDatasetMeta,
-  saveLocalDatasetMeta,
-} from "@/lib/services/localDatasetDB";
 import {
   tryReadCellVizFromUrl,
   tryReadSMVizFromUrl,
@@ -72,13 +65,9 @@ function CellViewer({
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Initializing...");
   const [datasetReady, setDatasetReady] = useState(false);
-  const [localMetadata, setLocalMetadata] =
-    useState<LocalDatasetMetadata | null>(null);
-  const [showReupload, setShowReupload] = useState(false);
 
   // URL sync hook (handles reading after datasetReady + writing)
   useCellVizUrlSync(datasetReady, dataset, vizStore);
-
 
   // Use a stable key to track which source to load
   const sourceKey = s3Url || datasetId;
@@ -105,24 +94,6 @@ function CellViewer({
           }
 
           setDatasetReady(true);
-          setIsLoading(false);
-
-          return;
-        }
-
-        // Check if local dataset
-        if (isLocalDatasetId(datasetId)) {
-          const meta = await getLocalDatasetMeta(datasetId);
-
-          if (meta) {
-            setLocalMetadata(meta);
-            setShowReupload(true);
-            setIsLoading(false);
-
-            return;
-          }
-
-          setError("Local dataset metadata not found (evicted).");
           setIsLoading(false);
 
           return;
@@ -199,40 +170,6 @@ function CellViewer({
     };
   }, [sourceKey]);
 
-  const handleLocalDatasetLoaded = (ds: any) => {
-    const standardizedDataset = ds as StandardizedDataset;
-
-    setDataset(standardizedDataset);
-    addDataset(standardizedDataset);
-    setShowReupload(false);
-
-    const urlState = tryReadCellVizFromUrl("right");
-
-    if (!urlState) {
-      vizStore.setSelectedColumn(selectBestClusterColumn(standardizedDataset));
-    }
-
-    setDatasetReady(true);
-
-    if (localMetadata) {
-      saveLocalDatasetMeta({ ...localMetadata, createdAt: Date.now() });
-    }
-  };
-
-  if (showReupload && localMetadata && datasetId) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black">
-        <LocalDatasetReuploadModal
-          expectedDatasetId={datasetId}
-          isOpen={showReupload}
-          metadata={localMetadata}
-          onClose={() => setShowReupload(false)}
-          onDatasetLoaded={handleLocalDatasetLoaded}
-        />
-      </div>
-    );
-  }
-
   if (isLoading) {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -290,9 +227,6 @@ function SingleMoleculeViewer({
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Initializing...");
   const [datasetReady, setDatasetReady] = useState(false);
-  const [localMetadata, setLocalMetadata] =
-    useState<LocalDatasetMetadata | null>(null);
-  const [showReupload, setShowReupload] = useState(false);
 
   // URL sync hook (handles reading after datasetReady + writing)
   useSMVizUrlSync(datasetReady, smDataset, smVizStore);
@@ -329,23 +263,6 @@ function SingleMoleculeViewer({
           setSmDataset(ds);
           autoSelectGenes(ds);
           setDatasetReady(true);
-          setIsLoading(false);
-
-          return;
-        }
-
-        if (isLocalDatasetId(datasetId)) {
-          const meta = await getLocalDatasetMeta(datasetId);
-
-          if (meta) {
-            setLocalMetadata(meta);
-            setShowReupload(true);
-            setIsLoading(false);
-
-            return;
-          }
-
-          setError("Local dataset metadata not found (evicted).");
           setIsLoading(false);
 
           return;
@@ -403,34 +320,6 @@ function SingleMoleculeViewer({
       cancelled = true;
     };
   }, [sourceKey]);
-
-  const handleLocalDatasetLoaded = (ds: any) => {
-    const smDs = ds as SingleMoleculeDataset;
-
-    addDataset(smDs);
-    setSmDataset(smDs);
-    setShowReupload(false);
-    autoSelectGenes(smDs);
-    setDatasetReady(true);
-
-    if (localMetadata) {
-      saveLocalDatasetMeta({ ...localMetadata, createdAt: Date.now() });
-    }
-  };
-
-  if (showReupload && localMetadata && datasetId) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black">
-        <LocalDatasetReuploadModal
-          expectedDatasetId={datasetId}
-          isOpen={showReupload}
-          metadata={localMetadata}
-          onClose={() => setShowReupload(false)}
-          onDatasetLoaded={handleLocalDatasetLoaded}
-        />
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (

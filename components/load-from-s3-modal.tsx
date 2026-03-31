@@ -171,15 +171,12 @@ export function LoadFromS3Modal({
             </p>
 
             <Input
-              description="Can be a folder URL or direct manifest URL"
-              errorMessage={error}
-              isDisabled={isLoading}
-              isInvalid={!!error}
-              label="S3 Folder URL"
+              label="Dataset Folder URL"
               placeholder="https://my-bucket.s3.us-east-1.amazonaws.com/datasets/my-data"
               value={s3Url}
               variant="bordered"
               onValueChange={setS3Url}
+              description="S3 URL or any public HTTP URL containing a manifest file"
             />
 
             {isLoading && (

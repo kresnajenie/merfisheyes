@@ -15,15 +15,16 @@ export interface ParsedS3Url {
 }
 
 /**
- * Normalize S3 URL to base folder URL
+ * Normalize S3 or generic HTTP URL to base folder URL
  * Handles various input formats:
  * - https://bucket.s3.region.amazonaws.com/path/to/folder
  * - https://bucket.s3.region.amazonaws.com/path/to/folder/
  * - https://bucket.s3.region.amazonaws.com/path/to/folder/manifest.json.gz
  * - https://s3.region.amazonaws.com/bucket/path/to/folder
+ * - https://example.org/path/to/folder (generic HTTP URL)
  *
- * @param url - S3 URL in any format
- * @returns Parsed S3 URL components with normalized base URL
+ * @param url - S3 or HTTP URL in any format
+ * @returns Parsed URL components with normalized base URL
  */
 export function parseS3Url(url: string): ParsedS3Url {
   try {
@@ -33,7 +34,7 @@ export function parseS3Url(url: string): ParsedS3Url {
     // Parse URL
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
-    const pathname = urlObj.pathname;
+    let pathname = urlObj.pathname;
 
     let bucket: string;
     let region: string;
@@ -62,9 +63,11 @@ export function parseS3Url(url: string): ParsedS3Url {
         bucket = pathParts[0];
         prefix = pathParts.slice(1).join("/");
       } else {
-        throw new Error(
-          "Invalid S3 URL format. Expected format: https://bucket.s3.region.amazonaws.com/path or https://s3.region.amazonaws.com/bucket/path",
-        );
+        // Format 3: Generic HTTP(S) URL (non-S3)
+        // Example: https://download.brainimagelibrary.org/meyes/dataset-folder/
+        bucket = hostname;
+        region = "";
+        prefix = pathname.substring(1); // Remove leading slash
       }
     }
 
@@ -78,9 +81,22 @@ export function parseS3Url(url: string): ParsedS3Url {
       // Handle case without leading slash
       prefix = prefix.slice(0, -"manifest.json.gz".length).replace(/\/$/, "");
     }
+    // Also handle manifest.json (non-gzipped)
+    if (prefix.endsWith("/manifest.json")) {
+      prefix = prefix.slice(0, -"/manifest.json".length);
+    } else if (prefix.endsWith("manifest.json")) {
+      prefix = prefix.slice(0, -"manifest.json".length).replace(/\/$/, "");
+    }
 
-    // Construct normalized base URL (virtual-hosted style)
-    const baseUrl = `https://${bucket}.s3.${region}.amazonaws.com/${prefix}`;
+    // Construct normalized base URL
+    let baseUrl: string;
+    if (region) {
+      // S3 virtual-hosted style
+      baseUrl = `https://${bucket}.s3.${region}.amazonaws.com/${prefix}`;
+    } else {
+      // Generic HTTP URL - reconstruct from origin + prefix
+      baseUrl = `${urlObj.origin}/${prefix}`;
+    }
 
     return {
       baseUrl,
@@ -90,7 +106,7 @@ export function parseS3Url(url: string): ParsedS3Url {
     };
   } catch (error) {
     throw new Error(
-      `Failed to parse S3 URL: ${error instanceof Error ? error.message : "Invalid URL"}`,
+      `Failed to parse URL: ${error instanceof Error ? error.message : "Invalid URL"}`,
     );
   }
 }

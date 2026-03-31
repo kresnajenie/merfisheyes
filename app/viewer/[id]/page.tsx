@@ -2,7 +2,6 @@
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
-import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
 
 import { Suspense, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -12,7 +11,6 @@ import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import UMAPPanel from "@/components/umap-panel";
 import { SplitScreenContainer } from "@/components/split-screen-container";
-import { LocalDatasetReuploadModal } from "@/components/local-dataset-reupload-modal";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
@@ -22,11 +20,6 @@ import {
   tryReadCellVizFromUrl,
 } from "@/lib/hooks/useUrlVizSync";
 
-import {
-  isLocalDatasetId,
-  getLocalDatasetMeta,
-  saveLocalDatasetMeta,
-} from "@/lib/services/localDatasetDB";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -53,9 +46,6 @@ function ViewerByIdContent() {
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
-  const [localMetadata, setLocalMetadata] =
-    useState<LocalDatasetMetadata | null>(null);
-  const [showReuploadModal, setShowReuploadModal] = useState(false);
 
   const datasetId = params.id as string;
 
@@ -145,29 +135,7 @@ function ViewerByIdContent() {
       return;
     }
 
-    // Step 2: Check if this is a local dataset
-    if (isLocalDatasetId(id)) {
-      const meta = await getLocalDatasetMeta(id);
-
-      if (meta) {
-        console.log("Local dataset metadata found in IndexedDB:", meta);
-        setLocalMetadata(meta);
-        setShowReuploadModal(true);
-        setIsLoading(false);
-
-        return;
-      }
-
-      // Metadata not found (evicted)
-      setError(
-        "This local dataset is no longer available. The metadata was evicted after loading newer datasets.",
-      );
-      setIsLoading(false);
-
-      return;
-    }
-
-    // Step 3: Load from S3
+    // Step 2: Load from S3
     loadDatasetFromS3(id);
   };
 
@@ -210,19 +178,6 @@ function ViewerByIdContent() {
     }
   };
 
-  const handleLocalDatasetLoaded = (ds: any) => {
-    const standardizedDataset = ds as StandardizedDataset;
-
-    setDataset(standardizedDataset);
-    addDataset(standardizedDataset);
-    setShowReuploadModal(false);
-
-    // Refresh timestamp in IndexedDB
-    if (localMetadata) {
-      saveLocalDatasetMeta({ ...localMetadata, createdAt: Date.now() });
-    }
-  };
-
   // Auto-select best cluster column when dataset changes (skip if URL state was applied)
   useEffect(() => {
     if (dataset && !hasUrlStateRef.current) {
@@ -232,19 +187,6 @@ function ViewerByIdContent() {
       console.log("Auto-selected column:", bestColumn);
     }
   }, [dataset]);
-
-  // Re-upload modal for local datasets
-  if (showReuploadModal && localMetadata) {
-    return (
-      <LocalDatasetReuploadModal
-        expectedDatasetId={datasetId}
-        isOpen={showReuploadModal}
-        metadata={localMetadata}
-        onClose={() => router.push("/")}
-        onDatasetLoaded={handleLocalDatasetLoaded}
-      />
-    );
-  }
 
   // Loading state
   if (isLoading) {
