@@ -439,7 +439,7 @@ export class SingleMoleculeDataset {
       uniqueGenes,
       geneIndex,
       dimensions,
-      scalingFactor,
+      scalingFactor: 1,
       metadata: {
         originalFileName: file.name,
         moleculeCount: xCoords.length,
@@ -498,13 +498,13 @@ export class SingleMoleculeDataset {
     await new Promise<void>((resolve, reject) => {
       let lastProgressReport = 0;
 
-      Papa.parse(file, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (Papa.parse as any)(file, {
         header: true,
         skipEmptyLines: true,
         dynamicTyping: true,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        step: (result: any) => {
-          const row = result.data as Record<string, unknown>;
+        step: (result: { data: Record<string, unknown> }) => {
+          const row = result.data;
 
           // Skip invalid rows
           if (!row || !row[columnMapping.gene]) return;
