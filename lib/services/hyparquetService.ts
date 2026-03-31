@@ -8,7 +8,7 @@ import { compressors } from "hyparquet-compressors";
  * as hyparquet's exported types can vary between TypeScript versions
  */
 interface ColumnData {
-  columnName: string;
+  pathInSchema: string[];
   columnData: ArrayLike<any>;
   rowStart: number;
   rowEnd: number;
@@ -39,7 +39,7 @@ class HyparquetService {
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<Map<string, any[]>> {
-    if (typeof window === "undefined") {
+    if (typeof self === "undefined") {
       throw new Error("Hyparquet service can only be used in browser");
     }
 
@@ -55,61 +55,67 @@ class HyparquetService {
     await onProgress?.(5, "Reading file into memory...");
     console.log(columnNames);
 
-    // Convert File to ArrayBuffer (hyparquet accepts ArrayBuffer as AsyncBuffer in browser)
-    // Note: This loads entire file into memory - may fail for very large files (>2-3GB)
     const arrayBuffer = await file.arrayBuffer();
 
     await onProgress?.(10, "Parsing parquet structure...");
 
-    // Map to store accumulated column data as arrays of chunks
-    // This avoids repeated array concatenation which creates many copies
-    const columnChunks = new Map<string, any[][]>();
+    // Store raw chunk references per column — no copying until the end
+    const columnChunks = new Map<string, ArrayLike<any>[]>();
+    const columnLengths = new Map<string, number>();
 
-    columnNames.forEach((name) => columnChunks.set(name, []));
+    columnNames.forEach((name) => {
+      columnChunks.set(name, []);
+      columnLengths.set(name, 0);
+    });
 
-    let totalPages = 0;
     let relevantPages = 0;
     let lastReportedProgress = 10;
 
-    // Read parquet file with onPage callback
-    // Note: Type assertion needed due to hyparquet type resolution differences between environments
-    // Runtime provides ColumnData with columnName, but some environments resolve to SubColumnData
+    // Read parquet file with columns filter + onPage callback
+    // The `columns` option tells hyparquet to skip decompressing/parsing unwanted columns
     await parquetRead({
       file: arrayBuffer,
       compressors,
       onPage: ((page: ColumnData) => {
-        const columnName = page.columnName;
+        const columnName = page.pathInSchema[0];
+        const chunks = columnChunks.get(columnName);
 
-        // Only process requested columns
-        if (columnNames.includes(columnName)) {
-          totalPages++;
+        if (chunks) {
           relevantPages++;
+          // Store reference to raw data — avoid Array.from() copy
+          chunks.push(page.columnData);
+          columnLengths.set(
+            columnName,
+            columnLengths.get(columnName)! + page.columnData.length,
+          );
 
-          // Store chunks instead of concatenating - more memory efficient
-          const chunks = columnChunks.get(columnName)!;
-
-          chunks.push(Array.from(page.columnData));
-
-          // Only report progress every 5% to reduce spam
           const progress =
-            10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20); // 10-30% estimate
+            10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20);
 
           if (progress >= lastReportedProgress + 5) {
             onProgress?.(progress, `Reading parquet data...`);
             lastReportedProgress = progress;
           }
         }
-        // Silently skip unwanted columns - no processing, no progress reporting
       }) as any,
     });
 
     await onProgress?.(25, "Combining column data...");
 
-    // Flatten chunks into final arrays (done once at the end)
+    // Concatenate chunks into final arrays (single allocation + copy)
     const columnData = new Map<string, any[]>();
 
     for (const [columnName, chunks] of columnChunks.entries()) {
-      columnData.set(columnName, chunks.flat());
+      const totalLen = columnLengths.get(columnName)!;
+      const result = new Array(totalLen);
+      let offset = 0;
+
+      for (const chunk of chunks) {
+        for (let i = 0; i < chunk.length; i++) {
+          result[offset++] = chunk[i];
+        }
+      }
+      columnData.set(columnName, result);
     }
 
     await onProgress?.(30, "Column extraction complete");
