@@ -100,6 +100,7 @@ export function SingleMoleculeThreeScene() {
   const animationFrameIdRef = useRef<number | null>(null);
   const selectedGenesRef = useRef<Map<string, any>>(new Map());
   const globalScaleRef = useRef<number>(1);
+  const hasAutoFittedRef = useRef<boolean>(false);
 
   // Get dataset from store - using stable selector to prevent re-renders
   const currentDatasetId = usePanelSingleMoleculeStore(
@@ -181,6 +182,8 @@ export function SingleMoleculeThreeScene() {
     // Update last dataset ID and viewMode
     lastDatasetIdRef.current = dataset.id;
     lastViewModeRef.current = viewMode;
+    // Reset auto-fit flag so camera refits for new dataset/viewMode
+    hasAutoFittedRef.current = false;
 
     // Clear any existing canvas before creating new one
     if (containerRef.current) {
@@ -371,9 +374,9 @@ export function SingleMoleculeThreeScene() {
 
       for (let i = 0; i < coords.length; i += 3) {
         positions.push(
-          coords[i] * 100,
-          coords[i + 1] * 100,
-          coords[i + 2] * 100,
+          coords[i],
+          coords[i + 1],
+          coords[i + 2],
         );
       }
 
@@ -541,7 +544,7 @@ export function SingleMoleculeThreeScene() {
               new THREE.BufferAttribute(colors, 3),
             );
 
-            // Create material with circular texture
+            // Create material with shape texture
             const material = new THREE.PointsMaterial({
               size:
                 geneViz.localScale *
@@ -551,7 +554,7 @@ export function SingleMoleculeThreeScene() {
               transparent: true,
               opacity: 1.0,
               sizeAttenuation: false,
-              map: circleTextureRef.current,
+              map: getTexture(geneViz.assignedShape),
               alphaTest: 0.5,
             });
 
@@ -699,12 +702,14 @@ export function SingleMoleculeThreeScene() {
         Array.from(pointCloudsRef.current.keys()),
       );
 
-      // Auto-fit camera to data bounds after loading point clouds
+      // Auto-fit camera to data bounds (only on first gene load)
       if (
+        !hasAutoFittedRef.current &&
         pointCloudsRef.current.size > 0 &&
         cameraRef.current &&
         controlsRef.current
       ) {
+        hasAutoFittedRef.current = true;
         const box = new THREE.Box3();
 
         pointCloudsRef.current.forEach((pc) => {

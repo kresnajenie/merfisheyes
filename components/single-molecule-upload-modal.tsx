@@ -92,7 +92,7 @@ export function SingleMoleculeUploadModal({
 
     try {
       // Generate fingerprint
-      const fingerprint = await generateSingleMoleculeFingerprint(dataset);
+      let fingerprint = await generateSingleMoleculeFingerprint(dataset);
 
       console.log("Single molecule dataset fingerprint:", fingerprint);
 
@@ -119,6 +119,9 @@ export function SingleMoleculeUploadModal({
 
             return;
           }
+
+          // Make fingerprint unique so the DB allows re-upload
+          fingerprint = `${fingerprint}_${Date.now()}`;
         }
       }
 

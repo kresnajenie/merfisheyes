@@ -102,35 +102,18 @@ def sanitize_gene_name(gene_name: str) -> str:
     return sanitized
 
 
-def normalize_coordinates(coordinates: np.ndarray) -> Tuple[np.ndarray, float, np.ndarray]:
+def round_coordinates(coordinates: np.ndarray) -> np.ndarray:
     """
-    Normalize coordinates to [-1, 1] range
-    Mirrors lib/utils/coordinates.ts normalizeCoordinates()
+    Round coordinates to 2 decimal places.
+    Matches browser behavior: Math.round(x * 100) / 100
 
     Returns:
-        normalized: Normalized coordinates
-        scaling_factor: The max absolute value used for scaling
-        center: The center point (mean of each dimension)
+        rounded: Coordinates rounded to 2dp
     """
     if len(coordinates) == 0:
-        return coordinates, 1.0, np.array([0.0, 0.0, 0.0])
+        return coordinates
 
-    # Calculate center (mean of each dimension)
-    center = np.mean(coordinates, axis=0)
-
-    # Center the coordinates
-    centered = coordinates - center
-
-    # Find max absolute value
-    max_abs = np.max(np.abs(centered))
-
-    if max_abs == 0:
-        return centered, 1.0, center
-
-    # Scale to [-1, 1]
-    normalized = centered / max_abs
-
-    return normalized, max_abs, center
+    return np.round(coordinates, 2)
 
 
 def read_parquet_file(
@@ -332,14 +315,13 @@ def process_single_molecule_data(
 
     total_molecules = len(genes)
 
-    # Step 2: Normalize coordinates (30%)
+    # Step 2: Round coordinates to 2dp (30%)
     progress = 30
-    print(f"[{progress:3d}%] Normalizing coordinates...")
+    print(f"[{progress:3d}%] Rounding coordinates to 2 decimal places...")
 
-    normalized_coords, scaling_factor, center = normalize_coordinates(coords)
+    rounded_coords = round_coordinates(coords)
 
-    print(f"  Scaling factor: {scaling_factor:.2f}")
-    print(f"  Center: {center}")
+    print(f"  Coordinate range: x=[{rounded_coords[:,0].min():.2f}, {rounded_coords[:,0].max():.2f}], y=[{rounded_coords[:,1].min():.2f}, {rounded_coords[:,1].max():.2f}]")
 
     # Step 3: Build gene index (50-70%)
     progress = 50
@@ -420,7 +402,7 @@ def process_single_molecule_data(
             # Write assigned molecules file
             if gene in gene_index:
                 indices = gene_index[gene]
-                gene_coords = normalized_coords[indices].flatten()
+                gene_coords = rounded_coords[indices].flatten()
                 gene_coords_float32 = gene_coords.astype(np.float32)
 
                 gene_file = genes_folder / f"{sanitized_name}.bin.gz"
@@ -437,7 +419,7 @@ def process_single_molecule_data(
             # Write unassigned molecules file (poly-U suffix)
             if has_unassigned and gene in unassigned_index:
                 unassigned_indices = unassigned_index[gene]
-                unassigned_coords = normalized_coords[unassigned_indices].flatten()
+                unassigned_coords = rounded_coords[unassigned_indices].flatten()
                 unassigned_coords_float32 = unassigned_coords.astype(np.float32)
 
                 unassigned_file = genes_folder / f"{sanitized_name}{UNASSIGNED_SUFFIX}.bin.gz"
@@ -494,8 +476,8 @@ def process_single_molecule_data(
         "processing": {
             "compression": "gzip",
             "coordinate_format": "float32_flat_array",
-            "coordinate_range": "normalized_[-1,1]",
-            "scaling_factor": float(scaling_factor),
+            "coordinate_range": "raw_rounded_2dp",
+            "scaling_factor": 1.0,
             "created_by": "MERFISH Eyes - Single Molecule Viewer",
             "source_file": source_name,
         },
@@ -532,7 +514,7 @@ def process_single_molecule_data(
     print(f"  Total molecules: {total_molecules:,}")
     print(f"  Unique genes: {len(unique_genes):,}")
     print(f"  Dimensions: {dimensions}D")
-    print(f"  Scaling factor: {scaling_factor:.2f}")
+    print(f"  Coordinates: raw, rounded to 2dp")
     if has_unassigned:
         total_assigned = sum(len(v) for v in gene_index.values())
         total_unassigned = sum(len(v) for v in unassigned_index.values())
