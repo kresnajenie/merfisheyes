@@ -68,11 +68,11 @@ export async function POST(request: NextRequest) {
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
         <tr>
           <td style="padding: 4px 0; color: #888;">Molecules</td>
-          <td style="padding: 4px 0; color: #333; text-align: right;">${dataset.numCells.toLocaleString()}</td>
+          <td style="padding: 4px 0; color: #333; text-align: right;">${dataset.numCells?.toLocaleString() ?? "N/A"}</td>
         </tr>
         <tr>
           <td style="padding: 4px 0; color: #888;">Genes</td>
-          <td style="padding: 4px 0; color: #333; text-align: right;">${dataset.numGenes.toLocaleString()}</td>
+          <td style="padding: 4px 0; color: #333; text-align: right;">${dataset.numGenes?.toLocaleString() ?? "N/A"}</td>
         </tr>
       </table>
     </div>

@@ -18,7 +18,7 @@ interface SerializableDatasetData {
   name: string;
   type: string;
   uniqueGenes: string[];
-  geneIndexEntries: [string, number[]][]; // Map entries as array for serialization
+  geneIndexEntries: [string, Float32Array][]; // Map entries as array for serialization
   dimensions: 2 | 3;
   scalingFactor: number;
   metadata: Record<string, any>;

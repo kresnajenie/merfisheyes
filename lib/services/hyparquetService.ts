@@ -38,7 +38,7 @@ class HyparquetService {
     file: File,
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
-  ): Promise<Map<string, any[]>> {
+  ): Promise<Map<string, any[] | Float32Array>> {
     if (typeof self === "undefined") {
       throw new Error("Hyparquet service can only be used in browser");
     }
@@ -103,19 +103,43 @@ class HyparquetService {
     await onProgress?.(25, "Combining column data...");
 
     // Concatenate chunks into final arrays (single allocation + copy)
-    const columnData = new Map<string, any[]>();
+    // Use Float32Array for numeric columns, regular Array for string columns
+    const columnData = new Map<string, any[] | Float32Array>();
 
     for (const [columnName, chunks] of columnChunks.entries()) {
       const totalLen = columnLengths.get(columnName)!;
-      const result = new Array(totalLen);
-      let offset = 0;
 
-      for (const chunk of chunks) {
-        for (let i = 0; i < chunk.length; i++) {
-          result[offset++] = chunk[i];
+      // Detect if column is numeric from first chunk's data type
+      const firstChunk = chunks[0];
+      const isNumeric =
+        firstChunk instanceof Float32Array ||
+        firstChunk instanceof Float64Array ||
+        firstChunk instanceof Int32Array ||
+        firstChunk instanceof Int16Array ||
+        firstChunk instanceof Uint32Array ||
+        (firstChunk && firstChunk.length > 0 && typeof firstChunk[0] === "number");
+
+      if (isNumeric) {
+        const result = new Float32Array(totalLen);
+        let offset = 0;
+
+        for (const chunk of chunks) {
+          for (let i = 0; i < chunk.length; i++) {
+            result[offset++] = chunk[i];
+          }
         }
+        columnData.set(columnName, result);
+      } else {
+        const result = new Array(totalLen);
+        let offset = 0;
+
+        for (const chunk of chunks) {
+          for (let i = 0; i < chunk.length; i++) {
+            result[offset++] = chunk[i];
+          }
+        }
+        columnData.set(columnName, result);
       }
-      columnData.set(columnName, result);
     }
 
     await onProgress?.(30, "Column extraction complete");

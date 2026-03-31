@@ -56,8 +56,8 @@ export class ProcessedSingleMoleculeAdapter {
   private localFiles: Map<string, File> | null = null;
   private manifest: Manifest | null = null;
   private mode: "remote" | "local";
-  private geneCache: Map<string, number[]> = new Map(); // Cache loaded genes
-  private unassignedGeneCache: Map<string, number[]> = new Map(); // Cache unassigned genes
+  private geneCache: Map<string, Float32Array> = new Map(); // Cache loaded genes
+  private unassignedGeneCache: Map<string, Float32Array> = new Map(); // Cache unassigned genes
 
   constructor(datasetId: string, localFiles?: Map<string, File>) {
     this.datasetId = datasetId;
@@ -286,9 +286,9 @@ export class ProcessedSingleMoleculeAdapter {
 
   /**
    * Get coordinates for a specific gene (lazy loaded)
-   * Returns flat array: [x1,y1,z1, x2,y2,z2, ...]
+   * Returns flat Float32Array: [x1,y1,z1, x2,y2,z2, ...]
    */
-  async getCoordinatesByGene(geneName: string): Promise<number[]> {
+  async getCoordinatesByGene(geneName: string): Promise<Float32Array> {
     // Check cache first
     if (this.geneCache.has(geneName)) {
       console.log(
@@ -331,26 +331,25 @@ export class ProcessedSingleMoleculeAdapter {
       decompressed.byteLength / 4,
     );
 
-    // Convert to regular number array for compatibility
-    const coords = Array.from(float32Array);
-
-    // Cache for future use
-    this.geneCache.set(geneName, coords);
+    // Cache Float32Array directly (no conversion to number[])
+    this.geneCache.set(geneName, float32Array);
 
     console.log(
-      `[ProcessedSingleMoleculeAdapter] Loaded gene ${geneName}: ${coords.length / 3} molecules`,
+      `[ProcessedSingleMoleculeAdapter] Loaded gene ${geneName}: ${float32Array.length / 3} molecules`,
     );
 
-    return coords;
+    return float32Array;
   }
 
   /**
    * Get coordinates for unassigned molecules of a specific gene (lazy loaded)
-   * Returns flat array: [x1,y1,z1, x2,y2,z2, ...] or empty array if no unassigned data
+   * Returns flat Float32Array: [x1,y1,z1, x2,y2,z2, ...] or empty Float32Array if no unassigned data
    */
-  async getUnassignedCoordinatesByGene(geneName: string): Promise<number[]> {
+  async getUnassignedCoordinatesByGene(geneName: string): Promise<Float32Array> {
+    const empty = new Float32Array(0);
+
     if (!this.manifest || !this.manifest.has_unassigned) {
-      return [];
+      return empty;
     }
 
     // Check cache first
@@ -364,7 +363,7 @@ export class ProcessedSingleMoleculeAdapter {
 
     // Check if gene exists
     if (!this.manifest.genes.unique_gene_names.includes(geneName)) {
-      return [];
+      return empty;
     }
 
     console.log(
@@ -383,26 +382,23 @@ export class ProcessedSingleMoleculeAdapter {
       // Fetch and decompress unassigned gene file
       const decompressed = await this.fetchGzippedBinary(fileKey);
 
-      // Convert Uint8Array to Float32Array
+      // Convert Uint8Array to Float32Array directly (no Array.from())
       const float32Array = new Float32Array(
         decompressed.buffer,
         decompressed.byteOffset,
         decompressed.byteLength / 4,
       );
 
-      // Convert to regular number array for compatibility
-      const coords = Array.from(float32Array);
-
-      // Cache for future use
-      this.unassignedGeneCache.set(geneName, coords);
+      // Cache Float32Array directly
+      this.unassignedGeneCache.set(geneName, float32Array);
 
       const dims = this.manifest.statistics.spatial_dimensions;
 
       console.log(
-        `[ProcessedSingleMoleculeAdapter] Loaded unassigned gene ${geneName}: ${coords.length / dims} molecules`,
+        `[ProcessedSingleMoleculeAdapter] Loaded unassigned gene ${geneName}: ${float32Array.length / dims} molecules`,
       );
 
-      return coords;
+      return float32Array;
     } catch (error) {
       console.warn(
         `[ProcessedSingleMoleculeAdapter] No unassigned file for gene ${geneName}:`,
@@ -410,9 +406,9 @@ export class ProcessedSingleMoleculeAdapter {
       );
 
       // Cache empty result to avoid repeated failed lookups
-      this.unassignedGeneCache.set(geneName, []);
+      this.unassignedGeneCache.set(geneName, empty);
 
-      return [];
+      return empty;
     }
   }
 

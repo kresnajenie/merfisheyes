@@ -362,29 +362,21 @@ export function SingleMoleculeThreeScene() {
       }
     }
 
-    // Helper: create a point cloud from coordinates
+    // Helper: create a point cloud from coordinates (Float32Array passed directly)
     const createPointCloud = (
-      coords: number[],
+      coords: Float32Array,
       geneViz: { color: string; localScale: number },
       texture: THREE.Texture | null,
       renderOrder: number = 0,
     ): THREE.Points => {
       const moleculeCount = coords.length / 3;
-      const positions: number[] = [];
-
-      for (let i = 0; i < coords.length; i += 3) {
-        positions.push(
-          coords[i],
-          coords[i + 1],
-          coords[i + 2],
-        );
-      }
 
       const geometry = new THREE.BufferGeometry();
 
+      // Pass Float32Array directly — no copy needed
       geometry.setAttribute(
         "position",
-        new THREE.Float32BufferAttribute(positions, 3),
+        new THREE.Float32BufferAttribute(coords, 3),
       );
 
       const color = new THREE.Color(geneViz.color);
@@ -510,61 +502,14 @@ export function SingleMoleculeThreeScene() {
             let pointCloud = currentPointClouds.get(aKey);
 
           if (!pointCloud) {
-            // Create new point cloud
-            const positions: number[] = [];
-
-            // Use raw coordinates directly (already rounded to 2dp)
-            for (let i = 0; i < coords.length; i += 3) {
-              positions.push(
-                coords[i],
-                coords[i + 1],
-                coords[i + 2],
-              );
-            }
-
-            // Create point cloud with single color
-            const geometry = new THREE.BufferGeometry();
-
-            geometry.setAttribute(
-              "position",
-              new THREE.Float32BufferAttribute(positions, 3),
+            pointCloud = createPointCloud(
+              coords,
+              geneViz,
+              getTexture(geneViz.assignedShape),
+              0,
             );
 
-            // Parse HSL color and convert to RGB
-            const color = new THREE.Color(geneViz.color);
-            const colors = new Float32Array(moleculeCount * 3);
-
-            for (let i = 0; i < moleculeCount; i++) {
-              colors[i * 3] = color.r;
-              colors[i * 3 + 1] = color.g;
-              colors[i * 3 + 2] = color.b;
-            }
-            geometry.setAttribute(
-              "color",
-              new THREE.BufferAttribute(colors, 3),
-            );
-
-            // Create material with shape texture
-            const material = new THREE.PointsMaterial({
-              size:
-                geneViz.localScale *
-                globalScale *
-                VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
-              vertexColors: true,
-              transparent: true,
-              opacity: 1.0,
-              sizeAttenuation: false,
-              map: getTexture(geneViz.assignedShape),
-              alphaTest: 0.5,
-            });
-
-            pointCloud = new THREE.Points(geometry, material);
-
-            // Final check before adding to scene
             if (isCancelled) {
-              console.log(
-                `[SingleMoleculeThreeScene] Cancelled before adding point cloud for: ${gene}`,
-              );
               pointCloud.geometry.dispose();
               if (pointCloud.material instanceof THREE.Material) {
                 pointCloud.material.dispose();
