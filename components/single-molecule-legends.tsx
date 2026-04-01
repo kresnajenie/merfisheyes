@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Checkbox } from "@heroui/checkbox";
+import { Switch } from "@heroui/switch";
 import { Tooltip } from "@heroui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 import { Button } from "@heroui/button";
@@ -13,6 +14,7 @@ import {
   usePanelSingleMoleculeStore,
 } from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import {
   ColorPicker,
   ColorPickerEyeDropper,
@@ -30,6 +32,12 @@ export const SingleMoleculeLegends: React.FC = () => {
     toggleGeneVisibility,
     setGeneColor,
     setGeneLocalScale,
+    setGeneShowAssigned,
+    setGeneShowUnassigned,
+    setGeneAssignedShape,
+    setGeneUnassignedShape,
+    setGeneUnassignedColor,
+    setGeneUnassignedLocalScale,
   } = usePanelSingleMoleculeVisualizationStore();
   const dataset = usePanelSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
@@ -38,6 +46,9 @@ export const SingleMoleculeLegends: React.FC = () => {
   });
 
   const [openPopoverGene, setOpenPopoverGene] = useState<string | null>(null);
+  const [popoverMode, setPopoverMode] = useState<"assigned" | "unassigned">(
+    "assigned",
+  );
 
   // Debug logging
   useEffect(() => {
@@ -122,6 +133,10 @@ export const SingleMoleculeLegends: React.FC = () => {
         );
       }
     }
+  };
+
+  const handleUnassignedColorChange = (gene: string, color: string) => {
+    setGeneUnassignedColor(gene, color);
   };
 
   return (
@@ -217,6 +232,7 @@ export const SingleMoleculeLegends: React.FC = () => {
                 </Tooltip>
                 <PopoverContent className="!bg-[rgba(0,0,0,0.4)] backdrop-blur-[50px] border-white/20 p-3 w-64">
                   <div className="space-y-3">
+                    {/* Header */}
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold">{gene}</h4>
                       <Button
@@ -230,12 +246,89 @@ export const SingleMoleculeLegends: React.FC = () => {
                       </Button>
                     </div>
 
-                    {/* Color Picker */}
+                    {/* Mode Toggle: Assigned / Unassigned */}
+                    {dataset?.hasUnassigned && (
+                      <div className="flex gap-1 items-center">
+                        <div className="flex gap-1 flex-1">
+                          <Button
+                            className="flex-1 text-xs"
+                            color={
+                              popoverMode === "assigned"
+                                ? "primary"
+                                : "default"
+                            }
+                            size="sm"
+                            variant={
+                              popoverMode === "assigned" ? "solid" : "bordered"
+                            }
+                            onPress={() => setPopoverMode("assigned")}
+                          >
+                            Assigned
+                          </Button>
+                          <Button
+                            className="flex-1 text-xs"
+                            color={
+                              popoverMode === "unassigned"
+                                ? "primary"
+                                : "default"
+                            }
+                            size="sm"
+                            variant={
+                              popoverMode === "unassigned"
+                                ? "solid"
+                                : "bordered"
+                            }
+                            onPress={() => setPopoverMode("unassigned")}
+                          >
+                            Unassigned
+                          </Button>
+                        </div>
+                        {/* Per-gene visibility toggle for current mode */}
+                        <Tooltip
+                          content={
+                            popoverMode === "assigned"
+                              ? geneViz.showAssigned
+                                ? "Hide assigned"
+                                : "Show assigned"
+                              : geneViz.showUnassigned
+                                ? "Hide unassigned"
+                                : "Show unassigned"
+                          }
+                          placement="top"
+                        >
+                          <div>
+                            <Switch
+                              isSelected={
+                                popoverMode === "assigned"
+                                  ? geneViz.showAssigned
+                                  : geneViz.showUnassigned
+                              }
+                              size="sm"
+                              onValueChange={(val) =>
+                                popoverMode === "assigned"
+                                  ? setGeneShowAssigned(gene, val)
+                                  : setGeneShowUnassigned(gene, val)
+                              }
+                            />
+                          </div>
+                        </Tooltip>
+                      </div>
+                    )}
+
+                    {/* Color Picker — switches between assigned/unassigned */}
                     <ColorPicker
-                      key={gene}
+                      key={`${gene}-${popoverMode}`}
                       className="rounded-md p-2"
-                      defaultValue={geneViz.color}
-                      onChange={(color) => handleColorChange(gene, color)}
+                      defaultValue={
+                        popoverMode === "unassigned"
+                          ? geneViz.unassignedColor
+                          : geneViz.color
+                      }
+                      onChange={(color) =>
+                        popoverMode === "unassigned"
+                          ? handleUnassignedColorChange(gene, color)
+                          : handleColorChange(gene, color)
+                      }
                     >
                       <ColorPickerSelection />
                       <div className="flex items-center gap-2 mt-2">
@@ -244,16 +337,19 @@ export const SingleMoleculeLegends: React.FC = () => {
                           <ColorPickerHue />
                         </div>
                       </div>
-                      {/* Show hex code as small text */}
                       <div className="mt-2 text-center">
                         <ColorPickerOutput />
                       </div>
                     </ColorPicker>
 
-                    {/* Local Dot Size Slider */}
+                    {/* Size Slider — switches between assigned/unassigned */}
                     <div>
                       <label className="text-xs font-medium mb-1 block">
-                        Size: {geneViz.localScale.toFixed(1)}x
+                        Size:{" "}
+                        {popoverMode === "unassigned"
+                          ? geneViz.unassignedLocalScale.toFixed(1)
+                          : geneViz.localScale.toFixed(1)}
+                        x
                       </label>
                       <Slider
                         aria-label="Local dot size"
@@ -268,9 +364,18 @@ export const SingleMoleculeLegends: React.FC = () => {
                         step={
                           VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_STEP
                         }
-                        value={geneViz.localScale}
+                        value={
+                          popoverMode === "unassigned"
+                            ? geneViz.unassignedLocalScale
+                            : geneViz.localScale
+                        }
                         onChange={(value) =>
-                          handleScaleChange(gene, value as number)
+                          popoverMode === "unassigned"
+                            ? setGeneUnassignedLocalScale(
+                                gene,
+                                value as number,
+                              )
+                            : handleScaleChange(gene, value as number)
                         }
                       />
                       <div className="flex justify-between text-[10px] text-default-400 mt-1">
@@ -282,6 +387,48 @@ export const SingleMoleculeLegends: React.FC = () => {
                           {VISUALIZATION_CONFIG.SINGLE_MOLECULE_LOCAL_SCALE_MAX}
                           x
                         </span>
+                      </div>
+                    </div>
+
+                    {/* Shape Selector — switches between assigned/unassigned */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">
+                        Shape
+                      </label>
+                      <div className="flex gap-1">
+                        {(["circle", "square"] as MoleculeShape[]).map(
+                          (shape) => {
+                            const currentShape =
+                              popoverMode === "unassigned"
+                                ? geneViz.unassignedShape
+                                : geneViz.assignedShape;
+
+                            return (
+                              <Button
+                                key={shape}
+                                className="flex-1 capitalize text-xs"
+                                color={
+                                  currentShape === shape
+                                    ? "primary"
+                                    : "default"
+                                }
+                                size="sm"
+                                variant={
+                                  currentShape === shape
+                                    ? "solid"
+                                    : "bordered"
+                                }
+                                onPress={() =>
+                                  popoverMode === "unassigned"
+                                    ? setGeneUnassignedShape(gene, shape)
+                                    : setGeneAssignedShape(gene, shape)
+                                }
+                              >
+                                {shape}
+                              </Button>
+                            );
+                          },
+                        )}
                       </div>
                     </div>
                   </div>

@@ -15,6 +15,8 @@ Options:
     --y-col           Custom y coordinate column name (overrides dataset-type)
     --z-col           Custom z coordinate column name (overrides dataset-type, optional for 2D)
     --manifest-only   Only generate manifest.json.gz without creating gene files (faster)
+    --cell-id-col     Column name for cell assignment (auto-detected for MERSCOPE)
+                      Molecules with value -1 are treated as unassigned
 """
 
 import argparse
@@ -41,20 +43,27 @@ COLUMN_MAPPINGS = {
         "x": "x_location",
         "y": "y_location",
         "z": "z_location",
+        "cell_id": None,
     },
     "merscope": {
         "gene": "gene",
         "x": "global_x",
         "y": "global_y",
         "z": "global_z",
+        "cell_id": "cell_id",
     },
     "custom": {
         "gene": "feature_name",
         "x": "x_location",
         "y": "y_location",
         "z": "z_location",
+        "cell_id": None,
     },
 }
+
+
+UNASSIGNED_SUFFIX = "_uuuuuuuuuu"
+UNASSIGNED_CELL_ID = -1
 
 
 def should_filter_gene(gene: str) -> bool:
@@ -93,35 +102,18 @@ def sanitize_gene_name(gene_name: str) -> str:
     return sanitized
 
 
-def normalize_coordinates(coordinates: np.ndarray) -> Tuple[np.ndarray, float, np.ndarray]:
+def round_coordinates(coordinates: np.ndarray) -> np.ndarray:
     """
-    Normalize coordinates to [-1, 1] range
-    Mirrors lib/utils/coordinates.ts normalizeCoordinates()
+    Round coordinates to 2 decimal places.
+    Matches browser behavior: Math.round(x * 100) / 100
 
     Returns:
-        normalized: Normalized coordinates
-        scaling_factor: The max absolute value used for scaling
-        center: The center point (mean of each dimension)
+        rounded: Coordinates rounded to 2dp
     """
     if len(coordinates) == 0:
-        return coordinates, 1.0, np.array([0.0, 0.0, 0.0])
+        return coordinates
 
-    # Calculate center (mean of each dimension)
-    center = np.mean(coordinates, axis=0)
-
-    # Center the coordinates
-    centered = coordinates - center
-
-    # Find max absolute value
-    max_abs = np.max(np.abs(centered))
-
-    if max_abs == 0:
-        return centered, 1.0, center
-
-    # Scale to [-1, 1]
-    normalized = centered / max_abs
-
-    return normalized, max_abs, center
+    return np.round(coordinates, 2)
 
 
 def read_parquet_file(
@@ -130,7 +122,8 @@ def read_parquet_file(
     x_col: str,
     y_col: str,
     z_col: Optional[str],
-) -> Tuple[np.ndarray, np.ndarray, int]:
+    cell_id_col: Optional[str] = None,
+) -> Tuple[np.ndarray, np.ndarray, int, Optional[np.ndarray]]:
     """
     Read parquet file and extract gene names and coordinates
 
@@ -138,6 +131,7 @@ def read_parquet_file(
         genes: Array of gene names
         coords: Array of coordinates (N x dimensions)
         dimensions: 2 or 3
+        cell_ids: Array of cell IDs (or None if cell_id_col not provided/found)
     """
     print(f"Reading parquet file: {file_path}")
 
@@ -178,10 +172,19 @@ def read_parquet_file(
         else:
             print(f"  Detected 2D dataset (no z column specified)")
 
+    # Read cell_id column if provided
+    cell_ids = None
+    if cell_id_col and cell_id_col in df.columns:
+        cell_ids = df[cell_id_col].values
+        n_unassigned = np.sum(cell_ids == UNASSIGNED_CELL_ID)
+        print(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
+    elif cell_id_col:
+        print(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
+
     print(f"  Total molecules: {len(genes):,}")
     print(f"  Dimensions: {dimensions}D")
 
-    return genes, coords, dimensions
+    return genes, coords, dimensions, cell_ids
 
 
 def read_csv_file(
@@ -190,7 +193,8 @@ def read_csv_file(
     x_col: str,
     y_col: str,
     z_col: Optional[str],
-) -> Tuple[np.ndarray, np.ndarray, int]:
+    cell_id_col: Optional[str] = None,
+) -> Tuple[np.ndarray, np.ndarray, int, Optional[np.ndarray]]:
     """
     Read CSV file and extract gene names and coordinates
 
@@ -198,6 +202,7 @@ def read_csv_file(
         genes: Array of gene names
         coords: Array of coordinates (N x dimensions)
         dimensions: 2 or 3
+        cell_ids: Array of cell IDs (or None if cell_id_col not provided/found)
     """
     print(f"Reading CSV file: {file_path}")
 
@@ -237,10 +242,19 @@ def read_csv_file(
         else:
             print(f"  Detected 2D dataset (no z column specified)")
 
+    # Read cell_id column if provided
+    cell_ids = None
+    if cell_id_col and cell_id_col in df.columns:
+        cell_ids = df[cell_id_col].values
+        n_unassigned = np.sum(cell_ids == UNASSIGNED_CELL_ID)
+        print(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
+    elif cell_id_col:
+        print(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
+
     print(f"  Total molecules: {len(genes):,}")
     print(f"  Dimensions: {dimensions}D")
 
-    return genes, coords, dimensions
+    return genes, coords, dimensions, cell_ids
 
 
 def process_single_molecule_data(
@@ -251,6 +265,7 @@ def process_single_molecule_data(
     x_col: Optional[str] = None,
     y_col: Optional[str] = None,
     z_col: Optional[str] = None,
+    cell_id_col: Optional[str] = None,
     manifest_only: bool = False,
 ):
     """
@@ -270,6 +285,7 @@ def process_single_molecule_data(
     x_col = x_col or mapping["x"]
     y_col = y_col or mapping["y"]
     z_col = z_col or mapping["z"]
+    cell_id_col = cell_id_col or mapping.get("cell_id")
 
     print(f"Processing single molecule data...")
     print(f"  Dataset type: {dataset_type}")
@@ -277,6 +293,8 @@ def process_single_molecule_data(
     print(f"  X column: {x_col}")
     print(f"  Y column: {y_col}")
     print(f"  Z column: {z_col}")
+    if cell_id_col:
+        print(f"  Cell ID column: {cell_id_col}")
     print()
 
     # Step 1: Read input file (10%)
@@ -285,39 +303,46 @@ def process_single_molecule_data(
 
     file_ext = Path(input_file).suffix.lower()
     if file_ext == ".parquet":
-        genes, coords, dimensions = read_parquet_file(
-            input_file, gene_col, x_col, y_col, z_col
+        genes, coords, dimensions, cell_ids = read_parquet_file(
+            input_file, gene_col, x_col, y_col, z_col, cell_id_col
         )
     elif file_ext == ".csv":
-        genes, coords, dimensions = read_csv_file(
-            input_file, gene_col, x_col, y_col, z_col
+        genes, coords, dimensions, cell_ids = read_csv_file(
+            input_file, gene_col, x_col, y_col, z_col, cell_id_col
         )
     else:
         raise ValueError(f"Unsupported file type: {file_ext} (expected .parquet or .csv)")
 
     total_molecules = len(genes)
 
-    # Step 2: Normalize coordinates (30%)
+    # Step 2: Round coordinates to 2dp (30%)
     progress = 30
-    print(f"[{progress:3d}%] Normalizing coordinates...")
+    print(f"[{progress:3d}%] Rounding coordinates to 2 decimal places...")
 
-    normalized_coords, scaling_factor, center = normalize_coordinates(coords)
+    rounded_coords = round_coordinates(coords)
 
-    print(f"  Scaling factor: {scaling_factor:.2f}")
-    print(f"  Center: {center}")
+    print(f"  Coordinate range: x=[{rounded_coords[:,0].min():.2f}, {rounded_coords[:,0].max():.2f}], y=[{rounded_coords[:,1].min():.2f}, {rounded_coords[:,1].max():.2f}]")
 
     # Step 3: Build gene index (50-70%)
     progress = 50
     print(f"[{progress:3d}%] Building gene index...")
 
+    has_unassigned = cell_ids is not None
     gene_index: Dict[str, List[int]] = {}
+    # Separate index for unassigned molecules (cell_id == -1)
+    unassigned_index: Dict[str, List[int]] = {}
 
     progress_interval = max(1, total_molecules // 20)  # Report every 5%
 
     for i, gene in enumerate(genes):
-        if gene not in gene_index:
-            gene_index[gene] = []
-        gene_index[gene].append(i)
+        if has_unassigned and cell_ids[i] == UNASSIGNED_CELL_ID:
+            if gene not in unassigned_index:
+                unassigned_index[gene] = []
+            unassigned_index[gene].append(i)
+        else:
+            if gene not in gene_index:
+                gene_index[gene] = []
+            gene_index[gene].append(i)
 
         # Progress update every 5%
         if i > 0 and i % progress_interval == 0:
@@ -328,13 +353,21 @@ def process_single_molecule_data(
     progress = 70
     elapsed = time.time() - start_time
     print(f"[{progress:3d}%] Gene index built. Unique genes: {len(gene_index):,} [{elapsed:.1f}s]")
+    if has_unassigned:
+        total_assigned = sum(len(v) for v in gene_index.values())
+        total_unassigned = sum(len(v) for v in unassigned_index.values())
+        print(f"  Assigned molecules: {total_assigned:,}")
+        print(f"  Unassigned molecules: {total_unassigned:,}")
+        print(f"  Genes with unassigned molecules: {len(unassigned_index):,}")
 
     # Step 4: Filter genes (85%)
     progress = 85
     print(f"[{progress:3d}%] Filtering control probes and unassigned genes...")
 
-    filtered_genes = {gene for gene in gene_index.keys() if not should_filter_gene(gene)}
-    filtered_count = len(gene_index) - len(filtered_genes)
+    # Collect all gene names from both indices
+    all_gene_names = set(gene_index.keys()) | set(unassigned_index.keys())
+    filtered_genes = {gene for gene in all_gene_names if not should_filter_gene(gene)}
+    filtered_count = len(all_gene_names) - len(filtered_genes)
 
     print(f"  Filtered out {filtered_count} genes")
     print(f"  Remaining genes: {len(filtered_genes):,}")
@@ -356,28 +389,50 @@ def process_single_molecule_data(
         progress = 90
         print(f"[{progress:3d}%] Writing gene files...")
 
+        # Count total files to write (assigned + unassigned)
+        total_files = total_genes
+        if has_unassigned:
+            total_files += sum(1 for gene in unique_genes if gene in unassigned_index)
+
+        files_written = 0
+
         for idx, gene in enumerate(unique_genes):
-            indices = gene_index[gene]
-
-            # Extract coordinates for this gene (already normalized)
-            gene_coords = normalized_coords[indices].flatten()  # Flat array: [x1,y1,z1, x2,y2,z2, ...]
-
-            # Convert to Float32
-            gene_coords_float32 = gene_coords.astype(np.float32)
-
-            # Sanitize gene name for filename
             sanitized_name = sanitize_gene_name(gene)
 
-            # Write gzipped binary file
-            gene_file = genes_folder / f"{sanitized_name}.bin.gz"
-            with gzip.open(gene_file, 'wb') as f:
-                f.write(gene_coords_float32.tobytes())
+            # Write assigned molecules file
+            if gene in gene_index:
+                indices = gene_index[gene]
+                gene_coords = rounded_coords[indices].flatten()
+                gene_coords_float32 = gene_coords.astype(np.float32)
+
+                gene_file = genes_folder / f"{sanitized_name}.bin.gz"
+                with gzip.open(gene_file, 'wb') as f:
+                    f.write(gene_coords_float32.tobytes())
+            else:
+                # Gene only has unassigned molecules — write empty assigned file
+                gene_file = genes_folder / f"{sanitized_name}.bin.gz"
+                with gzip.open(gene_file, 'wb') as f:
+                    f.write(b'')
+
+            files_written += 1
+
+            # Write unassigned molecules file (poly-U suffix)
+            if has_unassigned and gene in unassigned_index:
+                unassigned_indices = unassigned_index[gene]
+                unassigned_coords = rounded_coords[unassigned_indices].flatten()
+                unassigned_coords_float32 = unassigned_coords.astype(np.float32)
+
+                unassigned_file = genes_folder / f"{sanitized_name}{UNASSIGNED_SUFFIX}.bin.gz"
+                with gzip.open(unassigned_file, 'wb') as f:
+                    f.write(unassigned_coords_float32.tobytes())
+
+                files_written += 1
 
             # Progress update
-            if idx > 0 and idx % max(1, total_genes // 20) == 0:
-                progress = 90 + int((idx / total_genes) * 8)
+            if files_written > 0 and files_written % max(1, total_files // 20) == 0:
+                progress = 90 + int((files_written / total_files) * 8)
                 elapsed = time.time() - start_time
-                print(f"[{progress:3d}%] Writing gene files... ({idx:,}/{total_genes:,}) [{elapsed:.1f}s]")
+                print(f"[{progress:3d}%] Writing gene files... ({files_written:,}/{total_files:,}) [{elapsed:.1f}s]")
     else:
         # Skip gene file writing
         output_path.mkdir(parents=True, exist_ok=True)
@@ -390,6 +445,16 @@ def process_single_molecule_data(
 
     # Get source filename without extension
     source_name = Path(input_file).stem
+
+    # Build per-gene molecule counts
+    gene_molecule_counts = {}
+    for gene in unique_genes:
+        assigned = len(gene_index.get(gene, []))
+        entry = {"assigned": assigned}
+        if has_unassigned:
+            unassigned = len(unassigned_index.get(gene, []))
+            entry["unassigned"] = unassigned
+        gene_molecule_counts[gene] = entry
 
     # Create manifest in exact browser format
     manifest = {
@@ -405,12 +470,14 @@ def process_single_molecule_data(
         },
         "genes": {
             "unique_gene_names": unique_genes,
+            "molecule_counts": gene_molecule_counts,
         },
+        "has_unassigned": has_unassigned,
         "processing": {
             "compression": "gzip",
             "coordinate_format": "float32_flat_array",
-            "coordinate_range": "normalized_[-1,1]",
-            "scaling_factor": float(scaling_factor),
+            "coordinate_range": "raw_rounded_2dp",
+            "scaling_factor": 1.0,
             "created_by": "MERFISH Eyes - Single Molecule Viewer",
             "source_file": source_name,
         },
@@ -435,8 +502,11 @@ def process_single_molecule_data(
     if not manifest_only:
         print(f"    genes/")
         print(f"      {sanitize_gene_name(unique_genes[0])}.bin.gz")
+        if has_unassigned:
+            print(f"      {sanitize_gene_name(unique_genes[0])}{UNASSIGNED_SUFFIX}.bin.gz")
         print(f"      ...")
-        print(f"      ({len(unique_genes)} total gene files)")
+        file_count = total_files if has_unassigned else len(unique_genes)
+        print(f"      ({file_count} total gene files)")
     else:
         print(f"    (genes/ folder not created - use without --manifest-only to generate)")
     print()
@@ -444,7 +514,12 @@ def process_single_molecule_data(
     print(f"  Total molecules: {total_molecules:,}")
     print(f"  Unique genes: {len(unique_genes):,}")
     print(f"  Dimensions: {dimensions}D")
-    print(f"  Scaling factor: {scaling_factor:.2f}")
+    print(f"  Coordinates: raw, rounded to 2dp")
+    if has_unassigned:
+        total_assigned = sum(len(v) for v in gene_index.values())
+        total_unassigned = sum(len(v) for v in unassigned_index.values())
+        print(f"  Assigned molecules: {total_assigned:,}")
+        print(f"  Unassigned molecules: {total_unassigned:,}")
     print()
     print("Ready for S3 upload! Upload the entire output folder to:")
     print(f"  s3://your-bucket/datasets/{{datasetId}}/")
@@ -487,6 +562,12 @@ def main():
         help="Custom z coordinate column name (overrides dataset-type, optional for 2D)",
     )
     parser.add_argument(
+        "--cell-id-col",
+        help="Column name for cell assignment (auto-detected as 'cell_id' for MERSCOPE). "
+             "Molecules with value -1 are treated as unassigned and written to separate files. "
+             "Use this flag to override the auto-detected column name",
+    )
+    parser.add_argument(
         "--manifest-only",
         action="store_true",
         help="Only generate manifest.json.gz without creating gene files (faster)",
@@ -508,6 +589,7 @@ def main():
             x_col=args.x_col,
             y_col=args.y_col,
             z_col=args.z_col,
+            cell_id_col=args.cell_id_col,
             manifest_only=args.manifest_only,
         )
     except Exception as e:
