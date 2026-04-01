@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
       <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">Your dataset is ready</p>
       <h2 style="margin: 0 0 24px 0; font-size: 22px; font-weight: 600; color: #111;">${dataset.title || "Untitled Dataset"}</h2>
-      <a href="${datasetUrl}" style="display: inline-block; background: #111; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>
+      <a href="${datasetUrl}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>
     </div>
     <div style="margin-top: 32px; padding: 16px; background: #f8f8f8; border-radius: 6px;">
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
