@@ -3,7 +3,7 @@
 #SBATCH --output=/bil/users/ijenie/meyes_process_logs/map_my_cell_%j.log
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64
-#SBATCH --mem=64G
+#SBATCH --mem=512G
 #SBATCH --time=2-00:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=BEGIN,END,FAIL
