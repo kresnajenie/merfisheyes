@@ -596,72 +596,93 @@ export class SingleMoleculeDataset {
     let checkedCellIdColumn = false;
     const fileSize = file.size;
 
+    // Dynamic chunk size based on file size (file.size is O(1))
+    const MB = 1024 * 1024;
+    let chunkSize: number;
+
+    if (fileSize < 100 * MB) {
+      chunkSize = 10 * MB;
+    } else if (fileSize < 1000 * MB) {
+      chunkSize = 50 * MB;
+    } else if (fileSize < 10000 * MB) {
+      chunkSize = 100 * MB;
+    } else {
+      chunkSize = 200 * MB;
+    }
+
+    console.log(`[SingleMoleculeDataset] CSV chunk size: ${(chunkSize / MB).toFixed(0)}MB for ${(fileSize / MB).toFixed(0)}MB file`);
+
     await onProgress?.(15, "Streaming CSV file...");
 
-    // Stream-parse the CSV file row by row using PapaParse step mode
-    // Passing the File object directly lets PapaParse sniff the delimiter
+    // Stream-parse the CSV file in chunks using PapaParse chunk mode
+    // Still streams from disk (memory-safe for large files) but batches rows to reduce callback overhead
     await new Promise<void>((resolve, reject) => {
       let lastProgressReport = 0;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (Papa.parse as any)(file, {
+        chunkSize,
         header: true,
         skipEmptyLines: true,
         dynamicTyping: true,
-        step: (result: { data: Record<string, unknown> }) => {
-          const row = result.data;
+        chunk: (results: { data: Record<string, unknown>[] }) => {
+          const rows = results.data;
 
-          // Skip invalid rows
-          if (!row || !row[columnMapping.gene]) return;
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
 
-          // Check for cell_id column on first valid row
-          if (!checkedCellIdColumn) {
-            checkedCellIdColumn = true;
-            if (cellIdCol && cellIdCol in row) {
-              hasCellIdColumn = true;
-              console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
-            } else if (cellIdCol) {
-              console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found, treating all as assigned`);
+            // Skip invalid rows
+            if (!row || !row[columnMapping.gene]) continue;
+
+            // Check for cell_id column on first valid row
+            if (!checkedCellIdColumn) {
+              checkedCellIdColumn = true;
+              if (cellIdCol && cellIdCol in row) {
+                hasCellIdColumn = true;
+                console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
+              } else if (cellIdCol) {
+                console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found, treating all as assigned`);
+              }
             }
+
+            const gene = String(row[columnMapping.gene]);
+            const x = Math.round((Number(row[columnMapping.x]) || 0) * 100) / 100;
+            const y = Math.round((Number(row[columnMapping.y]) || 0) * 100) / 100;
+            let z = 0;
+
+            if (
+              columnMapping.z &&
+              row[columnMapping.z] !== undefined &&
+              row[columnMapping.z] !== null
+            ) {
+              z = Math.round((Number(row[columnMapping.z]) || 0) * 100) / 100;
+              hasZ = true;
+            }
+
+            // Skip control genes immediately
+            if (shouldFilterGene(gene)) continue;
+
+            uniqueGenesSet.add(gene);
+
+            // Determine if this molecule is unassigned (cell_id == -1)
+            const isUnassigned = hasCellIdColumn && Number(row[cellIdCol!]) === -1;
+
+            if (isUnassigned) {
+              if (!tempUnassignedGeneIndex.has(gene)) {
+                tempUnassignedGeneIndex.set(gene, []);
+              }
+              tempUnassignedGeneIndex.get(gene)!.push(x, y, z);
+            } else {
+              if (!tempGeneIndex.has(gene)) {
+                tempGeneIndex.set(gene, []);
+              }
+              tempGeneIndex.get(gene)!.push(x, y, z);
+            }
+
+            totalRows++;
           }
 
-          const gene = String(row[columnMapping.gene]);
-          const x = Math.round((Number(row[columnMapping.x]) || 0) * 100) / 100;
-          const y = Math.round((Number(row[columnMapping.y]) || 0) * 100) / 100;
-          let z = 0;
-
-          if (
-            columnMapping.z &&
-            row[columnMapping.z] !== undefined &&
-            row[columnMapping.z] !== null
-          ) {
-            z = Math.round((Number(row[columnMapping.z]) || 0) * 100) / 100;
-            hasZ = true;
-          }
-
-          // Skip control genes immediately
-          if (shouldFilterGene(gene)) return;
-
-          uniqueGenesSet.add(gene);
-
-          // Determine if this molecule is unassigned (cell_id == -1)
-          const isUnassigned = hasCellIdColumn && Number(row[cellIdCol!]) === -1;
-
-          if (isUnassigned) {
-            if (!tempUnassignedGeneIndex.has(gene)) {
-              tempUnassignedGeneIndex.set(gene, []);
-            }
-            tempUnassignedGeneIndex.get(gene)!.push(x, y, z);
-          } else {
-            if (!tempGeneIndex.has(gene)) {
-              tempGeneIndex.set(gene, []);
-            }
-            tempGeneIndex.get(gene)!.push(x, y, z);
-          }
-
-          totalRows++;
-
-          // Report progress based on rows processed
+          // Report progress once per chunk
           if (totalRows - lastProgressReport >= 100000) {
             lastProgressReport = totalRows;
             const elapsed = performance.now() - startTime;

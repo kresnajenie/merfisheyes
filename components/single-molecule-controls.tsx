@@ -58,9 +58,11 @@ export function SingleMoleculeControls() {
   const filteredGenes = useMemo(() => {
     if (!dataset) return [];
 
-    return dataset.uniqueGenes.filter((gene) =>
-      gene.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
+    return dataset.uniqueGenes
+      .filter((gene) =>
+        gene.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+      .sort((a, b) => a.localeCompare(b));
   }, [dataset, searchTerm]);
 
   return (
