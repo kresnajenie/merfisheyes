@@ -1,7 +1,15 @@
-import sgMail from "@sendgrid/mail";
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { NextRequest } from "next/server";
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+const ses = new SESClient({
+  region: process.env.AWS_SES_REGION || "us-west-2",
+  credentials: {
+    accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY!,
+  },
+});
+
+const FROM_EMAIL = process.env.SES_FROM_EMAIL || "noreply@merfisheyes.com";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,107 +18,83 @@ export async function POST(req: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const link = `${baseUrl}/viewer/${datasetId}`;
 
-    // Use dataset name in subject, fallback to generic message
     const subject = datasetName
-      ? `${datasetName} - Dataset Ready - MERFISHeyes`
-      : "Your Dataset is Ready - MERFISHeyes";
+      ? `${datasetName} - Dataset Ready - MERFISHEYES`
+      : "Your Dataset is Ready - MERFISHEYES";
 
-    const msg = {
-      to: email,
-      from: "noreply@merfisheyes.com",
-      subject: subject,
-      text: `Your dataset has been processed and is ready to view.\n\nDataset: ${datasetName || "Untitled"}\nCells: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nView your dataset here: ${link}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Dataset Ready</title>
-          </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">MERFISH Eyes</h1>
-              <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Single Cell Viewer</p>
-            </div>
+    const command = new SendEmailCommand({
+      Source: FROM_EMAIL,
+      Destination: {
+        ToAddresses: [email],
+      },
+      Message: {
+        Subject: { Data: subject },
+        Body: {
+          Text: {
+            Data: `Your dataset is ready.\n\nDataset: ${datasetName || "Untitled"}\nCells: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nOpen your dataset: ${link}`,
+          },
+          Html: {
+            Data: `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 520px; margin: 0 auto; padding: 20px;">
+    <div style="padding: 24px 0 16px 0;">
+      <span style="font-size: 14px; font-weight: 600; color: #111; letter-spacing: 0.5px;">MERFISHEYES</span>
+    </div>
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
+      <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">Your dataset is ready</p>
+      <h2 style="margin: 0 0 24px 0; font-size: 22px; font-weight: 600; color: #111;">${datasetName || "Untitled Dataset"}</h2>
+      <a href="${link}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>
+    </div>
+    <div style="margin-top: 32px; padding: 16px; background: #f8f8f8; border-radius: 6px;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <tr>
+          <td style="padding: 4px 0; color: #888;">Cells</td>
+          <td style="padding: 4px 0; color: #333; text-align: right;">${metadata?.numCells?.toLocaleString() || "N/A"}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #888;">Genes</td>
+          <td style="padding: 4px 0; color: #333; text-align: right;">${metadata?.numGenes?.toLocaleString() || "N/A"}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #888;">Platform</td>
+          <td style="padding: 4px 0; color: #333; text-align: right; text-transform: uppercase;">${metadata?.platform || "N/A"}</td>
+        </tr>${metadata?.clusterCount ? `
+        <tr>
+          <td style="padding: 4px 0; color: #888;">Clusters</td>
+          <td style="padding: 4px 0; color: #333; text-align: right;">${metadata.clusterCount}</td>
+        </tr>` : ""}
+      </table>
+    </div>
+    <div style="margin-top: 24px; font-size: 12px; color: #999; word-break: break-all;">${link}</div>
+    <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+      <table style="width: 100%;">
+        <tr>
+          <td style="font-size: 11px; color: #bbb;">&copy; ${new Date().getFullYear()} MERFISHEYES</td>
+          <td style="text-align: right; font-size: 12px;">
+            <a href="https://github.com/kresnajenie/merfisheyes" style="color: #999; text-decoration: none; margin-left: 12px;">GitHub</a>
+            <a href="https://x.com/merfisheyes" style="color: #999; text-decoration: none; margin-left: 12px;">X</a>
+            <a href="https://discord.gg/BRp6C2EVHU" style="color: #999; text-decoration: none; margin-left: 12px;">Discord</a>
+            <a href="https://www.patreon.com/cw/MERFISHEYES" style="color: #999; text-decoration: none; margin-left: 12px;">Patreon</a>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>`,
+          },
+        },
+      },
+    });
 
-            <div style="background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
-              <h2 style="color: #667eea; margin-top: 0;">Your Dataset is Ready!</h2>
-
-              <p>Your single cell dataset has been successfully processed and is now ready to explore.</p>
-
-              <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #333; font-size: 16px;">Dataset Information</h3>
-                <table style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Name:</td>
-                    <td style="padding: 8px 0; color: #333;">${datasetName || "Untitled Dataset"}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Total Cells:</td>
-                    <td style="padding: 8px 0; color: #333;">${metadata?.numCells?.toLocaleString() || "N/A"}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Unique Genes:</td>
-                    <td style="padding: 8px 0; color: #333;">${metadata?.numGenes?.toLocaleString() || "N/A"}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Platform:</td>
-                    <td style="padding: 8px 0; color: #333; text-transform: uppercase;">${metadata?.platform || "N/A"}</td>
-                  </tr>
-                  ${
-                    metadata?.clusterCount
-                      ? `
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Cluster Columns:</td>
-                    <td style="padding: 8px 0; color: #333;">${metadata.clusterCount}</td>
-                  </tr>
-                  `
-                      : ""
-                  }
-                  <tr>
-                    <td style="padding: 8px 0; color: #666; font-weight: 500;">Dataset ID:</td>
-                    <td style="padding: 8px 0; color: #333; font-family: monospace; font-size: 12px;">${datasetId}</td>
-                  </tr>
-                </table>
-              </div>
-
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${link}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
-                  View Dataset
-                </a>
-              </div>
-
-              <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                <p style="margin: 0; color: #856404; font-size: 14px;">
-                  <strong>📋 Note:</strong> Save this link to access your dataset anytime:
-                </p>
-                <p style="margin: 10px 0 0 0; word-break: break-all;">
-                  <a href="${link}" style="color: #667eea; text-decoration: none; font-family: monospace; font-size: 12px;">${link}</a>
-                </p>
-              </div>
-
-              <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 30px 0;">
-
-              <p style="color: #666; font-size: 14px; margin-bottom: 0;">
-                Need help? Visit our <a href="${baseUrl}" style="color: #667eea; text-decoration: none;">documentation</a> or contact support.
-              </p>
-            </div>
-
-            <div style="text-align: center; padding: 20px; color: #999; font-size: 12px;">
-              <p style="margin: 0;">© ${new Date().getFullYear()} MERFISH Eyes - Single Cell Viewer</p>
-              <p style="margin: 10px 0 0 0;">Powered by spatial transcriptomics visualization technology</p>
-            </div>
-          </body>
-        </html>
-      `,
-    };
-
-    await sgMail.send(msg);
+    await ses.send(command);
 
     return Response.json({ success: true });
   } catch (error) {
-    console.error("SendGrid Error:", error);
+    console.error("SES Error:", error);
 
     return Response.json(
       {

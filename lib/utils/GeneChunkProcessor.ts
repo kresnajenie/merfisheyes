@@ -446,6 +446,7 @@ export class GeneChunkProcessor {
     if (dataset.spatial && dataset.spatial.coordinates) {
       coords.spatial = await this.encodeCoordinates(
         dataset.spatial.coordinates,
+        dataset.spatial.dimensions,
       );
     }
 
@@ -464,9 +465,17 @@ export class GeneChunkProcessor {
   /**
    * Encode coordinates as binary format
    */
-  private async encodeCoordinates(coordinates: number[][]): Promise<Blob> {
-    const numPoints = coordinates.length;
-    const dimensions = coordinates[0]?.length || 0;
+  private async encodeCoordinates(
+    coordinates: Float32Array | number[][],
+    dimensionsHint?: number,
+  ): Promise<Blob> {
+    const isFlat = coordinates instanceof Float32Array;
+    const dimensions = isFlat
+      ? (dimensionsHint || 3)
+      : (coordinates as number[][])[0]?.length || 0;
+    const numPoints = isFlat
+      ? coordinates.length / dimensions
+      : (coordinates as number[][]).length;
 
     // Create buffer: header + coordinate data
     const bufferSize = 8 + numPoints * dimensions * 4;
@@ -480,10 +489,19 @@ export class GeneChunkProcessor {
     // Write coordinates
     let offset = 8;
 
-    for (let i = 0; i < numPoints; i++) {
-      for (let d = 0; d < dimensions; d++) {
-        view.setFloat32(offset, coordinates[i][d], true);
+    if (isFlat) {
+      for (let i = 0; i < coordinates.length; i++) {
+        view.setFloat32(offset, coordinates[i], true);
         offset += 4;
+      }
+    } else {
+      const nested = coordinates as number[][];
+
+      for (let i = 0; i < numPoints; i++) {
+        for (let d = 0; d < dimensions; d++) {
+          view.setFloat32(offset, nested[i][d], true);
+          offset += 4;
+        }
       }
     }
 
@@ -507,7 +525,11 @@ export class GeneChunkProcessor {
 
     for (const cluster of dataset.clusters) {
       // Save observation data as compressed JSON
-      const json = JSON.stringify(cluster.values);
+      // Reconstruct per-cell array from indexed representation for S3 storage
+      const perCellValues = cluster.valueIndices && cluster.uniqueValues
+        ? Array.from(cluster.valueIndices, (idx) => cluster.uniqueValues![idx])
+        : cluster.values;
+      const json = JSON.stringify(perCellValues);
       const compressed = await this.compressText(json);
 
       files[cluster.column] = compressed;

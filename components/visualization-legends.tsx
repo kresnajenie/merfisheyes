@@ -5,6 +5,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
+import { generateColorPalette } from "@/lib/utils/color-palette";
 
 import {
   usePanelVisualizationStore,
@@ -73,7 +74,20 @@ export const VisualizationLegends: React.FC = () => {
       return;
     }
 
-    let palette = { ...(selectedCluster.palette || {}) };
+    // If palette is missing (e.g. column was loaded as numerical), generate one
+    let basePalette = selectedCluster.palette;
+
+    if (
+      !basePalette ||
+      Object.keys(basePalette).length === 0
+    ) {
+      const uniqueValues = selectedCluster.uniqueValues
+        ?? [...new Set(selectedCluster.values?.map(String) ?? [])];
+
+      basePalette = generateColorPalette(uniqueValues);
+    }
+
+    let palette = { ...basePalette };
     const storageKey = `cluster_palette_${standardizedDataset.id}_${selectedColumn}`;
 
     try {

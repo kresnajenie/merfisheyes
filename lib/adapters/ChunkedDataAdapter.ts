@@ -315,10 +315,25 @@ export class ChunkedDataAdapter {
         const buffer = await this.fetchBinary(`coords/${coordType}.bin.gz`);
         const coordinates = this.parseCoordinateBuffer(buffer);
 
-        embeddings[coordType] = coordinates.data;
+        // Convert flat Float32Array back to number[][] for embeddings
+        // (embeddings are typically small and used with the existing number[][] API)
+        const flat = coordinates.data;
+        const dims = coordinates.dimensions;
+        const numPts = flat.length / dims;
+        const nested: number[][] = new Array(numPts);
+
+        for (let i = 0; i < numPts; i++) {
+          const pt = new Array(dims);
+
+          for (let d = 0; d < dims; d++) {
+            pt[d] = flat[i * dims + d];
+          }
+          nested[i] = pt;
+        }
+        embeddings[coordType] = nested;
         console.log(
           `Loaded ${coordType} embedding:`,
-          coordinates.data.length,
+          numPts,
           "points",
         );
       } catch (error) {
@@ -346,13 +361,28 @@ export class ChunkedDataAdapter {
       const buffer = await this.fetchBinary(`coords/${coordType}.bin.gz`);
       const coordinates = this.parseCoordinateBuffer(buffer);
 
+      // Convert flat Float32Array back to number[][] for embeddings
+      const flat = coordinates.data;
+      const dims = coordinates.dimensions;
+      const numPts = flat.length / dims;
+      const nested: number[][] = new Array(numPts);
+
+      for (let i = 0; i < numPts; i++) {
+        const pt = new Array(dims);
+
+        for (let d = 0; d < dims; d++) {
+          pt[d] = flat[i * dims + d];
+        }
+        nested[i] = pt;
+      }
+
       console.log(
         `Loaded ${coordType} embedding on demand:`,
-        coordinates.data.length,
+        numPts,
         "points",
       );
 
-      return { name: coordType, data: coordinates.data };
+      return { name: coordType, data: nested };
     } catch (error) {
       console.warn(`Failed to load ${coordType} embedding on demand:`, error);
 
@@ -370,18 +400,14 @@ export class ChunkedDataAdapter {
     const numPoints = view.getUint32(0, true);
     const dimensions = view.getUint32(4, true);
 
-    // Read coordinates
-    const coordinates: number[][] = [];
+    // Read coordinates directly into a flat Float32Array (much more memory efficient)
+    const totalFloats = numPoints * dimensions;
+    const coordinates = new Float32Array(totalFloats);
     let offset = 8;
 
-    for (let i = 0; i < numPoints; i++) {
-      const coord: number[] = [];
-
-      for (let d = 0; d < dimensions; d++) {
-        coord.push(view.getFloat32(offset, true));
-        offset += 4;
-      }
-      coordinates.push(coord);
+    for (let i = 0; i < totalFloats; i++) {
+      coordinates[i] = view.getFloat32(offset, true);
+      offset += 4;
     }
 
     return { data: coordinates, dimensions };
@@ -424,6 +450,7 @@ export class ChunkedDataAdapter {
     type: string;
     values: any[];
     palette: Record<string, string> | null;
+    uniqueValues: string[];
   }> | null> {
     console.log("Loading clusters...", columns ? `(filtered: ${columns.join(", ")})` : "(all)");
 
@@ -479,11 +506,45 @@ export class ChunkedDataAdapter {
             console.log(`Skipping palette for numerical column: ${columnName}`);
           }
 
+          // Build indexed representation: uniqueValues + valueIndices
+          // This reduces memory from O(N) strings to O(N) uint16/32 + O(U) strings
+          const valueToIndex = new Map<string, number>();
+          const uniqueValuesList: string[] = [];
+
+          for (let i = 0; i < clusterValues.length; i++) {
+            const str = String(clusterValues[i]);
+
+            if (!valueToIndex.has(str)) {
+              valueToIndex.set(str, uniqueValuesList.length);
+              uniqueValuesList.push(str);
+            }
+          }
+
+          const uniqueValues = uniqueValuesList.sort(
+            (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true }),
+          );
+
+          // Rebuild index map after sorting
+          const sortedIndexMap = new Map<string, number>();
+
+          for (let i = 0; i < uniqueValues.length; i++) {
+            sortedIndexMap.set(uniqueValues[i], i);
+          }
+
+          const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
+          const valueIndices = new IndexArray(clusterValues.length);
+
+          for (let i = 0; i < clusterValues.length; i++) {
+            valueIndices[i] = sortedIndexMap.get(String(clusterValues[i]))!;
+          }
+
           clusters.push({
             column: columnName,
             type: columnType,
-            values: clusterValues,
+            values: [],
+            valueIndices: valueIndices,
             palette: palette,
+            uniqueValues: uniqueValues,
           });
         } catch (error) {
           console.warn(`Failed to load cluster column ${columnName}:`, error);

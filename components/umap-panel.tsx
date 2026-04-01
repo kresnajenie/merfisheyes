@@ -3,6 +3,8 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { PointData } from "@/lib/webgl/types";
 
+import { getClusterValue } from "@/lib/StandardizedDataset";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Tooltip, Select, SelectItem } from "@heroui/react";
@@ -76,7 +78,7 @@ export default function UMAPPanel() {
   // Store current visualization data for tooltips
   const geneExpressionRef = useRef<number[] | null>(null);
   const colorPaletteRef = useRef<Record<string, string>>({});
-  const clusterValuesRef = useRef<(string | number)[]>([]);
+  const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
 
   // Store current mode and selection in refs to avoid closure issues
@@ -167,7 +169,9 @@ export default function UMAPPanel() {
 
     // Determine what to show based on current mode and cluster type
     const isNumerical = isNumericalClusterRef.current;
-    const clusterValue = clusterValuesRef.current[index];
+    const clusterValue = clusterRef.current
+      ? getClusterValue(clusterRef.current, index)
+      : undefined;
     const geneValue = geneExpressionRef.current?.[index];
 
     // Get current values from refs
@@ -518,7 +522,7 @@ export default function UMAPPanel() {
       );
 
       if (selectedCluster) {
-        clusterValuesRef.current = selectedCluster.values;
+        clusterRef.current = selectedCluster;
         isNumericalClusterRef.current = selectedColumn
           ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
           : false;
@@ -685,8 +689,9 @@ export default function UMAPPanel() {
     const handleDoubleClick = () => {
       if (hoveredPointRef.current !== null && dataset?.clusters) {
         const index = hoveredPointRef.current;
-        const clusterValue = clusterValuesRef.current[index];
-        const clusterValueStr = String(clusterValue);
+        const clusterValueStr = clusterRef.current
+          ? getClusterValue(clusterRef.current, index)
+          : "";
 
         // Only toggle celltype if it's not a numerical cluster
         if (!isNumericalClusterRef.current) {

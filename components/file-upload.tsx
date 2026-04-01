@@ -1,7 +1,5 @@
 "use client";
 
-import type { LocalDatasetMetadata } from "@/lib/services/localDatasetDB";
-
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
@@ -13,7 +11,6 @@ import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
-import { saveLocalDatasetMeta } from "@/lib/services/localDatasetDB";
 
 type UploadType = "h5ad" | "xenium" | "merscope" | "chunked";
 
@@ -386,33 +383,6 @@ export function FileUpload({
       } else {
         cellStore.addDataset(dataset as StandardizedDataset);
       }
-
-      // Persist metadata to IndexedDB for cross-session URL sharing
-      const meta: LocalDatasetMetadata = {
-        id: dataset.id,
-        name: dataset.name,
-        type: dataset.type,
-        datasetCategory: singleMolecule ? "molecule" : "cell",
-        createdAt: Date.now(),
-      };
-
-      if (singleMolecule) {
-        const smDataset = dataset as SingleMoleculeDataset;
-
-        meta.moleculeCount = smDataset.getMoleculeCount();
-        meta.uniqueGeneCount = smDataset.uniqueGenes.length;
-        meta.spatialDimensions = smDataset.dimensions;
-      } else {
-        const cellDataset = dataset as StandardizedDataset;
-        const summary = cellDataset.getSummary();
-
-        meta.pointCount = summary.pointCount;
-        meta.geneCount = summary.geneCount;
-        meta.clusterColumns = summary.clusterColumns;
-        meta.spatialDimensions = summary.spatialDimensions;
-      }
-
-      saveLocalDatasetMeta(meta);
 
       toast.success(`Dataset loaded successfully!`);
       setLoading(false);

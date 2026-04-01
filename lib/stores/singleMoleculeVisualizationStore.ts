@@ -5,10 +5,18 @@ import {
   findLowestAvailableSlot,
 } from "@/lib/utils/gene-color-palette";
 
+export type MoleculeShape = "circle" | "square";
+
 export interface GeneVisualization {
   gene: string;
   color: string;
-  localScale: number; // Local scale multiplier for this gene
+  localScale: number;
+  showAssigned: boolean;
+  showUnassigned: boolean;
+  assignedShape: MoleculeShape;
+  unassignedShape: MoleculeShape;
+  unassignedColor: string;
+  unassignedLocalScale: number;
 }
 
 export type ViewMode = "2D" | "3D";
@@ -32,6 +40,10 @@ interface SingleMoleculeVisualizationState {
   // Camera view mode
   viewMode: ViewMode;
 
+  // Assigned/unassigned molecule visibility
+  showAssigned: boolean;
+  showUnassigned: boolean;
+
   // Actions
   addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
@@ -40,9 +52,15 @@ interface SingleMoleculeVisualizationState {
   setGeneLocalScale: (gene: string, scale: number) => void;
   setGlobalScale: (scale: number) => void;
   setViewMode: (mode: ViewMode) => void;
+  setShowAssigned: (show: boolean) => void;
+  setShowUnassigned: (show: boolean) => void;
+  setGeneShowAssigned: (gene: string, show: boolean) => void;
+  setGeneShowUnassigned: (gene: string, show: boolean) => void;
+  setGeneAssignedShape: (gene: string, shape: MoleculeShape) => void;
+  setGeneUnassignedShape: (gene: string, shape: MoleculeShape) => void;
+  setGeneUnassignedColor: (gene: string, color: string) => void;
+  setGeneUnassignedLocalScale: (gene: string, scale: number) => void;
   clearGenes: () => void;
-  loadFromLocalStorage: (datasetId: string) => void;
-  saveToLocalStorage: (datasetId: string) => void;
 }
 
 export const useSingleMoleculeVisualizationStore =
@@ -53,6 +71,8 @@ export const useSingleMoleculeVisualizationStore =
     geneColorSlots: new Map(),
     globalScale: 1.0,
     viewMode: "2D",
+    showAssigned: true,
+    showUnassigned: true,
 
     addGene: (gene: string, color?: string, localScale?: number) =>
       set((state) => {
@@ -82,10 +102,16 @@ export const useSingleMoleculeVisualizationStore =
           newGeneColorSlots.set(gene, slot);
         }
 
-        const geneViz = {
+        const geneViz: GeneVisualization = {
           gene,
           color: assignedColor,
           localScale: localScale || 1.0,
+          showAssigned: state.showAssigned,
+          showUnassigned: state.showUnassigned,
+          assignedShape: "circle",
+          unassignedShape: "square",
+          unassignedColor: assignedColor,
+          unassignedLocalScale: localScale || 1.0,
         };
 
         if (!newSelectedGenes.has(gene)) {
@@ -194,6 +220,146 @@ export const useSingleMoleculeVisualizationStore =
 
     setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 
+    setShowAssigned: (show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+
+        for (const [key, geneViz] of newSelectedGenes) {
+          newSelectedGenes.set(key, { ...geneViz, showAssigned: show });
+        }
+        for (const [key, geneViz] of newGeneDataCache) {
+          newGeneDataCache.set(key, { ...geneViz, showAssigned: show });
+        }
+
+        return {
+          showAssigned: show,
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
+      }),
+
+    setShowUnassigned: (show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+
+        for (const [key, geneViz] of newSelectedGenes) {
+          newSelectedGenes.set(key, { ...geneViz, showUnassigned: show });
+        }
+        for (const [key, geneViz] of newGeneDataCache) {
+          newGeneDataCache.set(key, { ...geneViz, showUnassigned: show });
+        }
+
+        return {
+          showUnassigned: show,
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
+      }),
+
+    setGeneShowAssigned: (gene: string, show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, showAssigned: show };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneShowUnassigned: (gene: string, show: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, showUnassigned: show };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneAssignedShape: (gene: string, shape: MoleculeShape) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, assignedShape: shape };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneUnassignedShape: (gene: string, shape: MoleculeShape) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, unassignedShape: shape };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneUnassignedColor: (gene: string, color: string) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, unassignedColor: color };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneUnassignedLocalScale: (gene: string, scale: number) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          const updated = { ...geneViz, unassignedLocalScale: scale };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
     clearGenes: () =>
       set({
         selectedGenes: new Map(),
@@ -202,89 +368,4 @@ export const useSingleMoleculeVisualizationStore =
         geneColorSlots: new Map(),
       }),
 
-    loadFromLocalStorage: (datasetId: string) => {
-      if (typeof window === "undefined") return;
-
-      try {
-        const storageKey = `sm_gene_visibility_${datasetId}`;
-        const stored = localStorage.getItem(storageKey);
-
-        if (stored) {
-          const { visibleGenes, legendGenes, geneData } = JSON.parse(stored);
-
-          // Reconstruct selectedGenes Map (visible genes)
-          const newSelectedGenes = new Map<string, GeneVisualization>();
-
-          visibleGenes.forEach((gene: string) => {
-            if (geneData[gene]) {
-              newSelectedGenes.set(gene, geneData[gene]);
-            }
-          });
-
-          // Reconstruct selectedGenesLegend Set
-          const newSelectedGenesLegend = new Set<string>(legendGenes);
-
-          // Reconstruct geneDataCache Map (all legend genes)
-          const newGeneDataCache = new Map<string, GeneVisualization>();
-
-          legendGenes.forEach((gene: string) => {
-            if (geneData[gene]) {
-              newGeneDataCache.set(gene, geneData[gene]);
-            }
-          });
-
-          // Rebuild color slots: assign slots in legend order
-          const newGeneColorSlots = new Map<string, number>();
-
-          legendGenes.forEach((gene: string, index: number) => {
-            newGeneColorSlots.set(gene, index);
-          });
-
-          set({
-            selectedGenes: newSelectedGenes,
-            selectedGenesLegend: newSelectedGenesLegend,
-            geneDataCache: newGeneDataCache,
-            geneColorSlots: newGeneColorSlots,
-          });
-        }
-      } catch (error) {
-        console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to load visibility state from localStorage:`,
-          error,
-        );
-      }
-    },
-
-    saveToLocalStorage: (datasetId: string) => {
-      if (typeof window === "undefined") return;
-
-      try {
-        const state = get();
-        const storageKey = `sm_gene_visibility_${datasetId}`;
-
-        // Convert Map and Set to serializable format
-        const visibleGenes = Array.from(state.selectedGenes.keys());
-        const legendGenes = Array.from(state.selectedGenesLegend);
-
-        // Store full gene data from cache (includes hidden genes)
-        const geneData: Record<string, GeneVisualization> = {};
-
-        state.geneDataCache.forEach((geneViz, gene) => {
-          geneData[gene] = geneViz;
-        });
-
-        const data = {
-          visibleGenes,
-          legendGenes,
-          geneData,
-        };
-
-        localStorage.setItem(storageKey, JSON.stringify(data));
-      } catch (error) {
-        console.warn(
-          `[SingleMoleculeVisualizationStore] Failed to save visibility state to localStorage:`,
-          error,
-        );
-      }
-    },
   }));

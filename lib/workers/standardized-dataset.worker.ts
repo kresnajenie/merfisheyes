@@ -5,7 +5,7 @@ import { H5adAdapter } from "../adapters/H5adAdapter";
 import { XeniumAdapter } from "../adapters/XeniumAdapter";
 import { MerscopeAdapter } from "../adapters/MerscopeAdapter";
 import { ChunkedDataAdapter } from "../adapters/ChunkedDataAdapter";
-import { normalizeCoordinates } from "../utils/coordinates";
+import { normalizeCoordinates, normalizeCoordinatesFlat } from "../utils/coordinates";
 import { isCategorical } from "../utils/column-type-detection";
 import { selectBestClusterColumnByName } from "../utils/dataset-utils";
 
@@ -32,14 +32,16 @@ interface SerializableClusterData {
   column: string;
   type: string;
   values: any[];
+  valueIndices?: Uint16Array | Uint32Array;
   palette: Record<string, string> | null;
+  uniqueValues?: string[];
 }
 
 /**
  * Serializable spatial data
  */
 interface SerializableSpatialData {
-  coordinates: number[][];
+  coordinates: Float32Array | number[][];
   dimensions: number;
   scalingFactor: number;
 }
@@ -173,17 +175,21 @@ const workerApi = {
     console.log("[Worker] Clusters:", clusterData);
 
     // Wrap single cluster object in array and add type field for StandardizedDataset format
+    // Use uniqueValues for type detection (values array may be empty with indexed representation)
+    const detectValues = clusterData?.uniqueValues ?? clusterData?.values ?? [];
     const clusters = clusterData
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values, clusterData.column)
+            type: isCategoricalData(detectValues, clusterData.column)
               ? "categorical"
               : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values, clusterData.column)
+            valueIndices: clusterData.valueIndices,
+            palette: isCategoricalData(detectValues, clusterData.column)
               ? clusterData.palette
               : null,
+            uniqueValues: clusterData.uniqueValues,
           },
         ]
       : null;
@@ -275,17 +281,20 @@ const workerApi = {
     console.log("[Worker] Clusters:", clusterData);
 
     // Wrap single cluster object in array and add type field for StandardizedDataset format
+    const detectValues2 = clusterData?.uniqueValues ?? clusterData?.values ?? [];
     const clusters = clusterData
       ? [
           {
             column: clusterData.column,
-            type: isCategoricalData(clusterData.values, clusterData.column)
+            type: isCategoricalData(detectValues2, clusterData.column)
               ? "categorical"
               : "numerical",
             values: clusterData.values,
-            palette: isCategoricalData(clusterData.values, clusterData.column)
+            valueIndices: clusterData.valueIndices,
+            palette: isCategoricalData(detectValues2, clusterData.column)
               ? clusterData.palette
               : null,
+            uniqueValues: clusterData.uniqueValues,
           },
         ]
       : null;
@@ -400,16 +409,35 @@ const workerApi = {
     console.log("[Worker] Expression matrix loaded");
 
     // Normalize spatial coordinates
-    const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
+    // For S3/chunked datasets, coordinates may be Float32Array (already normalized from Python)
+    const coords = spatial.coordinates;
+    let normalizedCoords: Float32Array | number[][] = coords;
+    let scalingFactor = (spatial as any).scalingFactor || 1;
+
+    if (coords instanceof Float32Array) {
+      const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
+
+      if (result) {
+        normalizedCoords = result.normalized;
+        scalingFactor = result.scalingFactor;
+      }
+    } else {
+      const result = normalizeCoordinates(coords);
+
+      if (result) {
+        normalizedCoords = result.normalized;
+        scalingFactor = result.scalingFactor;
+      }
+    }
 
     const serializable: SerializableStandardizedDataset = {
       id: dataInfo.id,
       name: dataInfo.name,
       type: dataInfo.type,
       spatial: {
-        coordinates: normalizedSpatial?.normalized || spatial.coordinates,
+        coordinates: normalizedCoords,
         dimensions: spatial.dimensions,
-        scalingFactor: normalizedSpatial?.scalingFactor || 1,
+        scalingFactor: scalingFactor,
       },
       embeddings: embeddings,
       genes: genes,
@@ -420,7 +448,7 @@ const workerApi = {
         spatialDimensions: dataInfo.spatialDimensions,
         availableEmbeddings: dataInfo.availableEmbeddings,
         clusterCount: dataInfo.clusterCount,
-        spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
+        spatialScalingFactor: scalingFactor,
       },
       matrix: matrix,
       allClusterColumnNames: clusterColumnInfo.names,
@@ -464,6 +492,7 @@ const workerApi = {
     type: string;
     values: any[];
     palette: Record<string, string> | null;
+    uniqueValues?: string[];
   }> | null> {
     const adapter = customS3BaseUrl
       ? new ChunkedDataAdapter("custom", undefined, customS3BaseUrl)
