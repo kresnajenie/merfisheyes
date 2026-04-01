@@ -120,8 +120,8 @@ export function SingleMoleculeUploadModal({
             return;
           }
 
-          // Make fingerprint unique so the DB allows re-upload
-          fingerprint = `${fingerprint}_${Date.now()}`;
+          // Make fingerprint unique so the DB allows re-upload (VarChar(64) limit)
+          fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
         }
       }
 
