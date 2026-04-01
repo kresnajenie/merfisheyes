@@ -1,0 +1,21 @@
+{
+  "timestamp": "20260331_230557",
+  "results": [
+    {
+      "platform": "SpaTEO",
+      "data_type": "single_cell",
+      "size_tier": "small",
+      "n_items": 50000,
+      "file_size_mb": 22.7,
+      "load_time_s": 0.12,
+      "gene_query_time_s": 0.008,
+      "memory_peak_mb": 146.7,
+      "ui_responsive": null,
+      "fps_after_load": null,
+      "crashed": false,
+      "error": null,
+      "notes": "Python library, no browser UI, spateo not installed (anndata-only test)",
+      "timestamp": "2026-03-31 23:05:57"
+    }
+  ]
+}

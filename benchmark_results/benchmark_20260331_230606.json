@@ -1,0 +1,53 @@
+{
+  "timestamp": "20260331_230606",
+  "results": [
+    {
+      "platform": "Vitessce",
+      "data_type": "single_cell",
+      "size_tier": "small",
+      "n_items": 50000,
+      "file_size_mb": 22.7,
+      "load_time_s": null,
+      "gene_query_time_s": null,
+      "memory_peak_mb": null,
+      "ui_responsive": null,
+      "fps_after_load": null,
+      "crashed": true,
+      "error": "[WinError 5] Access is denied: 'C:\\\\Users\\\\Evan\\\\Documents\\\\GitHub\\\\merfisheyes\\\\benchmark_data\\\\single_cell\\\\benchmark_small_50000_cells.zarr\\\\obs\\\\celltype\\\\codes\\\\.zarray.1f47bee86efc47278582364ae3a39ea3.partial' -> 'C:\\\\Users\\\\Evan\\\\Documents\\\\GitHub\\\\merfisheyes\\\\benchmark_data\\\\single_cell\\\\benchmark_small_50000_cells.zarr\\\\obs\\\\celltype\\\\codes\\\\.zarray'",
+      "notes": "",
+      "timestamp": "2026-03-31 23:06:04"
+    },
+    {
+      "platform": "Vitessce",
+      "data_type": "single_cell",
+      "size_tier": "medium",
+      "n_items": 200000,
+      "file_size_mb": 90.5,
+      "load_time_s": 0.59,
+      "gene_query_time_s": null,
+      "memory_peak_mb": 226.4,
+      "ui_responsive": null,
+      "fps_after_load": null,
+      "crashed": false,
+      "error": null,
+      "notes": "Zarr conversion only (0.6s). Vitessce also needs main-thread deck.gl rendering on top of this.",
+      "timestamp": "2026-03-31 23:06:04"
+    },
+    {
+      "platform": "Vitessce",
+      "data_type": "single_cell",
+      "size_tier": "large",
+      "n_items": 500000,
+      "file_size_mb": 226.2,
+      "load_time_s": 1.1,
+      "gene_query_time_s": null,
+      "memory_peak_mb": 371.1,
+      "ui_responsive": null,
+      "fps_after_load": null,
+      "crashed": false,
+      "error": null,
+      "notes": "Zarr conversion only (1.1s). Vitessce also needs main-thread deck.gl rendering on top of this.",
+      "timestamp": "2026-03-31 23:06:05"
+    }
+  ]
+}
