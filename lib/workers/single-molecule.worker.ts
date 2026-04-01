@@ -22,6 +22,9 @@ interface SerializableDatasetData {
   dimensions: 2 | 3;
   scalingFactor: number;
   metadata: Record<string, any>;
+  hasUnassigned: boolean;
+  moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null;
+  unassignedGeneIndexEntries: [string, Float32Array][] | null;
 }
 
 /**
@@ -58,6 +61,11 @@ const workerApi = {
       dimensions: dataset.dimensions,
       scalingFactor: dataset.scalingFactor,
       metadata: dataset.metadata,
+      hasUnassigned: dataset.hasUnassigned,
+      moleculeCounts: dataset.moleculeCounts,
+      unassignedGeneIndexEntries: dataset.hasUnassigned
+        ? Array.from(dataset.getUnassignedGeneIndexEntries())
+        : null,
     };
 
     console.log("[Worker] Serialization complete");
@@ -93,6 +101,11 @@ const workerApi = {
       dimensions: dataset.dimensions,
       scalingFactor: dataset.scalingFactor,
       metadata: dataset.metadata,
+      hasUnassigned: dataset.hasUnassigned,
+      moleculeCounts: dataset.moleculeCounts,
+      unassignedGeneIndexEntries: dataset.hasUnassigned
+        ? Array.from(dataset.getUnassignedGeneIndexEntries())
+        : null,
     };
 
     console.log("[Worker] Serialization complete");

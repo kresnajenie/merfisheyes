@@ -59,6 +59,9 @@ export class SingleMoleculeDataset {
   // Fast gene lookup with pre-computed coordinates as Float32Array
   private geneIndex: Map<string, Float32Array>; // gene -> [x1,y1,z1, x2,y2,z2, ...]
 
+  // Unassigned molecule coordinates (same structure as geneIndex)
+  private unassignedGeneIndex: Map<string, Float32Array>;
+
   // Gene visualization properties (color and size for each gene)
   geneColors: Record<string, GeneProperties>;
 
@@ -83,6 +86,7 @@ export class SingleMoleculeDataset {
     rawData = null,
     hasUnassigned = false,
     moleculeCounts = null,
+    unassignedGeneIndex = new Map(),
   }: {
     id: string;
     name: string;
@@ -95,12 +99,14 @@ export class SingleMoleculeDataset {
     rawData?: any;
     hasUnassigned?: boolean;
     moleculeCounts?: Record<string, { assigned: number; unassigned?: number }> | null;
+    unassignedGeneIndex?: Map<string, Float32Array>;
   }) {
     this.id = id;
     this.name = name;
     this.type = type;
     this.uniqueGenes = uniqueGenes;
     this.geneIndex = geneIndex;
+    this.unassignedGeneIndex = unassignedGeneIndex;
     this.dimensions = dimensions;
     this.scalingFactor = scalingFactor;
     this.hasUnassigned = hasUnassigned;
@@ -233,6 +239,10 @@ export class SingleMoleculeDataset {
       total += coords.length / 3; // Each molecule has x, y, z
     }
 
+    for (const coords of this.unassignedGeneIndex.values()) {
+      total += coords.length / 3;
+    }
+
     return total;
   }
 
@@ -258,6 +268,13 @@ export class SingleMoleculeDataset {
   }
 
   /**
+   * Get unassigned gene index entries for serialization (used by web worker)
+   */
+  getUnassignedGeneIndexEntries(): [string, Float32Array][] {
+    return Array.from(this.unassignedGeneIndex.entries());
+  }
+
+  /**
    * Reconstruct dataset from serializable data (used after web worker processing)
    */
   static fromSerializedData(data: {
@@ -269,6 +286,9 @@ export class SingleMoleculeDataset {
     dimensions: 2 | 3;
     scalingFactor: number;
     metadata: Record<string, any>;
+    hasUnassigned?: boolean;
+    moleculeCounts?: Record<string, { assigned: number; unassigned?: number }> | null;
+    unassignedGeneIndexEntries?: [string, Float32Array][] | null;
   }): SingleMoleculeDataset {
     return new SingleMoleculeDataset({
       id: data.id,
@@ -280,6 +300,11 @@ export class SingleMoleculeDataset {
       scalingFactor: data.scalingFactor,
       metadata: data.metadata,
       rawData: null,
+      hasUnassigned: data.hasUnassigned ?? false,
+      moleculeCounts: data.moleculeCounts ?? null,
+      unassignedGeneIndex: data.unassignedGeneIndexEntries
+        ? new Map(data.unassignedGeneIndexEntries)
+        : new Map(),
     });
   }
 
@@ -305,8 +330,8 @@ export class SingleMoleculeDataset {
    * Returns empty array if no unassigned data exists
    * Overridden by factory methods (fromS3, fromLocalChunked) for lazy loading
    */
-  async getUnassignedCoordinatesByGene(_geneName: string): Promise<Float32Array> {
-    return new Float32Array(0);
+  async getUnassignedCoordinatesByGene(geneName: string): Promise<Float32Array> {
+    return this.unassignedGeneIndex.get(geneName) ?? new Float32Array(0);
   }
 
   /**
@@ -333,6 +358,7 @@ export class SingleMoleculeDataset {
 
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
+    const cellIdCol = columnMapping.cellId;
 
     // Determine which columns to read
     const columnsToRead = [
@@ -346,11 +372,14 @@ export class SingleMoleculeDataset {
       columnsToRead.push(columnMapping.z);
     }
 
-    // Read parquet file using hyparquet
+    // Read parquet file using hyparquet (cell_id is optional — won't throw if missing)
+    const optionalColumns = cellIdCol ? [cellIdCol] : [];
+
     const columnData = await hyparquetService.readParquetColumns(
       file,
       columnsToRead,
       onProgress,
+      optionalColumns,
     );
 
     await onProgress?.(30, "Extracting columns...");
@@ -360,11 +389,20 @@ export class SingleMoleculeDataset {
     const xData = columnData.get(columnMapping.x);
     const yData = columnData.get(columnMapping.y);
     const zData = columnData.get(columnMapping.z || "");
+    const cellIdData = cellIdCol ? columnData.get(cellIdCol) : null;
 
     if (!moleculeGenes || !xData || !yData) {
       throw new Error(
         `Missing required columns. Expected: ${columnMapping.gene}, ${columnMapping.x}, ${columnMapping.y}`,
       );
+    }
+
+    const hasCellIdColumn = cellIdData != null && cellIdData.length > 0;
+
+    if (cellIdCol && hasCellIdColumn) {
+      console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
+    } else if (cellIdCol) {
+      console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found in parquet, treating all as assigned`);
     }
 
     await onProgress?.(50, "Converting to typed arrays...");
@@ -386,39 +424,61 @@ export class SingleMoleculeDataset {
     const totalMolecules = moleculeGenes.length;
     const progressInterval = Math.max(1, Math.floor(totalMolecules / 20));
 
-    // Pass 1: Count molecules per gene
-    const geneCounts = new Map<string, number>();
+    // Pass 1: Count molecules per gene (separate assigned/unassigned)
+    const assignedCounts = new Map<string, number>();
+    const unassignedCounts = new Map<string, number>();
 
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
 
-      if (!shouldFilterGene(gene)) {
-        geneCounts.set(gene, (geneCounts.get(gene) || 0) + 1);
+      if (shouldFilterGene(gene)) continue;
+
+      const isUnassigned = hasCellIdColumn && Number(cellIdData![i]) === -1;
+
+      if (isUnassigned) {
+        unassignedCounts.set(gene, (unassignedCounts.get(gene) || 0) + 1);
+      } else {
+        assignedCounts.set(gene, (assignedCounts.get(gene) || 0) + 1);
       }
     }
 
-    // Allocate Float32Arrays for each gene
+    // Allocate Float32Arrays for assigned genes
     const geneIndex = new Map<string, Float32Array>();
     const geneOffsets = new Map<string, number>();
 
-    for (const [gene, count] of geneCounts) {
+    for (const [gene, count] of assignedCounts) {
       geneIndex.set(gene, new Float32Array(count * 3));
       geneOffsets.set(gene, 0);
+    }
+
+    // Allocate Float32Arrays for unassigned genes
+    const unassignedGeneIndex = new Map<string, Float32Array>();
+    const unassignedOffsets = new Map<string, number>();
+
+    if (hasCellIdColumn) {
+      for (const [gene, count] of unassignedCounts) {
+        unassignedGeneIndex.set(gene, new Float32Array(count * 3));
+        unassignedOffsets.set(gene, 0);
+      }
     }
 
     // Pass 2: Fill Float32Arrays with rounded coordinates
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
-      const arr = geneIndex.get(gene);
+      const isUnassigned = hasCellIdColumn && Number(cellIdData![i]) === -1;
+
+      const targetIndex = isUnassigned ? unassignedGeneIndex : geneIndex;
+      const targetOffsets = isUnassigned ? unassignedOffsets : geneOffsets;
+      const arr = targetIndex.get(gene);
 
       if (!arr) continue; // filtered gene
 
-      const offset = geneOffsets.get(gene)!;
+      const offset = targetOffsets.get(gene)!;
 
       arr[offset] = Math.round(xCoords[i] * 100) / 100;
       arr[offset + 1] = Math.round(yCoords[i] * 100) / 100;
       arr[offset + 2] = Math.round(zCoords[i] * 100) / 100;
-      geneOffsets.set(gene, offset + 3);
+      targetOffsets.set(gene, offset + 3);
 
       // Report progress every 5% and yield to browser
       if (i > 0 && i % progressInterval === 0) {
@@ -433,7 +493,34 @@ export class SingleMoleculeDataset {
       }
     }
 
-    const uniqueGenes = Array.from(geneIndex.keys());
+    const hasUnassigned = hasCellIdColumn && unassignedGeneIndex.size > 0;
+
+    // Collect all gene names from both assigned and unassigned
+    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
+    const uniqueGenes = Array.from(allGeneKeys);
+
+    // Build molecule counts
+    let moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null = null;
+
+    if (hasCellIdColumn) {
+      moleculeCounts = {};
+      for (const gene of allGeneKeys) {
+        const assignedCoords = geneIndex.get(gene);
+        const unassignedCoords = unassignedGeneIndex.get(gene);
+        moleculeCounts[gene] = {
+          assigned: assignedCoords ? assignedCoords.length / 3 : 0,
+          unassigned: unassignedCoords ? unassignedCoords.length / 3 : 0,
+        };
+      }
+
+      const totalAssigned = Object.values(moleculeCounts).reduce((s, c) => s + c.assigned, 0);
+      const totalUnassigned = Object.values(moleculeCounts).reduce((s, c) => s + (c.unassigned ?? 0), 0);
+
+      console.log(
+        `[SingleMoleculeDataset] Cell assignment: ${totalAssigned.toLocaleString()} assigned, ` +
+          `${totalUnassigned.toLocaleString()} unassigned (${((totalUnassigned / totalMolecules) * 100).toFixed(1)}%)`,
+      );
+    }
 
     await onProgress?.(90, "Creating dataset...");
 
@@ -450,6 +537,9 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions,
       scalingFactor: 1,
+      hasUnassigned,
+      moleculeCounts,
+      unassignedGeneIndex,
       metadata: {
         originalFileName: file.name,
         moleculeCount: xCoords.length,
@@ -465,7 +555,8 @@ export class SingleMoleculeDataset {
     console.log(
       `[SingleMoleculeDataset] ✅ Parquet parsing complete: ${formatElapsedTime(elapsedTime)} | ` +
         `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
-        `${dataset.genes.length.toLocaleString()} genes`,
+        `${dataset.genes.length.toLocaleString()} genes` +
+        (hasUnassigned ? ` | has unassigned molecules` : ``),
     );
     await onProgress?.(
       100,
@@ -492,13 +583,17 @@ export class SingleMoleculeDataset {
 
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
+    const cellIdCol = columnMapping.cellId;
 
     // Build gene index while streaming — accumulate as number[], convert to Float32Array at end
     const tempGeneIndex = new Map<string, number[]>();
+    const tempUnassignedGeneIndex = new Map<string, number[]>();
     const uniqueGenesSet = new Set<string>();
     let hasZ = false;
     let totalRows = 0;
     let errorCount = 0;
+    let hasCellIdColumn = false;
+    let checkedCellIdColumn = false;
     const fileSize = file.size;
 
     await onProgress?.(15, "Streaming CSV file...");
@@ -519,6 +614,17 @@ export class SingleMoleculeDataset {
           // Skip invalid rows
           if (!row || !row[columnMapping.gene]) return;
 
+          // Check for cell_id column on first valid row
+          if (!checkedCellIdColumn) {
+            checkedCellIdColumn = true;
+            if (cellIdCol && cellIdCol in row) {
+              hasCellIdColumn = true;
+              console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
+            } else if (cellIdCol) {
+              console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found, treating all as assigned`);
+            }
+          }
+
           const gene = String(row[columnMapping.gene]);
           const x = Math.round((Number(row[columnMapping.x]) || 0) * 100) / 100;
           const y = Math.round((Number(row[columnMapping.y]) || 0) * 100) / 100;
@@ -538,11 +644,21 @@ export class SingleMoleculeDataset {
 
           uniqueGenesSet.add(gene);
 
-          if (!tempGeneIndex.has(gene)) {
-            tempGeneIndex.set(gene, []);
+          // Determine if this molecule is unassigned (cell_id == -1)
+          const isUnassigned = hasCellIdColumn && Number(row[cellIdCol!]) === -1;
+
+          if (isUnassigned) {
+            if (!tempUnassignedGeneIndex.has(gene)) {
+              tempUnassignedGeneIndex.set(gene, []);
+            }
+            tempUnassignedGeneIndex.get(gene)!.push(x, y, z);
+          } else {
+            if (!tempGeneIndex.has(gene)) {
+              tempGeneIndex.set(gene, []);
+            }
+            tempGeneIndex.get(gene)!.push(x, y, z);
           }
 
-          tempGeneIndex.get(gene)!.push(x, y, z);
           totalRows++;
 
           // Report progress based on rows processed
@@ -571,6 +687,7 @@ export class SingleMoleculeDataset {
     });
 
     const dimensions: 2 | 3 = hasZ ? 3 : 2;
+    const hasUnassigned = hasCellIdColumn && tempUnassignedGeneIndex.size > 0;
 
     await onProgress?.(88, "Converting to typed arrays...");
 
@@ -582,9 +699,44 @@ export class SingleMoleculeDataset {
     }
     tempGeneIndex.clear(); // Free the number[] arrays
 
+    // Convert unassigned index
+    const unassignedGeneIndex = new Map<string, Float32Array>();
+
+    if (hasUnassigned) {
+      for (const [gene, coords] of tempUnassignedGeneIndex) {
+        unassignedGeneIndex.set(gene, new Float32Array(coords));
+      }
+    }
+    tempUnassignedGeneIndex.clear();
+
+    // Build molecule counts
+    let moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null = null;
+
+    if (hasCellIdColumn) {
+      moleculeCounts = {};
+      for (const gene of uniqueGenesSet) {
+        const assignedCoords = geneIndex.get(gene);
+        const unassignedCoords = unassignedGeneIndex.get(gene);
+        moleculeCounts[gene] = {
+          assigned: assignedCoords ? assignedCoords.length / 3 : 0,
+          unassigned: unassignedCoords ? unassignedCoords.length / 3 : 0,
+        };
+      }
+
+      const totalAssigned = Object.values(moleculeCounts).reduce((s, c) => s + c.assigned, 0);
+      const totalUnassigned = Object.values(moleculeCounts).reduce((s, c) => s + (c.unassigned ?? 0), 0);
+
+      console.log(
+        `[SingleMoleculeDataset] Cell assignment: ${totalAssigned.toLocaleString()} assigned, ` +
+          `${totalUnassigned.toLocaleString()} unassigned (${((totalUnassigned / totalRows) * 100).toFixed(1)}%)`,
+      );
+    }
+
     await onProgress?.(90, "Creating dataset...");
 
-    const uniqueGenes = Array.from(uniqueGenesSet);
+    // Ensure uniqueGenes includes genes that only appear in assigned OR unassigned
+    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
+    const uniqueGenes = Array.from(allGeneKeys);
 
     console.log(
       `[SingleMoleculeDataset] Streamed ${totalRows.toLocaleString()} molecules, ${uniqueGenes.length} genes`,
@@ -603,6 +755,9 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions,
       scalingFactor: 1,
+      hasUnassigned,
+      moleculeCounts,
+      unassignedGeneIndex,
       metadata: {
         originalFileName: file.name,
         moleculeCount: totalRows,
@@ -618,7 +773,8 @@ export class SingleMoleculeDataset {
     console.log(
       `[SingleMoleculeDataset] ✅ CSV streaming complete: ${formatElapsedTime(elapsedTime)} | ` +
         `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
-        `${dataset.genes.length.toLocaleString()} genes`,
+        `${dataset.genes.length.toLocaleString()} genes` +
+        (hasUnassigned ? ` | has unassigned molecules` : ``),
     );
     await onProgress?.(
       100,

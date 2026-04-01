@@ -38,6 +38,7 @@ class HyparquetService {
     file: File,
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
+    optionalColumns?: string[],
   ): Promise<Map<string, any[] | Float32Array>> {
     if (typeof self === "undefined") {
       throw new Error("Hyparquet service can only be used in browser");
@@ -63,7 +64,9 @@ class HyparquetService {
     const columnChunks = new Map<string, ArrayLike<any>[]>();
     const columnLengths = new Map<string, number>();
 
-    columnNames.forEach((name) => {
+    const allColumns = [...columnNames, ...(optionalColumns ?? [])];
+
+    allColumns.forEach((name) => {
       columnChunks.set(name, []);
       columnLengths.set(name, 0);
     });
@@ -144,11 +147,13 @@ class HyparquetService {
 
     await onProgress?.(30, "Column extraction complete");
 
-    // Validate all requested columns were found
-    for (const columnName of columnNames) {
+    // Validate all required columns were found (optional columns are skipped)
+    const optionalSet = new Set(optionalColumns ?? []);
+
+    for (const columnName of allColumns) {
       const data = columnData.get(columnName);
 
-      if (!data || data.length === 0) {
+      if ((!data || data.length === 0) && !optionalSet.has(columnName)) {
         throw new Error(
           `Column '${columnName}' not found or empty in parquet file`,
         );

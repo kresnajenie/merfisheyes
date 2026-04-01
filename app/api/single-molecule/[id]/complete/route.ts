@@ -18,7 +18,7 @@ export async function POST(
 ) {
   try {
     const { id: datasetId } = await params;
-    const { uploadId, email } = await request.json();
+    const { uploadId } = await request.json();
 
     if (!uploadId) {
       return NextResponse.json(
@@ -62,36 +62,8 @@ export async function POST(
       },
     });
 
-    // Send email notification if email provided
-    if (email) {
-      try {
-        const emailUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/send-email-single-molecule`;
-
-        console.log(`[SM Complete] Sending email to ${email} via ${emailUrl}`);
-
-        const emailResponse = await fetch(emailUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, datasetId }),
-        });
-
-        if (!emailResponse.ok) {
-          const emailError = await emailResponse.json().catch(() => ({}));
-
-          console.error(
-            `[SM Complete] Email API returned ${emailResponse.status}:`,
-            emailError,
-          );
-        } else {
-          console.log("[SM Complete] Email sent successfully");
-        }
-      } catch (error) {
-        console.error("[SM Complete] Failed to send email notification:", error);
-        // Don't fail the upload if email fails
-      }
-    } else {
-      console.log("[SM Complete] No email provided, skipping notification");
-    }
+    // Email notification is sent from the client side to avoid
+    // Vercel deployment protection blocking server-to-server requests
 
     return NextResponse.json(
       {
