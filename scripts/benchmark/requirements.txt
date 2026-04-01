@@ -1,0 +1,17 @@
+# Required for test data generation
+anndata>=0.10.0
+numpy>=1.24.0
+pandas>=2.0.0
+pyarrow>=14.0.0
+scipy>=1.11.0
+
+# Required for browser benchmarks (MERFISHeyes, CellxGene)
+playwright>=1.40.0
+
+# Required for memory measurement
+psutil>=5.9.0
+
+# Optional: install each competitor you want to test
+# pip install cellxgene
+# pip install spateo-release
+# pip install vitessce

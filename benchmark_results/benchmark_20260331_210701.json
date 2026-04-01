@@ -1,0 +1,69 @@
+{
+  "timestamp": "20260331_210701",
+  "results": [
+    {
+      "platform": "MERFISHeyes",
+      "data_type": "single_cell",
+      "size_tier": "medium",
+      "n_items": 200000,
+      "file_size_mb": 90.5,
+      "load_time_s": 13.87,
+      "gene_query_time_s": 2.05,
+      "memory_peak_mb": 72.4,
+      "ui_responsive": true,
+      "fps_after_load": 100,
+      "crashed": false,
+      "error": null,
+      "notes": "",
+      "timestamp": "2026-03-31 21:05:28"
+    },
+    {
+      "platform": "MERFISHeyes",
+      "data_type": "single_cell",
+      "size_tier": "large",
+      "n_items": 500000,
+      "file_size_mb": 226.2,
+      "load_time_s": 31.32,
+      "gene_query_time_s": 2.06,
+      "memory_peak_mb": 98.8,
+      "ui_responsive": true,
+      "fps_after_load": 100,
+      "crashed": false,
+      "error": null,
+      "notes": "",
+      "timestamp": "2026-03-31 21:05:49"
+    },
+    {
+      "platform": "MERFISHeyes",
+      "data_type": "single_molecule",
+      "size_tier": "medium",
+      "n_items": 10000000,
+      "file_size_mb": 143.5,
+      "load_time_s": 9.12,
+      "gene_query_time_s": null,
+      "memory_peak_mb": 495.1,
+      "ui_responsive": true,
+      "fps_after_load": 100,
+      "crashed": false,
+      "error": null,
+      "notes": "",
+      "timestamp": "2026-03-31 21:06:27"
+    },
+    {
+      "platform": "MERFISHeyes",
+      "data_type": "single_molecule",
+      "size_tier": "large",
+      "n_items": 21000000,
+      "file_size_mb": 303.0,
+      "load_time_s": 16.24,
+      "gene_query_time_s": null,
+      "memory_peak_mb": 1004.7,
+      "ui_responsive": true,
+      "fps_after_load": 100,
+      "crashed": false,
+      "error": null,
+      "notes": "",
+      "timestamp": "2026-03-31 21:06:41"
+    }
+  ]
+}

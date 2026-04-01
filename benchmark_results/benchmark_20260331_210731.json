@@ -1,0 +1,37 @@
+{
+  "timestamp": "20260331_210731",
+  "results": [
+    {
+      "platform": "CellxGene",
+      "data_type": "single_cell",
+      "size_tier": "medium",
+      "n_items": 200000,
+      "file_size_mb": 90.5,
+      "load_time_s": 7.33,
+      "gene_query_time_s": 3.03,
+      "memory_peak_mb": 14.1,
+      "ui_responsive": true,
+      "fps_after_load": null,
+      "crashed": false,
+      "error": null,
+      "notes": "server startup: 2.6s, server RAM: 6MB",
+      "timestamp": "2026-03-31 21:07:09"
+    },
+    {
+      "platform": "CellxGene",
+      "data_type": "single_cell",
+      "size_tier": "large",
+      "n_items": 500000,
+      "file_size_mb": 226.2,
+      "load_time_s": 6.7,
+      "gene_query_time_s": 3.03,
+      "memory_peak_mb": 21.9,
+      "ui_responsive": true,
+      "fps_after_load": null,
+      "crashed": false,
+      "error": null,
+      "notes": "server startup: 2.5s, server RAM: 6MB",
+      "timestamp": "2026-03-31 21:07:21"
+    }
+  ]
+}

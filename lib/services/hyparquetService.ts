@@ -76,8 +76,9 @@ class HyparquetService {
     await parquetRead({
       file: arrayBuffer,
       compressors,
-      onPage: ((page: ColumnData) => {
-        const columnName = page.pathInSchema[0];
+      onPage: ((page: any) => {
+        // hyparquet v1.20+ passes columnName, older versions used pathInSchema
+        const columnName = page.columnName ?? page.pathInSchema?.[0];
         const chunks = columnChunks.get(columnName);
 
         if (chunks) {

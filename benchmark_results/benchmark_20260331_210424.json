@@ -1,0 +1,21 @@
+{
+  "timestamp": "20260331_210424",
+  "results": [
+    {
+      "platform": "CellxGene",
+      "data_type": "single_cell",
+      "size_tier": "small",
+      "n_items": 50000,
+      "file_size_mb": 22.7,
+      "load_time_s": 6.78,
+      "gene_query_time_s": 3.03,
+      "memory_peak_mb": 10.3,
+      "ui_responsive": true,
+      "fps_after_load": null,
+      "crashed": false,
+      "error": null,
+      "notes": "server startup: 2.6s, server RAM: 6MB",
+      "timestamp": "2026-03-31 21:04:13"
+    }
+  ]
+}
