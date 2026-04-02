@@ -62,6 +62,7 @@ export interface SerializableStandardizedDataset {
   allClusterColumnNames?: string[];
   allClusterColumnTypes?: Record<string, string>;
   allEmbeddingNames?: string[];
+  normalized?: boolean; // false = raw coordinates, true/undefined = normalized [-1,1]
 }
 
 /**
@@ -408,26 +409,33 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
-    // Normalize spatial coordinates
-    // For S3/chunked datasets, coordinates may be Float32Array (already normalized from Python)
+    // Handle coordinate normalization based on manifest flag
+    const isNormalized = dataInfo.normalized !== false;
     const coords = spatial.coordinates;
-    let normalizedCoords: Float32Array | number[][] = coords;
+    let finalCoords: Float32Array | number[][] = coords;
     let scalingFactor = (spatial as any).scalingFactor || 1;
 
-    if (coords instanceof Float32Array) {
-      const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
+    if (isNormalized) {
+      // Old datasets: re-normalize (coordinates were already normalized by Python but we re-apply for consistency)
+      if (coords instanceof Float32Array) {
+        const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
 
-      if (result) {
-        normalizedCoords = result.normalized;
-        scalingFactor = result.scalingFactor;
+        if (result) {
+          finalCoords = result.normalized;
+          scalingFactor = result.scalingFactor;
+        }
+      } else {
+        const result = normalizeCoordinates(coords);
+
+        if (result) {
+          finalCoords = result.normalized;
+          scalingFactor = result.scalingFactor;
+        }
       }
     } else {
-      const result = normalizeCoordinates(coords);
-
-      if (result) {
-        normalizedCoords = result.normalized;
-        scalingFactor = result.scalingFactor;
-      }
+      // New datasets (normalized: false): use raw coordinates as-is
+      scalingFactor = 1;
+      console.log("[Worker] Using raw coordinates (normalized: false)");
     }
 
     const serializable: SerializableStandardizedDataset = {
@@ -435,7 +443,7 @@ const workerApi = {
       name: dataInfo.name,
       type: dataInfo.type,
       spatial: {
-        coordinates: normalizedCoords,
+        coordinates: finalCoords,
         dimensions: spatial.dimensions,
         scalingFactor: scalingFactor,
       },
@@ -454,6 +462,7 @@ const workerApi = {
       allClusterColumnNames: clusterColumnInfo.names,
       allClusterColumnTypes: clusterColumnInfo.types,
       allEmbeddingNames: dataInfo.availableEmbeddings || [],
+      normalized: isNormalized,
     };
 
     console.log("[Worker] S3 loading complete");

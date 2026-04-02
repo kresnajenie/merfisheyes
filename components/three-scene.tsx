@@ -352,21 +352,24 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         }
       }
 
+      // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
+      const coordScale = dataset.normalized === false ? 1 : 500;
+
       // Calculate center point (scaled)
       const center = new THREE.Vector3(
-        ((bounds.minX + bounds.maxX) / 2) * 500,
-        ((bounds.minY + bounds.maxY) / 2) * 500,
+        ((bounds.minX + bounds.maxX) / 2) * coordScale,
+        ((bounds.minY + bounds.maxY) / 2) * coordScale,
         dataset.spatial.dimensions === 3
-          ? ((bounds.minZ + bounds.maxZ) / 2) * 500
+          ? ((bounds.minZ + bounds.maxZ) / 2) * coordScale
           : 0,
       );
 
       // Calculate size of data
       const size = Math.max(
-        (bounds.maxX - bounds.minX) * 500,
-        (bounds.maxY - bounds.minY) * 500,
+        (bounds.maxX - bounds.minX) * coordScale,
+        (bounds.maxY - bounds.minY) * coordScale,
         dataset.spatial.dimensions === 3
-          ? (bounds.maxZ - bounds.minZ) * 500
+          ? (bounds.maxZ - bounds.minZ) * coordScale
           : 0,
       );
 
@@ -378,12 +381,19 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         center.z + distance,
       );
 
+      // Set near/far planes based on data scale to avoid clipping
+      const maxExtent = Math.max(size, distance);
+      const near = maxExtent * 0.001;
+      const far = maxExtent * 10;
+
       // Initialize Three.js scene with options
       const { scene, camera, renderer, controls, animate, dispose } =
         initializeScene(containerRef.current, {
           is2D: dataset.spatial.dimensions === 2,
           cameraPosition: cameraPos,
           lookAtPosition: center,
+          near,
+          far,
         });
 
       // Store camera, renderer, and controls refs for raycasting + scale bar
@@ -498,10 +508,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               ? spatialCoords[p * spatialDims + 2] : (spatialCoords as number[][])[p][2]) ?? 0
           : 0;
 
+        // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
+        const cs = dataset.normalized === false ? 1 : 500;
+
         pointData[p] = {
-          x: x * 500,
-          y: y * 500,
-          z: z * 500,
+          x: x * cs,
+          y: y * cs,
+          z: z * cs,
           r: 0,
           g: 0,
           b: 0,
@@ -511,7 +524,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       }
 
       // Create point cloud mesh with custom shaders
-      const pointCloud = createPointCloud(pointData, 5);
+      // dotSize is in world-space units. Scale it relative to data extent so points
+      // appear ~5px at the initial zoom level regardless of coordinate range.
+      // Formula derived from: targetPx = dotSize * proj[1][1] / cameraDistance
+      // where cameraDistance = size * 1.5, proj[1][1] ≈ 1.3 for 75° FOV
+      const baseDotSize = size * 0.5;
+      const pointCloud = createPointCloud(pointData, baseDotSize);
 
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference

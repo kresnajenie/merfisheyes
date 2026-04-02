@@ -148,24 +148,14 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
     return unique_ratio < 0.8
 
 
-def normalize_coordinates(coords: np.ndarray) -> Tuple[np.ndarray, float]:
+def round_coordinates(coords: np.ndarray) -> np.ndarray:
     """
-    Normalize coordinates to [-1, 1] range
-    Returns: (normalized_coords, scaling_factor)
+    Round coordinates to 2 decimal places.
+    No normalization is performed — raw coordinates are preserved.
     """
-    # Flatten all coordinates to find global min/max
-    all_coords = coords.flatten()
-    min_val = np.min(all_coords)
-    max_val = np.max(all_coords)
-    range_val = max_val - min_val
-
-    if range_val == 0:
-        return coords, 1.0
-
-    # Normalize to [-1, 1]
-    normalized = ((coords - min_val) / range_val) * 2 - 1
-
-    return normalized.astype(np.float32), float(range_val / 2)
+    if len(coords) == 0:
+        return coords
+    return np.round(coords, 2).astype(np.float32)
 
 
 def write_coordinate_binary(coords: np.ndarray, output_path: Path):
@@ -361,13 +351,13 @@ def process_h5ad(input_path: Path, output_dir: Path, custom_chunk_size: Optional
     if spatial_coords is None:
         raise ValueError("No spatial coordinates found! Check your H5AD file structure.")
 
-    # Normalize coordinates
-    normalized_spatial, scaling_factor = normalize_coordinates(spatial_coords)
-    spatial_dims = normalized_spatial.shape[1]
+    # Round coordinates (no normalization — raw coords preserved)
+    rounded_spatial = round_coordinates(spatial_coords)
+    spatial_dims = rounded_spatial.shape[1]
 
     # Write spatial coordinates
     coords_dir = output_dir / 'coords'
-    write_coordinate_binary(normalized_spatial, coords_dir / 'spatial.bin.gz')
+    write_coordinate_binary(rounded_spatial, coords_dir / 'spatial.bin.gz')
 
     # 2. Process embeddings (UMAP, etc.)
     print("\n🗺️  Processing embeddings...")
@@ -383,8 +373,8 @@ def process_h5ad(input_path: Path, output_dir: Path, custom_chunk_size: Optional
                 embedding_coords = embedding_coords[:, :MAX_EMBEDDING_DIMS]
                 print(f"  ℹ {embedding_name}: Limiting to first {MAX_EMBEDDING_DIMS} dimensions (from {adata.obsm[key].shape[1]})")
 
-            normalized_emb, _ = normalize_coordinates(embedding_coords)
-            write_coordinate_binary(normalized_emb, coords_dir / f'{embedding_name}.bin.gz')
+            rounded_emb = round_coordinates(embedding_coords)
+            write_coordinate_binary(rounded_emb, coords_dir / f'{embedding_name}.bin.gz')
             available_embeddings.append(embedding_name)
 
     if not available_embeddings:
@@ -511,6 +501,7 @@ def process_h5ad(input_path: Path, output_dir: Path, custom_chunk_size: Optional
     print("\n📋 Creating manifest...")
     manifest = {
         'version': '1.0',
+        'normalized': False,
         'dataset_id': 'local_dataset',  # Placeholder
         'name': input_path.stem,
         'type': 'h5ad',
@@ -522,7 +513,7 @@ def process_h5ad(input_path: Path, output_dir: Path, custom_chunk_size: Optional
             'cluster_count': cluster_count
         },
         'processing': {
-            'spatial_scaling_factor': float(scaling_factor),
+            'spatial_scaling_factor': 1.0,
             'chunk_size': chunk_size,
             'num_chunks': num_chunks,
             'created_by': 'process_h5ad.py'

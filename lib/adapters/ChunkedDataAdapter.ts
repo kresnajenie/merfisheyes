@@ -780,6 +780,7 @@ export class ChunkedDataAdapter {
       spatialDimensions: this.manifest.statistics.spatial_dimensions,
       availableEmbeddings: this.manifest.statistics.available_embeddings,
       clusterCount: this.manifest.statistics.cluster_count,
+      normalized: this.manifest.normalized !== false, // default true for old manifests
     };
   }
 

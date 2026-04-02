@@ -190,24 +190,14 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
     return unique_ratio < 0.8
 
 
-def normalize_coordinates(coords: np.ndarray) -> Tuple[np.ndarray, float]:
+def round_coordinates(coords: np.ndarray) -> np.ndarray:
     """
-    Normalize coordinates to [-1, 1] range
-    Returns: (normalized_coords, scaling_factor)
+    Round coordinates to 2 decimal places.
+    No normalization is performed — raw coordinates are preserved.
     """
-    # Flatten all coordinates to find global min/max
-    all_coords = coords.flatten()
-    min_val = np.min(all_coords)
-    max_val = np.max(all_coords)
-    range_val = max_val - min_val
-
-    if range_val == 0:
-        return coords, 1.0
-
-    # Normalize to [-1, 1]
-    normalized = ((coords - min_val) / range_val) * 2 - 1
-
-    return normalized.astype(np.float32), float(range_val / 2)
+    if len(coords) == 0:
+        return coords
+    return np.round(coords, 2).astype(np.float32)
 
 
 def write_coordinate_binary(coords: np.ndarray, output_path: Path):
@@ -1021,12 +1011,12 @@ def process_dataset(
     log(f"  Genes: {num_genes:,}", _t_start)
     log(f"  Spatial dimensions: {spatial_dims}D", _t_start)
 
-    # Step 1: Normalize and write spatial coordinates
+    # Step 1: Round and write spatial coordinates (no normalization)
     log(f"=== STEP 1: Processing spatial coordinates ===", _t_start)
     t_step = time.perf_counter()
-    normalized_spatial, scaling_factor = normalize_coordinates(spatial_coords)
+    rounded_spatial = round_coordinates(spatial_coords)
     coords_dir = output_dir / 'coords'
-    write_coordinate_binary(normalized_spatial, coords_dir / 'spatial.bin.gz')
+    write_coordinate_binary(rounded_spatial, coords_dir / 'spatial.bin.gz')
     log(f"  Spatial coordinates done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
     # Step 2: Process embeddings (if any)
@@ -1035,8 +1025,8 @@ def process_dataset(
         log(f"=== STEP 2: Processing {len(embeddings)} embedding(s) ===", _t_start)
         for emb_name, emb_coords in embeddings.items():
             t_emb = time.perf_counter()
-            normalized_emb, _ = normalize_coordinates(emb_coords)
-            write_coordinate_binary(normalized_emb, coords_dir / f'{emb_name}.bin.gz')
+            rounded_emb = round_coordinates(emb_coords)
+            write_coordinate_binary(rounded_emb, coords_dir / f'{emb_name}.bin.gz')
             available_embeddings.append(emb_name)
             log(f"  {emb_name}: {emb_coords.shape[1]}D ({fmt_elapsed(time.perf_counter() - t_emb)})", _t_start)
     else:
@@ -1216,6 +1206,7 @@ def process_dataset(
     log(f"=== STEP 5: Creating manifest ===", _t_start)
     manifest = {
         'version': '1.0',
+        'normalized': False,
         'dataset_id': 'local_dataset',
         'name': dataset_name,
         'type': dataset_type,
@@ -1227,7 +1218,7 @@ def process_dataset(
             'cluster_count': cluster_count
         },
         'processing': {
-            'spatial_scaling_factor': float(scaling_factor),
+            'spatial_scaling_factor': 1.0,
             'chunk_size': chunk_size,
             'num_chunks': num_chunks,
             'created_by': 'process_spatial_data.py'
