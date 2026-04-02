@@ -602,12 +602,116 @@ log(f"Saved {out_cbg_path} ({cbg_rows_written:,} rows)", t_start)
 
 
 # ─────────────────────────────────────────────
+# STEP 6b: BORDER ARTIFACT DETECTION
+#   Compute per-cell row sums, generate threshold
+#   comparison plot, and write artifact mask CSVs
+# ─────────────────────────────────────────────
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+log("=== STEP 6b: Border artifact threshold comparison ===", t_start)
+
+# Compute per-cell row sums from combined cell_by_gene
+cell_sums_chunks = []
+n_genes = None
+for chunk in pd.read_csv(out_cbg_path, chunksize=50_000):
+    gene_cols = [c for c in chunk.columns if c != "cell"]
+    if n_genes is None:
+        n_genes = len(gene_cols)
+    cell_sums_chunks.append(chunk[gene_cols].sum(axis=1).values)
+cell_sums = np.concatenate(cell_sums_chunks)
+del cell_sums_chunks
+
+# Read cell ID column from cell_metadata.csv in chunks
+meta_header = pd.read_csv(out_meta_path, nrows=0).columns.tolist()
+meta_id_col = None
+for candidate in ("EntityID", "id", "cell_id"):
+    if candidate in meta_header:
+        meta_id_col = candidate
+        break
+if meta_id_col is None:
+    meta_id_col = meta_header[0]
+
+cell_ids_chunks = []
+for chunk in pd.read_csv(out_meta_path, usecols=[meta_id_col], dtype={meta_id_col: str}, chunksize=50_000):
+    cell_ids_chunks.append(chunk[meta_id_col].values)
+cell_ids = np.concatenate(cell_ids_chunks)
+del cell_ids_chunks
+
+log(f"  Computed row sums for {len(cell_sums):,} cells across {n_genes} genes", t_start)
+
+# Read spatial coords for plotting
+meta_all = pd.read_csv(out_meta_path, usecols=[x_col, y_col])
+cx_all = meta_all[x_col].values
+cy_all = meta_all[y_col].values
+del meta_all
+
+# Determine percentile thresholds to compare
+compare_percentiles = [10, 15, 20, 25]
+compare_thresholds = [(p, np.percentile(cell_sums, p)) for p in compare_percentiles]
+
+# Generate threshold comparison grid
+n_thresh = len(compare_thresholds)
+n_plot_cols = min(n_thresh, 4)
+n_plot_rows = math.ceil(n_thresh / n_plot_cols)
+
+plt.style.use("dark_background")
+fig, axes = plt.subplots(n_plot_rows, n_plot_cols, figsize=(7 * n_plot_cols, 7 * n_plot_rows),
+                         squeeze=False)
+
+for idx, (pctl, rs_thresh) in enumerate(compare_thresholds):
+    ax = axes[idx // n_plot_cols][idx % n_plot_cols]
+    mask = cell_sums > rs_thresh
+    n_kept = mask.sum()
+    n_removed = (~mask).sum()
+    pct_kept = n_kept / len(cell_sums) * 100
+
+    # Grey = removed (artifacts), lime = kept (real cells)
+    ax.scatter(cx_all[~mask], cy_all[~mask], s=0.1, c='dimgrey', alpha=0.3, rasterized=True)
+    ax.scatter(cx_all[mask], cy_all[mask], s=0.1, c='lime', alpha=0.4, rasterized=True)
+    ax.set_title(f"percentile={pctl:.0f}  (row_sum={rs_thresh:.1f})\n"
+                 f"kept={n_kept:,} ({pct_kept:.1f}%)  removed={n_removed:,}",
+                 fontsize=10)
+    ax.set_aspect("equal")
+    ax.tick_params(labelsize=6)
+
+# Hide empty subplots
+for idx in range(n_thresh, n_plot_rows * n_plot_cols):
+    axes[idx // n_plot_cols][idx % n_plot_cols].set_visible(False)
+
+fig.suptitle("Border artifact filtering — grey=removed, green=kept", fontsize=14, y=1.01)
+plt.tight_layout()
+thresh_plot_path = out_dir / "check_artifact_thresholds.png"
+plt.savefig(thresh_plot_path, dpi=150, bbox_inches='tight')
+plt.close()
+log(f"  Saved {thresh_plot_path}", t_start)
+
+# Write artifact mask CSVs for each percentile
+for percentile in [10, 15, 20, 25]:
+    threshold = np.percentile(cell_sums, percentile)
+    is_artifact = cell_sums <= threshold
+    n_flagged = is_artifact.sum()
+    pct_flagged = n_flagged / len(cell_sums) * 100
+
+    mask_df = pd.DataFrame({"cell_id": cell_ids, "is_artifact": is_artifact})
+    mask_path = out_dir / f"artifact_mask_p{percentile}.csv"
+    mask_df.to_csv(mask_path, index=False)
+
+    log(f"  p{percentile}: threshold={threshold:.4f}, flagged {n_flagged:,} / {len(cell_sums):,} ({pct_flagged:.1f}%)", t_start)
+    del mask_df
+
+del cell_sums, cell_ids, cx_all, cy_all
+gc.collect()
+
+
+# ─────────────────────────────────────────────
 # STEP 7: PER-GENE SPATIAL SANITY CHECK PLOTS
 #   Plot expression of known marker genes on spatial coords
 # ─────────────────────────────────────────────
 log("=== STEP 7/8: Generating per-gene expression plots ===", t_start)
 
-MARKER_GENES = ["Apoe", "Slc17a6", "Slc17a7", "Gfap", "Aqp4", "Gad1", "Gad2", "Drd1", "Drd2"]
+MARKER_GENES = ["Slc17a7", "Gfap", "Gad2", "Drd1"]
 
 # Read available columns from combined cell_by_gene header
 cbg_all_cols = pd.read_csv(out_cbg_path, nrows=0).columns.tolist()
@@ -699,3 +803,4 @@ log(f"  Grid: {n_rows}x{n_cols}", t_start)
 log(f"  Total rows: {rows_written:,}", t_start)
 log(f"  Output dir: {out_dir}", t_start)
 log(f"  Total time: {fmt_elapsed(time.perf_counter() - t_start)}", t_start)
+
