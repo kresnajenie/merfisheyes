@@ -724,94 +724,95 @@ del cell_sums, cell_ids, cx_all, cy_all
 gc.collect()
 
 
-# ─────────────────────────────────────────────
-# STEP 7: PER-GENE SPATIAL SANITY CHECK PLOTS
-#   Plot expression of known marker genes on spatial coords
-# ─────────────────────────────────────────────
-log("=== STEP 7/8: Generating per-gene expression plots ===", t_start)
+if not args.mask_only:
+    # ─────────────────────────────────────────────
+    # STEP 7: PER-GENE SPATIAL SANITY CHECK PLOTS
+    #   Plot expression of known marker genes on spatial coords
+    # ─────────────────────────────────────────────
+    log("=== STEP 7/8: Generating per-gene expression plots ===", t_start)
 
-MARKER_GENES = ["Slc17a7", "Gfap", "Gad2", "Drd1", "VIM", "KLHL1"]
+    MARKER_GENES = ["Slc17a7", "Gfap", "Gad2", "Drd1", "VIM", "KLHL1"]
 
-# Read available columns from combined cell_by_gene header
-cbg_all_cols = pd.read_csv(out_cbg_path, nrows=0).columns.tolist()
-genes_to_plot = [g for g in MARKER_GENES if g in cbg_all_cols]
+    # Read available columns from combined cell_by_gene header
+    cbg_all_cols = pd.read_csv(out_cbg_path, nrows=0).columns.tolist()
+    genes_to_plot = [g for g in MARKER_GENES if g in cbg_all_cols]
 
-if not genes_to_plot:
-    log(f"  No marker genes found in cell_by_gene columns. Checked: {MARKER_GENES}", t_start)
-else:
-    log(f"  Found {len(genes_to_plot)} marker gene(s): {genes_to_plot}", t_start)
+    if not genes_to_plot:
+        log(f"  No marker genes found in cell_by_gene columns. Checked: {MARKER_GENES}", t_start)
+    else:
+        log(f"  Found {len(genes_to_plot)} marker gene(s): {genes_to_plot}", t_start)
 
-    # Read spatial coordinates from combined cell_metadata
-    t_plot = time.perf_counter()
-    log(f"  Reading spatial coordinates from cell_metadata...", t_start)
-    meta_coords = pd.read_csv(out_meta_path, usecols=[x_col, y_col])
-    cx = meta_coords[x_col].values
-    cy = meta_coords[y_col].values
-    del meta_coords
-    gc.collect()
-
-    for gene in genes_to_plot:
-        t_gene = time.perf_counter()
-        log(f"  Plotting {gene}...", t_start)
-
-        # Read only this gene's column
-        expr = pd.read_csv(out_cbg_path, usecols=[gene])[gene].values
-        expr_norm = expr / expr.max() if expr.max() > 0 else expr
-        nmax = np.percentile(expr_norm, 80)
-        if nmax > 0:
-            expr_norm = np.clip(expr_norm, 0, nmax) / nmax
-
-        cmap = plt.cm.coolwarm(expr_norm)
-
-        plt.style.use("dark_background")
-        plt.figure(figsize=(20, 20))
-        plt.scatter(cx, cy, s=1, c=cmap)
-        plt.axis("equal")
-        plt.title(f"{gene} expression -- {rows_written:,} cells")
-        plt.tight_layout()
-        plt.savefig(out_dir / f"check_gene_{gene}.png", dpi=150)
-        plt.close()
-
-        del expr, expr_norm, cmap
+        # Read spatial coordinates from combined cell_metadata
+        t_plot = time.perf_counter()
+        log(f"  Reading spatial coordinates from cell_metadata...", t_start)
+        meta_coords = pd.read_csv(out_meta_path, usecols=[x_col, y_col])
+        cx = meta_coords[x_col].values
+        cy = meta_coords[y_col].values
+        del meta_coords
         gc.collect()
-        log(f"    Saved check_gene_{gene}.png ({fmt_elapsed(time.perf_counter() - t_gene)})", t_start)
 
-    del cx, cy
+        for gene in genes_to_plot:
+            t_gene = time.perf_counter()
+            log(f"  Plotting {gene}...", t_start)
+
+            # Read only this gene's column
+            expr = pd.read_csv(out_cbg_path, usecols=[gene])[gene].values
+            expr_norm = expr / expr.max() if expr.max() > 0 else expr
+            nmax = np.percentile(expr_norm, 80)
+            if nmax > 0:
+                expr_norm = np.clip(expr_norm, 0, nmax) / nmax
+
+            cmap = plt.cm.coolwarm(expr_norm)
+
+            plt.style.use("dark_background")
+            plt.figure(figsize=(20, 20))
+            plt.scatter(cx, cy, s=1, c=cmap)
+            plt.axis("equal")
+            plt.title(f"{gene} expression -- {rows_written:,} cells")
+            plt.tight_layout()
+            plt.savefig(out_dir / f"check_gene_{gene}.png", dpi=150)
+            plt.close()
+
+            del expr, expr_norm, cmap
+            gc.collect()
+            log(f"    Saved check_gene_{gene}.png ({fmt_elapsed(time.perf_counter() - t_gene)})", t_start)
+
+        del cx, cy
+        gc.collect()
+        log(f"  Per-gene plots done ({fmt_elapsed(time.perf_counter() - t_plot)})", t_start)
+
+
+    # ─────────────────────────────────────────────
+    # STEP 8: EXPRESSION SANITY CHECK PLOT
+    #   Read combined cell_by_gene in chunks for histogram
+    # ─────────────────────────────────────────────
+    log("=== STEP 8/8: Generating expression distribution plot ===", t_start)
+
+    all_gene_sums = []
+    header_cols = None
+
+    for chunk in pd.read_csv(out_cbg_path, chunksize=50_000):
+        if header_cols is None:
+            header_cols = [c for c in chunk.columns if c != "cell"]
+        gene_sums = chunk[header_cols].sum(axis=1).values
+        all_gene_sums.append(gene_sums)
+
+    all_gene_sums = np.concatenate(all_gene_sums)
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.hist(all_gene_sums, bins=100, color="steelblue", edgecolor="none")
+    ax.axvline(np.median(all_gene_sums), color="red", linestyle="--", label=f"median={np.median(all_gene_sums):.1f}")
+    ax.set_title("Distribution of total gene counts per cell")
+    ax.set_xlabel("total gene counts")
+    ax.set_ylabel("# cells")
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(out_dir / "check_expression.png", dpi=150)
+    plt.close()
+
+    del all_gene_sums
     gc.collect()
-    log(f"  Per-gene plots done ({fmt_elapsed(time.perf_counter() - t_plot)})", t_start)
-
-
-# ─────────────────────────────────────────────
-# STEP 8: EXPRESSION SANITY CHECK PLOT
-#   Read combined cell_by_gene in chunks for histogram
-# ─────────────────────────────────────────────
-log("=== STEP 8/8: Generating expression distribution plot ===", t_start)
-
-all_gene_sums = []
-header_cols = None
-
-for chunk in pd.read_csv(out_cbg_path, chunksize=50_000):
-    if header_cols is None:
-        header_cols = [c for c in chunk.columns if c != "cell"]
-    gene_sums = chunk[header_cols].sum(axis=1).values
-    all_gene_sums.append(gene_sums)
-
-all_gene_sums = np.concatenate(all_gene_sums)
-
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.hist(all_gene_sums, bins=100, color="steelblue", edgecolor="none")
-ax.axvline(np.median(all_gene_sums), color="red", linestyle="--", label=f"median={np.median(all_gene_sums):.1f}")
-ax.set_title("Distribution of total gene counts per cell")
-ax.set_xlabel("total gene counts")
-ax.set_ylabel("# cells")
-ax.legend()
-plt.tight_layout()
-plt.savefig(out_dir / "check_expression.png", dpi=150)
-plt.close()
-
-del all_gene_sums
-gc.collect()
-log(f"  Saved {out_dir / 'check_expression.png'}", t_start)
+    log(f"  Saved {out_dir / 'check_expression.png'}", t_start)
 
 # ─────────────────────────────────────────────
 # DONE
