@@ -2,10 +2,11 @@
 # ═══════════════════════════════════════════════════════════════
 # launch_pipeline.sh
 #
-# Reads samples.csv (sample_name,input_path) and for each sample submits:
-#   1. combine_slices  (no dependency)
-#   2. process_spatial  (after combine_slices finishes)
-#   3. s3_sync_sample   (after process_spatial finishes)
+# Reads samples.csv (one sample_name per line) and for each sample submits:
+#   1. process_spatial  (with MMC + mask already available)
+#   2. s3_sync_sample   (after process_spatial finishes)
+#
+# Assumes combine_slices, map_my_cell, and mask are already done.
 #
 # Usage:
 #   ./launch_pipeline.sh                  # uses samples.csv in same dir
@@ -32,65 +33,43 @@ echo ""
 
 count=0
 
-while IFS=',' read -r sample_name input_path; do
-    # Trim leading/trailing whitespace
+while IFS= read -r sample_name; do
+    # Trim whitespace
     sample_name="$(echo "$sample_name" | xargs)"
-    input_path="$(echo "$input_path" | xargs)"
 
-    # Skip comments, empty lines, and header
+    # Skip comments and empty lines
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
 
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
     combined_output="${output_base}/combined_output"
+    mmc_output="${output_base}/mmc_output"
     meyes_output="${output_base}/meyes_output"
 
     echo "── Sample ${count}: ${sample_name} ──"
-    echo "  Input:  ${input_path}"
-    echo "  Output: ${output_base}"
+    echo "  Combined: ${combined_output}"
+    echo "  MMC:      ${mmc_output}/mapping_output.csv"
+    echo "  Mask:     ${combined_output}/artifact_mask_p25.csv"
+    echo "  Output:   ${meyes_output}"
 
-    # Step 1: combine_slices
-    #combine_job=$(sbatch --parsable \
-    #    --job-name="combine_${sample_name}" \
-    #    "${SCRIPT_DIR}/combine_slices.sbatch" \
-    #    "$input_path" \
-    #    "$output_base")
-    #echo "  [1/3] combine_slices  -> Job ${combine_job}"
-
-    # ── Step 2: filter_artifacts (mask-only mode) ───────────────
-    filter_job=$(sbatch --parsable \
-        --job-name="filter_${sample_name}" \
-        "${SCRIPT_DIR}/combine_slices.sbatch" \
-        --mask-only \
-        "$combined_output")
-    echo "  [2/5] filter_artifacts -> Job ${filter_job}"
-
-    # ── Step 3: map_my_cell (after filter finishes) ─────────────
-    mmc_job=$(sbatch --parsable \
-        --dependency=afterok:${filter_job} \
-        --job-name="mmc_${sample_name}" \
-        "${SCRIPT_DIR}/map_my_cell.sbatch" \
+    # Step 1: process_spatial (with MMC + mask)
+    process_job=$(sbatch --parsable \
+        --job-name="process_${sample_name}" \
+        "${SCRIPT_DIR}/process_spatial.sbatch" \
         "$combined_output" \
-        "$mmc_output")
-    echo "  [3/5] map_my_cell      -> Job ${mmc_job} (after ${filter_job})"
+        "$meyes_output" \
+        "${mmc_output}/mapping_output.csv" \
+        "${combined_output}/artifact_mask_p25.csv")
+    echo "  [1/2] process_spatial -> Job ${process_job}"
 
-    # Step 4: process_spatial (waits for combine_slices)
-    #process_job=$(sbatch --parsable \
-    #    --dependency=afterok:${combine_job} \
-    #    --job-name="process_${sample_name}" \
-    #    "${SCRIPT_DIR}/process_spatial.sbatch" \
-    #    "$combined_output" \
-    #    "$meyes_output")
-    #echo "  [2/3] process_spatial -> Job ${process_job} (after ${combine_job})"
-
-    # Step 5: s3 sync (waits for process_spatial)
-    #sync_job=$(sbatch --parsable \
-    #    --dependency=afterok:${process_job} \
-    #    --job-name="sync_${sample_name}" \
-    #    "${SCRIPT_DIR}/s3_sync_sample.sbatch" \
-    #    "$sample_name")
-    #echo "  [3/3] s3_sync         -> Job ${sync_job} (after ${process_job})"
+    # Step 2: s3 sync (waits for process_spatial)
+    sync_job=$(sbatch --parsable \
+        --dependency=afterok:${process_job} \
+        --job-name="sync_${sample_name}" \
+        "${SCRIPT_DIR}/s3_sync_sample.sbatch" \
+        "$sample_name")
+    echo "  [2/2] s3_sync         -> Job ${sync_job} (after ${process_job})"
 
     echo ""
 
