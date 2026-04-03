@@ -28,6 +28,7 @@ import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { getDatasetLinkConfig } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 
 
 interface ThreeSceneProps {
@@ -242,7 +243,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     // This adapts automatically to any coordinate range and zoom level
     const PIXEL_RADIUS = 5; // hover within 5 pixels of a point
     const camera = cameraRef.current as THREE.PerspectiveCamera;
-    const cameraDistance = camera.position.length();
+    const target = controlsRef.current?.target;
+    const cameraDistance = target
+      ? camera.position.distanceTo(target)
+      : camera.position.length();
     const canvasHeight = rendererRef.current.domElement.clientHeight;
     const fovRad = (camera.fov / 2) * (Math.PI / 180);
     const pixelSize = (2 * cameraDistance * Math.tan(fovRad)) / canvasHeight;
@@ -742,6 +746,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
 
+      {/* Spatial scale bar - only for non-normalized (raw coordinate) datasets */}
+      {dataset && !dataset.normalized && (
+        <SpatialScaleBar
+          cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
+          rendererRef={rendererRef}
+          controlsRef={controlsRef}
+        />
+      )}
     </>
   );
 }
