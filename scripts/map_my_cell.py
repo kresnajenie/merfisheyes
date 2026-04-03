@@ -1,8 +1,8 @@
 import argparse
-import json
 import logging
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import anndata
@@ -206,52 +206,55 @@ def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_proce
     # expandable for human samples in the future (species = human)
     config = TAXONOMY_CONFIG[species]
     output_dir = Path(output_dir)
-    config_dict = {
-        "query_path": str(validated_h5ad_path),
-        "extended_result_path": str(output_dir / "mapping_output.json"),
-        "csv_result_path": str(output_dir / "mapping_output.csv"),
-        "drop_level": config["drop_level"],
-        "tmp_dir": os.environ.get("TMPDIR", "/tmp"),  # Use SLURM local scratch or /tmp
-        "precomputed_stats": {"path": str(reference_dir / config["precomputed_stats"])},
-        "query_markers": {"serialized_lookup": str(reference_dir / config["markers"])},
-        "type_assignment": {
-            "normalization": config["normalization"],
-            "n_processors": n_processors,
-            "chunk_size": 500,
-        },
-    }
-    runner = FromSpecifiedMarkersRunner(args=[], input_data=config_dict)
-    runner.run()
-    return output_dir / "mapping_output.csv"
+    csv_result_path = output_dir / "mapping_output.csv"
+    # extended_result_path is required by the mapper but we don't need it
+    json_tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    json_tmp.close()
+    try:
+        config_dict = {
+            "query_path": str(validated_h5ad_path),
+            "extended_result_path": json_tmp.name,
+            "csv_result_path": str(csv_result_path),
+            "drop_level": config["drop_level"],
+            "tmp_dir": os.environ.get("TMPDIR", "/tmp"),
+            "precomputed_stats": {"path": str(reference_dir / config["precomputed_stats"])},
+            "query_markers": {"serialized_lookup": str(reference_dir / config["markers"])},
+            "type_assignment": {
+                "normalization": config["normalization"],
+                "n_processors": n_processors,
+                "chunk_size": 500,
+            },
+        }
+        runner = FromSpecifiedMarkersRunner(args=[], input_data=config_dict)
+        runner.run()
+    finally:
+        os.unlink(json_tmp.name)
+    return csv_result_path
 
 
-def join_results(mapping_csv_path, metadata_df, output_dir):
+def join_results(mapping_csv_path, metadata_df):
     mapping_df = pd.read_csv(mapping_csv_path, comment='#')
     mapping_df["cell_id"] = mapping_df["cell_id"].astype(str)
 
     meta_id_col = next(c for c in ("EntityID", "id", "cell_id") if c in metadata_df.columns)
 
     # Build the same compound key used in build_h5ad
+    metadata_df = metadata_df.copy()
     if "_sample_id" in metadata_df.columns:
-        metadata_df = metadata_df.copy()
         metadata_df["_join_key"] = metadata_df["_sample_id"].astype(str) + "_" + metadata_df[meta_id_col].astype(str)
     else:
-        metadata_df = metadata_df.copy()
         metadata_df["_join_key"] = metadata_df[meta_id_col].astype(str)
 
     merged = metadata_df.merge(mapping_df, left_on="_join_key", right_on="cell_id", how="left")
     merged = merged.drop(columns=["_join_key"])
+    return merged
 
-    enriched_path = Path(output_dir) / "enriched_metadata.csv"
-    merged.to_csv(enriched_path, index=False)
-    return enriched_path
-
-def plot_cell_types(enriched_metadata_path, output_dir):
+def plot_cell_types(merged_df, output_dir):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-    df = pd.read_csv(enriched_metadata_path)
+    df = merged_df
 
     if "class_name" not in df.columns or df["class_name"].isna().all():
         logger.warning("class_name column empty or missing, skipping cell type plots.")
@@ -285,18 +288,17 @@ def plot_cell_types(enriched_metadata_path, output_dir):
         plt.close()
         logger.info("Saved %s", out_path)
 
-def print_summary(enriched_metadata_path, query_h5ad_path, original_cbg_gene_count):
-    enriched_df = pd.read_csv(enriched_metadata_path)
+def print_summary(merged_df, query_h5ad_path, original_cbg_gene_count):
     validated_adata = anndata.read_h5ad(query_h5ad_path, backed="r")
     n_genes = len(validated_adata.var.index)
     gene_overlap_pct = n_genes / original_cbg_gene_count * 100
 
     print(f"Gene overlap: {n_genes}/{original_cbg_gene_count} ({gene_overlap_pct:.1f}%)")
-    print(f"Total cells mapped: {len(enriched_df)}")
+    print(f"Total cells mapped: {len(merged_df)}")
 
-    cluster_col = "cluster_label" if "cluster_label" in enriched_df.columns else enriched_df.columns[-1]
+    cluster_col = "cluster_label" if "cluster_label" in merged_df.columns else merged_df.columns[-1]
     print(f"\nTop 5 assigned cluster labels ({cluster_col}):")
-    print(enriched_df[cluster_col].value_counts().head(5).to_string())
+    print(merged_df[cluster_col].value_counts().head(5).to_string())
 
 
 if __name__ == "__main__":
@@ -335,6 +337,6 @@ if __name__ == "__main__":
     mapping_csv_path = run_mapping(
         query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors
     )
-    enriched_metadata_path = join_results(mapping_csv_path, metadata_df, output_dir)
-    plot_cell_types(enriched_metadata_path, output_dir)
-    print_summary(enriched_metadata_path, query_h5ad_path, original_gene_count)
+    merged_df = join_results(mapping_csv_path, metadata_df)
+    plot_cell_types(merged_df, output_dir)
+    print_summary(merged_df, query_h5ad_path, original_gene_count)
