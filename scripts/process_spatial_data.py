@@ -737,7 +737,10 @@ def process_dataset(
     output_dir: Path,
     custom_chunk_size: Optional[int] = None,
     data_format: Optional[str] = None,
-    num_workers: int = 1
+    num_workers: int = 1,
+    mask_path: Optional[Path] = None,
+    mask_col: str = 'is_artifact',
+    mask_keep: str = 'false',
 ):
     """Main processing function that handles all formats"""
     global _t_start
@@ -1000,6 +1003,52 @@ def process_dataset(
 
     else:
         raise ValueError(f"Unknown format: {data_format}")
+
+    # ── Apply cell mask (optional) ──────────────────────────────
+    if mask_path is not None:
+        log(f"=== Applying cell mask from {mask_path.name} ===", _t_start)
+        mask_df = pd.read_csv(mask_path)
+
+        if mask_col not in mask_df.columns:
+            raise ValueError(f"Mask column '{mask_col}' not found in {mask_path.name}. "
+                             f"Available columns: {list(mask_df.columns)}")
+
+        # Convert column to string for case-insensitive comparison
+        mask_values = mask_df[mask_col].astype(str).str.strip().str.lower()
+        keep = mask_values == mask_keep.strip().lower()
+        keep_indices = np.where(keep.values)[0]
+
+        total_before = len(spatial_coords)
+        if len(keep_indices) == 0:
+            raise ValueError(f"Mask filtered out all cells — no cells have {mask_col}={mask_keep}")
+        if len(mask_df) != total_before:
+            raise ValueError(f"Mask CSV has {len(mask_df)} rows but dataset has {total_before} cells — must match")
+
+        # Filter spatial coordinates
+        spatial_coords = spatial_coords[keep_indices]
+
+        # Filter expression matrix
+        if expr_matrix is not None:
+            if sparse.issparse(expr_matrix):
+                expr_matrix = expr_matrix[keep_indices]
+            else:
+                expr_matrix = expr_matrix[keep_indices]
+
+        # Filter obs columns
+        for col_name in obs_columns:
+            obs_columns[col_name] = obs_columns[col_name][keep_indices]
+
+        # Filter embeddings
+        for emb_name in embeddings:
+            embeddings[emb_name] = embeddings[emb_name][keep_indices]
+
+        # Filter adata if it exists (h5ad path)
+        if data_format == 'h5ad' and 'adata' in dir():
+            adata = adata[keep_indices]
+
+        removed = total_before - len(keep_indices)
+        log(f"  Kept {len(keep_indices):,} / {total_before:,} cells "
+            f"(removed {removed:,} where {mask_col} != {mask_keep})", _t_start)
 
     # Continue with common processing
     num_cells = len(spatial_coords)
@@ -1265,6 +1314,12 @@ Examples:
 
   # Custom chunk size
   python process_spatial_data.py data.h5ad output/ --chunk-size 100
+
+  # With artifact mask (keep cells where is_artifact=False)
+  python process_spatial_data.py data.h5ad output/ --mask artifact_mask.csv
+
+  # Custom mask column and value
+  python process_spatial_data.py data.h5ad output/ --mask mask.csv --mask-col quality --mask-keep true
         """
     )
 
@@ -1276,6 +1331,12 @@ Examples:
                         help='Force input format (auto-detected if not specified)')
     parser.add_argument('--workers', type=int, default=1,
                         help='Number of parallel workers for chunk writing and obs processing (default: 1)')
+    parser.add_argument('--mask', type=Path, default=None,
+                        help='CSV file with a boolean column to filter cells (e.g. artifact_mask.csv)')
+    parser.add_argument('--mask-col', type=str, default='is_artifact',
+                        help='Column name in the mask CSV to filter on (default: is_artifact)')
+    parser.add_argument('--mask-keep', type=str, default='false',
+                        help='Value to keep (case-insensitive). Cells matching this value are kept, rest are removed (default: false)')
 
     args = parser.parse_args()
 
@@ -1284,9 +1345,14 @@ Examples:
         print(f"❌ Error: Input path not found: {args.input}")
         sys.exit(1)
 
+    if args.mask and not args.mask.exists():
+        print(f"❌ Error: Mask file not found: {args.mask}")
+        sys.exit(1)
+
     # Process
     try:
-        process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers)
+        process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers,
+                        mask_path=args.mask, mask_col=args.mask_col, mask_keep=args.mask_keep)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback
