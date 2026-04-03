@@ -744,6 +744,7 @@ def process_dataset(
     mask_path: Optional[Path] = None,
     mask_col: str = 'is_artifact',
     mask_keep: str = 'false',
+    mmc_csv_path: Optional[Path] = None,
 ):
     """Main processing function that handles all formats"""
     global _t_start
@@ -1059,6 +1060,36 @@ def process_dataset(
         log(f"  Kept {len(keep_indices):,} / {total_before:,} cells "
             f"(removed {removed:,} where {mask_col} != {mask_keep})", _t_start)
 
+    # ── Merge MapMyCells CSV (optional) ─────────────────────────
+    if mmc_csv_path is not None:
+        log(f"=== Loading MapMyCells CSV from {mmc_csv_path.name} ===", _t_start)
+        mmc_df = pd.read_csv(mmc_csv_path, comment='#')
+
+        # Check against pre-mask count if mask was applied, else current count
+        expected_rows = total_before if mask_path is not None else len(spatial_coords)
+        if len(mmc_df) != expected_rows:
+            raise ValueError(
+                f"MapMyCells CSV has {len(mmc_df):,} rows but dataset has {expected_rows:,} cells — must match"
+            )
+
+        # Apply same mask filtering if mask was used
+        if mask_path is not None:
+            mmc_df = mmc_df.iloc[keep_indices].reset_index(drop=True)
+            log(f"  Applied mask to MMC CSV: {len(mmc_df):,} rows after filtering", _t_start)
+
+        # Drop cell_id column, add all remaining columns to obs
+        mmc_cols_added = 0
+        for col in mmc_df.columns:
+            if col == 'cell_id':
+                continue
+            series = mmc_df[col]
+            if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                continue
+            obs_columns[col] = series.values
+            mmc_cols_added += 1
+
+        log(f"  Added {mmc_cols_added} columns from MapMyCells CSV", _t_start)
+
     # Continue with common processing
     num_cells = len(spatial_coords)
     num_genes = len(gene_names)
@@ -1329,6 +1360,12 @@ Examples:
 
   # Custom mask column and value
   python process_spatial_data.py data.h5ad output/ --mask mask.csv --mask-col quality --mask-keep true
+
+  # With MapMyCells annotations
+  python process_spatial_data.py merscope_output/ output/ --mmc-csv mapping_output.csv
+
+  # Mask + MapMyCells (mask applied to both dataset and MMC CSV)
+  python process_spatial_data.py data.h5ad output/ --mask mask.csv --mmc-csv mapping_output.csv
         """
     )
 
@@ -1346,6 +1383,8 @@ Examples:
                         help='Column name in the mask CSV to filter on (default: is_artifact)')
     parser.add_argument('--mask-keep', type=str, default='false',
                         help='Value to keep (case-insensitive). Cells matching this value are kept, rest are removed (default: false)')
+    parser.add_argument('--mmc-csv', type=Path, default=None,
+                        help='MapMyCells output CSV to add as observation columns (e.g. mapping_output.csv)')
 
     args = parser.parse_args()
 
@@ -1358,10 +1397,15 @@ Examples:
         print(f"❌ Error: Mask file not found: {args.mask}")
         sys.exit(1)
 
+    if args.mmc_csv and not args.mmc_csv.exists():
+        print(f"❌ Error: MapMyCells CSV not found: {args.mmc_csv}")
+        sys.exit(1)
+
     # Process
     try:
         process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers,
-                        mask_path=args.mask, mask_col=args.mask_col, mask_keep=args.mask_keep)
+                        mask_path=args.mask, mask_col=args.mask_col, mask_keep=args.mask_keep,
+                        mmc_csv_path=args.mmc_csv)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback
