@@ -472,7 +472,10 @@ def load_h5ad_data(input_path: Path):
                   'centroid_x', 'centroid_y', 'centroid_z']
     for col in adata.obs.columns:
         if col not in coord_cols:
-            obs_columns[col] = adata.obs[col].values
+            series = adata.obs[col]
+            if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                continue
+            obs_columns[col] = series.values
 
     return spatial_coords, expr_matrix, gene_names, obs_columns, adata
 
@@ -833,7 +836,10 @@ def process_dataset(
                 exclude_cols.add(actual)
         for col in cells_df.columns:
             if col not in exclude_cols and col not in gene_names:
-                obs_columns[col] = cells_df[col].values
+                series = cells_df[col]
+                if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                    continue
+                obs_columns[col] = series.values
 
         analysis_dir = input_path / 'analysis' / 'clustering'
         analysis_extract_dir: Optional[Path] = None
@@ -994,7 +1000,10 @@ def process_dataset(
         exclude_cols = [x_col, y_col, z_col, 'cell_id', 'EntityID']
         for col in metadata_df.columns:
             if col not in exclude_cols:
-                obs_columns[col] = metadata_df[col].values
+                series = metadata_df[col]
+                if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                    continue
+                obs_columns[col] = series.values
 
         # Free metadata_df — we've extracted everything we need
         del metadata_df
