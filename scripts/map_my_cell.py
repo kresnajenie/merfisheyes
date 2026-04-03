@@ -1,9 +1,8 @@
 import argparse
-import json
 import logging
 import os
 import sys
-import time
+import tempfile
 from pathlib import Path
 
 import anndata
@@ -92,7 +91,7 @@ def parse_args():
     )
     parser.add_argument(
         "input_dir",
-        help="Path to combined_output folder from combine_slices_v3.py.",
+        help="Path to combined_output folder from combine_slices_v3.py, or a .h5ad file.",
     )
     parser.add_argument(
         "output_dir",
@@ -116,6 +115,53 @@ def parse_args():
         help="Number of processors to use (default: 4).",
     )
     return parser.parse_args()
+
+
+def load_h5ad(h5ad_path):
+    """Load an h5ad file and return (metadata_df, cbg_df) matching load_inputs() shape."""
+    import scipy.sparse as sp
+
+    adata = anndata.read_h5ad(h5ad_path)
+
+    # Decide which matrix holds raw counts
+    X = adata.X
+    sample = X[:10].toarray() if sp.issparse(X) else X[:10]
+    is_raw = np.issubdtype(X.dtype, np.integer) or np.all(sample == np.floor(sample))
+
+    if not is_raw:
+        if "X_raw" not in adata.obsm:
+            raise ValueError(
+                "adata.X appears normalized and adata.obsm['X_raw'] is missing. "
+                "Provide an h5ad with raw counts in X or store them in obsm['X_raw']."
+            )
+        X = adata.obsm["X_raw"]
+
+    dense = X.toarray() if sp.issparse(X) else np.asarray(X)
+
+    cell_ids = adata.obs.index.astype(str)
+    gene_names = adata.var.index.tolist()
+
+    cbg_df = pd.DataFrame(dense, columns=gene_names)
+    cbg_df.insert(0, "cell", cell_ids.values)
+
+    metadata_df = pd.DataFrame({"cell_id": cell_ids.values})
+
+    if "X_spatial" in adata.obsm:
+        spatial = adata.obsm["X_spatial"]
+        if spatial.shape[1] >= 2:
+            # Pick the two columns with the largest range as x/y for plotting.
+            # Some h5ad files store a narrow-range slice index in column 0,
+            # which produces a flat line if used as a spatial axis.
+            ranges = np.ptp(spatial, axis=0)
+            top2 = np.argsort(ranges)[-2:][::-1]  # two widest-range columns
+            metadata_df["center_x"] = spatial[:, top2[0]]
+            metadata_df["center_y"] = spatial[:, top2[1]]
+            remaining = [i for i in range(spatial.shape[1]) if i not in top2]
+            if remaining:
+                metadata_df["center_z"] = spatial[:, remaining[0]]
+
+    return metadata_df, cbg_df
+
 
 # converts cell id names to ensemblID names for matching
 def translate_genes_to_ensembl(cbg_df, gene_mapping_path):
@@ -160,52 +206,55 @@ def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_proce
     # expandable for human samples in the future (species = human)
     config = TAXONOMY_CONFIG[species]
     output_dir = Path(output_dir)
-    config_dict = {
-        "query_path": str(validated_h5ad_path),
-        "extended_result_path": str(output_dir / "mapping_output.json"),
-        "csv_result_path": str(output_dir / "mapping_output.csv"),
-        "drop_level": config["drop_level"],
-        "tmp_dir": os.environ.get("TMPDIR", "/tmp"),  # Use SLURM local scratch or /tmp
-        "precomputed_stats": {"path": str(reference_dir / config["precomputed_stats"])},
-        "query_markers": {"serialized_lookup": str(reference_dir / config["markers"])},
-        "type_assignment": {
-            "normalization": config["normalization"],
-            "n_processors": n_processors,
-            "chunk_size": 500,
-        },
-    }
-    runner = FromSpecifiedMarkersRunner(args=[], input_data=config_dict)
-    runner.run()
-    return output_dir / "mapping_output.csv"
+    csv_result_path = output_dir / "mapping_output.csv"
+    # extended_result_path is required by the mapper but we don't need it
+    json_tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    json_tmp.close()
+    try:
+        config_dict = {
+            "query_path": str(validated_h5ad_path),
+            "extended_result_path": json_tmp.name,
+            "csv_result_path": str(csv_result_path),
+            "drop_level": config["drop_level"],
+            "tmp_dir": os.environ.get("TMPDIR", "/tmp"),
+            "precomputed_stats": {"path": str(reference_dir / config["precomputed_stats"])},
+            "query_markers": {"serialized_lookup": str(reference_dir / config["markers"])},
+            "type_assignment": {
+                "normalization": config["normalization"],
+                "n_processors": n_processors,
+                "chunk_size": 500,
+            },
+        }
+        runner = FromSpecifiedMarkersRunner(args=[], input_data=config_dict)
+        runner.run()
+    finally:
+        os.unlink(json_tmp.name)
+    return csv_result_path
 
 
-def join_results(mapping_csv_path, metadata_df, output_dir):
+def join_results(mapping_csv_path, metadata_df):
     mapping_df = pd.read_csv(mapping_csv_path, comment='#')
     mapping_df["cell_id"] = mapping_df["cell_id"].astype(str)
 
     meta_id_col = next(c for c in ("EntityID", "id", "cell_id") if c in metadata_df.columns)
 
     # Build the same compound key used in build_h5ad
+    metadata_df = metadata_df.copy()
     if "_sample_id" in metadata_df.columns:
-        metadata_df = metadata_df.copy()
         metadata_df["_join_key"] = metadata_df["_sample_id"].astype(str) + "_" + metadata_df[meta_id_col].astype(str)
     else:
-        metadata_df = metadata_df.copy()
         metadata_df["_join_key"] = metadata_df[meta_id_col].astype(str)
 
     merged = metadata_df.merge(mapping_df, left_on="_join_key", right_on="cell_id", how="left")
     merged = merged.drop(columns=["_join_key"])
+    return merged
 
-    enriched_path = Path(output_dir) / "enriched_metadata.csv"
-    merged.to_csv(enriched_path, index=False)
-    return enriched_path
-
-def plot_cell_types(enriched_metadata_path, output_dir):
+def plot_cell_types(merged_df, output_dir):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
 
-    df = pd.read_csv(enriched_metadata_path)
+    df = merged_df
 
     if "class_name" not in df.columns or df["class_name"].isna().all():
         logger.warning("class_name column empty or missing, skipping cell type plots.")
@@ -239,37 +288,21 @@ def plot_cell_types(enriched_metadata_path, output_dir):
         plt.close()
         logger.info("Saved %s", out_path)
 
-def print_summary(enriched_metadata_path, query_h5ad_path, original_cbg_gene_count):
-    enriched_df = pd.read_csv(enriched_metadata_path)
+def print_summary(merged_df, query_h5ad_path, original_cbg_gene_count):
     validated_adata = anndata.read_h5ad(query_h5ad_path, backed="r")
     n_genes = len(validated_adata.var.index)
     gene_overlap_pct = n_genes / original_cbg_gene_count * 100
 
     print(f"Gene overlap: {n_genes}/{original_cbg_gene_count} ({gene_overlap_pct:.1f}%)")
-    print(f"Total cells mapped: {len(enriched_df)}")
+    print(f"Total cells mapped: {len(merged_df)}")
 
-    cluster_col = "cluster_label" if "cluster_label" in enriched_df.columns else enriched_df.columns[-1]
+    cluster_col = "cluster_label" if "cluster_label" in merged_df.columns else merged_df.columns[-1]
     print(f"\nTop 5 assigned cluster labels ({cluster_col}):")
-    print(enriched_df[cluster_col].value_counts().head(5).to_string())
-
-
-def timed(label):
-    """Context manager to time a step and print duration."""
-    class Timer:
-        def __enter__(self):
-            self.start = time.time()
-            print(f"\n[STEP] {label}...")
-            return self
-        def __exit__(self, *args):
-            elapsed = time.time() - self.start
-            m, s = divmod(elapsed, 60)
-            print(f"[DONE] {label} — {int(m)}m {s:.1f}s")
-    return Timer()
+    print(merged_df[cluster_col].value_counts().head(5).to_string())
 
 
 if __name__ == "__main__":
     args = parse_args()
-    total_start = time.time()
 
     logging.basicConfig(
         level=logging.INFO,
@@ -277,54 +310,33 @@ if __name__ == "__main__":
         stream=sys.stdout,
     )
 
-    # Log thread settings
-    print(f"MKL_NUM_THREADS={os.environ.get('MKL_NUM_THREADS', '(not set)')}")
-    print(f"OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS', '(not set)')}")
-    print(f"n_processors={args.n_processors}")
-    print(f"TMPDIR={os.environ.get('TMPDIR', '(not set)')}")
-
     input_dir = Path(args.input_dir).expanduser()
-    metadata_path = input_dir / "cell_metadata.csv"
-    cbg_path = input_dir / "cell_by_gene.csv"
-
-    if not metadata_path.exists():
-        raise FileNotFoundError(f"cell_metadata.csv not found in {input_dir}")
-    if not cbg_path.exists():
-        raise FileNotFoundError(f"cell_by_gene.csv not found in {input_dir}")
 
     reference_dir = resolve_reference_dir(args.reference_dir)
     output_dir = Path(args.output_dir).expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with timed("1/6 Load inputs"):
+    if input_dir.is_file() and input_dir.suffix == ".h5ad":
+        metadata_df, cbg_df = load_h5ad(input_dir)
+    else:
+        metadata_path = input_dir / "cell_metadata.csv"
+        cbg_path = input_dir / "cell_by_gene.csv"
+
+        if not metadata_path.exists():
+            raise FileNotFoundError(f"cell_metadata.csv not found in {input_dir}")
+        if not cbg_path.exists():
+            raise FileNotFoundError(f"cell_by_gene.csv not found in {input_dir}")
+
         metadata_df, cbg_df = load_inputs(metadata_path, cbg_path)
-        original_gene_count = len(cbg_df.columns) - 1
-        print(f"     Cells: {len(metadata_df):,}  Genes: {original_gene_count:,}")
+    original_gene_count = len(cbg_df.columns) - 1
 
-    with timed("2/6 Translate genes to Ensembl"):
-        gene_mapping_path = reference_dir / TAXONOMY_CONFIG[args.species]["gene_mapping"]
-        cbg_df = translate_genes_to_ensembl(cbg_df, gene_mapping_path)
-        print(f"     Genes after translation: {len(cbg_df.columns) - 1:,}")
+    gene_mapping_path = reference_dir / TAXONOMY_CONFIG[args.species]["gene_mapping"]
+    cbg_df = translate_genes_to_ensembl(cbg_df, gene_mapping_path)
 
-    with timed("3/6 Build query H5AD"):
-        query_h5ad_path = build_h5ad(cbg_df, metadata_df, output_dir)
-        print(f"     Written to: {query_h5ad_path}")
-
-    with timed("4/6 Run MapMyCells mapping"):
-        mapping_csv_path = run_mapping(
-            query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors
-        )
-
-    with timed("5/6 Join results"):
-        enriched_metadata_path = join_results(mapping_csv_path, metadata_df, output_dir)
-
-    with timed("6/6 Plot cell types"):
-        plot_cell_types(enriched_metadata_path, output_dir)
-
-    print_summary(enriched_metadata_path, query_h5ad_path, original_gene_count)
-
-    total_elapsed = time.time() - total_start
-    m, s = divmod(total_elapsed, 60)
-    print(f"\n{'='*40}")
-    print(f"  Total pipeline time: {int(m)}m {s:.1f}s")
-    print(f"{'='*40}")
+    query_h5ad_path = build_h5ad(cbg_df, metadata_df, output_dir)
+    mapping_csv_path = run_mapping(
+        query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors
+    )
+    merged_df = join_results(mapping_csv_path, metadata_df)
+    plot_cell_types(merged_df, output_dir)
+    print_summary(merged_df, query_h5ad_path, original_gene_count)
