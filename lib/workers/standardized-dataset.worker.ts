@@ -215,8 +215,17 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
-    // Normalize spatial coordinates
-    const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
+    // Round spatial coordinates to 2 decimal places (no normalization)
+    const coords = spatial.coordinates;
+    const roundedCoords: number[][] = [];
+
+    for (let i = 0; i < coords.length; i++) {
+      const point = coords[i];
+
+      roundedCoords.push(
+        point.map((v) => Math.round(v * 100) / 100),
+      );
+    }
 
     // Generate dataset ID and name from folder
     const timestamp = Date.now();
@@ -230,9 +239,9 @@ const workerApi = {
       name: folderName,
       type: "xenium",
       spatial: {
-        coordinates: normalizedSpatial?.normalized || spatial.coordinates,
+        coordinates: roundedCoords,
         dimensions: spatial.dimensions,
-        scalingFactor: normalizedSpatial?.scalingFactor || 1,
+        scalingFactor: 1,
       },
       embeddings: embeddings,
       genes: genes,
@@ -242,9 +251,10 @@ const workerApi = {
         fileCount: files.length,
         numCells: dataInfo.numCells,
         numGenes: dataInfo.numGenes,
-        spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
+        spatialScalingFactor: 1,
       },
       matrix: matrix,
+      normalized: false,
     };
 
     console.log("[Worker] Xenium parsing complete");

@@ -167,6 +167,9 @@ export function UploadSettingsModal({
 
             return;
           }
+
+          // Make fingerprint unique so the DB allows re-upload (VarChar(64) limit)
+          fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
         }
 
         // Generate dataset ID
@@ -237,6 +240,9 @@ export function UploadSettingsModal({
 
             return;
           }
+
+          // Make fingerprint unique so the DB allows re-upload (VarChar(64) limit)
+          fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
         }
 
         // Determine chunk size
@@ -605,6 +611,7 @@ async function createManifest(
 
   const manifest = {
     version: "2.0",
+    normalized: dataset.normalized,
     created_at: new Date().toISOString(),
     dataset_id: datasetId,
     name: datasetName,
