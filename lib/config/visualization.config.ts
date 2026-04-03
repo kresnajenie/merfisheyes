@@ -71,8 +71,8 @@ export const VISUALIZATION_CONFIG = {
    *
    * Default: min=0.5, max=2.0 (points range from 50% to 200% of base size)
    */
-  POINT_SIZE_MULTIPLIER_MIN: 0.5,
-  POINT_SIZE_MULTIPLIER_MAX: 5.0,
+  POINT_SIZE_MULTIPLIER_MIN: 1.0,
+  POINT_SIZE_MULTIPLIER_MAX: 2.0,
 
   /**
    * Point Alpha (Opacity)

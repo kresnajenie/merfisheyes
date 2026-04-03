@@ -114,6 +114,9 @@ def parse_args():
         default=4,
         help="Number of processors to use (default: 4).",
     )
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(0)
     return parser.parse_args()
 
 

@@ -28,6 +28,7 @@ import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { getDatasetLinkConfig } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 
 
 interface ThreeSceneProps {
@@ -238,35 +239,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     lastCameraPositionRef.current.copy(currentCameraPosition);
 
-    // Calculate camera distance to determine raycaster parameters
-    const cameraDistance = cameraRef.current.position.length();
-
-    // Set adaptive thresholds for raycasting with multiple tiers
-    // IMPORTANT: Smaller threshold = more precision needed, Larger threshold = easier selection
-    // When zoomed IN (small distance) = need SMALLER threshold for accuracy
-    // When zoomed OUT (large distance) = need LARGER threshold for easier selection
-    // Note: threshold is in world space units, so it needs to be VERY small
-    let threshold;
-
-    if (cameraDistance < 150) {
-      // Very close zoom: precise selection
-      threshold = 0.1;
-    } else if (cameraDistance < 250) {
-      // Close zoom: moderately precise
-      threshold = 0.2;
-    } else if (cameraDistance < 400) {
-      // Medium zoom: balanced (your current zoom at ~315)
-      threshold = 0.3;
-    } else if (cameraDistance < 600) {
-      // Far zoom: easier selection
-      threshold = 0.5;
-    } else if (cameraDistance < 900) {
-      // Very far zoom: very easy selection
-      threshold = 1.0;
-    } else {
-      // Extremely far zoom: maximum ease
-      threshold = 2.0;
-    }
+    // Screen-space pixel threshold: convert a fixed pixel radius to world units
+    // This adapts automatically to any coordinate range and zoom level
+    const PIXEL_RADIUS = 5; // hover within 5 pixels of a point
+    const camera = cameraRef.current as THREE.PerspectiveCamera;
+    const target = controlsRef.current?.target;
+    const cameraDistance = target
+      ? camera.position.distanceTo(target)
+      : camera.position.length();
+    const canvasHeight = rendererRef.current.domElement.clientHeight;
+    const fovRad = (camera.fov / 2) * (Math.PI / 180);
+    const pixelSize = (2 * cameraDistance * Math.tan(fovRad)) / canvasHeight;
+    const threshold = pixelSize * PIXEL_RADIUS;
 
     raycasterRef.current.params.Points!.threshold = threshold;
 
@@ -352,21 +336,24 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         }
       }
 
+      // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
+      const coordScale = dataset.normalized === false ? 1 : 500;
+
       // Calculate center point (scaled)
       const center = new THREE.Vector3(
-        ((bounds.minX + bounds.maxX) / 2) * 500,
-        ((bounds.minY + bounds.maxY) / 2) * 500,
+        ((bounds.minX + bounds.maxX) / 2) * coordScale,
+        ((bounds.minY + bounds.maxY) / 2) * coordScale,
         dataset.spatial.dimensions === 3
-          ? ((bounds.minZ + bounds.maxZ) / 2) * 500
+          ? ((bounds.minZ + bounds.maxZ) / 2) * coordScale
           : 0,
       );
 
       // Calculate size of data
       const size = Math.max(
-        (bounds.maxX - bounds.minX) * 500,
-        (bounds.maxY - bounds.minY) * 500,
+        (bounds.maxX - bounds.minX) * coordScale,
+        (bounds.maxY - bounds.minY) * coordScale,
         dataset.spatial.dimensions === 3
-          ? (bounds.maxZ - bounds.minZ) * 500
+          ? (bounds.maxZ - bounds.minZ) * coordScale
           : 0,
       );
 
@@ -378,12 +365,19 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         center.z + distance,
       );
 
+      // Set near/far planes based on data scale to avoid clipping
+      const maxExtent = Math.max(size, distance);
+      const near = maxExtent * 0.001;
+      const far = maxExtent * 10;
+
       // Initialize Three.js scene with options
       const { scene, camera, renderer, controls, animate, dispose } =
         initializeScene(containerRef.current, {
           is2D: dataset.spatial.dimensions === 2,
           cameraPosition: cameraPos,
           lookAtPosition: center,
+          near,
+          far,
         });
 
       // Store camera, renderer, and controls refs for raycasting + scale bar
@@ -498,10 +492,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               ? spatialCoords[p * spatialDims + 2] : (spatialCoords as number[][])[p][2]) ?? 0
           : 0;
 
+        // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
+        const cs = dataset.normalized === false ? 1 : 500;
+
         pointData[p] = {
-          x: x * 500,
-          y: y * 500,
-          z: z * 500,
+          x: x * cs,
+          y: y * cs,
+          z: z * cs,
           r: 0,
           g: 0,
           b: 0,
@@ -511,7 +508,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       }
 
       // Create point cloud mesh with custom shaders
-      const pointCloud = createPointCloud(pointData, 5);
+      // dotSize is in world-space units. Scale it relative to data extent so points
+      // appear ~5px at the initial zoom level regardless of coordinate range.
+      // Formula derived from: targetPx = dotSize * proj[1][1] / cameraDistance
+      // where cameraDistance = size * 1.5, proj[1][1] ≈ 1.3 for 75° FOV
+      const baseDotSize = size * 0.5;
+      const pointCloud = createPointCloud(pointData, baseDotSize);
 
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
@@ -744,6 +746,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
 
+      {/* Spatial scale bar - only for non-normalized (raw coordinate) datasets */}
+      {dataset && !dataset.normalized && (
+        <SpatialScaleBar
+          cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
+          rendererRef={rendererRef}
+          controlsRef={controlsRef}
+        />
+      )}
     </>
   );
 }

@@ -15,6 +15,8 @@ export interface SceneOptions {
   is2D?: boolean;
   cameraPosition?: THREE.Vector3;
   lookAtPosition?: THREE.Vector3;
+  near?: number;
+  far?: number;
 }
 
 /**
@@ -24,7 +26,7 @@ export function initializeScene(
   container: HTMLElement,
   options: SceneOptions = {},
 ): SceneSetup {
-  const { is2D = false, cameraPosition, lookAtPosition } = options;
+  const { is2D = false, cameraPosition, lookAtPosition, near, far } = options;
 
   // Scene setup
   const scene = new THREE.Scene();
@@ -35,8 +37,8 @@ export function initializeScene(
   const camera = new THREE.PerspectiveCamera(
     75,
     container.clientWidth / container.clientHeight,
-    0.1,
-    10000,
+    near ?? 0.1,
+    far ?? 10000,
   );
 
   // Set camera position
