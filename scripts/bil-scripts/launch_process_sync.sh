@@ -40,7 +40,7 @@ echo ""
 
 count=0
 
-while IFS= read -r sample_name; do
+while IFS=',' read -r sample_name _rest; do
     sample_name="$(echo "$sample_name" | xargs)"
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
