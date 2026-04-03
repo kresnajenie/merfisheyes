@@ -238,35 +238,15 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     lastCameraPositionRef.current.copy(currentCameraPosition);
 
-    // Calculate camera distance to determine raycaster parameters
-    const cameraDistance = cameraRef.current.position.length();
-
-    // Set adaptive thresholds for raycasting with multiple tiers
-    // IMPORTANT: Smaller threshold = more precision needed, Larger threshold = easier selection
-    // When zoomed IN (small distance) = need SMALLER threshold for accuracy
-    // When zoomed OUT (large distance) = need LARGER threshold for easier selection
-    // Note: threshold is in world space units, so it needs to be VERY small
-    let threshold;
-
-    if (cameraDistance < 150) {
-      // Very close zoom: precise selection
-      threshold = 0.1;
-    } else if (cameraDistance < 250) {
-      // Close zoom: moderately precise
-      threshold = 0.2;
-    } else if (cameraDistance < 400) {
-      // Medium zoom: balanced (your current zoom at ~315)
-      threshold = 0.3;
-    } else if (cameraDistance < 600) {
-      // Far zoom: easier selection
-      threshold = 0.5;
-    } else if (cameraDistance < 900) {
-      // Very far zoom: very easy selection
-      threshold = 1.0;
-    } else {
-      // Extremely far zoom: maximum ease
-      threshold = 2.0;
-    }
+    // Screen-space pixel threshold: convert a fixed pixel radius to world units
+    // This adapts automatically to any coordinate range and zoom level
+    const PIXEL_RADIUS = 5; // hover within 5 pixels of a point
+    const camera = cameraRef.current as THREE.PerspectiveCamera;
+    const cameraDistance = camera.position.length();
+    const canvasHeight = rendererRef.current.domElement.clientHeight;
+    const fovRad = (camera.fov / 2) * (Math.PI / 180);
+    const pixelSize = (2 * cameraDistance * Math.tan(fovRad)) / canvasHeight;
+    const threshold = pixelSize * PIXEL_RADIUS;
 
     raycasterRef.current.params.Points!.threshold = threshold;
 
