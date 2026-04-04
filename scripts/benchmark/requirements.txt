@@ -1,14 +1,16 @@
-# Required for test data generation
+# Required for synthetic data generation
 anndata>=0.10.0
 numpy>=1.24.0
 pandas>=2.0.0
 pyarrow>=14.0.0
 scipy>=1.11.0
+h5py>=3.9.0             # For reading real h5ad metadata
 
-# Required for browser benchmarks (MERFISHeyes, CellxGene)
+# Required for browser benchmarks (Playwright)
 playwright>=1.40.0
+# After install: python -m playwright install chromium
 
-# Required for memory measurement
+# Required for memory measurement (Python processing benchmarks)
 psutil>=5.9.0
 
 # Optional: install each competitor you want to test

@@ -118,3 +118,8 @@ docs-private/
 __pycache__/
 *.pyc
 *.pyo
+
+# Benchmark data (large generated/real datasets)
+benchmark_data/
+benchmark_parquet_test.png
+gene_panel.png
