@@ -1287,6 +1287,11 @@ def process_dataset(
         expr_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col)
         log(f"  CSV loaded: {len(expr_df):,} rows x {len(expr_df.columns)} columns ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
 
+        # Apply mask filtering if mask was used (expr_matrix=None for MERSCOPE, so mask wasn't applied earlier)
+        if mask_path is not None:
+            expr_df = expr_df.iloc[keep_indices].reset_index(drop=True)
+            log(f"  Applied mask to expression: {len(expr_df):,} rows after filtering", _t_start)
+
         # Extract sparse data for each gene (same approach as original per-gene code)
         log(f"  Extracting sparse data for {num_genes} genes...", _t_start)
         t_extract = time.perf_counter()
