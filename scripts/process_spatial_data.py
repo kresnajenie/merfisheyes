@@ -111,7 +111,7 @@ def reorder_df_to_reference(df: pd.DataFrame, reference_ids: np.ndarray,
     if id_col is None:
         id_col = _get_id_column(df)
 
-    df_ids = df[id_col].astype(str)
+    df_ids = df[id_col].astype(str).str.strip()
     if strip_compound:
         df_ids = df_ids.str.split('_', n=1).str[1]
 
@@ -757,7 +757,7 @@ def load_merscope_data(input_path: Path):
 
     log(f"  Loading {metadata_file.name}...", _t_start)
     t_load = time.perf_counter()
-    metadata_df = pd.read_csv(metadata_file)
+    metadata_df = pd.read_csv(metadata_file, dtype={col: str for col in ['id', 'cell_id', 'EntityID']})
     log(f"  Loaded {len(metadata_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Load cell_by_gene.csv (expression matrix)
