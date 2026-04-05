@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
-#SBATCH --time=04:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
