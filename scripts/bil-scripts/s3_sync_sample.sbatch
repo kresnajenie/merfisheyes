@@ -39,6 +39,7 @@ fi
 # ── Sync ─────────────────────────────────────────────────────
 aws s3 sync "$SOURCE" "$DESTINATION" \
     --size-only \
-    --exclude "*.csv"
+    --exclude "*.csv" \
+    --exclude "mmc_output/*"
 
 echo "Sync complete at $(date)"
