@@ -813,6 +813,7 @@ def process_dataset(
     mask_col: str = 'is_artifact',
     mask_keep: str = 'false',
     mmc_csv_path: Optional[Path] = None,
+    reorder: bool = False,
 ):
     """Main processing function that handles all formats"""
     global _t_start
@@ -1043,7 +1044,7 @@ def process_dataset(
             expr_matrix = np.zeros((len(metadata_df), 1))
 
         # Reorder metadata to match cell_by_gene row order
-        if merscope_expr_file is not None:
+        if reorder and merscope_expr_file is not None:
             log("  Reordering cell_metadata to match cell_by_gene...", _t_start)
             t_reorder = time.perf_counter()
             _cbg_reference_ids = _read_cbg_ids(merscope_expr_file)
@@ -1144,7 +1145,7 @@ def process_dataset(
         mmc_df = pd.read_csv(mmc_csv_path, comment='#')
 
         # Reorder MMC rows to match cell_by_gene order (compound cell_id → strip prefix)
-        if _cbg_reference_ids is not None:
+        if reorder and _cbg_reference_ids is not None:
             log("  Reordering MMC CSV to match cell_by_gene...", _t_start)
             t_reorder = time.perf_counter()
             mmc_df = reorder_df_to_reference(mmc_df, _cbg_reference_ids,
@@ -1471,6 +1472,8 @@ Examples:
                         help='Value to keep (case-insensitive). Cells matching this value are kept, rest are removed (default: false)')
     parser.add_argument('--mmc-csv', type=Path, default=None,
                         help='MapMyCells output CSV to add as observation columns (e.g. mapping_output.csv)')
+    parser.add_argument('--reorder', action='store_true', default=False,
+                        help='Reorder cell_metadata and MMC CSV to match cell_by_gene row order (default: off)')
 
     args = parser.parse_args()
 
@@ -1491,7 +1494,7 @@ Examples:
     try:
         process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers,
                         mask_path=args.mask, mask_col=args.mask_col, mask_keep=args.mask_keep,
-                        mmc_csv_path=args.mmc_csv)
+                        mmc_csv_path=args.mmc_csv, reorder=args.reorder)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback
