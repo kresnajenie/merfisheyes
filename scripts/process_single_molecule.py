@@ -49,6 +49,33 @@ except ImportError:
 
 
 # ─────────────────────────────────────────────
+# LOGGING (matches combine_slices_v3.py / process_spatial_data.py)
+# ─────────────────────────────────────────────
+
+_t_start = None  # set in process_single_molecule_data / process_directory
+
+
+def fmt_elapsed(seconds):
+    """Format elapsed time as human-readable string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m, s = divmod(seconds, 60)
+    if m < 60:
+        return f"{int(m)}m {s:.1f}s"
+    h, m = divmod(int(m), 60)
+    return f"{h}h {m}m {s:.0f}s"
+
+
+def log(msg, t0=None):
+    """Print a timestamped log message. If t0 given, also prints elapsed."""
+    t0 = t0 if t0 is not None else _t_start
+    elapsed = ""
+    if t0 is not None:
+        elapsed = f" [{fmt_elapsed(time.perf_counter() - t0)}]"
+    print(f"[{time.strftime('%H:%M:%S')}]{elapsed} {msg}", flush=True)
+
+
+# ─────────────────────────────────────────────
 # FUZZY FILE MATCHING (mirrors combine_slices_v3.py)
 # ─────────────────────────────────────────────
 
@@ -121,10 +148,10 @@ def find_transcript_in_dir(directory: str) -> Optional[Path]:
         return None
 
     if len(matches) > 1:
-        print(f"  WARNING: Multiple transcript files in {directory}:")
+        log(f"  WARNING: Multiple transcript files in {directory}:")
         for path, score, reason in matches:
-            print(f"    {Path(path).name} (score: {score}, {reason})")
-        print(f"  Using highest score match.")
+            log(f"    {Path(path).name} (score: {score}, {reason})")
+        log(f"  Using highest score match.")
 
     best = max(matches, key=lambda x: x[1])
     return Path(best[0])
@@ -171,10 +198,10 @@ def discover_transcript_dirs_bfs(target: Path) -> List[Tuple[str, Path]]:
             top_children.append((entry.name, entry.path))
     top_children.sort()
 
-    print(f"Scanning {len(top_children)} top-level directories...")
+    log(f"Scanning {len(top_children)} top-level directories...")
 
     for idx, (child_name, child_path) in enumerate(top_children, 1):
-        print(f"  [{idx}/{len(top_children)}] Searching '{child_name}'...")
+        log(f"  [{idx}/{len(top_children)}] Searching '{child_name}'...")
 
         # BFS within this child branch
         queue = deque([child_path])
@@ -187,13 +214,13 @@ def discover_transcript_dirs_bfs(target: Path) -> List[Tuple[str, Path]]:
 
             if has_transcript_file(csv_names):
                 results.append((child_name, Path(current)))
-                print(f"    FOUND at {current} (scanned {dirs_scanned} dirs)")
+                log(f"    FOUND at {current} (scanned {dirs_scanned} dirs)")
                 break
 
             subdirs.sort()
             queue.extend(subdirs)
         else:
-            print(f"    not found (scanned {dirs_scanned} dirs)")
+            log(f"    not found (scanned {dirs_scanned} dirs)")
 
     return results
 
@@ -343,7 +370,7 @@ def read_parquet_file(
             "Install it with: pip install pyarrow"
         )
 
-    print(f"Reading parquet file: {file_path}")
+    log(f"Reading parquet file: {file_path}")
 
     # Read parquet file
     table = pq.read_table(file_path)
@@ -372,27 +399,27 @@ def read_parquet_file(
         z = df[z_col].values
         coords = np.column_stack([x, y, z])
         dimensions = 3
-        print(f"  Detected 3D dataset (z column '{z_col}' found)")
+        log(f"  Detected 3D dataset (z column '{z_col}' found)")
     else:
         z = np.zeros_like(x)
         coords = np.column_stack([x, y, z])
         dimensions = 2
         if z_col:
-            print(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
+            log(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
         else:
-            print(f"  Detected 2D dataset (no z column specified)")
+            log(f"  Detected 2D dataset (no z column specified)")
 
     # Read cell_id column if provided
     cell_ids = None
     if cell_id_col and cell_id_col in df.columns:
         cell_ids = df[cell_id_col].values
         n_unassigned = np.sum(cell_ids == UNASSIGNED_CELL_ID)
-        print(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
+        log(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
     elif cell_id_col:
-        print(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
+        log(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
 
-    print(f"  Total molecules: {len(genes):,}")
-    print(f"  Dimensions: {dimensions}D")
+    log(f"  Total molecules: {len(genes):,}")
+    log(f"  Dimensions: {dimensions}D")
 
     return genes, coords, dimensions, cell_ids
 
@@ -414,7 +441,7 @@ def read_csv_file(
         dimensions: 2 or 3
         cell_ids: Array of cell IDs (or None if cell_id_col not provided/found)
     """
-    print(f"Reading CSV file: {file_path}")
+    log(f"Reading CSV file: {file_path}")
 
     # Read CSV file
     df = pd.read_csv(file_path)
@@ -442,27 +469,27 @@ def read_csv_file(
         z = df[z_col].values
         coords = np.column_stack([x, y, z])
         dimensions = 3
-        print(f"  Detected 3D dataset (z column '{z_col}' found)")
+        log(f"  Detected 3D dataset (z column '{z_col}' found)")
     else:
         z = np.zeros_like(x)
         coords = np.column_stack([x, y, z])
         dimensions = 2
         if z_col:
-            print(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
+            log(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
         else:
-            print(f"  Detected 2D dataset (no z column specified)")
+            log(f"  Detected 2D dataset (no z column specified)")
 
     # Read cell_id column if provided
     cell_ids = None
     if cell_id_col and cell_id_col in df.columns:
         cell_ids = df[cell_id_col].values
         n_unassigned = np.sum(cell_ids == UNASSIGNED_CELL_ID)
-        print(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
+        log(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
     elif cell_id_col:
-        print(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
+        log(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
 
-    print(f"  Total molecules: {len(genes):,}")
-    print(f"  Dimensions: {dimensions}D")
+    log(f"  Total molecules: {len(genes):,}")
+    log(f"  Dimensions: {dimensions}D")
 
     return genes, coords, dimensions, cell_ids
 
@@ -482,7 +509,8 @@ def process_single_molecule_data(
     """
     Process single molecule data and create S3-compatible folder structure
     """
-    start_time = time.time()
+    global _t_start
+    _t_start = time.perf_counter()
 
     # Determine column names
     if dataset_type not in COLUMN_MAPPINGS:
@@ -498,20 +526,19 @@ def process_single_molecule_data(
     z_col = z_col or mapping["z"]
     cell_id_col = cell_id_col or mapping.get("cell_id")
 
-    print(f"Processing single molecule data...")
-    print(f"  Dataset type: {dataset_type}")
-    print(f"  Gene column: {gene_col}")
-    print(f"  X column: {x_col}")
-    print(f"  Y column: {y_col}")
-    print(f"  Z column: {z_col}")
+    log(f"{'='*60}")
+    log(f"Processing Single Molecule Data")
+    log(f"  Input: {input_file}")
+    log(f"  Output: {output_folder}")
+    log(f"  Dataset type: {dataset_type}")
+    log(f"  Columns: gene={gene_col}, x={x_col}, y={y_col}, z={z_col}")
     if cell_id_col:
-        print(f"  Cell ID column: {cell_id_col}")
-    print(f"  Workers: {num_workers}")
-    print()
+        log(f"  Cell ID column: {cell_id_col}")
+    log(f"  Workers: {num_workers}")
+    log(f"{'='*60}")
 
-    # Step 1: Read input file (10%)
-    progress = 10
-    print(f"[{progress:3d}%] Reading input file...")
+    # Step 1: Read input file
+    log(f"=== STEP 1: Reading input file ===")
 
     file_ext = Path(input_file).suffix.lower()
     if file_ext == ".parquet":
@@ -527,17 +554,15 @@ def process_single_molecule_data(
 
     total_molecules = len(genes)
 
-    # Step 2: Round coordinates to 2dp (30%)
-    progress = 30
-    print(f"[{progress:3d}%] Rounding coordinates to 2 decimal places...")
+    # Step 2: Round coordinates to 2dp
+    log(f"=== STEP 2: Rounding coordinates to 2 decimal places ===")
 
     rounded_coords = round_coordinates(coords)
 
-    print(f"  Coordinate range: x=[{rounded_coords[:,0].min():.2f}, {rounded_coords[:,0].max():.2f}], y=[{rounded_coords[:,1].min():.2f}, {rounded_coords[:,1].max():.2f}]")
+    log(f"  Coordinate range: x=[{rounded_coords[:,0].min():.2f}, {rounded_coords[:,0].max():.2f}], y=[{rounded_coords[:,1].min():.2f}, {rounded_coords[:,1].max():.2f}]")
 
-    # Step 3: Build gene index using vectorized pandas groupby (50-70%)
-    progress = 50
-    print(f"[{progress:3d}%] Building gene index (vectorized)...")
+    # Step 3: Build gene index using vectorized pandas groupby
+    log(f"=== STEP 3: Building gene index (vectorized) ===")
 
     has_unassigned = cell_ids is not None
 
@@ -566,31 +591,27 @@ def process_single_molecule_data(
         del df_all
         unassigned_index = {}
 
-    progress = 70
-    elapsed = time.time() - start_time
-    print(f"[{progress:3d}%] Gene index built. Unique genes: {len(gene_index):,} [{elapsed:.1f}s]")
+    log(f"  Gene index built. Unique genes: {len(gene_index):,}")
     if has_unassigned:
         total_assigned = sum(len(v) for v in gene_index.values())
         total_unassigned = sum(len(v) for v in unassigned_index.values())
-        print(f"  Assigned molecules: {total_assigned:,}")
-        print(f"  Unassigned molecules: {total_unassigned:,}")
-        print(f"  Genes with unassigned molecules: {len(unassigned_index):,}")
+        log(f"  Assigned molecules: {total_assigned:,}")
+        log(f"  Unassigned molecules: {total_unassigned:,}")
+        log(f"  Genes with unassigned molecules: {len(unassigned_index):,}")
 
-    # Step 4: Filter genes (85%)
-    progress = 85
-    print(f"[{progress:3d}%] Filtering control probes and unassigned genes...")
+    # Step 4: Filter genes
+    log(f"=== STEP 4: Filtering control probes and unassigned genes ===")
 
     # Collect all gene names from both indices
     all_gene_names = set(gene_index.keys()) | set(unassigned_index.keys())
     filtered_genes = {gene for gene in all_gene_names if not should_filter_gene(gene)}
     filtered_count = len(all_gene_names) - len(filtered_genes)
 
-    print(f"  Filtered out {filtered_count} genes")
-    print(f"  Remaining genes: {len(filtered_genes):,}")
+    log(f"  Filtered out {filtered_count} genes")
+    log(f"  Remaining genes: {len(filtered_genes):,}")
 
-    # Step 5: Create output folder structure (90%)
-    progress = 90
-    print(f"[{progress:3d}%] Creating output folder structure...")
+    # Step 5: Create output folder structure
+    log(f"=== STEP 5: Creating output folder structure ===")
 
     output_path = Path(output_folder)
 
@@ -601,10 +622,10 @@ def process_single_molecule_data(
         genes_folder = output_path / "genes"
         genes_folder.mkdir(parents=True, exist_ok=True)
 
-        # Step 6: Write gene files (90-98%)
+        # Step 6: Write gene files
         # Prepare worker args: pre-serialize coordinates to bytes in main process
         # (numpy slicing is fast, avoids sending huge arrays to workers)
-        print(f"[{progress:3d}%] Preparing gene file data...")
+        log(f"=== STEP 6: Preparing gene file data ===")
 
         worker_args = []
         for gene in unique_genes:
@@ -628,11 +649,11 @@ def process_single_molecule_data(
 
         total_files = len(worker_args)
 
-        elapsed = time.time() - start_time
-        print(f"[{progress:3d}%] Writing {total_files} gene files (workers={num_workers})... [{elapsed:.1f}s]")
+        log(f"  Writing {total_files} gene files (workers={num_workers})...")
 
         if num_workers > 1 and total_files > 1:
             effective_workers = min(num_workers, total_files)
+            log(f"  Launching {effective_workers} workers...")
             with ProcessPoolExecutor(max_workers=effective_workers) as pool:
                 futures = {pool.submit(_write_gene_file_worker, a): a[0] for a in worker_args}
                 done_count = 0
@@ -640,26 +661,22 @@ def process_single_molecule_data(
                     future.result()
                     done_count += 1
                     if done_count % max(1, total_files // 10) == 0 or done_count == total_files:
-                        progress = 90 + int((done_count / total_files) * 8)
-                        elapsed = time.time() - start_time
-                        print(f"[{progress:3d}%] Writing gene files... ({done_count:,}/{total_files:,}) [{elapsed:.1f}s]")
+                        log(f"  Writing gene files... ({done_count:,}/{total_files:,})")
         else:
             # Serial fallback
             for idx, args in enumerate(worker_args):
                 _write_gene_file_worker(args)
                 if (idx + 1) % max(1, total_files // 10) == 0 or (idx + 1) == total_files:
-                    progress = 90 + int(((idx + 1) / total_files) * 8)
-                    elapsed = time.time() - start_time
-                    print(f"[{progress:3d}%] Writing gene files... ({idx + 1:,}/{total_files:,}) [{elapsed:.1f}s]")
+                    log(f"  Writing gene files... ({idx + 1:,}/{total_files:,})")
+
+        log(f"  Gene files done.")
     else:
         # Skip gene file writing
         output_path.mkdir(parents=True, exist_ok=True)
-        print(f"[{90:3d}%] Skipping gene files (--manifest-only mode)...")
+        log(f"  Skipping gene files (--manifest-only mode)")
 
-    # Step 7: Write manifest (98%)
-    progress = 98
-    elapsed = time.time() - start_time
-    print(f"[{progress:3d}%] Writing manifest... [{elapsed:.1f}s]")
+    # Step 7: Write manifest
+    log(f"=== STEP 7: Writing manifest ===")
 
     # Get source filename without extension
     source_name = Path(input_file).stem
@@ -708,38 +725,33 @@ def process_single_molecule_data(
         f.write(manifest_json)
 
     # Done!
-    progress = 100
-    elapsed = time.time() - start_time
-    elapsed_str = f"{elapsed:.2f}s" if elapsed < 60 else f"{int(elapsed // 60)}m {elapsed % 60:.1f}s"
-
-    print(f"[{progress:3d}%] Processing complete! [{elapsed_str}]")
-    print()
-    print("Output structure:")
-    print(f"  {output_folder}/")
-    print(f"    manifest.json.gz")
+    log(f"{'='*60}")
+    log(f"Processing complete!")
+    log(f"{'='*60}")
+    log(f"Output structure:")
+    log(f"  {output_folder}/")
+    log(f"    manifest.json.gz")
     if not manifest_only:
-        print(f"    genes/")
-        print(f"      {sanitize_gene_name(unique_genes[0])}.bin.gz")
+        log(f"    genes/")
+        log(f"      {sanitize_gene_name(unique_genes[0])}.bin.gz")
         if has_unassigned:
-            print(f"      {sanitize_gene_name(unique_genes[0])}{UNASSIGNED_SUFFIX}.bin.gz")
-        print(f"      ...")
-        print(f"      ({total_files} total gene files)")
+            log(f"      {sanitize_gene_name(unique_genes[0])}{UNASSIGNED_SUFFIX}.bin.gz")
+        log(f"      ...")
+        log(f"      ({total_files} total gene files)")
     else:
-        print(f"    (genes/ folder not created - use without --manifest-only to generate)")
-    print()
-    print("Statistics:")
-    print(f"  Total molecules: {total_molecules:,}")
-    print(f"  Unique genes: {len(unique_genes):,}")
-    print(f"  Dimensions: {dimensions}D")
-    print(f"  Coordinates: raw, rounded to 2dp")
+        log(f"    (genes/ folder not created - use without --manifest-only to generate)")
+    log(f"Statistics:")
+    log(f"  Total molecules: {total_molecules:,}")
+    log(f"  Unique genes: {len(unique_genes):,}")
+    log(f"  Dimensions: {dimensions}D")
+    log(f"  Coordinates: raw, rounded to 2dp")
     if has_unassigned:
         total_assigned = sum(len(v) for v in gene_index.values())
         total_unassigned = sum(len(v) for v in unassigned_index.values())
-        print(f"  Assigned molecules: {total_assigned:,}")
-        print(f"  Unassigned molecules: {total_unassigned:,}")
-    print()
-    print("Ready for S3 upload! Upload the entire output folder to:")
-    print(f"  s3://your-bucket/datasets/{{datasetId}}/")
+        log(f"  Assigned molecules: {total_assigned:,}")
+        log(f"  Unassigned molecules: {total_unassigned:,}")
+    log(f"Ready for S3 upload! Upload the entire output folder to:")
+    log(f"  s3://your-bucket/datasets/{{datasetId}}/")
 
 
 def process_directory(
@@ -764,28 +776,33 @@ def process_directory(
     num_workers: workers per sample (gene file writing parallelism)
     sample_workers: number of samples to process concurrently
     """
-    total_start = time.time()
+    global _t_start
+    _t_start = time.perf_counter()
 
     target = Path(target_dir).resolve()
     if not target.is_dir():
-        print(f"Error: '{target}' is not a valid directory.", file=sys.stderr)
+        log(f"Error: '{target}' is not a valid directory.")
         sys.exit(1)
 
     # Discover sample directories
-    print(f"Target directory: {target}")
-    print(f"Sample workers: {sample_workers}")
-    print(f"Write workers per sample: {num_workers}")
-    print()
+    log(f"{'='*60}")
+    log(f"Processing Single Molecule Directory")
+    log(f"  Target: {target}")
+    log(f"  Output: {output_folder}")
+    log(f"  S3 prefix: {s3_prefix}")
+    log(f"  Link column: {link_column}")
+    log(f"  Sample workers: {sample_workers}")
+    log(f"  Write workers per sample: {num_workers}")
+    log(f"{'='*60}")
     sample_dirs = discover_transcript_dirs_bfs(target)
 
     if not sample_dirs:
-        print("Error: No detected_transcripts.csv files found in any subdirectory.", file=sys.stderr)
+        log("Error: No detected_transcripts.csv files found in any subdirectory.")
         sys.exit(1)
 
-    print(f"\nFound {len(sample_dirs)} sample(s) with transcript files:")
+    log(f"Found {len(sample_dirs)} sample(s) with transcript files:")
     for sample_id, dir_path in sample_dirs:
-        print(f"  {sample_id} → {dir_path}")
-    print()
+        log(f"  {sample_id} → {dir_path}")
 
     # Create output directory
     output_path = Path(output_folder)
@@ -799,7 +816,7 @@ def process_directory(
     for sample_id, dir_path in sample_dirs:
         transcript_file = find_transcript_in_dir(str(dir_path))
         if transcript_file is None:
-            print(f"  WARNING: Could not find transcript file in {dir_path}, skipping {sample_id}")
+            log(f"  WARNING: Could not find transcript file in {dir_path}, skipping {sample_id}")
             continue
         sample_output = str(output_path / sample_id)
         sample_tasks.append((sample_id, transcript_file, sample_output))
@@ -811,7 +828,7 @@ def process_directory(
     if sample_workers > 1 and len(sample_tasks) > 1:
         # Parallel sample processing
         effective_sample_workers = min(sample_workers, len(sample_tasks))
-        print(f"Processing {len(sample_tasks)} samples with {effective_sample_workers} sample workers...")
+        log(f"Processing {len(sample_tasks)} samples with {effective_sample_workers} sample workers...")
 
         worker_args = [
             (sample_id, str(transcript_file), sample_output,
@@ -828,17 +845,18 @@ def process_directory(
                 done_count += 1
                 if success:
                     mapping_links[sample_id] = f"{s3_prefix}/{sample_id}"
-                    print(f"[{done_count}/{len(sample_tasks)}] {sample_id}: OK")
+                    log(f"  [{done_count}/{len(sample_tasks)}] {sample_id}: OK")
                 else:
                     failed.append(sample_id)
-                    print(f"[{done_count}/{len(sample_tasks)}] {sample_id}: FAILED - {error}")
+                    log(f"  [{done_count}/{len(sample_tasks)}] {sample_id}: FAILED - {error}")
     else:
         # Serial sample processing
         for idx, (sample_id, transcript_file, sample_output) in enumerate(sample_tasks, 1):
-            print(f"\n{'='*60}")
-            print(f"[{idx}/{len(sample_tasks)}] Processing sample: {sample_id}")
-            print(f"{'='*60}")
-            print(f"  Transcript file: {transcript_file}")
+            log(f"")
+            log(f"{'='*60}")
+            log(f"[{idx}/{len(sample_tasks)}] Processing sample: {sample_id}")
+            log(f"{'='*60}")
+            log(f"  Transcript file: {transcript_file}")
 
             try:
                 process_single_molecule_data(
@@ -855,7 +873,7 @@ def process_directory(
                 )
                 mapping_links[sample_id] = f"{s3_prefix}/{sample_id}"
             except Exception as e:
-                print(f"  ERROR processing {sample_id}: {e}", file=sys.stderr)
+                log(f"  ERROR processing {sample_id}: {e}")
                 failed.append(sample_id)
 
     # Write mapping.json
@@ -869,18 +887,16 @@ def process_directory(
         json.dump(mapping, f, indent=2)
 
     # Summary
-    elapsed = time.time() - total_start
-    elapsed_str = f"{elapsed:.2f}s" if elapsed < 60 else f"{int(elapsed // 60)}m {elapsed % 60:.1f}s"
-
-    print(f"\n{'='*60}")
-    print(f"Directory processing complete! [{elapsed_str}]")
-    print(f"{'='*60}")
-    print(f"  Samples processed: {len(mapping_links)}/{len(sample_tasks)}")
+    log(f"")
+    log(f"{'='*60}")
+    log(f"Directory processing complete!")
+    log(f"{'='*60}")
+    log(f"  Samples processed: {len(mapping_links)}/{len(sample_tasks)}")
     if failed:
-        print(f"  Failed: {failed}")
-    print(f"  Mapping file: {mapping_file}")
-    print(f"\nMapping contents:")
-    print(json.dumps(mapping, indent=2))
+        log(f"  Failed: {failed}")
+    log(f"  Mapping file: {mapping_file}")
+    log(f"Mapping contents:")
+    log(json.dumps(mapping, indent=2))
 
 
 def main():
@@ -958,13 +974,13 @@ def main():
     input_path = Path(args.input)
 
     if not input_path.exists():
-        print(f"Error: Input path not found: {args.input}", file=sys.stderr)
+        log(f"Error: Input path not found: {args.input}")
         sys.exit(1)
 
     if input_path.is_dir():
         # Directory mode
         if not args.s3_prefix:
-            print("Error: --s3-prefix is required when input is a directory.", file=sys.stderr)
+            log("Error: --s3-prefix is required when input is a directory.")
             sys.exit(1)
 
         process_directory(
@@ -998,7 +1014,7 @@ def main():
                 num_workers=args.workers,
             )
         except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
+            log(f"Error: {e}")
             sys.exit(1)
 
 
