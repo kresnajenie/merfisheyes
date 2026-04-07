@@ -25,7 +25,10 @@ import {
   usePanelId,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
-import { getDatasetLinkConfig } from "@/lib/config/dataset-links";
+import {
+  getDatasetLinkConfig,
+  fetchMappingConfig,
+} from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
@@ -77,6 +80,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     setNumericalScaleMax,
     toggleCelltype,
     clusterVersion,
+    incrementClusterVersion,
     columnTypeOverrides,
   } = usePanelVisualizationStore();
 
@@ -85,10 +89,70 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const { enableSplit, setRightPanelS3 } = useSplitScreenStore();
   const linkConfigRef = useRef(dataset ? getDatasetLinkConfig(dataset) : null);
 
-  // Update link config ref when dataset changes
+  // Update link config when dataset changes:
+  // 1. Check hardcoded registry first (instant)
+  // 2. Try fetching mapping.json from custom S3 (async, background)
+  // 3. If mapping found, lazy-load the link column so right-click works immediately
   useEffect(() => {
-    linkConfigRef.current = dataset ? getDatasetLinkConfig(dataset) : null;
-  }, [dataset]);
+    if (!dataset) {
+      linkConfigRef.current = null;
+      return;
+    }
+
+    // Check hardcoded registry first
+    const registryConfig = getDatasetLinkConfig(dataset);
+    linkConfigRef.current = registryConfig;
+
+    // Try fetching mapping.json (only for custom S3 datasets)
+    if (!registryConfig && dataset.metadata?.customS3BaseUrl) {
+      fetchMappingConfig(dataset).then(async (mappingConfig) => {
+        if (!mappingConfig) return;
+
+        linkConfigRef.current = mappingConfig;
+
+        // Check if link column is already loaded
+        const alreadyLoaded = dataset.clusters?.some(
+          (c) => c.column === mappingConfig.linkColumn,
+        );
+        if (alreadyLoaded) return;
+
+        // Check if the column exists in the dataset
+        if (
+          dataset.allClusterColumnNames &&
+          !dataset.allClusterColumnNames.includes(mappingConfig.linkColumn)
+        ) {
+          console.warn(
+            `mapping.json linkColumn "${mappingConfig.linkColumn}" not found in dataset columns`,
+          );
+          return;
+        }
+
+        // Lazy-load the link column in the background
+        try {
+          const { getStandardizedDatasetWorker } = await import(
+            "@/lib/workers/standardizedDatasetWorkerManager"
+          );
+          const worker = await getStandardizedDatasetWorker();
+
+          const newClusters = await worker.loadClusterFromS3(
+            dataset.id,
+            [mappingConfig.linkColumn],
+            dataset.metadata?.customS3BaseUrl,
+          );
+
+          if (newClusters && newClusters.length > 0) {
+            dataset.addClusters(newClusters);
+            incrementClusterVersion();
+          }
+        } catch (error) {
+          console.warn(
+            `Failed to preload link column "${mappingConfig.linkColumn}":`,
+            error,
+          );
+        }
+      });
+    }
+  }, [dataset, incrementClusterVersion]);
 
   // Store current mode and selection in refs to avoid closure issues
   const modeRef = useRef(mode);
