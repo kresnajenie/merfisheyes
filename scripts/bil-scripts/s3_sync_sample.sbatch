@@ -24,6 +24,11 @@ echo "Started at $(date)"
 # ── Environment setup ────────────────────────────────────────
 module load aws-cli
 
+# Increase AWS S3 transfer concurrency (default is 10)
+export AWS_MAX_CONCURRENT_REQUESTS=50
+aws configure set default.s3.max_concurrent_requests 50
+aws configure set default.s3.multipart_chunksize 16MB
+
 # ── Preflight check ─────────────────────────────────────────
 if [ ! -d "$SOURCE" ]; then
     echo "ERROR: Source directory $SOURCE does not exist"
