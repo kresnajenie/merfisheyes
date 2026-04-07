@@ -39,7 +39,9 @@ pip install anndata numpy scipy pandas
 
 ### Requirements for Single Molecule Processing:
 ```bash
-pip install numpy pandas pyarrow
+pip install numpy pandas
+# pyarrow is optional (only needed for .parquet input, not for .csv)
+pip install pyarrow
 ```
 
 ### Dependencies:
