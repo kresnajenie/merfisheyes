@@ -76,6 +76,74 @@ def generate_color_palette(values: List[str]) -> Dict[str, str]:
     return palette
 
 
+def _get_id_column(df: pd.DataFrame, candidates: List[str] = ('cell', 'cell_id', 'id')) -> str:
+    """Return the name of the first matching ID column, or fall back to the first column."""
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return df.columns[0]
+
+
+def _read_cbg_ids(expr_file: Path) -> np.ndarray:
+    """Read only the ID column from cell_by_gene.csv (memory-efficient)."""
+    header = pd.read_csv(expr_file, nrows=0).columns.tolist()
+    id_col = _get_id_column(pd.DataFrame(columns=header))
+    ids = pd.read_csv(expr_file, usecols=[id_col], dtype=str)[id_col].values
+    return ids
+
+
+def reorder_df_to_reference(df: pd.DataFrame, reference_ids: np.ndarray,
+                            id_col: Optional[str] = None, strip_compound: bool = False) -> pd.DataFrame:
+    """Reorder a DataFrame's rows to match reference_ids ordering.
+
+    Args:
+        df: DataFrame to reorder
+        reference_ids: Array of IDs that defines the target row order
+        id_col: Column to use as index. Auto-detected if None.
+        strip_compound: If True, strip everything up to and including the first
+                        underscore from the df's ID values before matching
+                        (e.g. '1231122825_100040001' -> '100040001').
+
+    Returns:
+        Reordered DataFrame (same columns, rows matching reference_ids order).
+        Raises ValueError if IDs don't match.
+    """
+    if id_col is None:
+        id_col = _get_id_column(df)
+
+    df_ids = df[id_col].astype(str).str.strip()
+    if strip_compound:
+        df_ids = df_ids.str.split('_', n=1).str[1]
+
+    # Build lookup: plain_id -> original row position
+    id_to_idx = {}
+    for idx, val in enumerate(df_ids):
+        if val in id_to_idx:
+            raise ValueError(f"Duplicate ID '{val}' in column '{id_col}'")
+        id_to_idx[val] = idx
+
+    ref_ids = np.asarray(reference_ids, dtype=str)
+
+    missing_in_df = set(ref_ids) - set(id_to_idx.keys())
+    if missing_in_df:
+        sample = list(missing_in_df)[:5]
+        raise ValueError(
+            f"{len(missing_in_df):,} reference IDs not found in '{id_col}' column. "
+            f"Sample: {sample}"
+        )
+
+    missing_in_ref = set(id_to_idx.keys()) - set(ref_ids)
+    if missing_in_ref:
+        sample = list(missing_in_ref)[:5]
+        raise ValueError(
+            f"{len(missing_in_ref):,} IDs in '{id_col}' column not found in reference. "
+            f"Sample: {sample}"
+        )
+
+    reorder_indices = [id_to_idx[rid] for rid in ref_ids]
+    return df.iloc[reorder_indices].reset_index(drop=True)
+
+
 def determine_chunk_size(num_genes: int, custom_chunk_size: Optional[int] = None) -> int:
     """Determine chunk size based on number of genes (matches TS logic)"""
     if custom_chunk_size is not None:
@@ -117,10 +185,28 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
 
     series = pd.Series(values)
 
-    # Special case: leiden/louvain columns are always categorical
+    # Special case: known categorical columns by name — synced with column-type-detection.ts
     if column_name:
         lower_name = column_name.lower()
-        if "leiden" in lower_name or "louvain" in lower_name:
+        categorical_patterns = [
+            "leiden",
+            "louvain",
+            "class_name",
+            "subclass_name",
+            "supertype_name",
+            "cluster_label",
+            "cell_type",
+            "celltype",
+            "cell_class",
+            "_source_file",
+            "_sample_id",
+            "batch",
+            "sample",
+            "donor",
+            "region",
+            "tissue",
+        ]
+        if any(p in lower_name for p in categorical_patterns):
             return True
 
         # Known numerical columns (counts, QC metrics) — synced with column-type-detection.ts
@@ -689,7 +775,7 @@ def load_merscope_data(input_path: Path):
 
     log(f"  Loading {metadata_file.name}...", _t_start)
     t_load = time.perf_counter()
-    metadata_df = pd.read_csv(metadata_file)
+    metadata_df = pd.read_csv(metadata_file, dtype={col: str for col in ['id', 'cell_id', 'EntityID']})
     log(f"  Loaded {len(metadata_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Load cell_by_gene.csv (expression matrix)
@@ -745,6 +831,7 @@ def process_dataset(
     mask_col: str = 'is_artifact',
     mask_keep: str = 'false',
     mmc_csv_path: Optional[Path] = None,
+    reorder: bool = False,
 ):
     """Main processing function that handles all formats"""
     global _t_start
@@ -767,6 +854,8 @@ def process_dataset(
 
     # merscope_expr_file is set only for MERSCOPE (per-chunk CSV loading)
     merscope_expr_file = None
+    # Reference IDs from cell_by_gene for reordering (set by MERSCOPE loader)
+    _cbg_reference_ids = None
 
     # Load data based on format
     if data_format == 'h5ad':
@@ -972,6 +1061,14 @@ def process_dataset(
             merscope_expr_file = None
             expr_matrix = np.zeros((len(metadata_df), 1))
 
+        # Reorder metadata to match cell_by_gene row order
+        if reorder and merscope_expr_file is not None:
+            log("  Reordering cell_metadata to match cell_by_gene...", _t_start)
+            t_reorder = time.perf_counter()
+            _cbg_reference_ids = _read_cbg_ids(merscope_expr_file)
+            metadata_df = reorder_df_to_reference(metadata_df, _cbg_reference_ids)
+            log(f"  Reordered {len(metadata_df):,} rows (in {fmt_elapsed(time.perf_counter() - t_reorder)})", _t_start)
+
         # Extract spatial coordinates
         coord_candidates_x = ['center_x', 'centroid_x', 'x']
         coord_candidates_y = ['center_y', 'centroid_y', 'y']
@@ -1065,7 +1162,15 @@ def process_dataset(
         log(f"=== Loading MapMyCells CSV from {mmc_csv_path.name} ===", _t_start)
         mmc_df = pd.read_csv(mmc_csv_path, comment='#')
 
-        # Check against pre-mask count if mask was applied, else current count
+        # Reorder MMC rows to match cell_by_gene order (compound cell_id → strip prefix)
+        if reorder and _cbg_reference_ids is not None:
+            log("  Reordering MMC CSV to match cell_by_gene...", _t_start)
+            t_reorder = time.perf_counter()
+            mmc_df = reorder_df_to_reference(mmc_df, _cbg_reference_ids,
+                                             id_col='cell_id', strip_compound=True)
+            log(f"  Reordered {len(mmc_df):,} rows (in {fmt_elapsed(time.perf_counter() - t_reorder)})", _t_start)
+
+        # Check row count (against pre-mask count if mask was applied)
         expected_rows = total_before if mask_path is not None else len(spatial_coords)
         if len(mmc_df) != expected_rows:
             raise ValueError(
@@ -1199,6 +1304,11 @@ def process_dataset(
         t_read = time.perf_counter()
         expr_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col)
         log(f"  CSV loaded: {len(expr_df):,} rows x {len(expr_df.columns)} columns ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
+
+        # Apply mask filtering if mask was used (expr_matrix=None for MERSCOPE, so mask wasn't applied earlier)
+        if mask_path is not None:
+            expr_df = expr_df.iloc[keep_indices].reset_index(drop=True)
+            log(f"  Applied mask to expression: {len(expr_df):,} rows after filtering", _t_start)
 
         # Extract sparse data for each gene (same approach as original per-gene code)
         log(f"  Extracting sparse data for {num_genes} genes...", _t_start)
@@ -1385,6 +1495,8 @@ Examples:
                         help='Value to keep (case-insensitive). Cells matching this value are kept, rest are removed (default: false)')
     parser.add_argument('--mmc-csv', type=Path, default=None,
                         help='MapMyCells output CSV to add as observation columns (e.g. mapping_output.csv)')
+    parser.add_argument('--reorder', action='store_true', default=False,
+                        help='Reorder cell_metadata and MMC CSV to match cell_by_gene row order (default: off)')
 
     args = parser.parse_args()
 
@@ -1405,7 +1517,7 @@ Examples:
     try:
         process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers,
                         mask_path=args.mask, mask_col=args.mask_col, mask_keep=args.mask_keep,
-                        mmc_csv_path=args.mmc_csv)
+                        mmc_csv_path=args.mmc_csv, reorder=args.reorder)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback

@@ -17,13 +17,16 @@ export interface CellVizUrlState {
   to?: Record<string, "categorical" | "numerical">; // columnTypeOverrides
 }
 
-// Gene tuple: [name, color, localScale, isVisible]
-export type SMGeneTuple = [string, string, number, boolean];
+// Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
+// Fields 4-8 are optional for backwards compat (default: true, true, same as color, same as localScale, true)
+export type SMGeneTuple = [string, string, number, boolean, boolean?, boolean?, string?, number?, boolean?];
 
 export interface SMVizUrlState {
   genes?: SMGeneTuple[];
   gs?: number; // globalScale
   vm?: ViewMode; // viewMode
+  sa?: boolean; // global showAssigned
+  su?: boolean; // global showUnassigned
 }
 
 // --- Base64URL helpers (Unicode-safe) ---
@@ -141,14 +144,34 @@ export function decodeCellVizState(encoded: string): CellVizUrlState | null {
 export function encodeSMVizState(state: {
   selectedGenes: Map<
     string,
-    { gene: string; color: string; localScale: number }
+    {
+      gene: string;
+      color: string;
+      localScale: number;
+      showAssigned: boolean;
+      showUnassigned: boolean;
+      unassignedColor: string;
+      unassignedLocalScale: number;
+      colorSynced: boolean;
+    }
   >;
   geneDataCache: Map<
     string,
-    { gene: string; color: string; localScale: number }
+    {
+      gene: string;
+      color: string;
+      localScale: number;
+      showAssigned: boolean;
+      showUnassigned: boolean;
+      unassignedColor: string;
+      unassignedLocalScale: number;
+      colorSynced: boolean;
+    }
   >;
   globalScale: number;
   viewMode: ViewMode;
+  showAssigned: boolean;
+  showUnassigned: boolean;
 }): string | null {
   const obj: SMVizUrlState = {};
 
@@ -159,7 +182,29 @@ export function encodeSMVizState(state: {
     state.geneDataCache.forEach((viz, gene) => {
       const isVisible = state.selectedGenes.has(gene);
 
-      genes.push([gene, viz.color, viz.localScale, isVisible]);
+      // Only include extended fields when they differ from defaults
+      const hasExtended =
+        !viz.showAssigned ||
+        !viz.showUnassigned ||
+        viz.unassignedColor !== viz.color ||
+        viz.unassignedLocalScale !== viz.localScale ||
+        !viz.colorSynced;
+
+      if (hasExtended) {
+        genes.push([
+          gene,
+          viz.color,
+          viz.localScale,
+          isVisible,
+          viz.showAssigned,
+          viz.showUnassigned,
+          viz.unassignedColor,
+          viz.unassignedLocalScale,
+          viz.colorSynced,
+        ]);
+      } else {
+        genes.push([gene, viz.color, viz.localScale, isVisible]);
+      }
     });
 
     if (genes.length > 0) obj.genes = genes;
@@ -167,6 +212,8 @@ export function encodeSMVizState(state: {
 
   if (state.globalScale !== 1.0) obj.gs = state.globalScale;
   if (state.viewMode !== "2D") obj.vm = state.viewMode;
+  if (!state.showAssigned) obj.sa = false;
+  if (!state.showUnassigned) obj.su = false;
 
   if (Object.keys(obj).length === 0) return null;
 
@@ -181,6 +228,8 @@ export function decodeSMVizState(encoded: string): SMVizUrlState | null {
   if (obj.genes !== undefined && !Array.isArray(obj.genes)) return null;
   if (obj.gs !== undefined && typeof obj.gs !== "number") return null;
   if (obj.vm !== undefined && obj.vm !== "2D" && obj.vm !== "3D") return null;
+  if (obj.sa !== undefined && typeof obj.sa !== "boolean") return null;
+  if (obj.su !== undefined && typeof obj.su !== "boolean") return null;
 
   return obj;
 }

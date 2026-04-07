@@ -1,15 +1,14 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# launch_pipeline.sh
+# launch_sm_pipeline.sh
 #
 # Reads samples.csv (sample_name,input_path) and for each sample submits:
-#   1. combine_slices  (no dependency)
-#   2. process_spatial  (after combine_slices finishes)
-#   3. s3_sync_sample   (after process_spatial finishes)
+#   1. process_single_molecule  (no dependency)
+#   2. s3_sync_sm               (after process_single_molecule finishes)
 #
 # Usage:
-#   ./launch_pipeline.sh                  # uses samples.csv in same dir
-#   ./launch_pipeline.sh my_samples.csv   # custom sample list
+#   ./launch_sm_pipeline.sh                  # uses samples.csv in same dir
+#   ./launch_sm_pipeline.sh my_samples.csv   # custom sample list
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -17,6 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
 MEYES_BASE="/bil/data/meyes"
+S3_HTTPS_BASE="https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2"
 
 if [ ! -f "$SAMPLE_FILE" ]; then
     echo "ERROR: Sample file not found: $SAMPLE_FILE"
@@ -24,10 +24,11 @@ if [ ! -f "$SAMPLE_FILE" ]; then
 fi
 
 echo "============================================"
-echo "  MERFISH Eyes Pipeline Launcher"
+echo "  Single Molecule Pipeline Launcher"
 echo "============================================"
 echo "Sample file: $SAMPLE_FILE"
 echo "Output base: $MEYES_BASE"
+echo "S3 base:     $S3_HTTPS_BASE"
 echo ""
 
 count=0
@@ -43,37 +44,40 @@ while IFS=',' read -r sample_name input_path; do
 
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
-    combined_output="${output_base}/combined_output"
+    sm_output="${output_base}/sm_output"
     meyes_output="${output_base}/meyes_output"
+    s3_prefix="${S3_HTTPS_BASE}/${sample_name}/sm_output"
 
     echo "── Sample ${count}: ${sample_name} ──"
-    echo "  Input:  ${input_path}"
-    echo "  Output: ${output_base}"
+    echo "  Input:      ${input_path}"
+    echo "  SM output:  ${sm_output}"
+    echo "  S3 prefix:  ${s3_prefix}"
 
-    # Step 1: combine_slices
-    combine_job=$(sbatch --parsable \
-        --job-name="combine_${sample_name}" \
-        "${SCRIPT_DIR}/combine_slices.sbatch" \
-        "$input_path" \
-        "$output_base")
-    echo "  [1/3] combine_slices  -> Job ${combine_job}"
-
-    # Step 2: process_spatial (waits for combine_slices)
+    # Step 1: process_single_molecule
     process_job=$(sbatch --parsable \
-        --dependency=afterok:${combine_job} \
-        --job-name="process_${sample_name}" \
-        "${SCRIPT_DIR}/process_spatial.sbatch" \
-        "$combined_output" \
-        "$meyes_output")
-    echo "  [2/3] process_spatial -> Job ${process_job} (after ${combine_job})"
+        --job-name="sm_${sample_name}" \
+        "${SCRIPT_DIR}/process_single_molecule.sbatch" \
+        "$input_path" \
+        "$sm_output" \
+        "$s3_prefix")
+    echo "  [1/2] process_sm -> Job ${process_job}"
 
-    # Step 3: s3 sync (waits for process_spatial)
+    # Step 2: s3 sync (waits for process_single_molecule)
     sync_job=$(sbatch --parsable \
         --dependency=afterok:${process_job} \
-        --job-name="sync_${sample_name}" \
-        "${SCRIPT_DIR}/s3_sync_sample.sbatch" \
+        --job-name="sync_sm_${sample_name}" \
+        "${SCRIPT_DIR}/s3_sync_sm.sbatch" \
         "$sample_name")
-    echo "  [3/3] s3_sync         -> Job ${sync_job} (after ${process_job})"
+    echo "  [2/2] s3_sync_sm -> Job ${sync_job} (after ${process_job})"
+
+    # Step 3: copy mapping.json to meyes_output (inline, after process completes)
+    copy_job=$(sbatch --parsable \
+        --dependency=afterok:${process_job} \
+        --job-name="cpmap_${sample_name}" \
+        --wrap="mkdir -p '${meyes_output}' && cp '${sm_output}/mapping.json' '${meyes_output}/mapping.json' && echo 'Copied mapping.json to ${meyes_output}'" \
+        --output="/bil/users/ijenie/meyes_process_logs/cpmap_${sample_name}_%j.log" \
+        --ntasks=1 --cpus-per-task=1 --mem=1G --time=00:05:00 --partition=compute)
+    echo "  [+]   copy mapping.json -> Job ${copy_job} (after ${process_job})"
 
     echo ""
 

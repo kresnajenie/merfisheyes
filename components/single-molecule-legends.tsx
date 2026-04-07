@@ -38,6 +38,7 @@ export const SingleMoleculeLegends: React.FC = () => {
     setGeneUnassignedShape,
     setGeneUnassignedColor,
     setGeneUnassignedLocalScale,
+    setGeneColorSynced,
   } = usePanelSingleMoleculeVisualizationStore();
   const dataset = usePanelSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
@@ -315,9 +316,25 @@ export const SingleMoleculeLegends: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Sync Colors Toggle */}
+                    {dataset?.hasUnassigned && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-default-500">
+                          Sync colors
+                        </span>
+                        <Switch
+                          isSelected={geneViz.colorSynced}
+                          size="sm"
+                          onValueChange={(val) =>
+                            setGeneColorSynced(gene, val)
+                          }
+                        />
+                      </div>
+                    )}
+
                     {/* Color Picker — switches between assigned/unassigned */}
                     <ColorPicker
-                      key={`${gene}-${popoverMode}`}
+                      key={`${gene}-${popoverMode}-${geneViz.colorSynced}`}
                       className="rounded-md p-2"
                       defaultValue={
                         popoverMode === "unassigned"

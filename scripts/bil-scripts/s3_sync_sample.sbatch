@@ -4,7 +4,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
-#SBATCH --time=04:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
@@ -24,6 +24,11 @@ echo "Started at $(date)"
 # ── Environment setup ────────────────────────────────────────
 module load aws-cli
 
+# Increase AWS S3 transfer concurrency (default is 10)
+export AWS_MAX_CONCURRENT_REQUESTS=50
+aws configure set default.s3.max_concurrent_requests 50
+aws configure set default.s3.multipart_chunksize 16MB
+
 # ── Preflight check ─────────────────────────────────────────
 if [ ! -d "$SOURCE" ]; then
     echo "ERROR: Source directory $SOURCE does not exist"
@@ -39,6 +44,7 @@ fi
 # ── Sync ─────────────────────────────────────────────────────
 aws s3 sync "$SOURCE" "$DESTINATION" \
     --size-only \
-    --exclude "*.csv"
+    --exclude "*.csv" \
+    --exclude "mmc_output/*"
 
 echo "Sync complete at $(date)"
