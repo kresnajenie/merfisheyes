@@ -41,7 +41,11 @@ from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
+
+try:
+    import pyarrow.parquet as pq
+except ImportError:
+    pq = None
 
 
 # ─────────────────────────────────────────────
@@ -333,6 +337,12 @@ def read_parquet_file(
         dimensions: 2 or 3
         cell_ids: Array of cell IDs (or None if cell_id_col not provided/found)
     """
+    if pq is None:
+        raise ImportError(
+            "pyarrow is required to read parquet files. "
+            "Install it with: pip install pyarrow"
+        )
+
     print(f"Reading parquet file: {file_path}")
 
     # Read parquet file
