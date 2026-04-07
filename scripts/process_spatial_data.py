@@ -185,10 +185,28 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
 
     series = pd.Series(values)
 
-    # Special case: leiden/louvain columns are always categorical
+    # Special case: known categorical columns by name — synced with column-type-detection.ts
     if column_name:
         lower_name = column_name.lower()
-        if "leiden" in lower_name or "louvain" in lower_name:
+        categorical_patterns = [
+            "leiden",
+            "louvain",
+            "class_name",
+            "subclass_name",
+            "supertype_name",
+            "cluster_label",
+            "cell_type",
+            "celltype",
+            "cell_class",
+            "_source_file",
+            "_sample_id",
+            "batch",
+            "sample",
+            "donor",
+            "region",
+            "tissue",
+        ]
+        if any(p in lower_name for p in categorical_patterns):
             return True
 
         # Known numerical columns (counts, QC metrics) — synced with column-type-detection.ts
