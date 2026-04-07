@@ -192,6 +192,7 @@ export function applySMVizState(
         showUnassigned,
         unassignedColor,
         unassignedLocalScale,
+        colorSynced,
       ]) => {
         if (!validGenes.has(name)) return;
         store.addGene(name, color, localScale);
@@ -212,6 +213,9 @@ export function applySMVizState(
         }
         if (unassignedLocalScale !== undefined) {
           store.setGeneUnassignedLocalScale(name, unassignedLocalScale);
+        }
+        if (colorSynced !== undefined) {
+          store.setGeneColorSynced(name, colorSynced);
         }
       },
     );

@@ -17,6 +17,7 @@ export interface GeneVisualization {
   unassignedShape: MoleculeShape;
   unassignedColor: string;
   unassignedLocalScale: number;
+  colorSynced: boolean;
 }
 
 export type ViewMode = "2D" | "3D";
@@ -46,6 +47,7 @@ export interface SingleMoleculeVisualizationState {
   setGeneUnassignedShape: (gene: string, shape: MoleculeShape) => void;
   setGeneUnassignedColor: (gene: string, color: string) => void;
   setGeneUnassignedLocalScale: (gene: string, scale: number) => void;
+  setGeneColorSynced: (gene: string, synced: boolean) => void;
   clearGenes: () => void;
 }
 
@@ -98,6 +100,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
           unassignedShape: "square",
           unassignedColor: assignedColor,
           unassignedLocalScale: localScale || 1.0,
+          colorSynced: true,
         };
 
         if (!newSelectedGenes.has(gene)) {
@@ -160,7 +163,9 @@ export function createSingleMoleculeVisualizationStoreInstance() {
           newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
 
         if (geneViz) {
-          const updatedGeneViz = { ...geneViz, color };
+          const updatedGeneViz = geneViz.colorSynced
+            ? { ...geneViz, color, unassignedColor: color }
+            : { ...geneViz, color };
 
           if (newSelectedGenes.has(gene)) {
             newSelectedGenes.set(gene, updatedGeneViz);
@@ -314,7 +319,8 @@ export function createSingleMoleculeVisualizationStoreInstance() {
           newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
 
         if (geneViz) {
-          const updated = { ...geneViz, unassignedColor: color };
+          // Break sync when unassigned color is changed independently
+          const updated = { ...geneViz, unassignedColor: color, colorSynced: false };
 
           if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
           newGeneDataCache.set(gene, updated);
@@ -332,6 +338,26 @@ export function createSingleMoleculeVisualizationStoreInstance() {
 
         if (geneViz) {
           const updated = { ...geneViz, unassignedLocalScale: scale };
+
+          if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
+          newGeneDataCache.set(gene, updated);
+        }
+
+        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+      }),
+
+    setGeneColorSynced: (gene: string, synced: boolean) =>
+      set((state) => {
+        const newSelectedGenes = new Map(state.selectedGenes);
+        const newGeneDataCache = new Map(state.geneDataCache);
+        const geneViz =
+          newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
+
+        if (geneViz) {
+          // When re-syncing, also copy assigned color to unassigned
+          const updated = synced
+            ? { ...geneViz, colorSynced: true, unassignedColor: geneViz.color }
+            : { ...geneViz, colorSynced: false };
 
           if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
           newGeneDataCache.set(gene, updated);

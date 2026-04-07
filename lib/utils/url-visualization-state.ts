@@ -17,9 +17,9 @@ export interface CellVizUrlState {
   to?: Record<string, "categorical" | "numerical">; // columnTypeOverrides
 }
 
-// Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale]
-// Fields 4-7 are optional for backwards compat (default: true, true, same as color, same as localScale)
-export type SMGeneTuple = [string, string, number, boolean, boolean?, boolean?, string?, number?];
+// Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
+// Fields 4-8 are optional for backwards compat (default: true, true, same as color, same as localScale, true)
+export type SMGeneTuple = [string, string, number, boolean, boolean?, boolean?, string?, number?, boolean?];
 
 export interface SMVizUrlState {
   genes?: SMGeneTuple[];
@@ -152,6 +152,7 @@ export function encodeSMVizState(state: {
       showUnassigned: boolean;
       unassignedColor: string;
       unassignedLocalScale: number;
+      colorSynced: boolean;
     }
   >;
   geneDataCache: Map<
@@ -164,6 +165,7 @@ export function encodeSMVizState(state: {
       showUnassigned: boolean;
       unassignedColor: string;
       unassignedLocalScale: number;
+      colorSynced: boolean;
     }
   >;
   globalScale: number;
@@ -185,7 +187,8 @@ export function encodeSMVizState(state: {
         !viz.showAssigned ||
         !viz.showUnassigned ||
         viz.unassignedColor !== viz.color ||
-        viz.unassignedLocalScale !== viz.localScale;
+        viz.unassignedLocalScale !== viz.localScale ||
+        !viz.colorSynced;
 
       if (hasExtended) {
         genes.push([
@@ -197,6 +200,7 @@ export function encodeSMVizState(state: {
           viz.showUnassigned,
           viz.unassignedColor,
           viz.unassignedLocalScale,
+          viz.colorSynced,
         ]);
       } else {
         genes.push([gene, viz.color, viz.localScale, isVisible]);
