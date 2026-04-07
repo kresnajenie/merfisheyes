@@ -12,6 +12,7 @@ import {
 } from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 
 
 // Create solid circular sprite texture for points
@@ -224,22 +225,9 @@ export function SingleMoleculeThreeScene() {
 
       controls.update();
 
-      // Calculate zoom factor (k) and update point sizes
-      const currentDistance = camera.position.distanceTo(
-        new THREE.Vector3(0, 0, 0),
-      );
-      const zoomFactor = baselineCameraDistanceRef.current! / currentDistance;
-
-      // Power-law scaling: s(k) = clamp(s0 * k^alpha, sMin, sMax)
-      const alpha = 0.8; // Power-law exponent (0.7-0.9 range)
+      // Update point sizes (sizeAttenuation handles zoom scaling automatically)
       const s0 = VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
-      const sMin = s0; // Minimum = base size (zoomed out)
-      const sMax = 200; // Maximum = 200 (zoomed in)
 
-      const scaledSize = Math.pow(zoomFactor, alpha) * s0;
-      const clampedSize = Math.max(sMin, Math.min(sMax, scaledSize));
-
-      // Update all point cloud sizes
       pointCloudsRef.current.forEach((pointCloud, key) => {
         const gene = geneFromKey(key);
         const geneViz = selectedGenesRef.current.get(gene);
@@ -251,7 +239,7 @@ export function SingleMoleculeThreeScene() {
             ? geneViz.unassignedLocalScale
             : geneViz.localScale;
 
-          material.size = scale * globalScaleRef.current * clampedSize;
+          material.size = scale * globalScaleRef.current * s0;
         }
       });
 
@@ -397,7 +385,7 @@ export function SingleMoleculeThreeScene() {
         vertexColors: true,
         transparent: true,
         opacity: 1.0,
-        sizeAttenuation: false,
+        sizeAttenuation: true,
         map: texture,
         alphaTest: 0.5,
       });
@@ -721,7 +709,11 @@ export function SingleMoleculeThreeScene() {
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
-
+      <SpatialScaleBar
+        cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
+        rendererRef={rendererRef}
+        controlsRef={controlsRef}
+      />
     </>
   );
 }
