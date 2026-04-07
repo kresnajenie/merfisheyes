@@ -68,6 +68,7 @@ interface StandardizedDatasetParams {
   metadata?: Record<string, any>;
   rawData?: any;
   adapter?: any;
+  normalized?: boolean; // false = raw coordinates, true/undefined = normalize to [-1,1]
 }
 
 /**
@@ -91,6 +92,7 @@ export class StandardizedDataset {
   clustersFullyLoaded: boolean;
   allEmbeddingNames: string[];
   embeddingsFullyLoaded: boolean;
+  normalized: boolean; // false = raw coordinates, true = normalized [-1,1]
 
   constructor({
     id,
@@ -103,29 +105,40 @@ export class StandardizedDataset {
     metadata = {},
     rawData = null,
     adapter = null,
+    normalized = true,
   }: StandardizedDatasetParams) {
     this.id = id;
     this.name = name;
     this.type = type;
+    this.normalized = normalized;
 
-    // Normalize spatial coordinates to [-1, 1]
-    const coords = spatial.coordinates;
+    if (normalized) {
+      // Legacy behavior: normalize spatial coordinates to [-1, 1]
+      const coords = spatial.coordinates;
 
-    if (coords instanceof Float32Array) {
-      const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
+      if (coords instanceof Float32Array) {
+        const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
 
-      this.spatial = {
-        coordinates: result?.normalized || coords,
-        dimensions: spatial.dimensions,
-        scalingFactor: result?.scalingFactor || 1,
-      };
+        this.spatial = {
+          coordinates: result?.normalized || coords,
+          dimensions: spatial.dimensions,
+          scalingFactor: result?.scalingFactor || 1,
+        };
+      } else {
+        const result = normalizeCoordinates(coords);
+
+        this.spatial = {
+          coordinates: result?.normalized || coords,
+          dimensions: spatial.dimensions,
+          scalingFactor: result?.scalingFactor || 1,
+        };
+      }
     } else {
-      const result = normalizeCoordinates(coords);
-
+      // New behavior: use raw coordinates as-is
       this.spatial = {
-        coordinates: result?.normalized || coords,
+        coordinates: spatial.coordinates,
         dimensions: spatial.dimensions,
-        scalingFactor: result?.scalingFactor || 1,
+        scalingFactor: 1,
       };
     }
 
@@ -364,6 +377,7 @@ export class StandardizedDataset {
     allClusterColumnNames?: string[];
     allClusterColumnTypes?: Record<string, string>;
     allEmbeddingNames?: string[];
+    normalized?: boolean;
   }): StandardizedDataset {
     const dataset = new StandardizedDataset({
       id: data.id,
@@ -376,6 +390,7 @@ export class StandardizedDataset {
       metadata: data.metadata,
       rawData: null,
       adapter: null,
+      normalized: data.normalized ?? true,
     });
 
     // Pre-cache the matrix if provided (from worker)
@@ -599,6 +614,8 @@ export class StandardizedDataset {
     await onProgress?.(95, "Finalizing dataset...");
 
     // Create StandardizedDataset
+    const isNormalized = dataInfo.normalized !== false;
+
     const dataset = new StandardizedDataset({
       id: dataInfo.id || "custom",
       name: dataInfo.name || "Custom S3 Dataset",
@@ -618,6 +635,7 @@ export class StandardizedDataset {
       },
       rawData: null,
       adapter,
+      normalized: isNormalized,
     });
 
     // Assign matrix (pre-loaded for custom S3)
@@ -722,6 +740,8 @@ export class StandardizedDataset {
     const matrix = null;
 
     // Create StandardizedDataset
+    const isNormalized = dataInfo.normalized !== false;
+
     const dataset = new StandardizedDataset({
       id: datasetId,
       name: dataInfo.name,
@@ -742,6 +762,7 @@ export class StandardizedDataset {
       },
       adapter: adapter,
       rawData: null,
+      normalized: isNormalized,
     });
 
     // Attach matrix (even though it's null for chunked datasets)

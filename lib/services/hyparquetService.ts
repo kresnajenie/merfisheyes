@@ -38,8 +38,9 @@ class HyparquetService {
     file: File,
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
-  ): Promise<Map<string, any[]>> {
-    if (typeof window === "undefined") {
+    optionalColumns?: string[],
+  ): Promise<Map<string, any[] | Float32Array>> {
+    if (typeof self === "undefined") {
       throw new Error("Hyparquet service can only be used in browser");
     }
 
@@ -55,70 +56,104 @@ class HyparquetService {
     await onProgress?.(5, "Reading file into memory...");
     console.log(columnNames);
 
-    // Convert File to ArrayBuffer (hyparquet accepts ArrayBuffer as AsyncBuffer in browser)
-    // Note: This loads entire file into memory - may fail for very large files (>2-3GB)
     const arrayBuffer = await file.arrayBuffer();
 
     await onProgress?.(10, "Parsing parquet structure...");
 
-    // Map to store accumulated column data as arrays of chunks
-    // This avoids repeated array concatenation which creates many copies
-    const columnChunks = new Map<string, any[][]>();
+    // Store raw chunk references per column — no copying until the end
+    const columnChunks = new Map<string, ArrayLike<any>[]>();
+    const columnLengths = new Map<string, number>();
 
-    columnNames.forEach((name) => columnChunks.set(name, []));
+    const allColumns = [...columnNames, ...(optionalColumns ?? [])];
 
-    let totalPages = 0;
+    allColumns.forEach((name) => {
+      columnChunks.set(name, []);
+      columnLengths.set(name, 0);
+    });
+
     let relevantPages = 0;
     let lastReportedProgress = 10;
 
-    // Read parquet file with onPage callback
-    // Note: Type assertion needed due to hyparquet type resolution differences between environments
-    // Runtime provides ColumnData with columnName, but some environments resolve to SubColumnData
+    // Read parquet file with columns filter + onPage callback
+    // The `columns` option tells hyparquet to skip decompressing/parsing unwanted columns
     await parquetRead({
       file: arrayBuffer,
       compressors,
       onPage: ((page: ColumnData) => {
         const columnName = page.columnName;
+        const chunks = columnChunks.get(columnName);
 
-        // Only process requested columns
-        if (columnNames.includes(columnName)) {
-          totalPages++;
+        if (chunks) {
           relevantPages++;
+          // Store reference to raw data — avoid Array.from() copy
+          chunks.push(page.columnData);
+          columnLengths.set(
+            columnName,
+            columnLengths.get(columnName)! + page.columnData.length,
+          );
 
-          // Store chunks instead of concatenating - more memory efficient
-          const chunks = columnChunks.get(columnName)!;
-
-          chunks.push(Array.from(page.columnData));
-
-          // Only report progress every 5% to reduce spam
           const progress =
-            10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20); // 10-30% estimate
+            10 + Math.floor((relevantPages / (columnNames.length * 10)) * 20);
 
           if (progress >= lastReportedProgress + 5) {
             onProgress?.(progress, `Reading parquet data...`);
             lastReportedProgress = progress;
           }
         }
-        // Silently skip unwanted columns - no processing, no progress reporting
       }) as any,
     });
 
     await onProgress?.(25, "Combining column data...");
 
-    // Flatten chunks into final arrays (done once at the end)
-    const columnData = new Map<string, any[]>();
+    // Concatenate chunks into final arrays (single allocation + copy)
+    // Use Float32Array for numeric columns, regular Array for string columns
+    const columnData = new Map<string, any[] | Float32Array>();
 
     for (const [columnName, chunks] of columnChunks.entries()) {
-      columnData.set(columnName, chunks.flat());
+      const totalLen = columnLengths.get(columnName)!;
+
+      // Detect if column is numeric from first chunk's data type
+      const firstChunk = chunks[0];
+      const isNumeric =
+        firstChunk instanceof Float32Array ||
+        firstChunk instanceof Float64Array ||
+        firstChunk instanceof Int32Array ||
+        firstChunk instanceof Int16Array ||
+        firstChunk instanceof Uint32Array ||
+        (firstChunk && firstChunk.length > 0 && typeof firstChunk[0] === "number");
+
+      if (isNumeric) {
+        const result = new Float32Array(totalLen);
+        let offset = 0;
+
+        for (const chunk of chunks) {
+          for (let i = 0; i < chunk.length; i++) {
+            result[offset++] = chunk[i];
+          }
+        }
+        columnData.set(columnName, result);
+      } else {
+        const result = new Array(totalLen);
+        let offset = 0;
+
+        for (const chunk of chunks) {
+          for (let i = 0; i < chunk.length; i++) {
+            result[offset++] = chunk[i];
+          }
+        }
+        columnData.set(columnName, result);
+      }
     }
 
     await onProgress?.(30, "Column extraction complete");
 
-    // Validate all requested columns were found
-    for (const columnName of columnNames) {
+    // Validate all required columns were found (optional columns are skipped)
+    const optionalSet = new Set(optionalColumns ?? []);
+
+    for (const columnName of allColumns) {
       const data = columnData.get(columnName);
 
-      if (!data || data.length === 0) {
+      if ((!data || data.length === 0) && !optionalSet.has(columnName)) {
         throw new Error(
           `Column '${columnName}' not found or empty in parquet file`,
         );

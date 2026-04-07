@@ -38,6 +38,11 @@ export async function GET(
       );
     }
 
+    // Check if requesting unassigned molecule file
+    const url = new URL(request.url);
+    const isUnassigned = url.searchParams.get("unassigned") === "true";
+    const unassignedSuffix = isUnassigned ? "_uuuuuuuuuu" : "";
+
     // Sanitize gene name to match filename (same logic as processor)
     const sanitizedName = geneName
       .replace(/[^a-zA-Z0-9]/g, "_")
@@ -45,7 +50,7 @@ export async function GET(
       .replace(/^_|_$/g, "");
 
     // Generate S3 key
-    const geneKey = `datasets/${datasetId}/genes/${sanitizedName}.bin.gz`;
+    const geneKey = `datasets/${datasetId}/genes/${sanitizedName}${unassignedSuffix}.bin.gz`;
 
     // Generate presigned URL (valid for 1 hour)
     const presignedUrl = await generatePresignedDownloadUrl(geneKey, 3600);

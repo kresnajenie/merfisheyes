@@ -31,3 +31,33 @@ export function getDatasetLinkConfig(dataset: {
 
   return s3Url ? (DATASET_LINK_REGISTRY[s3Url] ?? null) : null;
 }
+
+/**
+ * Try to fetch mapping.json from the dataset's custom S3 base URL.
+ * Returns DatasetLinkConfig if found, null otherwise.
+ * Silently fails on 404 / network errors.
+ */
+export async function fetchMappingConfig(dataset: {
+  metadata?: Record<string, any>;
+}): Promise<DatasetLinkConfig | null> {
+  const s3Url = dataset.metadata?.customS3BaseUrl;
+
+  if (!s3Url) return null;
+
+  try {
+    const response = await fetch(`${s3Url}/mapping.json`);
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+
+    // Validate shape
+    if (data.linkColumn && data.links && typeof data.links === "object") {
+      return data as DatasetLinkConfig;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}

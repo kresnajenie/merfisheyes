@@ -2,7 +2,7 @@ import Papa from "papaparse";
 import { ungzip } from "pako";
 
 import { hyparquetService } from "./services/hyparquetService";
-import { normalizeCoordinates } from "./utils/coordinates";
+
 import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
@@ -56,8 +56,11 @@ export class SingleMoleculeDataset {
   // Core data
   uniqueGenes: string[];
 
-  // Fast gene lookup with pre-computed normalized coordinates
-  private geneIndex: Map<string, number[]>; // gene -> normalized [x1,y1,z1, x2,y2,z2, ...]
+  // Fast gene lookup with pre-computed coordinates as Float32Array
+  private geneIndex: Map<string, Float32Array>; // gene -> [x1,y1,z1, x2,y2,z2, ...]
+
+  // Unassigned molecule coordinates (same structure as geneIndex)
+  private unassignedGeneIndex: Map<string, Float32Array>;
 
   // Gene visualization properties (color and size for each gene)
   geneColors: Record<string, GeneProperties>;
@@ -66,6 +69,10 @@ export class SingleMoleculeDataset {
   scalingFactor: number;
   metadata: Record<string, any>;
   rawData: any;
+
+  // Unassigned molecule support
+  hasUnassigned: boolean;
+  moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null;
 
   constructor({
     id,
@@ -77,24 +84,33 @@ export class SingleMoleculeDataset {
     scalingFactor,
     metadata = {},
     rawData = null,
+    hasUnassigned = false,
+    moleculeCounts = null,
+    unassignedGeneIndex = new Map(),
   }: {
     id: string;
     name: string;
     type: string;
     uniqueGenes: string[];
-    geneIndex: Map<string, number[]>;
+    geneIndex: Map<string, Float32Array>;
     dimensions: 2 | 3;
     scalingFactor: number;
     metadata?: Record<string, any>;
     rawData?: any;
+    hasUnassigned?: boolean;
+    moleculeCounts?: Record<string, { assigned: number; unassigned?: number }> | null;
+    unassignedGeneIndex?: Map<string, Float32Array>;
   }) {
     this.id = id;
     this.name = name;
     this.type = type;
     this.uniqueGenes = uniqueGenes;
     this.geneIndex = geneIndex;
+    this.unassignedGeneIndex = unassignedGeneIndex;
     this.dimensions = dimensions;
     this.scalingFactor = scalingFactor;
+    this.hasUnassigned = hasUnassigned;
+    this.moleculeCounts = moleculeCounts ?? null;
     this.metadata = {
       ...metadata,
       spatialScalingFactor: scalingFactor,
@@ -223,6 +239,10 @@ export class SingleMoleculeDataset {
       total += coords.length / 3; // Each molecule has x, y, z
     }
 
+    for (const coords of this.unassignedGeneIndex.values()) {
+      total += coords.length / 3;
+    }
+
     return total;
   }
 
@@ -243,8 +263,15 @@ export class SingleMoleculeDataset {
   /**
    * Get gene index entries for serialization (used by web worker)
    */
-  getGeneIndexEntries(): [string, number[]][] {
+  getGeneIndexEntries(): [string, Float32Array][] {
     return Array.from(this.geneIndex.entries());
+  }
+
+  /**
+   * Get unassigned gene index entries for serialization (used by web worker)
+   */
+  getUnassignedGeneIndexEntries(): [string, Float32Array][] {
+    return Array.from(this.unassignedGeneIndex.entries());
   }
 
   /**
@@ -255,10 +282,13 @@ export class SingleMoleculeDataset {
     name: string;
     type: string;
     uniqueGenes: string[];
-    geneIndexEntries: [string, number[]][];
+    geneIndexEntries: [string, Float32Array][];
     dimensions: 2 | 3;
     scalingFactor: number;
     metadata: Record<string, any>;
+    hasUnassigned?: boolean;
+    moleculeCounts?: Record<string, { assigned: number; unassigned?: number }> | null;
+    unassignedGeneIndexEntries?: [string, Float32Array][] | null;
   }): SingleMoleculeDataset {
     return new SingleMoleculeDataset({
       id: data.id,
@@ -270,6 +300,11 @@ export class SingleMoleculeDataset {
       scalingFactor: data.scalingFactor,
       metadata: data.metadata,
       rawData: null,
+      hasUnassigned: data.hasUnassigned ?? false,
+      moleculeCounts: data.moleculeCounts ?? null,
+      unassignedGeneIndex: data.unassignedGeneIndexEntries
+        ? new Map(data.unassignedGeneIndexEntries)
+        : new Map(),
     });
   }
 
@@ -278,7 +313,7 @@ export class SingleMoleculeDataset {
    * Returns flat array: [x1,y1,z1, x2,y2,z2, ...]
    * Throws error if gene not found
    */
-  getCoordinatesByGene(geneName: string): number[] {
+  getCoordinatesByGene(geneName: string): Float32Array {
     // Check if gene exists
     if (!this.geneIndex.has(geneName)) {
       throw new Error(
@@ -288,6 +323,15 @@ export class SingleMoleculeDataset {
 
     // Direct lookup - already pre-computed!
     return this.geneIndex.get(geneName)!;
+  }
+
+  /**
+   * Get pre-computed normalized coordinates for unassigned molecules of a specific gene
+   * Returns empty array if no unassigned data exists
+   * Overridden by factory methods (fromS3, fromLocalChunked) for lazy loading
+   */
+  async getUnassignedCoordinatesByGene(geneName: string): Promise<Float32Array> {
+    return this.unassignedGeneIndex.get(geneName) ?? new Float32Array(0);
   }
 
   /**
@@ -314,6 +358,7 @@ export class SingleMoleculeDataset {
 
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
+    const cellIdCol = columnMapping.cellId;
 
     // Determine which columns to read
     const columnsToRead = [
@@ -327,11 +372,14 @@ export class SingleMoleculeDataset {
       columnsToRead.push(columnMapping.z);
     }
 
-    // Read parquet file using hyparquet
+    // Read parquet file using hyparquet (cell_id is optional — won't throw if missing)
+    const optionalColumns = cellIdCol ? [cellIdCol] : [];
+
     const columnData = await hyparquetService.readParquetColumns(
       file,
       columnsToRead,
       onProgress,
+      optionalColumns,
     );
 
     await onProgress?.(30, "Extracting columns...");
@@ -341,11 +389,20 @@ export class SingleMoleculeDataset {
     const xData = columnData.get(columnMapping.x);
     const yData = columnData.get(columnMapping.y);
     const zData = columnData.get(columnMapping.z || "");
+    const cellIdData = cellIdCol ? columnData.get(cellIdCol) : null;
 
     if (!moleculeGenes || !xData || !yData) {
       throw new Error(
         `Missing required columns. Expected: ${columnMapping.gene}, ${columnMapping.x}, ${columnMapping.y}`,
       );
+    }
+
+    const hasCellIdColumn = cellIdData != null && cellIdData.length > 0;
+
+    if (cellIdCol && hasCellIdColumn) {
+      console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
+    } else if (cellIdCol) {
+      console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found in parquet, treating all as assigned`);
     }
 
     await onProgress?.(50, "Converting to typed arrays...");
@@ -359,87 +416,111 @@ export class SingleMoleculeDataset {
 
     const dimensions: 2 | 3 = zData ? 3 : 2;
 
-    await onProgress?.(60, "Normalizing coordinates...");
-
-    // Normalize coordinates to [-1, 1]
-    const coords2D: number[][] = [];
-
-    for (let i = 0; i < xCoords.length; i++) {
-      coords2D.push([xCoords[i], yCoords[i], zCoords[i]]);
-    }
-
-    const normalized = normalizeCoordinates(coords2D);
-    let scalingFactor = 1;
-    let normalizedCoords = coords2D;
-
-    if (normalized) {
-      scalingFactor = normalized.scalingFactor;
-      normalizedCoords = normalized.normalized;
-    }
+    await onProgress?.(60, "Rounding coordinates...");
 
     await onProgress?.(70, "Building gene index...");
 
-    // Build gene index with pre-computed normalized coordinates
-    const geneIndex = new Map<string, number[]>();
-    const uniqueGenesSet = new Set<string>();
-
+    // Build gene index with raw coordinates rounded to 2 decimal places
     const totalMolecules = moleculeGenes.length;
-    const progressInterval = Math.max(1, Math.floor(totalMolecules / 20)); // Report every 5%
+    const progressInterval = Math.max(1, Math.floor(totalMolecules / 20));
 
-    for (let i = 0; i < moleculeGenes.length; i++) {
+    // Pass 1: Count molecules per gene (separate assigned/unassigned)
+    const assignedCounts = new Map<string, number>();
+    const unassignedCounts = new Map<string, number>();
+
+    for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
 
-      uniqueGenesSet.add(gene);
+      if (shouldFilterGene(gene)) continue;
 
-      if (!geneIndex.has(gene)) {
-        geneIndex.set(gene, []);
+      const isUnassigned = hasCellIdColumn && Number(cellIdData![i]) === -1;
+
+      if (isUnassigned) {
+        unassignedCounts.set(gene, (unassignedCounts.get(gene) || 0) + 1);
+      } else {
+        assignedCounts.set(gene, (assignedCounts.get(gene) || 0) + 1);
       }
+    }
 
-      // Store normalized coordinates [x, y, z] for this molecule
-      const coords = geneIndex.get(gene)!;
+    // Allocate Float32Arrays for assigned genes
+    const geneIndex = new Map<string, Float32Array>();
+    const geneOffsets = new Map<string, number>();
 
-      coords.push(
-        normalizedCoords[i][0],
-        normalizedCoords[i][1],
-        normalizedCoords[i][2],
-      );
+    for (const [gene, count] of assignedCounts) {
+      geneIndex.set(gene, new Float32Array(count * 3));
+      geneOffsets.set(gene, 0);
+    }
+
+    // Allocate Float32Arrays for unassigned genes
+    const unassignedGeneIndex = new Map<string, Float32Array>();
+    const unassignedOffsets = new Map<string, number>();
+
+    if (hasCellIdColumn) {
+      for (const [gene, count] of unassignedCounts) {
+        unassignedGeneIndex.set(gene, new Float32Array(count * 3));
+        unassignedOffsets.set(gene, 0);
+      }
+    }
+
+    // Pass 2: Fill Float32Arrays with rounded coordinates
+    for (let i = 0; i < totalMolecules; i++) {
+      const gene = moleculeGenes[i];
+      const isUnassigned = hasCellIdColumn && Number(cellIdData![i]) === -1;
+
+      const targetIndex = isUnassigned ? unassignedGeneIndex : geneIndex;
+      const targetOffsets = isUnassigned ? unassignedOffsets : geneOffsets;
+      const arr = targetIndex.get(gene);
+
+      if (!arr) continue; // filtered gene
+
+      const offset = targetOffsets.get(gene)!;
+
+      arr[offset] = Math.round(xCoords[i] * 100) / 100;
+      arr[offset + 1] = Math.round(yCoords[i] * 100) / 100;
+      arr[offset + 2] = Math.round(zCoords[i] * 100) / 100;
+      targetOffsets.set(gene, offset + 3);
 
       // Report progress every 5% and yield to browser
       if (i > 0 && i % progressInterval === 0) {
         const elapsed = performance.now() - startTime;
-        const progress = 70 + Math.floor((i / totalMolecules) * 20); // 70-90%
+        const progress = 70 + Math.floor((i / totalMolecules) * 20);
 
         await onProgress?.(
           progress,
           `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
         );
-        // Yield to browser to allow UI updates
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
 
-    await onProgress?.(85, "Filtering control genes...");
+    const hasUnassigned = hasCellIdColumn && unassignedGeneIndex.size > 0;
 
-    // Filter out control/unassigned genes
-    const filteredGenes: string[] = [];
-    let filteredCount = 0;
+    // Collect all gene names from both assigned and unassigned
+    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
+    const uniqueGenes = Array.from(allGeneKeys);
 
-    for (const gene of Array.from(uniqueGenesSet)) {
-      if (shouldFilterGene(gene)) {
-        geneIndex.delete(gene);
-        filteredCount++;
-      } else {
-        filteredGenes.push(gene);
+    // Build molecule counts
+    let moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null = null;
+
+    if (hasCellIdColumn) {
+      moleculeCounts = {};
+      for (const gene of allGeneKeys) {
+        const assignedCoords = geneIndex.get(gene);
+        const unassignedCoords = unassignedGeneIndex.get(gene);
+        moleculeCounts[gene] = {
+          assigned: assignedCoords ? assignedCoords.length / 3 : 0,
+          unassigned: unassignedCoords ? unassignedCoords.length / 3 : 0,
+        };
       }
-    }
 
-    if (filteredCount > 0) {
+      const totalAssigned = Object.values(moleculeCounts).reduce((s, c) => s + c.assigned, 0);
+      const totalUnassigned = Object.values(moleculeCounts).reduce((s, c) => s + (c.unassigned ?? 0), 0);
+
       console.log(
-        `[SingleMoleculeDataset] Filtered ${filteredCount} control/unassigned genes from parquet dataset`,
+        `[SingleMoleculeDataset] Cell assignment: ${totalAssigned.toLocaleString()} assigned, ` +
+          `${totalUnassigned.toLocaleString()} unassigned (${((totalUnassigned / totalMolecules) * 100).toFixed(1)}%)`,
       );
     }
-
-    const uniqueGenes = filteredGenes;
 
     await onProgress?.(90, "Creating dataset...");
 
@@ -455,7 +536,10 @@ export class SingleMoleculeDataset {
       uniqueGenes,
       geneIndex,
       dimensions,
-      scalingFactor,
+      scalingFactor: 1,
+      hasUnassigned,
+      moleculeCounts,
+      unassignedGeneIndex,
       metadata: {
         originalFileName: file.name,
         moleculeCount: xCoords.length,
@@ -471,7 +555,8 @@ export class SingleMoleculeDataset {
     console.log(
       `[SingleMoleculeDataset] ✅ Parquet parsing complete: ${formatElapsedTime(elapsedTime)} | ` +
         `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
-        `${dataset.genes.length.toLocaleString()} genes`,
+        `${dataset.genes.length.toLocaleString()} genes` +
+        (hasUnassigned ? ` | has unassigned molecules` : ``),
     );
     await onProgress?.(
       100,
@@ -492,160 +577,191 @@ export class SingleMoleculeDataset {
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
 
-    console.log(`[SingleMoleculeDataset] Starting CSV parsing: ${file.name}`);
+    console.log(`[SingleMoleculeDataset] Starting CSV streaming parse: ${file.name}`);
 
-    await onProgress?.(10, "Reading CSV file...");
+    await onProgress?.(10, "Preparing to stream CSV...");
 
     // Get column mapping for this dataset type
     const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
+    const cellIdCol = columnMapping.cellId;
 
-    // Parse CSV file
-    const text = await file.text();
+    // Build gene index while streaming — accumulate as number[], convert to Float32Array at end
+    const tempGeneIndex = new Map<string, number[]>();
+    const tempUnassignedGeneIndex = new Map<string, number[]>();
+    const uniqueGenesSet = new Set<string>();
+    let hasZ = false;
+    let totalRows = 0;
+    let errorCount = 0;
+    let hasCellIdColumn = false;
+    let checkedCellIdColumn = false;
+    const fileSize = file.size;
 
-    await onProgress?.(30, "Parsing CSV data...");
+    // Dynamic chunk size based on file size (file.size is O(1))
+    const MB = 1024 * 1024;
+    let chunkSize: number;
 
-    const parseResult = Papa.parse(text, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: true,
+    if (fileSize < 100 * MB) {
+      chunkSize = 10 * MB;
+    } else if (fileSize < 1000 * MB) {
+      chunkSize = 50 * MB;
+    } else if (fileSize < 10000 * MB) {
+      chunkSize = 100 * MB;
+    } else {
+      chunkSize = 200 * MB;
+    }
+
+    console.log(`[SingleMoleculeDataset] CSV chunk size: ${(chunkSize / MB).toFixed(0)}MB for ${(fileSize / MB).toFixed(0)}MB file`);
+
+    await onProgress?.(15, "Streaming CSV file...");
+
+    // Stream-parse the CSV file in chunks using PapaParse chunk mode
+    // Still streams from disk (memory-safe for large files) but batches rows to reduce callback overhead
+    await new Promise<void>((resolve, reject) => {
+      let lastProgressReport = 0;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (Papa.parse as any)(file, {
+        chunkSize,
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: true,
+        chunk: (results: { data: Record<string, unknown>[] }) => {
+          const rows = results.data;
+
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+
+            // Skip invalid rows
+            if (!row || !row[columnMapping.gene]) continue;
+
+            // Check for cell_id column on first valid row
+            if (!checkedCellIdColumn) {
+              checkedCellIdColumn = true;
+              if (cellIdCol && cellIdCol in row) {
+                hasCellIdColumn = true;
+                console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
+              } else if (cellIdCol) {
+                console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found, treating all as assigned`);
+              }
+            }
+
+            const gene = String(row[columnMapping.gene]);
+            const x = Math.round((Number(row[columnMapping.x]) || 0) * 100) / 100;
+            const y = Math.round((Number(row[columnMapping.y]) || 0) * 100) / 100;
+            let z = 0;
+
+            if (
+              columnMapping.z &&
+              row[columnMapping.z] !== undefined &&
+              row[columnMapping.z] !== null
+            ) {
+              z = Math.round((Number(row[columnMapping.z]) || 0) * 100) / 100;
+              hasZ = true;
+            }
+
+            // Skip control genes immediately
+            if (shouldFilterGene(gene)) continue;
+
+            uniqueGenesSet.add(gene);
+
+            // Determine if this molecule is unassigned (cell_id == -1)
+            const isUnassigned = hasCellIdColumn && Number(row[cellIdCol!]) === -1;
+
+            if (isUnassigned) {
+              if (!tempUnassignedGeneIndex.has(gene)) {
+                tempUnassignedGeneIndex.set(gene, []);
+              }
+              tempUnassignedGeneIndex.get(gene)!.push(x, y, z);
+            } else {
+              if (!tempGeneIndex.has(gene)) {
+                tempGeneIndex.set(gene, []);
+              }
+              tempGeneIndex.get(gene)!.push(x, y, z);
+            }
+
+            totalRows++;
+          }
+
+          // Report progress once per chunk
+          if (totalRows - lastProgressReport >= 100000) {
+            lastProgressReport = totalRows;
+            const elapsed = performance.now() - startTime;
+            const progress = Math.min(85, 15 + 70 * (totalRows / (fileSize / 50)));
+
+            onProgress?.(
+              progress,
+              `Streaming: ${totalRows.toLocaleString()} molecules (${formatElapsedTime(elapsed)})`,
+            );
+          }
+        },
+        error: (error: unknown) => {
+          errorCount++;
+          console.warn("CSV streaming error:", error);
+          if (errorCount > 10) {
+            reject(new Error(`Too many CSV parsing errors: ${error}`));
+          }
+        },
+        complete: () => {
+          resolve();
+        },
+      });
     });
 
-    if (parseResult.errors.length > 0) {
-      console.warn("CSV parsing warnings:", parseResult.errors);
-    }
-
-    const rows = parseResult.data as any[];
-
-    await onProgress?.(50, "Extracting columns...");
-
-    // Extract columns from parsed data
-    const moleculeGenes: string[] = [];
-    const xCoords: number[] = [];
-    const yCoords: number[] = [];
-    const zCoords: number[] = [];
-
-    let hasZ = false;
-
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-
-      // Skip invalid rows
-      if (!row || !row[columnMapping.gene]) continue;
-
-      moleculeGenes.push(String(row[columnMapping.gene]));
-      xCoords.push(Number(row[columnMapping.x]) || 0);
-      yCoords.push(Number(row[columnMapping.y]) || 0);
-
-      if (
-        columnMapping.z &&
-        row[columnMapping.z] !== undefined &&
-        row[columnMapping.z] !== null
-      ) {
-        zCoords.push(Number(row[columnMapping.z]) || 0);
-        hasZ = true;
-      } else {
-        zCoords.push(0);
-      }
-
-      // Report progress every 5% and yield to browser
-      if (i > 0 && i % Math.max(1, Math.floor(rows.length / 20)) === 0) {
-        const elapsed = performance.now() - startTime;
-        const progress = 50 + Math.floor((i / rows.length) * 10); // 50-60%
-
-        await onProgress?.(
-          progress,
-          `Extracting data: ${((i / rows.length) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
-        );
-        // Yield to browser to allow UI updates
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    }
-
     const dimensions: 2 | 3 = hasZ ? 3 : 2;
+    const hasUnassigned = hasCellIdColumn && tempUnassignedGeneIndex.size > 0;
 
-    await onProgress?.(60, "Normalizing coordinates...");
+    await onProgress?.(88, "Converting to typed arrays...");
 
-    // Normalize coordinates to [-1, 1]
-    const coords2D: number[][] = [];
+    // Convert number[] to Float32Array for each gene (50% memory savings)
+    const geneIndex = new Map<string, Float32Array>();
 
-    for (let i = 0; i < xCoords.length; i++) {
-      coords2D.push([xCoords[i], yCoords[i], zCoords[i]]);
+    for (const [gene, coords] of tempGeneIndex) {
+      geneIndex.set(gene, new Float32Array(coords));
     }
+    tempGeneIndex.clear(); // Free the number[] arrays
 
-    const normalized = normalizeCoordinates(coords2D);
-    let scalingFactor = 1;
-    let normalizedCoords = coords2D;
+    // Convert unassigned index
+    const unassignedGeneIndex = new Map<string, Float32Array>();
 
-    if (normalized) {
-      scalingFactor = normalized.scalingFactor;
-      normalizedCoords = normalized.normalized;
-    }
-
-    await onProgress?.(70, "Building gene index...");
-
-    // Build gene index with pre-computed normalized coordinates
-    const geneIndex = new Map<string, number[]>();
-    const uniqueGenesSet = new Set<string>();
-
-    const totalMolecules = moleculeGenes.length;
-    const progressInterval = Math.max(1, Math.floor(totalMolecules / 20)); // Report every 5%
-
-    for (let i = 0; i < moleculeGenes.length; i++) {
-      const gene = moleculeGenes[i];
-
-      uniqueGenesSet.add(gene);
-
-      if (!geneIndex.has(gene)) {
-        geneIndex.set(gene, []);
-      }
-
-      // Store normalized coordinates [x, y, z] for this molecule
-      const coords = geneIndex.get(gene)!;
-
-      coords.push(
-        normalizedCoords[i][0],
-        normalizedCoords[i][1],
-        normalizedCoords[i][2],
-      );
-
-      // Report progress every 5% and yield to browser
-      if (i > 0 && i % progressInterval === 0) {
-        const elapsed = performance.now() - startTime;
-        const progress = 70 + Math.floor((i / totalMolecules) * 20); // 70-90%
-
-        await onProgress?.(
-          progress,
-          `Indexing molecules: ${((i / totalMolecules) * 100).toFixed(1)}% (${formatElapsedTime(elapsed)})`,
-        );
-        // Yield to browser to allow UI updates
-        await new Promise((resolve) => setTimeout(resolve, 0));
+    if (hasUnassigned) {
+      for (const [gene, coords] of tempUnassignedGeneIndex) {
+        unassignedGeneIndex.set(gene, new Float32Array(coords));
       }
     }
+    tempUnassignedGeneIndex.clear();
 
-    await onProgress?.(85, "Filtering control genes...");
+    // Build molecule counts
+    let moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null = null;
 
-    // Filter out control/unassigned genes
-    const filteredGenes: string[] = [];
-    let filteredCount = 0;
-
-    for (const gene of Array.from(uniqueGenesSet)) {
-      if (shouldFilterGene(gene)) {
-        geneIndex.delete(gene);
-        filteredCount++;
-      } else {
-        filteredGenes.push(gene);
+    if (hasCellIdColumn) {
+      moleculeCounts = {};
+      for (const gene of uniqueGenesSet) {
+        const assignedCoords = geneIndex.get(gene);
+        const unassignedCoords = unassignedGeneIndex.get(gene);
+        moleculeCounts[gene] = {
+          assigned: assignedCoords ? assignedCoords.length / 3 : 0,
+          unassigned: unassignedCoords ? unassignedCoords.length / 3 : 0,
+        };
       }
-    }
 
-    if (filteredCount > 0) {
+      const totalAssigned = Object.values(moleculeCounts).reduce((s, c) => s + c.assigned, 0);
+      const totalUnassigned = Object.values(moleculeCounts).reduce((s, c) => s + (c.unassigned ?? 0), 0);
+
       console.log(
-        `[SingleMoleculeDataset] Filtered ${filteredCount} control/unassigned genes from CSV dataset`,
+        `[SingleMoleculeDataset] Cell assignment: ${totalAssigned.toLocaleString()} assigned, ` +
+          `${totalUnassigned.toLocaleString()} unassigned (${((totalUnassigned / totalRows) * 100).toFixed(1)}%)`,
       );
     }
-
-    const uniqueGenes = filteredGenes;
 
     await onProgress?.(90, "Creating dataset...");
+
+    // Ensure uniqueGenes includes genes that only appear in assigned OR unassigned
+    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
+    const uniqueGenes = Array.from(allGeneKeys);
+
+    console.log(
+      `[SingleMoleculeDataset] Streamed ${totalRows.toLocaleString()} molecules, ${uniqueGenes.length} genes`,
+    );
 
     // Generate dataset ID
     const timestamp = Date.now();
@@ -659,10 +775,13 @@ export class SingleMoleculeDataset {
       uniqueGenes,
       geneIndex,
       dimensions,
-      scalingFactor,
+      scalingFactor: 1,
+      hasUnassigned,
+      moleculeCounts,
+      unassignedGeneIndex,
       metadata: {
         originalFileName: file.name,
-        moleculeCount: xCoords.length,
+        moleculeCount: totalRows,
         uniqueGeneCount: uniqueGenes.length,
         datasetType,
         columnMapping,
@@ -673,9 +792,10 @@ export class SingleMoleculeDataset {
     const elapsedTime = performance.now() - startTime;
 
     console.log(
-      `[SingleMoleculeDataset] ✅ CSV parsing complete: ${formatElapsedTime(elapsedTime)} | ` +
+      `[SingleMoleculeDataset] ✅ CSV streaming complete: ${formatElapsedTime(elapsedTime)} | ` +
         `${dataset.getMoleculeCount().toLocaleString()} molecules | ` +
-        `${dataset.genes.length.toLocaleString()} genes`,
+        `${dataset.genes.length.toLocaleString()} genes` +
+        (hasUnassigned ? ` | has unassigned molecules` : ``),
     );
     await onProgress?.(
       100,
@@ -733,7 +853,11 @@ export class SingleMoleculeDataset {
     const scalingFactor = manifest.processing.scaling_factor;
 
     // Create empty gene index - genes will be loaded on-demand
-    const geneIndex = new Map<string, number[]>();
+    const geneIndex = new Map<string, Float32Array>();
+
+    // Extract unassigned info from manifest
+    const hasUnassigned = manifest.has_unassigned ?? false;
+    const moleculeCounts = manifest.genes?.molecule_counts ?? null;
 
     // Create dataset with lazy-loading capability
     const dataset = new SingleMoleculeDataset({
@@ -744,6 +868,8 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions,
       scalingFactor,
+      hasUnassigned,
+      moleculeCounts,
       metadata: {
         ...manifest,
         loadedFrom: "s3",
@@ -759,7 +885,7 @@ export class SingleMoleculeDataset {
 
     dataset.getCoordinatesByGene = async function (
       geneName: string,
-    ): Promise<number[]> {
+    ): Promise<Float32Array> {
       // Check if already cached
       if (geneIndex.has(geneName)) {
         return geneIndex.get(geneName)!;
@@ -801,19 +927,86 @@ export class SingleMoleculeDataset {
       const geneCompressed = await geneResponse.arrayBuffer();
       const geneBuffer = ungzip(new Uint8Array(geneCompressed));
 
-      // Convert to Float32Array, then to regular array
+      // Keep as Float32Array directly (no Array.from() conversion)
       const float32Array = new Float32Array(geneBuffer.buffer);
-      const coordinates = Array.from(float32Array);
 
       // Cache for future use
-      geneIndex.set(geneName, coordinates);
+      geneIndex.set(geneName, float32Array);
 
       console.log(
-        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${coordinates.length / dimensions} molecules`,
+        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules`,
       );
 
-      return coordinates;
+      return float32Array;
     } as any; // Type override for lazy loading
+
+    // Override getUnassignedCoordinatesByGene for lazy loading from S3
+    if (hasUnassigned) {
+      const unassignedGeneIndex = new Map<string, Float32Array>();
+
+      (dataset as any).getUnassignedCoordinatesByGene = async function (
+        geneName: string,
+      ): Promise<Float32Array> {
+        const empty = new Float32Array(0);
+
+        // Check cache
+        if (unassignedGeneIndex.has(geneName)) {
+          return unassignedGeneIndex.get(geneName)!;
+        }
+
+        if (!uniqueGenes.includes(geneName)) {
+          return empty;
+        }
+
+        console.log(
+          `[SingleMoleculeDataset] Lazy-loading unassigned '${geneName}' from S3...`,
+        );
+
+        try {
+          const urlResponse = await fetch(
+            `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}?unassigned=true`,
+          );
+
+          if (!urlResponse.ok) {
+            console.warn(
+              `[SingleMoleculeDataset] No unassigned file for gene '${geneName}'`,
+            );
+            unassignedGeneIndex.set(geneName, empty);
+
+            return empty;
+          }
+
+          const { url: geneUrl } = await urlResponse.json();
+          const geneResponse = await fetch(geneUrl);
+
+          if (!geneResponse.ok) {
+            unassignedGeneIndex.set(geneName, empty);
+
+            return empty;
+          }
+
+          const geneCompressed = await geneResponse.arrayBuffer();
+          const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+          const float32Array = new Float32Array(geneBuffer.buffer);
+
+          unassignedGeneIndex.set(geneName, float32Array);
+
+          console.log(
+            `[SingleMoleculeDataset] ✅ Loaded unassigned '${geneName}': ${float32Array.length / dimensions} molecules`,
+          );
+
+          return float32Array;
+        } catch (error) {
+          console.warn(
+            `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
+            error,
+          );
+          unassignedGeneIndex.set(geneName, empty);
+
+          return empty;
+        }
+      };
+    }
 
     const elapsedTime = performance.now() - startTime;
 
@@ -876,9 +1069,22 @@ export class SingleMoleculeDataset {
     const uniqueGenes = manifest.genes.unique_gene_names;
     const dimensions = manifest.statistics.spatial_dimensions;
     const scalingFactor = manifest.processing.scaling_factor;
+    const hasUnassigned = manifest.has_unassigned ?? false;
+    const moleculeCounts = manifest.genes?.molecule_counts ?? null;
+
+    console.log(
+      `[SingleMoleculeDataset] Custom S3 manifest parsed:`,
+      {
+        uniqueGenes: uniqueGenes.length,
+        dimensions,
+        hasUnassigned,
+        hasMoleculeCounts: !!moleculeCounts,
+        moleculeCountsKeys: moleculeCounts ? Object.keys(moleculeCounts).length : 0,
+      },
+    );
 
     // Create empty gene index - genes will be loaded on-demand
-    const geneIndex = new Map<string, number[]>();
+    const geneIndex = new Map<string, Float32Array>();
 
     // Create dataset with lazy-loading capability
     const dataset = new SingleMoleculeDataset({
@@ -889,6 +1095,8 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions,
       scalingFactor,
+      hasUnassigned,
+      moleculeCounts,
       metadata: {
         ...manifest,
         loadedFrom: "custom_s3",
@@ -899,12 +1107,20 @@ export class SingleMoleculeDataset {
       rawData: null,
     });
 
+    console.log(
+      `[SingleMoleculeDataset] Custom S3 dataset created:`,
+      {
+        hasUnassigned: dataset.hasUnassigned,
+        moleculeCounts: dataset.moleculeCounts ? `${Object.keys(dataset.moleculeCounts).length} genes` : "null",
+      },
+    );
+
     // Override getCoordinatesByGene to support lazy loading from custom S3
     const originalGetCoordinates = dataset.getCoordinatesByGene.bind(dataset);
 
     dataset.getCoordinatesByGene = async function (
       geneName: string,
-    ): Promise<number[]> {
+    ): Promise<Float32Array> {
       // Check if already cached
       if (geneIndex.has(geneName)) {
         return geneIndex.get(geneName)!;
@@ -942,19 +1158,89 @@ export class SingleMoleculeDataset {
       const geneCompressed = await geneResponse.arrayBuffer();
       const geneBuffer = ungzip(new Uint8Array(geneCompressed));
 
-      // Convert to Float32Array, then to regular array
+      // Keep as Float32Array directly
       const float32Array = new Float32Array(geneBuffer.buffer);
-      const coordinates = Array.from(float32Array);
 
       // Cache for future use
-      geneIndex.set(geneName, coordinates);
+      geneIndex.set(geneName, float32Array);
 
       console.log(
-        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${coordinates.length / dimensions} molecules`,
+        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules`,
       );
 
-      return coordinates;
+      return float32Array;
     } as any; // Type override for lazy loading
+
+    // Override getUnassignedCoordinatesByGene for lazy loading from custom S3
+    if (hasUnassigned) {
+      const unassignedGeneIndex = new Map<string, Float32Array>();
+
+      console.log(
+        `[SingleMoleculeDataset] Custom S3: enabling unassigned gene loading`,
+      );
+
+      (dataset as any).getUnassignedCoordinatesByGene = async function (
+        geneName: string,
+      ): Promise<Float32Array> {
+        const empty = new Float32Array(0);
+
+        if (unassignedGeneIndex.has(geneName)) {
+          return unassignedGeneIndex.get(geneName)!;
+        }
+
+        if (!uniqueGenes.includes(geneName)) {
+          return empty;
+        }
+
+        const sanitizedName = geneName
+          .replace(/[^a-zA-Z0-9]/g, "_")
+          .replace(/_+/g, "_")
+          .replace(/^_|_$/g, "");
+
+        const geneFileUrl = `${customS3BaseUrl}/genes/${sanitizedName}_uuuuuuuuuu.bin.gz`;
+
+        console.log(
+          `[SingleMoleculeDataset] Lazy-loading unassigned '${geneName}' from custom S3: ${geneFileUrl}`,
+        );
+
+        try {
+          const geneResponse = await fetch(geneFileUrl);
+
+          if (!geneResponse.ok) {
+            console.warn(
+              `[SingleMoleculeDataset] No unassigned file for '${geneName}': ${geneResponse.status}`,
+            );
+            unassignedGeneIndex.set(geneName, empty);
+
+            return empty;
+          }
+
+          const geneCompressed = await geneResponse.arrayBuffer();
+          const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+          const float32Array = new Float32Array(geneBuffer.buffer);
+
+          unassignedGeneIndex.set(geneName, float32Array);
+
+          console.log(
+            `[SingleMoleculeDataset] ✅ Loaded unassigned '${geneName}': ${float32Array.length / dimensions} molecules`,
+          );
+
+          return float32Array;
+        } catch (error) {
+          console.warn(
+            `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
+            error,
+          );
+          unassignedGeneIndex.set(geneName, empty);
+
+          return empty;
+        }
+      };
+    } else {
+      console.log(
+        `[SingleMoleculeDataset] Custom S3: no unassigned data in manifest (has_unassigned=${manifest.has_unassigned})`,
+      );
+    }
 
     const elapsedTime = performance.now() - startTime;
 
@@ -1034,7 +1320,7 @@ export class SingleMoleculeDataset {
     await onProgress?.(80, "Creating dataset...");
 
     // Create empty gene index - genes will be loaded on-demand
-    const geneIndex = new Map<string, number[]>();
+    const geneIndex = new Map<string, Float32Array>();
 
     // Create dataset with lazy-loading capability
     const dataset = new SingleMoleculeDataset({
@@ -1045,6 +1331,8 @@ export class SingleMoleculeDataset {
       geneIndex,
       dimensions: manifest.statistics.spatial_dimensions,
       scalingFactor: manifest.processing.scaling_factor,
+      hasUnassigned: adapter.hasUnassigned(),
+      moleculeCounts: adapter.getMoleculeCounts(),
       metadata: {
         loadedFrom: "local_chunked",
         totalMolecules: manifest.statistics.total_molecules,
@@ -1058,10 +1346,19 @@ export class SingleMoleculeDataset {
     // Use type assertion to override the method signature
     (dataset as any).getCoordinatesByGene = async function (
       geneName: string,
-    ): Promise<number[]> {
+    ): Promise<Float32Array> {
       // Delegate to adapter which handles caching
       return adapter.getCoordinatesByGene(geneName);
     };
+
+    // Override getUnassignedCoordinatesByGene for lazy loading
+    if (adapter.hasUnassigned()) {
+      (dataset as any).getUnassignedCoordinatesByGene = async function (
+        geneName: string,
+      ): Promise<Float32Array> {
+        return adapter.getUnassignedCoordinatesByGene(geneName);
+      };
+    }
 
     // Attach adapter to dataset for future use
     (dataset as any).adapter = adapter;

@@ -76,6 +76,74 @@ def generate_color_palette(values: List[str]) -> Dict[str, str]:
     return palette
 
 
+def _get_id_column(df: pd.DataFrame, candidates: List[str] = ('cell', 'cell_id', 'id')) -> str:
+    """Return the name of the first matching ID column, or fall back to the first column."""
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return df.columns[0]
+
+
+def _read_cbg_ids(expr_file: Path) -> np.ndarray:
+    """Read only the ID column from cell_by_gene.csv (memory-efficient)."""
+    header = pd.read_csv(expr_file, nrows=0).columns.tolist()
+    id_col = _get_id_column(pd.DataFrame(columns=header))
+    ids = pd.read_csv(expr_file, usecols=[id_col], dtype=str)[id_col].values
+    return ids
+
+
+def reorder_df_to_reference(df: pd.DataFrame, reference_ids: np.ndarray,
+                            id_col: Optional[str] = None, strip_compound: bool = False) -> pd.DataFrame:
+    """Reorder a DataFrame's rows to match reference_ids ordering.
+
+    Args:
+        df: DataFrame to reorder
+        reference_ids: Array of IDs that defines the target row order
+        id_col: Column to use as index. Auto-detected if None.
+        strip_compound: If True, strip everything up to and including the first
+                        underscore from the df's ID values before matching
+                        (e.g. '1231122825_100040001' -> '100040001').
+
+    Returns:
+        Reordered DataFrame (same columns, rows matching reference_ids order).
+        Raises ValueError if IDs don't match.
+    """
+    if id_col is None:
+        id_col = _get_id_column(df)
+
+    df_ids = df[id_col].astype(str).str.strip()
+    if strip_compound:
+        df_ids = df_ids.str.split('_', n=1).str[1]
+
+    # Build lookup: plain_id -> original row position
+    id_to_idx = {}
+    for idx, val in enumerate(df_ids):
+        if val in id_to_idx:
+            raise ValueError(f"Duplicate ID '{val}' in column '{id_col}'")
+        id_to_idx[val] = idx
+
+    ref_ids = np.asarray(reference_ids, dtype=str)
+
+    missing_in_df = set(ref_ids) - set(id_to_idx.keys())
+    if missing_in_df:
+        sample = list(missing_in_df)[:5]
+        raise ValueError(
+            f"{len(missing_in_df):,} reference IDs not found in '{id_col}' column. "
+            f"Sample: {sample}"
+        )
+
+    missing_in_ref = set(id_to_idx.keys()) - set(ref_ids)
+    if missing_in_ref:
+        sample = list(missing_in_ref)[:5]
+        raise ValueError(
+            f"{len(missing_in_ref):,} IDs in '{id_col}' column not found in reference. "
+            f"Sample: {sample}"
+        )
+
+    reorder_indices = [id_to_idx[rid] for rid in ref_ids]
+    return df.iloc[reorder_indices].reset_index(drop=True)
+
+
 def determine_chunk_size(num_genes: int, custom_chunk_size: Optional[int] = None) -> int:
     """Determine chunk size based on number of genes (matches TS logic)"""
     if custom_chunk_size is not None:
@@ -117,10 +185,28 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
 
     series = pd.Series(values)
 
-    # Special case: leiden/louvain columns are always categorical
+    # Special case: known categorical columns by name — synced with column-type-detection.ts
     if column_name:
         lower_name = column_name.lower()
-        if "leiden" in lower_name or "louvain" in lower_name:
+        categorical_patterns = [
+            "leiden",
+            "louvain",
+            "class_name",
+            "subclass_name",
+            "supertype_name",
+            "cluster_label",
+            "cell_type",
+            "celltype",
+            "cell_class",
+            "_source_file",
+            "_sample_id",
+            "batch",
+            "sample",
+            "donor",
+            "region",
+            "tissue",
+        ]
+        if any(p in lower_name for p in categorical_patterns):
             return True
 
         # Known numerical columns (counts, QC metrics) — synced with column-type-detection.ts
@@ -190,24 +276,14 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
     return unique_ratio < 0.8
 
 
-def normalize_coordinates(coords: np.ndarray) -> Tuple[np.ndarray, float]:
+def round_coordinates(coords: np.ndarray) -> np.ndarray:
     """
-    Normalize coordinates to [-1, 1] range
-    Returns: (normalized_coords, scaling_factor)
+    Round coordinates to 2 decimal places.
+    No normalization is performed — raw coordinates are preserved.
     """
-    # Flatten all coordinates to find global min/max
-    all_coords = coords.flatten()
-    min_val = np.min(all_coords)
-    max_val = np.max(all_coords)
-    range_val = max_val - min_val
-
-    if range_val == 0:
-        return coords, 1.0
-
-    # Normalize to [-1, 1]
-    normalized = ((coords - min_val) / range_val) * 2 - 1
-
-    return normalized.astype(np.float32), float(range_val / 2)
+    if len(coords) == 0:
+        return coords
+    return np.round(coords, 2).astype(np.float32)
 
 
 def write_coordinate_binary(coords: np.ndarray, output_path: Path):
@@ -482,7 +558,10 @@ def load_h5ad_data(input_path: Path):
                   'centroid_x', 'centroid_y', 'centroid_z']
     for col in adata.obs.columns:
         if col not in coord_cols:
-            obs_columns[col] = adata.obs[col].values
+            series = adata.obs[col]
+            if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                continue
+            obs_columns[col] = series.values
 
     return spatial_coords, expr_matrix, gene_names, obs_columns, adata
 
@@ -696,7 +775,7 @@ def load_merscope_data(input_path: Path):
 
     log(f"  Loading {metadata_file.name}...", _t_start)
     t_load = time.perf_counter()
-    metadata_df = pd.read_csv(metadata_file)
+    metadata_df = pd.read_csv(metadata_file, dtype={col: str for col in ['id', 'cell_id', 'EntityID']})
     log(f"  Loaded {len(metadata_df):,} cells (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
 
     # Load cell_by_gene.csv (expression matrix)
@@ -747,7 +826,12 @@ def process_dataset(
     output_dir: Path,
     custom_chunk_size: Optional[int] = None,
     data_format: Optional[str] = None,
-    num_workers: int = 1
+    num_workers: int = 1,
+    mask_path: Optional[Path] = None,
+    mask_col: str = 'is_artifact',
+    mask_keep: str = 'false',
+    mmc_csv_path: Optional[Path] = None,
+    reorder: bool = False,
 ):
     """Main processing function that handles all formats"""
     global _t_start
@@ -770,6 +854,8 @@ def process_dataset(
 
     # merscope_expr_file is set only for MERSCOPE (per-chunk CSV loading)
     merscope_expr_file = None
+    # Reference IDs from cell_by_gene for reordering (set by MERSCOPE loader)
+    _cbg_reference_ids = None
 
     # Load data based on format
     if data_format == 'h5ad':
@@ -840,7 +926,10 @@ def process_dataset(
                 exclude_cols.add(actual)
         for col in cells_df.columns:
             if col not in exclude_cols and col not in gene_names:
-                obs_columns[col] = cells_df[col].values
+                series = cells_df[col]
+                if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                    continue
+                obs_columns[col] = series.values
 
         analysis_dir = input_path / 'analysis' / 'clustering'
         analysis_extract_dir: Optional[Path] = None
@@ -972,6 +1061,14 @@ def process_dataset(
             merscope_expr_file = None
             expr_matrix = np.zeros((len(metadata_df), 1))
 
+        # Reorder metadata to match cell_by_gene row order
+        if reorder and merscope_expr_file is not None:
+            log("  Reordering cell_metadata to match cell_by_gene...", _t_start)
+            t_reorder = time.perf_counter()
+            _cbg_reference_ids = _read_cbg_ids(merscope_expr_file)
+            metadata_df = reorder_df_to_reference(metadata_df, _cbg_reference_ids)
+            log(f"  Reordered {len(metadata_df):,} rows (in {fmt_elapsed(time.perf_counter() - t_reorder)})", _t_start)
+
         # Extract spatial coordinates
         coord_candidates_x = ['center_x', 'centroid_x', 'x']
         coord_candidates_y = ['center_y', 'centroid_y', 'y']
@@ -1001,7 +1098,10 @@ def process_dataset(
         exclude_cols = [x_col, y_col, z_col, 'cell_id', 'EntityID']
         for col in metadata_df.columns:
             if col not in exclude_cols:
-                obs_columns[col] = metadata_df[col].values
+                series = metadata_df[col]
+                if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                    continue
+                obs_columns[col] = series.values
 
         # Free metadata_df — we've extracted everything we need
         del metadata_df
@@ -1010,6 +1110,90 @@ def process_dataset(
 
     else:
         raise ValueError(f"Unknown format: {data_format}")
+
+    # ── Apply cell mask (optional) ──────────────────────────────
+    if mask_path is not None:
+        log(f"=== Applying cell mask from {mask_path.name} ===", _t_start)
+        mask_df = pd.read_csv(mask_path)
+
+        if mask_col not in mask_df.columns:
+            raise ValueError(f"Mask column '{mask_col}' not found in {mask_path.name}. "
+                             f"Available columns: {list(mask_df.columns)}")
+
+        # Convert column to string for case-insensitive comparison
+        mask_values = mask_df[mask_col].astype(str).str.strip().str.lower()
+        keep = mask_values == mask_keep.strip().lower()
+        keep_indices = np.where(keep.values)[0]
+
+        total_before = len(spatial_coords)
+        if len(keep_indices) == 0:
+            raise ValueError(f"Mask filtered out all cells — no cells have {mask_col}={mask_keep}")
+        if len(mask_df) != total_before:
+            raise ValueError(f"Mask CSV has {len(mask_df)} rows but dataset has {total_before} cells — must match")
+
+        # Filter spatial coordinates
+        spatial_coords = spatial_coords[keep_indices]
+
+        # Filter expression matrix
+        if expr_matrix is not None:
+            if sparse.issparse(expr_matrix):
+                expr_matrix = expr_matrix[keep_indices]
+            else:
+                expr_matrix = expr_matrix[keep_indices]
+
+        # Filter obs columns
+        for col_name in obs_columns:
+            obs_columns[col_name] = obs_columns[col_name][keep_indices]
+
+        # Filter embeddings
+        for emb_name in embeddings:
+            embeddings[emb_name] = embeddings[emb_name][keep_indices]
+
+        # Filter adata if it exists (h5ad path)
+        if data_format == 'h5ad' and 'adata' in dir():
+            adata = adata[keep_indices]
+
+        removed = total_before - len(keep_indices)
+        log(f"  Kept {len(keep_indices):,} / {total_before:,} cells "
+            f"(removed {removed:,} where {mask_col} != {mask_keep})", _t_start)
+
+    # ── Merge MapMyCells CSV (optional) ─────────────────────────
+    if mmc_csv_path is not None:
+        log(f"=== Loading MapMyCells CSV from {mmc_csv_path.name} ===", _t_start)
+        mmc_df = pd.read_csv(mmc_csv_path, comment='#')
+
+        # Reorder MMC rows to match cell_by_gene order (compound cell_id → strip prefix)
+        if reorder and _cbg_reference_ids is not None:
+            log("  Reordering MMC CSV to match cell_by_gene...", _t_start)
+            t_reorder = time.perf_counter()
+            mmc_df = reorder_df_to_reference(mmc_df, _cbg_reference_ids,
+                                             id_col='cell_id', strip_compound=True)
+            log(f"  Reordered {len(mmc_df):,} rows (in {fmt_elapsed(time.perf_counter() - t_reorder)})", _t_start)
+
+        # Check row count (against pre-mask count if mask was applied)
+        expected_rows = total_before if mask_path is not None else len(spatial_coords)
+        if len(mmc_df) != expected_rows:
+            raise ValueError(
+                f"MapMyCells CSV has {len(mmc_df):,} rows but dataset has {expected_rows:,} cells — must match"
+            )
+
+        # Apply same mask filtering if mask was used
+        if mask_path is not None:
+            mmc_df = mmc_df.iloc[keep_indices].reset_index(drop=True)
+            log(f"  Applied mask to MMC CSV: {len(mmc_df):,} rows after filtering", _t_start)
+
+        # Drop cell_id column, add all remaining columns to obs
+        mmc_cols_added = 0
+        for col in mmc_df.columns:
+            if col == 'cell_id':
+                continue
+            series = mmc_df[col]
+            if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                continue
+            obs_columns[col] = series.values
+            mmc_cols_added += 1
+
+        log(f"  Added {mmc_cols_added} columns from MapMyCells CSV", _t_start)
 
     # Continue with common processing
     num_cells = len(spatial_coords)
@@ -1021,12 +1205,12 @@ def process_dataset(
     log(f"  Genes: {num_genes:,}", _t_start)
     log(f"  Spatial dimensions: {spatial_dims}D", _t_start)
 
-    # Step 1: Normalize and write spatial coordinates
+    # Step 1: Round and write spatial coordinates (no normalization)
     log(f"=== STEP 1: Processing spatial coordinates ===", _t_start)
     t_step = time.perf_counter()
-    normalized_spatial, scaling_factor = normalize_coordinates(spatial_coords)
+    rounded_spatial = round_coordinates(spatial_coords)
     coords_dir = output_dir / 'coords'
-    write_coordinate_binary(normalized_spatial, coords_dir / 'spatial.bin.gz')
+    write_coordinate_binary(rounded_spatial, coords_dir / 'spatial.bin.gz')
     log(f"  Spatial coordinates done ({fmt_elapsed(time.perf_counter() - t_step)})", _t_start)
 
     # Step 2: Process embeddings (if any)
@@ -1035,8 +1219,8 @@ def process_dataset(
         log(f"=== STEP 2: Processing {len(embeddings)} embedding(s) ===", _t_start)
         for emb_name, emb_coords in embeddings.items():
             t_emb = time.perf_counter()
-            normalized_emb, _ = normalize_coordinates(emb_coords)
-            write_coordinate_binary(normalized_emb, coords_dir / f'{emb_name}.bin.gz')
+            rounded_emb = round_coordinates(emb_coords)
+            write_coordinate_binary(rounded_emb, coords_dir / f'{emb_name}.bin.gz')
             available_embeddings.append(emb_name)
             log(f"  {emb_name}: {emb_coords.shape[1]}D ({fmt_elapsed(time.perf_counter() - t_emb)})", _t_start)
     else:
@@ -1120,6 +1304,11 @@ def process_dataset(
         t_read = time.perf_counter()
         expr_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col)
         log(f"  CSV loaded: {len(expr_df):,} rows x {len(expr_df.columns)} columns ({fmt_elapsed(time.perf_counter() - t_read)})", _t_start)
+
+        # Apply mask filtering if mask was used (expr_matrix=None for MERSCOPE, so mask wasn't applied earlier)
+        if mask_path is not None:
+            expr_df = expr_df.iloc[keep_indices].reset_index(drop=True)
+            log(f"  Applied mask to expression: {len(expr_df):,} rows after filtering", _t_start)
 
         # Extract sparse data for each gene (same approach as original per-gene code)
         log(f"  Extracting sparse data for {num_genes} genes...", _t_start)
@@ -1216,6 +1405,7 @@ def process_dataset(
     log(f"=== STEP 5: Creating manifest ===", _t_start)
     manifest = {
         'version': '1.0',
+        'normalized': False,
         'dataset_id': 'local_dataset',
         'name': dataset_name,
         'type': dataset_type,
@@ -1227,7 +1417,7 @@ def process_dataset(
             'cluster_count': cluster_count
         },
         'processing': {
-            'spatial_scaling_factor': float(scaling_factor),
+            'spatial_scaling_factor': 1.0,
             'chunk_size': chunk_size,
             'num_chunks': num_chunks,
             'created_by': 'process_spatial_data.py'
@@ -1274,6 +1464,18 @@ Examples:
 
   # Custom chunk size
   python process_spatial_data.py data.h5ad output/ --chunk-size 100
+
+  # With artifact mask (keep cells where is_artifact=False)
+  python process_spatial_data.py data.h5ad output/ --mask artifact_mask.csv
+
+  # Custom mask column and value
+  python process_spatial_data.py data.h5ad output/ --mask mask.csv --mask-col quality --mask-keep true
+
+  # With MapMyCells annotations
+  python process_spatial_data.py merscope_output/ output/ --mmc-csv mapping_output.csv
+
+  # Mask + MapMyCells (mask applied to both dataset and MMC CSV)
+  python process_spatial_data.py data.h5ad output/ --mask mask.csv --mmc-csv mapping_output.csv
         """
     )
 
@@ -1285,6 +1487,16 @@ Examples:
                         help='Force input format (auto-detected if not specified)')
     parser.add_argument('--workers', type=int, default=1,
                         help='Number of parallel workers for chunk writing and obs processing (default: 1)')
+    parser.add_argument('--mask', type=Path, default=None,
+                        help='CSV file with a boolean column to filter cells (e.g. artifact_mask.csv)')
+    parser.add_argument('--mask-col', type=str, default='is_artifact',
+                        help='Column name in the mask CSV to filter on (default: is_artifact)')
+    parser.add_argument('--mask-keep', type=str, default='false',
+                        help='Value to keep (case-insensitive). Cells matching this value are kept, rest are removed (default: false)')
+    parser.add_argument('--mmc-csv', type=Path, default=None,
+                        help='MapMyCells output CSV to add as observation columns (e.g. mapping_output.csv)')
+    parser.add_argument('--reorder', action='store_true', default=False,
+                        help='Reorder cell_metadata and MMC CSV to match cell_by_gene row order (default: off)')
 
     args = parser.parse_args()
 
@@ -1293,9 +1505,19 @@ Examples:
         print(f"❌ Error: Input path not found: {args.input}")
         sys.exit(1)
 
+    if args.mask and not args.mask.exists():
+        print(f"❌ Error: Mask file not found: {args.mask}")
+        sys.exit(1)
+
+    if args.mmc_csv and not args.mmc_csv.exists():
+        print(f"❌ Error: MapMyCells CSV not found: {args.mmc_csv}")
+        sys.exit(1)
+
     # Process
     try:
-        process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers)
+        process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers,
+                        mask_path=args.mask, mask_col=args.mask_col, mask_keep=args.mask_keep,
+                        mmc_csv_path=args.mmc_csv, reorder=args.reorder)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback

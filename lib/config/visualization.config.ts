@@ -42,14 +42,14 @@ export const VISUALIZATION_CONFIG = {
    * Base size for single molecule points (separate from cell visualization)
    * Default: 2.0
    */
-  SINGLE_MOLECULE_POINT_BASE_SIZE: 0.1,
+  SINGLE_MOLECULE_POINT_BASE_SIZE: 2.0,
 
   /**
    * Single Molecule Global Scale Slider Range
    * Min/max/step values for the global scale slider in single molecule viewer
    */
-  SINGLE_MOLECULE_GLOBAL_SCALE_MIN: 0.1,
-  SINGLE_MOLECULE_GLOBAL_SCALE_MAX: 10.0,
+  SINGLE_MOLECULE_GLOBAL_SCALE_MIN: 0.2,
+  SINGLE_MOLECULE_GLOBAL_SCALE_MAX: 4.0,
   SINGLE_MOLECULE_GLOBAL_SCALE_STEP: 0.1,
 
   /**
@@ -71,8 +71,8 @@ export const VISUALIZATION_CONFIG = {
    *
    * Default: min=0.5, max=2.0 (points range from 50% to 200% of base size)
    */
-  POINT_SIZE_MULTIPLIER_MIN: 0.5,
-  POINT_SIZE_MULTIPLIER_MAX: 5.0,
+  POINT_SIZE_MULTIPLIER_MIN: 1.0,
+  POINT_SIZE_MULTIPLIER_MAX: 2.0,
 
   /**
    * Point Alpha (Opacity)

@@ -173,19 +173,58 @@ export function applySMVizState(
 
   store.clearGenes();
 
-  if (decoded.genes && decoded.genes.length > 0) {
-    decoded.genes.forEach(([name, color, localScale, isVisible]) => {
-      if (!validGenes.has(name)) return;
-      store.addGene(name, color, localScale);
-
-      if (!isVisible) {
-        store.toggleGeneVisibility(name);
-      }
-    });
+  // Restore global assigned/unassigned toggles first (before addGene uses them as defaults)
+  if (decoded.sa !== undefined) {
+    store.setShowAssigned(decoded.sa);
+  }
+  if (decoded.su !== undefined) {
+    store.setShowUnassigned(decoded.su);
   }
 
-  // If URL had no genes (or none were valid), fall back to auto-select defaults
-  if (store.selectedGenes.size === 0) {
+  if (decoded.genes && decoded.genes.length > 0) {
+    decoded.genes.forEach(
+      ([
+        name,
+        color,
+        localScale,
+        isVisible,
+        showAssigned,
+        showUnassigned,
+        unassignedColor,
+        unassignedLocalScale,
+        colorSynced,
+      ]) => {
+        if (!validGenes.has(name)) return;
+        store.addGene(name, color, localScale);
+
+        if (!isVisible) {
+          store.toggleGeneVisibility(name);
+        }
+
+        // Restore per-gene assigned/unassigned state if present
+        if (showAssigned !== undefined) {
+          store.setGeneShowAssigned(name, showAssigned);
+        }
+        if (showUnassigned !== undefined) {
+          store.setGeneShowUnassigned(name, showUnassigned);
+        }
+        if (unassignedColor !== undefined) {
+          store.setGeneUnassignedColor(name, unassignedColor);
+        }
+        if (unassignedLocalScale !== undefined) {
+          store.setGeneUnassignedLocalScale(name, unassignedLocalScale);
+        }
+        if (colorSynced !== undefined) {
+          store.setGeneColorSynced(name, colorSynced);
+        }
+      },
+    );
+  }
+
+  // Only auto-select defaults if the URL had NO gene entries at all.
+  // If the URL specified genes but none were valid for this dataset, don't add defaults
+  // (the user intentionally shared a link with specific genes).
+  if (store.selectedGenes.size === 0 && (!decoded.genes || decoded.genes.length === 0)) {
     pickDefaultGenes(dataset.uniqueGenes).forEach((gene) =>
       store.addGene(gene),
     );
@@ -346,7 +385,14 @@ export function useSMVizUrlSync(
   }, [datasetReady, dataset, store, panel]);
 
   // Writing: encode state changes to URL (debounced)
-  const { selectedGenes, geneDataCache, globalScale, viewMode } = store;
+  const {
+    selectedGenes,
+    geneDataCache,
+    globalScale,
+    viewMode,
+    showAssigned,
+    showUnassigned,
+  } = store;
 
   useEffect(() => {
     if (!datasetReady) return;
@@ -356,6 +402,8 @@ export function useSMVizUrlSync(
       geneDataCache,
       globalScale,
       viewMode,
+      showAssigned,
+      showUnassigned,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -366,6 +414,8 @@ export function useSMVizUrlSync(
     geneDataCache,
     globalScale,
     viewMode,
+    showAssigned,
+    showUnassigned,
   ]);
 
   return { hasUrlState, hasUrlStateRef };
