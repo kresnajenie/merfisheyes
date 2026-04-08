@@ -667,7 +667,7 @@ cy_all = meta_all[y_col].values
 del meta_all
 
 # Determine percentile thresholds to compare
-compare_percentiles = [25, 30, 35, 40, 45, 50]
+compare_percentiles = [55, 60, 65, 70, 75]
 compare_thresholds = [(p, np.percentile(cell_sums, p)) for p in compare_percentiles]
 
 # Generate threshold comparison grid
@@ -707,7 +707,7 @@ plt.close()
 log(f"  Saved {thresh_plot_path}", t_start)
 
 # Write artifact mask CSVs for each percentile
-for percentile in [10, 15, 20, 25]:
+for percentile in compare_percentiles:
     threshold = np.percentile(cell_sums, percentile)
     is_artifact = cell_sums <= threshold
     n_flagged = is_artifact.sum()
