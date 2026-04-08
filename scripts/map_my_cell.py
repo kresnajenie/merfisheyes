@@ -17,7 +17,14 @@ TAXONOMY_CONFIG = {
         "gene_mapping": "mouse/gene.csv",
         "drop_level": "CCN20230722_SUPT",
         "normalization": "raw",
-    }
+    },
+    "human": {
+        "precomputed_stats": "human/precomputed_stats.siletti.training.h5",
+        "markers": "human/query_markers.n10.20240221800.json",
+        "gene_mapping": "human/gene.csv",
+        "drop_level": "CCN202210140_SUPC",
+        "normalization": "raw",
+    },
 }
 
 

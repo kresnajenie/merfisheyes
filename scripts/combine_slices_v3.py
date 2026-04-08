@@ -667,7 +667,7 @@ cy_all = meta_all[y_col].values
 del meta_all
 
 # Determine percentile thresholds to compare
-compare_percentiles = [10, 15, 20, 25]
+compare_percentiles = [25, 30, 35, 40, 45, 50]
 compare_thresholds = [(p, np.percentile(cell_sums, p)) for p in compare_percentiles]
 
 # Generate threshold comparison grid
