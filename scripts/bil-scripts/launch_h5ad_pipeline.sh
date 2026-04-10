@@ -23,7 +23,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
 MEYES_BASE="/bil/data/meyes"
-REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
 S3_BUCKET="merfisheyes-bil"
 S3_PREFIX_BASE="bil-psc-data2"
 S3_HTTPS_BASE="https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${S3_PREFIX_BASE}"
@@ -38,7 +37,6 @@ echo "  H5AD Pipeline Launcher"
 echo "============================================"
 echo "Sample file:  $SAMPLE_FILE"
 echo "Output base:  $MEYES_BASE"
-echo "Reference:    $REFERENCE_DIR"
 echo "S3 base:      $S3_HTTPS_BASE"
 echo ""
 
@@ -92,8 +90,7 @@ while IFS=',' read -r sample_name input_dir; do
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
         "$h5ad_path" \
-        "$mmc_output" \
-        "$REFERENCE_DIR")
+        "$mmc_output")
     echo "  [1/5] map_my_cell      -> Job ${mmc_job}"
 
     # Step 2: process_single_molecule (runs in parallel with step 1)
