@@ -5,9 +5,10 @@ import type { PointData } from "@/lib/webgl/types";
 
 import { getClusterValue } from "@/lib/StandardizedDataset";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { toast } from "react-toastify";
+import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
@@ -32,6 +33,7 @@ import {
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 
 interface ThreeSceneProps {
@@ -60,6 +62,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const colorPaletteRef = useRef<Record<string, string>>({});
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
+
+  // SM overlay state (for __all__ mapping)
+  const smDatasetRef = useRef<SingleMoleculeDataset | null>(null);
+  const smPointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
+  const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(null);
+  const [smLoading, setSmLoading] = useState(false);
+  const [smSelectedGenes, setSmSelectedGenes] = useState<Set<string>>(new Set());
 
   // Get visualization settings from store
   const {
@@ -110,8 +119,34 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         linkConfigRef.current = mappingConfig;
 
-        // "__all__" means every cell links to the same SM dataset — no column to preload
-        if (mappingConfig.linkColumn === "__all__") return;
+        // "__all__" means every cell links to the same SM dataset — load overlay
+        if (mappingConfig.linkColumn === "__all__") {
+          const smUrl = mappingConfig.links["__all__"];
+          if (!smUrl) return;
+
+          // Load SM dataset for overlay
+          setSmLoading(true);
+          try {
+            const { SingleMoleculeDataset: SMDataset } = await import(
+              "@/lib/SingleMoleculeDataset"
+            );
+            const smDs = await SMDataset.fromCustomS3(smUrl);
+            smDatasetRef.current = smDs;
+            setSmDataset(smDs);
+
+            // Auto-select first 3 genes
+            const { pickDefaultGenes } = await import(
+              "@/lib/utils/auto-select-genes"
+            );
+            const defaults = pickDefaultGenes(smDs.uniqueGenes);
+            setSmSelectedGenes(new Set(defaults));
+          } catch (error) {
+            console.warn("Failed to load SM overlay dataset:", error);
+          } finally {
+            setSmLoading(false);
+          }
+          return;
+        }
 
         // Check if link column is already loaded
         const alreadyLoaded = dataset.clusters?.some(
@@ -812,6 +847,93 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     pointCloudVersion,
   ]);
 
+  // Effect 3: Manage SM overlay point clouds
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const smDs = smDatasetRef.current;
+
+    if (!scene || !smDs || smSelectedGenes.size === 0) {
+      // Clean up if no SM data or no genes selected
+      smPointCloudsRef.current.forEach((pc) => {
+        scene?.remove(pc);
+        pc.geometry.dispose();
+        (pc.material as THREE.PointsMaterial).dispose();
+      });
+      smPointCloudsRef.current.clear();
+      return;
+    }
+
+    const currentClouds = smPointCloudsRef.current;
+
+    // Remove clouds for deselected genes
+    for (const [gene, pc] of currentClouds) {
+      if (!smSelectedGenes.has(gene)) {
+        scene.remove(pc);
+        pc.geometry.dispose();
+        (pc.material as THREE.PointsMaterial).dispose();
+        currentClouds.delete(gene);
+      }
+    }
+
+    // Add/update clouds for selected genes
+    const addGenes = async () => {
+      const palette = [
+        "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF",
+        "#FF8000", "#8000FF", "#00FF80", "#FF0080", "#80FF00", "#0080FF",
+      ];
+      let colorIdx = 0;
+
+      for (const gene of smSelectedGenes) {
+        if (currentClouds.has(gene)) {
+          colorIdx++;
+          continue;
+        }
+
+        try {
+          const coords = await smDs.getCoordinatesByGene(gene);
+          if (!coords || coords.length === 0) continue;
+
+          const moleculeCount = coords.length / 3;
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute(
+            "position",
+            new THREE.Float32BufferAttribute(coords, 3),
+          );
+
+          const color = new THREE.Color(palette[colorIdx % palette.length]);
+          const colors = new Float32Array(moleculeCount * 3);
+          for (let i = 0; i < moleculeCount; i++) {
+            colors[i * 3] = color.r;
+            colors[i * 3 + 1] = color.g;
+            colors[i * 3 + 2] = color.b;
+          }
+          geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+          const material = new THREE.PointsMaterial({
+            size: VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            sizeAttenuation: true,
+            depthWrite: false,
+          });
+
+          const pointCloud = new THREE.Points(geometry, material);
+          pointCloud.renderOrder = -1; // Render below single cell points
+
+          scene.add(pointCloud);
+          currentClouds.set(gene, pointCloud);
+        } catch (error) {
+          console.warn(`Failed to load SM gene ${gene}:`, error);
+        }
+
+        colorIdx++;
+      }
+    };
+
+    addGenes();
+  }, [smDataset, smSelectedGenes]);
+
   return (
     <>
       <div
@@ -819,6 +941,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
+
+      {/* SM loading indicator */}
+      {smLoading && (
+        <div className="absolute top-28 right-6 z-50 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/60 backdrop-blur-sm text-white text-sm">
+          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          Loading molecules...
+        </div>
+      )}
 
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
