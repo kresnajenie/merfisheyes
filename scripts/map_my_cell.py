@@ -1,9 +1,16 @@
 import argparse
 import logging
+import multiprocessing
 import os
 import sys
 import tempfile
 from pathlib import Path
+
+# Prevent thread oversubscription — must be set before importing NumPy/MKL
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import anndata
 import numpy as np
@@ -108,11 +115,19 @@ def parse_args():
         choices=list(TAXONOMY_CONFIG.keys()),
         help="Species for taxonomy mapping (default: mouse).",
     )
+    available_cores = multiprocessing.cpu_count()
+    default_cores = max(1, available_cores // 2)
     parser.add_argument(
         "--n_processors",
         type=int,
-        default=4,
-        help="Number of processors to use (default: 4).",
+        default=default_cores,
+        help=f"Number of processors to use (default: {default_cores}, half of {available_cores} available).",
+    )
+    parser.add_argument(
+        "--flatten",
+        action="store_true",
+        help="Map directly to leaf nodes, skipping hierarchical traversal. "
+             "Also sets bootstrap_iteration=1 for much faster mapping.",
     )
     if len(sys.argv) == 1:
         parser.print_help()
@@ -204,8 +219,9 @@ def build_h5ad(cbg_df, metadata_df, output_dir):
     return query_path
 
 
-def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_processors):
+def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_processors, flatten=False):
     from cell_type_mapper.cli.from_specified_markers import FromSpecifiedMarkersRunner
+
     # expandable for human samples in the future (species = human)
     config = TAXONOMY_CONFIG[species]
     output_dir = Path(output_dir)
@@ -213,19 +229,42 @@ def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_proce
     # extended_result_path is required by the mapper but we don't need it
     json_tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
     json_tmp.close()
+
+    # Use SLURM allocation if available, otherwise detect physical RAM
+    slurm_mem = os.environ.get("SLURM_MEM_PER_NODE")
+    if slurm_mem:
+        total_ram_gb = int(slurm_mem) // 1024  # SLURM reports in MB
+    else:
+        total_ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") // (1024 ** 3)
+    max_gb = max(1, total_ram_gb // 2)
+    logger.info("System: %d cores, %dGB RAM → using n_processors=%d, max_gb=%d",
+                multiprocessing.cpu_count(), total_ram_gb, n_processors, max_gb)
+
+    if flatten:
+        bootstrap_iteration = 1
+        bootstrap_factor = 1.0
+        logger.info("Flatten mode: skipping hierarchy, bootstrap_iteration=1")
+    else:
+        bootstrap_iteration = 100
+        bootstrap_factor = 0.9
+
     try:
         config_dict = {
             "query_path": str(validated_h5ad_path),
             "extended_result_path": json_tmp.name,
             "csv_result_path": str(csv_result_path),
             "drop_level": config["drop_level"],
+            "flatten": flatten,
             "tmp_dir": os.environ.get("TMPDIR", "/tmp"),
+            "max_gb": max_gb,
             "precomputed_stats": {"path": str(reference_dir / config["precomputed_stats"])},
             "query_markers": {"serialized_lookup": str(reference_dir / config["markers"])},
             "type_assignment": {
                 "normalization": config["normalization"],
                 "n_processors": n_processors,
-                "chunk_size": 500,
+                "chunk_size": 2000,
+                "bootstrap_iteration": bootstrap_iteration,
+                "bootstrap_factor": bootstrap_factor,
             },
         }
         runner = FromSpecifiedMarkersRunner(args=[], input_data=config_dict)
@@ -338,7 +377,8 @@ if __name__ == "__main__":
 
     query_h5ad_path = build_h5ad(cbg_df, metadata_df, output_dir)
     mapping_csv_path = run_mapping(
-        query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors
+        query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors,
+        flatten=args.flatten,
     )
     merged_df = join_results(mapping_csv_path, metadata_df)
     plot_cell_types(merged_df, output_dir)
