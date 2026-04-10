@@ -110,6 +110,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         linkConfigRef.current = mappingConfig;
 
+        // "__all__" means every cell links to the same SM dataset — no column to preload
+        if (mappingConfig.linkColumn === "__all__") return;
+
         // Check if link column is already loaded
         const alreadyLoaded = dataset.clusters?.some(
           (c) => c.column === mappingConfig.linkColumn,
@@ -506,6 +509,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         event.preventDefault();
 
         const index = hoveredPointRef.current;
+
+        // "__all__" linkColumn means every cell maps to the same SM dataset
+        if (linkConfig.linkColumn === "__all__") {
+          const smUrl = linkConfig.links["__all__"];
+          if (!smUrl) return;
+          enableSplit();
+          setRightPanelS3(smUrl, "sm");
+          toast.info("Opening SM dataset");
+          return;
+        }
 
         // Find the link column in dataset clusters (always reads the configured column,
         // regardless of which column is currently selected for visualization)

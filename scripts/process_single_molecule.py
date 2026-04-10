@@ -968,6 +968,12 @@ def main():
         default=1,
         help="Number of samples to process concurrently in directory mode (default: 1)",
     )
+    parser.add_argument(
+        "--mapping-url",
+        help="S3 URL for this dataset. When provided in single-file mode, generates a "
+             "mapping.json with linkColumn='__all__' so every cell links to this SM dataset. "
+             "Example: https://bucket.s3.region.amazonaws.com/sample/sm_output",
+    )
 
     args = parser.parse_args()
 
@@ -1013,6 +1019,18 @@ def main():
                 manifest_only=args.manifest_only,
                 num_workers=args.workers,
             )
+
+            # Write mapping.json for single-file mode if --mapping-url provided
+            if args.mapping_url:
+                mapping = {
+                    "linkColumn": "__all__",
+                    "links": {"__all__": args.mapping_url.rstrip("/")},
+                }
+                mapping_file = Path(args.output_folder) / "mapping.json"
+                with open(mapping_file, "w") as f:
+                    json.dump(mapping, f, indent=2)
+                log(f"Wrote mapping.json: {mapping_file}")
+
         except Exception as e:
             log(f"Error: {e}")
             sys.exit(1)
