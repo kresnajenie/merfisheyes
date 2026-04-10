@@ -63,6 +63,7 @@ python process_single_molecule.py \
     --y-col y \
     --z-col z \
     --gene-col gene_names \
+    --cell-id-col cell_ids \
     --mapping-url "$MAPPING_URL"
 
 EXIT_CODE=$?
