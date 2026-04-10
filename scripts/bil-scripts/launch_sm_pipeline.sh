@@ -60,24 +60,24 @@ while IFS=',' read -r sample_name input_path; do
         "$input_path" \
         "$sm_output" \
         "$s3_prefix")
-    echo "  [1/2] process_sm -> Job ${process_job}"
+    echo "  [1/3] process_sm -> Job ${process_job}"
 
-    # Step 2: s3 sync (waits for process_single_molecule)
-    sync_job=$(sbatch --parsable \
-        --dependency=afterok:${process_job} \
-        --job-name="sync_sm_${sample_name}" \
-        "${SCRIPT_DIR}/s3_sync_sm.sbatch" \
-        "$sample_name")
-    echo "  [2/2] s3_sync_sm -> Job ${sync_job} (after ${process_job})"
-
-    # Step 3: copy mapping.json to meyes_output (inline, after process completes)
+    # Step 2: copy mapping.json to meyes_output (after process completes)
     copy_job=$(sbatch --parsable \
         --dependency=afterok:${process_job} \
         --job-name="cpmap_${sample_name}" \
         --wrap="mkdir -p '${meyes_output}' && cp '${sm_output}/mapping.json' '${meyes_output}/mapping.json' && echo 'Copied mapping.json to ${meyes_output}'" \
         --output="/bil/users/ijenie/meyes_process_logs/cpmap_${sample_name}_%j.log" \
         --ntasks=1 --cpus-per-task=1 --mem=1G --time=00:05:00 --partition=compute)
-    echo "  [+]   copy mapping.json -> Job ${copy_job} (after ${process_job})"
+    echo "  [2/3] copy mapping.json -> Job ${copy_job} (after ${process_job})"
+
+    # Step 3: s3 sync (waits for copy)
+    sync_job=$(sbatch --parsable \
+        --dependency=afterok:${copy_job} \
+        --job-name="sync_sm_${sample_name}" \
+        "${SCRIPT_DIR}/s3_sync_sm.sbatch" \
+        "$sample_name")
+    echo "  [3/3] s3_sync_sm -> Job ${sync_job} (after ${copy_job})"
 
     echo ""
 
