@@ -3,10 +3,12 @@ import { createStore } from "zustand";
 import { VISUALIZATION_CONFIG } from "../config/visualization.config";
 
 export type VisualizationMode = "celltype" | "gene";
+export type CellViewMode = "2D" | "3D";
 
 export interface VisualizationState {
   mode: VisualizationMode[];
   panelMode: VisualizationMode;
+  viewMode: CellViewMode;
   selectedGene: string | null;
   geneScaleMin: number;
   geneScaleMax: number;
@@ -26,6 +28,7 @@ export interface VisualizationState {
 
   setMode: (mode: VisualizationMode[]) => void;
   setPanelMode: (mode: VisualizationMode) => void;
+  setViewMode: (mode: CellViewMode) => void;
   setSelectedGene: (gene: string | null) => void;
   setGeneScaleMin: (min: number) => void;
   setGeneScaleMax: (max: number) => void;
@@ -54,6 +57,7 @@ export interface VisualizationState {
 const initialState = {
   mode: ["celltype"] as VisualizationMode[],
   panelMode: "celltype" as VisualizationMode,
+  viewMode: "2D" as CellViewMode,
   selectedGene: null,
   geneScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
   geneScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
@@ -104,6 +108,10 @@ export function createVisualizationStoreInstance() {
 
     setPanelMode: (mode) => {
       set({ panelMode: mode });
+    },
+
+    setViewMode: (mode) => {
+      set({ viewMode: mode });
     },
 
     setSelectedGene: (gene) => {

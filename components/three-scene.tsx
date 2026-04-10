@@ -82,6 +82,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     clusterVersion,
     incrementClusterVersion,
     columnTypeOverrides,
+    viewMode,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -440,7 +441,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // Initialize Three.js scene with options
       const { scene, camera, renderer, controls, animate, dispose } =
         initializeScene(containerRef.current, {
-          is2D: dataset.spatial.dimensions === 2,
+          is2D: viewMode === "2D",
           cameraPosition: cameraPos,
           lookAtPosition: center,
           near,
@@ -634,7 +635,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         dispose();
       };
     }
-  }, [dataset]);
+  }, [dataset, viewMode]);
 
   // Effect 2: Update visualization based on mode array
   useEffect(() => {

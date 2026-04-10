@@ -11,6 +11,7 @@ import { VisualizationPanel } from "./visualization-panel";
 
 import {
   usePanelVisualizationStore,
+  usePanelDatasetStore,
   usePanelId,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
@@ -18,10 +19,15 @@ import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 export function VisualizationControls() {
-  const { panelMode, setPanelMode, sizeScale, setSizeScale } =
+  const { panelMode, setPanelMode, sizeScale, setSizeScale, viewMode, setViewMode } =
     usePanelVisualizationStore();
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
+  const is3DDataset = usePanelDatasetStore((s) => {
+    const id = s.currentDatasetId;
+    const ds = id ? s.datasets.get(id) : null;
+    return ds && "spatial" in ds ? ds.spatial?.dimensions === 3 : false;
+  });
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +87,20 @@ export function VisualizationControls() {
           />
         </div>
       </Tooltip>
+
+      {/* 2D/3D View Toggle — only for 3D datasets */}
+      {is3DDataset && (
+        <Tooltip content={viewMode === "2D" ? "Switch to 3D" : "Switch to 2D"} placement="right">
+          <Button
+            className={`${buttonBaseClass} ${glassButton()}`}
+            color="default"
+            variant="light"
+            onPress={() => setViewMode(viewMode === "2D" ? "3D" : "2D")}
+          >
+            {viewMode}
+          </Button>
+        </Tooltip>
+      )}
 
       {/* Split Screen Button — only show on left panel (no panelId) when not already in split mode */}
       {!isSplitMode && !panelId && (

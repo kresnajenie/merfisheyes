@@ -162,6 +162,10 @@ export async function applyCellVizState(
   if (decoded.sz !== undefined) {
     store.setSizeScale(decoded.sz);
   }
+
+  if (decoded.vm) {
+    store.setViewMode(decoded.vm);
+  }
 }
 
 export function applySMVizState(
@@ -317,6 +321,7 @@ export function useCellVizUrlSync(
     sizeScale,
     selectedEmbedding,
     columnTypeOverrides,
+    viewMode,
   } = store;
 
   useEffect(() => {
@@ -334,6 +339,7 @@ export function useCellVizUrlSync(
       sizeScale,
       selectedEmbedding,
       columnTypeOverrides,
+      viewMode,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -351,6 +357,7 @@ export function useCellVizUrlSync(
     sizeScale,
     selectedEmbedding,
     columnTypeOverrides,
+    viewMode,
   ]);
 
   return { hasUrlState, hasUrlStateRef };

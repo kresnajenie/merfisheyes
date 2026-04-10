@@ -1,4 +1,4 @@
-import type { VisualizationMode } from "@/lib/stores/createVisualizationStore";
+import type { VisualizationMode, CellViewMode } from "@/lib/stores/createVisualizationStore";
 import type { ViewMode } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
@@ -15,6 +15,7 @@ export interface CellVizUrlState {
   sz?: number; // sizeScale
   e?: string; // selectedEmbedding
   to?: Record<string, "categorical" | "numerical">; // columnTypeOverrides
+  vm?: CellViewMode; // viewMode (2D/3D)
 }
 
 // Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
@@ -80,6 +81,7 @@ export function encodeCellVizState(state: {
   sizeScale: number;
   selectedEmbedding: string | null;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
+  viewMode: CellViewMode;
 }): string | null {
   const obj: CellVizUrlState = {};
 
@@ -110,6 +112,7 @@ export function encodeCellVizState(state: {
   if (state.selectedEmbedding) obj.e = state.selectedEmbedding;
   if (Object.keys(state.columnTypeOverrides).length > 0)
     obj.to = state.columnTypeOverrides;
+  if (state.viewMode === "3D") obj.vm = "3D";
 
   // Don't encode if nothing interesting
   if (Object.keys(obj).length === 0) return null;
@@ -135,6 +138,7 @@ export function decodeCellVizState(encoded: string): CellVizUrlState | null {
   if (obj.e !== undefined && typeof obj.e !== "string") return null;
   if (obj.to !== undefined && (typeof obj.to !== "object" || obj.to === null))
     return null;
+  if (obj.vm !== undefined && obj.vm !== "2D" && obj.vm !== "3D") return null;
 
   return obj;
 }
