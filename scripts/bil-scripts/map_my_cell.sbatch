@@ -12,6 +12,7 @@
 # ── Arguments ────────────────────────────────────────────────
 INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output
 OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dip-use/mmc_output
+SPECIES="${3:-mouse}"  # "mouse" (default) or "human"
 REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
 
 # ── Prevent thread oversubscription ──────────────────────────
@@ -32,6 +33,7 @@ echo "Memory:     $SLURM_MEM_PER_NODE MB"
 echo "TMPDIR:     ${TMPDIR:-/tmp}"
 echo "Input:      $INPUT_PATH"
 echo "Output:     $OUTPUT_BASE"
+echo "Species:    $SPECIES"
 echo "Reference:  $REFERENCE_DIR"
 echo "Started:    $(date)"
 echo "========================================"
@@ -53,6 +55,7 @@ START_TIME=$SECONDS
 python map_my_cell.py \
     "$INPUT_PATH" \
     "$OUTPUT_BASE" \
+    --species "$SPECIES" \
     --n_processors 50 \
     --reference_dir "$REFERENCE_DIR"
 
