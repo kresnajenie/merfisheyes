@@ -266,12 +266,18 @@ def plot_cell_types(merged_df, output_dir):
 
     df = merged_df
 
-    if "class_name" not in df.columns or df["class_name"].isna().all():
-        logger.warning("class_name column empty or missing, skipping cell type plots.")
+    # Human taxonomy uses "supercluster_name", mouse uses "class_name"
+    class_col = None
+    for candidate in ("class_name", "supercluster_name"):
+        if candidate in df.columns and not df[candidate].isna().all():
+            class_col = candidate
+            break
+    if class_col is None:
+        logger.warning("No cell type column found (tried class_name, supercluster_name), skipping plots.")
         return
 
     # Pick top 3 most common cell type classes to highlight
-    top3 = df["class_name"].value_counts().head(3).index.tolist()
+    top3 = df[class_col].value_counts().head(3).index.tolist()
 
     for cell_type in top3:
         plt.style.use("dark_background")
@@ -282,7 +288,7 @@ def plot_cell_types(merged_df, output_dir):
                    c="dimgrey", s=0.3, alpha=0.3, rasterized=True)
 
         # Overlay the highlighted cell type in color
-        mask = df["class_name"] == cell_type
+        mask = df[class_col] == cell_type
         ax.scatter(df.loc[mask, "center_x"], df.loc[mask, "center_y"],
                    c="crimson", s=0.8, alpha=0.8, rasterized=True,
                    label=f"{cell_type} (n={mask.sum():,})")
