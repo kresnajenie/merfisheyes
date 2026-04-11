@@ -560,7 +560,7 @@ export class StandardizedDataset {
     onProgress?: (progress: number, message: string) => Promise<void> | void,
     priorityColumnHint?: string,
   ): Promise<StandardizedDataset> {
-    await onProgress?.(10, "Initializing custom S3 adapter...");
+    await onProgress?.(5, "Connecting to S3...");
 
     // Create adapter with custom S3 base URL
     const { ChunkedDataAdapter } = await import(
@@ -572,20 +572,13 @@ export class StandardizedDataset {
       customS3BaseUrl, // Custom S3 base URL
     );
 
-    await onProgress?.(30, "Loading manifest from custom S3...");
+    await onProgress?.(10, "Downloading manifest and metadata...");
 
     await adapter.initialize();
 
-    await onProgress?.(50, "Loading spatial coordinates...");
-    const spatial = await adapter.loadSpatialCoordinates();
+    await onProgress?.(30, "Metadata loaded");
 
-    // Skip eager embedding loading — embeddings are loaded on demand
-    const embeddings: Record<string, number[][]> = {};
-
-    await onProgress?.(70, "Loading genes...");
-    const genes = await adapter.loadGenes();
-
-    // Deferred cluster loading: use URL hint if valid, otherwise auto-detect
+    // Determine priority column: use URL hint if valid, otherwise auto-detect
     const columnInfo = adapter.getClusterColumnInfo();
     let priorityColumn: string | null = null;
 
@@ -601,17 +594,34 @@ export class StandardizedDataset {
       );
     }
 
-    await onProgress?.(80, "Loading priority cluster column...");
-    const clusters = priorityColumn
-      ? await adapter.loadClusters([priorityColumn])
-      : null;
+    // Fetch spatial coordinates and cluster data concurrently with progress
+    const [spatial, clusters] = await Promise.all([
+      adapter.loadSpatialCoordinates().then((result) => {
+        onProgress?.(55, "Spatial coordinates loaded");
+        return result;
+      }),
+      priorityColumn
+        ? adapter.loadClusters([priorityColumn]).then((result) => {
+            onProgress?.(65, `Cluster column "${priorityColumn}" loaded`);
+            return result;
+          })
+        : Promise.resolve(null),
+    ]);
+
+    await onProgress?.(70, "Loading gene list...");
+
+    // Skip eager embedding loading — embeddings are loaded on demand
+    const embeddings: Record<string, number[][]> = {};
+
+    // Genes come from the expression index (already cached in adapter)
+    const genes = await adapter.loadGenes();
 
     const dataInfo = adapter.getDatasetInfo();
 
-    await onProgress?.(90, "Loading expression matrix...");
+    await onProgress?.(80, `${genes.length.toLocaleString()} genes, ${dataInfo.numCells?.toLocaleString()} cells`);
     const matrix = await adapter.fetchFullMatrix();
 
-    await onProgress?.(95, "Finalizing dataset...");
+    await onProgress?.(90, "Building dataset...");
 
     // Create StandardizedDataset
     const isNormalized = dataInfo.normalized !== false;

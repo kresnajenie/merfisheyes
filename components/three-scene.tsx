@@ -1,8 +1,6 @@
 "use client";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import type { PointData } from "@/lib/webgl/types";
-
 import { getClusterValue } from "@/lib/StandardizedDataset";
 
 import { useEffect, useRef, useState } from "react";
@@ -11,7 +9,7 @@ import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
-  createPointCloud,
+  createPointCloudFromBuffers,
   updatePointCloudAttributes,
 } from "@/lib/webgl/point-cloud";
 import {
@@ -554,44 +552,44 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       renderer.domElement.addEventListener("dblclick", handleDoubleClick);
       renderer.domElement.addEventListener("contextmenu", handleContextMenu);
 
-      // Convert dataset spatial coordinates to PointData format
+      // Build positions Float32Array directly from dataset coordinates
       const spatialCoords = dataset.spatial.coordinates;
       const spatialDims = dataset.spatial.dimensions;
       const ptCount = dataset.getPointCount();
-      const pointData: PointData[] = new Array(ptCount);
+      const positions = new Float32Array(ptCount * 3);
 
-      for (let p = 0; p < ptCount; p++) {
-        const x = spatialCoords instanceof Float32Array
-          ? spatialCoords[p * spatialDims] : (spatialCoords as number[][])[p][0];
-        const y = spatialCoords instanceof Float32Array
-          ? spatialCoords[p * spatialDims + 1] : (spatialCoords as number[][])[p][1];
-        const z = spatialDims === 3
-          ? (spatialCoords instanceof Float32Array
-              ? spatialCoords[p * spatialDims + 2] : (spatialCoords as number[][])[p][2]) ?? 0
-          : 0;
+      // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
+      const cs = dataset.normalized === false ? 1 : 500;
 
-        // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
-        const cs = dataset.normalized === false ? 1 : 500;
-
-        pointData[p] = {
-          x: x * cs,
-          y: y * cs,
-          z: z * cs,
-          r: 0,
-          g: 0,
-          b: 0,
-          size: 1.0,
-          alpha: 0,
-        };
+      if (spatialCoords instanceof Float32Array) {
+        // Flat Float32Array path (optimized — no object creation)
+        if (spatialDims === 3 && cs === 1) {
+          // Best case: 3D raw coords — direct copy, no scaling needed
+          positions.set(spatialCoords);
+        } else {
+          for (let p = 0; p < ptCount; p++) {
+            positions[p * 3] = spatialCoords[p * spatialDims] * cs;
+            positions[p * 3 + 1] = spatialCoords[p * spatialDims + 1] * cs;
+            positions[p * 3 + 2] = spatialDims === 3
+              ? spatialCoords[p * spatialDims + 2] * cs
+              : 0;
+          }
+        }
+      } else {
+        // number[][] path
+        const coords = spatialCoords as number[][];
+        for (let p = 0; p < ptCount; p++) {
+          positions[p * 3] = coords[p][0] * cs;
+          positions[p * 3 + 1] = coords[p][1] * cs;
+          positions[p * 3 + 2] = spatialDims === 3 ? (coords[p][2] ?? 0) * cs : 0;
+        }
       }
 
       // Create point cloud mesh with custom shaders
       // dotSize is in world-space units. Scale it relative to data extent so points
       // appear ~5px at the initial zoom level regardless of coordinate range.
-      // Formula derived from: targetPx = dotSize * proj[1][1] / cameraDistance
-      // where cameraDistance = size * 1.5, proj[1][1] ≈ 1.3 for 75° FOV
       const baseDotSize = size * 0.5;
-      const pointCloud = createPointCloud(pointData, baseDotSize);
+      const pointCloud = createPointCloudFromBuffers(positions, ptCount, baseDotSize);
 
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
