@@ -24,17 +24,17 @@ export const VISUALIZATION_CONFIG = {
   /**
    * Point Sizes
    * Base size for rendered points before any scaling is applied (single cell visualization)
+   * This multiplies with dotSize in the shader: gl_PointSize = size * dotSize * proj / distance
    */
-  POINT_BASE_SIZE: 0.5,
+  POINT_BASE_SIZE: 1.0,
 
   /**
    * Single Cell Size Scale Slider Range
    * Min/max/step values for the size scale slider in single cell viewer
-   * Default: 0.5 to 3.0 with 0.1 steps
    */
-  SINGLE_CELL_SIZE_SCALE_MIN: 0.5,
-  SINGLE_CELL_SIZE_SCALE_MAX: 6.0,
-  SINGLE_CELL_SIZE_SCALE_STEP: 0.5,
+  SINGLE_CELL_SIZE_SCALE_MIN: 0.1,
+  SINGLE_CELL_SIZE_SCALE_MAX: 2.0,
+  SINGLE_CELL_SIZE_SCALE_STEP: 0.1,
   SINGLE_CELL_SIZE_SCALE_DEFAULT: 1.0,
 
   /**

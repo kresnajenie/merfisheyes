@@ -11,6 +11,7 @@ import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloudFromBuffers,
   updatePointCloudAttributes,
+  updateDotSize,
 } from "@/lib/webgl/point-cloud";
 import {
   updateGeneVisualization,
@@ -30,7 +31,7 @@ import {
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
-
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -58,6 +59,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const colorPaletteRef = useRef<Record<string, string>>({});
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
+  const baseDotSizeRef = useRef<number>(5);
 
   // Get visualization settings from store
   const {
@@ -385,15 +387,24 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const numPts = dataset.getPointCount();
 
       for (let p = 0; p < numPts; p++) {
-        const x = coords instanceof Float32Array ? coords[p * dims] : (coords as number[][])[p][0];
-        const y = coords instanceof Float32Array ? coords[p * dims + 1] : (coords as number[][])[p][1];
+        const x =
+          coords instanceof Float32Array
+            ? coords[p * dims]
+            : (coords as number[][])[p][0];
+        const y =
+          coords instanceof Float32Array
+            ? coords[p * dims + 1]
+            : (coords as number[][])[p][1];
 
         bounds.minX = Math.min(bounds.minX, x);
         bounds.maxX = Math.max(bounds.maxX, x);
         bounds.minY = Math.min(bounds.minY, y);
         bounds.maxY = Math.max(bounds.maxY, y);
         if (dims === 3) {
-          const z = coords instanceof Float32Array ? coords[p * dims + 2] : (coords as number[][])[p][2];
+          const z =
+            coords instanceof Float32Array
+              ? coords[p * dims + 2]
+              : (coords as number[][])[p][2];
 
           if (z !== undefined) {
             bounds.minZ = Math.min(bounds.minZ, z);
@@ -570,9 +581,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           for (let p = 0; p < ptCount; p++) {
             positions[p * 3] = spatialCoords[p * spatialDims] * cs;
             positions[p * 3 + 1] = spatialCoords[p * spatialDims + 1] * cs;
-            positions[p * 3 + 2] = spatialDims === 3
-              ? spatialCoords[p * spatialDims + 2] * cs
-              : 0;
+            positions[p * 3 + 2] =
+              spatialDims === 3 ? spatialCoords[p * spatialDims + 2] * cs : 0;
           }
         }
       } else {
@@ -581,15 +591,26 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         for (let p = 0; p < ptCount; p++) {
           positions[p * 3] = coords[p][0] * cs;
           positions[p * 3 + 1] = coords[p][1] * cs;
-          positions[p * 3 + 2] = spatialDims === 3 ? (coords[p][2] ?? 0) * cs : 0;
+          positions[p * 3 + 2] =
+            spatialDims === 3 ? (coords[p][2] ?? 0) * cs : 0;
         }
       }
 
       // Create point cloud mesh with custom shaders
-      // dotSize is in world-space units. Scale it relative to data extent so points
-      // appear ~5px at the initial zoom level regardless of coordinate range.
-      const baseDotSize = size * 0.5;
-      const pointCloud = createPointCloudFromBuffers(positions, ptCount, baseDotSize);
+      // The shader computes: gl_PointSize = size * dotSize * proj[1][1] / -mvPosition.z
+      // We want ~3px dots at the initial zoom level.
+      // Back-calculate: dotSize = targetPx * distance / (baseSize * proj[1][1])
+      // where distance ≈ size*1.5, proj[1][1] ≈ 1.3 (75° FOV), baseSize = POINT_BASE_SIZE
+      const targetPx = 0.1;
+      const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2); // ~1.3
+      const baseDotSize =
+        (targetPx * distance) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+      baseDotSizeRef.current = baseDotSize;
+      const pointCloud = createPointCloudFromBuffers(
+        positions,
+        ptCount,
+        baseDotSize,
+      );
 
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
@@ -650,7 +671,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       if (selectedCluster) {
         clusterRef.current = selectedCluster;
         isNumericalClusterRef.current = selectedColumn
-          ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+          ? getEffectiveColumnType(
+              selectedColumn,
+              dataset,
+              columnTypeOverrides,
+            ) === "numerical"
           : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
@@ -661,7 +686,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Check if the selected column is numerical (respects overrides)
       const isNumerical = selectedColumn
-        ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+        ? getEffectiveColumnType(
+            selectedColumn,
+            dataset,
+            columnTypeOverrides,
+          ) === "numerical"
         : false;
 
       let result = null;
@@ -789,6 +818,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           result.sizes,
           result.alphas,
         );
+        // Apply current sizeScale to dotSize uniform
+        updateDotSize(
+          pointCloudRef.current,
+          baseDotSizeRef.current * sizeScale,
+        );
       }
     };
 
@@ -800,7 +834,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedCelltypes,
     colorPalette,
     alphaScale,
-    sizeScale,
     geneScaleMin,
     geneScaleMax,
     numericalScaleMin,
@@ -810,6 +843,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     columnTypeOverrides,
     pointCloudVersion,
   ]);
+
+  // Effect 3: Update dotSize uniform when slider changes (instant, no per-point loop)
+  useEffect(() => {
+    if (pointCloudRef.current) {
+      updateDotSize(pointCloudRef.current, baseDotSizeRef.current * sizeScale);
+    }
+  }, [sizeScale]);
 
   return (
     <>
@@ -825,7 +865,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       {/* Spatial scale bar - only for non-normalized (raw coordinate) datasets */}
       {dataset && !dataset.normalized && (
         <SpatialScaleBar
-          cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
+          cameraRef={
+            cameraRef as React.RefObject<THREE.PerspectiveCamera | null>
+          }
           rendererRef={rendererRef}
           controlsRef={controlsRef}
         />

@@ -236,7 +236,7 @@ export async function updateGeneVisualization(
     // Sizes based on expression level (higher expression = bigger)
     const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+    sizes[i] = baseSize * sizeMultiplier;
 
     // Alphas
     alphas[i] = baseAlpha * alphaScale;
@@ -350,7 +350,7 @@ export function updateNumericalCelltypeVisualization(
     // Sizes based on value level (higher value = bigger)
     const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+    sizes[i] = baseSize * sizeMultiplier;
 
     // Alphas
     alphas[i] = baseAlpha * alphaScale;
@@ -423,7 +423,7 @@ export function updateCelltypeVisualization(
         ? 2.0
         : 1.0;
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+    sizes[i] = baseSize * sizeMultiplier;
 
     // Alphas
     alphas[i] = baseAlpha * alphaScale;
@@ -546,7 +546,7 @@ export async function updateCombinedVisualization(
       // Sizes based on expression level (higher expression = bigger)
       const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
-      sizes[i] = baseSize * sizeMultiplier * sizeScale;
+      sizes[i] = baseSize * sizeMultiplier;
 
       // Alphas based on gene expression
       alphas[i] = baseAlpha * alphaScale;
@@ -559,7 +559,7 @@ export async function updateCombinedVisualization(
       colors[i * 3 + 2] = b;
 
       // Smaller size for non-selected
-      sizes[i] = baseSize * 1.0 * sizeScale;
+      sizes[i] = baseSize * 1.0;
 
       // Same alpha as celltype mode
       alphas[i] = baseAlpha * alphaScale;
