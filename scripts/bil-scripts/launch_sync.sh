@@ -13,7 +13,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SAMPLE_FILE="${1:-${SCRIPT_DIR}/sync-remaining.csv}"
+SAMPLE_FILE="$1"
+
+if [ -z "$SAMPLE_FILE" ]; then
+    echo "Usage: ./launch_sync.sh <samples.csv>"
+    exit 1
+fi
 
 if [ ! -f "$SAMPLE_FILE" ]; then
     echo "ERROR: Sample file not found: $SAMPLE_FILE"
