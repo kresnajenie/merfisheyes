@@ -484,6 +484,7 @@ const workerApi = {
         availableEmbeddings: dataInfo.availableEmbeddings,
         clusterCount: dataInfo.clusterCount,
         spatialScalingFactor: 1,
+        wasNormalized,
       },
       matrix: matrix,
       allClusterColumnNames: clusterColumnInfo.names,

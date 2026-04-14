@@ -862,8 +862,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
 
-      {/* Spatial scale bar — always shown (all datasets now use raw coordinates) */}
-      {dataset && (
+      {/* Spatial scale bar — only for datasets with reliable raw coordinates */}
+      {dataset && !dataset.metadata?.wasNormalized && (
         <SpatialScaleBar
           cameraRef={
             cameraRef as React.RefObject<THREE.PerspectiveCamera | null>

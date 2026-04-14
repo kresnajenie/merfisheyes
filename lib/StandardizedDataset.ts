@@ -666,6 +666,7 @@ export class StandardizedDataset {
         clusterCount: dataInfo.clusterCount,
         loadedFrom: "custom_s3",
         customS3BaseUrl,
+        wasNormalized,
       },
       rawData: null,
       adapter,
