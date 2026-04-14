@@ -222,7 +222,10 @@ export async function updateGeneVisualization(
   const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
   const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
-  // Apply coolwarm colormap and use normalized values for size
+  // Apply coolwarm colormap with expression-based alpha
+  // Low expression → alpha 0.3, high expression → alpha 1.0
+  const minAlpha = VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN;
+
   for (let i = 0; i < count; i++) {
     const normalizedValue = normalizedExpression[i];
 
@@ -236,10 +239,13 @@ export async function updateGeneVisualization(
     // Sizes based on expression level (higher expression = bigger)
     const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+    sizes[i] = baseSize * sizeMultiplier;
 
-    // Alphas
-    alphas[i] = baseAlpha * alphaScale;
+    // Alpha based on expression level (higher expression = more opaque)
+    const expressionAlpha = isNaN(normalizedValue)
+      ? minAlpha
+      : minAlpha + (VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX - minAlpha) * normalizedValue;
+    alphas[i] = expressionAlpha * alphaScale;
   }
 
   return { colors, sizes, alphas };
@@ -336,7 +342,9 @@ export function updateNumericalCelltypeVisualization(
   const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
   const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
-  // Apply coolwarm colormap and use normalized values for size (same as gene expression)
+  // Apply coolwarm colormap with value-based alpha
+  const minAlpha = VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN;
+
   for (let i = 0; i < count; i++) {
     const normalizedValue = normalizedValues[i];
 
@@ -350,10 +358,13 @@ export function updateNumericalCelltypeVisualization(
     // Sizes based on value level (higher value = bigger)
     const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+    sizes[i] = baseSize * sizeMultiplier;
 
-    // Alphas
-    alphas[i] = baseAlpha * alphaScale;
+    // Alpha based on value level (higher value = more opaque)
+    const valueAlpha = isNaN(normalizedValue)
+      ? minAlpha
+      : minAlpha + (VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX - minAlpha) * normalizedValue;
+    alphas[i] = valueAlpha * alphaScale;
   }
 
   return { colors, sizes, alphas };
@@ -418,15 +429,16 @@ export function updateCelltypeVisualization(
     colors[i * 3 + 2] = b;
 
     // Sizes - selected items are bigger
-    const sizeMultiplier =
-      selectedCelltypes.size === 0 || selectedCelltypes.has(category)
-        ? 2.0
-        : 1.0;
+    const sizeMultiplier = isSelected
+      ? VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER
+      : VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER;
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+    sizes[i] = baseSize * sizeMultiplier;
 
     // Alphas
-    alphas[i] = baseAlpha * alphaScale;
+    alphas[i] = isSelected
+      ? baseAlpha * alphaScale
+      : VISUALIZATION_CONFIG.GREYED_OUT_ALPHA * alphaScale;
   }
 
   return { colors, sizes, alphas };
@@ -546,23 +558,25 @@ export async function updateCombinedVisualization(
       // Sizes based on expression level (higher expression = bigger)
       const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
 
-      sizes[i] = baseSize * sizeMultiplier * sizeScale;
+      sizes[i] = baseSize * sizeMultiplier;
 
-      // Alphas based on gene expression
-      alphas[i] = baseAlpha * alphaScale;
+      // Alpha based on expression level
+      const minAlpha = VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN;
+      const expressionAlpha = isNaN(normalizedValue)
+        ? minAlpha
+        : minAlpha + (VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX - minAlpha) * normalizedValue;
+      alphas[i] = expressionAlpha * alphaScale;
     } else {
-      // Non-selected celltypes: show grey with reduced size/alpha
+      // Non-selected celltypes: show grey with reduced alpha
       const [r, g, b] = hexToRgb(grey);
 
       colors[i * 3] = r;
       colors[i * 3 + 1] = g;
       colors[i * 3 + 2] = b;
 
-      // Smaller size for non-selected
-      sizes[i] = baseSize * 1.0 * sizeScale;
+      sizes[i] = baseSize * VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER;
 
-      // Same alpha as celltype mode
-      alphas[i] = baseAlpha * alphaScale;
+      alphas[i] = VISUALIZATION_CONFIG.GREYED_OUT_ALPHA * alphaScale;
     }
   }
 

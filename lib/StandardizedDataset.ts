@@ -560,7 +560,7 @@ export class StandardizedDataset {
     onProgress?: (progress: number, message: string) => Promise<void> | void,
     priorityColumnHint?: string,
   ): Promise<StandardizedDataset> {
-    await onProgress?.(10, "Initializing custom S3 adapter...");
+    await onProgress?.(5, "Connecting to S3...");
 
     // Create adapter with custom S3 base URL
     const { ChunkedDataAdapter } = await import(
@@ -572,20 +572,13 @@ export class StandardizedDataset {
       customS3BaseUrl, // Custom S3 base URL
     );
 
-    await onProgress?.(30, "Loading manifest from custom S3...");
+    await onProgress?.(10, "Downloading manifest and metadata...");
 
     await adapter.initialize();
 
-    await onProgress?.(50, "Loading spatial coordinates...");
-    const spatial = await adapter.loadSpatialCoordinates();
+    await onProgress?.(30, "Metadata loaded");
 
-    // Skip eager embedding loading — embeddings are loaded on demand
-    const embeddings: Record<string, number[][]> = {};
-
-    await onProgress?.(70, "Loading genes...");
-    const genes = await adapter.loadGenes();
-
-    // Deferred cluster loading: use URL hint if valid, otherwise auto-detect
+    // Determine priority column: use URL hint if valid, otherwise auto-detect
     const columnInfo = adapter.getClusterColumnInfo();
     let priorityColumn: string | null = null;
 
@@ -601,26 +594,67 @@ export class StandardizedDataset {
       );
     }
 
-    await onProgress?.(80, "Loading priority cluster column...");
-    const clusters = priorityColumn
-      ? await adapter.loadClusters([priorityColumn])
-      : null;
+    // Fetch spatial coordinates and cluster data concurrently with progress
+    const [spatial, clusters] = await Promise.all([
+      adapter.loadSpatialCoordinates().then((result) => {
+        onProgress?.(55, "Spatial coordinates loaded");
+        return result;
+      }),
+      priorityColumn
+        ? adapter.loadClusters([priorityColumn]).then((result) => {
+            onProgress?.(65, `Cluster column "${priorityColumn}" loaded`);
+            return result;
+          })
+        : Promise.resolve(null),
+    ]);
+
+    await onProgress?.(70, "Loading gene list...");
+
+    // Skip eager embedding loading — embeddings are loaded on demand
+    const embeddings: Record<string, number[][]> = {};
+
+    // Genes come from the expression index (already cached in adapter)
+    const genes = await adapter.loadGenes();
 
     const dataInfo = adapter.getDatasetInfo();
 
-    await onProgress?.(90, "Loading expression matrix...");
+    await onProgress?.(80, `${genes.length.toLocaleString()} genes, ${dataInfo.numCells?.toLocaleString()} cells`);
     const matrix = await adapter.fetchFullMatrix();
 
-    await onProgress?.(95, "Finalizing dataset...");
+    await onProgress?.(90, "Building dataset...");
 
-    // Create StandardizedDataset
-    const isNormalized = dataInfo.normalized !== false;
+    // Denormalize old datasets so all coords are raw microns
+    const wasNormalized = dataInfo.normalized !== false;
+    const manifestScalingFactor = adapter.getManifest()?.processing?.spatial_scaling_factor || 1;
+    let finalSpatial: { coordinates: Float32Array | number[][]; dimensions: number; scalingFactor: number } = {
+      ...spatial,
+      scalingFactor: 1,
+    };
+
+    if (wasNormalized && manifestScalingFactor > 1) {
+      console.log(`[fromCustomS3] Denormalizing old coords (×${manifestScalingFactor})`);
+      const coords = spatial.coordinates;
+      const sf = manifestScalingFactor;
+
+      if (coords instanceof Float32Array) {
+        const denorm = new Float32Array(coords.length);
+        for (let i = 0; i < coords.length; i++) {
+          denorm[i] = coords[i] * sf;
+        }
+        finalSpatial = { coordinates: denorm, dimensions: spatial.dimensions, scalingFactor: 1 };
+      } else {
+        const denorm = (coords as number[][]).map((point) =>
+          point.map((v) => v * sf),
+        );
+        finalSpatial = { coordinates: denorm, dimensions: spatial.dimensions, scalingFactor: 1 };
+      }
+    }
 
     const dataset = new StandardizedDataset({
       id: dataInfo.id || "custom",
       name: dataInfo.name || "Custom S3 Dataset",
       type: dataInfo.type || "custom",
-      spatial,
+      spatial: finalSpatial,
       embeddings,
       genes,
       clusters,
@@ -632,10 +666,11 @@ export class StandardizedDataset {
         clusterCount: dataInfo.clusterCount,
         loadedFrom: "custom_s3",
         customS3BaseUrl,
+        wasNormalized,
       },
       rawData: null,
       adapter,
-      normalized: isNormalized,
+      normalized: false, // always raw now
     });
 
     // Assign matrix (pre-loaded for custom S3)

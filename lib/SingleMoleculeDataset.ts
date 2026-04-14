@@ -10,6 +10,23 @@ import {
 import { shouldFilterGene } from "./utils/gene-filters";
 
 /**
+ * Denormalize coordinates from [-1,1] range back to raw microns.
+ * Old datasets stored normalized coords with a scalingFactor.
+ * New datasets (coordinate_range: "raw_rounded_2dp") are already raw.
+ */
+function denormalizeCoords(
+  coords: Float32Array<ArrayBuffer>,
+  scalingFactor: number,
+): Float32Array<ArrayBuffer> {
+  if (scalingFactor === 1) return coords;
+  const result = new Float32Array(coords.length);
+  for (let i = 0; i < coords.length; i++) {
+    result[i] = coords[i] * scalingFactor;
+  }
+  return result;
+}
+
+/**
  * Generate a random bright color for dark background
  */
 function generateBrightColor(): string {
@@ -850,7 +867,11 @@ export class SingleMoleculeDataset {
     // Extract metadata from manifest
     const uniqueGenes = manifest.genes.unique_gene_names;
     const dimensions = manifest.statistics.spatial_dimensions;
-    const scalingFactor = manifest.processing.scaling_factor;
+    const rawScalingFactor = manifest.processing.scaling_factor;
+    const isRawCoords = manifest.processing?.coordinate_range === "raw_rounded_2dp";
+    // For old normalized data, we'll denormalize on load. Store factor=1 since coords become raw.
+    const scalingFactor = isRawCoords ? rawScalingFactor : 1;
+    const denormFactor = isRawCoords ? 1 : rawScalingFactor;
 
     // Create empty gene index - genes will be loaded on-demand
     const geneIndex = new Map<string, Float32Array>();
@@ -927,14 +948,18 @@ export class SingleMoleculeDataset {
       const geneCompressed = await geneResponse.arrayBuffer();
       const geneBuffer = ungzip(new Uint8Array(geneCompressed));
 
-      // Keep as Float32Array directly (no Array.from() conversion)
-      const float32Array = new Float32Array(geneBuffer.buffer);
+      // Keep as Float32Array directly, denormalize if old dataset
+      let float32Array = new Float32Array(geneBuffer.buffer);
+      if (denormFactor !== 1) {
+        float32Array = denormalizeCoords(float32Array, denormFactor);
+      }
 
       // Cache for future use
       geneIndex.set(geneName, float32Array);
 
       console.log(
-        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules`,
+        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules` +
+          (denormFactor !== 1 ? ` (denormalized ×${denormFactor})` : ""),
       );
 
       return float32Array;
@@ -987,7 +1012,10 @@ export class SingleMoleculeDataset {
 
           const geneCompressed = await geneResponse.arrayBuffer();
           const geneBuffer = ungzip(new Uint8Array(geneCompressed));
-          const float32Array = new Float32Array(geneBuffer.buffer);
+          let float32Array = new Float32Array(geneBuffer.buffer);
+          if (denormFactor !== 1) {
+            float32Array = denormalizeCoords(float32Array, denormFactor);
+          }
 
           unassignedGeneIndex.set(geneName, float32Array);
 
@@ -1068,7 +1096,10 @@ export class SingleMoleculeDataset {
     // Extract metadata from manifest
     const uniqueGenes = manifest.genes.unique_gene_names;
     const dimensions = manifest.statistics.spatial_dimensions;
-    const scalingFactor = manifest.processing.scaling_factor;
+    const rawScalingFactor = manifest.processing.scaling_factor;
+    const isRawCoords = manifest.processing?.coordinate_range === "raw_rounded_2dp";
+    const scalingFactor = isRawCoords ? rawScalingFactor : 1;
+    const denormFactor = isRawCoords ? 1 : rawScalingFactor;
     const hasUnassigned = manifest.has_unassigned ?? false;
     const moleculeCounts = manifest.genes?.molecule_counts ?? null;
 
@@ -1078,6 +1109,8 @@ export class SingleMoleculeDataset {
         uniqueGenes: uniqueGenes.length,
         dimensions,
         hasUnassigned,
+        isRawCoords,
+        denormFactor,
         hasMoleculeCounts: !!moleculeCounts,
         moleculeCountsKeys: moleculeCounts ? Object.keys(moleculeCounts).length : 0,
       },
@@ -1158,14 +1191,18 @@ export class SingleMoleculeDataset {
       const geneCompressed = await geneResponse.arrayBuffer();
       const geneBuffer = ungzip(new Uint8Array(geneCompressed));
 
-      // Keep as Float32Array directly
-      const float32Array = new Float32Array(geneBuffer.buffer);
+      // Keep as Float32Array directly, denormalize if old dataset
+      let float32Array = new Float32Array(geneBuffer.buffer);
+      if (denormFactor !== 1) {
+        float32Array = denormalizeCoords(float32Array, denormFactor);
+      }
 
       // Cache for future use
       geneIndex.set(geneName, float32Array);
 
       console.log(
-        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules`,
+        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules` +
+          (denormFactor !== 1 ? ` (denormalized ×${denormFactor})` : ""),
       );
 
       return float32Array;
@@ -1217,7 +1254,10 @@ export class SingleMoleculeDataset {
 
           const geneCompressed = await geneResponse.arrayBuffer();
           const geneBuffer = ungzip(new Uint8Array(geneCompressed));
-          const float32Array = new Float32Array(geneBuffer.buffer);
+          let float32Array = new Float32Array(geneBuffer.buffer);
+          if (denormFactor !== 1) {
+            float32Array = denormalizeCoords(float32Array, denormFactor);
+          }
 
           unassignedGeneIndex.set(geneName, float32Array);
 

@@ -1,8 +1,6 @@
 "use client";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import type { PointData } from "@/lib/webgl/types";
-
 import { getClusterValue } from "@/lib/StandardizedDataset";
 
 import { useEffect, useRef, useState } from "react";
@@ -11,8 +9,9 @@ import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
-  createPointCloud,
+  createPointCloudFromBuffers,
   updatePointCloudAttributes,
+  updateDotSize,
 } from "@/lib/webgl/point-cloud";
 import {
   updateGeneVisualization,
@@ -32,7 +31,7 @@ import {
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
-
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -60,6 +59,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const colorPaletteRef = useRef<Record<string, string>>({});
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
+  const baseDotSizeRef = useRef<number>(5);
 
   // Get visualization settings from store
   const {
@@ -82,6 +82,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     clusterVersion,
     incrementClusterVersion,
     columnTypeOverrides,
+    viewMode,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -386,15 +387,24 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const numPts = dataset.getPointCount();
 
       for (let p = 0; p < numPts; p++) {
-        const x = coords instanceof Float32Array ? coords[p * dims] : (coords as number[][])[p][0];
-        const y = coords instanceof Float32Array ? coords[p * dims + 1] : (coords as number[][])[p][1];
+        const x =
+          coords instanceof Float32Array
+            ? coords[p * dims]
+            : (coords as number[][])[p][0];
+        const y =
+          coords instanceof Float32Array
+            ? coords[p * dims + 1]
+            : (coords as number[][])[p][1];
 
         bounds.minX = Math.min(bounds.minX, x);
         bounds.maxX = Math.max(bounds.maxX, x);
         bounds.minY = Math.min(bounds.minY, y);
         bounds.maxY = Math.max(bounds.maxY, y);
         if (dims === 3) {
-          const z = coords instanceof Float32Array ? coords[p * dims + 2] : (coords as number[][])[p][2];
+          const z =
+            coords instanceof Float32Array
+              ? coords[p * dims + 2]
+              : (coords as number[][])[p][2];
 
           if (z !== undefined) {
             bounds.minZ = Math.min(bounds.minZ, z);
@@ -440,7 +450,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // Initialize Three.js scene with options
       const { scene, camera, renderer, controls, animate, dispose } =
         initializeScene(containerRef.current, {
-          is2D: dataset.spatial.dimensions === 2,
+          is2D: viewMode === "2D",
           cameraPosition: cameraPos,
           lookAtPosition: center,
           near,
@@ -553,44 +563,54 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       renderer.domElement.addEventListener("dblclick", handleDoubleClick);
       renderer.domElement.addEventListener("contextmenu", handleContextMenu);
 
-      // Convert dataset spatial coordinates to PointData format
+      // Build positions Float32Array directly from dataset coordinates
       const spatialCoords = dataset.spatial.coordinates;
       const spatialDims = dataset.spatial.dimensions;
       const ptCount = dataset.getPointCount();
-      const pointData: PointData[] = new Array(ptCount);
+      const positions = new Float32Array(ptCount * 3);
 
-      for (let p = 0; p < ptCount; p++) {
-        const x = spatialCoords instanceof Float32Array
-          ? spatialCoords[p * spatialDims] : (spatialCoords as number[][])[p][0];
-        const y = spatialCoords instanceof Float32Array
-          ? spatialCoords[p * spatialDims + 1] : (spatialCoords as number[][])[p][1];
-        const z = spatialDims === 3
-          ? (spatialCoords instanceof Float32Array
-              ? spatialCoords[p * spatialDims + 2] : (spatialCoords as number[][])[p][2]) ?? 0
-          : 0;
+      // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
+      const cs = dataset.normalized === false ? 1 : 500;
 
-        // Scale factor: 500x for normalized [-1,1] data, 1x for raw coordinates
-        const cs = dataset.normalized === false ? 1 : 500;
-
-        pointData[p] = {
-          x: x * cs,
-          y: y * cs,
-          z: z * cs,
-          r: 0,
-          g: 0,
-          b: 0,
-          size: 1.0,
-          alpha: 0,
-        };
+      if (spatialCoords instanceof Float32Array) {
+        // Flat Float32Array path (optimized — no object creation)
+        if (spatialDims === 3 && cs === 1) {
+          // Best case: 3D raw coords — direct copy, no scaling needed
+          positions.set(spatialCoords);
+        } else {
+          for (let p = 0; p < ptCount; p++) {
+            positions[p * 3] = spatialCoords[p * spatialDims] * cs;
+            positions[p * 3 + 1] = spatialCoords[p * spatialDims + 1] * cs;
+            positions[p * 3 + 2] =
+              spatialDims === 3 ? spatialCoords[p * spatialDims + 2] * cs : 0;
+          }
+        }
+      } else {
+        // number[][] path
+        const coords = spatialCoords as number[][];
+        for (let p = 0; p < ptCount; p++) {
+          positions[p * 3] = coords[p][0] * cs;
+          positions[p * 3 + 1] = coords[p][1] * cs;
+          positions[p * 3 + 2] =
+            spatialDims === 3 ? (coords[p][2] ?? 0) * cs : 0;
+        }
       }
 
       // Create point cloud mesh with custom shaders
-      // dotSize is in world-space units. Scale it relative to data extent so points
-      // appear ~5px at the initial zoom level regardless of coordinate range.
-      // Formula derived from: targetPx = dotSize * proj[1][1] / cameraDistance
-      // where cameraDistance = size * 1.5, proj[1][1] ≈ 1.3 for 75° FOV
-      const baseDotSize = size * 0.5;
-      const pointCloud = createPointCloud(pointData, baseDotSize);
+      // The shader computes: gl_PointSize = size * dotSize * proj[1][1] / -mvPosition.z
+      // We want ~3px dots at the initial zoom level.
+      // Back-calculate: dotSize = targetPx * distance / (baseSize * proj[1][1])
+      // where distance ≈ size*1.5, proj[1][1] ≈ 1.3 (75° FOV), baseSize = POINT_BASE_SIZE
+      const targetPx = 0.1;
+      const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2); // ~1.3
+      const baseDotSize =
+        (targetPx * distance) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+      baseDotSizeRef.current = baseDotSize;
+      const pointCloud = createPointCloudFromBuffers(
+        positions,
+        ptCount,
+        baseDotSize,
+      );
 
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
@@ -634,7 +654,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         dispose();
       };
     }
-  }, [dataset]);
+  }, [dataset, viewMode]);
 
   // Effect 2: Update visualization based on mode array
   useEffect(() => {
@@ -651,7 +671,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       if (selectedCluster) {
         clusterRef.current = selectedCluster;
         isNumericalClusterRef.current = selectedColumn
-          ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+          ? getEffectiveColumnType(
+              selectedColumn,
+              dataset,
+              columnTypeOverrides,
+            ) === "numerical"
           : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
@@ -662,7 +686,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Check if the selected column is numerical (respects overrides)
       const isNumerical = selectedColumn
-        ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+        ? getEffectiveColumnType(
+            selectedColumn,
+            dataset,
+            columnTypeOverrides,
+          ) === "numerical"
         : false;
 
       let result = null;
@@ -790,6 +818,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           result.sizes,
           result.alphas,
         );
+        // Apply current sizeScale to dotSize uniform
+        updateDotSize(
+          pointCloudRef.current,
+          baseDotSizeRef.current * sizeScale,
+        );
       }
     };
 
@@ -801,7 +834,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedCelltypes,
     colorPalette,
     alphaScale,
-    sizeScale,
     geneScaleMin,
     geneScaleMax,
     numericalScaleMin,
@@ -811,6 +843,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     columnTypeOverrides,
     pointCloudVersion,
   ]);
+
+  // Effect 3: Update dotSize uniform when slider changes (instant, no per-point loop)
+  useEffect(() => {
+    if (pointCloudRef.current) {
+      updateDotSize(pointCloudRef.current, baseDotSizeRef.current * sizeScale);
+    }
+  }, [sizeScale]);
 
   return (
     <>
@@ -823,10 +862,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
 
-      {/* Spatial scale bar - only for non-normalized (raw coordinate) datasets */}
-      {dataset && !dataset.normalized && (
+      {/* Spatial scale bar — only for datasets with reliable raw coordinates */}
+      {dataset && !dataset.metadata?.wasNormalized && (
         <SpatialScaleBar
-          cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
+          cameraRef={
+            cameraRef as React.RefObject<THREE.PerspectiveCamera | null>
+          }
           rendererRef={rendererRef}
           controlsRef={controlsRef}
         />
