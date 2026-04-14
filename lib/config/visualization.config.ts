@@ -82,6 +82,27 @@ export const VISUALIZATION_CONFIG = {
   POINT_BASE_ALPHA: 1.0,
 
   /**
+   * Expression-Based Alpha Range
+   * Controls how much alpha varies based on gene expression / numerical value
+   * Min alpha for zero/NaN expression, max alpha for full expression
+   */
+  EXPRESSION_ALPHA_MIN: 0.3,
+  EXPRESSION_ALPHA_MAX: 1.0,
+
+  /**
+   * Selected Cells (Celltype Mode)
+   * Size multiplier for cells belonging to selected celltypes
+   */
+  SELECTED_SIZE_MULTIPLIER: 10.0,
+
+  /**
+   * Greyed-Out (Non-Selected) Cells
+   * Appearance of cells that are not part of the selected celltypes
+   */
+  GREYED_OUT_ALPHA: 0.15,
+  GREYED_OUT_SIZE_MULTIPLIER: 0.1,
+
+  /**
    * Scale Bar Settings
    * Default min/max values for gene and numerical cluster scales
    */
