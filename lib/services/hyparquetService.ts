@@ -8,7 +8,7 @@ import { compressors } from "hyparquet-compressors";
  * as hyparquet's exported types can vary between TypeScript versions
  */
 interface ColumnData {
-  pathInSchema: string[];
+  columnName: string;
   columnData: ArrayLike<any>;
   rowStart: number;
   rowEnd: number;
@@ -38,7 +38,8 @@ class HyparquetService {
     file: File,
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
-  ): Promise<Map<string, any[]>> {
+    optionalColumns?: string[],
+  ): Promise<Map<string, any[] | Float32Array>> {
     if (typeof self === "undefined") {
       throw new Error("Hyparquet service can only be used in browser");
     }
@@ -63,7 +64,9 @@ class HyparquetService {
     const columnChunks = new Map<string, ArrayLike<any>[]>();
     const columnLengths = new Map<string, number>();
 
-    columnNames.forEach((name) => {
+    const allColumns = [...columnNames, ...(optionalColumns ?? [])];
+
+    allColumns.forEach((name) => {
       columnChunks.set(name, []);
       columnLengths.set(name, 0);
     });
@@ -76,9 +79,8 @@ class HyparquetService {
     await parquetRead({
       file: arrayBuffer,
       compressors,
-      onPage: ((page: any) => {
-        // hyparquet v1.20+ passes columnName, older versions used pathInSchema
-        const columnName = page.columnName ?? page.pathInSchema?.[0];
+      onPage: ((page: ColumnData) => {
+        const columnName = page.columnName;
         const chunks = columnChunks.get(columnName);
 
         if (chunks) {
@@ -104,28 +106,54 @@ class HyparquetService {
     await onProgress?.(25, "Combining column data...");
 
     // Concatenate chunks into final arrays (single allocation + copy)
-    const columnData = new Map<string, any[]>();
+    // Use Float32Array for numeric columns, regular Array for string columns
+    const columnData = new Map<string, any[] | Float32Array>();
 
     for (const [columnName, chunks] of columnChunks.entries()) {
       const totalLen = columnLengths.get(columnName)!;
-      const result = new Array(totalLen);
-      let offset = 0;
 
-      for (const chunk of chunks) {
-        for (let i = 0; i < chunk.length; i++) {
-          result[offset++] = chunk[i];
+      // Detect if column is numeric from first chunk's data type
+      const firstChunk = chunks[0];
+      const isNumeric =
+        firstChunk instanceof Float32Array ||
+        firstChunk instanceof Float64Array ||
+        firstChunk instanceof Int32Array ||
+        firstChunk instanceof Int16Array ||
+        firstChunk instanceof Uint32Array ||
+        (firstChunk && firstChunk.length > 0 && typeof firstChunk[0] === "number");
+
+      if (isNumeric) {
+        const result = new Float32Array(totalLen);
+        let offset = 0;
+
+        for (const chunk of chunks) {
+          for (let i = 0; i < chunk.length; i++) {
+            result[offset++] = chunk[i];
+          }
         }
+        columnData.set(columnName, result);
+      } else {
+        const result = new Array(totalLen);
+        let offset = 0;
+
+        for (const chunk of chunks) {
+          for (let i = 0; i < chunk.length; i++) {
+            result[offset++] = chunk[i];
+          }
+        }
+        columnData.set(columnName, result);
       }
-      columnData.set(columnName, result);
     }
 
     await onProgress?.(30, "Column extraction complete");
 
-    // Validate all requested columns were found
-    for (const columnName of columnNames) {
+    // Validate all required columns were found (optional columns are skipped)
+    const optionalSet = new Set(optionalColumns ?? []);
+
+    for (const columnName of allColumns) {
       const data = columnData.get(columnName);
 
-      if (!data || data.length === 0) {
+      if ((!data || data.length === 0) && !optionalSet.has(columnName)) {
         throw new Error(
           `Column '${columnName}' not found or empty in parquet file`,
         );

@@ -17,12 +17,20 @@
 
 import pako from "pako";
 
+const UNASSIGNED_SUFFIX = "_uuuuuuuuuu";
+
+export interface MoleculeCounts {
+  assigned: number;
+  unassigned?: number;
+}
+
 interface Manifest {
   version: string;
   created_at: string;
   dataset_id: string;
   name: string;
   type: string;
+  has_unassigned?: boolean;
   statistics: {
     total_molecules: number;
     unique_genes: number;
@@ -30,6 +38,7 @@ interface Manifest {
   };
   genes: {
     unique_gene_names: string[];
+    molecule_counts?: Record<string, MoleculeCounts>;
   };
   processing: {
     compression: string;
@@ -47,7 +56,8 @@ export class ProcessedSingleMoleculeAdapter {
   private localFiles: Map<string, File> | null = null;
   private manifest: Manifest | null = null;
   private mode: "remote" | "local";
-  private geneCache: Map<string, number[]> = new Map(); // Cache loaded genes
+  private geneCache: Map<string, Float32Array> = new Map(); // Cache loaded genes
+  private unassignedGeneCache: Map<string, Float32Array> = new Map(); // Cache unassigned genes
 
   constructor(datasetId: string, localFiles?: Map<string, File>) {
     this.datasetId = datasetId;
@@ -276,9 +286,9 @@ export class ProcessedSingleMoleculeAdapter {
 
   /**
    * Get coordinates for a specific gene (lazy loaded)
-   * Returns flat array: [x1,y1,z1, x2,y2,z2, ...]
+   * Returns flat Float32Array: [x1,y1,z1, x2,y2,z2, ...]
    */
-  async getCoordinatesByGene(geneName: string): Promise<number[]> {
+  async getCoordinatesByGene(geneName: string): Promise<Float32Array> {
     // Check cache first
     if (this.geneCache.has(geneName)) {
       console.log(
@@ -321,17 +331,99 @@ export class ProcessedSingleMoleculeAdapter {
       decompressed.byteLength / 4,
     );
 
-    // Convert to regular number array for compatibility
-    const coords = Array.from(float32Array);
-
-    // Cache for future use
-    this.geneCache.set(geneName, coords);
+    // Cache Float32Array directly (no conversion to number[])
+    this.geneCache.set(geneName, float32Array);
 
     console.log(
-      `[ProcessedSingleMoleculeAdapter] Loaded gene ${geneName}: ${coords.length / 3} molecules`,
+      `[ProcessedSingleMoleculeAdapter] Loaded gene ${geneName}: ${float32Array.length / 3} molecules`,
     );
 
-    return coords;
+    return float32Array;
+  }
+
+  /**
+   * Get coordinates for unassigned molecules of a specific gene (lazy loaded)
+   * Returns flat Float32Array: [x1,y1,z1, x2,y2,z2, ...] or empty Float32Array if no unassigned data
+   */
+  async getUnassignedCoordinatesByGene(geneName: string): Promise<Float32Array> {
+    const empty = new Float32Array(0);
+
+    if (!this.manifest || !this.manifest.has_unassigned) {
+      return empty;
+    }
+
+    // Check cache first
+    if (this.unassignedGeneCache.has(geneName)) {
+      console.log(
+        `[ProcessedSingleMoleculeAdapter] Unassigned gene ${geneName} found in cache`,
+      );
+
+      return this.unassignedGeneCache.get(geneName)!;
+    }
+
+    // Check if gene exists
+    if (!this.manifest.genes.unique_gene_names.includes(geneName)) {
+      return empty;
+    }
+
+    console.log(
+      `[ProcessedSingleMoleculeAdapter] Loading unassigned gene ${geneName} from storage...`,
+    );
+
+    // Sanitize gene name for filename (matches Python script)
+    const sanitizedName = geneName
+      .replace(/[^a-zA-Z0-9]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+
+    const fileKey = `genes/${sanitizedName}${UNASSIGNED_SUFFIX}.bin.gz`;
+
+    try {
+      // Fetch and decompress unassigned gene file
+      const decompressed = await this.fetchGzippedBinary(fileKey);
+
+      // Convert Uint8Array to Float32Array directly (no Array.from())
+      const float32Array = new Float32Array(
+        decompressed.buffer,
+        decompressed.byteOffset,
+        decompressed.byteLength / 4,
+      );
+
+      // Cache Float32Array directly
+      this.unassignedGeneCache.set(geneName, float32Array);
+
+      const dims = this.manifest.statistics.spatial_dimensions;
+
+      console.log(
+        `[ProcessedSingleMoleculeAdapter] Loaded unassigned gene ${geneName}: ${float32Array.length / dims} molecules`,
+      );
+
+      return float32Array;
+    } catch (error) {
+      console.warn(
+        `[ProcessedSingleMoleculeAdapter] No unassigned file for gene ${geneName}:`,
+        error,
+      );
+
+      // Cache empty result to avoid repeated failed lookups
+      this.unassignedGeneCache.set(geneName, empty);
+
+      return empty;
+    }
+  }
+
+  /**
+   * Whether this dataset has unassigned molecule data
+   */
+  hasUnassigned(): boolean {
+    return this.manifest?.has_unassigned ?? false;
+  }
+
+  /**
+   * Get per-gene molecule counts (assigned/unassigned)
+   */
+  getMoleculeCounts(): Record<string, MoleculeCounts> | null {
+    return this.manifest?.genes?.molecule_counts ?? null;
   }
 
   /**
@@ -406,6 +498,7 @@ export class ProcessedSingleMoleculeAdapter {
   clearCache() {
     console.log("[ProcessedSingleMoleculeAdapter] Clearing gene cache");
     this.geneCache.clear();
+    this.unassignedGeneCache.clear();
   }
 
   /**
@@ -414,7 +507,9 @@ export class ProcessedSingleMoleculeAdapter {
   getCacheStats() {
     return {
       cachedGenes: this.geneCache.size,
+      cachedUnassignedGenes: this.unassignedGeneCache.size,
       totalGenes: this.manifest?.statistics.unique_genes || 0,
+      hasUnassigned: this.manifest?.has_unassigned ?? false,
     };
   }
 }

@@ -54,11 +54,31 @@ function looksLikeFloat(value: any): boolean {
 export function isCategorical(values: any[], columnName?: string): boolean {
   if (!values || values.length === 0) return false;
 
-  // Special case: known categorical columns
+  // Special case: known categorical columns by name
   if (columnName) {
     const lowerName = columnName.toLowerCase();
 
-    if (lowerName.includes("leiden") || lowerName.includes("louvain")) {
+    // Known categorical column name patterns
+    const categoricalPatterns = [
+      "leiden",
+      "louvain",
+      "class_name",
+      "subclass_name",
+      "supertype_name",
+      "cluster_label",
+      "cell_type",
+      "celltype",
+      "cell_class",
+      "_source_file",
+      "_sample_id",
+      "batch",
+      "sample",
+      "donor",
+      "region",
+      "tissue",
+    ];
+
+    if (categoricalPatterns.some((p) => lowerName.includes(p))) {
       return true;
     }
 
@@ -82,6 +102,17 @@ export function isCategorical(values: any[], columnName?: string): boolean {
   const validValues = values.filter((v) => v != null);
 
   if (validValues.length === 0) return false;
+
+  // First pass: check raw types. If values are actual strings (not numeric strings),
+  // they are categorical. Sample a few values for the type check.
+  const typeSample = validValues.slice(0, Math.min(100, validValues.length));
+  const stringCount = typeSample.filter(
+    (v) => typeof v === "string" && !looksLikeNumber(v),
+  ).length;
+
+  if (stringCount / typeSample.length > 0.5) {
+    return true;
+  }
 
   // Sample up to 1000 values for performance on large datasets
   const sampleSize = Math.min(1000, validValues.length);
