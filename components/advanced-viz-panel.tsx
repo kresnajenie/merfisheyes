@@ -2,7 +2,7 @@
 
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/react";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 
 import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { glassButton } from "@/components/primitives";
@@ -42,6 +42,34 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose, controlsRef]);
 
+  // Local state mirrors store values for responsive slider display
+  const [local, setLocal] = useState({
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
+    targetPx,
+  });
+
+  // Sync local state when store changes externally (e.g. URL restore, reset)
+  useEffect(() => {
+    setLocal({
+      selectedSizeMultiplier,
+      greyedOutSizeMultiplier,
+      greyedOutAlpha,
+      expressionAlphaMin,
+      expressionAlphaMax,
+      pointSizeMultiplierMin,
+      pointSizeMultiplierMax,
+      targetPx,
+    });
+  }, [selectedSizeMultiplier, greyedOutSizeMultiplier, greyedOutAlpha,
+      expressionAlphaMin, expressionAlphaMax, pointSizeMultiplierMin,
+      pointSizeMultiplierMax, targetPx]);
+
   const sliderRow = (
     label: string,
     key: string,
@@ -63,7 +91,8 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
         size="sm"
         step={step}
         value={value}
-        onChange={(v) => setAdvancedViz(key, v as number)}
+        onChange={(v) => setLocal((prev) => ({ ...prev, [key]: v as number }))}
+        onChangeEnd={(v) => setAdvancedViz(key, v as number)}
       />
     </div>
   );
@@ -89,34 +118,21 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
           </Button>
         </div>
 
-        {/* Base Dot Size */}
-        <div>
-          <span className="text-xs font-medium text-primary">Base Dot Size</span>
-          {sliderRow(
-            "Initial size (px)",
-            "targetPx",
-            targetPx,
-            VISUALIZATION_CONFIG.TARGET_PX_MIN as number,
-            VISUALIZATION_CONFIG.TARGET_PX_MAX as number,
-            VISUALIZATION_CONFIG.TARGET_PX_STEP as number,
-          )}
-        </div>
-
         {/* Celltype Mode */}
         <div>
           <span className="text-xs font-medium text-primary">Celltype Mode</span>
-          {sliderRow("Selected size", "selectedSizeMultiplier", selectedSizeMultiplier, 0.1, 10.0, 0.1)}
-          {sliderRow("Unselected size", "greyedOutSizeMultiplier", greyedOutSizeMultiplier, 0.01, 5.0, 0.01)}
-          {sliderRow("Unselected alpha", "greyedOutAlpha", greyedOutAlpha, 0.0, 1.0, 0.05)}
+          {sliderRow("Selected size", "selectedSizeMultiplier", local.selectedSizeMultiplier, 0.1, 10.0, 0.1)}
+          {sliderRow("Unselected size", "greyedOutSizeMultiplier", local.greyedOutSizeMultiplier, 0.01, 5.0, 0.01)}
+          {sliderRow("Unselected alpha", "greyedOutAlpha", local.greyedOutAlpha, 0.0, 1.0, 0.05)}
         </div>
 
         {/* Gene Expression Mode */}
         <div>
           <span className="text-xs font-medium text-primary">Gene Expression</span>
-          {sliderRow("Size min", "pointSizeMultiplierMin", pointSizeMultiplierMin, 0.1, 5.0, 0.1)}
-          {sliderRow("Size max", "pointSizeMultiplierMax", pointSizeMultiplierMax, 0.1, 10.0, 0.1)}
-          {sliderRow("Alpha min", "expressionAlphaMin", expressionAlphaMin, 0.0, 1.0, 0.05)}
-          {sliderRow("Alpha max", "expressionAlphaMax", expressionAlphaMax, 0.0, 1.0, 0.05)}
+          {sliderRow("Size min", "pointSizeMultiplierMin", local.pointSizeMultiplierMin, 0.1, 5.0, 0.1)}
+          {sliderRow("Size max", "pointSizeMultiplierMax", local.pointSizeMultiplierMax, 0.1, 10.0, 0.1)}
+          {sliderRow("Alpha min", "expressionAlphaMin", local.expressionAlphaMin, 0.0, 1.0, 0.05)}
+          {sliderRow("Alpha max", "expressionAlphaMax", local.expressionAlphaMax, 0.0, 1.0, 0.05)}
         </div>
 
         {/* Reset */}

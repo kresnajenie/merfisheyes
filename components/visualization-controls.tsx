@@ -89,11 +89,10 @@ export function VisualizationControls() {
   const controlsRef = useRef<HTMLDivElement>(null);
 
   const handleModeChange = (newMode: VisualizationMode) => {
+    setIsAdvancedOpen(false);
     if (panelMode === newMode) {
-      // Toggle panel if clicking the same mode
       setIsPanelOpen(!isPanelOpen);
     } else {
-      // Switch panel mode and open panel
       setPanelMode(newMode);
       setIsPanelOpen(true);
     }
@@ -224,8 +223,10 @@ export function VisualizationControls() {
           color={isAdvancedOpen ? "primary" : "default"}
           variant={isAdvancedOpen ? "shadow" : "light"}
           onPress={() => {
-            setIsAdvancedOpen(!isAdvancedOpen);
-            if (!isAdvancedOpen) setIsPanelOpen(false);
+            setIsAdvancedOpen((prev) => {
+              if (!prev) setIsPanelOpen(false);
+              return !prev;
+            });
           }}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
