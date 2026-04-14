@@ -27,7 +27,17 @@ export interface VisualizationState {
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
   celltypePlayback: boolean;
   celltypePlaybackInterval: number;
-  celltypePlaybackSequence: string[]; // custom sequence, empty = all
+  celltypePlaybackSequence: string[];
+
+  // Advanced visualization settings
+  selectedSizeMultiplier: number;
+  greyedOutSizeMultiplier: number;
+  greyedOutAlpha: number;
+  expressionAlphaMin: number;
+  expressionAlphaMax: number;
+  pointSizeMultiplierMin: number;
+  pointSizeMultiplierMax: number;
+  targetPx: number;
 
   setMode: (mode: VisualizationMode[]) => void;
   setPanelMode: (mode: VisualizationMode) => void;
@@ -58,6 +68,7 @@ export interface VisualizationState {
   setCelltypePlayback: (playing: boolean) => void;
   setCelltypePlaybackInterval: (interval: number) => void;
   setCelltypePlaybackSequence: (sequence: string[]) => void;
+  setAdvancedViz: (key: string, value: number) => void;
   reset: () => void;
 }
 
@@ -84,6 +95,14 @@ const initialState = {
   celltypePlayback: false,
   celltypePlaybackInterval: 1.0,
   celltypePlaybackSequence: [] as string[],
+  selectedSizeMultiplier: VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+  greyedOutSizeMultiplier: VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+  greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+  expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
+  expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
+  pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+  pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+  targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
 };
 
 const updateModeArray = (
@@ -300,6 +319,10 @@ export function createVisualizationStoreInstance() {
 
     setCelltypePlaybackSequence: (sequence) => {
       set({ celltypePlaybackSequence: sequence });
+    },
+
+    setAdvancedViz: (key, value) => {
+      set({ [key]: value } as any);
     },
 
     reset: () => {

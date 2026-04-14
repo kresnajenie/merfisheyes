@@ -135,6 +135,16 @@ export const VISUALIZATION_CONFIG = {
    * Base dot size for UMAP/embedding visualization
    * Higher values = bigger dots. Goes into shader as dotSize uniform.
    */
+  /**
+   * Initial Dot Size (targetPx)
+   * Base pixel size of dots at the initial zoom level
+   * The dotSize uniform is back-calculated from this value
+   */
+  TARGET_PX_DEFAULT: 0.1,
+  TARGET_PX_MIN: 0.01,
+  TARGET_PX_MAX: 5.0,
+  TARGET_PX_STEP: 0.01,
+
   UMAP_POINT_SIZE: 5.0,
   UMAP_POINT_SIZE_MIN: 0.5,
   UMAP_POINT_SIZE_MAX: 20.0,

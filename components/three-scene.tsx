@@ -18,6 +18,7 @@ import {
   updateCelltypeVisualization,
   updateNumericalCelltypeVisualization,
   updateCombinedVisualization,
+  type AdvancedVizSettings,
 } from "@/lib/webgl/visualization-utils";
 import {
   usePanelVisualizationStore,
@@ -60,6 +61,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
   const baseDotSizeRef = useRef<number>(5);
+  const cameraDistanceRef = useRef<number>(1);
 
   // Get visualization settings from store
   const {
@@ -83,6 +85,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     incrementClusterVersion,
     columnTypeOverrides,
     viewMode,
+    targetPx,
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -601,8 +611,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // We want ~3px dots at the initial zoom level.
       // Back-calculate: dotSize = targetPx * distance / (baseSize * proj[1][1])
       // where distance ≈ size*1.5, proj[1][1] ≈ 1.3 (75° FOV), baseSize = POINT_BASE_SIZE
-      const targetPx = 0.1;
       const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2); // ~1.3
+      cameraDistanceRef.current = distance;
       const baseDotSize =
         (targetPx * distance) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
       baseDotSizeRef.current = baseDotSize;
@@ -680,6 +690,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
 
+      // Build advanced settings from store
+      const adv: AdvancedVizSettings = {
+        selectedSizeMultiplier,
+        greyedOutSizeMultiplier,
+        greyedOutAlpha,
+        expressionAlphaMin,
+        expressionAlphaMax,
+        pointSizeMultiplierMin,
+        pointSizeMultiplierMax,
+      };
+
       // Determine which visualization to use based on mode array
       const hasGeneMode = mode.includes("gene");
       const hasCelltypeMode = mode.includes("celltype");
@@ -743,9 +764,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             sizeScale,
             geneScaleMin,
             geneScaleMax,
-            // Only auto-set scale when gene changes, not when user manually adjusts
             geneChanged ? setGeneScaleMin : undefined,
             geneChanged ? setGeneScaleMax : undefined,
+            adv,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -774,9 +795,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             sizeScale,
             geneScaleMin,
             geneScaleMax,
-            // Only auto-set scale when gene changes, not when user manually adjusts
             geneChanged ? setGeneScaleMin : undefined,
             geneChanged ? setGeneScaleMax : undefined,
+            adv,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -796,9 +817,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               sizeScale,
               numericalScaleMin,
               numericalScaleMax,
-              // Only auto-set scale when column or type changes, not when user manually adjusts
               shouldAutoScale ? setNumericalScaleMin : undefined,
               shouldAutoScale ? setNumericalScaleMax : undefined,
+              adv,
             )
           : updateCelltypeVisualization(
               dataset,
@@ -807,6 +828,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               colorPalette,
               alphaScale,
               sizeScale,
+              adv,
             );
       }
 
@@ -842,14 +864,25 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     clusterVersion,
     columnTypeOverrides,
     pointCloudVersion,
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
   ]);
 
-  // Effect 3: Update dotSize uniform when slider changes (instant, no per-point loop)
+  // Effect 3: Update dotSize uniform when slider or targetPx changes (instant)
   useEffect(() => {
     if (pointCloudRef.current) {
-      updateDotSize(pointCloudRef.current, baseDotSizeRef.current * sizeScale);
+      const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2);
+      const newBaseDotSize =
+        (targetPx * cameraDistanceRef.current) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+      baseDotSizeRef.current = newBaseDotSize;
+      updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
     }
-  }, [sizeScale]);
+  }, [sizeScale, targetPx]);
 
   return (
     <>
