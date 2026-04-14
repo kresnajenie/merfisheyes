@@ -752,6 +752,10 @@ export class ChunkedDataAdapter {
   /**
    * Get dataset info from manifest
    */
+  getManifest() {
+    return this.manifest;
+  }
+
   getDatasetInfo() {
     if (!this.manifest) {
       throw new Error("Manifest not loaded");

@@ -439,32 +439,29 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
-    // Handle coordinate normalization based on manifest flag
-    const isNormalized = dataInfo.normalized !== false;
+    // All datasets now use raw coordinates.
+    // Old datasets (normalized !== false): coords are in [-1,1], denormalize using scalingFactor.
+    // New datasets (normalized: false): coords are already raw microns.
+    const wasNormalized = dataInfo.normalized !== false;
     const coords = spatial.coordinates;
     let finalCoords: Float32Array | number[][] = coords;
     let scalingFactor = (spatial as any).scalingFactor || 1;
 
-    if (isNormalized) {
-      // Old datasets: re-normalize (coordinates were already normalized by Python but we re-apply for consistency)
+    if (wasNormalized && scalingFactor > 1) {
+      // Old dataset: denormalize back to raw coordinates
+      console.log(`[Worker] Denormalizing old coords (×${scalingFactor})`);
       if (coords instanceof Float32Array) {
-        const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
-
-        if (result) {
-          finalCoords = result.normalized;
-          scalingFactor = result.scalingFactor;
+        const denorm = new Float32Array(coords.length);
+        for (let i = 0; i < coords.length; i++) {
+          denorm[i] = coords[i] * scalingFactor;
         }
+        finalCoords = denorm;
       } else {
-        const result = normalizeCoordinates(coords);
-
-        if (result) {
-          finalCoords = result.normalized;
-          scalingFactor = result.scalingFactor;
-        }
+        finalCoords = (coords as number[][]).map((point) =>
+          point.map((v) => v * scalingFactor),
+        );
       }
-    } else {
-      // New datasets (normalized: false): use raw coordinates as-is
-      scalingFactor = 1;
+    } else if (!wasNormalized) {
       console.log("[Worker] Using raw coordinates (normalized: false)");
     }
 
@@ -475,7 +472,7 @@ const workerApi = {
       spatial: {
         coordinates: finalCoords,
         dimensions: spatial.dimensions,
-        scalingFactor: scalingFactor,
+        scalingFactor: 1, // always 1 now — coords are raw
       },
       embeddings: embeddings,
       genes: genes,
@@ -486,13 +483,13 @@ const workerApi = {
         spatialDimensions: dataInfo.spatialDimensions,
         availableEmbeddings: dataInfo.availableEmbeddings,
         clusterCount: dataInfo.clusterCount,
-        spatialScalingFactor: scalingFactor,
+        spatialScalingFactor: 1,
       },
       matrix: matrix,
       allClusterColumnNames: clusterColumnInfo.names,
       allClusterColumnTypes: clusterColumnInfo.types,
       allEmbeddingNames: dataInfo.availableEmbeddings || [],
-      normalized: isNormalized,
+      normalized: false, // always false now — coords are always raw
     };
 
     console.log("[Worker] S3 loading complete");

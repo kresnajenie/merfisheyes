@@ -623,14 +623,38 @@ export class StandardizedDataset {
 
     await onProgress?.(90, "Building dataset...");
 
-    // Create StandardizedDataset
-    const isNormalized = dataInfo.normalized !== false;
+    // Denormalize old datasets so all coords are raw microns
+    const wasNormalized = dataInfo.normalized !== false;
+    const manifestScalingFactor = adapter.getManifest()?.processing?.spatial_scaling_factor || 1;
+    let finalSpatial: { coordinates: Float32Array | number[][]; dimensions: number; scalingFactor: number } = {
+      ...spatial,
+      scalingFactor: 1,
+    };
+
+    if (wasNormalized && manifestScalingFactor > 1) {
+      console.log(`[fromCustomS3] Denormalizing old coords (×${manifestScalingFactor})`);
+      const coords = spatial.coordinates;
+      const sf = manifestScalingFactor;
+
+      if (coords instanceof Float32Array) {
+        const denorm = new Float32Array(coords.length);
+        for (let i = 0; i < coords.length; i++) {
+          denorm[i] = coords[i] * sf;
+        }
+        finalSpatial = { coordinates: denorm, dimensions: spatial.dimensions, scalingFactor: 1 };
+      } else {
+        const denorm = (coords as number[][]).map((point) =>
+          point.map((v) => v * sf),
+        );
+        finalSpatial = { coordinates: denorm, dimensions: spatial.dimensions, scalingFactor: 1 };
+      }
+    }
 
     const dataset = new StandardizedDataset({
       id: dataInfo.id || "custom",
       name: dataInfo.name || "Custom S3 Dataset",
       type: dataInfo.type || "custom",
-      spatial,
+      spatial: finalSpatial,
       embeddings,
       genes,
       clusters,
@@ -645,7 +669,7 @@ export class StandardizedDataset {
       },
       rawData: null,
       adapter,
-      normalized: isNormalized,
+      normalized: false, // always raw now
     });
 
     // Assign matrix (pre-loaded for custom S3)
