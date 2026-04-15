@@ -43,6 +43,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const sceneGroupRef = useRef<THREE.Group | null>(null);
   const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
@@ -93,6 +94,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     expressionAlphaMax,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
+    sceneRotation,
+    flipX,
+    flipY,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -624,7 +628,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
-      scene.add(pointCloud);
+
+      // Wrap point cloud in a group for scene transforms (rotation, flip)
+      const group = new THREE.Group();
+      group.add(pointCloud);
+      scene.add(group);
+      sceneGroupRef.current = group;
       setPointCloudVersion((v) => v + 1); // Trigger visualization update
 
       // Start animation
@@ -643,7 +652,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         // Hide tooltip
         hideTooltip();
 
-        scene.remove(pointCloud);
+        if (sceneGroupRef.current) {
+          scene.remove(sceneGroupRef.current);
+          sceneGroupRef.current = null;
+        }
         pointCloud.geometry.dispose();
         (pointCloud.material as any).dispose();
         pointCloudRef.current = null;
@@ -883,6 +895,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
     }
   }, [sizeScale, targetPx]);
+
+  // Effect 4: Apply scene transforms (rotation, flip) — instant via group matrix
+  useEffect(() => {
+    const group = sceneGroupRef.current;
+    if (!group) return;
+
+    group.rotation.z = (sceneRotation * Math.PI) / 180;
+    group.scale.x = flipX ? -1 : 1;
+    group.scale.y = flipY ? -1 : 1;
+  }, [sceneRotation, flipX, flipY]);
 
   return (
     <>

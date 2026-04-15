@@ -17,6 +17,9 @@ export interface CellVizUrlState {
   to?: Record<string, "categorical" | "numerical">; // columnTypeOverrides
   vm?: CellViewMode; // viewMode (2D/3D)
   av?: Record<string, number>; // advanced viz settings (only non-default values)
+  rot?: number; // sceneRotation (degrees)
+  fx?: boolean; // flipX
+  fy?: boolean; // flipY
 }
 
 // Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
@@ -91,6 +94,9 @@ export function encodeCellVizState(state: {
   pointSizeMultiplierMin: number;
   pointSizeMultiplierMax: number;
   targetPx: number;
+  sceneRotation: number;
+  flipX: boolean;
+  flipY: boolean;
 }): string | null {
   const obj: CellVizUrlState = {};
 
@@ -140,6 +146,9 @@ export function encodeCellVizState(state: {
     if (val !== defaultVal) av[key] = val;
   }
   if (Object.keys(av).length > 0) obj.av = av;
+  if (state.sceneRotation !== 0) obj.rot = state.sceneRotation;
+  if (state.flipX) obj.fx = true;
+  if (state.flipY) obj.fy = true;
 
   // Don't encode if nothing interesting
   if (Object.keys(obj).length === 0) return null;

@@ -172,6 +172,16 @@ export async function applyCellVizState(
       store.setAdvancedViz(key, value);
     }
   }
+
+  if (decoded.rot !== undefined) {
+    store.setSceneRotation(decoded.rot);
+  }
+  if (decoded.fx !== undefined) {
+    store.setFlipX(decoded.fx);
+  }
+  if (decoded.fy !== undefined) {
+    store.setFlipY(decoded.fy);
+  }
 }
 
 export function applySMVizState(
@@ -336,6 +346,9 @@ export function useCellVizUrlSync(
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     targetPx,
+    sceneRotation,
+    flipX,
+    flipY,
   } = store;
 
   useEffect(() => {
@@ -362,6 +375,9 @@ export function useCellVizUrlSync(
       pointSizeMultiplierMin,
       pointSizeMultiplierMax,
       targetPx,
+      sceneRotation,
+      flipX,
+      flipY,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -388,6 +404,9 @@ export function useCellVizUrlSync(
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     targetPx,
+    sceneRotation,
+    flipX,
+    flipY,
   ]);
 
   return { hasUrlState, hasUrlStateRef };
