@@ -99,7 +99,7 @@ export const VISUALIZATION_CONFIG = {
    * Greyed-Out (Non-Selected) Cells
    * Appearance of cells that are not part of the selected celltypes
    */
-  GREYED_OUT_ALPHA: 0.5,
+  GREYED_OUT_ALPHA: 1.0,
   GREYED_OUT_SIZE_MULTIPLIER: 1.0,
 
   /**
