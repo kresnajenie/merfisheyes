@@ -1,4 +1,4 @@
-import type { VisualizationMode } from "@/lib/stores/createVisualizationStore";
+import type { VisualizationMode, CellViewMode } from "@/lib/stores/createVisualizationStore";
 import type { ViewMode } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
@@ -15,6 +15,11 @@ export interface CellVizUrlState {
   sz?: number; // sizeScale
   e?: string; // selectedEmbedding
   to?: Record<string, "categorical" | "numerical">; // columnTypeOverrides
+  vm?: CellViewMode; // viewMode (2D/3D)
+  av?: Record<string, number>; // advanced viz settings (only non-default values)
+  rot?: number; // sceneRotation (degrees)
+  fx?: boolean; // flipX
+  fy?: boolean; // flipY
 }
 
 // Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
@@ -80,6 +85,18 @@ export function encodeCellVizState(state: {
   sizeScale: number;
   selectedEmbedding: string | null;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
+  viewMode: CellViewMode;
+  selectedSizeMultiplier: number;
+  greyedOutSizeMultiplier: number;
+  greyedOutAlpha: number;
+  expressionAlphaMin: number;
+  expressionAlphaMax: number;
+  pointSizeMultiplierMin: number;
+  pointSizeMultiplierMax: number;
+  targetPx: number;
+  sceneRotation: number;
+  flipX: boolean;
+  flipY: boolean;
 }): string | null {
   const obj: CellVizUrlState = {};
 
@@ -110,6 +127,28 @@ export function encodeCellVizState(state: {
   if (state.selectedEmbedding) obj.e = state.selectedEmbedding;
   if (Object.keys(state.columnTypeOverrides).length > 0)
     obj.to = state.columnTypeOverrides;
+  if (state.viewMode === "3D") obj.vm = "3D";
+
+  // Encode advanced settings (only non-default values)
+  const avDefaults: Record<string, number> = {
+    selectedSizeMultiplier: VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+    greyedOutSizeMultiplier: VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+    greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+    expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
+    expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
+    pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+    pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+    targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
+  };
+  const av: Record<string, number> = {};
+  for (const [key, defaultVal] of Object.entries(avDefaults)) {
+    const val = (state as any)[key] as number;
+    if (val !== defaultVal) av[key] = val;
+  }
+  if (Object.keys(av).length > 0) obj.av = av;
+  if (state.sceneRotation !== 0) obj.rot = state.sceneRotation;
+  if (state.flipX) obj.fx = true;
+  if (state.flipY) obj.fy = true;
 
   // Don't encode if nothing interesting
   if (Object.keys(obj).length === 0) return null;
@@ -135,6 +174,7 @@ export function decodeCellVizState(encoded: string): CellVizUrlState | null {
   if (obj.e !== undefined && typeof obj.e !== "string") return null;
   if (obj.to !== undefined && (typeof obj.to !== "object" || obj.to === null))
     return null;
+  if (obj.vm !== undefined && obj.vm !== "2D" && obj.vm !== "3D") return null;
 
   return obj;
 }

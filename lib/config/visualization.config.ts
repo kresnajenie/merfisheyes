@@ -24,17 +24,17 @@ export const VISUALIZATION_CONFIG = {
   /**
    * Point Sizes
    * Base size for rendered points before any scaling is applied (single cell visualization)
+   * This multiplies with dotSize in the shader: gl_PointSize = size * dotSize * proj / distance
    */
-  POINT_BASE_SIZE: 0.5,
+  POINT_BASE_SIZE: 1.0,
 
   /**
    * Single Cell Size Scale Slider Range
    * Min/max/step values for the size scale slider in single cell viewer
-   * Default: 0.5 to 3.0 with 0.1 steps
    */
-  SINGLE_CELL_SIZE_SCALE_MIN: 0.5,
-  SINGLE_CELL_SIZE_SCALE_MAX: 6.0,
-  SINGLE_CELL_SIZE_SCALE_STEP: 0.5,
+  SINGLE_CELL_SIZE_SCALE_MIN: 0.1,
+  SINGLE_CELL_SIZE_SCALE_MAX: 2.0,
+  SINGLE_CELL_SIZE_SCALE_STEP: 0.1,
   SINGLE_CELL_SIZE_SCALE_DEFAULT: 1.0,
 
   /**
@@ -82,6 +82,27 @@ export const VISUALIZATION_CONFIG = {
   POINT_BASE_ALPHA: 1.0,
 
   /**
+   * Expression-Based Alpha Range
+   * Controls how much alpha varies based on gene expression / numerical value
+   * Min alpha for zero/NaN expression, max alpha for full expression
+   */
+  EXPRESSION_ALPHA_MIN: 0.3,
+  EXPRESSION_ALPHA_MAX: 1.0,
+
+  /**
+   * Selected Cells (Celltype Mode)
+   * Size multiplier for cells belonging to selected celltypes
+   */
+  SELECTED_SIZE_MULTIPLIER: 2.0,
+
+  /**
+   * Greyed-Out (Non-Selected) Cells
+   * Appearance of cells that are not part of the selected celltypes
+   */
+  GREYED_OUT_ALPHA: 1.0,
+  GREYED_OUT_SIZE_MULTIPLIER: 1.0,
+
+  /**
    * Scale Bar Settings
    * Default min/max values for gene and numerical cluster scales
    */
@@ -112,9 +133,22 @@ export const VISUALIZATION_CONFIG = {
   /**
    * UMAP Panel Point Size
    * Base dot size for UMAP/embedding visualization
-   * Default: 2
+   * Higher values = bigger dots. Goes into shader as dotSize uniform.
    */
-  UMAP_POINT_SIZE: 0.5,
+  /**
+   * Initial Dot Size (targetPx)
+   * Base pixel size of dots at the initial zoom level
+   * The dotSize uniform is back-calculated from this value
+   */
+  TARGET_PX_DEFAULT: 0.1,
+  TARGET_PX_MIN: 0.01,
+  TARGET_PX_MAX: 5.0,
+  TARGET_PX_STEP: 0.01,
+
+  UMAP_POINT_SIZE: 5.0,
+  UMAP_POINT_SIZE_MIN: 0.5,
+  UMAP_POINT_SIZE_MAX: 20.0,
+  UMAP_POINT_SIZE_STEP: 0.5,
 } as const;
 
 /**

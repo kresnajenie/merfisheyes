@@ -3,8 +3,32 @@ import type { StandardizedDataset } from "../StandardizedDataset";
 import { getClusterValue } from "../StandardizedDataset";
 import {
   VISUALIZATION_CONFIG,
-  calculateSizeMultiplier,
 } from "../config/visualization.config";
+
+export interface AdvancedVizSettings {
+  selectedSizeMultiplier: number;
+  greyedOutSizeMultiplier: number;
+  greyedOutAlpha: number;
+  expressionAlphaMin: number;
+  expressionAlphaMax: number;
+  pointSizeMultiplierMin: number;
+  pointSizeMultiplierMax: number;
+}
+
+const defaultAdvanced: AdvancedVizSettings = {
+  selectedSizeMultiplier: VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+  greyedOutSizeMultiplier: VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+  greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+  expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
+  expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
+  pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+  pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+};
+
+function calcSizeMultiplier(normalizedValue: number, adv: AdvancedVizSettings): number {
+  if (isNaN(normalizedValue)) return 1.0;
+  return adv.pointSizeMultiplierMin + normalizedValue * (adv.pointSizeMultiplierMax - adv.pointSizeMultiplierMin);
+}
 
 /**
  * Calculates the value at the specified percentile of the given array, ignoring NaN values.
@@ -158,6 +182,7 @@ export async function updateGeneVisualization(
   scaleMax: number = 3,
   setScaleMin?: (min: number) => void,
   setScaleMax?: (max: number) => void,
+  adv: AdvancedVizSettings = defaultAdvanced,
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -222,24 +247,21 @@ export async function updateGeneVisualization(
   const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
   const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
-  // Apply coolwarm colormap and use normalized values for size
+  // Apply coolwarm colormap with expression-based alpha
   for (let i = 0; i < count; i++) {
     const normalizedValue = normalizedExpression[i];
 
-    // Colors from coolwarm
     const [r, g, b] = coolwarm(normalizedValue);
-
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
 
-    // Sizes based on expression level (higher expression = bigger)
-    const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
+    sizes[i] = baseSize * calcSizeMultiplier(normalizedValue, adv);
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
-
-    // Alphas
-    alphas[i] = baseAlpha * alphaScale;
+    const expressionAlpha = isNaN(normalizedValue)
+      ? adv.expressionAlphaMin
+      : adv.expressionAlphaMin + (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+    alphas[i] = expressionAlpha * alphaScale;
   }
 
   return { colors, sizes, alphas };
@@ -257,6 +279,7 @@ export function updateNumericalCelltypeVisualization(
   scaleMax: number = 3,
   setScaleMin?: (min: number) => void,
   setScaleMax?: (max: number) => void,
+  adv: AdvancedVizSettings = defaultAdvanced,
 ): {
   colors: Float32Array;
   sizes: Float32Array;
@@ -336,24 +359,21 @@ export function updateNumericalCelltypeVisualization(
   const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
   const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
-  // Apply coolwarm colormap and use normalized values for size (same as gene expression)
+  // Apply coolwarm colormap with value-based alpha
   for (let i = 0; i < count; i++) {
     const normalizedValue = normalizedValues[i];
 
-    // Colors from coolwarm
     const [r, g, b] = coolwarm(normalizedValue);
-
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
 
-    // Sizes based on value level (higher value = bigger)
-    const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
+    sizes[i] = baseSize * calcSizeMultiplier(normalizedValue, adv);
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
-
-    // Alphas
-    alphas[i] = baseAlpha * alphaScale;
+    const valueAlpha = isNaN(normalizedValue)
+      ? adv.expressionAlphaMin
+      : adv.expressionAlphaMin + (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+    alphas[i] = valueAlpha * alphaScale;
   }
 
   return { colors, sizes, alphas };
@@ -369,6 +389,7 @@ export function updateCelltypeVisualization(
   colorPalette: Record<string, string>,
   alphaScale: number,
   sizeScale: number,
+  adv: AdvancedVizSettings = defaultAdvanced,
 ): {
   colors: Float32Array;
   sizes: Float32Array;
@@ -418,15 +439,16 @@ export function updateCelltypeVisualization(
     colors[i * 3 + 2] = b;
 
     // Sizes - selected items are bigger
-    const sizeMultiplier =
-      selectedCelltypes.size === 0 || selectedCelltypes.has(category)
-        ? 2.0
-        : 1.0;
+    const sizeMultiplier = isSelected
+      ? adv.selectedSizeMultiplier
+      : adv.greyedOutSizeMultiplier;
 
-    sizes[i] = baseSize * sizeMultiplier * sizeScale;
+    sizes[i] = baseSize * sizeMultiplier;
 
     // Alphas
-    alphas[i] = baseAlpha * alphaScale;
+    alphas[i] = isSelected
+      ? baseAlpha * alphaScale
+      : adv.greyedOutAlpha * alphaScale;
   }
 
   return { colors, sizes, alphas };
@@ -447,6 +469,7 @@ export async function updateCombinedVisualization(
   scaleMax: number = 3,
   setScaleMin?: (min: number) => void,
   setScaleMax?: (max: number) => void,
+  adv: AdvancedVizSettings = defaultAdvanced,
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -544,25 +567,24 @@ export async function updateCombinedVisualization(
       colors[i * 3 + 2] = b;
 
       // Sizes based on expression level (higher expression = bigger)
-      const sizeMultiplier = calculateSizeMultiplier(normalizedValue);
+      sizes[i] = baseSize * calcSizeMultiplier(normalizedValue, adv);
 
-      sizes[i] = baseSize * sizeMultiplier * sizeScale;
-
-      // Alphas based on gene expression
-      alphas[i] = baseAlpha * alphaScale;
+      // Alpha based on expression level
+      const expressionAlpha = isNaN(normalizedValue)
+        ? adv.expressionAlphaMin
+        : adv.expressionAlphaMin + (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+      alphas[i] = expressionAlpha * alphaScale;
     } else {
-      // Non-selected celltypes: show grey with reduced size/alpha
+      // Non-selected celltypes: show grey with reduced alpha
       const [r, g, b] = hexToRgb(grey);
 
       colors[i * 3] = r;
       colors[i * 3 + 1] = g;
       colors[i * 3 + 2] = b;
 
-      // Smaller size for non-selected
-      sizes[i] = baseSize * 1.0 * sizeScale;
+      sizes[i] = baseSize * adv.greyedOutSizeMultiplier;
 
-      // Same alpha as celltype mode
-      alphas[i] = baseAlpha * alphaScale;
+      alphas[i] = adv.greyedOutAlpha * alphaScale;
     }
   }
 

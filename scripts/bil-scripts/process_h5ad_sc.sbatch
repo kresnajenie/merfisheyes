@@ -1,40 +1,44 @@
 #!/bin/bash
-#SBATCH --job-name=map_my_cell
-#SBATCH --output=/bil/users/ijenie/meyes_process_logs/map_my_cell_%j.log
+#SBATCH --job-name=process_h5ad_sc
+#SBATCH --output=/bil/users/ijenie/meyes_process_logs/process_h5ad_sc_%j.log
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
-#SBATCH --mem=512G
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=256G
 #SBATCH --time=2-00:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
 
+# ── Help ─────────────────────────────────────────────────────
+if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ -z "$1" ]; then
+    echo "Usage: sbatch process_h5ad_sc.sbatch H5AD_PATH OUTPUT_PATH MMC_CSV"
+    echo ""
+    echo "Runs process_spatial_data.py on an h5ad file with MapMyCells annotations."
+    echo ""
+    echo "Arguments:"
+    echo "  H5AD_PATH    Path to cell_by_gene.h5ad"
+    echo "  OUTPUT_PATH  Output directory for chunked data (meyes_output)"
+    echo "  MMC_CSV      MapMyCells output CSV (mapping_output.csv)"
+    echo ""
+    echo "Examples:"
+    echo "  sbatch process_h5ad_sc.sbatch /bil/data/meyes/ace-low-cop/cell_by_gene.h5ad /bil/data/meyes/ace-low-cop/meyes_output /bil/data/meyes/ace-low-cop/mmc_output/mapping_output.csv"
+    exit 0
+fi
+
 # ── Arguments ────────────────────────────────────────────────
-INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output
-OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dip-use/mmc_output
-SPECIES="${3:-mouse}"  # "mouse" (default) or "human"
-REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
+H5AD_PATH="$1"
+OUTPUT_PATH="$2"
+MMC_CSV="$3"
 
-# ── Prevent thread oversubscription ──────────────────────────
-# Each worker process should use 1 thread to avoid contention
-# (50 processes × 4 MKL threads = 200 threads fighting for 64 CPUs)
-export MKL_NUM_THREADS=1
-export OMP_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export NUMEXPR_MAX_THREADS=1
-
-# ── Logging ──────────────────────────────────────────────────
 echo "========================================"
-echo "  MapMyCells — SLURM Job $SLURM_JOB_ID"
+echo "  Process H5AD Single Cell — SLURM Job $SLURM_JOB_ID"
 echo "========================================"
 echo "Node:       $(hostname)"
 echo "CPUs:       $SLURM_CPUS_PER_TASK"
 echo "Memory:     $SLURM_MEM_PER_NODE MB"
-echo "TMPDIR:     ${TMPDIR:-/tmp}"
-echo "Input:      $INPUT_PATH"
-echo "Output:     $OUTPUT_BASE"
-echo "Species:    $SPECIES"
-echo "Reference:  $REFERENCE_DIR"
+echo "H5AD:       $H5AD_PATH"
+echo "Output:     $OUTPUT_PATH"
+echo "MMC CSV:    $MMC_CSV"
 echo "Started:    $(date)"
 echo "========================================"
 echo ""
@@ -44,7 +48,6 @@ module load gcc/11.2.0
 source ~/merfisheyes_env/bin/activate
 
 echo "Python:     $(python --version)"
-echo "NumPy:      $(python -c 'import numpy; print(numpy.__version__)')"
 echo ""
 
 # ── Run ──────────────────────────────────────────────────────
@@ -52,12 +55,12 @@ cd ~/merfisheyes/scripts
 
 START_TIME=$SECONDS
 
-python map_my_cell.py \
-    "$INPUT_PATH" \
-    "$OUTPUT_BASE" \
-    --species "$SPECIES" \
-    --n_processors 50 \
-    --reference_dir "$REFERENCE_DIR"
+python process_spatial_data.py \
+    "$H5AD_PATH" \
+    "$OUTPUT_PATH" \
+    --chunk-size 1 \
+    --workers 16 \
+    --mmc-csv "$MMC_CSV"
 
 EXIT_CODE=$?
 ELAPSED=$(( SECONDS - START_TIME ))

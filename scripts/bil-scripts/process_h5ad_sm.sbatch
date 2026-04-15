@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=map_my_cell
-#SBATCH --output=/bil/users/ijenie/meyes_process_logs/map_my_cell_%j.log
+#SBATCH --job-name=process_h5ad_sm
+#SBATCH --output=/bil/users/ijenie/meyes_process_logs/process_h5ad_sm_%j.log
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=64
 #SBATCH --mem=512G
@@ -9,32 +9,36 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
 
+# ── Help ─────────────────────────────────────────────────────
+if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ -z "$1" ]; then
+    echo "Usage: sbatch process_h5ad_sm.sbatch CSV_PATH OUTPUT_PATH MAPPING_URL"
+    echo ""
+    echo "Runs process_single_molecule.py on a segmented_spot_table.csv file."
+    echo ""
+    echo "Arguments:"
+    echo "  CSV_PATH     Path to segmented_spot_table.csv"
+    echo "  OUTPUT_PATH  Output directory for processed SM files (sm_output)"
+    echo "  MAPPING_URL  S3 URL for this SM dataset (used to generate mapping.json)"
+    echo ""
+    echo "Examples:"
+    echo "  sbatch process_h5ad_sm.sbatch /bil/data/meyes/ace-low-cop/segmented_spot_table.csv /bil/data/meyes/ace-low-cop/sm_output https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output"
+    exit 0
+fi
+
 # ── Arguments ────────────────────────────────────────────────
-INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output
-OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dip-use/mmc_output
-SPECIES="${3:-mouse}"  # "mouse" (default) or "human"
-REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
+CSV_PATH="$1"
+OUTPUT_PATH="$2"
+MAPPING_URL="$3"
 
-# ── Prevent thread oversubscription ──────────────────────────
-# Each worker process should use 1 thread to avoid contention
-# (50 processes × 4 MKL threads = 200 threads fighting for 64 CPUs)
-export MKL_NUM_THREADS=1
-export OMP_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export NUMEXPR_MAX_THREADS=1
-
-# ── Logging ──────────────────────────────────────────────────
 echo "========================================"
-echo "  MapMyCells — SLURM Job $SLURM_JOB_ID"
+echo "  Process H5AD Single Molecule — SLURM Job $SLURM_JOB_ID"
 echo "========================================"
 echo "Node:       $(hostname)"
 echo "CPUs:       $SLURM_CPUS_PER_TASK"
 echo "Memory:     $SLURM_MEM_PER_NODE MB"
-echo "TMPDIR:     ${TMPDIR:-/tmp}"
-echo "Input:      $INPUT_PATH"
-echo "Output:     $OUTPUT_BASE"
-echo "Species:    $SPECIES"
-echo "Reference:  $REFERENCE_DIR"
+echo "CSV:        $CSV_PATH"
+echo "Output:     $OUTPUT_PATH"
+echo "Mapping URL: $MAPPING_URL"
 echo "Started:    $(date)"
 echo "========================================"
 echo ""
@@ -44,7 +48,6 @@ module load gcc/11.2.0
 source ~/merfisheyes_env/bin/activate
 
 echo "Python:     $(python --version)"
-echo "NumPy:      $(python -c 'import numpy; print(numpy.__version__)')"
 echo ""
 
 # ── Run ──────────────────────────────────────────────────────
@@ -52,12 +55,15 @@ cd ~/merfisheyes/scripts
 
 START_TIME=$SECONDS
 
-python map_my_cell.py \
-    "$INPUT_PATH" \
-    "$OUTPUT_BASE" \
-    --species "$SPECIES" \
-    --n_processors 50 \
-    --reference_dir "$REFERENCE_DIR"
+python process_single_molecule.py \
+    "$CSV_PATH" \
+    "$OUTPUT_PATH" \
+    --workers 10 \
+    --x-col x \
+    --y-col y \
+    --z-col z \
+    --gene-col gene_names \
+    --mapping-url "$MAPPING_URL"
 
 EXIT_CODE=$?
 ELAPSED=$(( SECONDS - START_TIME ))

@@ -98,46 +98,32 @@ export class ChunkedDataAdapter {
         );
       }
 
-      // Load manifest
-      // For custom S3 mode, try both .json and .json.gz formats
-      if (this.mode === "custom") {
-        try {
-          this.manifest = await this.fetchJSON("manifest.json");
-          console.log("Loaded manifest (uncompressed):", this.manifest);
-        } catch (error) {
-          console.log(
-            "Failed to load manifest.json, trying manifest.json.gz...",
-          );
-          // If manifest.json doesn't exist, it might be compressed
-          // Try to fetch and decompress it
-          try {
-            const buffer = await this.fetchBinary("manifest.json.gz");
-            const jsonString = new TextDecoder().decode(buffer);
+      // Load manifest, expression index, and observation metadata
+      // For custom/remote S3: fetch all three concurrently
+      const manifestPromise = this.mode === "custom"
+        ? this.fetchJSON("manifest.json").catch(() =>
+            this.fetchBinary("manifest.json.gz").then((buffer) =>
+              JSON.parse(new TextDecoder().decode(buffer)),
+            ),
+          )
+        : this.fetchJSON("manifest.json");
 
-            this.manifest = JSON.parse(jsonString);
-            console.log("Loaded manifest (compressed):", this.manifest);
-          } catch (gzError) {
-            console.error(
-              "Failed to load both manifest.json and manifest.json.gz",
-            );
-            throw error; // Throw original error
-          }
-        }
-      } else {
-        this.manifest = await this.fetchJSON("manifest.json");
-        console.log("Loaded manifest:", this.manifest);
-      }
+      const [manifest, expressionIndex, obsMetadata] = await Promise.all([
+        manifestPromise,
+        this.fetchJSON("expr/index.json"),
+        this.fetchJSON("obs/metadata.json"),
+      ]);
 
-      // Load expression index
-      this.expressionIndex = await this.fetchJSON("expr/index.json");
+      this.manifest = manifest;
+      this.expressionIndex = expressionIndex;
+      this.obsMetadata = obsMetadata;
+
+      console.log("Loaded manifest:", this.manifest);
       console.log("Loaded expression index:", {
         totalGenes: this.expressionIndex.total_genes,
         numChunks: this.expressionIndex.num_chunks,
         chunkSize: this.expressionIndex.chunk_size,
       });
-
-      // Load and cache observation metadata
-      this.obsMetadata = await this.fetchJSON("obs/metadata.json");
       console.log(
         "Loaded observation metadata:",
         Object.keys(this.obsMetadata),
@@ -766,6 +752,10 @@ export class ChunkedDataAdapter {
   /**
    * Get dataset info from manifest
    */
+  getManifest() {
+    return this.manifest;
+  }
+
   getDatasetInfo() {
     if (!this.manifest) {
       throw new Error("Manifest not loaded");

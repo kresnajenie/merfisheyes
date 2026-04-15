@@ -10,6 +10,7 @@ import { UploadSettingsModal } from "@/components/upload-settings-modal";
 import { SingleMoleculeUploadModal } from "@/components/single-molecule-upload-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 
 export function NavbarWrapper() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -41,6 +42,10 @@ export function NavbarWrapper() {
 
     return null;
   };
+
+  const isPlayback = useVisualizationStore((s) => s.celltypePlayback);
+
+  if (isPlayback) return null;
 
   return (
     <>

@@ -7,8 +7,11 @@ import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Checkbox } from "@heroui/checkbox";
 import { RadioGroup, Radio } from "@heroui/radio";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
+import { Slider, Textarea } from "@heroui/react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Tooltip } from "@heroui/tooltip";
 import { toast } from "react-toastify";
 
@@ -37,13 +40,22 @@ export function VisualizationPanel({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 1000; // Show 1000 items per page
   const panelRef = useRef<HTMLDivElement>(null);
+  const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
+  const [sequenceText, setSequenceText] = useState("");
   const { getCurrentDataset } = usePanelDatasetStore();
   const {
     selectedColumn,
     setSelectedColumn,
     selectedCelltypes,
+    setCelltypes,
     selectedGene,
     toggleCelltype,
+    celltypePlayback: isPlaying,
+    celltypePlaybackInterval: playInterval,
+    celltypePlaybackSequence,
+    setCelltypePlayback,
+    setCelltypePlaybackInterval,
+    setCelltypePlaybackSequence,
     setSelectedGene,
     setMode,
     celltypeSearchTerm,
@@ -64,6 +76,9 @@ export function VisualizationPanel({
   // Handle click outside to close panel
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if a modal is open
+      if (isSequenceModalOpen) return;
+
       const target = event.target as Node;
 
       // Don't close if clicking inside the panel
@@ -76,10 +91,10 @@ export function VisualizationPanel({
         return;
       }
 
-      // Don't close if clicking inside a popover/listbox (autocomplete dropdown rendered via portal)
+      // Don't close if clicking inside a popover/listbox/modal (rendered via portal)
       if (
         target instanceof HTMLElement &&
-        target.closest('[role="listbox"], [data-slot="content"]')
+        target.closest('[role="listbox"], [data-slot="content"], [role="dialog"], .nextui-modal-backdrop, [data-slot="backdrop"]')
       ) {
         return;
       }
@@ -234,6 +249,10 @@ export function VisualizationPanel({
   const endIndex = startIndex + itemsPerPage;
   const paginatedItems = filteredItems.slice(startIndex, endIndex);
 
+  const stopPlayback = useCallback(() => {
+    setCelltypePlayback(false);
+  }, [setCelltypePlayback]);
+
   const getTitle = () => {
     switch (mode) {
       case "celltype":
@@ -246,6 +265,7 @@ export function VisualizationPanel({
   };
 
   return (
+    <>
     <div
       ref={panelRef}
       className={`absolute top-0 left-16 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
@@ -406,6 +426,95 @@ export function VisualizationPanel({
             ))}
           </Autocomplete>
 
+          {/* Celltype playback controls — only for categorical columns */}
+          {selectedColumn && !isNumericalColumn && items.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Tooltip content={isPlaying ? "Stop" : "Play through celltypes"} placement="bottom">
+                  <Button
+                    className="min-w-0 w-10 h-8"
+                    color={isPlaying ? "danger" : "primary"}
+                    size="sm"
+                    variant={isPlaying ? "solid" : "flat"}
+                    onPress={() => {
+                      if (isPlaying) {
+                        setCelltypePlayback(false);
+                      } else {
+                        setCelltypePlayback(true);
+                        onClose();
+                      }
+                    }}
+                  >
+                    {isPlaying ? (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <polygon points="5,3 19,12 5,21" />
+                      </svg>
+                    )}
+                  </Button>
+                </Tooltip>
+                <Tooltip content="Edit playback sequence" placement="bottom">
+                  <Button
+                    className="min-w-0 w-10 h-8"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => {
+                      setSequenceText(celltypePlaybackSequence.join(", "));
+                      setIsSequenceModalOpen(true);
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path d="M4 6h16M4 12h16M4 18h7" strokeLinecap="round" />
+                    </svg>
+                  </Button>
+                </Tooltip>
+                <div className="flex-1 flex items-center gap-2">
+                  <Slider
+                    aria-label="Playback speed"
+                    className="flex-1"
+                    maxValue={5}
+                    minValue={0.2}
+                    size="sm"
+                    step={0.1}
+                    value={playInterval}
+                    onChange={(v) => setCelltypePlaybackInterval(v as number)}
+                  />
+                  <Input
+                    aria-label="Interval seconds"
+                    className="w-14"
+                    classNames={{ input: "text-xs text-center" }}
+                    size="sm"
+                    type="number"
+                    value={playInterval.toFixed(1)}
+                    onValueChange={(v) => {
+                      const num = parseFloat(v);
+                      if (!isNaN(num) && num >= 0.1) setCelltypePlaybackInterval(num);
+                    }}
+                  />
+                  <span className="text-xs text-default-400">s</span>
+                </div>
+              </div>
+              {celltypePlaybackSequence.length > 0 && (
+                <div className="text-xs text-default-400">
+                  Sequence: {celltypePlaybackSequence.length} celltypes
+                  <Button
+                    className="min-w-0 h-5 ml-1"
+                    color="danger"
+                    size="sm"
+                    variant="light"
+                    onPress={() => setCelltypePlaybackSequence([])}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Column type toggle for the selected column */}
           {showTypeToggle && selectedColumn && (
             <Button
@@ -546,8 +655,8 @@ export function VisualizationPanel({
                     isSelected={selectedCelltypes.has(item.id)}
                     size="sm"
                     onValueChange={() => {
+                      if (isPlaying) stopPlayback();
                       toggleCelltype(item.id);
-                      // Mode is now automatically updated by toggleCelltype
                     }}
                   >
                     <span style={{ color: item.color }}>{item.label}</span>
@@ -626,5 +735,74 @@ export function VisualizationPanel({
         </div>
       </div> */}
     </div>
+
+    {/* Playback sequence modal */}
+    <Modal
+      isOpen={isSequenceModalOpen}
+      onClose={() => setIsSequenceModalOpen(false)}
+      size="lg"
+    >
+      <ModalContent>
+        <ModalHeader>Playback Sequence</ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-default-500 mb-2">
+            Enter celltype names separated by commas. Playback will iterate through them in order.
+            Leave empty to play all celltypes.
+          </p>
+          <Textarea
+            label="Celltype sequence"
+            placeholder="e.g. Neuron, Astrocyte, Microglia"
+            value={sequenceText}
+            onValueChange={setSequenceText}
+            minRows={3}
+            maxRows={10}
+          />
+          {sequenceText.trim() && (
+            <div className="text-xs text-default-400 mt-1">
+              {sequenceText.split(",").map((s) => s.trim()).filter(Boolean).length} celltypes in sequence
+            </div>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            color="danger"
+            variant="light"
+            onPress={() => {
+              setSequenceText("");
+              setCelltypePlaybackSequence([]);
+              setIsSequenceModalOpen(false);
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            color="primary"
+            onPress={() => {
+              const sequence = sequenceText
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+
+              // Validate against available items
+              const validSet = new Set(items.map((i) => i.id));
+              const invalid = sequence.filter((s) => !validSet.has(s));
+              if (invalid.length > 0) {
+                toast.warning(
+                  `Skipping unknown celltypes: ${invalid.join(", ")}`,
+                  { autoClose: 4000 },
+                );
+              }
+
+              const valid = sequence.filter((s) => validSet.has(s));
+              setCelltypePlaybackSequence(valid);
+              setIsSequenceModalOpen(false);
+            }}
+          >
+            Save
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+    </>
   );
 }

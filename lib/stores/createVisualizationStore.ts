@@ -3,10 +3,12 @@ import { createStore } from "zustand";
 import { VISUALIZATION_CONFIG } from "../config/visualization.config";
 
 export type VisualizationMode = "celltype" | "gene";
+export type CellViewMode = "2D" | "3D";
 
 export interface VisualizationState {
   mode: VisualizationMode[];
   panelMode: VisualizationMode;
+  viewMode: CellViewMode;
   selectedGene: string | null;
   geneScaleMin: number;
   geneScaleMax: number;
@@ -23,15 +25,35 @@ export interface VisualizationState {
   sizeScale: number;
   clusterVersion: number;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
+  celltypePlayback: boolean;
+  celltypePlaybackInterval: number;
+  celltypePlaybackSequence: string[];
+
+  // Camera/scene transforms
+  sceneRotation: number; // degrees
+  flipX: boolean;
+  flipY: boolean;
+
+  // Advanced visualization settings
+  selectedSizeMultiplier: number;
+  greyedOutSizeMultiplier: number;
+  greyedOutAlpha: number;
+  expressionAlphaMin: number;
+  expressionAlphaMax: number;
+  pointSizeMultiplierMin: number;
+  pointSizeMultiplierMax: number;
+  targetPx: number;
 
   setMode: (mode: VisualizationMode[]) => void;
   setPanelMode: (mode: VisualizationMode) => void;
+  setViewMode: (mode: CellViewMode) => void;
   setSelectedGene: (gene: string | null) => void;
   setGeneScaleMin: (min: number) => void;
   setGeneScaleMax: (max: number) => void;
   setNumericalScaleMin: (min: number) => void;
   setNumericalScaleMax: (max: number) => void;
   toggleCelltype: (celltype: string) => void;
+  setCelltypes: (celltypes: Set<string>) => void;
   setClusterColumn: (column: string | null) => void;
   setSelectedColumn: (column: string | null, isNumerical?: boolean) => void;
   setSelectedEmbedding: (embedding: string | null) => void;
@@ -48,12 +70,20 @@ export interface VisualizationState {
   setColumnTypeOverrides: (
     overrides: Record<string, "categorical" | "numerical">,
   ) => void;
+  setCelltypePlayback: (playing: boolean) => void;
+  setCelltypePlaybackInterval: (interval: number) => void;
+  setCelltypePlaybackSequence: (sequence: string[]) => void;
+  setSceneRotation: (degrees: number) => void;
+  setFlipX: (flip: boolean) => void;
+  setFlipY: (flip: boolean) => void;
+  setAdvancedViz: (key: string, value: number) => void;
   reset: () => void;
 }
 
 const initialState = {
   mode: ["celltype"] as VisualizationMode[],
   panelMode: "celltype" as VisualizationMode,
+  viewMode: "2D" as CellViewMode,
   selectedGene: null,
   geneScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
   geneScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
@@ -70,6 +100,20 @@ const initialState = {
   sizeScale: 1.0,
   clusterVersion: 0,
   columnTypeOverrides: {} as Record<string, "categorical" | "numerical">,
+  celltypePlayback: false,
+  celltypePlaybackInterval: 1.0,
+  celltypePlaybackSequence: [] as string[],
+  sceneRotation: 0,
+  flipX: false,
+  flipY: false,
+  selectedSizeMultiplier: VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+  greyedOutSizeMultiplier: VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+  greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+  expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
+  expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
+  pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+  pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+  targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
 };
 
 const updateModeArray = (
@@ -104,6 +148,10 @@ export function createVisualizationStoreInstance() {
 
     setPanelMode: (mode) => {
       set({ panelMode: mode });
+    },
+
+    setViewMode: (mode) => {
+      set({ viewMode: mode });
     },
 
     setSelectedGene: (gene) => {
@@ -169,6 +217,27 @@ export function createVisualizationStoreInstance() {
         }
 
         return { selectedCelltypes: newCelltypes, mode: newMode };
+      });
+    },
+
+    setCelltypes: (celltypes) => {
+      set((state) => {
+        let newMode: VisualizationMode[] = [...state.mode];
+
+        if (celltypes.size > 0) {
+          if (!newMode.includes("celltype")) {
+            newMode.push("celltype");
+          }
+        } else {
+          if (!state.selectedGene) {
+            newMode = newMode.filter((m) => m !== "celltype");
+            if (newMode.length === 0) {
+              newMode = ["celltype"];
+            }
+          }
+        }
+
+        return { selectedCelltypes: celltypes, mode: newMode };
       });
     },
 
@@ -249,6 +318,34 @@ export function createVisualizationStoreInstance() {
 
     setColumnTypeOverrides: (overrides) => {
       set({ columnTypeOverrides: overrides });
+    },
+
+    setCelltypePlayback: (playing) => {
+      set({ celltypePlayback: playing });
+    },
+
+    setCelltypePlaybackInterval: (interval) => {
+      set({ celltypePlaybackInterval: interval });
+    },
+
+    setCelltypePlaybackSequence: (sequence) => {
+      set({ celltypePlaybackSequence: sequence });
+    },
+
+    setSceneRotation: (degrees) => {
+      set({ sceneRotation: degrees });
+    },
+
+    setFlipX: (flip) => {
+      set({ flipX: flip });
+    },
+
+    setFlipY: (flip) => {
+      set({ flipY: flip });
+    },
+
+    setAdvancedViz: (key, value) => {
+      set({ [key]: value } as any);
     },
 
     reset: () => {
