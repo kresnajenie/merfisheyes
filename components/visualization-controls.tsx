@@ -193,56 +193,7 @@ export function VisualizationControls() {
         </div>
       </Tooltip>
 
-      {/* Rotation Slider */}
-      <Tooltip content={`Rotate: ${sceneRotation}°`} placement="right">
-        <div
-          className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
-        >
-          <span className="text-[8px] text-default-400 mb-1">↻</span>
-          <Slider
-            aria-label="Rotation"
-            className="h-full"
-            maxValue={360}
-            minValue={0}
-            orientation="vertical"
-            size="sm"
-            step={1}
-            value={sceneRotation}
-            onChange={(value) => {
-              let v = value as number;
-              // Snap to 45° increments when shift is held (checked via global flag)
-              if ((window as any).__shiftHeld) {
-                v = Math.round(v / 45) * 45;
-              }
-              setSceneRotation(v);
-            }}
-          />
-        </div>
-      </Tooltip>
-
-      {/* Flip Buttons */}
-      <div className="flex flex-col gap-1">
-        <Tooltip content="Flip horizontal" placement="right">
-          <Button
-            className={`w-14 h-8 min-w-0 rounded-full text-xs ${flipX ? "" : glassButton()}`}
-            color={flipX ? "primary" : "default"}
-            variant={flipX ? "solid" : "light"}
-            onPress={() => setFlipX(!flipX)}
-          >
-            ⇔
-          </Button>
-        </Tooltip>
-        <Tooltip content="Flip vertical" placement="right">
-          <Button
-            className={`w-14 h-8 min-w-0 rounded-full text-xs ${flipY ? "" : glassButton()}`}
-            color={flipY ? "primary" : "default"}
-            variant={flipY ? "solid" : "light"}
-            onPress={() => setFlipY(!flipY)}
-          >
-            ⇕
-          </Button>
-        </Tooltip>
-      </div>
+      {/* TODO: Camera controls (rotation, flip) — coming in separate branch */}
 
       {/* 2D/3D View Toggle — only for 3D datasets */}
       {is3DDataset && (
