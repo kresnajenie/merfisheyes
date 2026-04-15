@@ -93,14 +93,14 @@ export const VISUALIZATION_CONFIG = {
    * Selected Cells (Celltype Mode)
    * Size multiplier for cells belonging to selected celltypes
    */
-  SELECTED_SIZE_MULTIPLIER: 10.0,
+  SELECTED_SIZE_MULTIPLIER: 2.0,
 
   /**
    * Greyed-Out (Non-Selected) Cells
    * Appearance of cells that are not part of the selected celltypes
    */
-  GREYED_OUT_ALPHA: 0.15,
-  GREYED_OUT_SIZE_MULTIPLIER: 0.1,
+  GREYED_OUT_ALPHA: 0.5,
+  GREYED_OUT_SIZE_MULTIPLIER: 1.0,
 
   /**
    * Scale Bar Settings
@@ -133,9 +133,22 @@ export const VISUALIZATION_CONFIG = {
   /**
    * UMAP Panel Point Size
    * Base dot size for UMAP/embedding visualization
-   * Default: 2
+   * Higher values = bigger dots. Goes into shader as dotSize uniform.
    */
-  UMAP_POINT_SIZE: 0.5,
+  /**
+   * Initial Dot Size (targetPx)
+   * Base pixel size of dots at the initial zoom level
+   * The dotSize uniform is back-calculated from this value
+   */
+  TARGET_PX_DEFAULT: 0.1,
+  TARGET_PX_MIN: 0.01,
+  TARGET_PX_MAX: 5.0,
+  TARGET_PX_STEP: 0.01,
+
+  UMAP_POINT_SIZE: 5.0,
+  UMAP_POINT_SIZE_MIN: 0.5,
+  UMAP_POINT_SIZE_MAX: 20.0,
+  UMAP_POINT_SIZE_STEP: 0.5,
 } as const;
 
 /**

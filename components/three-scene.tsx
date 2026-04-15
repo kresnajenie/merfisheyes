@@ -18,6 +18,7 @@ import {
   updateCelltypeVisualization,
   updateNumericalCelltypeVisualization,
   updateCombinedVisualization,
+  type AdvancedVizSettings,
 } from "@/lib/webgl/visualization-utils";
 import {
   usePanelVisualizationStore,
@@ -42,6 +43,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const sceneGroupRef = useRef<THREE.Group | null>(null);
   const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
@@ -60,6 +62,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
   const baseDotSizeRef = useRef<number>(5);
+  const cameraDistanceRef = useRef<number>(1);
 
   // Get visualization settings from store
   const {
@@ -83,6 +86,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     incrementClusterVersion,
     columnTypeOverrides,
     viewMode,
+    targetPx,
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
+    sceneRotation,
+    flipX,
+    flipY,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -601,8 +615,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // We want ~3px dots at the initial zoom level.
       // Back-calculate: dotSize = targetPx * distance / (baseSize * proj[1][1])
       // where distance ≈ size*1.5, proj[1][1] ≈ 1.3 (75° FOV), baseSize = POINT_BASE_SIZE
-      const targetPx = 0.1;
       const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2); // ~1.3
+      cameraDistanceRef.current = distance;
       const baseDotSize =
         (targetPx * distance) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
       baseDotSizeRef.current = baseDotSize;
@@ -614,7 +628,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       pointCloudRef.current = pointCloud; // Store reference
       sceneRef.current = scene; // Store scene reference
-      scene.add(pointCloud);
+
+      // Wrap point cloud in a group for scene transforms (rotation, flip)
+      const group = new THREE.Group();
+      group.add(pointCloud);
+      scene.add(group);
+      sceneGroupRef.current = group;
       setPointCloudVersion((v) => v + 1); // Trigger visualization update
 
       // Start animation
@@ -633,7 +652,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         // Hide tooltip
         hideTooltip();
 
-        scene.remove(pointCloud);
+        if (sceneGroupRef.current) {
+          scene.remove(sceneGroupRef.current);
+          sceneGroupRef.current = null;
+        }
         pointCloud.geometry.dispose();
         (pointCloud.material as any).dispose();
         pointCloudRef.current = null;
@@ -679,6 +701,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
+
+      // Build advanced settings from store
+      const adv: AdvancedVizSettings = {
+        selectedSizeMultiplier,
+        greyedOutSizeMultiplier,
+        greyedOutAlpha,
+        expressionAlphaMin,
+        expressionAlphaMax,
+        pointSizeMultiplierMin,
+        pointSizeMultiplierMax,
+      };
 
       // Determine which visualization to use based on mode array
       const hasGeneMode = mode.includes("gene");
@@ -743,9 +776,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             sizeScale,
             geneScaleMin,
             geneScaleMax,
-            // Only auto-set scale when gene changes, not when user manually adjusts
             geneChanged ? setGeneScaleMin : undefined,
             geneChanged ? setGeneScaleMax : undefined,
+            adv,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -774,9 +807,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             sizeScale,
             geneScaleMin,
             geneScaleMax,
-            // Only auto-set scale when gene changes, not when user manually adjusts
             geneChanged ? setGeneScaleMin : undefined,
             geneChanged ? setGeneScaleMax : undefined,
+            adv,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -796,9 +829,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               sizeScale,
               numericalScaleMin,
               numericalScaleMax,
-              // Only auto-set scale when column or type changes, not when user manually adjusts
               shouldAutoScale ? setNumericalScaleMin : undefined,
               shouldAutoScale ? setNumericalScaleMax : undefined,
+              adv,
             )
           : updateCelltypeVisualization(
               dataset,
@@ -807,6 +840,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               colorPalette,
               alphaScale,
               sizeScale,
+              adv,
             );
       }
 
@@ -842,14 +876,35 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     clusterVersion,
     columnTypeOverrides,
     pointCloudVersion,
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
   ]);
 
-  // Effect 3: Update dotSize uniform when slider changes (instant, no per-point loop)
+  // Effect 3: Update dotSize uniform when slider or targetPx changes (instant)
   useEffect(() => {
     if (pointCloudRef.current) {
-      updateDotSize(pointCloudRef.current, baseDotSizeRef.current * sizeScale);
+      const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2);
+      const newBaseDotSize =
+        (targetPx * cameraDistanceRef.current) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+      baseDotSizeRef.current = newBaseDotSize;
+      updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
     }
-  }, [sizeScale]);
+  }, [sizeScale, targetPx]);
+
+  // Effect 4: Apply scene transforms (rotation, flip) — instant via group matrix
+  useEffect(() => {
+    const group = sceneGroupRef.current;
+    if (!group) return;
+
+    group.rotation.z = (sceneRotation * Math.PI) / 180;
+    group.scale.x = flipX ? -1 : 1;
+    group.scale.y = flipY ? -1 : 1;
+  }, [sceneRotation, flipX, flipY]);
 
   return (
     <>

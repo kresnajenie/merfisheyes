@@ -166,6 +166,22 @@ export async function applyCellVizState(
   if (decoded.vm) {
     store.setViewMode(decoded.vm);
   }
+
+  if (decoded.av) {
+    for (const [key, value] of Object.entries(decoded.av)) {
+      store.setAdvancedViz(key, value);
+    }
+  }
+
+  if (decoded.rot !== undefined) {
+    store.setSceneRotation(decoded.rot);
+  }
+  if (decoded.fx !== undefined) {
+    store.setFlipX(decoded.fx);
+  }
+  if (decoded.fy !== undefined) {
+    store.setFlipY(decoded.fy);
+  }
 }
 
 export function applySMVizState(
@@ -322,6 +338,17 @@ export function useCellVizUrlSync(
     selectedEmbedding,
     columnTypeOverrides,
     viewMode,
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
+    targetPx,
+    sceneRotation,
+    flipX,
+    flipY,
   } = store;
 
   useEffect(() => {
@@ -340,6 +367,17 @@ export function useCellVizUrlSync(
       selectedEmbedding,
       columnTypeOverrides,
       viewMode,
+      selectedSizeMultiplier,
+      greyedOutSizeMultiplier,
+      greyedOutAlpha,
+      expressionAlphaMin,
+      expressionAlphaMax,
+      pointSizeMultiplierMin,
+      pointSizeMultiplierMax,
+      targetPx,
+      sceneRotation,
+      flipX,
+      flipY,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -358,6 +396,17 @@ export function useCellVizUrlSync(
     selectedEmbedding,
     columnTypeOverrides,
     viewMode,
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
+    targetPx,
+    sceneRotation,
+    flipX,
+    flipY,
   ]);
 
   return { hasUrlState, hasUrlStateRef };
