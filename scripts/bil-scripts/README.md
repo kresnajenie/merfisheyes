@@ -62,8 +62,19 @@ S3 sync is **disabled by default**. Pass `--sync` to enable S3 upload after proc
 
 **Arguments:**
 - `samples.csv` — CSV file with `sample_name,input_path` columns (default: `samples.csv` in this directory)
-- `species` — `human` (default) or `mouse`
+- `species` — `mouse` (default) or `human`
 - `--sync` — enable S3 upload after processing (disabled by default)
+
+**MapMyCells Reference Data:**
+
+The `map_my_cell` step requires Allen Brain Cell Atlas taxonomy reference files. Currently stored at `/bil/data/meyes/mapmycells-reference`.
+
+To set up on a new system:
+1. Download the taxonomy files from Allen Brain Map:
+   - Mouse: https://knowledge.brain-map.org/data/LVDBJAW34Y7YOLTLWKGM/summary
+   - Human: https://knowledge.brain-map.org/data/Y4E2MJPILJNA6BMIP5W/summary
+2. Place the downloaded files in your reference directory
+3. Update `--reference_dir` in `map_my_cell.sbatch` if using a different path than `/bil/data/meyes/mapmycells-reference`
 
 **Job Chain:**
 ```

@@ -8,17 +8,26 @@
 #   3. s3_sync_sample    (after process_spatial finishes, only with --sync)
 #
 # Usage:
-#   ./launch_pipeline.sh                              # uses samples.csv, default species=human
+#   ./launch_pipeline.sh                              # uses samples.csv, default species=mouse
 #   ./launch_pipeline.sh my_samples.csv               # custom sample list
-#   ./launch_pipeline.sh my_samples.csv mouse          # custom sample list + species
-#   ./launch_pipeline.sh my_samples.csv human --sync   # enable S3 sync
+#   ./launch_pipeline.sh my_samples.csv human          # custom sample list + species
+#   ./launch_pipeline.sh my_samples.csv mouse --sync   # enable S3 sync
+#
+# MapMyCells Reference Data:
+#   The map_my_cell step requires reference taxonomy data.
+#   Currently stored at: /bil/data/meyes/mapmycells-reference
+#   To set up, download the Allen Brain Cell Atlas taxonomy files:
+#     - Mouse: https://knowledge.brain-map.org/data/LVDBJAW34Y7YOLTLWKGM/summary
+#     - Human: https://knowledge.brain-map.org/data/Y4E2MJPILJNA6BMIP5W/summary
+#   Place the downloaded files in your reference directory and update the
+#   --reference_dir path in map_my_cell.sbatch if using a different location.
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
-SPECIES="${2:-human}"
+SPECIES="${2:-mouse}"
 SYNC=false
 for arg in "$@"; do
     if [ "$arg" = "--sync" ]; then
