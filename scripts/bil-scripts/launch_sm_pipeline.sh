@@ -9,17 +9,17 @@
 # Usage:
 #   ./launch_sm_pipeline.sh                          # uses samples.csv in same dir
 #   ./launch_sm_pipeline.sh my_samples.csv           # custom sample list
-#   ./launch_sm_pipeline.sh my_samples.csv --no-sync # skip S3 sync
+#   ./launch_sm_pipeline.sh my_samples.csv --sync    # enable S3 sync
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
-NO_SYNC=false
+SYNC=false
 for arg in "$@"; do
-    if [ "$arg" = "--no-sync" ]; then
-        NO_SYNC=true
+    if [ "$arg" = "--sync" ]; then
+        SYNC=true
     fi
 done
 MEYES_BASE="/bil/data/meyes"
@@ -34,7 +34,7 @@ echo "============================================"
 echo "  Single Molecule Pipeline Launcher"
 echo "============================================"
 echo "Sample file: $SAMPLE_FILE"
-echo "S3 sync:     $(if $NO_SYNC; then echo 'DISABLED (--no-sync)'; else echo 'enabled'; fi)"
+echo "S3 sync:     $(if $SYNC; then echo 'enabled (--sync)'; else echo 'DISABLED (pass --sync to enable)'; fi)"
 echo "Output base: $MEYES_BASE"
 echo "S3 base:     $S3_HTTPS_BASE"
 echo ""
@@ -80,7 +80,7 @@ while IFS=',' read -r sample_name input_path; do
     echo "  [2/3] copy mapping.json -> Job ${copy_job} (after ${process_job})"
 
     # Step 3: s3 sync (waits for copy)
-    if ! $NO_SYNC; then
+    if $SYNC; then
         sync_job=$(sbatch --parsable \
             --dependency=afterok:${copy_job} \
             --job-name="sync_sm_${sample_name}" \
@@ -88,7 +88,7 @@ while IFS=',' read -r sample_name input_path; do
             "$sample_name")
         echo "  [3/3] s3_sync_sm -> Job ${sync_job} (after ${copy_job})"
     else
-        echo "  [3/3] s3_sync_sm -> SKIPPED (--no-sync)"
+        echo "  [3/3] s3_sync_sm -> SKIPPED (pass --sync to enable)"
     fi
 
     echo ""

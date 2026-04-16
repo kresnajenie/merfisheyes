@@ -5,13 +5,13 @@
 # Reads samples.csv (sample_name,input_path) and for each sample submits:
 #   1. map_my_cell      (no dependency — expects combined_output already exists)
 #   2. process_spatial   (after map_my_cell finishes)
-#   3. s3_sync_sample    (after process_spatial finishes, unless --no-sync)
+#   3. s3_sync_sample    (after process_spatial finishes, only with --sync)
 #
 # Usage:
 #   ./launch_pipeline.sh                              # uses samples.csv, default species=human
 #   ./launch_pipeline.sh my_samples.csv               # custom sample list
 #   ./launch_pipeline.sh my_samples.csv mouse          # custom sample list + species
-#   ./launch_pipeline.sh my_samples.csv human --no-sync # skip S3 sync
+#   ./launch_pipeline.sh my_samples.csv human --sync   # enable S3 sync
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -19,10 +19,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
 SPECIES="${2:-human}"
-NO_SYNC=false
+SYNC=false
 for arg in "$@"; do
-    if [ "$arg" = "--no-sync" ]; then
-        NO_SYNC=true
+    if [ "$arg" = "--sync" ]; then
+        SYNC=true
     fi
 done
 MEYES_BASE="/bil/data/meyes"
@@ -37,7 +37,7 @@ echo "  MERFISH Eyes Pipeline Launcher"
 echo "============================================"
 echo "Sample file: $SAMPLE_FILE"
 echo "Species:     $SPECIES"
-echo "S3 sync:     $(if $NO_SYNC; then echo 'DISABLED (--no-sync)'; else echo 'enabled'; fi)"
+echo "S3 sync:     $(if $SYNC; then echo 'enabled (--sync)'; else echo 'DISABLED (pass --sync to enable)'; fi)"
 echo "Output base: $MEYES_BASE"
 echo ""
 
@@ -91,7 +91,7 @@ while IFS=',' read -r sample_name input_path; do
     echo "  [2/3] process_spatial -> Job ${process_job} (after ${mmc_job})"
 
     # Step 3: s3 sync (waits for process_spatial)
-    if ! $NO_SYNC; then
+    if $SYNC; then
         sync_job=$(sbatch --parsable \
             --dependency=afterok:${process_job} \
             --job-name="sync_${sample_name}" \
@@ -99,7 +99,7 @@ while IFS=',' read -r sample_name input_path; do
             "$sample_name")
         echo "  [3/3] s3_sync         -> Job ${sync_job} (after ${process_job})"
     else
-        echo "  [3/3] s3_sync         -> SKIPPED (--no-sync)"
+        echo "  [3/3] s3_sync         -> SKIPPED (pass --sync to enable)"
     fi
 
     echo ""

@@ -27,19 +27,19 @@ This directory contains SLURM batch scripts and pipeline launchers for processin
 # 3. Run the appropriate pipeline
 
 # For MERSCOPE data (requires combined_output/ to exist):
-./launch_pipeline.sh samples.csv human --no-sync
+./launch_pipeline.sh samples.csv human
 
 # For single molecule data:
-./launch_sm_pipeline.sh samples.csv --no-sync
+./launch_sm_pipeline.sh samples.csv
 
 # For H5AD data (single cell + single molecule):
-./launch_h5ad_pipeline.sh h5ad-samples.csv --no-sync
+./launch_h5ad_pipeline.sh h5ad-samples.csv
 
 # Monitor jobs:
 squeue -u $USER
 ```
 
-All launch scripts accept `--no-sync` to skip S3 upload (recommended for testing).
+S3 sync is **disabled by default**. Pass `--sync` to enable S3 upload after processing.
 
 ---
 
@@ -57,13 +57,13 @@ All launch scripts accept `--no-sync` to skip S3 upload (recommended for testing
 
 **Command:**
 ```bash
-./launch_pipeline.sh samples.csv [species] [--no-sync]
+./launch_pipeline.sh samples.csv [species] [--sync]
 ```
 
 **Arguments:**
 - `samples.csv` — CSV file with `sample_name,input_path` columns (default: `samples.csv` in this directory)
 - `species` — `human` (default) or `mouse`
-- `--no-sync` — skip S3 upload after processing
+- `--sync` — enable S3 upload after processing (disabled by default)
 
 **Job Chain:**
 ```
@@ -72,7 +72,7 @@ Step 2: process_spatial  → Chunked binary output (32 CPUs, 256G, ~1-4h)
 Step 3: s3_sync          → Upload to S3 (1 CPU, 4G, varies)
 ```
 
-Each step depends on the previous. Steps 1-2 run for each sample; step 3 is optional (`--no-sync`).
+Each step depends on the previous. Steps 1-2 run for each sample; step 3 requires `--sync`.
 
 **Output:** `{output_base}/meyes_output/` containing:
 ```
@@ -94,7 +94,7 @@ meyes_output/
 
 **Command:**
 ```bash
-./launch_sm_pipeline.sh samples.csv [--no-sync]
+./launch_sm_pipeline.sh samples.csv [--sync]
 ```
 
 **Job Chain:**
@@ -136,7 +136,7 @@ The launch script validates both files exist before submitting.
 
 **Command:**
 ```bash
-./launch_h5ad_pipeline.sh h5ad-samples.csv [--no-sync]
+./launch_h5ad_pipeline.sh h5ad-samples.csv [--sync]
 ```
 
 **Job Chain:**
@@ -271,12 +271,12 @@ mkdir -p /bil/users/ijenie/meyes_process_logs
 
 ## S3 Sync Configuration
 
-By default, all launch scripts include S3 sync as the final step. To skip sync (for testing or when S3 is not configured), pass `--no-sync`:
+S3 sync is **disabled by default**. To enable upload after processing, pass `--sync`:
 
 ```bash
-./launch_pipeline.sh samples.csv human --no-sync
-./launch_sm_pipeline.sh samples.csv --no-sync
-./launch_h5ad_pipeline.sh h5ad-samples.csv --no-sync
+./launch_pipeline.sh samples.csv human --sync
+./launch_sm_pipeline.sh samples.csv --sync
+./launch_h5ad_pipeline.sh h5ad-samples.csv --sync
 ```
 
 ### Configuring S3
