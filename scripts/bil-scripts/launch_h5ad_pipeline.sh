@@ -14,14 +14,21 @@
 #   {input_dir}/segmented_spot_table.csv
 #
 # Usage:
-#   ./launch_h5ad_pipeline.sh                  # uses samples.csv in same dir
-#   ./launch_h5ad_pipeline.sh my_samples.csv   # custom sample list
+#   ./launch_h5ad_pipeline.sh                          # uses samples.csv in same dir
+#   ./launch_h5ad_pipeline.sh my_samples.csv           # custom sample list
+#   ./launch_h5ad_pipeline.sh my_samples.csv --no-sync # skip S3 sync
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
+NO_SYNC=false
+for arg in "$@"; do
+    if [ "$arg" = "--no-sync" ]; then
+        NO_SYNC=true
+    fi
+done
 MEYES_BASE="/bil/data/meyes"
 S3_BUCKET="merfisheyes-bil"
 S3_PREFIX_BASE="bil-psc-data2"
@@ -36,6 +43,7 @@ echo "============================================"
 echo "  H5AD Pipeline Launcher"
 echo "============================================"
 echo "Sample file:  $SAMPLE_FILE"
+echo "S3 sync:      $(if $NO_SYNC; then echo 'DISABLED (--no-sync)'; else echo 'enabled'; fi)"
 echo "Output base:  $MEYES_BASE"
 echo "S3 base:      $S3_HTTPS_BASE"
 echo ""
@@ -122,12 +130,13 @@ while IFS=',' read -r sample_name input_dir; do
     echo "  [4/5] copy mapping.json -> Job ${copy_job} (after ${sc_job} + ${sm_job})"
 
     # Step 5: s3 sync both meyes_output and sm_output (after copy)
-    sync_job=$(sbatch --parsable \
-        --dependency=afterok:${copy_job} \
-        --job-name="sync_${sample_name}" \
-        --output="/bil/users/ijenie/meyes_process_logs/s3_sync_h5ad_${sample_name}_%j.log" \
-        --ntasks=1 --cpus-per-task=8 --mem=4G --time=2-00:00:00 --partition=compute \
-        --wrap="
+    if ! $NO_SYNC; then
+        sync_job=$(sbatch --parsable \
+            --dependency=afterok:${copy_job} \
+            --job-name="sync_${sample_name}" \
+            --output="/bil/users/ijenie/meyes_process_logs/s3_sync_h5ad_${sample_name}_%j.log" \
+            --ntasks=1 --cpus-per-task=8 --mem=4G --time=2-00:00:00 --partition=compute \
+            --wrap="
 module load aws-cli
 export AWS_MAX_CONCURRENT_REQUESTS=50
 aws configure set default.s3.max_concurrent_requests 50
@@ -149,7 +158,10 @@ echo 'sm_output sync done at \$(date)'
 echo ''
 echo 'All syncs complete at \$(date)'
 ")
-    echo "  [5/5] s3_sync          -> Job ${sync_job} (after ${copy_job})"
+        echo "  [5/5] s3_sync          -> Job ${sync_job} (after ${copy_job})"
+    else
+        echo "  [5/5] s3_sync          -> SKIPPED (--no-sync)"
+    fi
 
     echo ""
 
