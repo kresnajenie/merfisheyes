@@ -445,7 +445,7 @@ After processing, data is organized under `{output_base}/{sample_name}/` (defaul
     cell_by_gene.csv
     check_spatial.png        # Sanity check plots
     check_expression.png
-    artifact_mask_p25.csv    # Artifact filter mask
+    artifact_mask_p*.csv     # Artifact filter masks (p5 through p80)
   mmc_output/                # From map_my_cell
     mapping_output.csv       # Cell type annotations
   meyes_output/              # From process_spatial (→ synced to S3)
@@ -703,3 +703,172 @@ Located in `scripts/` (parent directory):
 | `process_single_molecule.py` | Converts transcripts to per-gene binary files |
 | `map_my_cell.py` | Cell type annotation via Allen Brain MapMyCells |
 | `update_mapping_prefix.py` | Re-prefixes S3 URLs in mapping.json |
+
+---
+
+## Processing Steps In Detail
+
+### combine_slices_v3.py
+
+Combines multiple MERSCOPE tissue slices into a single unified dataset. Also works for single slices (passes through).
+
+**What it does:**
+
+1. **Discovers sample directories** — BFS from each top-level child of the input directory to find `cell_metadata.csv` + `cell_by_gene.csv` (fuzzy matched)
+
+2. **Standardizes cell IDs** — For each sample:
+   - `cell_metadata.csv`: searches for ID column in order: `EntityID` → `id` → `cell_id`. If none found, falls back to the first column (renamed to `cell_id`)
+   - `cell_by_gene.csv`: searches for `cell` column. If not found, uses first column
+   - IDs are converted to strings for consistent matching
+   - Cell IDs must match between metadata and expression files — rows are aligned by inner join on common IDs
+
+3. **Separates spatial coordinates** — Shifts each slice so they don't overlap, with configurable padding (default: 1000 units) between slices. Arranges slices in a grid layout.
+
+4. **Adds tracking columns:**
+   - `_source_file` — absolute path to the original `cell_metadata.csv` for each cell
+   - `_sample_id` — top-level directory name for each slice (used for SM linking)
+
+5. **Generates artifact mask** — Computes per-cell total gene expression (row sums) and generates artifact mask CSVs at multiple percentile thresholds (5th, 10th, 15th, ..., 80th in 5% increments). Cells below the threshold are flagged as artifacts (low-expression border cells).
+
+**Output (`combined_output/`):**
+```
+combined_output/
+  cell_metadata.csv              # Combined metadata with shifted coordinates
+  cell_by_gene.csv               # Combined expression matrix
+  check_spatial.png              # Spatial layout sanity check
+  check_expression.png           # Gene expression sanity check
+  check_artifact_thresholds.png  # Comparison of artifact filtering at different percentiles
+  artifact_mask_p5.csv           # Artifact mask at 5th percentile
+  artifact_mask_p10.csv          # ... 10th
+  artifact_mask_p15.csv          # ... 15th
+  ...                            # (every 5th percentile)
+  artifact_mask_p75.csv          # ... 75th
+  artifact_mask_p80.csv          # ... 80th
+```
+
+Each `artifact_mask_p*.csv` has two columns: `cell_id` and `is_artifact` (boolean). You choose which percentile to use when running `process_spatial_data.py` with the `--mask` flag.
+
+**Mask-only mode:** If you've already combined the data but want to regenerate the artifact masks:
+```bash
+sbatch combine_slices.sbatch --mask-only /path/to/combined_output /path/to/combined_output
+```
+
+---
+
+### map_my_cell.py
+
+Annotates cells with cell type labels using the Allen Brain Cell Atlas taxonomy via the [MapMyCells algorithm](https://github.com/AllenInstitute/cell_type_mapper/blob/main/examples/mapping_to_subset_of_abc_atlas_data.ipynb).
+
+**What it does:**
+
+1. **Loads input** — reads either:
+   - `combined_output/` directory (CSV mode): loads `cell_metadata.csv` + `cell_by_gene.csv`
+   - `.h5ad` file (H5AD mode): loads expression from `adata.X` (or `adata.obsm['X_raw']` if X appears normalized)
+
+2. **Translates gene names** — converts gene symbols to Ensembl IDs using the reference `gene.csv` mapping. Genes without an Ensembl match are dropped.
+
+3. **Builds query H5AD** — creates a temporary `query.h5ad` file in the format required by the MapMyCells mapper
+
+4. **Runs hierarchical mapping** — assigns each cell to a taxonomy node using the reference precomputed statistics and marker genes. Uses parallel processing (default: 50 workers, 1 thread each).
+
+5. **Generates output** — joins mapping results back to the original metadata and produces sanity check plots
+
+**Output (`mmc_output/`):**
+```
+mmc_output/
+  mapping_output.csv             # Cell type annotations (one row per cell)
+  query.h5ad                     # Intermediate query file (can be deleted)
+  check_celltype_*.png           # Spatial plots of top 3 most common cell types
+```
+
+The `mapping_output.csv` contains columns like `class_name`, `subclass_name`, `supertype_name`, `cluster_label`, plus bootstrapping probability scores for each level.
+
+**Reference directory structure:**
+
+The reference data must be at `/bil/data/meyes/mapmycells-reference` (or set via `--reference_dir` or `MERFISHEYES_REFERENCE_DIR` env var):
+
+```
+mapmycells-reference/
+  mouse/
+    precomputed_stats_ABC_revision_230821.h5
+    mouse_markers_230821.json
+    gene.csv
+  human/
+    precomputed_stats.siletti.training.h5
+    query_markers.n10.20240221800.json
+    gene.csv
+```
+
+Download from:
+- Mouse: https://knowledge.brain-map.org/data/LVDBJAW34Y7YOLTLWKGM/summary
+- Human: https://knowledge.brain-map.org/data/Y4E2MJPILJNA6BMIP5W/summary
+
+**Species:** Default is `mouse`. Pass `--species human` for human data. The species determines which reference files and taxonomy configuration to use.
+
+---
+
+### process_spatial_data.py
+
+Converts spatial transcriptomics data into the chunked binary format used by the MERFISH Eyes web viewer. This is the final processing step before S3 upload.
+
+**What it does:**
+
+1. **Auto-detects input format** — H5AD, Xenium folder, or MERSCOPE folder (can be overridden with `--format`)
+2. **Rounds spatial coordinates** to 2 decimal places (raw microns, no normalization)
+3. **Processes expression matrix** — creates chunked sparse binary files for on-demand gene loading
+4. **Processes observation columns** — creates compressed JSON files for each metadata/cluster column
+5. **Generates color palettes** — for categorical columns
+
+**Can be run without map_my_cell:**
+
+`process_spatial_data.py` does NOT require MapMyCells output. The `--mmc-csv` flag is optional. Without it, the viewer will only show the metadata columns that are already in the input data (e.g., columns from `cell_metadata.csv` or H5AD `obs`).
+
+```bash
+# Without MapMyCells (no cell type annotations)
+python process_spatial_data.py /path/to/combined_output /path/to/meyes_output --chunk-size 1 --workers 16
+
+# With MapMyCells (adds cell type columns to viewer)
+python process_spatial_data.py /path/to/combined_output /path/to/meyes_output --chunk-size 1 --workers 16 \
+  --mmc-csv /path/to/mmc_output/mapping_output.csv
+
+# With artifact mask (filters low-expression border cells)
+python process_spatial_data.py /path/to/combined_output /path/to/meyes_output --chunk-size 1 --workers 16 \
+  --mmc-csv /path/to/mmc_output/mapping_output.csv \
+  --mask /path/to/combined_output/artifact_mask_p65.csv
+```
+
+**Optional flags:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--mmc-csv` | MapMyCells output CSV — adds cell type annotation columns to the viewer | None (skip) |
+| `--mask` | Artifact mask CSV — filters cells where `is_artifact=true` | None (keep all cells) |
+| `--mask-col` | Column name in mask CSV to filter on | `is_artifact` |
+| `--mask-keep` | Value to keep (case-insensitive) | `false` (keep cells where is_artifact=false) |
+| `--chunk-size` | Genes per expression chunk | Auto-determined |
+| `--workers` | Parallel workers for chunk writing | 1 |
+
+**Mask behavior:** The `--mask` flag expects a CSV with a boolean column (default: `is_artifact`). Cells where the column value equals `--mask-keep` (default: `false`, meaning NOT an artifact) are kept. All other cells are removed. Choose a percentile mask from the artifact masks generated by `combine_slices` (e.g., `artifact_mask_p65.csv` filters at the 65th percentile).
+
+**MapMyCells behavior:** The `--mmc-csv` flag adds all non-empty columns from the MapMyCells output as observation columns in the viewer. The `cell_id` column is used for alignment and then dropped. If `--mask` is also used, the mask is applied to the MMC data as well.
+
+**Output (`meyes_output/`):**
+```
+meyes_output/
+  manifest.json          # Dataset metadata (cell count, gene count, dimensions, etc.)
+  coords/
+    spatial.bin.gz       # Spatial coordinates (binary, compressed)
+  expr/
+    index.json           # Gene → chunk mapping
+    chunk_00000.bin.gz   # Expression data chunks (sparse format)
+    chunk_00001.bin.gz
+    ...
+  obs/
+    metadata.json        # Column types (categorical/numerical)
+    class_name.json.gz   # Cluster values (from MMC or metadata)
+    subclass_name.json.gz
+    ...
+  palettes/
+    class_name.json      # Color palettes for categorical columns
+    ...
+```
