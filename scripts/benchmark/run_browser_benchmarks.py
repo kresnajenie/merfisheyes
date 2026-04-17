@@ -175,12 +175,6 @@ class BrowserBenchmarkRunner:
             await cdp.send("Performance.enable")
 
             try:
-                await page.goto(self.base_url, wait_until="networkidle", timeout=30_000)
-
-                # Switch to single molecule mode
-                await page.get_by_role("button", name="single molecule", exact=True).click()
-                await page.wait_for_timeout(500)
-
                 t0 = time.perf_counter()
                 await self._upload_sm_file(page, path)
 
@@ -207,30 +201,19 @@ class BrowserBenchmarkRunner:
     # -- upload helpers ----------------------------------------------------
 
     async def _upload_h5ad(self, page, path: str):
-        async with page.expect_file_chooser() as fc_info:
-            await page.get_by_text("H5AD FileSingle .h5ad file").click()
-        fc = await fc_info.value
-        await fc.set_files(path)
+        # Use .first to avoid strict mode violation when duplicate IDs exist
+        await page.locator("#sc-file-input-h5ad").first.set_input_files(path)
 
     async def _upload_xenium_folder(self, page, folder: str):
-        files = list_folder_files(folder)
-        async with page.expect_file_chooser() as fc_info:
-            await page.get_by_text("Xenium FolderSelect Xenium output folder").click()
-        fc = await fc_info.value
-        await fc.set_files(files)
+        await page.locator("#sc-file-input-xenium").first.set_input_files(folder, timeout=60_000)
 
     async def _upload_merscope_folder(self, page, folder: str):
-        files = list_folder_files(folder)
-        async with page.expect_file_chooser() as fc_info:
-            await page.get_by_text("Merscope FolderSelect Merscope output folder").click()
-        fc = await fc_info.value
-        await fc.set_files(files)
+        await page.locator("#sc-file-input-merscope").first.set_input_files(folder, timeout=60_000)
 
     async def _upload_sm_file(self, page, path: str):
-        async with page.expect_file_chooser() as fc_info:
-            await page.get_by_text("Xenium Parquet/CSVSelect .parquet or .csv file").click()
-        fc = await fc_info.value
-        await fc.set_files(path)
+        await page.goto(f"{self.base_url}?mode=sm", wait_until="networkidle", timeout=30_000)
+        await page.wait_for_timeout(500)
+        await page.locator("#sm-file-input-xenium").first.set_input_files(path)
 
     # -- measurement helpers -----------------------------------------------
 

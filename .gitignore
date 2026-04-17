@@ -121,5 +121,9 @@ __pycache__/
 
 # Benchmark data (large generated/real datasets)
 benchmark_data/
+
+# Benchmark results (generated CSVs, JSONs, charts)
+benchmark_results/
+
 benchmark_parquet_test.png
 gene_panel.png

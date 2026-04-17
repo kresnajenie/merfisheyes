@@ -206,13 +206,13 @@ export class MerscopeAdapter {
       if (id) this._cellIndex.set(id, i);
     }
 
-    // 5) genes + expression — from cell_by_gene.csv (supports wide or long)
+    // 5) genes + expression — from cell_by_gene.csv (streamed to avoid OOM)
     await onProgress?.(70, "Loading gene expression...");
     try {
-      const cbgRows = await this._readTableOneOf(["cell_by_gene.csv"]);
+      const cbgFile = this._findFileOneOf(["cell_by_gene.csv"]);
 
-      if (cbgRows.length) {
-        await this._ingestCellByGene(cbgRows, metaIdKey);
+      if (cbgFile) {
+        await this._streamCellByGene(cbgFile, onProgress);
       } else {
         console.warn(
           "[MerscopeAdapter] cell_by_gene.csv not found; gene coloring disabled.",
@@ -535,104 +535,229 @@ export class MerscopeAdapter {
     return rows;
   }
 
-  /* ----------------- gene ingestion helpers ----------------- */
+  /* ----------------- file lookup helper ----------------- */
 
-  async _ingestCellByGene(rows: RowData[], _metaIdKey: string): Promise<void> {
-    if (!rows.length) return;
+  private _findFileOneOf(names: string[]): File | null {
+    for (const n of names) {
+      const needle = n.toLowerCase();
+      const candidate = this.files.find((file) => {
+        const base = file.name.toLowerCase();
+        const rel = (file.webkitRelativePath || "").toLowerCase();
 
-    const first = rows[0];
-    const keys = Object.keys(first);
-    const lower = keys.map((k) => k.toLowerCase());
+        return base === needle || rel.endsWith("/" + needle);
+      });
 
-    // Detect LONG format: explicit cell + gene + count
-    const hasLong =
+      if (candidate) return candidate;
+    }
+
+    return null;
+  }
+
+  /* ----------------- streaming gene ingestion ----------------- */
+
+  /**
+   * Stream cell_by_gene.csv line-by-line directly into Float32Arrays.
+   * Uses a custom CSV line parser instead of PapaParse to avoid creating
+   * 550-field JavaScript objects per row (which causes OOM/slowness for >100K cells).
+   */
+  async _streamCellByGene(
+    file: File,
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+  ): Promise<void> {
+    const N = this._rows.length;
+
+    if (!N) return;
+
+    let headers: string[] | null = null;
+    let idColIdx = -1;
+    let geneColIndices: number[] = [];
+    let processedRows = 0;
+    let bytesRead = 0;
+    const fileSize = file.size;
+
+    // Read entire file as text, then process in a tight synchronous loop.
+    // This is faster than async ReadableStream because:
+    // 1. No async/await overhead per chunk
+    // 2. Single tight loop with indexOf for field boundaries
+    // 3. No string concatenation for buffer management
+    // Memory: ~800MB text + ~1.6GB Float32Arrays = ~2.4GB, within 8GB heap limit.
+    await onProgress?.(72, "Reading expression file...");
+    const isGz = file.name.toLowerCase().endsWith(".gz");
+    const text = isGz ? await fileToTextMaybeGz(file) : await file.text();
+
+    if (!text) return;
+
+    await onProgress?.(75, "Parsing expression data...");
+
+    // Find first newline to extract header
+    const firstNl = text.indexOf("\n");
+
+    if (firstNl === -1) return;
+
+    const headerLine = text.substring(0, firstNl).replace(/\r$/, "");
+    headers = headerLine.split(",").map((h) => h.trim());
+    const lower = headers.map((h) => h.toLowerCase());
+
+    // Detect LONG format
+    const isLong =
       lower.includes("cell") &&
       lower.includes("gene") &&
       (lower.includes("count") ||
         lower.includes("expression") ||
         lower.includes("value"));
 
-    if (hasLong) {
-      const cellKey = keys[lower.indexOf("cell")];
-      const geneKey = keys[lower.indexOf("gene")];
-      const countKey = lower.includes("count")
-        ? keys[lower.indexOf("count")]
-        : lower.includes("expression")
-          ? keys[lower.indexOf("expression")]
-          : lower.includes("value")
-            ? keys[lower.indexOf("value")]
-            : null;
+    if (isLong) {
+      console.log("[MerscopeAdapter] LONG format — using PapaParse fallback");
+      const cbgRows = await this._readTableOneOf(["cell_by_gene.csv"]);
 
-      if (!countKey) {
-        console.warn(
-          "[MerscopeAdapter] long cell_by_gene.csv has no count-like column; skipping.",
-        );
-
-        return;
-      }
-
-      // gather genes
-      const gset = new Set<string>();
-
-      for (const r of rows) {
-        const g = String(r[geneKey] ?? "").trim();
-
-        if (g) gset.add(g);
-      }
-      this._genes = Array.from(gset).sort();
-
-      // init vectors per gene
-      const N = this._rows.length;
-
-      for (const g of this._genes) this._exprByGene.set(g, new Float32Array(N));
-
-      // fill
-      for (const r of rows) {
-        const id = String(r[cellKey] ?? "");
-        const g = String(r[geneKey] ?? "");
-        const v = toNumBool(r[countKey]); // handles 0/1/"TRUE"/"FALSE"
-        const idx = this._cellIndex.get(id);
-
-        if (idx == null || !this._exprByGene.has(g)) continue;
-        const vec = this._exprByGene.get(g);
-
-        if (vec) vec[idx] = Number.isFinite(v) ? v : 0;
-      }
-
-      console.log(
-        `[MerscopeAdapter] Ingested LONG cell_by_gene: genes=${this._genes.length}`,
-      );
-
+      if (cbgRows.length) await this._ingestCellByGeneLong(cbgRows);
       return;
     }
 
-    // Otherwise: assume WIDE format (first column is cell id, rest are genes)
-    const idColGuess =
-      firstPresent(keys, ["cell", "EntityID", "cell_id", "id"]) || keys[0];
-    const geneCols = keys.filter((k) => k !== idColGuess && !k.startsWith("_"));
+    // WIDE format setup
+    const idCandidates = ["cell", "entityid", "cell_id", "id"];
+    idColIdx = lower.findIndex((h) => idCandidates.includes(h));
 
-    this._genes = geneCols.slice(); // keep order as in file
+    if (idColIdx === -1) idColIdx = 0;
 
-    const N = this._rows.length;
+    geneColIndices = [];
+    const geneCols: string[] = [];
 
-    for (const g of this._genes) this._exprByGene.set(g, new Float32Array(N));
+    for (let i = 0; i < headers.length; i++) {
+      if (i === idColIdx || headers[i].startsWith("_")) continue;
+      geneColIndices.push(i);
+      geneCols.push(headers[i]);
+    }
 
-    for (const r of rows) {
-      const id = String(r[idColGuess] ?? "");
-      const idx = this._cellIndex.get(id);
+    this._genes = geneCols;
 
-      if (idx == null) continue;
-      for (const g of this._genes) {
-        const v = toNumBool(r[g]);
-        const vec = this._exprByGene.get(g);
+    for (const g of this._genes) {
+      this._exprByGene.set(g, new Float32Array(N));
+    }
 
-        if (vec) vec[idx] = Number.isFinite(v) ? v : 0;
+    // Pre-build array of Float32Array refs for O(1) indexed access
+    const geneVectors = this._genes.map((g) => this._exprByGene.get(g)!);
+    const numGenes = geneColIndices.length;
+
+    console.log(
+      `[MerscopeAdapter] WIDE format: ${numGenes} genes, ${N} cells. Processing...`,
+    );
+
+    // Process data rows in a tight synchronous loop
+    const textLen = text.length;
+    let pos = firstNl + 1; // start after header
+
+    while (pos < textLen) {
+      // Find end of line
+      let lineEnd = text.indexOf("\n", pos);
+
+      if (lineEnd === -1) lineEnd = textLen;
+
+      // Skip empty lines
+      if (lineEnd === pos || (lineEnd === pos + 1 && text.charCodeAt(pos) === 13)) {
+        pos = lineEnd + 1;
+        continue;
+      }
+
+      // Adjust for \r\n
+      const actualEnd =
+        text.charCodeAt(lineEnd - 1) === 13 ? lineEnd - 1 : lineEnd;
+
+      // Parse fields inline: scan for commas within [pos, actualEnd)
+      let colIdx = 0;
+      let fieldStart = pos;
+      let cellIdx = -1;
+      let genePtr = 0;
+
+      for (let i = pos; i <= actualEnd; i++) {
+        if (i === actualEnd || text.charCodeAt(i) === 44 /* comma */) {
+          if (colIdx === idColIdx) {
+            const cellId = text.substring(fieldStart, i).trim();
+            const idx = this._cellIndex.get(cellId);
+
+            if (idx == null) break; // unknown cell — skip line
+            cellIdx = idx;
+          } else if (genePtr < numGenes && colIdx === geneColIndices[genePtr]) {
+            // Fast path: check for single "0" (most common value in sparse expression data)
+            if (i - fieldStart === 1 && text.charCodeAt(fieldStart) === 48) {
+              // "0" — skip
+            } else if (i > fieldStart) {
+              const val = +text.substring(fieldStart, i);
+
+              if (val) geneVectors[genePtr][cellIdx] = val;
+            }
+            genePtr++;
+            if (genePtr >= numGenes) break;
+          }
+
+          colIdx++;
+          fieldStart = i + 1;
+        }
+      }
+
+      processedRows++;
+      pos = lineEnd + 1;
+
+      // Report progress every 100K rows
+      if (processedRows % 100000 === 0 && onProgress) {
+        const pct = Math.min(84, 75 + Math.floor((pos / textLen) * 9));
+
+        await onProgress(
+          pct,
+          `Parsing expression: ${processedRows.toLocaleString()} / ${N.toLocaleString()} cells`,
+        );
       }
     }
 
     console.log(
-      `[MerscopeAdapter] Ingested WIDE cell_by_gene: genes=${this._genes.length}`,
+      `[MerscopeAdapter] Parsed cell_by_gene.csv: ${processedRows.toLocaleString()} rows, ${this._genes.length} genes`,
     );
+  }
+  /**
+   * Fallback for LONG format cell_by_gene.csv (cell, gene, count per row).
+   * LONG format files are typically much smaller so loading all rows is fine.
+   */
+  private async _ingestCellByGeneLong(rows: RowData[]): Promise<void> {
+    if (!rows.length) return;
+
+    const keys = Object.keys(rows[0]);
+    const lower = keys.map((k) => k.toLowerCase());
+
+    const cellKey = keys[lower.indexOf("cell")];
+    const geneKey = keys[lower.indexOf("gene")];
+    const countKey = lower.includes("count")
+      ? keys[lower.indexOf("count")]
+      : lower.includes("expression")
+        ? keys[lower.indexOf("expression")]
+        : keys[lower.indexOf("value")];
+
+    if (!countKey) {
+      console.warn("[MerscopeAdapter] LONG cell_by_gene.csv has no count column; skipping.");
+      return;
+    }
+
+    const N = this._rows.length;
+
+    for (const r of rows) {
+      const id = String(r[cellKey] ?? "");
+      const g = String(r[geneKey] ?? "").trim();
+      const v = toNumBool(r[countKey]);
+      const idx = this._cellIndex.get(id);
+
+      if (idx == null || !g) continue;
+
+      let vec = this._exprByGene.get(g);
+
+      if (!vec) {
+        vec = new Float32Array(N);
+        this._exprByGene.set(g, vec);
+        this._genes.push(g);
+      }
+      vec[idx] = Number.isFinite(v) ? v : 0;
+    }
+
+    this._genes.sort();
+    console.log(`[MerscopeAdapter] Ingested LONG cell_by_gene: ${this._genes.length} genes`);
   }
 }
 
