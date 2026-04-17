@@ -55,6 +55,7 @@ S3 sync is **disabled by default**. Pass `--sync <s3_prefix>` to enable S3 uploa
 **Scenario:** You have one parent directory with multiple slices of MERSCOPE data. Each slice contains `cell_metadata.csv`, `cell_by_gene.csv`, and `detected_transcripts.csv`. You want both single cell and single molecule output.
 
 **Input structure:**
+
 ```
 /bil/data/raw/my-experiment/
   slice_1/
@@ -69,6 +70,7 @@ S3 sync is **disabled by default**. Pass `--sync <s3_prefix>` to enable S3 uploa
 ```
 
 **Run both pipelines (they run in parallel):**
+
 ```bash
 # Single cell pipeline: combine → annotate → process
 ./launch_pipeline.sh /bil/data/raw/my-experiment /bil/data/meyes/my-experiment
@@ -78,11 +80,13 @@ S3 sync is **disabled by default**. Pass `--sync <s3_prefix>` to enable S3 uploa
 ```
 
 Both pipelines use the same input and output paths. They run independently in parallel:
+
 - **SC pipeline** combines slices into one dataset, annotates cell types, and creates chunked binary output in `meyes_output/`
 - **SM pipeline** discovers `detected_transcripts.csv` in each slice, creates per-gene binary files in `sm_output/`
 - The `mapping.json` is copied to `meyes_output/` so the SC viewer can right-click to open SM data
 
 **Output structure:**
+
 ```
 /bil/data/meyes/my-experiment/
   combined_output/      # from combine_slices (SC)
@@ -101,12 +105,14 @@ Both pipelines use the same input and output paths. They run independently in pa
 ```
 
 **With S3 sync:**
+
 ```bash
 ./launch_pipeline.sh /bil/data/raw/my-experiment /bil/data/meyes/my-experiment --sync s3://my-bucket/prefix
 ./launch_sm_pipeline.sh /bil/data/raw/my-experiment /bil/data/meyes/my-experiment --sync s3://my-bucket/prefix
 ```
 
 **To view in MERFISH Eyes:**
+
 - Single cell: `https://merfisheyes.com/viewer/from-s3?url=https://my-bucket.s3.us-west-2.amazonaws.com/prefix/my-experiment/meyes_output`
 - Single molecule: `https://merfisheyes.com/sm-viewer/from-s3?url=https://my-bucket.s3.us-west-2.amazonaws.com/prefix/my-experiment/sm_output`
 - Right-clicking a cell in the SC viewer opens the corresponding SM data in a split panel
@@ -118,6 +124,7 @@ Both pipelines use the same input and output paths. They run independently in pa
 **Scenario:** You have a single MERSCOPE slice (not multiple slices to combine). The directory contains `cell_metadata.csv`, `cell_by_gene.csv`, and `detected_transcripts.csv`.
 
 **Input structure:**
+
 ```
 /bil/data/raw/my-single-slice/
   cell_metadata.csv
@@ -126,6 +133,7 @@ Both pipelines use the same input and output paths. They run independently in pa
 ```
 
 **Run both pipelines:**
+
 ```bash
 # Single cell pipeline (combine_slices still works on a single slice — passes through)
 ./launch_pipeline.sh /bil/data/raw/my-single-slice /bil/data/meyes/my-single-slice
@@ -137,6 +145,7 @@ Both pipelines use the same input and output paths. They run independently in pa
 **Key difference from Case 1:** Since there's only one slice, the SM pipeline generates a `mapping.json` with `linkColumn: "__all__"` instead of `_sample_id`. This means every cell in the SC viewer links to the same SM dataset (no per-slice splitting). The `--mapping-url` flag is used internally for single-file mode.
 
 **Output structure:**
+
 ```
 /bil/data/meyes/my-single-slice/
   combined_output/      # from combine_slices (passes through single slice)
@@ -158,6 +167,7 @@ Both pipelines use the same input and output paths. They run independently in pa
 **Scenario:** You have pre-converted H5AD files with a spot table. Typically from a single sample that has already been processed into H5AD format.
 
 **Input structure:**
+
 ```
 /bil/data/raw/my-h5ad-sample/
   cell_by_gene.h5ad              # Single cell expression matrix
@@ -165,16 +175,19 @@ Both pipelines use the same input and output paths. They run independently in pa
 ```
 
 **Run the H5AD pipeline (handles both SC and SM in one command):**
+
 ```bash
 ./launch_h5ad_pipeline.sh /bil/data/raw/my-h5ad-sample /bil/data/meyes/my-h5ad-sample
 ```
 
 Or with a CSV for multiple samples:
+
 ```bash
 ./launch_h5ad_pipeline.sh h5ad-samples.csv
 ```
 
 **What happens:**
+
 1. `map_my_cell` annotates cell types from the H5AD file
 2. `process_h5ad_sm` converts the spot table CSV to per-gene binary files (runs in parallel with step 1)
 3. `process_h5ad_sc` converts the H5AD + cell type annotations to chunked binary (after step 1)
@@ -184,6 +197,7 @@ Or with a CSV for multiple samples:
 **Note:** The H5AD SM processing uses custom column mappings (`--x-col x --y-col y --z-col z --gene-col gene_names --cell-id-col cell_ids`) since the spot table format differs from standard MERSCOPE `detected_transcripts.csv`.
 
 **Output structure:**
+
 ```
 /bil/data/meyes/my-h5ad-sample/
   mmc_output/           # from map_my_cell (H5AD mode)
@@ -196,6 +210,7 @@ Or with a CSV for multiple samples:
 ```
 
 **With S3 sync:**
+
 ```bash
 ./launch_h5ad_pipeline.sh h5ad-samples.csv --sync s3://my-bucket/prefix
 ```
@@ -224,6 +239,7 @@ input_path/
 ```
 
 **Command:**
+
 ```bash
 # CSV mode
 ./launch_pipeline.sh samples.csv [output_base] [species]
@@ -244,6 +260,7 @@ input_path/
 ```
 
 **Arguments:**
+
 - `samples.csv` — CSV file with `sample_name,input_path` columns (default: `samples.csv` in this directory)
 - `/path/to/input` + `/path/to/output` — single sample mode with absolute paths. Sample name is derived from the basename of the output path
 - `output_base` — (CSV mode only) parent directory for output (default: `/bil/data/meyes`). Output goes to `{output_base}/{sample_name}/`
@@ -270,6 +287,7 @@ mapmycells-reference/
 ```
 
 To set up on a new system:
+
 1. Download the taxonomy files from Allen Brain Map:
    - Mouse whole brain taxonomy: https://knowledge.brain-map.org/data/LVDBJAW34Y7YOLTLWKGM/summary
    - Human whole brain taxonomy: https://knowledge.brain-map.org/data/Y4E2MJPILJNA6BMIP5W/summary
@@ -279,6 +297,7 @@ To set up on a new system:
 5. You can also set the `MERFISHEYES_REFERENCE_DIR` environment variable instead
 
 **Job Chain:**
+
 ```
 Step 1: combine_slices   → Combine multi-slice data into one dataset (2 CPUs, 64G, ~30min-2h)
 Step 2: map_my_cell      → Cell type annotation (64 CPUs, 512G, ~1-4h)
@@ -289,6 +308,7 @@ Step 4: s3_sync          → Upload to S3 (1 CPU, 4G, varies) [only with --sync 
 Each step depends on the previous. Steps 1-3 run for each sample; step 4 requires `--sync <prefix>`.
 
 **Output:** `{output_base}/meyes_output/` containing:
+
 ```
 meyes_output/
   manifest.json          # Dataset metadata
@@ -320,6 +340,7 @@ input_path/
 The `_sample_id` values match between the single cell and single molecule pipelines because both derive them from the same top-level directory names. This is what enables right-click linking between the SC and SM viewers.
 
 **Command:**
+
 ```bash
 # CSV mode
 ./launch_sm_pipeline.sh samples.csv [output_base]
@@ -333,6 +354,7 @@ The `_sample_id` values match between the single cell and single molecule pipeli
 ```
 
 **Arguments:**
+
 - `samples.csv` — CSV file with `sample_name,input_path` columns
 - `/path/to/input` + `/path/to/output` — single sample mode with absolute paths
 - `output_base` — (CSV mode only) parent directory for output (default: `/bil/data/meyes`)
@@ -345,6 +367,7 @@ The `_sample_id` values match between the single cell and single molecule pipeli
 **Without `--sync`:** `mapping.json` uses relative paths. You can add S3 URLs later with `update_mapping_prefix.py`.
 
 **Job Chain:**
+
 ```
 Step 1: process_single_molecule → Per-gene binary files (64 CPUs, 512G, ~1-8h)
 Step 2: copy mapping.json       → Links SM data to SC viewer [only with --sync]
@@ -352,6 +375,7 @@ Step 3: s3_sync_sm              → Upload to S3 [only with --sync]
 ```
 
 **Output:** `{output_path}/sm_output/` containing:
+
 ```
 sm_output/
   mapping.json              # Maps _sample_id → S3 URLs (or relative paths without --sync)
@@ -365,6 +389,7 @@ sm_output/
 ```
 
 **Parallelism:** The processing script uses two levels:
+
 - `--sample-workers 4` — process 4 samples concurrently
 - `--workers 8` — write gene files in parallel within each sample
 - Default: 4 × 8 = 32 cores
@@ -376,17 +401,20 @@ sm_output/
 **Purpose:** Processes pre-converted H5AD files alongside spot tables. Produces both single cell and single molecule output in one pipeline.
 
 **Input:** A directory containing:
+
 - `cell_by_gene.h5ad` — Single cell expression matrix (required)
 - `segmented_spot_table.csv` — Molecule coordinates (required)
 
 The launch script validates both files exist before submitting.
 
 **Command:**
+
 ```bash
 ./launch_h5ad_pipeline.sh h5ad-samples.csv [--sync]
 ```
 
 **Job Chain:**
+
 ```
 Step 1: map_my_cell (H5AD)       → Cell type annotation (64 CPUs, 512G)
 Step 2: process_h5ad_sm (CSV)    → SM per-gene files (64 CPUs, 512G) [parallel with step 1]
@@ -414,6 +442,7 @@ ace-dud-vex,/bil/data/path/to/other/merfish_output
 ```
 
 **Rules:**
+
 - First line can be a header (will be skipped if it starts with a letter)
 - Lines starting with `#` are comments (skipped)
 - Empty lines are skipped
@@ -424,6 +453,7 @@ ace-dud-vex,/bil/data/path/to/other/merfish_output
 ### h5ad-samples.csv
 
 Same format as `samples.csv`, but `input_path` must point to a directory containing:
+
 - `cell_by_gene.h5ad`
 - `segmented_spot_table.csv`
 
@@ -491,12 +521,14 @@ python -c "import numpy, pandas, scipy, matplotlib, anndata; print('All imports 
 ### Option 2: Singularity Container
 
 If using Singularity, ensure the container has:
+
 - Python 3.10+
 - numpy, pandas, scipy, matplotlib
 - h5py, anndata
 - AWS CLI (for S3 sync)
 
 Modify the sbatch scripts to run inside your container:
+
 ```bash
 # Example: replace the python command in sbatch scripts
 singularity exec /path/to/container.sif python process_spatial_data.py ...
@@ -533,18 +565,21 @@ S3 sync is **disabled by default**. To enable, pass `--sync <prefix>` with your 
 ```
 
 The launch scripts automatically convert between `s3://` and `https://` formats:
+
 - `s3://bucket/prefix` → used for `aws s3 sync` upload
 - `https://bucket.s3.region.amazonaws.com/prefix` → used for `mapping.json` browser URLs (SM pipeline)
 
 ### S3 Upload Destinations
 
 When `--sync s3://bucket/prefix` is provided:
+
 - **Single cell:** uploads to `s3://bucket/prefix/{sample_name}/`
 - **Single molecule:** uploads to `s3://bucket/prefix/{sample_name}/sm_output/`
 
 ### AWS Credentials
 
 AWS credentials must be configured before using `--sync`. Run `aws configure` or set environment variables:
+
 ```bash
 export AWS_ACCESS_KEY_ID=...
 export AWS_SECRET_ACCESS_KEY=...
@@ -554,6 +589,7 @@ export AWS_DEFAULT_REGION=us-west-2
 ### Updating mapping.json After Processing
 
 If you processed without `--sync` (relative paths in mapping.json), you can add S3 URLs later:
+
 ```bash
 python scripts/update_mapping_prefix.py /path/to/sm_output/mapping.json \
   --new-prefix https://bucket.s3.us-west-2.amazonaws.com/prefix/sample_name/sm_output
@@ -566,6 +602,7 @@ python scripts/update_mapping_prefix.py /path/to/sm_output/mapping.json \
 ### Single Cell Output
 
 After `process_spatial` completes, verify:
+
 ```bash
 ls {output_base}/{sample_name}/meyes_output/
 # Expected: manifest.json  coords/  expr/  obs/  palettes/
@@ -578,6 +615,7 @@ cat {output_base}/{sample_name}/meyes_output/manifest.json | python -m json.tool
 ### Single Molecule Output
 
 After `process_single_molecule` completes, verify:
+
 ```bash
 ls {output_base}/{sample_name}/sm_output/
 # Expected: mapping.json  {sample_id_1}/  {sample_id_2}/ ...
@@ -608,22 +646,14 @@ head -2 {output_base}/{sample_name}/mmc_output/mapping_output.csv
 
 ## Resource Requirements
 
-| Job | CPUs | Memory | Typical Duration | Max Time |
-|-----|------|--------|-----------------|----------|
-| combine_slices | 2 | 64G | 30min–2h | 2 days |
-| map_my_cell | 64 | 512G | 1–4h | 2 days |
-| process_spatial | 32 | 256G | 1–4h | 2 days |
-| process_single_molecule | 64 | 512G | 1–8h | 2 days |
-| s3_sync_sample | 1 | 4G | 10min–2h | 2 days |
-| s3_sync_sm | 8 | 4G | 10min–4h | 2 days |
-
-**Cluster partitions:**
-- `compute` — 7 nodes, 80 CPUs each, ~2.8 TB RAM per node, 2-day max walltime
-- `applications` — 1 node, 80 CPUs, ~2.9 TB RAM, 8-hour max walltime
-
-All jobs use the `compute` partition by default.
-
----
+| Job                     | CPUs | Memory | Typical Duration | Max Time |
+| ----------------------- | ---- | ------ | ---------------- | -------- |
+| combine_slices          | 2    | 64G    | 30min–4h         | 2 days   |
+| map_my_cell             | 64   | 512G   | 1–2h             | 2 days   |
+| process_spatial         | 32   | 256G   | 30min            | 2 days   |
+| process_single_molecule | 64   | 512G   | 30min            | 2 days   |
+| s3_sync_sample          | 1    | 4G     | 10min–2h         | 2 days   |
+| s3_sync_sm              | 8    | 4G     | 10min–4h         | 2 days   |
 
 ## Troubleshooting
 
@@ -669,40 +699,40 @@ ls /bil/users/ijenie/meyes_process_logs/
 
 ### Launch Scripts (run these)
 
-| Script | Purpose | Input |
-|--------|---------|-------|
-| `launch_pipeline.sh` | MERSCOPE SC pipeline (map_my_cell → process_spatial → sync) | samples.csv |
-| `launch_sm_pipeline.sh` | Single molecule pipeline (process → copy mapping → sync) | samples.csv |
-| `launch_h5ad_pipeline.sh` | H5AD SC + SM pipeline (parallel processing → sync) | h5ad-samples.csv |
-| `launch_combine_mmc.sh` | Combine multi-slice + artifact mask + map_my_cell | samples.csv |
-| `launch_process_sync.sh` | Process + sync only (for already-combined data) | samples.csv |
-| `launch_sync.sh` | Re-sync to S3 only | CSV with sample names |
+| Script                    | Purpose                                                     | Input                 |
+| ------------------------- | ----------------------------------------------------------- | --------------------- |
+| `launch_pipeline.sh`      | MERSCOPE SC pipeline (map_my_cell → process_spatial → sync) | samples.csv           |
+| `launch_sm_pipeline.sh`   | Single molecule pipeline (process → copy mapping → sync)    | samples.csv           |
+| `launch_h5ad_pipeline.sh` | H5AD SC + SM pipeline (parallel processing → sync)          | h5ad-samples.csv      |
+| `launch_combine_mmc.sh`   | Combine multi-slice + artifact mask + map_my_cell           | samples.csv           |
+| `launch_process_sync.sh`  | Process + sync only (for already-combined data)             | samples.csv           |
+| `launch_sync.sh`          | Re-sync to S3 only                                          | CSV with sample names |
 
 ### SBATCH Jobs (called by launch scripts)
 
-| Script | Purpose | Resources |
-|--------|---------|-----------|
-| `combine_slices.sbatch` | Combine multi-slice MERSCOPE data | 2 CPU, 64G |
-| `map_my_cell.sbatch` | Cell type annotation | 64 CPU, 512G |
-| `process_spatial.sbatch` | SC chunked binary output | 32 CPU, 256G |
-| `process_single_molecule.sbatch` | SM per-gene binary output | 64 CPU, 512G |
-| `process_h5ad_sc.sbatch` | H5AD SC processing | 32 CPU, 256G |
-| `process_h5ad_sm.sbatch` | H5AD SM processing | 64 CPU, 512G |
-| `s3_sync_sample.sbatch` | Sync SC output to S3 | 1 CPU, 4G |
-| `s3_sync_sm.sbatch` | Sync SM output to S3 (parallel) | 8 CPU, 4G |
-| `sync_mapping.sbatch` | Sync all mapping.json files | 1 CPU, 1G |
+| Script                           | Purpose                           | Resources    |
+| -------------------------------- | --------------------------------- | ------------ |
+| `combine_slices.sbatch`          | Combine multi-slice MERSCOPE data | 2 CPU, 64G   |
+| `map_my_cell.sbatch`             | Cell type annotation              | 64 CPU, 512G |
+| `process_spatial.sbatch`         | SC chunked binary output          | 32 CPU, 256G |
+| `process_single_molecule.sbatch` | SM per-gene binary output         | 64 CPU, 512G |
+| `process_h5ad_sc.sbatch`         | H5AD SC processing                | 32 CPU, 256G |
+| `process_h5ad_sm.sbatch`         | H5AD SM processing                | 64 CPU, 512G |
+| `s3_sync_sample.sbatch`          | Sync SC output to S3              | 1 CPU, 4G    |
+| `s3_sync_sm.sbatch`              | Sync SM output to S3 (parallel)   | 8 CPU, 4G    |
+| `sync_mapping.sbatch`            | Sync all mapping.json files       | 1 CPU, 1G    |
 
 ### Python Scripts (called by sbatch jobs)
 
 Located in `scripts/` (parent directory):
 
-| Script | Purpose |
-|--------|---------|
-| `combine_slices_v3.py` | Combines multi-slice MERSCOPE samples |
-| `process_spatial_data.py` | Converts H5AD/Xenium/MERSCOPE to chunked binary |
-| `process_single_molecule.py` | Converts transcripts to per-gene binary files |
-| `map_my_cell.py` | Cell type annotation via Allen Brain MapMyCells |
-| `update_mapping_prefix.py` | Re-prefixes S3 URLs in mapping.json |
+| Script                       | Purpose                                         |
+| ---------------------------- | ----------------------------------------------- |
+| `combine_slices_v3.py`       | Combines multi-slice MERSCOPE samples           |
+| `process_spatial_data.py`    | Converts H5AD/Xenium/MERSCOPE to chunked binary |
+| `process_single_molecule.py` | Converts transcripts to per-gene binary files   |
+| `map_my_cell.py`             | Cell type annotation via Allen Brain MapMyCells |
+| `update_mapping_prefix.py`   | Re-prefixes S3 URLs in mapping.json             |
 
 ---
 
@@ -717,6 +747,7 @@ Combines multiple MERSCOPE tissue slices into a single unified dataset. Also wor
 1. **Discovers sample directories** — BFS from each top-level child of the input directory to find `cell_metadata.csv` + `cell_by_gene.csv` (fuzzy matched)
 
 2. **Standardizes cell IDs** — For each sample:
+
    - `cell_metadata.csv`: searches for ID column in order: `EntityID` → `id` → `cell_id`. If none found, falls back to the first column (renamed to `cell_id`)
    - `cell_by_gene.csv`: searches for `cell` column. If not found, uses first column
    - IDs are converted to strings for consistent matching
@@ -725,12 +756,14 @@ Combines multiple MERSCOPE tissue slices into a single unified dataset. Also wor
 3. **Separates spatial coordinates** — Shifts each slice so they don't overlap, with configurable padding (default: 1000 units) between slices. Arranges slices in a grid layout.
 
 4. **Adds tracking columns:**
+
    - `_source_file` — absolute path to the original `cell_metadata.csv` for each cell
    - `_sample_id` — top-level directory name for each slice (used for SM linking)
 
 5. **Generates artifact mask** — Computes per-cell total gene expression (row sums) and generates artifact mask CSVs at multiple percentile thresholds (5th, 10th, 15th, ..., 80th in 5% increments). Cells below the threshold are flagged as artifacts (low-expression border cells).
 
 **Output (`combined_output/`):**
+
 ```
 combined_output/
   cell_metadata.csv              # Combined metadata with shifted coordinates
@@ -749,6 +782,7 @@ combined_output/
 Each `artifact_mask_p*.csv` has two columns: `cell_id` and `is_artifact` (boolean). You choose which percentile to use when running `process_spatial_data.py` with the `--mask` flag.
 
 **Mask-only mode:** If you've already combined the data but want to regenerate the artifact masks:
+
 ```bash
 sbatch combine_slices.sbatch --mask-only /path/to/combined_output /path/to/combined_output
 ```
@@ -762,6 +796,7 @@ Annotates cells with cell type labels using the Allen Brain Cell Atlas taxonomy 
 **What it does:**
 
 1. **Loads input** — reads either:
+
    - `combined_output/` directory (CSV mode): loads `cell_metadata.csv` + `cell_by_gene.csv`
    - `.h5ad` file (H5AD mode): loads expression from `adata.X` (or `adata.obsm['X_raw']` if X appears normalized)
 
@@ -774,6 +809,7 @@ Annotates cells with cell type labels using the Allen Brain Cell Atlas taxonomy 
 5. **Generates output** — joins mapping results back to the original metadata and produces sanity check plots
 
 **Output (`mmc_output/`):**
+
 ```
 mmc_output/
   mapping_output.csv             # Cell type annotations (one row per cell)
@@ -800,6 +836,7 @@ mapmycells-reference/
 ```
 
 Download from:
+
 - Mouse: https://knowledge.brain-map.org/data/LVDBJAW34Y7YOLTLWKGM/summary
 - Human: https://knowledge.brain-map.org/data/Y4E2MJPILJNA6BMIP5W/summary
 
@@ -839,20 +876,21 @@ python process_spatial_data.py /path/to/combined_output /path/to/meyes_output --
 
 **Optional flags:**
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--mmc-csv` | MapMyCells output CSV — adds cell type annotation columns to the viewer | None (skip) |
-| `--mask` | Artifact mask CSV — filters cells where `is_artifact=true` | None (keep all cells) |
-| `--mask-col` | Column name in mask CSV to filter on | `is_artifact` |
-| `--mask-keep` | Value to keep (case-insensitive) | `false` (keep cells where is_artifact=false) |
-| `--chunk-size` | Genes per expression chunk | Auto-determined |
-| `--workers` | Parallel workers for chunk writing | 1 |
+| Flag           | Description                                                             | Default                                      |
+| -------------- | ----------------------------------------------------------------------- | -------------------------------------------- |
+| `--mmc-csv`    | MapMyCells output CSV — adds cell type annotation columns to the viewer | None (skip)                                  |
+| `--mask`       | Artifact mask CSV — filters cells where `is_artifact=true`              | None (keep all cells)                        |
+| `--mask-col`   | Column name in mask CSV to filter on                                    | `is_artifact`                                |
+| `--mask-keep`  | Value to keep (case-insensitive)                                        | `false` (keep cells where is_artifact=false) |
+| `--chunk-size` | Genes per expression chunk                                              | Auto-determined                              |
+| `--workers`    | Parallel workers for chunk writing                                      | 1                                            |
 
 **Mask behavior:** The `--mask` flag expects a CSV with a boolean column (default: `is_artifact`). Cells where the column value equals `--mask-keep` (default: `false`, meaning NOT an artifact) are kept. All other cells are removed. Choose a percentile mask from the artifact masks generated by `combine_slices` (e.g., `artifact_mask_p65.csv` filters at the 65th percentile).
 
 **MapMyCells behavior:** The `--mmc-csv` flag adds all non-empty columns from the MapMyCells output as observation columns in the viewer. The `cell_id` column is used for alignment and then dropped. If `--mask` is also used, the mask is applied to the MMC data as well.
 
 **Output (`meyes_output/`):**
+
 ```
 meyes_output/
   manifest.json          # Dataset metadata (cell count, gene count, dimensions, etc.)
