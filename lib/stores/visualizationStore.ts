@@ -91,6 +91,8 @@ interface VisualizationState {
   setFlipX: (flip: boolean) => void;
   setFlipY: (flip: boolean) => void;
   setAdvancedViz: (key: string, value: number) => void;
+  pinnedTooltipColumns: Set<string>;
+  togglePinnedTooltipColumn: (column: string) => void;
   reset: () => void;
 }
 
@@ -128,6 +130,7 @@ const initialState = {
   pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
   pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
   targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
+  pinnedTooltipColumns: new Set<string>(),
 };
 
 // Helper function to update mode array
@@ -368,6 +371,18 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 
   setAdvancedViz: (key, value) => {
     set({ [key]: value } as any);
+  },
+
+  togglePinnedTooltipColumn: (column) => {
+    set((state) => {
+      const next = new Set(state.pinnedTooltipColumns);
+      if (next.has(column)) {
+        next.delete(column);
+      } else {
+        next.add(column);
+      }
+      return { pinnedTooltipColumns: next };
+    });
   },
 
   reset: () => {

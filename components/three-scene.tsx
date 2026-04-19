@@ -61,6 +61,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const colorPaletteRef = useRef<Record<string, string>>({});
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
+  const pinnedClustersRef = useRef<Array<{ column: string; cluster: any; palette: Record<string, string>; isNumerical: boolean }>>([]);
   const baseDotSizeRef = useRef<number>(5);
   const cameraDistanceRef = useRef<number>(1);
 
@@ -97,6 +98,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     sceneRotation,
     flipX,
     flipY,
+    pinnedTooltipColumns,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -244,22 +246,32 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     const currentGene = selectedGeneRef.current;
     const currentColumn = selectedColumnRef.current;
 
+    // Build pinned column rows
+    const pinnedRows = pinnedClustersRef.current.map((p) => {
+      const val = getClusterValue(p.cluster, index);
+      if (p.isNumerical) {
+        return `<div class="text-xs text-default-400">${p.column}: ${val}</div>`;
+      }
+      const color = p.palette[String(val)] || "#808080";
+      return `<div class="flex items-center text-xs">
+        <div style="width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; margin-right: 5px;"></div>
+        <span class="text-default-400">${p.column}: ${val}</span>
+      </div>`;
+    }).join("");
+
     let tooltipContent = "";
 
     if (currentMode.includes("gene") && currentGene) {
       // Gene mode
       if (isNumerical) {
-        // Numerical cluster + gene: show both values without color circle
         tooltipContent = `
           <div class="flex flex-col gap-1">
             <div>${currentColumn}: ${clusterValue}</div>
+            ${pinnedRows}
             <div>${currentGene}: ${geneValue?.toFixed(2) ?? "N/A"}</div>
           </div>
         `;
       } else {
-        // Categorical cluster + gene: show 2 rows with colored circles
-        // Row 1: cluster color + cluster name
-        // Row 2: gene gradient color + gene value
         const clusterColor =
           colorPaletteRef.current[String(clusterValue)] || "#808080";
 
@@ -269,6 +281,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
               <span>${clusterValue}</span>
             </div>
+            ${pinnedRows}
             <div class="flex items-center">
               <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${pointColor}; margin-right: 6px;"></div>
               <span>${geneValue?.toFixed(2) ?? "N/A"}</span>
@@ -279,17 +292,23 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     } else {
       // Celltype mode or gene mode without gene selected
       if (isNumerical) {
-        // Numerical cluster: just show the value
-        tooltipContent = `<div>${currentColumn}: ${clusterValue}</div>`;
+        tooltipContent = `
+          <div class="flex flex-col gap-1">
+            <div>${currentColumn}: ${clusterValue}</div>
+            ${pinnedRows}
+          </div>
+        `;
       } else {
-        // Categorical cluster: show with color circle from palette (not rendered color)
         const clusterColor =
           colorPaletteRef.current[String(clusterValue)] || "#808080";
 
         tooltipContent = `
-          <div class="flex items-center">
-            <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
-            <span>${clusterValue}</span>
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
+              <span>${clusterValue}</span>
+            </div>
+            ${pinnedRows}
           </div>
         `;
       }
@@ -702,6 +721,21 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
 
+      // Populate pinned columns for tooltip
+      pinnedClustersRef.current = [];
+      for (const col of pinnedTooltipColumns) {
+        if (col === selectedColumn) continue; // active column already shown
+        const cluster = dataset.clusters?.find((c) => c.column === col);
+        if (!cluster) continue;
+        const isNum = getEffectiveColumnType(col, dataset, columnTypeOverrides) === "numerical";
+        pinnedClustersRef.current.push({
+          column: col,
+          cluster,
+          palette: cluster.palette || {},
+          isNumerical: isNum,
+        });
+      }
+
       // Build advanced settings from store
       const adv: AdvancedVizSettings = {
         selectedSizeMultiplier,
@@ -883,6 +917,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     expressionAlphaMax,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
+    pinnedTooltipColumns,
   ]);
 
   // Effect 3: Update dotSize uniform when slider or targetPx changes (instant)

@@ -66,6 +66,8 @@ export function VisualizationPanel({
     incrementClusterVersion,
     columnTypeOverrides,
     toggleColumnType,
+    pinnedTooltipColumns,
+    togglePinnedTooltipColumn,
   } = usePanelVisualizationStore();
 
   const currentSearchTerm =
@@ -198,13 +200,11 @@ export function VisualizationPanel({
         )
           return [];
 
-        // Use pre-computed uniqueValues if available (already sorted),
-        // otherwise fall back to computing from raw values
+        // Get unique values then always sort alphabetically
         const palette = selectedCluster.palette || {};
-        const uniqueVals = selectedCluster.uniqueValues
-          ?? [...new Set(selectedCluster.values.map(String))].sort(
-            (a, b) => a.localeCompare(b, undefined, { numeric: true }),
-          );
+        const uniqueVals = (selectedCluster.uniqueValues
+          ?? [...new Set(selectedCluster.values.map(String))]
+        ).slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
         return uniqueVals.map((val) => ({
           id: val,
@@ -416,9 +416,32 @@ export function VisualizationPanel({
                   </Tooltip>
                 }
                 endContent={
-                  column.loaded ? (
-                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                  ) : null
+                  <div className="flex items-center gap-1.5">
+                    {column.loaded && (
+                      <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                    )}
+                    <Tooltip content={pinnedTooltipColumns.has(column.key) ? "Unpin from tooltip" : "Pin to tooltip"} delay={300} placement="right">
+                      <button
+                        className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          togglePinnedTooltipColumn(column.key);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <svg
+                          className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${pinnedTooltipColumns.has(column.key) ? "text-primary" : "text-default-400"}`}
+                          fill={pinnedTooltipColumns.has(column.key) ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M12 2l-2 7H4l6 4.5L8 21l4-3 4 3-2-7.5L20 9h-6z" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </Tooltip>
+                  </div>
                 }
               >
                 {column.label}
