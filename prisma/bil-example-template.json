@@ -31,12 +31,14 @@
       {
         "label": "All Single Cell",
         "datasetType": "single_cell",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-use/meyes_output/"
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-use/meyes_output/",
+        "thumbnailUrl": "https://example.com/thumbnail.png (optional)"
       },
       {
         "label": "1231122507",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-use/sm_output/1231122507"
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-use/sm_output/1231122507",
+        "thumbnailUrl": null
       }
     ]
   }

@@ -175,8 +175,10 @@ export function ExplorePageClient({
         onSelectionChange={(key) => setActiveTab(key as ExploreTab)}
       >
         <Tab key="all" title="All">
-          <FeaturedDatasets datasets={featuredItems} />
-          <BilDatasets datasets={bilItems} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <FeaturedDatasets datasets={featuredItems} onViewAll={() => setActiveTab("featured")} />
+            <BilDatasets datasets={bilItems} onViewAll={() => setActiveTab("bil")} />
+          </div>
           {renderSearchAndGrid(allItems, allTotal)}
         </Tab>
         <Tab key="featured" title="Featured">

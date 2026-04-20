@@ -17,6 +17,7 @@ interface SeedEntry {
   datasetType: "single_cell" | "single_molecule";
   s3BaseUrl?: string;
   datasetId?: string;
+  thumbnailUrl?: string;
 }
 
 interface SeedDataset {
@@ -91,6 +92,7 @@ async function main() {
               datasetType: e.datasetType,
               s3BaseUrl: e.s3BaseUrl ?? null,
               datasetId: e.datasetId ?? null,
+              thumbnailUrl: e.thumbnailUrl ?? null,
               sortOrder: i,
             })),
           },
@@ -120,6 +122,7 @@ async function main() {
               datasetType: e.datasetType,
               s3BaseUrl: e.s3BaseUrl ?? null,
               datasetId: e.datasetId ?? null,
+              thumbnailUrl: e.thumbnailUrl ?? null,
               sortOrder: i,
             })),
           },

@@ -4,6 +4,7 @@ export interface CatalogDatasetEntry {
   datasetType: string;
   s3BaseUrl: string | null;
   datasetId: string | null;
+  thumbnailUrl: string | null;
   sortOrder: number;
 }
 

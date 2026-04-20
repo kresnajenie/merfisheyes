@@ -130,13 +130,14 @@ model CatalogDataset {
 }
 
 model CatalogDatasetEntry {
-  id           String  @id @default(cuid())
-  catalogId    String  @map("catalog_id")
-  label        String  @db.VarChar(200)
-  datasetType  String  @map("dataset_type") @db.VarChar(50)
-  s3BaseUrl    String? @map("s3_base_url") @db.VarChar(1000)
-  datasetId    String? @map("dataset_id") @db.VarChar(50)
-  sortOrder    Int     @default(0) @map("sort_order")
+  id            String  @id @default(cuid())
+  catalogId     String  @map("catalog_id")
+  label         String  @db.VarChar(200)
+  datasetType   String  @map("dataset_type") @db.VarChar(50)
+  s3BaseUrl     String? @map("s3_base_url") @db.VarChar(1000)
+  datasetId     String? @map("dataset_id") @db.VarChar(50)
+  thumbnailUrl  String? @map("thumbnail_url") @db.VarChar(1000)
+  sortOrder     Int     @default(0) @map("sort_order")
 
   catalog      CatalogDataset @relation(fields: [catalogId], references: [id], onDelete: Cascade)
 

@@ -8,22 +8,6 @@ import { useState } from "react";
 
 import type { CatalogDatasetItem, CatalogDatasetEntry } from "./types";
 
-function navigateToEntry(
-  entry: CatalogDatasetEntry,
-  router: ReturnType<typeof useRouter>,
-) {
-  const base =
-    entry.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
-
-  if (entry.s3BaseUrl) {
-    const url = entry.s3BaseUrl.replace(/\/+$/, "");
-
-    router.push(`${base}/from-s3?url=${encodeURIComponent(url)}`);
-  } else if (entry.datasetId) {
-    router.push(`${base}/${entry.datasetId}`);
-  }
-}
-
 // Metadata keys to display with human-readable labels
 const METADATA_LABELS: Record<string, string> = {
   investigator: "Investigator",
@@ -37,6 +21,85 @@ const METADATA_LABELS: Record<string, string> = {
   genotype: "Genotype",
   technique: "Technique",
 };
+
+const COLOR_STYLES = {
+  blue: {
+    border: "border-blue-500/30 hover:border-blue-400",
+    bg: "hover:bg-blue-500/10",
+    accent: "bg-blue-500",
+    text: "text-blue-400",
+    arrow: "text-blue-400/50 group-hover:text-blue-400",
+  },
+  purple: {
+    border: "border-purple-500/30 hover:border-purple-400",
+    bg: "hover:bg-purple-500/10",
+    accent: "bg-purple-500",
+    text: "text-purple-400",
+    arrow: "text-purple-400/50 group-hover:text-purple-400",
+  },
+};
+
+function getEntryHref(entry: CatalogDatasetEntry): string {
+  const base =
+    entry.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
+
+  if (entry.s3BaseUrl) {
+    const url = entry.s3BaseUrl.replace(/\/+$/, "");
+    return `${base}/from-s3?url=${encodeURIComponent(url)}`;
+  }
+  if (entry.datasetId) {
+    return `${base}/${entry.datasetId}`;
+  }
+  return "#";
+}
+
+function EntryCard({
+  entry,
+  color,
+  large,
+}: {
+  entry: CatalogDatasetEntry;
+  color: "blue" | "purple";
+  large?: boolean;
+}) {
+  const s = COLOR_STYLES[color];
+
+  return (
+    <a
+      className={`group rounded-xl border ${s.border} ${s.bg} overflow-hidden transition-all block`}
+      href={getEntryHref(entry)}
+    >
+      {entry.thumbnailUrl ? (
+        <div className={`relative w-full ${large ? "aspect-[4/3]" : "aspect-[16/10]"} bg-default-100`}>
+          <img
+            alt={entry.label}
+            className="w-full h-full object-cover"
+            src={entry.thumbnailUrl}
+          />
+          <div className={`absolute top-2 left-2 w-2 h-2 rounded-full ${s.accent}`} />
+        </div>
+      ) : (
+        <div className={`w-full ${large ? "h-2" : "h-1"} ${s.accent}`} />
+      )}
+      <div className={`flex items-center justify-between gap-2 ${large ? "px-4 py-3" : "px-3 py-2.5"}`}>
+        <span className={`${large ? "text-base font-medium" : "text-sm"} truncate`}>{entry.label}</span>
+        <svg
+          className={`w-3.5 h-3.5 shrink-0 transition-colors ${s.arrow}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M13 7l5 5-5 5M6 12h12"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+    </a>
+  );
+}
 
 interface Props {
   dataset: CatalogDatasetItem;
@@ -58,7 +121,7 @@ export function DatasetDetailPage({ dataset }: Props) {
   const displayGenes = showAllGenes ? genes : genes.slice(0, 50);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Back button */}
       <Button
         className="text-default-500"
@@ -70,8 +133,8 @@ export function DatasetDetailPage({ dataset }: Props) {
       </Button>
 
       {/* Header */}
-      <div className="space-y-3">
-        <div className="flex items-start gap-3 flex-wrap">
+      <div className="space-y-2">
+        <div className="flex items-start gap-2 flex-wrap">
           {dataset.bilCode && (
             <Chip color="secondary" size="sm" variant="flat">
               {dataset.bilCode}
@@ -123,62 +186,47 @@ export function DatasetDetailPage({ dataset }: Props) {
         </div>
       )}
 
-      {/* Entries */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Single Cell entries */}
-        {scEntries.length > 0 && (
-          <Card>
-            <CardBody className="space-y-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Chip color="primary" size="sm" variant="flat">
-                  SC
-                </Chip>
-                Single Cell ({scEntries.length})
+      {/* Entries — SC large on left, SM grid on right */}
+      {(scEntries.length > 0 || smEntries.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Single Cell — takes 1 column, large cards */}
+          {scEntries.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
+                Single Cell
               </h2>
-              <div className="space-y-2">
+              <div className="grid gap-3">
                 {scEntries.map((entry) => (
-                  <Button
+                  <EntryCard
                     key={entry.id}
-                    className="w-full justify-start"
-                    size="sm"
-                    variant="flat"
-                    onPress={() => navigateToEntry(entry, router)}
-                  >
-                    {entry.label}
-                  </Button>
+                    color="blue"
+                    entry={entry}
+                    large
+                  />
                 ))}
               </div>
-            </CardBody>
-          </Card>
-        )}
+            </div>
+          )}
 
-        {/* Single Molecule entries */}
-        {smEntries.length > 0 && (
-          <Card>
-            <CardBody className="space-y-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Chip color="success" size="sm" variant="flat">
-                  SM
-                </Chip>
+          {/* Single Molecule — takes 2 columns, smaller cards */}
+          {smEntries.length > 0 && (
+            <div className={`space-y-2 ${scEntries.length > 0 ? "md:col-span-2" : "md:col-span-3"}`}>
+              <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
                 Single Molecule ({smEntries.length})
               </h2>
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+              <div className={`grid grid-cols-2 ${scEntries.length > 0 ? "lg:grid-cols-3" : "lg:grid-cols-4"} gap-2`}>
                 {smEntries.map((entry) => (
-                  <Button
+                  <EntryCard
                     key={entry.id}
-                    className="w-full justify-start"
-                    size="sm"
-                    variant="flat"
-                    onPress={() => navigateToEntry(entry, router)}
-                  >
-                    {entry.label}
-                  </Button>
+                    color="purple"
+                    entry={entry}
+                  />
                 ))}
               </div>
-            </CardBody>
-          </Card>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Metadata */}
       {Object.keys(metadata).length > 0 && (
