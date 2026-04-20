@@ -17,7 +17,10 @@ export interface CatalogDatasetItem {
   tissue: string | null;
   platform: string | null;
   tags: string[];
+  genes: string[];
   thumbnailUrl: string | null;
+  bilCode: string | null;
+  metadata: Record<string, unknown> | null;
   externalLink: string | null;
   publicationLink: string | null;
   entries: CatalogDatasetEntry[];

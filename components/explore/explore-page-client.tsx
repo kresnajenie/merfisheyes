@@ -52,12 +52,13 @@ export function ExplorePageClient({
   const [species, setSpecies] = useState("");
   const [tissue, setTissue] = useState("");
   const [platform, setPlatform] = useState("");
+  const [geneSearch, setGeneSearch] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
   // Track whether a tab has been fetched with current filters (to avoid refetching SSR data)
   const [hasFetched, setHasFetched] = useState(false);
 
-  const hasActiveFilters = search || species || tissue || platform;
+  const hasActiveFilters = search || species || tissue || platform || geneSearch.length > 0;
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -66,6 +67,7 @@ export function ExplorePageClient({
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
     if (platform) params.set("platform", platform);
+    if (geneSearch.length > 0) params.set("genes", geneSearch.join(","));
     params.set("page", String(page));
     params.set("limit", String(PAGE_LIMIT));
 
@@ -98,7 +100,7 @@ export function ExplorePageClient({
     setFilters(data.filters);
     setLoading(false);
     setHasFetched(true);
-  }, [search, species, tissue, platform, page, activeTab]);
+  }, [search, species, tissue, platform, geneSearch, page, activeTab]);
 
   // Refetch when filters/page/tab change
   useEffect(() => {
@@ -122,12 +124,13 @@ export function ExplorePageClient({
   // Reset page when filters or tab change
   useEffect(() => {
     setPage(1);
-  }, [search, species, tissue, platform, activeTab]);
+  }, [search, species, tissue, platform, geneSearch, activeTab]);
 
   const activeFilters = [
     species && { key: "species", label: "Species", value: species, onClear: () => setSpecies("") },
     tissue && { key: "tissue", label: "Tissue", value: tissue, onClear: () => setTissue("") },
     platform && { key: "platform", label: "Platform", value: platform, onClear: () => setPlatform("") },
+    geneSearch.length > 0 && { key: "genes", label: "Genes", value: geneSearch.join(", "), onClear: () => setGeneSearch([]) },
   ].filter(Boolean) as { key: string; label: string; value: string; onClear: () => void }[];
 
   const renderSearchAndGrid = (
@@ -137,10 +140,12 @@ export function ExplorePageClient({
     <>
       <ExploreSearchBar
         filters={filters}
+        geneSearch={geneSearch}
         platform={platform}
         search={search}
         species={species}
         tissue={tissue}
+        onGeneSearchChange={setGeneSearch}
         onPlatformChange={setPlatform}
         onSearchChange={setSearch}
         onSpeciesChange={setSpecies}

@@ -87,7 +87,14 @@ model CatalogDataset {
   tissue       String? @db.VarChar(200)
   platform     String? @db.VarChar(200)
   tags         String[] @default([])
+  genes        String[] @default([])
   thumbnailUrl String? @map("thumbnail_url") @db.VarChar(1000)
+
+  // BIL identifier (e.g., "ace-dip-use")
+  bilCode      String? @unique @map("bil_code") @db.VarChar(50)
+
+  // Dynamic metadata (investigator, institution, funding, etc.)
+  metadata     Json?   @default("{}")
 
   // Original source link (BIL page, publication, data repository)
   externalLink    String? @map("external_link") @db.VarChar(1000)
@@ -118,6 +125,7 @@ model CatalogDataset {
   @@index([isBil])
   @@index([isInternal])
   @@index([sortOrder])
+  @@index([bilCode])
   @@map("catalog_datasets")
 }
 

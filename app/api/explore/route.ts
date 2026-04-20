@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const species = url.searchParams.get("species") ?? "";
   const tissue = url.searchParams.get("tissue") ?? "";
   const platform = url.searchParams.get("platform") ?? "";
+  const genesParam = url.searchParams.get("genes")?.trim() ?? "";
   const datasetType = url.searchParams.get("datasetType") ?? "";
   const tab = url.searchParams.get("tab") ?? "";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
@@ -41,6 +42,9 @@ export async function GET(req: NextRequest) {
         { title: { contains: search, mode: "insensitive" } },
         { description: { contains: search, mode: "insensitive" } },
         { tags: { hasSome: [search] } },
+        { bilCode: { contains: search, mode: "insensitive" } },
+        // Search investigator name inside metadata JSONB
+        { metadata: { path: ["investigator"], string_contains: search } },
       ],
     });
   }
@@ -48,6 +52,24 @@ export async function GET(req: NextRequest) {
   if (tissue) conditions.push({ tissue: { equals: tissue, mode: "insensitive" } });
   if (platform) conditions.push({ platform: { equals: platform, mode: "insensitive" } });
   if (datasetType) conditions.push({ entries: { some: { datasetType } } });
+
+  // Gene search: case-insensitive containment via raw SQL to find matching IDs
+  if (genesParam) {
+    const geneList = genesParam.split(",").map((g) => g.trim()).filter(Boolean);
+    if (geneList.length > 0) {
+      // Build case-insensitive array containment: lowered genes array must contain all search terms
+      // Uses: SELECT id FROM catalog_datasets WHERE lower_genes @> ARRAY['gene1','gene2']
+      // Since we can't lower an array in @> directly, use ALL + ILIKE per gene
+      const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT id FROM catalog_datasets WHERE ${geneList
+          .map((_, i) => `EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $${i + 1})`)
+          .join(" AND ")}`,
+        ...geneList,
+      );
+      const ids = matchingIds.map((r) => r.id);
+      conditions.push({ id: { in: ids } });
+    }
+  }
 
   const where: Prisma.CatalogDatasetWhereInput = { AND: conditions };
 

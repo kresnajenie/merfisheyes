@@ -350,7 +350,22 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-vat/sm_output/1231122825"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Volsky, David",
+        "Kenny, Paul"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-DA056003-02",
+      "age": "91.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57Bl/6J'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "MERFISH Imaging of mesocorticolimbic regions in the mouse brain (infected with EcoHIV virus; systemic)",
@@ -698,7 +713,22 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-van/sm_output/1231122671"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Volsky, David",
+        "Kenny, Paul"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-DA056003-02",
+      "age": "91.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57Bl/6J'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "MERFISH Imaging of mesocorticolimbic regions in the mouse brain (infected with control virus; systemic)",
@@ -1051,7 +1081,22 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-use/sm_output/1231122498"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Volsky, David",
+        "Kenny, Paul"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-DA056003-02",
+      "age": "91.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57Bl/6J'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "MERFISH Imaging of mesocorticolimbic regions in the mouse brain (Chronic cocaine for 7 Days + 3 Days withdrawal)",
@@ -1399,7 +1444,22 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-tug/sm_output/1232698492"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Volsky, David",
+        "Kenny, Paul"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-DA056003-02",
+      "age": "70.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57Bl/6J'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "MERFISH Imaging of mesocorticolimbic regions in the mouse brain (Chronic saline for 7 Days + 3 Days withdrawal)",
@@ -1752,7 +1812,22 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-tub/sm_output/1231122257"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Volsky, David",
+        "Kenny, Paul"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-DA056003-02",
+      "age": "70.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57Bl/6J'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "VA00265 300-gene MERFISH results of a GW24 human prefrontal cortex",
@@ -2090,7 +2165,16 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-can-ink/sm_output/processed"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Kriegstein, Arnold",
+      "institution": "University of California, San Francisco",
+      "funding": "National Institutes of Health \u2014 5-U01-MH114825-05",
+      "age": "24.0 Gestational weeks",
+      "license": "CC-BY-NC-SA-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "VA00265 300-gene MERFISH results of a GW34 human prefrontal cortex",
@@ -2428,7 +2512,17 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-can-imp/sm_output/processed"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Kriegstein, Arnold",
+      "institution": "University of California, San Francisco",
+      "funding": "National Institutes of Health \u2014 5-U01-MH114825-05",
+      "age": "34.0 Gestational weeks",
+      "sex": "Male",
+      "license": "CC-BY-NC-SA-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "VA00265 300-gene MERFISH results of a GW20 human prefrontal cortex",
@@ -2766,7 +2860,16 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-can-ill/sm_output/processed"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Kriegstein, Arnold",
+      "institution": "University of California, San Francisco",
+      "funding": "National Institutes of Health \u2014 5-U01-MH114825-05",
+      "age": "20.0 Gestational weeks",
+      "license": "CC-BY-NC-SA-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "VA00265 300-gene MERFISH results of a GW34 human visual cortex",
@@ -3104,7 +3207,17 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dry-dry/sm_output/region_0"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Kriegstein, Arnold",
+      "institution": "University of California San Francisco",
+      "funding": "National Institutes of Health \u2014 5-U01-MH114825-05",
+      "age": "34.0 Gestational weeks",
+      "sex": "Female",
+      "license": "CC-BY-SA-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "VA00265 300-gene MERFISH results of a GW24 human visual cortex",
@@ -3442,7 +3555,16 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dry-dog/sm_output/region_0"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Kriegstein, Arnold",
+      "institution": "University of California San Francisco",
+      "funding": "National Institutes of Health \u2014 5-U01-MH114825-05",
+      "age": "24.0 Gestational weeks",
+      "license": "CC-BY-SA-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1 : 725724",
@@ -4010,7 +4132,21 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-jig-eel/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "20.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
@@ -4578,7 +4714,21 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-ear-dud/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
@@ -5421,7 +5571,21 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dug-fin/sm_output/1233424656"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
@@ -5436,7 +5600,21 @@
     "bilCode": "ace-dug-fig",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
@@ -6004,7 +6182,18 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dim-nut/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 1-U19-MH114830-01",
+      "age": "56.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 609889",
@@ -7019,7 +7208,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980416"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 1-U19-MH114830-01",
+      "age": "56.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 638850",
@@ -7887,7 +8087,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fix/sm_output/1199650929"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 1-U19-MH114830-01",
+      "age": "56.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 609882",
@@ -8607,7 +8818,18 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fly/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 1-U19-MH114830-01",
+      "age": "56.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "VA00265 300-gene MERFISH results of an infancy stage human visual cortex",
@@ -8945,7 +9167,17 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dry-dub/sm_output/region_0"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Kriegstein, Arnold",
+      "institution": "University of California San Francisco",
+      "funding": "National Institutes of Health \u2014 5-U01-MH114825-05",
+      "age": "234.0 days",
+      "sex": "Female",
+      "license": "CC-BY-SA-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "VA00265 300-gene MERFISH results of an infancy stage human prefrontal cortex",
@@ -9283,7 +9515,17 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dry-dip/sm_output/region_0"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Kriegstein, Arnold",
+      "institution": "University of California San Francisco",
+      "funding": "National Institutes of Health \u2014 5-U01-MH114825-05",
+      "age": "14.0 Days",
+      "sex": "Male",
+      "license": "CC-BY-SA-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "P20 Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1 o - 669324",
@@ -9851,7 +10093,21 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-hen/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Arlotta, Paola",
+      "institution": "Harvard Stem Cell Institute",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-U01-MH130962-01",
+      "age": "20.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Perturb-FISH simultaneous CRISPR screening and spatial transcriptomics in astrocytes",
@@ -9866,7 +10122,23 @@
     "bilCode": "ace-gem-get",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Binan, Lo\u03cac",
+      "institution": "Broad Institute",
+      "coInvestigators": [
+        "Nehme, Ralda",
+        "Farhi, Samouil L",
+        "Cleary, Brian"
+      ],
+      "funding": "Israel Science Foundation \u2014 -",
+      "age": "30.0 year",
+      "sex": "Male",
+      "genotype": "CRISPRi targeting of 127 autism spectrum disorder (ASD) risk genes via dCas9-KRAB and MERFISH measurement of their effects on 254 genes with published links to ASD",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400199",
@@ -9890,7 +10162,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400202",
@@ -9914,7 +10197,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400205",
@@ -9938,7 +10232,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400208",
@@ -9962,7 +10267,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400211",
@@ -9986,7 +10302,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400214",
@@ -10010,7 +10337,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400217",
@@ -10034,7 +10372,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400220",
@@ -10058,7 +10407,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400223",
@@ -10082,7 +10442,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400226",
@@ -10106,7 +10477,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400230",
@@ -10130,7 +10512,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400233",
@@ -10154,7 +10547,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400236",
@@ -10178,7 +10582,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400239",
@@ -10202,7 +10617,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400242",
@@ -10226,7 +10652,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400245",
@@ -10250,7 +10687,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400248",
@@ -10274,7 +10722,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400251",
@@ -10298,7 +10757,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400254",
@@ -10322,7 +10792,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400257",
@@ -10346,7 +10827,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400260",
@@ -10370,7 +10862,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400263",
@@ -10394,7 +10897,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400266",
@@ -10413,7 +10927,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bed/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400269",
@@ -10437,7 +10962,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400272",
@@ -10461,7 +10997,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400275",
@@ -10485,7 +11032,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400281",
@@ -10509,7 +11067,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400284",
@@ -10533,7 +11102,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400287",
@@ -10557,7 +11137,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400291",
@@ -10581,7 +11172,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400297",
@@ -10605,7 +11207,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400300",
@@ -10629,7 +11242,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400303",
@@ -10653,7 +11277,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400306",
@@ -10677,7 +11312,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400309",
@@ -10701,7 +11347,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400312",
@@ -10725,7 +11382,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400315",
@@ -10749,7 +11417,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400318",
@@ -10773,7 +11452,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400324",
@@ -10797,7 +11487,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400327",
@@ -10821,7 +11522,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400330",
@@ -10845,7 +11557,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400334",
@@ -10869,7 +11592,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400337",
@@ -10888,7 +11622,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-zip/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400340",
@@ -10912,7 +11657,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400343",
@@ -10936,7 +11692,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400350",
@@ -10960,7 +11727,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400353",
@@ -10984,7 +11762,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400356",
@@ -11008,7 +11797,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400359",
@@ -11032,7 +11832,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400362",
@@ -11056,7 +11867,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400365",
@@ -11080,7 +11902,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400368",
@@ -11104,7 +11937,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400371",
@@ -11128,7 +11972,18 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output/genes"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
@@ -11696,7 +12551,21 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lay/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "0.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
@@ -12260,7 +13129,21 @@
     "bilCode": "ace-let-lax",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "4.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
@@ -12828,7 +13711,21 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-law/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "0.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 741564",
@@ -13396,7 +14293,21 @@
         "datasetType": "single_cell",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-met-war/meyes_output/"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "4.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse data from sample: zhuang_merfish_MOp, modality: spatial transcriptomics.",
@@ -13411,7 +14322,17 @@
     "bilCode": "ace-ban-win",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "funding": "National Institutes of Health \u2014 U19MH114830, U19MH114821",
+      "age": "NA NA",
+      "genotype": "Strain_Name='C57BL6';",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse data from sample: zhuang_dulac_merfish_MOB, modality: spatial transcriptomics.",
@@ -13426,7 +14347,20 @@
     "bilCode": "ace-bet-pry",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "coInvestigators": [
+        "Dulac, Catherine"
+      ],
+      "funding": "National Institutes of Health \u2014 U19MH114830",
+      "age": "NA NA",
+      "genotype": "Strain_Name='C57Bl6/CD1'; ",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse data from sample: Zhuang_Dulac__MERFISH_MOE, modality: spatial transcriptomics.",
@@ -13441,7 +14375,20 @@
     "bilCode": "ace-bag-tin",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "coInvestigators": [
+        "Dulac, Catherine"
+      ],
+      "funding": "National Institutes of Health \u2014 U19MH114830",
+      "age": "NA NA",
+      "genotype": "Strain_Name='C57Bl6/CD1';",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "A molecularly defined and spatially resolved cell atlas of the whole mouse brain",
@@ -13456,7 +14403,17 @@
     "bilCode": "act-bag",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "funding": "National Institutes of Health \u2014 5-U19-MH114830-05",
+      "age": "57-63 Days",
+      "sex": "Male",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "A molecularly defined and spatially resolved cell atlas of the mouses hypothalamus",
@@ -13471,7 +14428,20 @@
     "bilCode": "ace-boo-sag",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Dulac, Catherine",
+      "institution": "Harvard University",
+      "coInvestigators": [
+        "Zhuang, Xiaowei"
+      ],
+      "funding": "National Institutes of Health \u2014 1-U19-MH114821-01",
+      "age": "8 to 11 weeks",
+      "sex": "Male",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "A molecularly defined and spatially resolved cell atlas of the mouses hypothalamus",
@@ -13486,7 +14456,17 @@
     "bilCode": "ace-gut-add",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "funding": "National Institutes of Health \u2014 5-U19-MH114821-05",
+      "age": "8.0 weeks",
+      "sex": "Male",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "A molecularly defined and spatially resolved cell atlas of the mouses hypothalamus",
@@ -13501,7 +14481,20 @@
     "bilCode": "ace-bug-sip",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Dulac, Catherine",
+      "institution": "Harvard University",
+      "coInvestigators": [
+        "Zhuang, Xiaowei"
+      ],
+      "funding": "National Institutes of Health \u2014 1-U19-MH114821-01",
+      "age": "10 to 16 weeks",
+      "sex": "Male",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.BS.3",
@@ -13516,7 +14509,21 @@
     "bilCode": "ace-irk-shy",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.21",
@@ -13531,7 +14538,21 @@
     "bilCode": "ace-irk-set",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.20",
@@ -13546,7 +14567,21 @@
     "bilCode": "ace-irk-say",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.19",
@@ -13561,7 +14596,21 @@
     "bilCode": "ace-irk-saw",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.17",
@@ -13576,7 +14625,21 @@
     "bilCode": "ace-irk-sat",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.16",
@@ -13591,7 +14654,21 @@
     "bilCode": "ace-irk-sap",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.13",
@@ -13606,7 +14683,21 @@
     "bilCode": "ace-irk-sag",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse data from sample: Zhuang_Dulac_MERFISH_PAG_2, modality: spatial transcriptomics.",
@@ -13621,7 +14712,18 @@
     "bilCode": "ace-ban-oat",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "coInvestigators": [
+        "Dulac, Catherine"
+      ],
+      "funding": "National Institutes of Health \u2014 1-U19-MH114821-01",
+      "genotype": "Strain_Name='C57BL/6';",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse data from sample: Zhuang_MERFISH_NAc, modality: spatial transcriptomics.",
@@ -13636,7 +14738,18 @@
     "bilCode": "ace-ban-odd",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2022",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "coInvestigators": [
+        "Zhang, Yi"
+      ],
+      "funding": "National Institutes of Health \u2014 1-U19-MH114821-01",
+      "genotype": "Strain_Name='C57BL/6N';",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse data from sample: zhuang_merfish_MOp, modality: spatial transcriptomics.",
@@ -13651,7 +14764,14 @@
     "bilCode": "ace-aim-nut",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2020",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "funding": "National Institutes of Health \u2014 1-U19-MH114830-01",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Mouse data from sample: Zhuang_Dulac_MERFISH_PAG_2, modality: spatial transcriptomics.",
@@ -13666,7 +14786,18 @@
     "bilCode": "ace-bay-foo",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2021",
+      "investigator": "Zhuang, Xiaowei",
+      "institution": "Harvard University",
+      "coInvestigators": [
+        "Dulac, Catherine"
+      ],
+      "funding": "National Institutes of Health \u2014 1-U19-MH114821-01",
+      "genotype": "Strain_Name='C57BL/6'; ",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.46",
@@ -14119,7 +15250,20 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.01"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.45",
@@ -14872,7 +16016,20 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-war/sm_output/1403800272"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.44",
@@ -15305,7 +16462,20 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.01"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.43",
@@ -15738,7 +16908,20 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.01"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.42",
@@ -16111,7 +17294,20 @@
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.01"
       }
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "The collection of patch-wise (ST, DAPI/PolyT) data pairs derived from one P56 female mouse brain atlas: Supp_M - 609882",
@@ -16126,7 +17322,16 @@
     "bilCode": "ace-lot-now",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Wu, Jiqing",
+      "institution": "University of Basel",
+      "age": "56.0 Days",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "The collection of patch-wise (ST, DAPI/PolyT) data pairs derived from one P56 male mouse brain atlas: Supp_M - 609889",
@@ -16141,7 +17346,16 @@
     "bilCode": "ace-lot-nor",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Wu, Jiqing",
+      "institution": "University of Basel",
+      "age": "56.0 Days",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "The collection of patch-wise (ST, DAPI/PolyT) data pairs derived from one P56 female mouse brain atlas: Main_F - 638850",
@@ -16156,7 +17370,16 @@
     "bilCode": "ace-lot-nod",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Wu, Jiqing",
+      "institution": "University of Basel",
+      "age": "56.0 Days",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    }
   },
   {
     "title": "MERSCOPE Imaging of WT, Trem2-R47H, 5xFAD and Trem2-R47H; 5xFAD samples",
@@ -16171,6 +17394,17 @@
     "bilCode": "ace-ear-nap",
     "entries": [
       "..."
-    ]
+    ],
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Xu, Xiangmin",
+      "institution": "University of California, Irvine",
+      "funding": "National Institutes of Health \u2014 1-R01-AG082127-01",
+      "age": "12.0 months",
+      "sex": "Female",
+      "genotype": "Strain_Name='5xFAD', C57BL6 background",
+      "license": "CC-BY-SA-4.0",
+      "technique": "MERFISH"
+    }
   }
 ]

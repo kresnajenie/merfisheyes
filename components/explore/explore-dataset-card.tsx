@@ -146,6 +146,13 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
   }, [isExpanded, handleClickOutside]);
 
   const handlePress = () => {
+    // Navigate to detail page
+    if (dataset.bilCode) {
+      router.push(`/explore/bil/${dataset.bilCode}`);
+      return;
+    }
+
+    // Non-BIL datasets: keep existing behavior
     // Zero entries: open external link or do nothing
     if (entries.length === 0) {
       if (dataset.externalLink) {
@@ -372,6 +379,13 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
             <h3 className="font-semibold text-foreground text-sm line-clamp-2">
               {dataset.title}
             </h3>
+
+            {/* Investigator */}
+            {dataset.metadata && (dataset.metadata as Record<string, unknown>).investigator ? (
+              <p className="text-xs text-default-400">
+                {String((dataset.metadata as Record<string, unknown>).investigator)}
+              </p>
+            ) : null}
 
             {/* Description — show more lines when no thumbnail */}
             {dataset.description && (
