@@ -8,6 +8,9 @@
 
 # testing
 /coverage
+
+# thumbnail captures
+.thumbnails
 *.lcov
 .nyc_output
 

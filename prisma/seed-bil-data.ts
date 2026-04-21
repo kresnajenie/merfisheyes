@@ -30,6 +30,7 @@ interface SeedDataset {
   externalLink: string;
   genes: string[];
   metadata: Record<string, unknown>;
+  thumbnailUrl?: string;
   entries: SeedEntry[];
 }
 
@@ -71,6 +72,7 @@ async function main() {
       externalLink: ds.externalLink,
       genes: ds.genes,
       metadata: ds.metadata as Prisma.InputJsonValue,
+      thumbnailUrl: ds.thumbnailUrl ?? null,
       numGenes: ds.genes.length,
       isBil: true,
       isPublished: true,
@@ -113,6 +115,7 @@ async function main() {
           bilCode: ds.bilCode,
           genes: ds.genes,
           metadata: ds.metadata as Prisma.InputJsonValue,
+          thumbnailUrl: ds.thumbnailUrl ?? null,
           numGenes: ds.genes.length,
           isBil: true,
           isPublished: true,

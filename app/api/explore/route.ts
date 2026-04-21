@@ -23,8 +23,11 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "50")));
   const skip = (page - 1) * limit;
 
-  // Build where clause
-  const conditions: Prisma.CatalogDatasetWhereInput[] = [{ isPublished: true }];
+  // Build where clause — only datasets with at least one viewable entry
+  const conditions: Prisma.CatalogDatasetWhereInput[] = [
+    { isPublished: true },
+    { entries: { some: { s3BaseUrl: { not: null } } } },
+  ];
 
   // Tab-specific filters
   if (tab === "internal" && isAdmin) {
@@ -73,10 +76,11 @@ export async function GET(req: NextRequest) {
 
   const where: Prisma.CatalogDatasetWhereInput = { AND: conditions };
 
-  // Base filter for featured/bil: exclude internal for non-admins
+  // Base filter for featured/bil: exclude internal for non-admins, require viewable entries
+  const hasEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
   const publicBase: Prisma.CatalogDatasetWhereInput = isAdmin
-    ? { isPublished: true }
-    : { isPublished: true, isInternal: false };
+    ? { isPublished: true, ...hasEntry }
+    : { isPublished: true, isInternal: false, ...hasEntry };
 
   // Fetch results, featured separately
   const [items, total, featured, bil, filters] = await Promise.all([
