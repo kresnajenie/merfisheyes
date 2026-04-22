@@ -15,6 +15,8 @@ interface ExploreDatasetCardProps {
   usePopover?: boolean;
   /** When provided, calls this instead of navigating via router */
   onSelect?: (dataset: CatalogDatasetItem, entry: CatalogDatasetEntry) => void;
+  /** Highlight matching genes from search */
+  geneHighlight?: string;
 }
 
 function navigateToEntry(entry: CatalogDatasetEntry, router: ReturnType<typeof useRouter>) {
@@ -75,7 +77,7 @@ function EntryList({
   );
 }
 
-export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDatasetCardProps) {
+export function ExploreDatasetCard({ dataset, usePopover, onSelect, geneHighlight }: ExploreDatasetCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -427,6 +429,25 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                 ))}
               </div>
             )}
+
+            {/* Matching genes */}
+            {geneHighlight && dataset.genes && (() => {
+              const term = geneHighlight.toLowerCase();
+              const matches = dataset.genes.filter((g) => g.toLowerCase().includes(term));
+              if (matches.length === 0) return null;
+              return (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {matches.slice(0, 8).map((gene) => (
+                    <Chip key={gene} className="text-[10px]" color="secondary" size="sm" variant="flat">
+                      {gene}
+                    </Chip>
+                  ))}
+                  {matches.length > 8 && (
+                    <span className="text-[10px] text-default-400 self-center">+{matches.length - 8} more</span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </CardBody>
       </Card>

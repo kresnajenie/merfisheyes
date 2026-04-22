@@ -3,7 +3,6 @@
 import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
 import { Chip } from "@heroui/chip";
-import { useState, useCallback } from "react";
 import { SearchIcon } from "@/components/icons";
 
 import type { ExploreFilters } from "./types";
@@ -17,8 +16,10 @@ interface ExploreSearchBarProps {
   onTissueChange: (value: string) => void;
   platform: string;
   onPlatformChange: (value: string) => void;
-  geneSearch: string[];
-  onGeneSearchChange: (genes: string[]) => void;
+  geneSearch: string;
+  onGeneSearchChange: (gene: string) => void;
+  geneChips: string[];
+  onGeneChipsChange: (genes: string[]) => void;
   filters: ExploreFilters;
 }
 
@@ -33,18 +34,10 @@ export function ExploreSearchBar({
   onPlatformChange,
   geneSearch,
   onGeneSearchChange,
+  geneChips,
+  onGeneChipsChange,
   filters,
 }: ExploreSearchBarProps) {
-  const [geneInput, setGeneInput] = useState("");
-
-  const addGene = useCallback(() => {
-    const gene = geneInput.trim();
-    if (gene && !geneSearch.some((g) => g.toLowerCase() === gene.toLowerCase())) {
-      onGeneSearchChange([...geneSearch, gene]);
-    }
-    setGeneInput("");
-  }, [geneInput, geneSearch, onGeneSearchChange]);
-
   return (
     <div className="flex flex-col gap-3 mb-6">
       <div className="flex flex-col sm:flex-row gap-3">
@@ -62,15 +55,19 @@ export function ExploreSearchBar({
         <Input
           className="flex-1 sm:max-w-xs"
           classNames={{ inputWrapper: "bg-default-100" }}
-          placeholder="Search by gene (press Enter)"
-          value={geneInput}
+          placeholder="Search by gene (Enter for exact)"
+          value={geneSearch}
+          onValueChange={onGeneSearchChange}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              addGene();
+              const gene = geneSearch.trim();
+              if (gene && !geneChips.some((g) => g.toLowerCase() === gene.toLowerCase())) {
+                onGeneChipsChange([...geneChips, gene]);
+              }
+              onGeneSearchChange("");
             }
           }}
-          onValueChange={setGeneInput}
         />
 
         {filters.species.length > 0 && (
@@ -125,17 +122,17 @@ export function ExploreSearchBar({
         )}
       </div>
 
-      {/* Gene chips */}
-      {geneSearch.length > 0 && (
+      {/* Gene exact-match chips */}
+      {geneChips.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {geneSearch.map((gene) => (
+          {geneChips.map((gene) => (
             <Chip
               key={gene}
               color="secondary"
               size="sm"
               variant="flat"
               onClose={() =>
-                onGeneSearchChange(geneSearch.filter((g) => g !== gene))
+                onGeneChipsChange(geneChips.filter((g) => g !== gene))
               }
             >
               {gene}

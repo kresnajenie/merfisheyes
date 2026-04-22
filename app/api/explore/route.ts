@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const tissue = url.searchParams.get("tissue") ?? "";
   const platform = url.searchParams.get("platform") ?? "";
   const genesParam = url.searchParams.get("genes")?.trim() ?? "";
+  const genesExactParam = url.searchParams.get("genesExact")?.trim() ?? "";
   const datasetType = url.searchParams.get("datasetType") ?? "";
   const tab = url.searchParams.get("tab") ?? "";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
@@ -56,13 +57,23 @@ export async function GET(req: NextRequest) {
   if (platform) conditions.push({ platform: { equals: platform, mode: "insensitive" } });
   if (datasetType) conditions.push({ entries: { some: { datasetType } } });
 
-  // Gene search: case-insensitive containment via raw SQL to find matching IDs
+  // Gene search: case-insensitive substring match (ILIKE %term%) — live as-you-type
   if (genesParam) {
-    const geneList = genesParam.split(",").map((g) => g.trim()).filter(Boolean);
+    const term = genesParam.trim();
+    if (term) {
+      const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT id FROM catalog_datasets WHERE EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $1)`,
+        `%${term}%`,
+      );
+      const ids = matchingIds.map((r) => r.id);
+      conditions.push({ id: { in: ids } });
+    }
+  }
+
+  // Gene exact match: case-insensitive, each chip must match a gene exactly
+  if (genesExactParam) {
+    const geneList = genesExactParam.split(",").map((g) => g.trim()).filter(Boolean);
     if (geneList.length > 0) {
-      // Build case-insensitive array containment: lowered genes array must contain all search terms
-      // Uses: SELECT id FROM catalog_datasets WHERE lower_genes @> ARRAY['gene1','gene2']
-      // Since we can't lower an array in @> directly, use ALL + ILIKE per gene
       const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
         `SELECT id FROM catalog_datasets WHERE ${geneList
           .map((_, i) => `EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $${i + 1})`)

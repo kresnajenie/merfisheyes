@@ -175,17 +175,6 @@ export function DatasetDetailPage({ dataset }: Props) {
         )}
       </div>
 
-      {/* Thumbnail */}
-      {dataset.thumbnailUrl && (
-        <div className="rounded-xl overflow-hidden border border-default-200">
-          <img
-            alt={dataset.title}
-            className="w-full max-h-96 object-cover"
-            src={dataset.thumbnailUrl}
-          />
-        </div>
-      )}
-
       {/* Entries — SC large on left, SM grid on right */}
       {(scEntries.length > 0 || smEntries.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
