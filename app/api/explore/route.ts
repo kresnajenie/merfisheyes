@@ -16,14 +16,19 @@ export async function GET(req: NextRequest) {
   const species = url.searchParams.get("species") ?? "";
   const tissue = url.searchParams.get("tissue") ?? "";
   const platform = url.searchParams.get("platform") ?? "";
+  const genesParam = url.searchParams.get("genes")?.trim() ?? "";
+  const genesExactParam = url.searchParams.get("genesExact")?.trim() ?? "";
   const datasetType = url.searchParams.get("datasetType") ?? "";
   const tab = url.searchParams.get("tab") ?? "";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "50")));
   const skip = (page - 1) * limit;
 
-  // Build where clause
-  const conditions: Prisma.CatalogDatasetWhereInput[] = [{ isPublished: true }];
+  // Build where clause — only datasets with at least one viewable entry
+  const conditions: Prisma.CatalogDatasetWhereInput[] = [
+    { isPublished: true },
+    { entries: { some: { s3BaseUrl: { not: null } } } },
+  ];
 
   // Tab-specific filters
   if (tab === "internal" && isAdmin) {
@@ -41,6 +46,9 @@ export async function GET(req: NextRequest) {
         { title: { contains: search, mode: "insensitive" } },
         { description: { contains: search, mode: "insensitive" } },
         { tags: { hasSome: [search] } },
+        { bilCode: { contains: search, mode: "insensitive" } },
+        // Search investigator name inside metadata JSONB
+        { metadata: { path: ["investigator"], string_contains: search } },
       ],
     });
   }
@@ -49,12 +57,41 @@ export async function GET(req: NextRequest) {
   if (platform) conditions.push({ platform: { equals: platform, mode: "insensitive" } });
   if (datasetType) conditions.push({ entries: { some: { datasetType } } });
 
+  // Gene search: case-insensitive substring match (ILIKE %term%) — live as-you-type
+  if (genesParam) {
+    const term = genesParam.trim();
+    if (term) {
+      const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT id FROM catalog_datasets WHERE EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $1)`,
+        `%${term}%`,
+      );
+      const ids = matchingIds.map((r) => r.id);
+      conditions.push({ id: { in: ids } });
+    }
+  }
+
+  // Gene exact match: case-insensitive, each chip must match a gene exactly
+  if (genesExactParam) {
+    const geneList = genesExactParam.split(",").map((g) => g.trim()).filter(Boolean);
+    if (geneList.length > 0) {
+      const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT id FROM catalog_datasets WHERE ${geneList
+          .map((_, i) => `EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $${i + 1})`)
+          .join(" AND ")}`,
+        ...geneList,
+      );
+      const ids = matchingIds.map((r) => r.id);
+      conditions.push({ id: { in: ids } });
+    }
+  }
+
   const where: Prisma.CatalogDatasetWhereInput = { AND: conditions };
 
-  // Base filter for featured/bil: exclude internal for non-admins
+  // Base filter for featured/bil: exclude internal for non-admins, require viewable entries
+  const hasEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
   const publicBase: Prisma.CatalogDatasetWhereInput = isAdmin
-    ? { isPublished: true }
-    : { isPublished: true, isInternal: false };
+    ? { isPublished: true, ...hasEntry }
+    : { isPublished: true, isInternal: false, ...hasEntry };
 
   // Fetch results, featured separately
   const [items, total, featured, bil, filters] = await Promise.all([

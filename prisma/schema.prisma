@@ -87,7 +87,14 @@ model CatalogDataset {
   tissue       String? @db.VarChar(200)
   platform     String? @db.VarChar(200)
   tags         String[] @default([])
+  genes        String[] @default([])
   thumbnailUrl String? @map("thumbnail_url") @db.VarChar(1000)
+
+  // BIL identifier (e.g., "ace-dip-use")
+  bilCode      String? @unique @map("bil_code") @db.VarChar(50)
+
+  // Dynamic metadata (investigator, institution, funding, etc.)
+  metadata     Json?   @default("{}")
 
   // Original source link (BIL page, publication, data repository)
   externalLink    String? @map("external_link") @db.VarChar(1000)
@@ -118,17 +125,19 @@ model CatalogDataset {
   @@index([isBil])
   @@index([isInternal])
   @@index([sortOrder])
+  @@index([bilCode])
   @@map("catalog_datasets")
 }
 
 model CatalogDatasetEntry {
-  id           String  @id @default(cuid())
-  catalogId    String  @map("catalog_id")
-  label        String  @db.VarChar(200)
-  datasetType  String  @map("dataset_type") @db.VarChar(50)
-  s3BaseUrl    String? @map("s3_base_url") @db.VarChar(1000)
-  datasetId    String? @map("dataset_id") @db.VarChar(50)
-  sortOrder    Int     @default(0) @map("sort_order")
+  id            String  @id @default(cuid())
+  catalogId     String  @map("catalog_id")
+  label         String  @db.VarChar(200)
+  datasetType   String  @map("dataset_type") @db.VarChar(50)
+  s3BaseUrl     String? @map("s3_base_url") @db.VarChar(1000)
+  datasetId     String? @map("dataset_id") @db.VarChar(50)
+  thumbnailUrl  String? @map("thumbnail_url") @db.VarChar(1000)
+  sortOrder     Int     @default(0) @map("sort_order")
 
   catalog      CatalogDataset @relation(fields: [catalogId], references: [id], onDelete: Cascade)
 

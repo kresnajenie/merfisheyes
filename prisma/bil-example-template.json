@@ -1,0 +1,45 @@
+{
+  "$schema": "Template for bil-examples.json entries",
+  "$notes": [
+    "Top-level fields (title, species, tissue, platform, genes, bilCode, externalLink, entries) are stored as dedicated DB columns.",
+    "The 'metadata' object is stored as JSONB — add any key-value pairs here without DB/UI changes.",
+    "The detail page renders all metadata keys dynamically.",
+    "Gene search is case-insensitive. Store genes in their original casing."
+  ],
+  "template": {
+    "title": "Full dataset title from BIL",
+    "description": "Free-text description of the experiment",
+    "species": "Mouse | Human | Rhesus Macaque",
+    "tissue": "Brain",
+    "platform": "MERFISH | MERSCOPE",
+    "bilCode": "ace-dip-use",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-dip-use",
+    "genes": ["Fosb", "Cd38", "..."],
+    "metadata": {
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "NIH 5-U01-DA056003-02",
+      "publicationYear": "2023",
+      "license": "CC BY-NC 4.0",
+      "age": "91 days",
+      "sex": "Male",
+      "genotype": "C57Bl/6J",
+      "modality": "Spatial transcriptomics",
+      "technique": "MERFISH"
+    },
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-use/meyes_output/",
+        "thumbnailUrl": "https://example.com/thumbnail.png (optional)"
+      },
+      {
+        "label": "1231122507",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-use/sm_output/1231122507",
+        "thumbnailUrl": null
+      }
+    ]
+  }
+}
