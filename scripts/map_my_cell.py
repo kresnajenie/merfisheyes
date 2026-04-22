@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import multiprocessing
 import os
@@ -134,7 +135,17 @@ def parse_args():
         "--flatten",
         action="store_true",
         help="Map directly to leaf nodes, skipping hierarchical traversal. "
-             "Also sets bootstrap_iteration=1 for much faster mapping.",
+             "Also sets bootstrap_iteration=1 for much faster mapping. "
+             "(hierarchical method only)",
+    )
+    parser.add_argument(
+        "--method",
+        default="hierarchical",
+        choices=["hierarchical", "correlation"],
+        help="Mapping method. 'hierarchical' uses Allen's bootstrapped marker "
+             "taxonomy traversal (FromSpecifiedMarkersRunner). 'correlation' "
+             "Pearson-correlates each cell against reference cluster mean "
+             "expression profiles from the precomputed_stats file.",
     )
     if len(sys.argv) == 1:
         parser.print_help()
@@ -226,10 +237,26 @@ def build_h5ad(cbg_df, metadata_df, output_dir):
     return query_path
 
 
-def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_processors, flatten=False):
+def run_mapping(validated_h5ad_path, output_dir, reference_dir, species,
+                n_processors, flatten=False, method="hierarchical"):
+    """Dispatch to the chosen mapping method. Writes mapping_output.csv."""
+    if method == "hierarchical":
+        return run_mapping_hierarchical(
+            validated_h5ad_path, output_dir, reference_dir, species,
+            n_processors, flatten=flatten,
+        )
+    elif method == "correlation":
+        return run_mapping_correlation(
+            validated_h5ad_path, output_dir, reference_dir, species
+        )
+    else:
+        raise ValueError(f"Unknown mapping method: {method}")
+
+
+def run_mapping_hierarchical(validated_h5ad_path, output_dir, reference_dir,
+                              species, n_processors, flatten=False):
     from cell_type_mapper.cli.from_specified_markers import FromSpecifiedMarkersRunner
 
-    # expandable for human samples in the future (species = human)
     config = TAXONOMY_CONFIG[species]
     output_dir = Path(output_dir)
     csv_result_path = output_dir / "mapping_output.csv"
@@ -281,6 +308,196 @@ def run_mapping(validated_h5ad_path, output_dir, reference_dir, species, n_proce
     return csv_result_path
 
 
+def _read_scalar_json(dset):
+    """Allen precomputed_stats h5 stores col_names / cluster_to_row / taxonomy_tree
+    as JSON-encoded scalar datasets. Return the parsed Python object."""
+    raw = dset[()]
+    if isinstance(raw, bytes):
+        raw = raw.decode()
+    return json.loads(raw)
+
+
+def _load_reference_cluster_means(precomputed_stats_path):
+    """Read cluster-mean expression + taxonomy from Allen precomputed_stats h5.
+
+    Returns (ref_gene_ids, cluster_ids, cluster_means, taxonomy_tree).
+    cluster_means is (n_clusters, n_genes) of raw counts averaged per cluster.
+    cluster_ids are the raw taxonomy IDs (e.g. 'CS20230722_CLUS_0001').
+    """
+    import h5py
+
+    with h5py.File(precomputed_stats_path, "r") as f:
+        gene_key = "col_names" if "col_names" in f else "gene_names"
+        ref_genes = _read_scalar_json(f[gene_key])
+
+        mapping = _read_scalar_json(f["cluster_to_row"])
+        row_to_cluster = {int(v): k for k, v in mapping.items()}
+        cluster_ids = [row_to_cluster[i] for i in range(len(row_to_cluster))]
+
+        sums = f["sum"][:].astype(np.float64)
+        n_cells = f["n_cells"][:].astype(np.float64)
+        cluster_means = sums / np.maximum(n_cells[:, None], 1.0)
+
+        taxonomy_tree = None
+        if "taxonomy_tree" in f:
+            try:
+                taxonomy_tree = _read_scalar_json(f["taxonomy_tree"])
+            except Exception:
+                taxonomy_tree = None
+
+    return ref_genes, cluster_ids, cluster_means, taxonomy_tree
+
+
+def _resolve_name(name_mapper, level_code, node_id):
+    """Translate an Allen taxonomy ID to a readable name via name_mapper;
+    fall back to the raw ID if no mapping is available."""
+    if not name_mapper or not level_code:
+        return node_id
+    entry = (name_mapper.get(level_code) or {}).get(node_id)
+    if isinstance(entry, dict):
+        return entry.get("name", node_id)
+    if isinstance(entry, str):
+        return entry
+    return node_id
+
+
+def _leaf_to_parent_maps(taxonomy_tree):
+    """From Allen taxonomy tree, build {friendly_level_name: {leaf_id: readable_label}}.
+
+    Uses 'hierarchy_mapper' to rename level codes like CCN20230722_CLAS → 'class',
+    and 'name_mapper' to turn parent IDs into readable names.
+    """
+    if not isinstance(taxonomy_tree, dict):
+        return {}
+    hierarchy = taxonomy_tree.get("hierarchy")
+    if not hierarchy or len(hierarchy) < 2:
+        return {}
+
+    hierarchy_mapper = taxonomy_tree.get("hierarchy_mapper", {}) or {}
+    name_mapper = taxonomy_tree.get("name_mapper", {}) or {}
+    level_children = {lvl: taxonomy_tree.get(lvl, {}) for lvl in hierarchy[:-1]}
+
+    leaf_to_ancestors = {}  # leaf_id -> {level_code: parent_id}
+
+    def recurse(level_idx, node, ancestors):
+        if level_idx == len(hierarchy) - 1:
+            leaf_to_ancestors[node] = dict(ancestors)
+            return
+        current_level = hierarchy[level_idx]
+        next_ancestors = dict(ancestors)
+        next_ancestors[current_level] = node
+        for child in level_children.get(current_level, {}).get(node, []):
+            recurse(level_idx + 1, child, next_ancestors)
+
+    top_level = hierarchy[0]
+    for top_node in level_children.get(top_level, {}).keys():
+        recurse(0, top_node, {})
+
+    per_level = {}
+    for level_code in hierarchy[:-1]:
+        friendly = hierarchy_mapper.get(level_code, level_code.lower())
+        per_level[friendly] = {
+            leaf: _resolve_name(name_mapper, level_code, anc.get(level_code, ""))
+            for leaf, anc in leaf_to_ancestors.items()
+        }
+    return per_level
+
+
+def run_mapping_correlation(validated_h5ad_path, output_dir, reference_dir, species):
+    """Assign each cell to the reference cluster with the highest Pearson
+    correlation of log1p-normalized expression profiles.
+
+    Output CSV schema matches the hierarchical runner's downstream requirements:
+    cell_id, cluster_name, cluster_label, plus parent taxonomy levels we can
+    derive (e.g. class_name), plus correlation_coefficient in place of
+    bootstrapping_probability.
+    """
+    import scipy.sparse as sp
+
+    config = TAXONOMY_CONFIG[species]
+    output_dir = Path(output_dir)
+    csv_result_path = output_dir / "mapping_output.csv"
+    precomputed_path = reference_dir / config["precomputed_stats"]
+
+    logger.info("Correlation mapping: loading reference stats from %s", precomputed_path)
+    ref_genes, cluster_ids, cluster_means, taxonomy_tree = (
+        _load_reference_cluster_means(precomputed_path)
+    )
+    logger.info("Reference: %d clusters × %d genes", len(cluster_ids), len(ref_genes))
+
+    # Resolve readable cluster names via name_mapper (fallback to ID).
+    hierarchy = (taxonomy_tree or {}).get("hierarchy", [])
+    leaf_level_code = hierarchy[-1] if hierarchy else None
+    name_mapper = (taxonomy_tree or {}).get("name_mapper", {}) or {}
+    cluster_names = [
+        _resolve_name(name_mapper, leaf_level_code, cid) for cid in cluster_ids
+    ]
+
+    adata = anndata.read_h5ad(validated_h5ad_path)
+    query_genes = list(adata.var.index)
+    X = adata.X
+    if sp.issparse(X):
+        X = X.toarray()
+    X = X.astype(np.float64, copy=False)
+
+    ref_gene_to_idx = {g: i for i, g in enumerate(ref_genes)}
+    shared = [(qi, ref_gene_to_idx[g]) for qi, g in enumerate(query_genes)
+              if g in ref_gene_to_idx]
+    if len(shared) < 10:
+        raise ValueError(
+            f"Only {len(shared)} genes overlap between query and reference. "
+            "Correlation mapping requires enough shared genes to be meaningful."
+        )
+    logger.info("Correlation mapping: %d/%d query genes align with reference.",
+                len(shared), len(query_genes))
+    q_idx = np.array([s[0] for s in shared])
+    r_idx = np.array([s[1] for s in shared])
+
+    def _lognorm(M):
+        totals = np.maximum(M.sum(axis=1, keepdims=True), 1.0)
+        return np.log1p(M / totals * 1e4)
+
+    def _zscore_rows(M):
+        mu = M.mean(axis=1, keepdims=True)
+        sd = M.std(axis=1, keepdims=True)
+        sd = np.where(sd == 0, 1.0, sd)
+        return (M - mu) / sd
+
+    Q = _lognorm(X[:, q_idx])
+    R = _lognorm(cluster_means[:, r_idx])
+    Qz = _zscore_rows(Q)
+    Rz = _zscore_rows(R)
+
+    logger.info("Computing %d × %d correlation matrix...", Qz.shape[0], Rz.shape[0])
+    corr = (Qz @ Rz.T) / Qz.shape[1]
+    best = corr.argmax(axis=1)
+    best_r = corr[np.arange(len(best)), best]
+    assigned_ids = [cluster_ids[i] for i in best]
+    assigned_names = [cluster_names[i] for i in best]
+
+    result = pd.DataFrame({
+        "cell_id": adata.obs.index.astype(str),
+        "cluster_label": assigned_ids,
+        "cluster_name": assigned_names,
+        "correlation_coefficient": best_r,
+    })
+
+    parent_maps = _leaf_to_parent_maps(taxonomy_tree)
+    for friendly_level, leaf_to_label in parent_maps.items():
+        result[f"{friendly_level}_name"] = [
+            leaf_to_label.get(cid, "") for cid in assigned_ids
+        ]
+
+    with open(csv_result_path, "w") as fh:
+        fh.write("# mapping method: correlation (Pearson, log1p CPT-10k)\n")
+        fh.write(f"# reference: {precomputed_path.name}\n")
+        fh.write(f"# shared_genes: {len(shared)}\n")
+        result.to_csv(fh, index=False)
+
+    logger.info("Correlation mapping complete → %s", csv_result_path)
+    return csv_result_path
+
+
 def join_results(mapping_csv_path, metadata_df):
     mapping_df = pd.read_csv(mapping_csv_path, comment='#')
     mapping_df["cell_id"] = mapping_df["cell_id"].astype(str)
@@ -305,15 +522,18 @@ def plot_cell_types(merged_df, output_dir):
 
     df = merged_df
 
-    # Human taxonomy uses "supercluster_name", mouse uses "class_name"
+    # Mouse has class_name, human has supercluster_name. Correlation mode may
+    # only populate cluster_name. Fall back through them in preference order.
     class_col = None
-    for candidate in ("class_name", "supercluster_name"):
+    for candidate in ("class_name", "supercluster_name", "subclass_name",
+                      "cluster_name", "cluster_label"):
         if candidate in df.columns and not df[candidate].isna().all():
             class_col = candidate
             break
     if class_col is None:
-        logger.warning("No cell type column found (tried class_name, supercluster_name), skipping plots.")
+        logger.warning("No cell type column found, skipping plots.")
         return
+    logger.info("Plotting cell types using column '%s'", class_col)
 
     # Pick top 3 most common cell type classes to highlight
     top3 = df[class_col].value_counts().head(3).index.tolist()
@@ -337,11 +557,57 @@ def plot_cell_types(merged_df, output_dir):
         ax.legend(loc='upper right', fontsize=8, framealpha=0.3)
 
         plt.tight_layout()
-        safe_name = cell_type.replace(" ", "_").replace("/", "-")
+        safe_name = str(cell_type).replace(" ", "_").replace("/", "-")
         out_path = Path(output_dir) / f"check_celltype_{safe_name}.png"
         plt.savefig(out_path, dpi=150)
         plt.close()
         logger.info("Saved %s", out_path)
+
+
+def plot_correlation_diagnostic(merged_df, output_dir, bins=50):
+    """Histogram of per-cell best-match correlation coefficients.
+
+    Shows how confident the correlation mapper was across the dataset — a
+    left-skewed distribution concentrated near 1 means most cells had a clear
+    match; a flat or near-zero distribution means many cells are weakly
+    differentiated against the reference (often because of sparse expression
+    on the shared gene panel).
+    """
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    if "correlation_coefficient" not in merged_df.columns:
+        logger.warning("No correlation_coefficient column; skipping diagnostic.")
+        return
+
+    r = pd.to_numeric(merged_df["correlation_coefficient"], errors="coerce").dropna()
+    if r.empty:
+        logger.warning("No numeric correlation values; skipping diagnostic.")
+        return
+
+    median = float(r.median())
+    mean = float(r.mean())
+    n_zero = int((r <= 0).sum())
+
+    plt.style.use("default")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.hist(r, bins=bins, color="steelblue", edgecolor="black", linewidth=0.3)
+    ax.axvline(median, color="crimson", linestyle="--", linewidth=1.2,
+               label=f"median = {median:.3f}")
+    ax.axvline(mean, color="darkorange", linestyle=":", linewidth=1.2,
+               label=f"mean = {mean:.3f}")
+    ax.set_xlabel("Pearson r (best-match reference cluster)")
+    ax.set_ylabel("number of cells")
+    ax.set_title(f"Correlation-method confidence — {len(r):,} cells "
+                 f"({n_zero:,} with r ≤ 0)")
+    ax.legend(loc="upper left", fontsize=9, framealpha=0.9)
+    ax.grid(axis="y", linestyle=":", alpha=0.4)
+    plt.tight_layout()
+    out_path = Path(output_dir) / "correlation_diagnostic.png"
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+    logger.info("Saved %s", out_path)
 
 def print_summary(merged_df, query_h5ad_path, original_cbg_gene_count):
     validated_adata = anndata.read_h5ad(query_h5ad_path, backed="r")
@@ -391,8 +657,18 @@ if __name__ == "__main__":
     query_h5ad_path = build_h5ad(cbg_df, metadata_df, output_dir)
     mapping_csv_path = run_mapping(
         query_h5ad_path, output_dir, reference_dir, args.species, args.n_processors,
-        flatten=args.flatten,
+        flatten=args.flatten, method=args.method,
     )
     merged_df = join_results(mapping_csv_path, metadata_df)
     plot_cell_types(merged_df, output_dir)
+    if args.method == "correlation":
+        plot_correlation_diagnostic(merged_df, output_dir)
     print_summary(merged_df, query_h5ad_path, original_gene_count)
+
+    # Correlation mode: keep only mapping_output.csv + PNGs.
+    if args.method == "correlation":
+        try:
+            Path(query_h5ad_path).unlink()
+            logger.info("Removed intermediate %s", query_h5ad_path)
+        except FileNotFoundError:
+            pass
