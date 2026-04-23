@@ -102,21 +102,40 @@ while IFS=',' read -r sample_name input_path; do
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
     combined_output="${output_base}/combined_output"
-    mmc_output="${output_base}/mmc_output"
+    h5ad_input="${input_path}/cell_by_gene.h5ad"
+
+    # Method-specific output dir so correlation never clobbers hierarchical
+    if [ "$METHOD" = "correlation" ]; then
+        mmc_output="${output_base}/mmc_output_corr"
+    else
+        mmc_output="${output_base}/mmc_output"
+    fi
+
+    # Pick MMC input: combined_output (Xenium/MERSCOPE) or h5ad (BIL h5ad pipeline)
+    if [ -d "$combined_output" ]; then
+        mmc_input="$combined_output"
+        input_kind="combined_output"
+    elif [ -n "$input_path" ] && [ -f "$h5ad_input" ]; then
+        mmc_input="$h5ad_input"
+        input_kind="h5ad"
+    else
+        mmc_input=""
+        input_kind="none"
+    fi
 
     echo "── Sample ${count}: ${sample_name} ──"
-    echo "  Combined: ${combined_output}"
+    echo "  Input:    ${mmc_input:-<none>} (${input_kind})"
     echo "  MMC:      ${mmc_output}"
 
-    if [ ! -d "$combined_output" ]; then
-        echo "  ⚠️  SKIP: combined_output not found"
+    if [ -z "$mmc_input" ]; then
+        echo "  ⚠️  SKIP: no combined_output dir and no cell_by_gene.h5ad at \$input_path"
         continue
     fi
 
     mmc_job=$(sbatch --parsable \
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
-        "$combined_output" \
+        "$mmc_input" \
         "$mmc_output" \
         "$SPECIES" \
         "$METHOD")
