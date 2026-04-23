@@ -24,10 +24,10 @@ echo "Started at $(date)"
 # ── Environment setup ────────────────────────────────────────
 module load aws-cli
 
-# Increase AWS S3 transfer concurrency (default is 10)
+# Increase AWS S3 transfer concurrency via env vars (avoids config file race conditions)
 export AWS_MAX_CONCURRENT_REQUESTS=50
-aws configure set default.s3.max_concurrent_requests 50
-aws configure set default.s3.multipart_chunksize 16MB
+export AWS_S3_MAX_CONCURRENT_REQUESTS=50
+export AWS_S3_MULTIPART_CHUNKSIZE=16MB
 
 # ── Preflight check ─────────────────────────────────────────
 if [ ! -d "$SOURCE" ]; then

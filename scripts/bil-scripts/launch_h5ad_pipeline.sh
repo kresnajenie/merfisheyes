@@ -14,16 +14,22 @@
 #   {input_dir}/segmented_spot_table.csv
 #
 # Usage:
-#   ./launch_h5ad_pipeline.sh                  # uses samples.csv in same dir
-#   ./launch_h5ad_pipeline.sh my_samples.csv   # custom sample list
+#   ./launch_h5ad_pipeline.sh                          # uses samples.csv in same dir
+#   ./launch_h5ad_pipeline.sh my_samples.csv           # custom sample list
+#   ./launch_h5ad_pipeline.sh my_samples.csv --sync   # enable S3 sync
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SAMPLE_FILE="${1:-${SCRIPT_DIR}/samples.csv}"
+SYNC=false
+for arg in "$@"; do
+    if [ "$arg" = "--sync" ]; then
+        SYNC=true
+    fi
+done
 MEYES_BASE="/bil/data/meyes"
-REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
 S3_BUCKET="merfisheyes-bil"
 S3_PREFIX_BASE="bil-psc-data2"
 S3_HTTPS_BASE="https://${S3_BUCKET}.s3.us-west-2.amazonaws.com/${S3_PREFIX_BASE}"
@@ -37,8 +43,8 @@ echo "============================================"
 echo "  H5AD Pipeline Launcher"
 echo "============================================"
 echo "Sample file:  $SAMPLE_FILE"
+echo "S3 sync:      $(if $SYNC; then echo 'enabled (--sync)'; else echo 'DISABLED (pass --sync to enable)'; fi)"
 echo "Output base:  $MEYES_BASE"
-echo "Reference:    $REFERENCE_DIR"
 echo "S3 base:      $S3_HTTPS_BASE"
 echo ""
 
@@ -92,8 +98,7 @@ while IFS=',' read -r sample_name input_dir; do
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
         "$h5ad_path" \
-        "$mmc_output" \
-        "$REFERENCE_DIR")
+        "$mmc_output")
     echo "  [1/5] map_my_cell      -> Job ${mmc_job}"
 
     # Step 2: process_single_molecule (runs in parallel with step 1)
@@ -125,12 +130,13 @@ while IFS=',' read -r sample_name input_dir; do
     echo "  [4/5] copy mapping.json -> Job ${copy_job} (after ${sc_job} + ${sm_job})"
 
     # Step 5: s3 sync both meyes_output and sm_output (after copy)
-    sync_job=$(sbatch --parsable \
-        --dependency=afterok:${copy_job} \
-        --job-name="sync_${sample_name}" \
-        --output="/bil/users/ijenie/meyes_process_logs/s3_sync_h5ad_${sample_name}_%j.log" \
-        --ntasks=1 --cpus-per-task=8 --mem=4G --time=2-00:00:00 --partition=compute \
-        --wrap="
+    if $SYNC; then
+        sync_job=$(sbatch --parsable \
+            --dependency=afterok:${copy_job} \
+            --job-name="sync_${sample_name}" \
+            --output="/bil/users/ijenie/meyes_process_logs/s3_sync_h5ad_${sample_name}_%j.log" \
+            --ntasks=1 --cpus-per-task=8 --mem=4G --time=2-00:00:00 --partition=compute \
+            --wrap="
 module load aws-cli
 export AWS_MAX_CONCURRENT_REQUESTS=50
 aws configure set default.s3.max_concurrent_requests 50
@@ -152,7 +158,10 @@ echo 'sm_output sync done at \$(date)'
 echo ''
 echo 'All syncs complete at \$(date)'
 ")
-    echo "  [5/5] s3_sync          -> Job ${sync_job} (after ${copy_job})"
+        echo "  [5/5] s3_sync          -> Job ${sync_job} (after ${copy_job})"
+    else
+        echo "  [5/5] s3_sync          -> SKIPPED (pass --sync to enable)"
+    fi
 
     echo ""
 

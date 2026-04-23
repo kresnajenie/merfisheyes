@@ -24,7 +24,9 @@ export class ChunkedDataAdapter {
   ) {
     this.datasetId = datasetId;
     this.localFiles = localFiles || null;
-    this.customS3BaseUrl = customS3BaseUrl || null;
+    this.customS3BaseUrl = customS3BaseUrl
+      ? customS3BaseUrl.replace(/\/+$/, "")
+      : null;
 
     // Determine mode based on parameters
     if (customS3BaseUrl) {

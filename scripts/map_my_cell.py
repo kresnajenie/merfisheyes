@@ -305,14 +305,14 @@ def plot_cell_types(merged_df, output_dir):
 
     df = merged_df
 
-    # Human taxonomy uses "supercluster_name", mouse uses "class_name"
+    # Mouse taxonomy has "class_name", human Siletti has "cluster_name"/"subcluster_name"
     class_col = None
-    for candidate in ("class_name", "supercluster_name"):
+    for candidate in ("class_name", "supercluster_name", "cluster_name", "subcluster_name"):
         if candidate in df.columns and not df[candidate].isna().all():
             class_col = candidate
             break
     if class_col is None:
-        logger.warning("No cell type column found (tried class_name, supercluster_name), skipping plots.")
+        logger.warning("No cell type column found (tried class_name, supercluster_name, cluster_name, subcluster_name), skipping plots.")
         return
 
     # Pick top 3 most common cell type classes to highlight

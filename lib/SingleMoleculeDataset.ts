@@ -1064,6 +1064,8 @@ export class SingleMoleculeDataset {
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
 
+    customS3BaseUrl = customS3BaseUrl.replace(/\/+$/, "");
+
     console.log(
       `[SingleMoleculeDataset] Loading from custom S3: ${customS3BaseUrl}`,
     );
