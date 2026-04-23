@@ -360,10 +360,7 @@
       "publicationYear": "2023",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Volsky, David",
-        "Kenny, Paul"
-      ],
+      "coInvestigators": ["Volsky, David", "Kenny, Paul"],
       "funding": "National Institutes of Health — 5-U01-DA056003-02",
       "age": "91.0 Days",
       "sex": "Male",
@@ -728,10 +725,7 @@
       "publicationYear": "2023",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Volsky, David",
-        "Kenny, Paul"
-      ],
+      "coInvestigators": ["Volsky, David", "Kenny, Paul"],
       "funding": "National Institutes of Health — 5-U01-DA056003-02",
       "age": "91.0 Days",
       "sex": "Male",
@@ -1102,10 +1096,7 @@
       "publicationYear": "2023",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Volsky, David",
-        "Kenny, Paul"
-      ],
+      "coInvestigators": ["Volsky, David", "Kenny, Paul"],
       "funding": "National Institutes of Health — 5-U01-DA056003-02",
       "age": "91.0 Days",
       "sex": "Male",
@@ -1470,10 +1461,7 @@
       "publicationYear": "2023",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Volsky, David",
-        "Kenny, Paul"
-      ],
+      "coInvestigators": ["Volsky, David", "Kenny, Paul"],
       "funding": "National Institutes of Health — 5-U01-DA056003-02",
       "age": "70.0 Days",
       "sex": "Male",
@@ -1844,10 +1832,7 @@
       "publicationYear": "2023",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Volsky, David",
-        "Kenny, Paul"
-      ],
+      "coInvestigators": ["Volsky, David", "Kenny, Paul"],
       "funding": "National Institutes of Health — 5-U01-DA056003-02",
       "age": "70.0 Days",
       "sex": "Male",
@@ -4172,18 +4157,14 @@
     "entries": [
       {
         "label": "All Single Cell",
-        "datasetType": "single_cell",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-jig-eel/meyes_output/",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-jig-eel/meyes_output/thumbnail.jpg"
+        "datasetType": "single_cell"
       }
     ],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "20.0 Days",
       "sex": "Female",
@@ -4765,9 +4746,7 @@
       "publicationYear": "2024",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "28.0 Days",
       "sex": "Male",
@@ -5679,9 +5658,7 @@
       "publicationYear": "2023",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "28.0 Days",
       "sex": "Female",
@@ -5697,21 +5674,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-dug-fig",
     "bilCode": "ace-dug-fig",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2023",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "28.0 Days",
       "sex": "Male",
@@ -9044,9 +9015,7 @@
     "entries": [
       {
         "label": "All Single Cell",
-        "datasetType": "single_cell",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fly/meyes_output/",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fly/meyes_output/thumbnail.jpg"
+        "datasetType": "single_cell"
       }
     ],
     "metadata": {
@@ -10336,9 +10305,7 @@
       "publicationYear": "2023",
       "investigator": "Arlotta, Paola",
       "institution": "Harvard Stem Cell Institute",
-      "coInvestigators": [
-        "Zeng, Hongkui"
-      ],
+      "coInvestigators": ["Zeng, Hongkui"],
       "funding": "National Institutes of Health — 1-U01-MH130962-01",
       "age": "20.0 Days",
       "sex": "Male",
@@ -10354,23 +10321,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-gem-get",
     "bilCode": "ace-gem-get",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Binan, Loϊc",
       "institution": "Broad Institute",
-      "coInvestigators": [
-        "Nehme, Ralda",
-        "Farhi, Samouil L",
-        "Cleary, Brian"
-      ],
+      "coInvestigators": ["Nehme, Ralda", "Farhi, Samouil L", "Cleary, Brian"],
       "funding": "Israel Science Foundation — -",
       "age": "30.0 year",
       "sex": "Male",
@@ -10385,9 +10344,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cub",
     "bilCode": "ace-low-cub",
     "entries": [
@@ -10400,7 +10357,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10423,9 +10380,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cry",
     "bilCode": "ace-low-cry",
     "entries": [
@@ -10438,7 +10393,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10461,9 +10416,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cow",
     "bilCode": "ace-low-cow",
     "entries": [
@@ -10476,7 +10429,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10499,9 +10452,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cot",
     "bilCode": "ace-low-cot",
     "entries": [
@@ -10514,7 +10465,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10537,9 +10488,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cop",
     "bilCode": "ace-low-cop",
     "entries": [
@@ -10552,7 +10501,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10575,9 +10524,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cat",
     "bilCode": "ace-low-cat",
     "entries": [
@@ -10590,7 +10537,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10613,9 +10560,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-car",
     "bilCode": "ace-low-car",
     "entries": [
@@ -10628,7 +10573,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10651,9 +10596,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cap",
     "bilCode": "ace-low-cap",
     "entries": [
@@ -10666,7 +10609,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10689,9 +10632,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-can",
     "bilCode": "ace-low-can",
     "entries": [
@@ -10704,7 +10645,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10727,9 +10668,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-cab",
     "bilCode": "ace-low-cab",
     "entries": [
@@ -10742,7 +10681,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10765,9 +10704,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bus",
     "bilCode": "ace-low-bus",
     "entries": [
@@ -10780,7 +10717,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10803,9 +10740,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bun",
     "bilCode": "ace-low-bun",
     "entries": [
@@ -10818,7 +10753,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10841,9 +10776,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bug",
     "bilCode": "ace-low-bug",
     "entries": [
@@ -10856,7 +10789,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10879,9 +10812,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bud",
     "bilCode": "ace-low-bud",
     "entries": [
@@ -10894,7 +10825,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10917,9 +10848,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-box",
     "bilCode": "ace-low-box",
     "entries": [
@@ -10932,7 +10861,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10955,9 +10884,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-boo",
     "bilCode": "ace-low-boo",
     "entries": [
@@ -10970,7 +10897,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -10993,9 +10920,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bog",
     "bilCode": "ace-low-bog",
     "entries": [
@@ -11008,7 +10933,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11031,9 +10956,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bit",
     "bilCode": "ace-low-bit",
     "entries": [
@@ -11046,7 +10969,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11069,9 +10992,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bin",
     "bilCode": "ace-low-bin",
     "entries": [
@@ -11084,7 +11005,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11107,9 +11028,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-big",
     "bilCode": "ace-low-big",
     "entries": [
@@ -11122,7 +11041,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11145,9 +11064,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bid",
     "bilCode": "ace-low-bid",
     "entries": [
@@ -11160,7 +11077,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11183,9 +11100,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bet",
     "bilCode": "ace-low-bet",
     "entries": [
@@ -11198,7 +11113,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11221,16 +11136,14 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bed",
     "bilCode": "ace-low-bed",
     "entries": [
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bed/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bed/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bed/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11252,9 +11165,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bay",
     "bilCode": "ace-low-bay",
     "entries": [
@@ -11267,7 +11178,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11290,9 +11201,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bat",
     "bilCode": "ace-low-bat",
     "entries": [
@@ -11305,7 +11214,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11328,9 +11237,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bar",
     "bilCode": "ace-low-bar",
     "entries": [
@@ -11343,7 +11250,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11366,9 +11273,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ban",
     "bilCode": "ace-low-ban",
     "entries": [
@@ -11381,7 +11286,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11404,9 +11309,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bag",
     "bilCode": "ace-low-bag",
     "entries": [
@@ -11419,7 +11322,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11442,9 +11345,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bad",
     "bilCode": "ace-low-bad",
     "entries": [
@@ -11457,7 +11358,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11480,9 +11381,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ask",
     "bilCode": "ace-low-ask",
     "entries": [
@@ -11495,7 +11394,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11518,9 +11417,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ash",
     "bilCode": "ace-low-ash",
     "entries": [
@@ -11533,7 +11430,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11556,9 +11453,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-art",
     "bilCode": "ace-low-art",
     "entries": [
@@ -11571,7 +11466,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11594,9 +11489,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-arm",
     "bilCode": "ace-low-arm",
     "entries": [
@@ -11609,7 +11502,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11632,9 +11525,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ape",
     "bilCode": "ace-low-ape",
     "entries": [
@@ -11647,7 +11538,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11670,9 +11561,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ant",
     "bilCode": "ace-low-ant",
     "entries": [
@@ -11685,7 +11574,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11708,9 +11597,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-and",
     "bilCode": "ace-low-and",
     "entries": [
@@ -11723,7 +11610,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11746,9 +11633,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-air",
     "bilCode": "ace-low-air",
     "entries": [
@@ -11761,7 +11646,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11784,9 +11669,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-aim",
     "bilCode": "ace-low-aim",
     "entries": [
@@ -11799,7 +11682,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11822,9 +11705,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-age",
     "bilCode": "ace-low-age",
     "entries": [
@@ -11837,7 +11718,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11860,9 +11741,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-add",
     "bilCode": "ace-low-add",
     "entries": [
@@ -11875,7 +11754,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11898,9 +11777,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-act",
     "bilCode": "ace-low-act",
     "entries": [
@@ -11913,7 +11790,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11936,9 +11813,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ace",
     "bilCode": "ace-low-ace",
     "entries": [
@@ -11951,7 +11826,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -11974,16 +11849,14 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-zip",
     "bilCode": "ace-low-zip",
     "entries": [
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-zip/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-zip/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-zip/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12005,9 +11878,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-all",
     "bilCode": "ace-lot-all",
     "entries": [
@@ -12020,7 +11891,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12043,9 +11914,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-zoo",
     "bilCode": "ace-lot-zoo",
     "entries": [
@@ -12058,7 +11927,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12081,9 +11950,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-yet",
     "bilCode": "ace-lot-yet",
     "entries": [
@@ -12096,7 +11963,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12119,9 +11986,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-yes",
     "bilCode": "ace-lot-yes",
     "entries": [
@@ -12134,7 +11999,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12157,9 +12022,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-wit",
     "bilCode": "ace-lot-wit",
     "entries": [
@@ -12172,7 +12035,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12195,9 +12058,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-win",
     "bilCode": "ace-lot-win",
     "entries": [
@@ -12210,7 +12071,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12233,9 +12094,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-wig",
     "bilCode": "ace-lot-wig",
     "entries": [
@@ -12248,7 +12107,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12271,9 +12130,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-who",
     "bilCode": "ace-lot-who",
     "entries": [
@@ -12286,7 +12143,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12309,9 +12166,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-wet",
     "bilCode": "ace-lot-wet",
     "entries": [
@@ -12324,7 +12179,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12347,9 +12202,7 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-web",
     "bilCode": "ace-lot-web",
     "entries": [
@@ -12362,7 +12215,7 @@
       {
         "label": "genes",
         "datasetType": "single_molecule",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output/genes",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output",
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output/genes/thumbnail.jpg"
       }
     ],
@@ -12951,9 +12804,7 @@
       "publicationYear": "2024",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "0.0 Days",
       "sex": "Male",
@@ -13523,16 +13374,12 @@
     ],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-let-lax",
     "bilCode": "ace-let-lax",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "4.0 Days",
       "sex": "Female",
@@ -14104,17 +13951,14 @@
     "entries": [
       {
         "label": "All Single Cell",
-        "datasetType": "single_cell",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-law/meyes_output/"
+        "datasetType": "single_cell"
       }
     ],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "0.0 Days",
       "sex": "Female",
@@ -14695,9 +14539,7 @@
       "publicationYear": "2025",
       "investigator": "Zeng, Hongkui",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Arlotta, Paola"
-      ],
+      "coInvestigators": ["Arlotta, Paola"],
       "funding": "National Institutes of Health — 5-U01-MH130962-02",
       "age": "4.0 Days",
       "sex": "Male",
@@ -14713,14 +14555,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-ban-win",
     "bilCode": "ace-ban-win",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2025",
       "investigator": "Zhuang, Xiaowei",
@@ -14738,21 +14576,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-bet-pry",
     "bilCode": "ace-bet-pry",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2025",
       "investigator": "Zhuang, Xiaowei",
       "institution": "Harvard University",
-      "coInvestigators": [
-        "Dulac, Catherine"
-      ],
+      "coInvestigators": ["Dulac, Catherine"],
       "funding": "National Institutes of Health — U19MH114830",
       "age": "NA NA",
       "genotype": "Strain_Name='C57Bl6/CD1'; ",
@@ -14766,21 +14598,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-bag-tin",
     "bilCode": "ace-bag-tin",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2022",
       "investigator": "Zhuang, Xiaowei",
       "institution": "Harvard University",
-      "coInvestigators": [
-        "Dulac, Catherine"
-      ],
+      "coInvestigators": ["Dulac, Catherine"],
       "funding": "National Institutes of Health — U19MH114830",
       "age": "NA NA",
       "genotype": "Strain_Name='C57Bl6/CD1';",
@@ -14794,14 +14620,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=act-bag",
     "bilCode": "act-bag",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2022",
       "investigator": "Zhuang, Xiaowei",
@@ -14819,21 +14641,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-boo-sag",
     "bilCode": "ace-boo-sag",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2022",
       "investigator": "Dulac, Catherine",
       "institution": "Harvard University",
-      "coInvestigators": [
-        "Zhuang, Xiaowei"
-      ],
+      "coInvestigators": ["Zhuang, Xiaowei"],
       "funding": "National Institutes of Health — 1-U19-MH114821-01",
       "age": "8 to 11 weeks",
       "sex": "Male",
@@ -14847,14 +14663,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-gut-add",
     "bilCode": "ace-gut-add",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2022",
       "investigator": "Zhuang, Xiaowei",
@@ -14872,21 +14684,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-bug-sip",
     "bilCode": "ace-bug-sip",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2022",
       "investigator": "Dulac, Catherine",
       "institution": "Harvard University",
-      "coInvestigators": [
-        "Zhuang, Xiaowei"
-      ],
+      "coInvestigators": ["Zhuang, Xiaowei"],
       "funding": "National Institutes of Health — 1-U19-MH114821-01",
       "age": "10 to 16 weeks",
       "sex": "Male",
@@ -14900,22 +14706,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-shy",
     "bilCode": "ace-irk-shy",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui",
-        "Close, Jennie"
-      ],
+      "coInvestigators": ["Zeng, Hongkui", "Close, Jennie"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "50.0 Years",
       "sex": "Female",
@@ -14929,22 +14728,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-set",
     "bilCode": "ace-irk-set",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui",
-        "Close, Jennie"
-      ],
+      "coInvestigators": ["Zeng, Hongkui", "Close, Jennie"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "50.0 Years",
       "sex": "Female",
@@ -14958,22 +14750,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-say",
     "bilCode": "ace-irk-say",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui",
-        "Close, Jennie"
-      ],
+      "coInvestigators": ["Zeng, Hongkui", "Close, Jennie"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "50.0 Years",
       "sex": "Female",
@@ -14987,22 +14772,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-saw",
     "bilCode": "ace-irk-saw",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui",
-        "Close, Jennie"
-      ],
+      "coInvestigators": ["Zeng, Hongkui", "Close, Jennie"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "50.0 Years",
       "sex": "Female",
@@ -15016,22 +14794,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-sat",
     "bilCode": "ace-irk-sat",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui",
-        "Close, Jennie"
-      ],
+      "coInvestigators": ["Zeng, Hongkui", "Close, Jennie"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "50.0 Years",
       "sex": "Female",
@@ -15045,22 +14816,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-sap",
     "bilCode": "ace-irk-sap",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui",
-        "Close, Jennie"
-      ],
+      "coInvestigators": ["Zeng, Hongkui", "Close, Jennie"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "50.0 Years",
       "sex": "Female",
@@ -15074,22 +14838,15 @@
     "species": "Human",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-sag",
     "bilCode": "ace-irk-sag",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui",
-        "Close, Jennie"
-      ],
+      "coInvestigators": ["Zeng, Hongkui", "Close, Jennie"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "50.0 Years",
       "sex": "Female",
@@ -15103,21 +14860,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-ban-oat",
     "bilCode": "ace-ban-oat",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2022",
       "investigator": "Zhuang, Xiaowei",
       "institution": "Harvard University",
-      "coInvestigators": [
-        "Dulac, Catherine"
-      ],
+      "coInvestigators": ["Dulac, Catherine"],
       "funding": "National Institutes of Health — 1-U19-MH114821-01",
       "genotype": "Strain_Name='C57BL/6';",
       "technique": "MERFISH"
@@ -15129,21 +14880,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-ban-odd",
     "bilCode": "ace-ban-odd",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2022",
       "investigator": "Zhuang, Xiaowei",
       "institution": "Harvard University",
-      "coInvestigators": [
-        "Zhang, Yi"
-      ],
+      "coInvestigators": ["Zhang, Yi"],
       "funding": "National Institutes of Health — 1-U19-MH114821-01",
       "genotype": "Strain_Name='C57BL/6N';",
       "technique": "MERFISH"
@@ -15155,14 +14900,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-aim-nut",
     "bilCode": "ace-aim-nut",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2020",
       "investigator": "Zhuang, Xiaowei",
@@ -15177,21 +14918,15 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-bay-foo",
     "bilCode": "ace-bay-foo",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2021",
       "investigator": "Zhuang, Xiaowei",
       "institution": "Harvard University",
-      "coInvestigators": [
-        "Dulac, Catherine"
-      ],
+      "coInvestigators": ["Dulac, Catherine"],
       "funding": "National Institutes of Health — 1-U19-MH114821-01",
       "genotype": "Strain_Name='C57BL/6'; ",
       "technique": "MERFISH"
@@ -15678,9 +15413,7 @@
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui"
-      ],
+      "coInvestigators": ["Zeng, Hongkui"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "10.0 Years",
       "sex": "Male",
@@ -16483,9 +16216,7 @@
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui"
-      ],
+      "coInvestigators": ["Zeng, Hongkui"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "10.0 Years",
       "sex": "Male",
@@ -16951,9 +16682,7 @@
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui"
-      ],
+      "coInvestigators": ["Zeng, Hongkui"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "10.0 Years",
       "sex": "Male",
@@ -17419,9 +17148,7 @@
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui"
-      ],
+      "coInvestigators": ["Zeng, Hongkui"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "10.0 Years",
       "sex": "Male",
@@ -17815,9 +17542,7 @@
       "publicationYear": "2024",
       "investigator": "Lein, Ed",
       "institution": "Allen Institute for Brain Science",
-      "coInvestigators": [
-        "Zeng, Hongkui"
-      ],
+      "coInvestigators": ["Zeng, Hongkui"],
       "funding": "National Institutes of Health — 1-UM1-MH130981-01",
       "age": "10.0 Years",
       "sex": "Male",
@@ -17832,14 +17557,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-now",
     "bilCode": "ace-lot-now",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2025",
       "investigator": "Wu, Jiqing",
@@ -17856,14 +17577,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-nor",
     "bilCode": "ace-lot-nor",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2025",
       "investigator": "Wu, Jiqing",
@@ -17880,14 +17597,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-nod",
     "bilCode": "ace-lot-nod",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2025",
       "investigator": "Wu, Jiqing",
@@ -17904,14 +17617,10 @@
     "species": "Mouse",
     "tissue": "Brain",
     "platform": "MERFISH",
-    "genes": [
-      "..."
-    ],
+    "genes": ["..."],
     "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-ear-nap",
     "bilCode": "ace-ear-nap",
-    "entries": [
-      "..."
-    ],
+    "entries": ["..."],
     "metadata": {
       "publicationYear": "2024",
       "investigator": "Xu, Xiangmin",
