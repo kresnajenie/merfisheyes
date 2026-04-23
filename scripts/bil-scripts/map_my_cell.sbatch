@@ -12,7 +12,8 @@
 # ── Arguments ────────────────────────────────────────────────
 INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output
 OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dip-use/mmc_output
-SPECIES="${3:-mouse}"  # "mouse" (default) or "human"
+SPECIES="${3:-mouse}"          # "mouse" (default) or "human"
+METHOD="${4:-hierarchical}"    # "hierarchical" (default) or "correlation"
 REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
 
 # ── Prevent thread oversubscription ──────────────────────────
@@ -34,6 +35,7 @@ echo "TMPDIR:     ${TMPDIR:-/tmp}"
 echo "Input:      $INPUT_PATH"
 echo "Output:     $OUTPUT_BASE"
 echo "Species:    $SPECIES"
+echo "Method:     $METHOD"
 echo "Reference:  $REFERENCE_DIR"
 echo "Started:    $(date)"
 echo "========================================"
@@ -56,6 +58,7 @@ python map_my_cell.py \
     "$INPUT_PATH" \
     "$OUTPUT_BASE" \
     --species "$SPECIES" \
+    --method "$METHOD" \
     --n_processors 50 \
     --reference_dir "$REFERENCE_DIR"
 

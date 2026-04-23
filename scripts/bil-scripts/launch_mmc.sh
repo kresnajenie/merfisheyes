@@ -2,12 +2,18 @@
 # ═══════════════════════════════════════════════════════════════
 # launch_mmc.sh
 #
-# Runs map_my_cell.
+# Runs map_my_cell on already-combined datasets under
+#   ${MEYES_BASE}/${sample_name}/combined_output
 #
 # Usage:
-#   ./launch_mmc.sh ace-dip-use /bil/data/18/aa/.../input   # single sample
-#   ./launch_mmc.sh samples.csv                              # from file (sample_name,input_path)
-#   ./launch_mmc.sh                                          # uses samples.csv in same dir
+#   ./launch_mmc.sh [--method hierarchical|correlation] [--species mouse|human] \
+#                   <sample_name> <input_path>   # single sample
+#   ./launch_mmc.sh [--method ...] [--species ...] <samples.csv>
+#   ./launch_mmc.sh [--method ...] [--species ...]    # uses samples.csv in same dir
+#
+# Examples:
+#   ./launch_mmc.sh --method correlation samples.csv
+#   ./launch_mmc.sh --method correlation             # all rows in default samples.csv
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -15,26 +21,60 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MEYES_BASE="/bil/data/meyes"
 
-# Parse arguments
+METHOD="hierarchical"
+SPECIES="mouse"
+
+# ── Parse optional flags ─────────────────────────────────────
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --method)
+            METHOD="$2"
+            shift 2
+            ;;
+        --method=*)
+            METHOD="${1#*=}"
+            shift
+            ;;
+        --species)
+            SPECIES="$2"
+            shift 2
+            ;;
+        --species=*)
+            SPECIES="${1#*=}"
+            shift
+            ;;
+        -h|--help)
+            sed -n '2,16p' "$0"
+            exit 0
+            ;;
+        *)
+            POSITIONAL+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${POSITIONAL[@]}"
+
+if [[ "$METHOD" != "hierarchical" && "$METHOD" != "correlation" ]]; then
+    echo "ERROR: --method must be 'hierarchical' or 'correlation' (got: $METHOD)"
+    exit 1
+fi
+
+# ── Resolve sample source ────────────────────────────────────
 if [ $# -eq 0 ]; then
-    # No args — read from default samples.csv
     SAMPLE_FILE="${SCRIPT_DIR}/samples.csv"
-    SINGLE_MODE=false
 elif [ $# -eq 1 ] && [ -f "$1" ]; then
-    # One arg that's a file — read from it
     SAMPLE_FILE="$1"
-    SINGLE_MODE=false
 elif [ $# -eq 2 ]; then
-    # Two args — single sample mode (sample_name, input_path)
     SAMPLE_FILE=$(mktemp)
     echo "$1,$2" > "$SAMPLE_FILE"
     trap "rm -f $SAMPLE_FILE" EXIT
-    SINGLE_MODE=true
 else
     echo "Usage:"
-    echo "  $0 <sample_name> <input_path>   # single sample"
-    echo "  $0 <samples.csv>                # from CSV (sample_name,input_path)"
-    echo "  $0                              # uses samples.csv in same dir"
+    echo "  $0 [--method correlation|hierarchical] [--species mouse|human] <sample_name> <input_path>"
+    echo "  $0 [--method ...] [--species ...] <samples.csv>"
+    echo "  $0 [--method ...] [--species ...]"
     exit 1
 fi
 
@@ -46,33 +86,41 @@ fi
 echo "============================================"
 echo "  MapMyCells"
 echo "============================================"
-echo "Source: $SAMPLE_FILE"
+echo "Source:  $SAMPLE_FILE"
+echo "Method:  $METHOD"
+echo "Species: $SPECIES"
 echo ""
 
 count=0
 
 while IFS=',' read -r sample_name input_path; do
     sample_name="$(echo "$sample_name" | xargs)"
-    input_path="$(echo "$input_path" | xargs)"
+    input_path="$(echo "${input_path:-}" | xargs)"
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
 
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
+    combined_output="${output_base}/combined_output"
     mmc_output="${output_base}/mmc_output"
 
     echo "── Sample ${count}: ${sample_name} ──"
-    echo "  Input:    ${input_path}"
+    echo "  Combined: ${combined_output}"
     echo "  MMC:      ${mmc_output}"
 
-        # Step 3: map_my_cell (after mask)
+    if [ ! -d "$combined_output" ]; then
+        echo "  ⚠️  SKIP: combined_output not found"
+        continue
+    fi
+
     mmc_job=$(sbatch --parsable \
-        --dependency=afterok:${filter_job} \
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
         "$combined_output" \
-        "$mmc_output")
-    echo "  [3/3] map_my_cell     -> Job ${mmc_job} (after ${filter_job})"
+        "$mmc_output" \
+        "$SPECIES" \
+        "$METHOD")
+    echo "  map_my_cell  -> Job ${mmc_job}"
 
 done < "$SAMPLE_FILE"
 
