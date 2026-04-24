@@ -10355,10 +10355,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cub/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10391,10 +10391,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cry/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10427,10 +10427,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cow/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10463,10 +10463,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cot/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10499,10 +10499,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cop/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10535,10 +10535,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cat/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10571,10 +10571,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-car/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10607,10 +10607,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cap/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10643,10 +10643,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-can/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10679,10 +10679,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-cab/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10715,10 +10715,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bus/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10751,10 +10751,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bun/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10787,10 +10787,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bug/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10823,10 +10823,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bud/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10859,10 +10859,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-box/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10895,10 +10895,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-boo/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10931,10 +10931,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bog/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -10967,10 +10967,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bit/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11003,10 +11003,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bin/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11039,10 +11039,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-big/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11075,10 +11075,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bid/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11111,10 +11111,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bet/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11141,10 +11141,10 @@
     "bilCode": "ace-low-bed",
     "entries": [
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bed/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bed/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bed/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11176,10 +11176,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bay/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11212,10 +11212,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bat/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11248,10 +11248,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bar/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11284,10 +11284,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11320,10 +11320,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11356,10 +11356,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11392,10 +11392,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11428,10 +11428,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11464,10 +11464,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11500,10 +11500,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11536,10 +11536,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11572,10 +11572,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11608,10 +11608,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11644,10 +11644,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11680,10 +11680,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11716,10 +11716,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11752,10 +11752,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11788,10 +11788,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11824,10 +11824,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11854,10 +11854,10 @@
     "bilCode": "ace-low-zip",
     "entries": [
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-zip/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-zip/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-zip/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11889,10 +11889,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11925,10 +11925,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11961,10 +11961,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -11997,10 +11997,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -12033,10 +12033,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -12069,10 +12069,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -12105,10 +12105,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -12141,10 +12141,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -12177,10 +12177,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -12213,10 +12213,10 @@
         "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/meyes_output/thumbnail.jpg"
       },
       {
-        "label": "genes",
+        "label": "single molecule",
         "datasetType": "single_molecule",
         "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output/genes/thumbnail.jpg"
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output/thumbnail.jpg"
       }
     ],
     "metadata": {
@@ -12795,9 +12795,7 @@
     "entries": [
       {
         "label": "All Single Cell",
-        "datasetType": "single_cell",
-        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lay/meyes_output/",
-        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lay/meyes_output/thumbnail.jpg"
+        "datasetType": "single_cell"
       }
     ],
     "metadata": {
@@ -13951,7 +13949,8 @@
     "entries": [
       {
         "label": "All Single Cell",
-        "datasetType": "single_cell"
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-law/meyes_output/"
       }
     ],
     "metadata": {
