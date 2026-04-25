@@ -99,6 +99,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     flipX,
     flipY,
     pinnedTooltipColumns,
+    colormap,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -813,6 +814,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneChanged ? setGeneScaleMin : undefined,
             geneChanged ? setGeneScaleMax : undefined,
             adv,
+            colormap,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -844,6 +846,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             geneChanged ? setGeneScaleMin : undefined,
             geneChanged ? setGeneScaleMax : undefined,
             adv,
+            colormap,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -866,6 +869,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               shouldAutoScale ? setNumericalScaleMin : undefined,
               shouldAutoScale ? setNumericalScaleMax : undefined,
               adv,
+              colormap,
             )
           : updateCelltypeVisualization(
               dataset,
@@ -918,6 +922,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     pinnedTooltipColumns,
+    colormap,
   ]);
 
   // Effect 3: Update dotSize uniform when slider or targetPx changes (instant)

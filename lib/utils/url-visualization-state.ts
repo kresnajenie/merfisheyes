@@ -20,6 +20,7 @@ export interface CellVizUrlState {
   rot?: number; // sceneRotation (degrees)
   fx?: boolean; // flipX
   fy?: boolean; // flipY
+  cm?: string; // colormap
 }
 
 // Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
@@ -97,6 +98,7 @@ export function encodeCellVizState(state: {
   sceneRotation: number;
   flipX: boolean;
   flipY: boolean;
+  colormap: string;
 }): string | null {
   const obj: CellVizUrlState = {};
 
@@ -149,6 +151,7 @@ export function encodeCellVizState(state: {
   if (state.sceneRotation !== 0) obj.rot = state.sceneRotation;
   if (state.flipX) obj.fx = true;
   if (state.flipY) obj.fy = true;
+  if (state.colormap && state.colormap !== "bwr") obj.cm = state.colormap;
 
   // Don't encode if nothing interesting
   if (Object.keys(obj).length === 0) return null;

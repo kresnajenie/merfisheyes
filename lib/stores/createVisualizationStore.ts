@@ -82,6 +82,8 @@ export interface VisualizationState {
   sliderRanges: Record<string, { min: number; max: number }>;
   setSliderRange: (key: string, min: number, max: number) => void;
   clearSliderRanges: (keys: string[]) => void;
+  colormap: string;
+  setColormap: (name: string) => void;
   reset: () => void;
 }
 
@@ -121,6 +123,7 @@ const initialState = {
   targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
   pinnedTooltipColumns: new Set<string>(),
   sliderRanges: {} as Record<string, { min: number; max: number }>,
+  colormap: "bwr",
 };
 
 const updateModeArray = (
@@ -380,6 +383,10 @@ export function createVisualizationStoreInstance() {
         for (const k of keys) delete next[k];
         return { sliderRanges: next };
       });
+    },
+
+    setColormap: (name) => {
+      set({ colormap: name });
     },
 
     reset: () => {
