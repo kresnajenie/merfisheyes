@@ -93,6 +93,9 @@ interface VisualizationState {
   setAdvancedViz: (key: string, value: number) => void;
   pinnedTooltipColumns: Set<string>;
   togglePinnedTooltipColumn: (column: string) => void;
+  sliderRanges: Record<string, { min: number; max: number }>;
+  setSliderRange: (key: string, min: number, max: number) => void;
+  clearSliderRanges: (keys: string[]) => void;
   reset: () => void;
 }
 
@@ -131,6 +134,7 @@ const initialState = {
   pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
   targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
   pinnedTooltipColumns: new Set<string>(),
+  sliderRanges: {} as Record<string, { min: number; max: number }>,
 };
 
 // Helper function to update mode array
@@ -382,6 +386,21 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         next.add(column);
       }
       return { pinnedTooltipColumns: next };
+    });
+  },
+
+  setSliderRange: (key, min, max) => {
+    if (!(min < max)) return;
+    set((state) => ({
+      sliderRanges: { ...state.sliderRanges, [key]: { min, max } },
+    }));
+  },
+
+  clearSliderRanges: (keys) => {
+    set((state) => {
+      const next = { ...state.sliderRanges };
+      for (const k of keys) delete next[k];
+      return { sliderRanges: next };
     });
   },
 

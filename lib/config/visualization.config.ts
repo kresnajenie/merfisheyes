@@ -33,7 +33,7 @@ export const VISUALIZATION_CONFIG = {
    * Min/max/step values for the size scale slider in single cell viewer
    */
   SINGLE_CELL_SIZE_SCALE_MIN: 0.1,
-  SINGLE_CELL_SIZE_SCALE_MAX: 2.0,
+  SINGLE_CELL_SIZE_SCALE_MAX: 10.0,
   SINGLE_CELL_SIZE_SCALE_STEP: 0.1,
   SINGLE_CELL_SIZE_SCALE_DEFAULT: 1.0,
 
@@ -110,6 +110,23 @@ export const VISUALIZATION_CONFIG = {
   SCALE_BAR_DEFAULT_MAX: 3,
 
   /**
+   * Advanced Settings Panel — Slider Ranges
+   * Range/step for each slider in the Advanced Settings panel.
+   * The default value each slider starts at is set elsewhere in this config
+   * (e.g. SELECTED_SIZE_MULTIPLIER, GREYED_OUT_ALPHA, etc.).
+   * Keys mirror the store keys used by setAdvancedViz.
+   */
+  ADVANCED_SLIDER_RANGES: {
+    selectedSizeMultiplier: { min: 0.1, max: 10.0, step: 0.1 },
+    greyedOutSizeMultiplier: { min: 0.01, max: 10.0, step: 0.01 },
+    greyedOutAlpha: { min: 0.0, max: 1.0, step: 0.05 },
+    pointSizeMultiplierMin: { min: 0.1, max: 10.0, step: 0.1 },
+    pointSizeMultiplierMax: { min: 0.1, max: 10.0, step: 0.1 },
+    expressionAlphaMin: { min: 0.0, max: 1.0, step: 0.05 },
+    expressionAlphaMax: { min: 0.0, max: 1.0, step: 0.05 },
+  },
+
+  /**
    * Scale Bar Step Size
    * Percentage of max value used for step size when scrubbing (0.0 - 1.0)
    * Default: 0.001 (0.1% of max value)
@@ -147,7 +164,7 @@ export const VISUALIZATION_CONFIG = {
 
   UMAP_POINT_SIZE: 5.0,
   UMAP_POINT_SIZE_MIN: 0.5,
-  UMAP_POINT_SIZE_MAX: 20.0,
+  UMAP_POINT_SIZE_MAX: 100.0,
   UMAP_POINT_SIZE_STEP: 0.5,
 } as const;
 

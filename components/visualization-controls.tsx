@@ -13,6 +13,7 @@ import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { VisualizationPanel } from "./visualization-panel";
 import { AdvancedVizPanel } from "./advanced-viz-panel";
 import { CameraPanel } from "./camera-panel";
+import { useSliderRange } from "./slider-range-popover";
 
 import {
   usePanelVisualizationStore,
@@ -194,23 +195,7 @@ export function VisualizationControls() {
       </Button>
 
       {/* Dot Size Slider */}
-      <Tooltip content="Change dotsize" placement="right">
-        <div
-          className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
-        >
-          <Slider
-            aria-label="Dot size"
-            className="h-full"
-            maxValue={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX}
-            minValue={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN}
-            orientation="vertical"
-            size="sm"
-            step={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP}
-            value={sizeScale}
-            onChange={(value) => setSizeScale(value as number)}
-          />
-        </div>
-      </Tooltip>
+      <DotSizeSlider sizeScale={sizeScale} setSizeScale={setSizeScale} />
 
       {/* Split Screen Button — only show on left panel (no panelId) when not already in split mode */}
       {!isSplitMode && !panelId && (
@@ -318,5 +303,42 @@ export function VisualizationControls() {
         />
       )}
     </div>
+  );
+}
+
+function DotSizeSlider({
+  sizeScale,
+  setSizeScale,
+}: {
+  sizeScale: number;
+  setSizeScale: (n: number) => void;
+}) {
+  const { min, max, onContextMenu, popover } = useSliderRange(
+    "sizeScale",
+    VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN,
+    VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX,
+    sizeScale,
+  );
+
+  return (
+    <Tooltip content="Change dotsize (right-click to edit range)" placement="right">
+      <div
+        className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+        onContextMenu={onContextMenu}
+      >
+        <Slider
+          aria-label="Dot size"
+          className="h-full"
+          maxValue={max}
+          minValue={min}
+          orientation="vertical"
+          size="sm"
+          step={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP}
+          value={sizeScale}
+          onChange={(value) => setSizeScale(value as number)}
+        />
+        {popover}
+      </div>
+    </Tooltip>
   );
 }
