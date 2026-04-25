@@ -553,6 +553,43 @@ export function VisualizationPanel({
                     </svg>
                   </Button>
                 </Tooltip>
+                <Tooltip
+                  content={
+                    selectedCelltypes.size > 0
+                      ? `Copy ${selectedCelltypes.size} selected`
+                      : `Copy all ${items.length}`
+                  }
+                  placement="bottom"
+                >
+                  <Button
+                    className="min-w-0 w-10 h-8"
+                    size="sm"
+                    variant="flat"
+                    onPress={async () => {
+                      const list =
+                        selectedCelltypes.size > 0
+                          ? items
+                              .map((it) => it.id)
+                              .filter((id) => selectedCelltypes.has(id))
+                          : items.map((it) => it.id);
+                      if (list.length === 0) return;
+                      try {
+                        await navigator.clipboard.writeText(list.join(","));
+                        toast.success(
+                          `Copied ${list.length} celltype${list.length === 1 ? "" : "s"}`,
+                          { autoClose: 1500 },
+                        );
+                      } catch (err) {
+                        toast.error("Failed to copy to clipboard");
+                      }
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <rect x="9" y="9" width="11" height="11" rx="2" strokeLinejoin="round" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </Button>
+                </Tooltip>
                 <div className="flex-1 flex items-center gap-2">
                   <Slider
                     aria-label="Playback speed"
