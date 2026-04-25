@@ -4,6 +4,7 @@ import { getClusterValue } from "../StandardizedDataset";
 import {
   VISUALIZATION_CONFIG,
 } from "../config/visualization.config";
+import { colormapRgb } from "../utils/colormaps";
 
 export interface AdvancedVizSettings {
   selectedSizeMultiplier: number;
@@ -83,45 +84,6 @@ export function normalizeArray(arr: number[], nmax: number): number[] {
 }
 
 /**
- * Generates a color value in the coolwarm colormap based on the input value.
- * Returns RGB values normalized to 0-1 range.
- * @param value - The value for which to generate the color (between 0 and 1).
- * @returns The color as [r, g, b] tuple (0-1 range).
- */
-export function coolwarm(value: number): [number, number, number] {
-  // Check for NaN values - return white
-  if (isNaN(value)) {
-    return [1, 1, 1]; // White for NaN
-  }
-
-  // Define start and end colors (cool: blue, warm: red)
-  // Values in 0-1 range for WebGL
-  const blue = { r: 0, g: 0, b: 1 }; // Blue
-  const white = { r: 1, g: 1, b: 1 }; // White
-  const red = { r: 1, g: 0, b: 0 }; // Red
-
-  if (value < 0.5) {
-    // Blue to white
-    const t = value * 2; // 0 to 1
-
-    return [
-      blue.r + (white.r - blue.r) * t,
-      blue.g + (white.g - blue.g) * t,
-      blue.b + (white.b - blue.b) * t,
-    ];
-  } else {
-    // White to red
-    const t = (value - 0.5) * 2; // 0 to 1
-
-    return [
-      white.r + (red.r - white.r) * t,
-      white.g + (red.g - white.g) * t,
-      white.b + (red.b - white.b) * t,
-    ];
-  }
-}
-
-/**
  * Converts hex color to RGB array (0-1 range)
  */
 
@@ -183,6 +145,7 @@ export async function updateGeneVisualization(
   setScaleMin?: (min: number) => void,
   setScaleMax?: (max: number) => void,
   adv: AdvancedVizSettings = defaultAdvanced,
+  colormap: string = "bwr",
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -247,11 +210,11 @@ export async function updateGeneVisualization(
   const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
   const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
-  // Apply coolwarm colormap with expression-based alpha
+  // Apply colormap with expression-based alpha
   for (let i = 0; i < count; i++) {
     const normalizedValue = normalizedExpression[i];
 
-    const [r, g, b] = coolwarm(normalizedValue);
+    const [r, g, b] = colormapRgb(colormap, normalizedValue);
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
@@ -280,6 +243,7 @@ export function updateNumericalCelltypeVisualization(
   setScaleMin?: (min: number) => void,
   setScaleMax?: (max: number) => void,
   adv: AdvancedVizSettings = defaultAdvanced,
+  colormap: string = "bwr",
 ): {
   colors: Float32Array;
   sizes: Float32Array;
@@ -359,11 +323,11 @@ export function updateNumericalCelltypeVisualization(
   const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
   const baseAlpha = VISUALIZATION_CONFIG.POINT_BASE_ALPHA;
 
-  // Apply coolwarm colormap with value-based alpha
+  // Apply colormap with value-based alpha
   for (let i = 0; i < count; i++) {
     const normalizedValue = normalizedValues[i];
 
-    const [r, g, b] = coolwarm(normalizedValue);
+    const [r, g, b] = colormapRgb(colormap, normalizedValue);
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
@@ -470,6 +434,7 @@ export async function updateCombinedVisualization(
   setScaleMin?: (min: number) => void,
   setScaleMax?: (max: number) => void,
   adv: AdvancedVizSettings = defaultAdvanced,
+  colormap: string = "bwr",
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -559,8 +524,8 @@ export async function updateCombinedVisualization(
       // Selected celltypes: show gene expression gradient
       const normalizedValue = normalizedExpression[i];
 
-      // Colors from coolwarm gradient
-      const [r, g, b] = coolwarm(normalizedValue);
+      // Colors from active colormap
+      const [r, g, b] = colormapRgb(colormap, normalizedValue);
 
       colors[i * 3] = r;
       colors[i * 3 + 1] = g;

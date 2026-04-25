@@ -112,6 +112,8 @@ storybook-static
 
 example_data/
 
+.thumbnails/
+
 deploy.sh
 
 # Private documentation

@@ -32,6 +32,7 @@ import {
 } from "@/lib/webgl/visualization-utils";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+import { useSliderRange } from "./slider-range-popover";
 
 export default function UMAPPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,6 +41,12 @@ export default function UMAPPanel() {
   const [sceneReady, setSceneReady] = useState(false);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const [umapDotSize, setUmapDotSize] = useState<number>(VISUALIZATION_CONFIG.UMAP_POINT_SIZE);
+  const umapDotRange = useSliderRange(
+    "umapDotSize",
+    VISUALIZATION_CONFIG.UMAP_POINT_SIZE_MIN,
+    VISUALIZATION_CONFIG.UMAP_POINT_SIZE_MAX,
+    umapDotSize,
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -766,13 +773,13 @@ export default function UMAPPanel() {
                   <SelectItem key={key}>{key.toUpperCase()}</SelectItem>
                 ))}
               </Select>
-              <Tooltip content="Dot size" placement="bottom">
-                <div className="w-24">
+              <Tooltip content="Dot size (right-click to edit range)" placement="bottom">
+                <div className="w-24" onContextMenu={umapDotRange.onContextMenu}>
                   <Slider
                     aria-label="UMAP dot size"
                     className="w-full"
-                    maxValue={VISUALIZATION_CONFIG.UMAP_POINT_SIZE_MAX}
-                    minValue={VISUALIZATION_CONFIG.UMAP_POINT_SIZE_MIN}
+                    maxValue={umapDotRange.max}
+                    minValue={umapDotRange.min}
                     size="sm"
                     step={VISUALIZATION_CONFIG.UMAP_POINT_SIZE_STEP}
                     value={umapDotSize}
@@ -786,6 +793,7 @@ export default function UMAPPanel() {
                   />
                 </div>
               </Tooltip>
+              {umapDotRange.popover}
             </div>
 
             {/* Floating Close Button */}

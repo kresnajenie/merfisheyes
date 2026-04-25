@@ -66,6 +66,8 @@ export function VisualizationPanel({
     incrementClusterVersion,
     columnTypeOverrides,
     toggleColumnType,
+    pinnedTooltipColumns,
+    togglePinnedTooltipColumn,
   } = usePanelVisualizationStore();
 
   const currentSearchTerm =
@@ -120,6 +122,59 @@ export function VisualizationPanel({
       : null;
 
   // Get all cluster columns for dropdown (including unloaded ones)
+  // Lazy-load a cluster column if not already loaded.
+  // Returns true on success (or already loaded), false on failure.
+  const ensureColumnLoaded = useCallback(
+    async (columnKey: string): Promise<boolean> => {
+      const ds = getCurrentDataset() as StandardizedDataset | null;
+      if (!ds) return false;
+      if (ds.clusters?.some((c) => c.column === columnKey)) return true;
+      if (!ds.adapter) return false;
+
+      const toastId = toast.loading(`Loading cluster column "${columnKey}"...`);
+      try {
+        let newClusters: Array<{
+          column: string;
+          type: string;
+          values: any[];
+          palette: Record<string, string> | null;
+          uniqueValues?: string[];
+        }> | null = null;
+
+        if (ds.adapter.mode === "local") {
+          newClusters = await ds.adapter.loadClusters([columnKey]);
+        } else {
+          const { getStandardizedDatasetWorker } = await import(
+            "@/lib/workers/standardizedDatasetWorkerManager"
+          );
+          const worker = await getStandardizedDatasetWorker();
+          newClusters = await worker.loadClusterFromS3(
+            ds.id,
+            [columnKey],
+            ds.metadata?.customS3BaseUrl,
+          );
+        }
+
+        if (newClusters && newClusters.length > 0) {
+          ds.addClusters(newClusters);
+          incrementClusterVersion();
+        }
+        toast.dismiss(toastId);
+        return true;
+      } catch (error) {
+        console.warn(`Failed to load cluster column ${columnKey}:`, error);
+        toast.update(toastId, {
+          render: `Failed to load "${columnKey}"`,
+          type: "error",
+          isLoading: false,
+          autoClose: 3000,
+        });
+        return false;
+      }
+    },
+    [getCurrentDataset, incrementClusterVersion],
+  );
+
   const clusterColumns = useMemo(() => {
     if (!dataset) return [];
 
@@ -198,13 +253,11 @@ export function VisualizationPanel({
         )
           return [];
 
-        // Use pre-computed uniqueValues if available (already sorted),
-        // otherwise fall back to computing from raw values
+        // Get unique values then always sort alphabetically
         const palette = selectedCluster.palette || {};
-        const uniqueVals = selectedCluster.uniqueValues
-          ?? [...new Set(selectedCluster.values.map(String))].sort(
-            (a, b) => a.localeCompare(b, undefined, { numeric: true }),
-          );
+        const uniqueVals = (selectedCluster.uniqueValues
+          ?? [...new Set(selectedCluster.values.map(String))]
+        ).slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
         return uniqueVals.map((val) => ({
           id: val,
@@ -416,9 +469,37 @@ export function VisualizationPanel({
                   </Tooltip>
                 }
                 endContent={
-                  column.loaded ? (
-                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                  ) : null
+                  <div className="flex items-center gap-1.5">
+                    {column.loaded && (
+                      <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                    )}
+                    <Tooltip content={pinnedTooltipColumns.has(column.key) ? "Unpin from tooltip" : "Pin to tooltip"} delay={300} placement="right">
+                      <button
+                        className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          const willPin = !pinnedTooltipColumns.has(column.key);
+                          if (willPin && !column.loaded) {
+                            const ok = await ensureColumnLoaded(column.key);
+                            if (!ok) return;
+                          }
+                          togglePinnedTooltipColumn(column.key);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <svg
+                          className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${pinnedTooltipColumns.has(column.key) ? "text-primary" : "text-default-400"}`}
+                          fill={pinnedTooltipColumns.has(column.key) ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M12 2l-2 7H4l6 4.5L8 21l4-3 4 3-2-7.5L20 9h-6z" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </Tooltip>
+                  </div>
                 }
               >
                 {column.label}
@@ -469,6 +550,43 @@ export function VisualizationPanel({
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path d="M4 6h16M4 12h16M4 18h7" strokeLinecap="round" />
+                    </svg>
+                  </Button>
+                </Tooltip>
+                <Tooltip
+                  content={
+                    selectedCelltypes.size > 0
+                      ? `Copy ${selectedCelltypes.size} selected`
+                      : `Copy all ${items.length}`
+                  }
+                  placement="bottom"
+                >
+                  <Button
+                    className="min-w-0 w-10 h-8"
+                    size="sm"
+                    variant="flat"
+                    onPress={async () => {
+                      const list =
+                        selectedCelltypes.size > 0
+                          ? items
+                              .map((it) => it.id)
+                              .filter((id) => selectedCelltypes.has(id))
+                          : items.map((it) => it.id);
+                      if (list.length === 0) return;
+                      try {
+                        await navigator.clipboard.writeText(list.join(","));
+                        toast.success(
+                          `Copied ${list.length} celltype${list.length === 1 ? "" : "s"}`,
+                          { autoClose: 1500 },
+                        );
+                      } catch (err) {
+                        toast.error("Failed to copy to clipboard");
+                      }
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <rect x="9" y="9" width="11" height="11" rx="2" strokeLinejoin="round" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </Button>
                 </Tooltip>

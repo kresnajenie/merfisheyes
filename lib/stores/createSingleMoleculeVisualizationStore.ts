@@ -31,6 +31,9 @@ export interface SingleMoleculeVisualizationState {
   viewMode: ViewMode;
   showAssigned: boolean;
   showUnassigned: boolean;
+  sceneRotation: number;
+  flipX: boolean;
+  flipY: boolean;
 
   addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
@@ -48,6 +51,9 @@ export interface SingleMoleculeVisualizationState {
   setGeneUnassignedColor: (gene: string, color: string) => void;
   setGeneUnassignedLocalScale: (gene: string, scale: number) => void;
   setGeneColorSynced: (gene: string, synced: boolean) => void;
+  setSceneRotation: (degrees: number) => void;
+  setFlipX: (flip: boolean) => void;
+  setFlipY: (flip: boolean) => void;
   clearGenes: () => void;
 }
 
@@ -61,6 +67,9 @@ export function createSingleMoleculeVisualizationStoreInstance() {
     viewMode: "2D",
     showAssigned: true,
     showUnassigned: true,
+    sceneRotation: 0,
+    flipX: false,
+    flipY: false,
 
     addGene: (gene: string, color?: string, localScale?: number) =>
       set((state) => {
@@ -365,6 +374,10 @@ export function createSingleMoleculeVisualizationStoreInstance() {
 
         return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
       }),
+
+    setSceneRotation: (degrees: number) => set({ sceneRotation: degrees }),
+    setFlipX: (flip: boolean) => set({ flipX: flip }),
+    setFlipY: (flip: boolean) => set({ flipY: flip }),
 
     clearGenes: () =>
       set({

@@ -6,8 +6,10 @@ import { Checkbox } from "@heroui/checkbox";
 import { Switch } from "@heroui/switch";
 import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { toast } from "react-toastify";
+
+import { CameraPanel } from "./camera-panel";
 
 import {
   usePanelSingleMoleculeStore,
@@ -55,7 +57,32 @@ export function SingleMoleculeControls() {
     setShowAssigned,
     showUnassigned,
     setShowUnassigned,
+    sceneRotation,
+    setSceneRotation,
+    flipX,
+    setFlipX,
+    flipY,
+    setFlipY,
   } = usePanelSingleMoleculeVisualizationStore();
+
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const controlsRef = useRef<HTMLDivElement>(null);
+
+  // Track shift key for 45° snap on rotation slider
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") (window as any).__shiftHeld = true;
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") (window as any).__shiftHeld = false;
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
   // Filter and sort genes
   const filteredGenes = useMemo(() => {
@@ -90,7 +117,7 @@ export function SingleMoleculeControls() {
   }, [dataset, searchTerm, sortBy, sortDir]);
 
   return (
-    <div className="absolute top-28 left-4 z-50 flex flex-col gap-2">
+    <div ref={controlsRef} className="absolute top-28 left-4 z-50 flex flex-col gap-2">
       {/* Gene Selection Button */}
       <Button
         className={`w-14 h-14 min-w-0 rounded-full font-medium text-xs ${
@@ -122,15 +149,23 @@ export function SingleMoleculeControls() {
         </div>
       </Tooltip>
 
-      {/* 2D/3D View Toggle */}
-      <Button
-        className={`w-14 h-14 min-w-0 rounded-full font-medium text-xs ${glassButton()}`}
-        color="default"
-        variant="light"
-        onPress={() => setViewMode(viewMode === "2D" ? "3D" : "2D")}
-      >
-        {viewMode}
-      </Button>
+      {/* Camera Button */}
+      <Tooltip content="Camera controls" placement="right">
+        <Button
+          className={`w-14 h-14 min-w-0 rounded-full font-medium text-xs ${isCameraOpen ? "" : glassButton()}`}
+          color={isCameraOpen ? "primary" : "default"}
+          variant={isCameraOpen ? "shadow" : "light"}
+          onPress={() => {
+            setIsCameraOpen(!isCameraOpen);
+            if (!isCameraOpen) setIsPanelOpen(false);
+          }}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Button>
+      </Tooltip>
 
       {/* Split Screen Button */}
       {!isSplitMode && !panelId && (
@@ -347,6 +382,22 @@ export function SingleMoleculeControls() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Camera Panel */}
+      {isCameraOpen && (
+        <CameraPanel
+          controlsRef={controlsRef}
+          onClose={() => setIsCameraOpen(false)}
+          sceneRotation={sceneRotation}
+          setSceneRotation={setSceneRotation}
+          flipX={flipX}
+          setFlipX={setFlipX}
+          flipY={flipY}
+          setFlipY={setFlipY}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+        />
       )}
     </div>
   );

@@ -182,6 +182,9 @@ export async function applyCellVizState(
   if (decoded.fy !== undefined) {
     store.setFlipY(decoded.fy);
   }
+  if (decoded.cm) {
+    store.setColormap(decoded.cm);
+  }
 }
 
 export function applySMVizState(
@@ -349,6 +352,7 @@ export function useCellVizUrlSync(
     sceneRotation,
     flipX,
     flipY,
+    colormap,
   } = store;
 
   useEffect(() => {
@@ -378,6 +382,7 @@ export function useCellVizUrlSync(
       sceneRotation,
       flipX,
       flipY,
+      colormap,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -407,6 +412,7 @@ export function useCellVizUrlSync(
     sceneRotation,
     flipX,
     flipY,
+    colormap,
   ]);
 
   return { hasUrlState, hasUrlStateRef };
