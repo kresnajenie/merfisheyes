@@ -122,6 +122,59 @@ export function VisualizationPanel({
       : null;
 
   // Get all cluster columns for dropdown (including unloaded ones)
+  // Lazy-load a cluster column if not already loaded.
+  // Returns true on success (or already loaded), false on failure.
+  const ensureColumnLoaded = useCallback(
+    async (columnKey: string): Promise<boolean> => {
+      const ds = getCurrentDataset() as StandardizedDataset | null;
+      if (!ds) return false;
+      if (ds.clusters?.some((c) => c.column === columnKey)) return true;
+      if (!ds.adapter) return false;
+
+      const toastId = toast.loading(`Loading cluster column "${columnKey}"...`);
+      try {
+        let newClusters: Array<{
+          column: string;
+          type: string;
+          values: any[];
+          palette: Record<string, string> | null;
+          uniqueValues?: string[];
+        }> | null = null;
+
+        if (ds.adapter.mode === "local") {
+          newClusters = await ds.adapter.loadClusters([columnKey]);
+        } else {
+          const { getStandardizedDatasetWorker } = await import(
+            "@/lib/workers/standardizedDatasetWorkerManager"
+          );
+          const worker = await getStandardizedDatasetWorker();
+          newClusters = await worker.loadClusterFromS3(
+            ds.id,
+            [columnKey],
+            ds.metadata?.customS3BaseUrl,
+          );
+        }
+
+        if (newClusters && newClusters.length > 0) {
+          ds.addClusters(newClusters);
+          incrementClusterVersion();
+        }
+        toast.dismiss(toastId);
+        return true;
+      } catch (error) {
+        console.warn(`Failed to load cluster column ${columnKey}:`, error);
+        toast.update(toastId, {
+          render: `Failed to load "${columnKey}"`,
+          type: "error",
+          isLoading: false,
+          autoClose: 3000,
+        });
+        return false;
+      }
+    },
+    [getCurrentDataset, incrementClusterVersion],
+  );
+
   const clusterColumns = useMemo(() => {
     if (!dataset) return [];
 
@@ -423,9 +476,14 @@ export function VisualizationPanel({
                     <Tooltip content={pinnedTooltipColumns.has(column.key) ? "Unpin from tooltip" : "Pin to tooltip"} delay={300} placement="right">
                       <button
                         className="p-0.5 rounded hover:bg-white/10 transition-colors"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
                           e.preventDefault();
+                          const willPin = !pinnedTooltipColumns.has(column.key);
+                          if (willPin && !column.loaded) {
+                            const ok = await ensureColumnLoaded(column.key);
+                            if (!ok) return;
+                          }
                           togglePinnedTooltipColumn(column.key);
                         }}
                         onMouseDown={(e) => e.stopPropagation()}
