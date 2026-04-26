@@ -84,6 +84,8 @@ export interface VisualizationState {
   clearSliderRanges: (keys: string[]) => void;
   colormap: string;
   setColormap: (name: string) => void;
+  plotPanelOpen: boolean;
+  setPlotPanelOpen: (open: boolean) => void;
   reset: () => void;
 }
 
@@ -124,6 +126,7 @@ const initialState = {
   pinnedTooltipColumns: new Set<string>(),
   sliderRanges: {} as Record<string, { min: number; max: number }>,
   colormap: "bwr",
+  plotPanelOpen: false,
 };
 
 const updateModeArray = (
@@ -387,6 +390,10 @@ export function createVisualizationStoreInstance() {
 
     setColormap: (name) => {
       set({ colormap: name });
+    },
+
+    setPlotPanelOpen: (open) => {
+      set({ plotPanelOpen: open });
     },
 
     reset: () => {

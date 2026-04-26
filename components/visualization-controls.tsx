@@ -14,6 +14,7 @@ import { VisualizationPanel } from "./visualization-panel";
 import { AdvancedVizPanel } from "./advanced-viz-panel";
 import { CameraPanel } from "./camera-panel";
 import { useSliderRange } from "./slider-range-popover";
+import { PlotPanel } from "./plot-panel";
 
 import {
   usePanelVisualizationStore,
@@ -32,6 +33,7 @@ export function VisualizationControls() {
     celltypePlaybackSequence,
     selectedColumn, selectedCelltypes, setCelltypes, clusterVersion, columnTypeOverrides,
     sceneRotation, setSceneRotation, flipX, setFlipX, flipY, setFlipY,
+    plotPanelOpen, setPlotPanelOpen,
   } = usePanelVisualizationStore();
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
@@ -246,6 +248,23 @@ export function VisualizationControls() {
         </Button>
       </Tooltip>
 
+      {/* Plot Panel Button */}
+      <Tooltip content="Plot panel" placement="right">
+        <Button
+          className={`${buttonBaseClass} ${plotPanelOpen ? "" : glassButton()}`}
+          color={plotPanelOpen ? "primary" : "default"}
+          variant={plotPanelOpen ? "shadow" : "light"}
+          onPress={() => setPlotPanelOpen(!plotPanelOpen)}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="6" y="11" width="3" height="7" strokeLinejoin="round" />
+            <rect x="11" y="7" width="3" height="11" strokeLinejoin="round" />
+            <rect x="16" y="13" width="3" height="5" strokeLinejoin="round" />
+          </svg>
+        </Button>
+      </Tooltip>
+
       {/* Camera Button */}
       <Tooltip content="Camera controls" placement="right">
         <Button
@@ -302,6 +321,9 @@ export function VisualizationControls() {
           is3DDataset={dataset?.spatial?.dimensions === 3}
         />
       )}
+
+      {/* Plot Panel (floating, draggable, resizable) */}
+      {plotPanelOpen && <PlotPanel />}
     </div>
   );
 }
