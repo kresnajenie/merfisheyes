@@ -48,6 +48,25 @@ MAPPING_FILE = "mapping_output.csv"
 LEVEL_COLS = ["class_name", "subclass_name", "supertype_name",
               "cluster_name", "cluster_label"]
 
+# Allen's FromSpecifiedMarkersRunner writes one bootstrapping_probability per
+# taxonomy level, e.g. cluster_bootstrapping_probability. The leaf level is
+# the natural match for correlation_coefficient (also leaf-level).
+HIER_PROB_LEAF_PRIORITY = [
+    "cluster_bootstrapping_probability",
+    "supertype_bootstrapping_probability",
+    "subclass_bootstrapping_probability",
+    "class_bootstrapping_probability",
+    "bootstrapping_probability",  # fallback if upstream changed
+]
+
+
+def _hier_prob_column(df: pd.DataFrame) -> str | None:
+    """Pick the deepest available bootstrapping_probability column."""
+    for col in HIER_PROB_LEAF_PRIORITY:
+        if col in df.columns:
+            return col
+    return None
+
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
@@ -141,11 +160,19 @@ def summarize_sample(sample: str, species: str | None, meyes_base: Path,
 
     row: dict = {"sample": sample, "species": species or ""}
 
+    # Pre-seed numeric columns so the DataFrame has them even when no sample
+    # populates them (avoids KeyError in plotting).
+    for k in ("hier_mean_prob", "hier_median_prob", "hier_low_conf_frac",
+              "corr_mean_r", "corr_median_r", "corr_neg_frac"):
+        row[k] = np.nan
+
     if hier is not None:
         row["hier_path"] = str(hier_path)
         row["n_cells_hier"] = len(hier)
-        if "bootstrapping_probability" in hier.columns:
-            p = pd.to_numeric(hier["bootstrapping_probability"], errors="coerce").dropna()
+        prob_col = _hier_prob_column(hier)
+        row["hier_prob_col"] = prob_col or ""
+        if prob_col:
+            p = pd.to_numeric(hier[prob_col], errors="coerce").dropna()
             if not p.empty:
                 row["hier_mean_prob"] = float(p.mean())
                 row["hier_median_prob"] = float(p.median())
@@ -215,7 +242,8 @@ def make_summary_plot(df: pd.DataFrame, out_path: Path, low_conf_threshold: floa
 
     # 1. scatter: mean prob vs mean r
     ax = axes[0, 0]
-    sub = df.dropna(subset=["hier_mean_prob", "corr_mean_r"])
+    needed = [c for c in ("hier_mean_prob", "corr_mean_r") if c in df.columns]
+    sub = df.dropna(subset=needed) if len(needed) == 2 else df.iloc[0:0]
     if not sub.empty:
         species_vals = sub["species"].fillna("").replace("", "unknown")
         for sp, group in sub.groupby(species_vals):
@@ -253,7 +281,7 @@ def make_summary_plot(df: pd.DataFrame, out_path: Path, low_conf_threshold: floa
 
     # 3. distribution of hier mean prob across datasets
     ax = axes[1, 0]
-    if df["hier_mean_prob"].notna().any():
+    if "hier_mean_prob" in df.columns and df["hier_mean_prob"].notna().any():
         ax.hist(df["hier_mean_prob"].dropna(), bins=20, color="darkorange",
                 edgecolor="black", linewidth=0.3)
         ax.axvline(low_conf_threshold, color="red", linestyle="--",
@@ -268,7 +296,7 @@ def make_summary_plot(df: pd.DataFrame, out_path: Path, low_conf_threshold: floa
 
     # 4. distribution of corr mean r across datasets
     ax = axes[1, 1]
-    if df["corr_mean_r"].notna().any():
+    if "corr_mean_r" in df.columns and df["corr_mean_r"].notna().any():
         ax.hist(df["corr_mean_r"].dropna(), bins=20, color="seagreen",
                 edgecolor="black", linewidth=0.3)
         ax.set_xlabel("corr_mean_r")
@@ -300,13 +328,14 @@ def make_per_sample_plot(sample: str, meyes_base: Path, out_path: Path):
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
 
     ax = axes[0]
-    if hier is not None and "bootstrapping_probability" in hier.columns:
-        p = pd.to_numeric(hier["bootstrapping_probability"], errors="coerce").dropna()
+    hier_prob_col = _hier_prob_column(hier) if hier is not None else None
+    if hier is not None and hier_prob_col:
+        p = pd.to_numeric(hier[hier_prob_col], errors="coerce").dropna()
         ax.hist(p, bins=40, color="darkorange", edgecolor="black", linewidth=0.3)
         ax.axvline(p.median(), color="red", linestyle="--",
                    label=f"median={p.median():.3f}")
-        ax.set_title(f"hierarchical — {len(p):,} cells")
-        ax.set_xlabel("bootstrapping_probability")
+        ax.set_title(f"hierarchical — {len(p):,} cells ({hier_prob_col})")
+        ax.set_xlabel(hier_prob_col)
         ax.set_ylabel("cells")
         ax.legend(fontsize=8)
         ax.grid(alpha=0.3)
