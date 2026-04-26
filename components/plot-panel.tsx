@@ -14,8 +14,10 @@ import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { CelltypeBarplot } from "./plots/celltype-barplot";
 import { NumericalHistogram } from "./plots/numerical-histogram";
 
-const DEFAULT_W = 480;
-const DEFAULT_H = 360;
+// Default size as fractions of the viewport (so the panel scales with the
+// window). 0.375 × 0.45 ≈ 480×360 at 1280×800.
+const DEFAULT_W_FRAC = 0.375;
+const DEFAULT_H_FRAC = 0.45;
 const MIN_W = 320;
 const MIN_H = 200;
 // Left margin clears the sidebar buttons (left-4 + w-14 = 16+56 = 72px) plus a small gap.
@@ -47,7 +49,12 @@ export function PlotPanel() {
     return ds && "spatial" in ds ? (ds as StandardizedDataset) : null;
   });
 
-  const [size, setSize] = useState({ width: DEFAULT_W, height: DEFAULT_H });
+  // Size stored as a fraction of the viewport so the panel scales with the
+  // window. User manual resize updates these fractions.
+  const [sizeFrac, setSizeFrac] = useState({
+    width: DEFAULT_W_FRAC,
+    height: DEFAULT_H_FRAC,
+  });
   // Offsets from bottom-left corner of viewport (panel anchors here).
   const [offsets, setOffsets] = useState({
     left: MARGIN_LEFT,
@@ -55,21 +62,33 @@ export function PlotPanel() {
   });
   const [minimized, setMinimized] = useState(false);
   const [topN, setTopN] = useState(DEFAULT_TOP_N);
-  // Bump on window resize so position recomputes from offsets.
+  // Bump on window resize so position/size recompute from fractions.
+  // Use ResizeObserver on documentElement (more reliable than window.resize
+  // when the page is in a frame, devtools is open, or the OS reports
+  // resizes via different events) plus a window.resize fallback.
   const [, setResizeTick] = useState(0);
 
   useEffect(() => {
-    const onResize = () => setResizeTick((t) => t + 1);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const bump = () => setResizeTick((t) => t + 1);
+    window.addEventListener("resize", bump);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(bump);
+      ro.observe(document.documentElement);
+    }
+    return () => {
+      window.removeEventListener("resize", bump);
+      if (ro) ro.disconnect();
+    };
   }, []);
 
-  // Compute current position from offsets (recomputes on every render — cheap).
-  // Clamp size so the panel never spills below the viewport: max height is
-  // window.innerHeight - bottom offset - small top margin.
+  // Compute pixel size from fractions × current window size, then clamp to
+  // a max that keeps the panel inside the viewport with a small top margin.
   const TOP_MARGIN = 16;
   const viewportH = typeof window === "undefined" ? 0 : window.innerHeight;
   const viewportW = typeof window === "undefined" ? 0 : window.innerWidth;
+  const desiredH = sizeFrac.height * viewportH;
+  const desiredW = sizeFrac.width * viewportW;
   const maxHeight = Math.max(
     HEADER_H,
     viewportH - offsets.bottom - TOP_MARGIN,
@@ -77,8 +96,8 @@ export function PlotPanel() {
   const maxWidth = Math.max(MIN_W, viewportW - offsets.left - TOP_MARGIN);
   const effectiveHeight = minimized
     ? HEADER_H
-    : Math.min(size.height, maxHeight);
-  const effectiveWidth = Math.min(size.width, maxWidth);
+    : Math.max(MIN_H, Math.min(desiredH, maxHeight));
+  const effectiveWidth = Math.max(MIN_W, Math.min(desiredW, maxWidth));
   const position = {
     x: Math.max(0, offsets.left),
     y: Math.max(
@@ -131,11 +150,17 @@ export function PlotPanel() {
       onResizeStop={(_, __, ref, ___, pos) => {
         const newW = parseInt(ref.style.width, 10);
         const newH = parseInt(ref.style.height, 10);
-        setSize({ width: newW, height: newH });
+        setSizeFrac({
+          width: newW / window.innerWidth,
+          height: newH / window.innerHeight,
+        });
         setOffsets({
           left: pos.x,
           bottom: window.innerHeight - pos.y - newH,
         });
+        // Plotly's useResizeHandler only listens to window resize. Tell it to
+        // reflow now that the panel has settled at its new size.
+        window.dispatchEvent(new Event("resize"));
       }}
     >
       <div className="w-full h-full flex flex-col rounded-xl overflow-hidden border border-white/15 shadow-2xl backdrop-blur-md bg-background/85">
