@@ -174,7 +174,7 @@ export function VisualizationControls() {
   return (
     <div
       ref={controlsRef}
-      className="absolute top-28 left-4 z-50 flex flex-col gap-2"
+      className="absolute top-28 left-4 z-[70] flex flex-col gap-2"
     >
       {/* Celltype Button */}
       <Button

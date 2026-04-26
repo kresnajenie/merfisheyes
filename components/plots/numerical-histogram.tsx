@@ -13,12 +13,14 @@ interface NumericalHistogramProps {
   dataset: StandardizedDataset;
   column: string;
   colormap: string;
+  clusterVersion: number;
 }
 
 export function NumericalHistogram({
   dataset,
   column,
   colormap,
+  clusterVersion,
 }: NumericalHistogramProps) {
   const values = useMemo(() => {
     const cluster = dataset.clusters?.find((c) => c.column === column);
@@ -30,7 +32,7 @@ export function NumericalHistogram({
     const arr = new Float32Array(n);
     for (let i = 0; i < n; i++) arr[i] = Number(getClusterValue(cluster, i));
     return arr;
-  }, [dataset, column]);
+  }, [dataset, column, clusterVersion]);
 
   const barColor = useMemo(() => {
     const [r, g, b] = colormapRgb(colormap, 0.7);

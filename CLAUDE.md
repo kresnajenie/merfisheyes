@@ -415,6 +415,25 @@ output_folder/
   - Size: `w-8 h-32` (reduced from w-12 h-48)
   - Position: Relative (removed fixed positioning, now inside VisualizationLegends)
   - Shows for gene expression or numerical cluster columns
+- `components/plot-panel.tsx` - **Floating, draggable, resizable plot panel** for the active cluster column
+  - Toggled from the Plot button in `visualization-controls.tsx`
+  - Built on `react-rnd`; rendered inline (not portaled) with `style={{ position: "fixed", zIndex: 10 }}` so it sits below side panels (z-50) within the controls' z-[70] stacking context
+  - Default size stored as fractions of the viewport (0.375 × 0.45) so it scales with window resize; `ResizeObserver` on `documentElement` triggers a reflow tick
+  - Anchored to bottom-left of viewport (`MARGIN_LEFT=88` clears the sidebar buttons, `MARGIN_BOTTOM=72` clears the spatial scale bar); offsets recompute from saved fractions on every resize
+  - Header has Top-N input (categorical only, max 50), minimize toggle (collapses to header height), and close button
+  - On resize, dispatches a `window.resize` event so Plotly's `useResizeHandler` reflows the chart
+  - Title reflects the active column: `Cells per category · {col}` (categorical) or `Distribution · {col}` (numerical)
+- `components/plots/celltype-barplot.tsx` - Horizontal Plotly bar chart for categorical cluster columns
+  - Selected celltypes always pinned to top in count-desc order; non-selected truncated to Top-N
+  - When any celltype is selected, non-selected bars dim to 0.25 opacity
+  - Manual double-click detection (350ms window) → calls `toggleCelltype()` from the store
+  - `clusterVersion` is included in memo deps so freshly-loaded columns produce fresh counts
+  - Uses palette colors from `dataset.clusters[].palette` (matches viewer/legend colors)
+- `components/plots/numerical-histogram.tsx` - Plotly histogram for numerical cluster columns
+  - 60 bins, bar color sampled from current colormap at 0.7 (matches viewer gradient)
+  - Reads values via `getClusterValue(cluster, i)` so it works with both indexed and non-indexed clusters
+  - `clusterVersion` is included in memo deps for lazy-load freshness
+- `components/plots/plot-loader.tsx` - Dynamic Plotly import (cartesian dist) used by both plots
 - `components/upload-settings-modal.tsx` - Upload settings for cell datasets (shows point count, genes, clusters)
 
 #### Single Molecule Components

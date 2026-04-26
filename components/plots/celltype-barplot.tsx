@@ -13,6 +13,9 @@ interface CelltypeBarplotProps {
   column: string;
   selectedCelltypes: Set<string>;
   topN: number;
+  // Bumped by the store when cluster columns load; included in memo deps
+  // so a freshly-loaded column produces fresh counts.
+  clusterVersion: number;
   onBarDoubleClick: (celltype: string) => void;
 }
 
@@ -23,6 +26,7 @@ export function CelltypeBarplot({
   column,
   selectedCelltypes,
   topN,
+  clusterVersion,
   onBarDoubleClick,
 }: CelltypeBarplotProps) {
   const lastClickRef = useRef<{ name: string; time: number } | null>(null);
@@ -54,7 +58,7 @@ export function CelltypeBarplot({
     }));
 
     return allRows;
-  }, [dataset, column, selectedCelltypes]);
+  }, [dataset, column, selectedCelltypes, clusterVersion]);
 
   const total = useMemo(
     () => (counts ? counts.reduce((s, r) => s + r.count, 0) : 0),

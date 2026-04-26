@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Rnd } from "react-rnd";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
@@ -31,7 +30,9 @@ const MAX_TOP_N = 50;
 const HEADER_H = 36;
 
 export function PlotPanel() {
-  const setPlotPanelOpen = usePanelVisualizationStore((s) => s.setPlotPanelOpen);
+  const setPlotPanelOpen = usePanelVisualizationStore(
+    (s) => s.setPlotPanelOpen,
+  );
   const selectedColumn = usePanelVisualizationStore((s) => s.selectedColumn);
   const selectedCelltypes = usePanelVisualizationStore(
     (s) => s.selectedCelltypes,
@@ -89,10 +90,7 @@ export function PlotPanel() {
   const viewportW = typeof window === "undefined" ? 0 : window.innerWidth;
   const desiredH = sizeFrac.height * viewportH;
   const desiredW = sizeFrac.width * viewportW;
-  const maxHeight = Math.max(
-    HEADER_H,
-    viewportH - offsets.bottom - TOP_MARGIN,
-  );
+  const maxHeight = Math.max(HEADER_H, viewportH - offsets.bottom - TOP_MARGIN);
   const maxWidth = Math.max(MIN_W, viewportW - offsets.left - TOP_MARGIN);
   const effectiveHeight = minimized
     ? HEADER_H
@@ -100,15 +98,13 @@ export function PlotPanel() {
   const effectiveWidth = Math.max(MIN_W, Math.min(desiredW, maxWidth));
   const position = {
     x: Math.max(0, offsets.left),
-    y: Math.max(
-      TOP_MARGIN,
-      viewportH - effectiveHeight - offsets.bottom,
-    ),
+    y: Math.max(TOP_MARGIN, viewportH - effectiveHeight - offsets.bottom),
   };
 
-  const columnType = dataset && selectedColumn
-    ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides)
-    : null;
+  const columnType =
+    dataset && selectedColumn
+      ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides)
+      : null;
   const isCategorical = columnType === "categorical";
   const isNumerical = columnType === "numerical";
 
@@ -122,25 +118,16 @@ export function PlotPanel() {
     title = `Distribution · ${selectedColumn}`;
   }
 
-  // Touch clusterVersion in deps so plot re-renders when columns load.
-  useEffect(() => {
-    // no-op; clusterVersion changes propagate via the child plot useMemos
-    // through props (dataset) which stay the same reference, so we force
-    // a render here by depending on it.
-  }, [clusterVersion]);
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
+  return (
     <Rnd
       bounds="window"
-      className="z-[60]"
       dragHandleClassName="plot-panel-drag-handle"
       enableResizing={!minimized}
       minHeight={minimized ? HEADER_H : MIN_H}
       minWidth={MIN_W}
       position={position}
       size={{ width: effectiveWidth, height: effectiveHeight }}
+      style={{ position: "fixed", zIndex: 10 }}
       onDragStop={(_, d) => {
         setOffsets({
           left: d.x,
@@ -218,11 +205,27 @@ export function PlotPanel() {
             onClick={() => setMinimized((m) => !m)}
           >
             {minimized ? (
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                <path d="M4 14h16M4 14l4-4M4 14l4 4" strokeLinecap="round" strokeLinejoin="round" />
+              <svg
+                className="w-3 h-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M4 14h16M4 14l4-4M4 14l4 4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             ) : (
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <svg
+                className="w-3 h-3"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                viewBox="0 0 24 24"
+              >
                 <path d="M5 12h14" strokeLinecap="round" />
               </svg>
             )}
@@ -234,7 +237,13 @@ export function PlotPanel() {
             onMouseDown={(e) => e.stopPropagation()}
             onClick={() => setPlotPanelOpen(false)}
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+            <svg
+              className="w-3 h-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              viewBox="0 0 24 24"
+            >
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
             </svg>
           </button>
@@ -249,14 +258,16 @@ export function PlotPanel() {
               </div>
             ) : isCategorical ? (
               <CelltypeBarplot
-                dataset={dataset}
+                clusterVersion={clusterVersion}
                 column={selectedColumn}
+                dataset={dataset}
                 selectedCelltypes={selectedCelltypes}
                 topN={topN}
                 onBarDoubleClick={(name) => toggleCelltype(name)}
               />
             ) : isNumerical ? (
               <NumericalHistogram
+                clusterVersion={clusterVersion}
                 colormap={colormap}
                 column={selectedColumn}
                 dataset={dataset}
@@ -269,7 +280,6 @@ export function PlotPanel() {
           </div>
         )}
       </div>
-    </Rnd>,
-    document.body,
+    </Rnd>
   );
 }
