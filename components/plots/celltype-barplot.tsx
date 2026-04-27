@@ -121,11 +121,13 @@ export function CelltypeBarplot({
         gridcolor: "rgba(255,255,255,0.08)",
         zerolinecolor: "rgba(255,255,255,0.2)",
         automargin: true,
+        fixedrange: true,
       },
       yaxis: {
         gridcolor: "rgba(255,255,255,0)",
         automargin: true,
         tickfont: { size: 10 },
+        fixedrange: true,
       },
       showlegend: false,
       bargap: 0.15,

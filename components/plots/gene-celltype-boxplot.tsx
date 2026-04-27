@@ -20,11 +20,14 @@ interface GeneCelltypeBoxplotProps {
 
 const DOUBLE_CLICK_MS = 350;
 
-function median(sorted: Float32Array): number {
+function quantile(sorted: Float32Array, q: number): number {
   const n = sorted.length;
   if (n === 0) return 0;
-  const mid = n >> 1;
-  return n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  const pos = (n - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (pos - lo) * (sorted[hi] - sorted[lo]);
 }
 
 export function GeneCelltypeBoxplot({
@@ -91,10 +94,15 @@ export function GeneCelltypeBoxplot({
       const vals = new Float32Array(idxs.length);
       for (let k = 0; k < idxs.length; k++) vals[k] = expression[idxs[k]] ?? 0;
       const sorted = vals.slice().sort();
+      const n = sorted.length;
       return {
         name,
         values: vals,
-        median: median(sorted),
+        count: n,
+        q1: quantile(sorted, 0.25),
+        median: quantile(sorted, 0.5),
+        q3: quantile(sorted, 0.75),
+        max: n > 0 ? sorted[n - 1] : 0,
         color: palette[name] ?? getColorFromPalette(i),
         isSelected: selectedCelltypes.has(name),
       };
@@ -117,29 +125,52 @@ export function GeneCelltypeBoxplot({
   const data = useMemo<Data[]>(() => {
     if (visible.length === 0) return [];
     const hasSelection = selectedCelltypes.size > 0;
-    return visible.map((r) => ({
+    const fmt = (v: number) =>
+      v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+    // Boxes draw the visual, but their built-in per-stat hovers can't be
+    // overridden via hovertemplate, so suppress hover entirely on them.
+    const boxes: Data[] = visible.map((r) => ({
       type: "box",
       name: r.name,
       y: Array.from(r.values),
-      boxpoints: "all",
-      jitter: 0.5,
-      pointpos: 0,
-      marker: {
-        color: r.color,
-        size: 3,
-        opacity: !hasSelection || r.isSelected ? 0.6 : 0.15,
-        line: { width: 0 },
-      },
-      line: { color: r.color, width: 1 },
+      boxpoints: false,
+      hoverinfo: "skip",
+      // line.color controls both the outline and the median line in Plotly's
+      // box trace. White makes the median bar visible against the fill.
+      line: { color: "rgba(255,255,255,0.85)", width: 1.5 },
       fillcolor: r.color,
       opacity: !hasSelection || r.isSelected ? 1.0 : 0.25,
-      hovertemplate:
-        `<b>${r.name}</b><br>` +
-        gene +
-        ": %{y}" +
-        "<extra></extra>",
+      showlegend: false,
     }));
-  }, [visible, selectedCelltypes.size, gene]);
+
+    // One invisible scatter point per box (at the median) carries the
+    // consolidated tooltip. With hovermode:"closest" the nearest point wins,
+    // so each box's column gets exactly one tooltip.
+    const hoverTrace: Data = {
+      type: "scatter",
+      mode: "markers",
+      x: visible.map((r) => r.name),
+      y: visible.map((r) => r.median),
+      marker: {
+        size: 24,
+        color: "rgba(0,0,0,0)",
+        line: { width: 0 },
+      },
+      hovertemplate: visible.map(
+        (r) =>
+          `n: ${r.count.toLocaleString()}<br>` +
+          `max: ${fmt(r.max)}<br>` +
+          `q3: ${fmt(r.q3)}<br>` +
+          `median: ${fmt(r.median)}<br>` +
+          `q1: ${fmt(r.q1)}` +
+          `<extra></extra>`,
+      ),
+      showlegend: false,
+    };
+
+    return [...boxes, hoverTrace];
+  }, [visible, selectedCelltypes.size]);
 
   const layout = useMemo<Partial<Layout>>(
     () => ({
@@ -153,15 +184,20 @@ export function GeneCelltypeBoxplot({
         tickangle: -35,
         automargin: true,
         tickfont: { size: 10 },
+        categoryorder: "array",
+        categoryarray: visible.map((r) => r.name),
+        fixedrange: true,
       },
       yaxis: {
         title: { text: gene, standoff: 4 },
         gridcolor: "rgba(255,255,255,0.08)",
         zerolinecolor: "rgba(255,255,255,0.2)",
         automargin: true,
+        fixedrange: true,
       },
       showlegend: false,
       boxgap: 0.25,
+      hovermode: "closest",
       hoverlabel: {
         bgcolor: "rgba(15,15,17,0.92)",
         bordercolor: "rgba(255,255,255,0.2)",
@@ -169,7 +205,7 @@ export function GeneCelltypeBoxplot({
         align: "left",
       },
     }),
-    [gene],
+    [gene, visible],
   );
 
   const config = useMemo<Partial<Config>>(
@@ -213,8 +249,10 @@ export function GeneCelltypeBoxplot({
       onClick={(ev) => {
         const pt = ev.points?.[0];
         if (!pt) return;
-        const trace = (pt as { data?: { name?: string } }).data;
-        const name = trace?.name;
+        // Scatter overlay → name in pt.x; box trace → name in data.name.
+        const fromScatter = typeof pt.x === "string" ? pt.x : null;
+        const fromBox = (pt as { data?: { name?: string } }).data?.name ?? null;
+        const name = fromScatter ?? fromBox;
         if (!name) return;
         const now = performance.now();
         const last = lastClickRef.current;
