@@ -119,15 +119,16 @@ export function PlotPanel() {
   }
 
   return (
+    <div className="fixed inset-0 pointer-events-none z-[10]">
     <Rnd
       bounds="window"
+      className="pointer-events-auto"
       dragHandleClassName="plot-panel-drag-handle"
       enableResizing={!minimized}
       minHeight={minimized ? HEADER_H : MIN_H}
       minWidth={MIN_W}
       position={position}
       size={{ width: effectiveWidth, height: effectiveHeight }}
-      style={{ position: "fixed", zIndex: 10 }}
       onDragStop={(_, d) => {
         setOffsets({
           left: d.x,
@@ -281,5 +282,6 @@ export function PlotPanel() {
         )}
       </div>
     </Rnd>
+    </div>
   );
 }
