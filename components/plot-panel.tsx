@@ -11,6 +11,8 @@ import {
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 
 import { CelltypeBarplot } from "./plots/celltype-barplot";
+import { GeneCelltypeBoxplot } from "./plots/gene-celltype-boxplot";
+import { GeneHistogram } from "./plots/gene-histogram";
 import { NumericalHistogram } from "./plots/numerical-histogram";
 
 // Default size as fractions of the viewport (so the panel scales with the
@@ -43,6 +45,7 @@ export function PlotPanel() {
   );
   const clusterVersion = usePanelVisualizationStore((s) => s.clusterVersion);
   const colormap = usePanelVisualizationStore((s) => s.colormap);
+  const selectedGene = usePanelVisualizationStore((s) => s.selectedGene);
 
   const dataset = usePanelDatasetStore((s) => {
     const id = s.currentDatasetId;
@@ -63,6 +66,9 @@ export function PlotPanel() {
   });
   const [minimized, setMinimized] = useState(false);
   const [topN, setTopN] = useState(DEFAULT_TOP_N);
+  // When a gene is selected with a categorical column, show the boxplot by
+  // default and let the user toggle to a histogram of the gene values.
+  const [plotView, setPlotView] = useState<"box" | "histogram">("box");
   // Bump on window resize so position/size recompute from fractions.
   // Use ResizeObserver on documentElement (more reliable than window.resize
   // when the page is in a frame, devtools is open, or the OS reports
@@ -107,14 +113,48 @@ export function PlotPanel() {
       : null;
   const isCategorical = columnType === "categorical";
   const isNumerical = columnType === "numerical";
+  const hasGene = !!selectedGene;
+
+  // What plot is being shown right now
+  // - gene + categorical: boxplot (default) or gene histogram (toggle)
+  // - gene + numerical or gene without column: gene histogram only
+  // - no gene + categorical: cell count barplot
+  // - no gene + numerical: column histogram
+  let activePlot:
+    | "gene-box"
+    | "gene-histogram"
+    | "celltype-barplot"
+    | "numerical-histogram"
+    | "empty" = "empty";
+  if (dataset) {
+    if (hasGene && isCategorical) {
+      activePlot = plotView === "box" ? "gene-box" : "gene-histogram";
+    } else if (hasGene) {
+      activePlot = "gene-histogram";
+    } else if (isCategorical) {
+      activePlot = "celltype-barplot";
+    } else if (isNumerical) {
+      activePlot = "numerical-histogram";
+    }
+  }
+  const showViewToggle = hasGene && isCategorical && !minimized;
+  const showTopN =
+    !minimized &&
+    (activePlot === "celltype-barplot" || activePlot === "gene-box");
 
   // Title reflects what is being shown
   let title = "Plot";
-  if (!selectedColumn || !dataset) {
-    title = "Plot — select a column";
-  } else if (isCategorical) {
+  if (!dataset) {
+    title = "Plot — load a dataset";
+  } else if (activePlot === "empty") {
+    title = "Plot — select a column or gene";
+  } else if (activePlot === "gene-box") {
+    title = `${selectedGene} by ${selectedColumn}`;
+  } else if (activePlot === "gene-histogram") {
+    title = `Distribution · ${selectedGene}`;
+  } else if (activePlot === "celltype-barplot") {
     title = `Cells per category · ${selectedColumn}`;
-  } else if (isNumerical) {
+  } else if (activePlot === "numerical-histogram") {
     title = `Distribution · ${selectedColumn}`;
   }
 
@@ -176,7 +216,31 @@ export function PlotPanel() {
             {title}
           </span>
 
-          {!minimized && isCategorical && (
+          {showViewToggle && (
+            <div
+              className="flex items-center text-[10px] rounded overflow-hidden border border-default-300/40"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <button
+                aria-pressed={plotView === "box"}
+                className={`px-2 py-0.5 ${plotView === "box" ? "bg-primary/30 text-default-800" : "bg-default-100/40 text-default-500 hover:bg-default-100/70"}`}
+                type="button"
+                onClick={() => setPlotView("box")}
+              >
+                Box
+              </button>
+              <button
+                aria-pressed={plotView === "histogram"}
+                className={`px-2 py-0.5 ${plotView === "histogram" ? "bg-primary/30 text-default-800" : "bg-default-100/40 text-default-500 hover:bg-default-100/70"}`}
+                type="button"
+                onClick={() => setPlotView("histogram")}
+              >
+                Hist
+              </button>
+            </div>
+          )}
+
+          {showTopN && (
             <div
               className="flex items-center gap-1 text-[10px] text-default-500"
               onMouseDown={(e) => e.stopPropagation()}
@@ -253,24 +317,40 @@ export function PlotPanel() {
         {/* Body */}
         {!minimized && (
           <div className="flex-1 min-h-0 p-2">
-            {!dataset || !selectedColumn ? (
+            {activePlot === "empty" || !dataset ? (
               <div className="w-full h-full flex items-center justify-center text-xs text-default-400">
-                Select a cluster column to plot
+                Select a cluster column or gene to plot
               </div>
-            ) : isCategorical ? (
+            ) : activePlot === "gene-box" ? (
+              <GeneCelltypeBoxplot
+                clusterVersion={clusterVersion}
+                column={selectedColumn!}
+                dataset={dataset}
+                gene={selectedGene!}
+                selectedCelltypes={selectedCelltypes}
+                topN={topN}
+                onBarDoubleClick={(name) => toggleCelltype(name)}
+              />
+            ) : activePlot === "gene-histogram" ? (
+              <GeneHistogram
+                colormap={colormap}
+                dataset={dataset}
+                gene={selectedGene!}
+              />
+            ) : activePlot === "celltype-barplot" ? (
               <CelltypeBarplot
                 clusterVersion={clusterVersion}
-                column={selectedColumn}
+                column={selectedColumn!}
                 dataset={dataset}
                 selectedCelltypes={selectedCelltypes}
                 topN={topN}
                 onBarDoubleClick={(name) => toggleCelltype(name)}
               />
-            ) : isNumerical ? (
+            ) : activePlot === "numerical-histogram" ? (
               <NumericalHistogram
                 clusterVersion={clusterVersion}
                 colormap={colormap}
-                column={selectedColumn}
+                column={selectedColumn!}
                 dataset={dataset}
               />
             ) : (
