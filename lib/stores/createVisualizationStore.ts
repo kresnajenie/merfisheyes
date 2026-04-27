@@ -266,9 +266,13 @@ export function createVisualizationStoreInstance() {
         };
 
         if (isNumerical && column) {
+          // Numerical column is mutually exclusive with gene expression colouring.
           updates.selectedGene = null;
           updates.mode = ["celltype"];
-        } else if (!column) {
+        } else {
+          // Categorical column or cleared column: keep gene expression visible
+          // if one is selected. selectedCelltypes was just cleared so combined
+          // mode (`["gene","celltype"]`) doesn't apply here.
           updates.mode = state.selectedGene ? ["gene"] : ["celltype"];
         }
 
