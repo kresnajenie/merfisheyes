@@ -100,6 +100,15 @@ interface VisualizationState {
   setColormap: (name: string) => void;
   plotPanelOpen: boolean;
   setPlotPanelOpen: (open: boolean) => void;
+  // Plot-panel-only secondary grouping (e.g. compare expression across
+  // treatments within each starred celltype). Does not affect the 3D scene.
+  secondaryColumn: string | null;
+  selectedSecondaryValues: Set<string>;
+  secondaryPaletteOverrides: Record<string, string>;
+  setSecondaryColumn: (column: string | null) => void;
+  setSelectedSecondaryValues: (values: Set<string>) => void;
+  toggleSecondaryValue: (value: string) => void;
+  setSecondaryPaletteOverride: (value: string, color: string) => void;
   reset: () => void;
 }
 
@@ -141,6 +150,9 @@ const initialState = {
   sliderRanges: {} as Record<string, { min: number; max: number }>,
   colormap: "bwr",
   plotPanelOpen: false,
+  secondaryColumn: null as string | null,
+  selectedSecondaryValues: new Set<string>(),
+  secondaryPaletteOverrides: {} as Record<string, string>,
 };
 
 // Helper function to update mode array
@@ -284,6 +296,10 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
       const updates: Partial<VisualizationState> = {
         selectedColumn: column,
         selectedCelltypes: new Set<string>(),
+        // Changing the primary column invalidates the grouping pairs.
+        secondaryColumn: null,
+        selectedSecondaryValues: new Set<string>(),
+        secondaryPaletteOverrides: {},
       };
 
       // If selecting a numerical column, clear gene and set mode to celltype only
@@ -416,6 +432,39 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 
   setPlotPanelOpen: (open) => {
     set({ plotPanelOpen: open });
+  },
+
+  setSecondaryColumn: (column) => {
+    set((state) => {
+      if (column && column === state.selectedColumn) return {} as Partial<VisualizationState>;
+      return {
+        secondaryColumn: column,
+        selectedSecondaryValues: new Set<string>(),
+        secondaryPaletteOverrides: {},
+      };
+    });
+  },
+
+  setSelectedSecondaryValues: (values) => {
+    set({ selectedSecondaryValues: new Set(values) });
+  },
+
+  toggleSecondaryValue: (value) => {
+    set((state) => {
+      const next = new Set(state.selectedSecondaryValues);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return { selectedSecondaryValues: next };
+    });
+  },
+
+  setSecondaryPaletteOverride: (value, color) => {
+    set((state) => ({
+      secondaryPaletteOverrides: {
+        ...state.secondaryPaletteOverrides,
+        [value]: color,
+      },
+    }));
   },
 
   reset: () => {
