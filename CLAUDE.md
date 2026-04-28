@@ -154,6 +154,7 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
     - Greys out non-selected celltypes
   - **Separate Panel Mode**: `panelMode` controls which panel is open (independent of visualization)
   - Allows browsing genes/celltypes without changing visualization
+  - **Plot-only secondary grouping**: `secondaryColumn`, `selectedSecondaryValues`, `secondaryPaletteOverrides` drive the (primary × secondary) comparisons in the plot panel (e.g. "compare apoe across treatments within microglia"). These do **not** affect the 3D scene. `setSelectedColumn` clears all three so the grouping is invalidated when the primary changes. The "starred" celltypes for grouping are the existing `selectedCelltypes` set — same UX as scene/legend selection
 - `singleMoleculeVisualizationStore` - Controls visualization state for single molecule viewer (gene selection with colors, local/global scaling, view mode)
 - Uses Zustand for client-side state management
 
@@ -415,6 +416,50 @@ output_folder/
   - Size: `w-8 h-32` (reduced from w-12 h-48)
   - Position: Relative (removed fixed positioning, now inside VisualizationLegends)
   - Shows for gene expression or numerical cluster columns
+- `components/plot-panel.tsx` - **Floating, draggable, resizable plot panel** with quantification plots
+  - Toggled from the Plot button in `visualization-controls.tsx`
+  - Built on `react-rnd`; rendered inside a `fixed inset-0` shim so the Rnd's default `position: absolute` resolves against viewport coords. Wrapper z-`[10]` sits within the controls' z-`[70]` stacking context, below side panels (z-50)
+  - Default size stored as fractions of the viewport (0.375 × 0.45) so it scales with window resize; `ResizeObserver` on `documentElement` triggers a reflow tick
+  - Anchored to bottom-left of viewport (`MARGIN_LEFT=88` clears the sidebar buttons, `MARGIN_BOTTOM=72` clears the spatial scale bar); offsets recompute from saved fractions on every resize
+  - **Active plot routing** based on `(selectedGene, isCategorical, isNumerical, plotView)`:
+    - gene + categorical, **Box** → `GeneCelltypeBoxplot`
+    - gene + categorical, **Hist** → `GeneHistogram`
+    - gene + numerical or no column → `GeneHistogram`
+    - no gene + categorical → `CelltypeBarplot`
+    - no gene + numerical → `NumericalHistogram`
+  - **Header controls** (visible per active plot):
+    - **Box / Hist** segmented toggle for gene + categorical
+    - **Top N** integer input — caps non-starred primaries (boxplot, barplot)
+    - **Ymax / Xmax** value-axis cap with shorthand parsing (`20k` → 20 000, `1.5m` → 1 500 000, comma-grouped also accepted) — y-axis on boxplot, x-axis on horizontal barplot
+    - **Outliers** toggle for boxplot — flips between `boxpoints: false` (hidden) and `"outliers"` (Tukey markers, secondary palette colour)
+    - **Density** toggle for grouped histogram — switches each per-secondary trace to `histnorm: "probability density"` so groups with very different sample sizes are comparable (matplotlib `density=True`)
+    - **Download CSV** button for boxplot and barplot — async-resolves gene expression then writes per-(primary[, secondary]) row stats. File name = `{gene}_by_{column}_{ISO}.csv` or `cells_per_{column}_{ISO}.csv`
+    - Minimize (collapses to header height), close
+  - On resize, dispatches a `window.resize` event so Plotly's `useResizeHandler` reflows the chart
+- `components/secondary-group-controls.tsx` - **Group-by row** rendered inside the plot panel header. Visible whenever the active plot is `gene-box`, `gene-histogram`, or `celltype-barplot` and the primary column is categorical
+  - Native `<select>` "Group by" dropdown — categorical cluster columns excluding the primary (numerical columns are unsupported as a grouping axis)
+  - Picking a column lazy-loads it via `loadClusterColumn()` and bumps `clusterVersion` so the plots re-derive
+  - Once loaded, renders one chip per `cluster.uniqueValues` entry. Each chip has:
+    - A coloured swatch — clicking it opens a hidden native `<input type="color">` and writes to `secondaryPaletteOverrides[value]`
+    - The value label — clicking it toggles the value in `selectedSecondaryValues`
+- `lib/utils/load-cluster-column.ts` - Reusable lazy-load helper. Mode-aware (local adapter loads on main thread; S3 / custom S3 dispatches to `standardizedDatasetWorkerManager`). No-ops when the column is already on the dataset
+- `components/plots/celltype-barplot.tsx` - Horizontal Plotly bar chart for categorical cluster columns. Two modes:
+  - **Ungrouped (default)**: one bar per category. Selected celltypes pinned to top by count desc; non-selected truncated to Top-N. Non-selected dim to 0.25 opacity when any are selected
+  - **Grouped** (when secondary + selected secondary values + starred celltypes are all present): horizontal grouped bars with `barmode: "group"`. y = starred primaries (sorted by total across selected secondaries, desc), one trace per secondary value (`offsetgroup` per trace), tooltip shows `celltype + secondary + count + share`
+  - Manual double-click detection (350ms window) → `toggleCelltype()`. `xMax` prop caps the count axis. Both palette systems (primary in ungrouped, secondary in grouped) honour `dataset.clusters[].palette` plus `secondaryPaletteOverrides`
+- `components/plots/gene-celltype-boxplot.tsx` - Plotly boxplot of gene expression per celltype. Two modes:
+  - **Ungrouped**: one box per celltype. `boxpoints: false` by default, white outline + median line (1.5 px). Pre-computed `n / q1 / median / q3 / max` exposed via an invisible scatter overlay (size 24, transparent) that drives a single consolidated tooltip per box (Plotly's stat hovers can't be overridden via hovertemplate, so the overlay is the workaround). Sort: median desc; selected pinned, others truncated to Top-N
+  - **Grouped** (secondary active): one box trace per secondary value, `boxmode: "group"`. Box colour = secondary palette + override. Sort primaries by mean of medians across selected secondaries. Empty (primary × secondary) pairs render a faint translucent dash placeholder via the overlay's `line-ew` marker. Scatter overlay aligned to each grouped box via matching `offsetgroup`, tooltip prepends `{secondary_column}: {value}`
+  - **Outliers** (`showOutliers` prop): flips `boxpoints` to `"outliers"` with small markers in the box's colour
+  - **yMax**: when set, locks `yaxis.range = [0, yMax]`
+- `components/plots/gene-histogram.tsx` - Plotly histogram of gene expression. Two modes:
+  - **Ungrouped**: single histogram, 60 bins, bar colour from current colormap at 0.7
+  - **Grouped** (secondary active + starred celltypes): one trace per selected secondary value at opacity 0.55 with `barmode: "overlay"`. Restricted to cells in starred celltypes. Per-trace colour from secondary palette + override. With `density: true`, all traces use `histnorm: "probability density"` so groups of different sizes are visually comparable
+- `components/plots/numerical-histogram.tsx` - Plotly histogram for numerical cluster columns
+  - 60 bins, bar color sampled from current colormap at 0.7 (matches viewer gradient)
+  - Reads values via `getClusterValue(cluster, i)` so it works with both indexed and non-indexed clusters
+- `components/plots/plot-loader.tsx` - Dynamic Plotly import (cartesian dist) used by all plots
+- All plots have `xaxis.fixedrange: true` and `yaxis.fixedrange: true` so users can't accidentally zoom/pan inside the small floating panel
 - `components/upload-settings-modal.tsx` - Upload settings for cell datasets (shows point count, genes, clusters)
 
 #### Single Molecule Components

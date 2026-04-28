@@ -57,7 +57,6 @@ export function VisualizationPanel({
     setCelltypePlaybackInterval,
     setCelltypePlaybackSequence,
     setSelectedGene,
-    setMode,
     celltypeSearchTerm,
     geneSearchTerm,
     setCelltypeSearchTerm,
@@ -357,7 +356,6 @@ export function VisualizationPanel({
                   ) === "numerical";
 
                 setSelectedColumn(columnKey, isNumerical);
-                setMode(["celltype"]);
               } else if (dataset.adapter) {
                 // Not loaded yet — fetch on demand
                 const isNumerical =
@@ -368,7 +366,6 @@ export function VisualizationPanel({
                   ) === "numerical";
 
                 setSelectedColumn(columnKey, isNumerical);
-                setMode(["celltype"]);
 
                 const toastId = toast.loading(
                   `Loading cluster column "${columnKey}"...`,
