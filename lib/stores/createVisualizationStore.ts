@@ -77,6 +77,24 @@ export interface VisualizationState {
   setFlipX: (flip: boolean) => void;
   setFlipY: (flip: boolean) => void;
   setAdvancedViz: (key: string, value: number) => void;
+  pinnedTooltipColumns: Set<string>;
+  togglePinnedTooltipColumn: (column: string) => void;
+  sliderRanges: Record<string, { min: number; max: number }>;
+  setSliderRange: (key: string, min: number, max: number) => void;
+  clearSliderRanges: (keys: string[]) => void;
+  colormap: string;
+  setColormap: (name: string) => void;
+  plotPanelOpen: boolean;
+  setPlotPanelOpen: (open: boolean) => void;
+  // Plot-panel-only secondary grouping (e.g. compare expression across
+  // treatments within each starred celltype). Does not affect the 3D scene.
+  secondaryColumn: string | null;
+  selectedSecondaryValues: Set<string>;
+  secondaryPaletteOverrides: Record<string, string>;
+  setSecondaryColumn: (column: string | null) => void;
+  setSelectedSecondaryValues: (values: Set<string>) => void;
+  toggleSecondaryValue: (value: string) => void;
+  setSecondaryPaletteOverride: (value: string, color: string) => void;
   reset: () => void;
 }
 
@@ -114,6 +132,13 @@ const initialState = {
   pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
   pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
   targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
+  pinnedTooltipColumns: new Set<string>(),
+  sliderRanges: {} as Record<string, { min: number; max: number }>,
+  colormap: "bwr",
+  plotPanelOpen: false,
+  secondaryColumn: null as string | null,
+  selectedSecondaryValues: new Set<string>(),
+  secondaryPaletteOverrides: {} as Record<string, string>,
 };
 
 const updateModeArray = (
@@ -250,12 +275,20 @@ export function createVisualizationStoreInstance() {
         const updates: Partial<VisualizationState> = {
           selectedColumn: column,
           selectedCelltypes: new Set<string>(),
+          // Changing the primary column invalidates the grouping pairs.
+          secondaryColumn: null,
+          selectedSecondaryValues: new Set<string>(),
+          secondaryPaletteOverrides: {},
         };
 
         if (isNumerical && column) {
+          // Numerical column is mutually exclusive with gene expression colouring.
           updates.selectedGene = null;
           updates.mode = ["celltype"];
-        } else if (!column) {
+        } else {
+          // Categorical column or cleared column: keep gene expression visible
+          // if one is selected. selectedCelltypes was just cleared so combined
+          // mode (`["gene","celltype"]`) doesn't apply here.
           updates.mode = state.selectedGene ? ["gene"] : ["celltype"];
         }
 
@@ -346,6 +379,76 @@ export function createVisualizationStoreInstance() {
 
     setAdvancedViz: (key, value) => {
       set({ [key]: value } as any);
+    },
+
+    togglePinnedTooltipColumn: (column) => {
+      set((state) => {
+        const next = new Set(state.pinnedTooltipColumns);
+        if (next.has(column)) {
+          next.delete(column);
+        } else {
+          next.add(column);
+        }
+        return { pinnedTooltipColumns: next };
+      });
+    },
+
+    setSliderRange: (key, min, max) => {
+      if (!(min < max)) return;
+      set((state) => ({
+        sliderRanges: { ...state.sliderRanges, [key]: { min, max } },
+      }));
+    },
+
+    clearSliderRanges: (keys) => {
+      set((state) => {
+        const next = { ...state.sliderRanges };
+        for (const k of keys) delete next[k];
+        return { sliderRanges: next };
+      });
+    },
+
+    setColormap: (name) => {
+      set({ colormap: name });
+    },
+
+    setPlotPanelOpen: (open) => {
+      set({ plotPanelOpen: open });
+    },
+
+    setSecondaryColumn: (column) => {
+      set((state) => {
+        // No-op when picking the primary column as secondary (UI also blocks
+        // this, but defend against direct calls).
+        if (column && column === state.selectedColumn) return {} as Partial<VisualizationState>;
+        return {
+          secondaryColumn: column,
+          selectedSecondaryValues: new Set<string>(),
+          secondaryPaletteOverrides: {},
+        };
+      });
+    },
+
+    setSelectedSecondaryValues: (values) => {
+      set({ selectedSecondaryValues: new Set(values) });
+    },
+
+    toggleSecondaryValue: (value) => {
+      set((state) => {
+        const next = new Set(state.selectedSecondaryValues);
+        if (next.has(value)) next.delete(value);
+        else next.add(value);
+        return { selectedSecondaryValues: next };
+      });
+    },
+
+    setSecondaryPaletteOverride: (value, color) => {
+      set((state) => ({
+        secondaryPaletteOverrides: {
+          ...state.secondaryPaletteOverrides,
+          [value]: color,
+        },
+      }));
     },
 
     reset: () => {

@@ -1,9 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 
 import { NumberScrubber } from "@/components/ui/number-scrubber";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import { colormapCss } from "@/lib/utils/colormaps";
+import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
+import { ColormapPicker } from "./colormap-picker";
 
 interface GeneScalebarProps {
   minValue?: number;
@@ -24,6 +27,12 @@ export const GeneScalebar: React.FC<GeneScalebarProps> = ({
     maxValue * VISUALIZATION_CONFIG.SCALE_BAR_STEP_PERCENTAGE,
   );
 
+  const colormap = usePanelVisualizationStore((s) => s.colormap);
+  const setColormap = usePanelVisualizationStore((s) => s.setColormap);
+  const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+
   return (
     <div className="flex flex-col items-center gap-2">
       {/* Top number scrubber */}
@@ -36,14 +45,31 @@ export const GeneScalebar: React.FC<GeneScalebarProps> = ({
         onChange={onMaxChange}
       />
 
-      {/* Gradient bar */}
-      <div
-        className="w-8 h-32 rounded-lg shadow-lg"
-        style={{
-          background:
-            "linear-gradient(to bottom, #ff0000 0%, #ffffff 50%, #0000ff 100%)",
+      {/* Gradient bar — click to change colormap */}
+      <button
+        aria-label="Change colormap"
+        className="w-8 h-32 rounded-lg shadow-lg cursor-pointer hover:ring-2 hover:ring-white/40 transition-shadow"
+        style={{ background: colormapCss(colormap, "to bottom") }}
+        title="Click to change colormap"
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setPickerPos({ x: e.clientX, y: e.clientY });
         }}
       />
+
+      {pickerPos && (
+        <ColormapPicker
+          current={colormap}
+          x={pickerPos.x}
+          y={pickerPos.y}
+          onClose={() => setPickerPos(null)}
+          onSelect={(name) => {
+            setColormap(name);
+            setPickerPos(null);
+          }}
+        />
+      )}
 
       {/* Bottom number scrubber */}
       <NumberScrubber

@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 MERFISH Eyes is a web-based 3D visualization platform for spatial transcriptomics data. It supports both:
+
 - **Single Cell Data** (.h5ad, MERSCOPE, Xenium) - Cell-level aggregated data with expression matrices
 - **Single Molecule Data** (.parquet, .csv) - Individual molecule coordinates with gene labels
 
@@ -13,6 +14,7 @@ The platform provides interactive 3D visualization using Three.js with gene expr
 ## Development Commands
 
 ### Basic Commands
+
 ```bash
 npm install              # Install dependencies
 npm run dev             # Start dev server with Turbopack (http://localhost:3000)
@@ -24,6 +26,7 @@ npm run lint            # Run ESLint with auto-fix
 ```
 
 ### Database Commands
+
 ```bash
 npx prisma generate     # Generate Prisma client after schema changes
 npx prisma migrate dev  # Create and apply database migrations
@@ -32,7 +35,9 @@ npm run test-prisma     # Test Prisma connection
 ```
 
 ### Environment Setup
+
 Required environment variables in `.env` or `.env.local`:
+
 - `DATABASE_URL` - PostgreSQL connection string
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET` - S3 storage
 - `NEXT_PUBLIC_BASE_URL` - Base URL for the application
@@ -48,6 +53,7 @@ The application supports two distinct data types with separate processing pipeli
 Uses an **Adapter Pattern** to standardize different formats into a unified `StandardizedDataset`:
 
 1. **Format-Specific Adapters** ([lib/adapters/](lib/adapters/)):
+
    - `H5adAdapter` - Parses AnnData .h5ad files using h5wasm
    - `XeniumAdapter` - Parses Xenium folder structure (cells.csv, transcripts.csv)
    - `MerscopeAdapter` - Parses MERSCOPE folder structure (cell_metadata.csv, cell_by_gene.csv)
@@ -67,6 +73,7 @@ Uses an **Adapter Pattern** to standardize different formats into a unified `Sta
 Uses **Web Workers with Comlink** for non-blocking data processing:
 
 1. **File Parsing** ([lib/services/hyparquetService.ts](lib/services/hyparquetService.ts)):
+
    - `hyparquet` - Pure JavaScript parquet reader with `onPage` callback for column-oriented data
    - `hyparquet-compressors` - Compression codec support (gzip, snappy, etc.)
    - `papaparse` - CSV parsing fallback
@@ -74,6 +81,7 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
    - Warning for files >2GB to alert about potential memory pressure
 
 2. **Web Worker Processing** ([lib/workers/](lib/workers/)):
+
    - `single-molecule.worker.ts` - Background worker for parsing parquet/CSV files
    - `singleMoleculeWorkerManager.ts` - Singleton pattern for worker lifecycle management
    - Uses Comlink for seamless function proxying across worker boundary
@@ -82,6 +90,7 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
    - Prevents UI freezing during processing of large files (e.g., 26+ seconds for 21M molecules)
 
 3. **SingleMoleculeDataset** ([lib/SingleMoleculeDataset.ts](lib/SingleMoleculeDataset.ts)):
+
    - Stores molecules as: `uniqueGenes: string[]`, `geneIndex: Map<string, number[]>`, `dimensions: 2|3`
    - Pre-computes normalized coordinates ([-1, 1]) during initialization
    - Gene index stores flattened coordinate arrays: `[x1,y1,z1, x2,y2,z2, ...]`
@@ -99,16 +108,19 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
    - **S3 Lazy Loading**: Downloads gene files on-demand when selected, caches in memory for instant re-selection
 
 4. **Column Mapping Configuration** ([lib/config/moleculeColumnMappings.ts](lib/config/moleculeColumnMappings.ts)):
+
    - Configurable column names for different dataset types (xenium, merscope, custom)
    - Default mappings: `feature_name`, `x_location`, `y_location`, `z_location` (Xenium)
 
 5. **Color Palette System** ([lib/utils/color-palette.ts](lib/utils/color-palette.ts)):
+
    - **Centralized palette**: `DEFAULT_COLOR_PALETTE` with 40+ bright, distinct colors optimized for black backgrounds
    - **Shared across all adapters**: H5adAdapter, XeniumAdapter, MerscopeAdapter all use same palette
    - **Utility functions**: `getColorFromPalette()` for index-based access, `generateColorPalette()` for value mapping
    - **Consistent styling**: Ensures cluster colors match across tooltips, legends, and visualization
 
 6. **Gene Filtering Utilities** ([lib/utils/gene-filters.ts](lib/utils/gene-filters.ts)):
+
    - Shared `shouldFilterGene()` function filters control probes and unassigned genes
    - Used by both single cell (XeniumAdapter) and single molecule (SingleMoleculeDataset) pipelines
    - Filters patterns: negative controls, unassigned, deprecated, codewords, blanks
@@ -128,6 +140,7 @@ Uses **Web Workers with Comlink** for non-blocking data processing:
 #### State Management
 
 Separate stores for each data type ([lib/stores/](lib/stores/)):
+
 - `datasetStore` - Manages single cell datasets (StandardizedDataset)
 - `singleMoleculeStore` - Manages single molecule datasets (SingleMoleculeDataset)
 - `visualizationStore` - Controls 3D scene state for single cell viewer (camera, colors, filters, gene/celltype selection)
@@ -141,10 +154,12 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
     - Greys out non-selected celltypes
   - **Separate Panel Mode**: `panelMode` controls which panel is open (independent of visualization)
   - Allows browsing genes/celltypes without changing visualization
+  - **Plot-only secondary grouping**: `secondaryColumn`, `selectedSecondaryValues`, `secondaryPaletteOverrides` drive the (primary × secondary) comparisons in the plot panel (e.g. "compare apoe across treatments within microglia"). These do **not** affect the 3D scene. `setSelectedColumn` clears all three so the grouping is invalidated when the primary changes. The "starred" celltypes for grouping are the existing `selectedCelltypes` set — same UX as scene/legend selection
 - `singleMoleculeVisualizationStore` - Controls visualization state for single molecule viewer (gene selection with colors, local/global scaling, view mode)
 - Uses Zustand for client-side state management
 
 **Routing**: Components check `pathname.startsWith("/sm-viewer")` to determine which store to use:
+
 - `/viewer` - Single cell viewer using `datasetStore` and `visualizationStore`
 - `/sm-viewer` - Single molecule viewer using `singleMoleculeStore` and `singleMoleculeVisualizationStore`
 
@@ -153,6 +168,7 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 #### Single Cell Upload Flow
 
 **Standard Flow (H5AD, Xenium, MERSCOPE)**:
+
 1. **Client-side**: Parse file in web worker, calculate dataset fingerprint, check for duplicates
 2. **Process**: Browser processes data using `GeneChunkProcessor` to create chunks
 3. **Initiate Upload**: POST to `/api/datasets/initiate` with metadata and file list
@@ -168,6 +184,7 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 7. **View**: Navigate to `/viewer/[datasetId]` which loads data via `StandardizedDataset.fromS3()`
 
 **Pre-Chunked Flow (Python-Preprocessed)**:
+
 1. **Preprocessing**: Run Python script locally to create chunked folder (see [scripts/README.md](scripts/README.md))
    ```bash
    python scripts/process_spatial_data.py data.h5ad output_folder
@@ -184,6 +201,7 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 6. **Complete & View**: Same as standard flow
 
 **Benefits of Pre-Chunked Flow**:
+
 - ✅ No browser memory pressure (processes in Python with unlimited memory)
 - ✅ Faster upload initialization (no client-side chunking)
 - ✅ Handles very large datasets (>500K cells) that browsers can't process
@@ -211,6 +229,7 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 #### Database Schema
 
 Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload state:
+
 - `datasetType` field distinguishes "single_cell" vs "single_molecule"
 - `manifestJson` field stores manifest for single molecule datasets
 - `numCells` field stores molecule count for single molecule datasets
@@ -222,6 +241,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 #### Single Cell Visualization
 
 **WebGL Rendering** ([lib/webgl/](lib/webgl/)):
+
 - `point-cloud.ts` - Creates Three.js point cloud with custom shaders
 - `shaders.ts` - Vertex/fragment shaders for point rendering with color/size control
 - `scene-manager.ts` - Manages Three.js scene, camera, controls, and rendering loop
@@ -232,6 +252,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
   - **Combined gene + celltype** → gene gradient on selected celltypes, grey on others (`updateCombinedVisualization()`)
 
 **Key Features**:
+
 - GPU-accelerated point rendering using BufferGeometry and custom shaders
 - Dynamic attribute updates for color (gene expression or cell type) and size
 - Coordinate normalization ensures consistent visualization across datasets
@@ -265,6 +286,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 #### Single Molecule Visualization
 
 **Three.js Point Clouds** ([components/single-molecule-three-scene.tsx](components/single-molecule-three-scene.tsx)):
+
 - One point cloud per gene for independent control (easier alpha/visibility management)
 - **Circular Point Rendering**: Uses radial gradient texture for smooth, anti-aliased circles
   - `createCircleTexture()` generates 64x64 canvas texture with radial gradient
@@ -277,6 +299,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - **Gene caching**: Once loaded from S3, genes remain in memory for instant re-selection
 
 **View Modes**:
+
 - **2D Mode**: Top-down orthographic-like view, camera at (0, 0, 200), rotation disabled
   - Uses OrbitControls with `enableRotate = false`
 - **3D Mode**: Perspective view, camera at (150, 150, 150), rotation enabled
@@ -286,6 +309,7 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
   - Point cloud effect includes `viewMode` dependency to recreate clouds in new scene
 
 **Rendering Strategy**:
+
 - Uses `fixed inset-0` positioning to fill entire viewport below navbar
 - Black background for high contrast with bright gene colors
 - Multiple point clouds rendered simultaneously (one per selected gene)
@@ -301,10 +325,12 @@ For very large datasets (>500K cells) that exceed browser memory limits, Python 
 **Location**: [scripts/](scripts/)
 
 **Scripts**:
+
 - `process_h5ad.py` - Process single .h5ad files
 - `process_spatial_data.py` - Auto-detects and processes H5AD, Xenium, or MERSCOPE formats
 
 **Usage**:
+
 ```bash
 # Install dependencies
 pip install anndata numpy pandas
@@ -317,6 +343,7 @@ python scripts/process_h5ad.py path/to/data.h5ad output_folder
 ```
 
 **Output Structure**:
+
 ```
 output_folder/
 ├── manifest.json              # Dataset metadata
@@ -335,6 +362,7 @@ output_folder/
 ```
 
 **Key Features**:
+
 - **Embedding Dimension Limit**: Automatically truncates embeddings (PCA, UMAP, etc.) to first 3 dimensions
   - Example: PCA with 50 components → saves only first 3 (94% size reduction)
 - **Coordinate Normalization**: Scales to [-1, 1] range with saved scaling factor
@@ -348,6 +376,7 @@ output_folder/
 ### Component Structure
 
 #### Shared Components
+
 - `components/three-scene.tsx` - Three.js scene for single cell visualization
   - Unified `useEffect` hook handles all visualization modes based on `mode` array
   - Supports gene-only, celltype-only, and combined gene+celltype visualization
@@ -360,6 +389,7 @@ output_folder/
   - Manages "Upload & Save" button visibility based on dataset presence
 
 #### Single Cell Components
+
 - `app/viewer/[id]/page.tsx` - Single cell viewer page with dynamic dataset loading from S3
   - **Real-time Progress Bar**: Shows loading percentage (0-100%) and status messages during S3 dataset loading
   - Progress updates from `StandardizedDataset.fromS3()` callback (e.g., "Fetching manifest", "Loading chunk 1 of 3")
@@ -386,9 +416,54 @@ output_folder/
   - Size: `w-8 h-32` (reduced from w-12 h-48)
   - Position: Relative (removed fixed positioning, now inside VisualizationLegends)
   - Shows for gene expression or numerical cluster columns
+- `components/plot-panel.tsx` - **Floating, draggable, resizable plot panel** with quantification plots
+  - Toggled from the Plot button in `visualization-controls.tsx`
+  - Built on `react-rnd`; rendered inside a `fixed inset-0` shim so the Rnd's default `position: absolute` resolves against viewport coords. Wrapper z-`[10]` sits within the controls' z-`[70]` stacking context, below side panels (z-50)
+  - Default size stored as fractions of the viewport (0.375 × 0.45) so it scales with window resize; `ResizeObserver` on `documentElement` triggers a reflow tick
+  - Anchored to bottom-left of viewport (`MARGIN_LEFT=88` clears the sidebar buttons, `MARGIN_BOTTOM=72` clears the spatial scale bar); offsets recompute from saved fractions on every resize
+  - **Active plot routing** based on `(selectedGene, isCategorical, isNumerical, plotView)`:
+    - gene + categorical, **Box** → `GeneCelltypeBoxplot`
+    - gene + categorical, **Hist** → `GeneHistogram`
+    - gene + numerical or no column → `GeneHistogram`
+    - no gene + categorical → `CelltypeBarplot`
+    - no gene + numerical → `NumericalHistogram`
+  - **Header controls** (visible per active plot):
+    - **Box / Hist** segmented toggle for gene + categorical
+    - **Top N** integer input — caps non-starred primaries (boxplot, barplot)
+    - **Ymax / Xmax** value-axis cap with shorthand parsing (`20k` → 20 000, `1.5m` → 1 500 000, comma-grouped also accepted) — y-axis on boxplot, x-axis on horizontal barplot
+    - **Outliers** toggle for boxplot — flips between `boxpoints: false` (hidden) and `"outliers"` (Tukey markers, secondary palette colour)
+    - **Density** toggle for grouped histogram — switches each per-secondary trace to `histnorm: "probability density"` so groups with very different sample sizes are comparable (matplotlib `density=True`)
+    - **Download CSV** button for boxplot and barplot — async-resolves gene expression then writes per-(primary[, secondary]) row stats. File name = `{gene}_by_{column}_{ISO}.csv` or `cells_per_{column}_{ISO}.csv`
+    - Minimize (collapses to header height), close
+  - On resize, dispatches a `window.resize` event so Plotly's `useResizeHandler` reflows the chart
+- `components/secondary-group-controls.tsx` - **Group-by row** rendered inside the plot panel header. Visible whenever the active plot is `gene-box`, `gene-histogram`, or `celltype-barplot` and the primary column is categorical
+  - Native `<select>` "Group by" dropdown — categorical cluster columns excluding the primary (numerical columns are unsupported as a grouping axis)
+  - Picking a column lazy-loads it via `loadClusterColumn()` and bumps `clusterVersion` so the plots re-derive
+  - Once loaded, renders one chip per `cluster.uniqueValues` entry. Each chip has:
+    - A coloured swatch — clicking it opens a hidden native `<input type="color">` and writes to `secondaryPaletteOverrides[value]`
+    - The value label — clicking it toggles the value in `selectedSecondaryValues`
+- `lib/utils/load-cluster-column.ts` - Reusable lazy-load helper. Mode-aware (local adapter loads on main thread; S3 / custom S3 dispatches to `standardizedDatasetWorkerManager`). No-ops when the column is already on the dataset
+- `components/plots/celltype-barplot.tsx` - Horizontal Plotly bar chart for categorical cluster columns. Two modes:
+  - **Ungrouped (default)**: one bar per category. Selected celltypes pinned to top by count desc; non-selected truncated to Top-N. Non-selected dim to 0.25 opacity when any are selected
+  - **Grouped** (when secondary + selected secondary values + starred celltypes are all present): horizontal grouped bars with `barmode: "group"`. y = starred primaries (sorted by total across selected secondaries, desc), one trace per secondary value (`offsetgroup` per trace), tooltip shows `celltype + secondary + count + share`
+  - Manual double-click detection (350ms window) → `toggleCelltype()`. `xMax` prop caps the count axis. Both palette systems (primary in ungrouped, secondary in grouped) honour `dataset.clusters[].palette` plus `secondaryPaletteOverrides`
+- `components/plots/gene-celltype-boxplot.tsx` - Plotly boxplot of gene expression per celltype. Two modes:
+  - **Ungrouped**: one box per celltype. `boxpoints: false` by default, white outline + median line (1.5 px). Pre-computed `n / q1 / median / q3 / max` exposed via an invisible scatter overlay (size 24, transparent) that drives a single consolidated tooltip per box (Plotly's stat hovers can't be overridden via hovertemplate, so the overlay is the workaround). Sort: median desc; selected pinned, others truncated to Top-N
+  - **Grouped** (secondary active): one box trace per secondary value, `boxmode: "group"`. Box colour = secondary palette + override. Sort primaries by mean of medians across selected secondaries. Empty (primary × secondary) pairs render a faint translucent dash placeholder via the overlay's `line-ew` marker. Scatter overlay aligned to each grouped box via matching `offsetgroup`, tooltip prepends `{secondary_column}: {value}`
+  - **Outliers** (`showOutliers` prop): flips `boxpoints` to `"outliers"` with small markers in the box's colour
+  - **yMax**: when set, locks `yaxis.range = [0, yMax]`
+- `components/plots/gene-histogram.tsx` - Plotly histogram of gene expression. Two modes:
+  - **Ungrouped**: single histogram, 60 bins, bar colour from current colormap at 0.7
+  - **Grouped** (secondary active + starred celltypes): one trace per selected secondary value at opacity 0.55 with `barmode: "overlay"`. Restricted to cells in starred celltypes. Per-trace colour from secondary palette + override. With `density: true`, all traces use `histnorm: "probability density"` so groups of different sizes are visually comparable
+- `components/plots/numerical-histogram.tsx` - Plotly histogram for numerical cluster columns
+  - 60 bins, bar color sampled from current colormap at 0.7 (matches viewer gradient)
+  - Reads values via `getClusterValue(cluster, i)` so it works with both indexed and non-indexed clusters
+- `components/plots/plot-loader.tsx` - Dynamic Plotly import (cartesian dist) used by all plots
+- All plots have `xaxis.fixedrange: true` and `yaxis.fixedrange: true` so users can't accidentally zoom/pan inside the small floating panel
 - `components/upload-settings-modal.tsx` - Upload settings for cell datasets (shows point count, genes, clusters)
 
 #### Single Molecule Components
+
 - `app/sm-viewer/page.tsx` - Single molecule viewer page (local file upload, auto-selects 5 random genes on load)
 - `app/sm-viewer/[id]/page.tsx` - Single molecule viewer page with S3 lazy loading (auto-selects first 3 genes)
 - `components/single-molecule-three-scene.tsx` - Three.js scene for molecule visualization with multiple point clouds
@@ -397,6 +472,7 @@ output_folder/
 - `components/single-molecule-upload-modal.tsx` - Upload settings for molecule datasets (shows molecule count, genes, dimensions, handles S3 upload)
 
 #### File Upload
+
 - `components/file-upload.tsx` - Unified upload component with `singleMolecule` prop
   - **Single Molecule**: Worker-based parsing with granular progress tracking (.parquet/.csv)
   - **Single Cell**: Worker-based parsing with progress callbacks (h5ad, xenium, merscope)
@@ -420,16 +496,19 @@ output_folder/
 #### Single Molecule Data
 
 **Parquet**: Columnar format read via `hyparquet` (pure JavaScript, no WASM)
+
 - Requires columns for gene names and x/y/z coordinates
 - Column names configurable via `MOLECULE_COLUMN_MAPPINGS`
 - Supports both 2D and 3D datasets (z_location optional)
 - Processed in web worker to keep UI responsive
 
 **CSV**: Parsed via `papaparse` with same column requirements as parquet
+
 - Automatically infers dimensions based on z column presence
 - Less efficient than parquet for large datasets (millions of molecules)
 
 **Dataset Types**:
+
 - **Xenium**: `feature_name`, `x_location`, `y_location`, `z_location`
 - **MERSCOPE**: `gene`, `global_x`, `global_y`, `global_z`
 - **Custom**: User-defined column mappings
@@ -439,10 +518,12 @@ output_folder/
 #### Single Molecule S3 Lazy Loading
 
 **API Endpoints**:
+
 - `/api/single-molecule/[id]` - Returns dataset metadata and manifest URL
 - `/api/single-molecule/[id]/gene/[geneName]` - Returns presigned URL for specific gene file
 
 **Loading Process** (`SingleMoleculeDataset.fromS3()`):
+
 1. **Fetch Metadata** (10%): GET `/api/single-molecule/[id]` to get manifest URL
 2. **Download Manifest** (30%): Fetch and ungzip `manifest.json.gz` from S3
 3. **Initialize Dataset** (60%): Create dataset with gene list, empty geneIndex
@@ -454,6 +535,7 @@ output_folder/
    - Cache in geneIndex for future use
 
 **Gene File Binary Format** (.bin.gz):
+
 - Gzipped Float32Array of normalized coordinates
 - Flat array: `[x1, y1, z1, x2, y2, z2, ...]` for 3D or `[x1, y1, x2, y2, ...]` for 2D
 - Each coordinate is 4 bytes (Float32)
@@ -461,6 +543,7 @@ output_folder/
 - Gene names sanitized in filenames (special chars → underscores)
 
 **Benefits**:
+
 - ✅ Fast initialization (~1 second for manifest only)
 - ✅ Memory efficient (only loads selected genes)
 - ✅ Instant re-selection (genes cached after first load)
@@ -469,15 +552,18 @@ output_folder/
 ### Cluster Column Type Detection & Selection
 
 **Type Detection** - All adapters and workers automatically classify columns:
+
 - **Categorical**: ≤100 unique values → discrete color palette, checkbox filtering
 - **Numerical**: >100 unique values → coolwarm gradient, no filtering UI
 
 **Implementation**:
+
 - `H5adAdapter.isCategoricalData()` - Analyzes column values during H5AD parsing
 - `standardized-dataset.worker.ts` - Uses `isCategoricalData()` helper for Xenium/Merscope
 - `ChunkedDataAdapter` - Reads type from S3 metadata, skips palette loading for numerical columns
 
 **Column Selection** - The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/dataset-utils.ts)) automatically picks the best cluster column with priority:
+
 1. "leiden" column
 2. Any column containing "celltype"
 3. First categorical column
@@ -490,10 +576,12 @@ output_folder/
 - Large datasets may cause SIGBUS errors on low-memory systems
 
 **Single Cell Data**:
+
 - Gene expression matrices are cached in `StandardizedDataset.matrix` after first query
 - Cell-level aggregation reduces memory footprint vs raw molecule data
 
 **Single Molecule Data**:
+
 - Pre-computed gene index trades memory for O(1) query speed
 - For millions of molecules, index stores normalized coordinates per gene
 - **Web worker processing** prevents UI freezing during large file parsing
@@ -506,6 +594,7 @@ output_folder/
 **ALL DATA PROCESSING NOW USES WEB WORKERS** to keep UI responsive:
 
 **Single Cell Adapters** (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter):
+
 - `standardized-dataset.worker.ts` - Background worker for parsing all single cell formats
 - `standardizedDatasetWorkerManager.ts` - Singleton pattern for worker lifecycle management
 - Workers parse files → load expression matrix → normalize coordinates → serialize
@@ -519,6 +608,7 @@ output_folder/
 - Progress callbacks use `Comlink.proxy()` to avoid DataCloneError in production
 
 **Single Molecule Processing** (hyparquetService, SingleMoleculeDataset):
+
 - `single-molecule.worker.ts` - Background worker for parsing parquet/CSV files
 - `singleMoleculeWorkerManager.ts` - Singleton pattern for worker lifecycle management
 - Uses Comlink for seamless function proxying across worker boundary
@@ -527,6 +617,7 @@ output_folder/
 - Worker serializes dataset as JSON-compatible structure for main thread transfer
 
 **Worker Compatibility Fixes**:
+
 - `gzip.ts`: Uses `typeof DecompressionStream !== "undefined"` instead of `window` check
 - `ChunkedDataAdapter.ts`: Uses `self.location.origin` for absolute URLs (works in both main thread and workers)
 
@@ -540,6 +631,7 @@ output_folder/
 ## Database Schema
 
 Three main entities:
+
 - **Dataset** - Stores dataset metadata, fingerprint for deduplication, status tracking
 - **UploadSession** - Tracks multi-file upload progress with expiration
 - **UploadFile** - Individual file upload status within a session
@@ -563,6 +655,7 @@ All use cascade deletion to maintain referential integrity.
 ## Performance Optimizations
 
 ### Single Cell Data
+
 - **Web Worker Processing**: All parsing (H5AD/Xenium/MERSCOPE) runs in background workers
 - **Pre-loaded Expression Matrix**: Matrix cached during worker processing for instant gene queries
 - **On-Demand S3 Loading**: ChunkedDataAdapter fetches gene data from S3 as needed
@@ -571,6 +664,7 @@ All use cascade deletion to maintain referential integrity.
 - **Comlink Proxy Safety**: Progress callbacks properly proxied to avoid DataCloneError in production
 
 ### Single Molecule Data
+
 - **Web Worker Processing**: All parsing happens in background worker to prevent UI freezing
 - **Comlink Proxying**: Seamless function calls and progress updates across worker boundary
 - **Chunked Storage**: During parquet reading, stores column chunks then flattens once at end (avoids repeated array concatenation)
@@ -582,3 +676,74 @@ All use cascade deletion to maintain referential integrity.
 - **Coordinate Normalization**: [-1, 1] range with saved `scalingFactor` for consistent visualization
 - **Granular Progress Updates**: Every 5% during indexing for responsive UI feedback on large datasets
 - **Memory Warnings**: Alerts for files >2GB that may cause browser memory pressure
+
+# Behavioural Guidelines
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

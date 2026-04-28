@@ -102,6 +102,9 @@ export function SingleMoleculeThreeScene() {
   const selectedGenesRef = useRef<Map<string, any>>(new Map());
   const globalScaleRef = useRef<number>(1);
   const hasAutoFittedRef = useRef<boolean>(false);
+  const sceneGroupRef = useRef<THREE.Group | null>(null);  // outer: rotation/flip
+  const innerGroupRef = useRef<THREE.Group | null>(null);  // inner: offset by -center
+  const dataCenterRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
   // Get dataset from store - using stable selector to prevent re-renders
   const currentDatasetId = usePanelSingleMoleculeStore(
@@ -112,8 +115,10 @@ export function SingleMoleculeThreeScene() {
   );
 
   // Get visualization settings from store
-  const { selectedGenes, globalScale, viewMode, showAssigned, showUnassigned } =
-    usePanelSingleMoleculeVisualizationStore();
+  const {
+    selectedGenes, globalScale, viewMode, showAssigned, showUnassigned,
+    sceneRotation, flipX, flipY,
+  } = usePanelSingleMoleculeVisualizationStore();
 
   // Keep refs in sync with store values
   selectedGenesRef.current = selectedGenes;
@@ -203,6 +208,15 @@ export function SingleMoleculeThreeScene() {
     rendererRef.current = renderer;
     cameraRef.current = camera;
     controlsRef.current = controls;
+
+    // Nested groups for scene transforms:
+    // outerGroup (position=center, rotation/flip) → innerGroup (position=-center, holds point clouds)
+    const outerGroup = new THREE.Group();
+    const innerGroup = new THREE.Group();
+    outerGroup.add(innerGroup);
+    scene.add(outerGroup);
+    sceneGroupRef.current = outerGroup;
+    innerGroupRef.current = innerGroup;
 
     // Create textures for points (reuse across all point clouds)
     if (!circleTextureRef.current) {
@@ -339,7 +353,8 @@ export function SingleMoleculeThreeScene() {
 
       if (!selectedGenes.has(gene)) {
         console.log(`Removing point cloud: ${key}`);
-        scene.remove(pointCloud);
+        if (innerGroupRef.current) innerGroupRef.current.remove(pointCloud);
+        else scene.remove(pointCloud);
         pointCloud.geometry.dispose();
         if (Array.isArray(pointCloud.material)) {
           pointCloud.material.forEach((m) => m.dispose());
@@ -427,7 +442,7 @@ export function SingleMoleculeThreeScene() {
       const pc = currentPointClouds.get(key);
 
       if (pc) {
-        scene.remove(pc);
+        if (innerGroupRef.current) innerGroupRef.current.remove(pc);
         pc.geometry.dispose();
         if (Array.isArray(pc.material)) {
           pc.material.forEach((m) => m.dispose());
@@ -507,7 +522,13 @@ export function SingleMoleculeThreeScene() {
                 return;
               }
 
-              scene.add(pointCloud);
+              if (!innerGroupRef.current) {
+                console.warn(`[SM] innerGroupRef is null when adding ${aKey}, skipping`);
+                pointCloud.geometry.dispose();
+                (pointCloud.material as THREE.PointsMaterial).dispose();
+                return;
+              }
+              innerGroupRef.current.add(pointCloud);
               currentPointClouds.set(aKey, pointCloud);
 
               console.log(
@@ -566,7 +587,13 @@ export function SingleMoleculeThreeScene() {
                   return;
                 }
 
-                scene.add(uPointCloud);
+                if (!innerGroupRef.current) {
+                  console.warn(`[SM] innerGroupRef is null when adding unassigned ${uKey}, skipping`);
+                  uPointCloud.geometry.dispose();
+                  (uPointCloud.material as THREE.PointsMaterial).dispose();
+                  return;
+                }
+                innerGroupRef.current.add(uPointCloud);
                 currentPointClouds.set(uKey, uPointCloud);
 
                 const uMoleculeCount = uCoords.length / 3;
@@ -663,6 +690,14 @@ export function SingleMoleculeThreeScene() {
 
         camera.position.set(center.x, center.y, center.z + cameraDistance);
         camera.lookAt(center);
+
+        // Set group pivot for rotation around data center
+        dataCenterRef.current.copy(center);
+        if (sceneGroupRef.current && innerGroupRef.current) {
+          sceneGroupRef.current.position.copy(center);
+          innerGroupRef.current.position.set(-center.x, -center.y, -center.z);
+          console.log(`[SM] Auto-fit: center=(${center.x.toFixed(1)}, ${center.y.toFixed(1)}), outerGroup children=${sceneGroupRef.current.children.length}, innerGroup children=${innerGroupRef.current.children.length}, scene children=${sceneRef.current?.children.length}`);
+        }
         camera.near = cameraDistance * 0.001;
         camera.far = cameraDistance * 10;
         camera.updateProjectionMatrix();
@@ -701,6 +736,18 @@ export function SingleMoleculeThreeScene() {
       </div>
     );
   }
+
+  // Apply scene transforms (rotation, flip) — pivot around data center (via group)
+  useEffect(() => {
+    const group = sceneGroupRef.current;
+    if (!group) return;
+
+    group.rotation.z = (sceneRotation * Math.PI) / 180;
+    group.scale.x = flipX ? -1 : 1;
+    group.scale.y = flipY ? -1 : 1;
+
+    console.log(`[SM] Transform: rot=${sceneRotation}° flipX=${flipX} flipY=${flipY}, outerGroup children=${group.children.length}, innerGroup children=${innerGroupRef.current?.children.length}, scene children=${sceneRef.current?.children.length}`);
+  }, [sceneRotation, flipX, flipY]);
 
   return (
     <>

@@ -12,6 +12,9 @@ import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 
 import { VisualizationPanel } from "./visualization-panel";
 import { AdvancedVizPanel } from "./advanced-viz-panel";
+import { CameraPanel } from "./camera-panel";
+import { useSliderRange } from "./slider-range-popover";
+import { PlotPanel } from "./plot-panel";
 
 import {
   usePanelVisualizationStore,
@@ -30,6 +33,7 @@ export function VisualizationControls() {
     celltypePlaybackSequence,
     selectedColumn, selectedCelltypes, setCelltypes, clusterVersion, columnTypeOverrides,
     sceneRotation, setSceneRotation, flipX, setFlipX, flipY, setFlipY,
+    plotPanelOpen, setPlotPanelOpen,
   } = usePanelVisualizationStore();
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
@@ -39,7 +43,7 @@ export function VisualizationControls() {
     const ds = id ? s.datasets.get(id) : null;
     return ds && "spatial" in ds ? (ds as StandardizedDataset) : null;
   });
-  const is3DDataset = dataset?.spatial?.dimensions === 3;
+  // is3DDataset check moved to CameraPanel
 
   // Celltype playback timer — lives here because this component doesn't unmount
   const playIndexRef = useRef(0);
@@ -87,10 +91,12 @@ export function VisualizationControls() {
   }, [celltypePlayback, celltypePlaybackInterval, playbackList.length, setCelltypes]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
 
   const handleModeChange = (newMode: VisualizationMode) => {
     setIsAdvancedOpen(false);
+    setIsCameraOpen(false);
     if (panelMode === newMode) {
       setIsPanelOpen(!isPanelOpen);
     } else {
@@ -98,6 +104,22 @@ export function VisualizationControls() {
       setIsPanelOpen(true);
     }
   };
+
+  // Track shift key for 45° snap on rotation slider
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") (window as any).__shiftHeld = true;
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") (window as any).__shiftHeld = false;
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
   // Track shift key for 45° snap on rotation slider
   useEffect(() => {
@@ -152,7 +174,7 @@ export function VisualizationControls() {
   return (
     <div
       ref={controlsRef}
-      className="absolute top-28 left-4 z-50 flex flex-col gap-2"
+      className="absolute top-28 left-4 z-[70] flex flex-col gap-2"
     >
       {/* Celltype Button */}
       <Button
@@ -174,40 +196,22 @@ export function VisualizationControls() {
         Gene
       </Button>
 
-      {/* Dot Size Slider */}
-      <Tooltip content="Change dotsize" placement="right">
-        <div
-          className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+      {/* Plot Panel Button */}
+      <Tooltip content="Plot panel" placement="right">
+        <Button
+          className={`${buttonBaseClass} ${plotPanelOpen ? "" : glassButton()}`}
+          color={plotPanelOpen ? "primary" : "default"}
+          variant={plotPanelOpen ? "shadow" : "light"}
+          onPress={() => setPlotPanelOpen(!plotPanelOpen)}
         >
-          <Slider
-            aria-label="Dot size"
-            className="h-full"
-            maxValue={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX}
-            minValue={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN}
-            orientation="vertical"
-            size="sm"
-            step={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP}
-            value={sizeScale}
-            onChange={(value) => setSizeScale(value as number)}
-          />
-        </div>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path d="M3 3v18h18" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="6" y="11" width="3" height="7" strokeLinejoin="round" />
+            <rect x="11" y="7" width="3" height="11" strokeLinejoin="round" />
+            <rect x="16" y="13" width="3" height="5" strokeLinejoin="round" />
+          </svg>
+        </Button>
       </Tooltip>
-
-      {/* TODO: Camera controls (rotation, flip) — coming in separate branch */}
-
-      {/* 2D/3D View Toggle — only for 3D datasets */}
-      {is3DDataset && (
-        <Tooltip content={viewMode === "2D" ? "Switch to 3D" : "Switch to 2D"} placement="right">
-          <Button
-            className={`${buttonBaseClass} ${glassButton()}`}
-            color="default"
-            variant="light"
-            onPress={() => setViewMode(viewMode === "2D" ? "3D" : "2D")}
-          >
-            {viewMode}
-          </Button>
-        </Tooltip>
-      )}
 
       {/* Split Screen Button — only show on left panel (no panelId) when not already in split mode */}
       {!isSplitMode && !panelId && (
@@ -235,6 +239,32 @@ export function VisualizationControls() {
         </Tooltip>
       )}
 
+      {/* Dot Size Slider */}
+      <DotSizeSlider sizeScale={sizeScale} setSizeScale={setSizeScale} />
+
+      {/* Camera Button */}
+      <Tooltip content="Camera controls" placement="right">
+        <Button
+          className={`${buttonBaseClass} ${isCameraOpen ? "" : glassButton()}`}
+          color={isCameraOpen ? "primary" : "default"}
+          variant={isCameraOpen ? "shadow" : "light"}
+          onPress={() => {
+            setIsCameraOpen((prev) => {
+              if (!prev) {
+                setIsPanelOpen(false);
+                setIsAdvancedOpen(false);
+              }
+              return !prev;
+            });
+          }}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Button>
+      </Tooltip>
+
       {/* Advanced Settings Button */}
       <Tooltip content="Advanced settings" placement="right">
         <Button
@@ -243,7 +273,10 @@ export function VisualizationControls() {
           variant={isAdvancedOpen ? "shadow" : "light"}
           onPress={() => {
             setIsAdvancedOpen((prev) => {
-              if (!prev) setIsPanelOpen(false);
+              if (!prev) {
+                setIsPanelOpen(false);
+                setIsCameraOpen(false);
+              }
               return !prev;
             });
           }}
@@ -271,6 +304,63 @@ export function VisualizationControls() {
           onClose={() => setIsAdvancedOpen(false)}
         />
       )}
+
+      {/* Camera Panel */}
+      {isCameraOpen && (
+        <CameraPanel
+          controlsRef={controlsRef}
+          onClose={() => setIsCameraOpen(false)}
+          sceneRotation={sceneRotation}
+          setSceneRotation={setSceneRotation}
+          flipX={flipX}
+          setFlipX={setFlipX}
+          flipY={flipY}
+          setFlipY={setFlipY}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          is3DDataset={dataset?.spatial?.dimensions === 3}
+        />
+      )}
+
+      {/* Plot Panel (floating, draggable, resizable) */}
+      {plotPanelOpen && <PlotPanel />}
     </div>
+  );
+}
+
+function DotSizeSlider({
+  sizeScale,
+  setSizeScale,
+}: {
+  sizeScale: number;
+  setSizeScale: (n: number) => void;
+}) {
+  const { min, max, onContextMenu, popover } = useSliderRange(
+    "sizeScale",
+    VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN,
+    VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX,
+    sizeScale,
+  );
+
+  return (
+    <Tooltip content="Change dotsize (right-click to edit range)" placement="right">
+      <div
+        className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+        onContextMenu={onContextMenu}
+      >
+        <Slider
+          aria-label="Dot size"
+          className="h-full"
+          maxValue={max}
+          minValue={min}
+          orientation="vertical"
+          size="sm"
+          step={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP}
+          value={sizeScale}
+          onChange={(value) => setSizeScale(value as number)}
+        />
+        {popover}
+      </div>
+    </Tooltip>
   );
 }

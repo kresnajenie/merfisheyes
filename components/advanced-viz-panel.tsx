@@ -7,6 +7,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import { useSliderRange } from "./slider-range-popover";
 
 interface AdvancedVizPanelProps {
   onClose: () => void;
@@ -15,6 +16,8 @@ interface AdvancedVizPanelProps {
 
 export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const R = VISUALIZATION_CONFIG.ADVANCED_SLIDER_RANGES;
+  const clearSliderRanges = usePanelVisualizationStore((s) => s.clearSliderRanges);
   const {
     selectedSizeMultiplier,
     greyedOutSizeMultiplier,
@@ -97,6 +100,27 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
     </div>
   );
 
+  const sizeSliderRow = (
+    label: string,
+    key:
+      | "selectedSizeMultiplier"
+      | "greyedOutSizeMultiplier"
+      | "pointSizeMultiplierMin"
+      | "pointSizeMultiplierMax",
+    value: number,
+    step: number,
+  ) => (
+    <SizeSliderRow
+      key={key}
+      label={label}
+      rangeKey={key}
+      step={step}
+      value={value}
+      onChange={(v) => setLocal((prev) => ({ ...prev, [key]: v }))}
+      onChangeEnd={(v) => setAdvancedViz(key, v)}
+    />
+  );
+
   return (
     <div
       ref={panelRef}
@@ -121,18 +145,18 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
         {/* Celltype Mode */}
         <div>
           <span className="text-xs font-medium text-primary">Celltype Mode</span>
-          {sliderRow("Selected size", "selectedSizeMultiplier", local.selectedSizeMultiplier, 0.1, 10.0, 0.1)}
-          {sliderRow("Unselected size", "greyedOutSizeMultiplier", local.greyedOutSizeMultiplier, 0.01, 5.0, 0.01)}
-          {sliderRow("Unselected alpha", "greyedOutAlpha", local.greyedOutAlpha, 0.0, 1.0, 0.05)}
+          {sizeSliderRow("Selected size", "selectedSizeMultiplier", local.selectedSizeMultiplier, R.selectedSizeMultiplier.step)}
+          {sizeSliderRow("Unselected size", "greyedOutSizeMultiplier", local.greyedOutSizeMultiplier, R.greyedOutSizeMultiplier.step)}
+          {sliderRow("Unselected alpha", "greyedOutAlpha", local.greyedOutAlpha, R.greyedOutAlpha.min, R.greyedOutAlpha.max, R.greyedOutAlpha.step)}
         </div>
 
         {/* Gene Expression Mode */}
         <div>
           <span className="text-xs font-medium text-primary">Gene Expression</span>
-          {sliderRow("Size min", "pointSizeMultiplierMin", local.pointSizeMultiplierMin, 0.1, 5.0, 0.1)}
-          {sliderRow("Size max", "pointSizeMultiplierMax", local.pointSizeMultiplierMax, 0.1, 10.0, 0.1)}
-          {sliderRow("Alpha min", "expressionAlphaMin", local.expressionAlphaMin, 0.0, 1.0, 0.05)}
-          {sliderRow("Alpha max", "expressionAlphaMax", local.expressionAlphaMax, 0.0, 1.0, 0.05)}
+          {sizeSliderRow("Size min", "pointSizeMultiplierMin", local.pointSizeMultiplierMin, R.pointSizeMultiplierMin.step)}
+          {sizeSliderRow("Size max", "pointSizeMultiplierMax", local.pointSizeMultiplierMax, R.pointSizeMultiplierMax.step)}
+          {sliderRow("Alpha min", "expressionAlphaMin", local.expressionAlphaMin, R.expressionAlphaMin.min, R.expressionAlphaMin.max, R.expressionAlphaMin.step)}
+          {sliderRow("Alpha max", "expressionAlphaMax", local.expressionAlphaMax, R.expressionAlphaMax.min, R.expressionAlphaMax.max, R.expressionAlphaMax.step)}
         </div>
 
         {/* Reset */}
@@ -150,11 +174,66 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
             setAdvancedViz("pointSizeMultiplierMin", VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number);
             setAdvancedViz("pointSizeMultiplierMax", VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number);
             setAdvancedViz("targetPx", VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number);
+            clearSliderRanges([
+              "selectedSizeMultiplier",
+              "greyedOutSizeMultiplier",
+              "pointSizeMultiplierMin",
+              "pointSizeMultiplierMax",
+            ]);
           }}
         >
           Reset to Defaults
         </Button>
       </div>
+    </div>
+  );
+}
+
+function SizeSliderRow({
+  label,
+  rangeKey,
+  value,
+  step,
+  onChange,
+  onChangeEnd,
+}: {
+  label: string;
+  rangeKey:
+    | "selectedSizeMultiplier"
+    | "greyedOutSizeMultiplier"
+    | "pointSizeMultiplierMin"
+    | "pointSizeMultiplierMax";
+  value: number;
+  step: number;
+  onChange: (v: number) => void;
+  onChangeEnd: (v: number) => void;
+}) {
+  const R = VISUALIZATION_CONFIG.ADVANCED_SLIDER_RANGES;
+  const { min, max, onContextMenu, popover } = useSliderRange(
+    rangeKey,
+    R[rangeKey].min,
+    R[rangeKey].max,
+    value,
+  );
+
+  return (
+    <div onContextMenu={onContextMenu}>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-default-500">{label}</span>
+        <span className="text-default-400">{value.toFixed(2)}</span>
+      </div>
+      <Slider
+        aria-label={label}
+        className="w-full"
+        maxValue={max}
+        minValue={min}
+        size="sm"
+        step={step}
+        value={value}
+        onChange={(v) => onChange(v as number)}
+        onChangeEnd={(v) => onChangeEnd(v as number)}
+      />
+      {popover}
     </div>
   );
 }
