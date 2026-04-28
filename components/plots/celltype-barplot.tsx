@@ -241,6 +241,14 @@ export function CelltypeBarplot({
     ];
   }, [visibleRows, selectedCelltypes.size, total, grouped, secondaryColumn]);
 
+  // Stable y-axis category order. Default Plotly behaviour can re-sort
+  // alphabetically for some inputs (e.g. when uniqueValues comes pre-sorted
+  // from a worker); pin it explicitly via categoryarray.
+  const yCategoryArray = useMemo(() => {
+    if (grouped) return [...grouped.primaryOrder].reverse();
+    return [...visibleRows].reverse().map((r) => r.name);
+  }, [grouped, visibleRows]);
+
   const layout = useMemo<Partial<Layout>>(
     () => ({
       autosize: true,
@@ -263,6 +271,8 @@ export function CelltypeBarplot({
         automargin: true,
         tickfont: { size: 10 },
         fixedrange: true,
+        categoryorder: "array",
+        categoryarray: yCategoryArray,
       },
       showlegend: !!grouped,
       legend: grouped
@@ -284,7 +294,7 @@ export function CelltypeBarplot({
         align: "left",
       },
     }),
-    [grouped, xMax],
+    [grouped, xMax, yCategoryArray],
   );
 
   const config = useMemo<Partial<Config>>(
