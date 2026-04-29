@@ -32,7 +32,9 @@ Usage:
 import argparse
 import csv
 import logging
+import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -93,9 +95,10 @@ def parse_args():
 
 
 def read_samples(args):
-    """Returns list of (sample_name, species_or_None)."""
+    """Returns list of (sample_name, species_or_None, input_path_or_None)."""
     rows = []
     species_lookup = {}
+    path_lookup: dict[str, str] = {}
 
     if args.species_map:
         sm = pd.read_csv(args.species_map)
@@ -104,9 +107,22 @@ def read_samples(args):
         species_lookup = dict(zip(sm["sample_name"].astype(str),
                                   sm["species"].astype(str)))
 
+    # If samples_csv exists, read it for input_path lookup even when --sample
+    # filters down to a subset (so we can still resolve publication dates).
+    if args.samples_csv and Path(args.samples_csv).exists():
+        with open(args.samples_csv) as fh:
+            for r in csv.reader(fh):
+                if not r:
+                    continue
+                n = r[0].strip()
+                if not n or n.startswith("#"):
+                    continue
+                if len(r) >= 2 and r[1].strip():
+                    path_lookup[n] = r[1].strip()
+
     if args.sample:
         for s in args.sample:
-            rows.append((s, species_lookup.get(s)))
+            rows.append((s, species_lookup.get(s), path_lookup.get(s)))
         return rows
 
     if not args.samples_csv:
@@ -124,8 +140,23 @@ def read_samples(args):
             if len(r) >= 3 and r[2].strip():
                 sp = r[2].strip()
             sp = species_lookup.get(name, sp)
-            rows.append((name, sp))
+            input_path = r[1].strip() if len(r) >= 2 and r[1].strip() else None
+            rows.append((name, sp, input_path))
     return rows
+
+
+def path_publication_date(path_str: str | None) -> str:
+    """Return YYYY-MM-DD mtime of the BIL data path (the date `ls -l` shows),
+    or '' if the path is missing or unreadable."""
+    if not path_str:
+        return ""
+    p = Path(path_str.rstrip("/"))
+    try:
+        st = os.stat(p)
+    except (OSError, FileNotFoundError) as e:
+        logger.warning("stat failed for %s: %s", p, e)
+        return ""
+    return datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d")
 
 
 def load_mapping_csv(path: Path) -> pd.DataFrame | None:
@@ -150,7 +181,8 @@ def agreement(hier: pd.DataFrame, corr: pd.DataFrame, col: str) -> float | None:
 
 
 def summarize_sample(sample: str, species: str | None, meyes_base: Path,
-                     low_conf_threshold: float) -> dict:
+                     low_conf_threshold: float,
+                     input_path: str | None = None) -> dict:
     sample_dir = meyes_base / sample
     hier_path = sample_dir / HIER_DIR / MAPPING_FILE
     corr_path = sample_dir / CORR_DIR / MAPPING_FILE
@@ -158,11 +190,17 @@ def summarize_sample(sample: str, species: str | None, meyes_base: Path,
     hier = load_mapping_csv(hier_path)
     corr = load_mapping_csv(corr_path)
 
-    row: dict = {"sample": sample, "species": species or ""}
+    row: dict = {
+        "sample": sample,
+        "species": species or "",
+        "publication_date": path_publication_date(input_path),
+        "input_path": input_path or "",
+    }
 
     # Pre-seed numeric columns so the DataFrame has them even when no sample
     # populates them (avoids KeyError in plotting).
-    for k in ("hier_mean_prob", "hier_median_prob", "hier_low_conf_frac",
+    for k in ("n_cells", "n_cells_hier", "n_cells_corr",
+              "hier_mean_prob", "hier_median_prob", "hier_low_conf_frac",
               "corr_mean_r", "corr_median_r", "corr_neg_frac"):
         row[k] = np.nan
 
@@ -193,7 +231,7 @@ def summarize_sample(sample: str, species: str | None, meyes_base: Path,
         row["corr_path"] = ""
 
     if hier is not None and corr is not None:
-        row["n_cells"] = int(min(len(hier), len(corr)))
+        row["n_cells"] = int(max(len(hier), len(corr)))
         for level_col in LEVEL_COLS:
             agr = agreement(hier, corr, level_col)
             if agr is not None:
@@ -404,10 +442,11 @@ def main():
         raise SystemExit("No samples to process.")
 
     rows = []
-    for name, species in samples:
+    for name, species, input_path in samples:
         logger.info("Summarizing %s", name)
         rows.append(summarize_sample(name, species, meyes_base,
-                                     args.low_conf_threshold))
+                                     args.low_conf_threshold,
+                                     input_path=input_path))
 
     df = pd.DataFrame(rows)
     tsv_path = out_dir / "comparison.tsv"
@@ -419,7 +458,7 @@ def main():
     if args.per_sample_plots or len(samples) == 1:
         per_dir = out_dir / "per_sample"
         per_dir.mkdir(parents=True, exist_ok=True)
-        for name, _ in samples:
+        for name, _, _ in samples:
             make_per_sample_plot(name, meyes_base, per_dir / f"{name}.png")
 
 
