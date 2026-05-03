@@ -1,0 +1,107 @@
+Dataset,Status,combined,filter mask,MMC heirarchy,MMC correlation,process new,sync s3 new,checked on meyes new,Single molecule ,Notes,bil data path
+ace-den-fix,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
+ace-den-fog,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
+ace-dim-nut,In progress,Completed,mask made,Completed,error,Completed,Completed,Completed,no output,,/bil/data/ab/6f/ab6fb1d8e5f7f218/687997/
+ace-dip-tub,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
+ace-dip-tug,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660403
+ace-dip-use,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660406
+ace-dip-van,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
+ace-dip-vat,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660410
+ace-dug-fin,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/4c/a5/4ca56ab12ee4ec99/658801
+ace-ear-dud,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,no output,,
+ace-low-bet,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400263/merfish_output/1296400263_SISSeg_mousedevmodel_20241007
+ace-low-bid,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400260/merfish_output/1296400260_SISSeg_mousedevmodel_20241007
+ace-low-big,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400257/merfish_output/1296400257_SISSeg_mousedevmodel_20241007
+ace-low-bin,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400254/merfish_output/1296400254_SISSeg_mousedevmodel_20241008
+ace-low-bit,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400251/merfish_output/1296400251_SISSeg_mousedevmodel_20241008
+ace-low-bog,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400248/merfish_output/1296400248_SISSeg_mousedevmodel_20241008
+ace-low-boo,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400245/merfish_output/1296400245_SISSeg_mousedevmodel_20241008
+ace-low-box,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400242/merfish_output/1296400242_SISSeg_mousedevmodel_20241008
+ace-low-bud,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400239/merfish_output/1296400239_SISSeg_mousedevmodel_20241008
+ace-low-bug,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400236/merfish_output/1296400236_SISSeg_mousedevmodel_20241008
+ace-low-bun,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400233/merfish_output/1296400233_SISSeg_mousedevmodel_20241009
+ace-low-bus,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400230/merfish_output/1296400230_SISSeg_mousedevmodel_20241009
+ace-low-cab,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400226/merfish_output/1296400226_SISSeg_mousedevmodel_20241009
+ace-low-can,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400223/merfish_output/1296400223_SISSeg_mousedevmodel_20241009
+ace-low-cap,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400220/merfish_output/1296400220_SISSeg_mousedevmodel_20241009
+ace-low-car,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400217/merfish_output/1296400217_SISSeg_mousedevmodel_20241009
+ace-low-cat,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400214/merfish_output/1296400214_SISSeg_mousedevmodel_20241009
+ace-low-cop,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400211/merfish_output/1296400211_SISSeg_mousedevmodel_20241010
+ace-low-cot,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400208/merfish_output/1296400208_SISSeg_mousedevmodel_20241010
+ace-low-cow,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400205/merfish_output/1296400205_SISSeg_mousedevmodel_20241010
+ace-low-cry,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad ,/bil/data/50/51/505118bf1edfb3e6/702265/1296400202/merfish_output/1296400202_SISSeg_mousedevmodel_20241010
+ace-met-war,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/ee/2a/ee2a4a5a76a7e3ed/741564
+ace-low-zip,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400337/merfish_output/1296400337_SISSeg_mousedevmodel_20241004
+ace-can-ill,In progress,Completed,made but not good,Completed (human),no output,Completed,Completed,Completed,complete,doesn't have assignment sm,/bil/data/67/b0/67b0f446e818fc95/ARKFrozen-82-PFC/
+ace-can-imp,In progress,Completed,made but not good,Completed (human),no output,Completed,Completed,Completed,complete,doesn't have assignment sm,/bil/data/67/b0/67b0f446e818fc95/NIH-4365-BA10/
+ace-can-ink,In progress,Completed,made but not good,Completed (human),no output,Completed,Completed,Completed,complete,doesn't have assignment sm,/bil/data/67/b0/67b0f446e818fc95/ARKFrozen-62-PFC/
+ace-den-fly,In progress,Completed,no output,no output,no output,re-run with new mask,no output,no output,no output,S3 not working?,
+ace-den-hen,In progress,Completed,mask made,Completed,error,Completed,Completed,Completed,no output,,/bil/data/9d/22/9d220d427123622c/669324
+ace-dry-dip,Completed,Completed,mask made,Completed (human),Completed (human),Completed,Completed,Completed,complete,"mmc is better, artifact",/bil/data/f4/e6/f4e6e00f004c85ba/UCSF2018-003-MFG/
+ace-dry-dog,Completed,Completed,mask made,Completed (human),Completed (human),Completed,Completed,Completed,complete,artifact,/bil/data/f4/e6/f4e6e00f004c85ba/ARKFrozen-65-V1/
+ace-dry-dry,Completed,Completed,mask made,Completed (human),Completed (human),Completed,Completed,Completed,complete,artifact,/bil/data/f4/e6/f4e6e00f004c85ba/NIH-5900-BA17/
+ace-dry-dub,Completed,Completed,mask made,Completed (human),Completed (human),Completed,Completed,Completed,complete,mmc is shit,/bil/data/f4/e6/f4e6e00f004c85ba/NIH-4392-BA17/
+ace-dud-vex,In progress,Completed,mask made,Completed (macaque),no output,Completed,Completed,Completed,no output,,/bil/data/18/aa/18aa91680201e328/QM23.50.001.CX.42
+ace-dud-vow,In progress,Completed,mask made,Completed (macaque),no output,Completed,Completed,Completed,complete,really good,/bil/data/18/aa/18aa91680201e328/QM23.50.001.CX.43
+ace-dud-wag,In progress,Completed,mask made,Completed (macaque),no output,Completed,Completed,Completed,complete,really good,/bil/data/18/aa/18aa91680201e328/QM23.50.001.CX.44
+ace-dud-war,In progress,Completed,mask made,Completed (macaque),no output,Completed,Completed,Completed,complete,really good,/bil/data/ee/2a/ee2a4a5a76a7e3ed/741564
+ace-low-cub,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad ,/bil/data/50/51/505118bf1edfb3e6/702265/1296400199/merfish_output/1296400199_SISSeg_mousedevmodel_20241010
+ace-dud-was,In progress,Completed,mask made,Completed (macaque),no output,Completed,Completed,Completed,complete,,/bil/data/18/aa/18aa91680201e328/QM23.50.001.CX.46
+ace-jig-eel,In progress,Completed,mask made,no output,no output,re-run with new mask,no output,no output,no output,,
+ace-let-law,In progress,Completed,mask made,Completed,no output,no output,no output,,,,/bil/data/d2/eb/d2eb0a94d4765cb7/716292
+ace-let-lax,In progress,Completed,mask made,Completed,no output,no output,no output,,,,/bil/data/cd/db/cddb33924966b07f/735467
+ace-gem-get,In progress,Completed,mask made,Completed,no output,Completed,no output,,,couldnt find csvs,/bil/data/0c/bd/0cbd479c521afff9
+ace-lot-all,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400340/merfish_output/1296400340_SISSeg_mousedevmodel_20241004
+ace-lot-web,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400371/merfish_output/1296400371_SISSeg_mousedevmodel_20241006
+ace-lot-wet,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400368/merfish_output/1296400368_SISSeg_mousedevmodel_20241006
+ace-lot-who,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400365/merfish_output/1296400365_SISSeg_mousedevmodel_20241006
+ace-lot-wig,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400362/merfish_output/1296400362_SISSeg_mousedevmodel_20241005
+ace-lot-win,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400359/merfish_output/1296400359_SISSeg_mousedevmodel_20241006
+ace-lot-wit,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400356/merfish_output/1296400356_SISSeg_mousedevmodel_20241005
+ace-lot-yes,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400353/merfish_output/1296400353_SISSeg_mousedevmodel_20241005
+ace-lot-yet,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400350/merfish_output/1296400350_SISSeg_mousedevmodel_20241005
+ace-lot-zoo,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400343/merfish_output/1296400343_SISSeg_mousedevmodel_20241005
+ace-low-ace,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400334/merfish_output/1296400334_SISSeg_mousedevmodel_20241004
+ace-low-act,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400330/merfish_output/1296400330_SISSeg_mousedevmodel_20241004
+ace-low-add,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400327/merfish_output/1296400327_SISSeg_mousedevmodel_20241004
+ace-low-age,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400324/merfish_output/1296400324_SISSeg_mousedevmodel_20241004
+ace-low-aim,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400318/merfish_output/1296400318_SISSeg_mousedevmodel_20241004
+ace-low-air,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400315/merfish_output/1296400315_SISSeg_mousedevmodel_20241004
+ace-low-and,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400312/merfish_output/1296400312_SISSeg_mousedevmodel_20241006
+ace-low-ant,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400309/merfish_output/1296400309_SISSeg_mousedevmodel_20241006
+ace-low-ape,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400306/merfish_output/1296400306_SISSeg_mousedevmodel_20241006
+ace-low-arm,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400303/merfish_output/1296400303_SISSeg_mousedevmodel_20241006
+ace-low-art,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400300/merfish_output/1296400300_SISSeg_mousedevmodel_20241006
+ace-low-ash,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400297/merfish_output/1296400297_SISSeg_mousedevmodel_20241006
+ace-low-ask,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400291/merfish_output/1296400291_SISSeg_mousedevmodel_20241006
+ace-low-bad,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400287/merfish_output/1296400287_SISSeg_mousedevmodel_20241006
+ace-low-bag,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400284/merfish_output/1296400284_SISSeg_mousedevmodel_20241006
+ace-low-ban,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400281/merfish_output/1296400281_SISSeg_mousedevmodel_20241006
+ace-low-bar,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400275/merfish_output/1296400275_SISSeg_mousedevmodel_20241006
+ace-low-bat,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400272/merfish_output/1296400272_SISSeg_mousedevmodel_20241007
+ace-low-bay,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400269/merfish_output/1296400269_SISSeg_mousedevmodel_20241007
+ace-let-lay,In progress,Completed,mask made,Completed,no output,no output,no output,,,,/bil/data/aa/00/aa000f2d5d15c345/720609
+ace-low-bed,In progress,Completed,mask made,Completed,no output,Completed,no output,,,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400266/merfish_output/1296400266_SISSeg_mousedevmodel_20241007
+ace-bag-tin,Not started,,,,no output,,,,,idk,/bil/data/3d/91/3d9109168823fe39
+ace-ban-win,Not started,,,,no output,,,,,xenium,/bil/data/cf/1c/cf1c1a431ef8d021
+ace-bet-pry,Not started,,,,no output,,,,,idk,/bil/data/e2/2f/e22fefde1a1d1e13/
+ace-dug-fig,Not started,,,,no output,,,,,was missing,/bil/lz/bakerk/360338984d84469c/702265
+ace-boo-sag,Not started,,,,,,,,,idk,/bil/data/c4/6b/c46ba5ff7e7b9aae/
+ace-gut-add,Not started,,,,,,,,,idk,/bil/data/07/a0/07a0444141ff9374
+act-bag,Not started,,,,,,,,,idk,/bil/data/29/3c/293cc39ceea87f6d
+ace-aim-nut,Not started,,,,,,,,,xenium,/bil/data/02/26/02265ddb0dae51de/
+ace-ban-oat,Not started,,,,,,,,,xenium,/bil/data/cb/6d/cb6defa2eab96ddb/
+ace-ban-odd,Not started,,,,,,,,,xenium,/bil/data/fc/4c/fc4c2570c3711952
+ace-bay-foo,Not started,,,,,,,,,xenium,/bil/data/e8/62/e8629d70752a493a
+ace-ear-nap,Not started,,,,,,,,,xenium,/bil/data/b7/2f/b72faf9d87d7fc00
+ace-irk-sag,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.13
+ace-irk-sap,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.16
+ace-irk-sat,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.17
+ace-lot-nod,Not started,,,,,,,,,zip files,/bil/data/64/a7/64a7615a166fc0c3/main_f
+ace-lot-nor,Not started,,,,,,,,,zip files,/bil/data/64/a7/64a7615a166fc0c3/supp_m
+ace-lot-now,Not started,,,,,,,,,zip files,/bil/data/64/a7/64a7615a166fc0c3/supp_f
+ace-irk-saw,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.19
+ace-irk-say,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.20
+ace-irk-set,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.21
+ace-irk-shy,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.BS.3
+ace-bug-sip,Not started,,,,,,,,,no idea what data type,/bil/data/57/c4/57c47b3f93b87df2/
