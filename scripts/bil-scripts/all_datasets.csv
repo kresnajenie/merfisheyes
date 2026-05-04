@@ -1,14 +1,14 @@
 Dataset,Status,combined,filter mask,MMC heirarchy,MMC correlation,process new,sync s3 new,checked on meyes new,Single molecule ,Notes,bil data path
-ace-den-fix,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
-ace-den-fog,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
+ace-den-fix,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,/bil/data/aa/79/aa79b8ba5b3add56/638850/
+ace-den-fog,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,/bil/data/aa/79/aa79b8ba5b3add56/609889/
 ace-dim-nut,In progress,Completed,mask made,Completed,error,Completed,Completed,Completed,no output,,/bil/data/ab/6f/ab6fb1d8e5f7f218/687997/
-ace-dip-tub,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
+ace-dip-tub,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660396
 ace-dip-tug,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660403
 ace-dip-use,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660406
-ace-dip-van,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,
+ace-dip-van,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660408
 ace-dip-vat,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/63/05/63053886eb9f9771/660410
 ace-dug-fin,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,,/bil/data/4c/a5/4ca56ab12ee4ec99/658801
-ace-ear-dud,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,no output,,
+ace-ear-dud,In progress,Completed,mask made,Completed,no output,Completed,Completed,Completed,no output,,/bil/data/36/03/360338984d84469c/702265
 ace-low-bet,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400263/merfish_output/1296400263_SISSeg_mousedevmodel_20241007
 ace-low-bid,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400260/merfish_output/1296400260_SISSeg_mousedevmodel_20241007
 ace-low-big,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400257/merfish_output/1296400257_SISSeg_mousedevmodel_20241007
@@ -35,7 +35,7 @@ ace-low-zip,Completed,Completed,mask made,Completed,Completed,Completed,Complete
 ace-can-ill,In progress,Completed,made but not good,Completed (human),no output,Completed,Completed,Completed,complete,doesn't have assignment sm,/bil/data/67/b0/67b0f446e818fc95/ARKFrozen-82-PFC/
 ace-can-imp,In progress,Completed,made but not good,Completed (human),no output,Completed,Completed,Completed,complete,doesn't have assignment sm,/bil/data/67/b0/67b0f446e818fc95/NIH-4365-BA10/
 ace-can-ink,In progress,Completed,made but not good,Completed (human),no output,Completed,Completed,Completed,complete,doesn't have assignment sm,/bil/data/67/b0/67b0f446e818fc95/ARKFrozen-62-PFC/
-ace-den-fly,In progress,Completed,no output,no output,no output,re-run with new mask,no output,no output,no output,S3 not working?,
+ace-den-fly,In progress,Completed,no output,no output,no output,re-run with new mask,no output,no output,no output,S3 not working?,/bil/data/aa/79/aa79b8ba5b3add56/609882/
 ace-den-hen,In progress,Completed,mask made,Completed,error,Completed,Completed,Completed,no output,,/bil/data/9d/22/9d220d427123622c/669324
 ace-dry-dip,Completed,Completed,mask made,Completed (human),Completed (human),Completed,Completed,Completed,complete,"mmc is better, artifact",/bil/data/f4/e6/f4e6e00f004c85ba/UCSF2018-003-MFG/
 ace-dry-dog,Completed,Completed,mask made,Completed (human),Completed (human),Completed,Completed,Completed,complete,artifact,/bil/data/f4/e6/f4e6e00f004c85ba/ARKFrozen-65-V1/
@@ -47,7 +47,7 @@ ace-dud-wag,In progress,Completed,mask made,Completed (macaque),no output,Comple
 ace-dud-war,In progress,Completed,mask made,Completed (macaque),no output,Completed,Completed,Completed,complete,really good,/bil/data/ee/2a/ee2a4a5a76a7e3ed/741564
 ace-low-cub,Completed,Completed,mask made,Completed,Completed,Completed,Completed,Completed,complete,h5ad ,/bil/data/50/51/505118bf1edfb3e6/702265/1296400199/merfish_output/1296400199_SISSeg_mousedevmodel_20241010
 ace-dud-was,In progress,Completed,mask made,Completed (macaque),no output,Completed,Completed,Completed,complete,,/bil/data/18/aa/18aa91680201e328/QM23.50.001.CX.46
-ace-jig-eel,In progress,Completed,mask made,no output,no output,re-run with new mask,no output,no output,no output,,
+ace-jig-eel,In progress,Completed,mask made,no output,no output,re-run with new mask,no output,no output,no output,,/bil/data/ed/64/ed6455b98ca8a0e6/725724/
 ace-let-law,In progress,Completed,mask made,Completed,no output,no output,no output,,,,/bil/data/d2/eb/d2eb0a94d4765cb7/716292
 ace-let-lax,In progress,Completed,mask made,Completed,no output,no output,no output,,,,/bil/data/cd/db/cddb33924966b07f/735467
 ace-gem-get,In progress,Completed,mask made,Completed,no output,Completed,no output,,,couldnt find csvs,/bil/data/0c/bd/0cbd479c521afff9

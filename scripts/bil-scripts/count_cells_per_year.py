@@ -27,6 +27,7 @@ import csv
 import gzip
 import logging
 import os
+import re
 import sys
 import time
 from collections import defaultdict
@@ -41,6 +42,11 @@ DEFAULT_OUT = "/bil/data/meyes/_cells_inventory"
 
 # Limit recursion depth when scanning a BIL data dir.
 MAX_WALK_DEPTH = 4
+# Recognized artifact-mask filenames inside combined_output/.
+MASK_NAME_RE = re.compile(r"^artifact_mask_p(\d+)(?:\.csv)?$", re.IGNORECASE)
+# Column-name patterns for the artifact flag inside a mask CSV.
+ARTIFACT_COL_NAMES = ("is_artifact", "artifact", "artifact_mask",
+                      "mask", "p25", "is_mask")
 # Hard caps so a giant BIL tree (e.g. raw transcript tiles, image stacks)
 # can't stall the whole scrape on a single dataset.
 DEFAULT_WALK_TIMEOUT = 60.0      # seconds per dataset
@@ -260,6 +266,85 @@ def count_cells_in_meyes(meyes_base: Path, sample: str) -> tuple[int, str, str]:
     return n, "meyes_combined_output", str(candidate)
 
 
+def find_highest_percentile_mask(combined_dir: Path) -> Path | None:
+    """Return the path to the artifact_mask_p<N> entry with the largest N,
+    resolved to the actual CSV file (with or without .csv suffix). Returns
+    None if no mask is found."""
+    if not combined_dir.is_dir():
+        return None
+    best: tuple[int, Path] | None = None
+    try:
+        entries = list(combined_dir.iterdir())
+    except (PermissionError, OSError):
+        return None
+    for entry in entries:
+        m = MASK_NAME_RE.match(entry.name)
+        if not m:
+            continue
+        n = int(m.group(1))
+        if best is None or n > best[0]:
+            best = (n, entry)
+    if best is None:
+        return None
+    candidate = best[1]
+    # Resolve to a readable CSV file.
+    if candidate.is_file():
+        return candidate
+    if candidate.is_dir():
+        for child in candidate.glob("*.csv"):
+            if child.is_file():
+                return child
+        return None
+    with_csv = combined_dir / f"{candidate.name}.csv"
+    if with_csv.is_file():
+        return with_csv
+    return None
+
+
+def count_mask_artifacts(mask_path: Path) -> int:
+    """Count rows in the mask CSV where the artifact flag is truthy.
+    Returns -1 on failure."""
+    try:
+        with open(mask_path, newline="") as fh:
+            reader = csv.reader(fh)
+            header = next(reader, None)
+            if header is None:
+                return 0
+            # Pick the artifact column.
+            col_idx = None
+            for i, name in enumerate(header):
+                low = name.strip().lower()
+                if low in ARTIFACT_COL_NAMES or low.startswith("artifact_mask"):
+                    col_idx = i
+                    break
+            if col_idx is None and len(header) == 1:
+                col_idx = 0
+            if col_idx is None:
+                # Default to the last column — fine for narrow mask CSVs that
+                # store IDs first and the boolean flag last.
+                col_idx = len(header) - 1
+
+            n = 0
+            for row in reader:
+                if col_idx >= len(row):
+                    continue
+                v = row[col_idx].strip().lower()
+                if v in ("1", "true", "t", "yes", "y"):
+                    n += 1
+                elif v in ("0", "false", "f", "no", "n", ""):
+                    continue
+                else:
+                    try:
+                        if float(v) > 0:
+                            n += 1
+                    except ValueError:
+                        pass
+            return n
+    except OSError as e:
+        logger.warning("Failed to read mask %s: %s", mask_path, e)
+        return -1
+
+
 def main():
     args = parse_args()
     logging.basicConfig(level=logging.INFO,
@@ -294,6 +379,9 @@ def main():
             "publication_date": "",
             "year": "",
             "n_cells": "",
+            "n_cells_raw": "",
+            "n_cells_artifact": "",
+            "mask_name": "",
             "cell_source": "",
             "cell_source_path": "",
             "in_meyes": "",
@@ -315,23 +403,44 @@ def main():
                 max_walk_files=args.max_walk_files,
             )
 
+        # 3. Mask filter: if combined_output has an artifact_mask_p<N> file,
+        #    record the artifact count separately so the final TSV can
+        #    report both raw and filtered totals. Skip silently if absent.
+        n_filtered = n
+        n_artifact = 0
+        if n >= 0 and out["in_meyes"] == "true":
+            mask_path = find_highest_percentile_mask(
+                meyes_base / sample / "combined_output"
+            )
+            if mask_path is not None:
+                got = count_mask_artifacts(mask_path)
+                if got >= 0:
+                    n_artifact = got
+                    out["mask_name"] = mask_path.name
+                    n_filtered = max(n - n_artifact, 0)
+
         if n >= 0:
-            out["n_cells"] = n
+            out["n_cells_raw"] = n
+            out["n_cells_artifact"] = n_artifact if out["mask_name"] else ""
+            out["n_cells"] = n_filtered  # raw when no mask, filtered otherwise
             out["cell_source"] = source
             out["cell_source_path"] = source_path
         else:
-            out["cell_source"] = source  # explanation: missing_path / no_recognized_files / no_meyes_metadata
+            out["cell_source"] = source
 
-        inventory.append(out)
-        logger.info("[%s] date=%s n_cells=%s source=%s",
+        logger.info("[%s] date=%s raw=%s filtered=%s mask=%s source=%s",
                     sample, out["publication_date"] or "—",
+                    out["n_cells_raw"] if out["n_cells_raw"] != "" else "—",
                     out["n_cells"] if out["n_cells"] != "" else "—",
+                    out["mask_name"] or "—",
                     out["cell_source"] or "—")
+        inventory.append(out)
 
     # ── Write per-dataset inventory ───────────────────────────────
     inv_path = out_dir / "cells_inventory.csv"
     fieldnames = ["dataset", "status", "notes", "bil_path",
                   "publication_date", "year", "n_cells",
+                  "n_cells_raw", "n_cells_artifact", "mask_name",
                   "cell_source", "cell_source_path", "in_meyes"]
     with open(inv_path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
@@ -340,23 +449,26 @@ def main():
     logger.info("Wrote %s (%d rows)", inv_path, len(inventory))
 
     # ── Aggregate by year + write manifest ───────────────────────
-    cells_by_year: dict[str, int] = defaultdict(int)
+    raw_by_year: dict[str, int] = defaultdict(int)
+    filtered_by_year: dict[str, int] = defaultdict(int)
     manifest_rows: list[dict] = []
     n_included = 0
     n_excluded = 0
     for r in inventory:
         year = r["year"]
-        n_cells = r["n_cells"] if isinstance(r["n_cells"], int) else None
+        n_raw = r["n_cells_raw"] if isinstance(r["n_cells_raw"], int) else None
+        n_filtered = r["n_cells"] if isinstance(r["n_cells"], int) else None
 
         reasons = []
         if not year:
             reasons.append("no_publication_date")
-        if n_cells is None:
+        if n_raw is None:
             reasons.append(f"no_cell_count:{r['cell_source'] or 'unknown'}")
         included = not reasons
 
         if included:
-            cells_by_year[year] += n_cells  # type: ignore[arg-type]
+            raw_by_year[year] += n_raw  # type: ignore[arg-type]
+            filtered_by_year[year] += n_filtered  # type: ignore[arg-type]
             n_included += 1
         else:
             n_excluded += 1
@@ -365,22 +477,26 @@ def main():
             "dataset": r["dataset"],
             "included": "true" if included else "false",
             "year": year,
-            "n_cells": n_cells if n_cells is not None else "",
+            "n_cells_raw": n_raw if n_raw is not None else "",
+            "n_cells_filtered": n_filtered if n_filtered is not None else "",
+            "mask_name": r["mask_name"] or "",
             "reason": "; ".join(reasons),
         })
 
     yearly_path = out_dir / "cells_per_year.csv"
     with open(yearly_path, "w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["year", "n_cells"])
-        for y in sorted(cells_by_year):
-            writer.writerow([y, cells_by_year[y]])
-    logger.info("Wrote %s (%d years)", yearly_path, len(cells_by_year))
+        writer.writerow(["year", "n_cells_raw", "n_cells_filtered"])
+        for y in sorted(raw_by_year):
+            writer.writerow([y, raw_by_year[y], filtered_by_year[y]])
+    logger.info("Wrote %s (%d years)", yearly_path, len(raw_by_year))
 
     manifest_path = out_dir / "cells_per_year_manifest.csv"
     with open(manifest_path, "w", newline="") as fh:
         writer = csv.DictWriter(
-            fh, fieldnames=["dataset", "included", "year", "n_cells", "reason"],
+            fh,
+            fieldnames=["dataset", "included", "year", "n_cells_raw",
+                        "n_cells_filtered", "mask_name", "reason"],
         )
         writer.writeheader()
         writer.writerows(manifest_rows)
