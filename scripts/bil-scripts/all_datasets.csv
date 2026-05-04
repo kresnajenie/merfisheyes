@@ -83,17 +83,17 @@ ace-low-bay,Completed,Completed,mask made,Completed,Completed,Completed,Complete
 ace-let-lay,In progress,Completed,mask made,Completed,no output,no output,no output,,,,/bil/data/aa/00/aa000f2d5d15c345/720609
 ace-low-bed,In progress,Completed,mask made,Completed,no output,Completed,no output,,,h5ad,/bil/data/50/51/505118bf1edfb3e6/702265/1296400266/merfish_output/1296400266_SISSeg_mousedevmodel_20241007
 ace-bag-tin,Not started,,,,no output,,,,,idk,/bil/data/3d/91/3d9109168823fe39
-ace-ban-win,Not started,,,,no output,,,,,xenium,/bil/data/cf/1c/cf1c1a431ef8d021
+ace-ban-win,Not started,,,,no output,,,,,,/bil/data/cf/1c/cf1c1a431ef8d021
 ace-bet-pry,Not started,,,,no output,,,,,idk,/bil/data/e2/2f/e22fefde1a1d1e13/
 ace-dug-fig,Not started,,,,no output,,,,,was missing,/bil/lz/bakerk/360338984d84469c/702265
 ace-boo-sag,Not started,,,,,,,,,idk,/bil/data/c4/6b/c46ba5ff7e7b9aae/
 ace-gut-add,Not started,,,,,,,,,idk,/bil/data/07/a0/07a0444141ff9374
 act-bag,Not started,,,,,,,,,idk,/bil/data/29/3c/293cc39ceea87f6d
-ace-aim-nut,Not started,,,,,,,,,xenium,/bil/data/02/26/02265ddb0dae51de/
-ace-ban-oat,Not started,,,,,,,,,xenium,/bil/data/cb/6d/cb6defa2eab96ddb/
-ace-ban-odd,Not started,,,,,,,,,xenium,/bil/data/fc/4c/fc4c2570c3711952
-ace-bay-foo,Not started,,,,,,,,,xenium,/bil/data/e8/62/e8629d70752a493a
-ace-ear-nap,Not started,,,,,,,,,xenium,/bil/data/b7/2f/b72faf9d87d7fc00
+ace-aim-nut,Not started,,,,,,,,,,/bil/data/02/26/02265ddb0dae51de/
+ace-ban-oat,Not started,,,,,,,,,,/bil/data/cb/6d/cb6defa2eab96ddb/
+ace-ban-odd,Not started,,,,,,,,,,/bil/data/fc/4c/fc4c2570c3711952
+ace-bay-foo,Not started,,,,,,,,,,/bil/data/e8/62/e8629d70752a493a
+ace-ear-nap,Not started,,,,,,,,,,/bil/data/b7/2f/b72faf9d87d7fc00
 ace-irk-sag,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.13
 ace-irk-sap,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.16
 ace-irk-sat,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.17
@@ -105,3 +105,50 @@ ace-irk-say,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78f
 ace-irk-set,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.21
 ace-irk-shy,Not started,,,human data,human data,,,,,,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.BS.3
 ace-bug-sip,Not started,,,,,,,,,no idea what data type,/bil/data/57/c4/57c47b3f93b87df2/
+ace-owl-cry,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382036910
+ace-owl-cub,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382036586
+ace-owl-cup,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382042951
+ace-owl-cut,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382042748
+ace-owl-day,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382042618
+ace-owl-den,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382042399
+ace-owl-did,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382042114
+ace-owl-die,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382041784
+ace-owl-dig,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382041594
+ace-owl-dim,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382041428
+ace-owl-dip,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382040851
+ace-owl-dog,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382039944
+ace-owl-dry,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382037934
+ace-owl-dub,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382037649
+ace-owl-dud,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382036345
+ace-owl-dug,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382036092
+ace-owl-ear,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382035806
+ace-owl-eat,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382034446
+ace-owl-eel,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1382033286
+ace-owl-egg,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386591529
+ace-owl-elf,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386591926
+ace-owl-elk,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386592095
+ace-owl-elm,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386592139
+ace-owl-end,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386592502
+ace-owl-fan,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386592917
+ace-owl-far,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386593056
+ace-owl-fat,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386593326
+ace-owl-fed,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386593508
+ace-owl-few,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386593676
+ace-owl-fib,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386593903
+ace-owl-fig,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386594266
+ace-owl-fin,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386594304
+ace-owl-fit,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1386594431
+ace-owl-fix,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1387987396
+ace-owl-fly,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388172948
+ace-owl-fog,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388173119
+ace-owl-foo,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388173354
+ace-owl-fox,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388173549
+ace-owl-fry,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388173977
+ace-owl-fun,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388174236
+ace-owl-gab,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388174372
+ace-owl-gag,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388174589
+ace-owl-gap,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388175041
+ace-owl-gas,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388175124
+ace-owl-gel,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388175280
+ace-owl-gem,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388175626
+ace-owl-get,Not started,,,Marmoset data,,,,,,Xenium,/bil/data/f2/59/f259606d1031880e/CJ23.56.004.CX/1388176147
