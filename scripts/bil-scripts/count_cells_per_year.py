@@ -28,6 +28,7 @@ import gzip
 import logging
 import os
 import sys
+import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -40,6 +41,10 @@ DEFAULT_OUT = "/bil/data/meyes/_cells_inventory"
 
 # Limit recursion depth when scanning a BIL data dir.
 MAX_WALK_DEPTH = 4
+# Hard caps so a giant BIL tree (e.g. raw transcript tiles, image stacks)
+# can't stall the whole scrape on a single dataset.
+DEFAULT_WALK_TIMEOUT = 60.0      # seconds per dataset
+DEFAULT_MAX_WALK_FILES = 20000   # files inspected per dataset
 
 
 def parse_args():
@@ -57,6 +62,12 @@ def parse_args():
                    help=f"How many subdir levels to scan under each BIL "
                         f"path when looking for cell files "
                         f"(default: {MAX_WALK_DEPTH}).")
+    p.add_argument("--walk-timeout", type=float, default=DEFAULT_WALK_TIMEOUT,
+                   help=f"Per-dataset wall-clock cap on the BIL fallback "
+                        f"walk, in seconds (default: {DEFAULT_WALK_TIMEOUT}).")
+    p.add_argument("--max-walk-files", type=int, default=DEFAULT_MAX_WALK_FILES,
+                   help=f"Per-dataset cap on files inspected during the BIL "
+                        f"fallback walk (default: {DEFAULT_MAX_WALK_FILES}).")
     return p.parse_args()
 
 
@@ -131,10 +142,38 @@ def count_h5ad_obs(path: Path) -> int:
         return -1
 
 
-def walk_files(root: Path, max_depth: int):
-    """BFS yielding files up to max_depth, skipping permission errors."""
+class WalkBudget:
+    """Tracks per-dataset walk limits and why we stopped (if we stopped)."""
+    def __init__(self, max_files: int, deadline: float):
+        self.max_files = max_files
+        self.deadline = deadline
+        self.files_seen = 0
+        self.bail_reason: str | None = None
+
+    def file_seen(self) -> bool:
+        self.files_seen += 1
+        if self.max_files is not None and self.files_seen >= self.max_files:
+            self.bail_reason = "walk_max_files"
+            return False
+        if time.monotonic() > self.deadline:
+            self.bail_reason = "walk_timeout"
+            return False
+        return True
+
+    def time_left(self) -> bool:
+        if time.monotonic() > self.deadline:
+            self.bail_reason = "walk_timeout"
+            return False
+        return True
+
+
+def walk_files(root: Path, max_depth: int, budget: WalkBudget):
+    """BFS yielding files up to max_depth, skipping permission errors and
+    bailing once the budget is exhausted."""
     queue: list[tuple[Path, int]] = [(root, 0)]
     while queue:
+        if not budget.time_left():
+            return
         d, depth = queue.pop(0)
         try:
             entries = list(d.iterdir())
@@ -144,6 +183,8 @@ def walk_files(root: Path, max_depth: int):
             try:
                 if entry.is_file():
                     yield entry
+                    if not budget.file_seen():
+                        return
                 elif entry.is_dir() and depth < max_depth:
                     queue.append((entry, depth + 1))
             except OSError:
@@ -165,23 +206,33 @@ CELL_FILE_PATTERNS: list[tuple] = [
 ]
 
 
-def count_cells_in_path(root: Path, max_depth: int) -> tuple[int, str, str]:
+def count_cells_in_path(root: Path, max_depth: int,
+                         walk_timeout: float,
+                         max_walk_files: int) -> tuple[int, str, str]:
     """Walk root looking for the first recognized cell file. Returns
-    (n_cells, source_label, relative_path)."""
+    (n_cells, source_label, relative_path). Bails out and labels the source
+    as walk_timeout / walk_max_files if the budget is exhausted before any
+    recognized file is found."""
     if not root.exists():
         return -1, "missing_path", ""
-    found_by_pattern: dict[int, tuple[Path, int]] = {}
-    for f in walk_files(root, max_depth):
+    budget = WalkBudget(max_files=max_walk_files,
+                         deadline=time.monotonic() + walk_timeout)
+    found_by_pattern: dict[int, Path] = {}
+    for f in walk_files(root, max_depth, budget):
         for idx, (matcher, _, _) in enumerate(CELL_FILE_PATTERNS):
             if matcher(f.name):
-                # Keep the first hit per pattern; preserve discovery order.
                 if idx not in found_by_pattern:
-                    found_by_pattern[idx] = (f, idx)
+                    found_by_pattern[idx] = f
+                # Highest-priority match found — skip the rest of the walk.
+                if idx == 0:
+                    break
                 break
+        if 0 in found_by_pattern:
+            break
     for idx in range(len(CELL_FILE_PATTERNS)):
         if idx not in found_by_pattern:
             continue
-        path = found_by_pattern[idx][0]
+        path = found_by_pattern[idx]
         _, counter, label = CELL_FILE_PATTERNS[idx]
         n = counter(path)
         if n >= 0:
@@ -190,6 +241,8 @@ def count_cells_in_path(root: Path, max_depth: int) -> tuple[int, str, str]:
             except ValueError:
                 rel = str(path)
             return n, label, rel
+    if budget.bail_reason:
+        return -1, budget.bail_reason, ""
     return -1, "no_recognized_files", ""
 
 
@@ -253,6 +306,8 @@ def main():
         if n < 0 and bil_path:
             n, source, source_path = count_cells_in_path(
                 Path(bil_path.rstrip("/")), args.max_walk_depth,
+                walk_timeout=args.walk_timeout,
+                max_walk_files=args.max_walk_files,
             )
 
         if n >= 0:
