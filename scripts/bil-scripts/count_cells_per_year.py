@@ -334,13 +334,35 @@ def main():
         writer.writerows(inventory)
     logger.info("Wrote %s (%d rows)", inv_path, len(inventory))
 
-    # ── Aggregate by year ─────────────────────────────────────────
+    # ── Aggregate by year + write manifest ───────────────────────
     cells_by_year: dict[str, int] = defaultdict(int)
+    manifest_rows: list[dict] = []
+    n_included = 0
+    n_excluded = 0
     for r in inventory:
         year = r["year"]
-        if not year or not isinstance(r["n_cells"], int):
-            continue
-        cells_by_year[year] += r["n_cells"]
+        n_cells = r["n_cells"] if isinstance(r["n_cells"], int) else None
+
+        reasons = []
+        if not year:
+            reasons.append("no_publication_date")
+        if n_cells is None:
+            reasons.append(f"no_cell_count:{r['cell_source'] or 'unknown'}")
+        included = not reasons
+
+        if included:
+            cells_by_year[year] += n_cells  # type: ignore[arg-type]
+            n_included += 1
+        else:
+            n_excluded += 1
+
+        manifest_rows.append({
+            "dataset": r["dataset"],
+            "included": "true" if included else "false",
+            "year": year,
+            "n_cells": n_cells if n_cells is not None else "",
+            "reason": "; ".join(reasons),
+        })
 
     yearly_path = out_dir / "cells_per_year.csv"
     with open(yearly_path, "w", newline="") as fh:
@@ -349,6 +371,16 @@ def main():
         for y in sorted(cells_by_year):
             writer.writerow([y, cells_by_year[y]])
     logger.info("Wrote %s (%d years)", yearly_path, len(cells_by_year))
+
+    manifest_path = out_dir / "cells_per_year_manifest.csv"
+    with open(manifest_path, "w", newline="") as fh:
+        writer = csv.DictWriter(
+            fh, fieldnames=["dataset", "included", "year", "n_cells", "reason"],
+        )
+        writer.writeheader()
+        writer.writerows(manifest_rows)
+    logger.info("Wrote %s (%d included, %d excluded)",
+                manifest_path, n_included, n_excluded)
 
 
 if __name__ == "__main__":
