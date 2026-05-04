@@ -213,8 +213,13 @@ def count_cells_in_path(root: Path, max_depth: int,
     (n_cells, source_label, relative_path). Bails out and labels the source
     as walk_timeout / walk_max_files if the budget is exhausted before any
     recognized file is found."""
-    if not root.exists():
-        return -1, "missing_path", ""
+    try:
+        if not root.exists():
+            return -1, "missing_path", ""
+    except PermissionError:
+        return -1, "permission_denied", ""
+    except OSError as e:
+        return -1, f"stat_error:{e.errno}", ""
     budget = WalkBudget(max_files=max_walk_files,
                          deadline=time.monotonic() + walk_timeout)
     found_by_pattern: dict[int, Path] = {}
