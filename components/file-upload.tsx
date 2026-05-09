@@ -12,11 +12,12 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 
-type UploadType = "h5ad" | "xenium" | "merscope" | "chunked";
+type UploadType = "h5ad" | "h5ad-zarr" | "xenium" | "merscope" | "chunked";
 
 // Map UploadType to MoleculeDatasetType for single molecule datasets
 const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
   h5ad: "custom",
+  "h5ad-zarr": "custom",
   xenium: "xenium",
   merscope: "merscope",
   chunked: "custom",
@@ -105,6 +106,20 @@ export function FileUpload({
     );
 
     return hasManifest && hasExprIndex && hasChunks && hasSpatial;
+  };
+
+  /**
+   * Detect if a folder looks like an h5ad-zarr store (i.e. contains a top-level
+   * .zgroup / .zarray / zarr.json marker).
+   */
+  const isZarrFolder = (files: File[]): boolean => {
+    return files.some((f) => {
+      const path = f.webkitRelativePath || f.name;
+      const parts = path.split("/");
+      const rel = parts.length > 1 ? parts.slice(1).join("/") : path;
+
+      return rel === ".zgroup" || rel === ".zarray" || rel === "zarr.json";
+    });
   };
 
   /**
@@ -316,6 +331,16 @@ export function FileUpload({
           console.log("=== Starting H5AD file processing ===");
           console.log("File:", file.name, "Size:", file.size, "bytes");
           dataset = await StandardizedDataset.fromH5ad(file, onProgress);
+        } else if (type === "h5ad-zarr") {
+          if (!isZarrFolder(files)) {
+            throw new Error(
+              "Dropped folder is not a zarr store (expected a .zgroup, .zarray, or zarr.json marker at the root).",
+            );
+          }
+          toast.info(`Processing zarr folder (${files.length} files)...`);
+          console.log("=== Starting h5ad-zarr folder processing ===");
+          console.log("Files:", files.length);
+          dataset = await StandardizedDataset.fromH5adZarr(files, onProgress);
         } else if (type === "xenium") {
           toast.info(`Processing Xenium folder (${files.length} files)...`);
           console.log("=== Starting Xenium folder processing ===");
@@ -409,7 +434,10 @@ export function FileUpload({
   };
 
   const isFolder =
-    (type === "xenium" || type === "merscope" || type === "chunked") &&
+    (type === "xenium" ||
+      type === "merscope" ||
+      type === "chunked" ||
+      type === "h5ad-zarr") &&
     (singleMolecule ? type === "chunked" : true);
 
   // Get isLoading from appropriate store

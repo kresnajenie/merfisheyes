@@ -241,11 +241,16 @@ function HomeContent() {
                   : "block lg:block lg:scale-100 lg:opacity-100 lg:blur-0 lg:pointer-events-auto",
               )}
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-6">
                 <FileUpload
                   description="Single .h5ad file"
                   title="H5AD File"
                   type="h5ad"
+                />
+                <FileUpload
+                  description="Drop a .zarr folder (lazy)"
+                  title="H5AD Zarr"
+                  type="h5ad-zarr"
                 />
                 <FileUpload
                   description="Pre-processed chunked folder"
