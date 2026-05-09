@@ -80,11 +80,12 @@ export function UploadSettingsModal({
 
   // Check if dataset is a drag-dropped h5ad-zarr folder.
   // Zarr is uploaded verbatim — no chunking, no GeneChunkProcessor, no
-  // per-file UploadFile rows. The fileMap lives on the adapter.
+  // per-file UploadFile rows. The fileMap is stashed on the dataset by
+  // fromH5adZarr (same pattern as the pre-chunked path's chunkedFiles).
   const isZarr = dataset?.type === "h5ad-zarr";
   const zarrFileMap: Map<string, File> | null =
-    isZarr && dataset?.adapter?.fileMap
-      ? (dataset.adapter.fileMap as Map<string, File>)
+    isZarr && (dataset as any)?.zarrFileMap
+      ? ((dataset as any).zarrFileMap as Map<string, File>)
       : null;
   const zarrTotalBytes =
     zarrFileMap !== null

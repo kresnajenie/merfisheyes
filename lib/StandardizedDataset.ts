@@ -982,6 +982,11 @@ export class StandardizedDataset {
     dataset.allEmbeddingNames = dataInfo.availableEmbeddings || [];
     dataset.embeddingsFullyLoaded = false;
 
+    // Stash the original file map so the upload modal can read total size
+    // and feed it into uploadZarrToS3. Mirrors how the pre-chunked path
+    // attaches `dataset.chunkedFiles` for the same purpose.
+    (dataset as any).zarrFileMap = fileMap;
+
     await onProgress?.(100, "Dataset loaded successfully!");
 
     return dataset;
