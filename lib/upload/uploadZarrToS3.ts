@@ -115,7 +115,13 @@ export async function uploadZarrToS3(
       try {
         const fd = new FormData();
 
-        for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+        // `fields` contains a default `key` (with a `${filename}` placeholder
+        // from createPresignedPost). We override per file, so skip it here —
+        // S3 rejects POSTs with two `key` form parts.
+        for (const [k, v] of Object.entries(fields)) {
+          if (k === "key") continue;
+          fd.append(k, v);
+        }
         fd.append("key", `${keyPrefix}${relPath}`);
         fd.append("file", file, relPath);
 

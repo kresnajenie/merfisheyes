@@ -120,7 +120,10 @@ export function UploadSettingsModal({
           throw new Error("Zarr dataset has no files to upload");
         }
 
-        // Fingerprint from gene names + cell/gene counts (small, deterministic)
+        // Fingerprint: gene names + cell/gene counts hashed, then a
+        // timestamp suffix so every zarr upload is unique-by-construction
+        // (we said "skip dedupe for v1"). The DB column is VarChar(64);
+        // 50 hex chars + "_" + 13-digit ms timestamp = 64.
         const fpInput = JSON.stringify({
           format: "zarr",
           cells: dataset.getPointCount(),
@@ -129,9 +132,10 @@ export function UploadSettingsModal({
         });
         const enc = new TextEncoder().encode(fpInput);
         const hashBuf = await crypto.subtle.digest("SHA-256", enc);
-        const fp = Array.from(new Uint8Array(hashBuf))
+        const fpHash = Array.from(new Uint8Array(hashBuf))
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
+        const fp = `${fpHash.slice(0, 50)}_${Date.now()}`;
 
         setProgressMessage("Uploading zarr to S3...");
         setProgress(5);
