@@ -27,6 +27,11 @@ interface ClusterColumn {
 }
 
 export class H5adZarrAdapter {
+  // Routing signal used by umap-panel / visualization-panel / load-cluster-column /
+  // sync hooks: "local" means "call this adapter on the main thread, don't ship
+  // to the S3 worker." Mirrors ChunkedDataAdapter's mode field.
+  readonly mode = "local" as const;
+
   fileMap: Map<string, File>;
   store: FileMapStore;
   adata: AnnData<FileMapStore, any, any> | null = null;
@@ -274,17 +279,24 @@ export class H5adZarrAdapter {
   }
 
   /**
-   * Read one embedding (e.g. "X_umap") as nested number[][].
+   * Read one embedding (e.g. "umap" or "X_umap") on demand.
+   * Return shape matches ChunkedDataAdapter.loadEmbedding so callers
+   * (umap-panel, etc.) can destructure `{ name, data }`.
    */
-  async loadEmbedding(name: string): Promise<number[][] | null> {
+  async loadEmbedding(
+    name: string,
+  ): Promise<{ name: string; data: number[][] } | null> {
     if (!this.adata) throw new Error("Adapter not initialized");
-    const key = this.obsmKeys.includes(name)
-      ? name
-      : this.obsmKeys.includes(`X_${name}`)
-        ? `X_${name}`
-        : null;
+
+    const exact = this.obsmKeys.includes(name) ? name : null;
+    const prefixed = this.obsmKeys.includes(`X_${name}`) ? `X_${name}` : null;
+    const key = exact ?? prefixed;
 
     if (!key) return null;
+
+    // Strip the "X_" prefix in the returned name so it matches the convention
+    // the rest of the app uses (dataset.embeddings keyed by "umap", not "X_umap").
+    const returnedName = key.startsWith("X_") ? key.slice(2) : key;
 
     const arr = await this.adata.obsm.get(key);
     const chunk = await get(arr as any, [null, null]);
@@ -303,7 +315,7 @@ export class H5adZarrAdapter {
       out[i] = row;
     }
 
-    return out;
+    return { name: returnedName, data: out };
   }
 
   /**
