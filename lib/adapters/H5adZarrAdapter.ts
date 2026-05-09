@@ -7,11 +7,17 @@
  * (column slicing on CSC is O(nnz_gene)). For **CSR** the caller is expected
  * to densify the matrix once up front via `lib/workers/zarr-densify.worker.ts`,
  * cache the result on `dataset.matrix`, and route gene queries through that.
+ *
+ * Store-agnostic: takes any zarrita `AsyncReadable` + a list of all keys in
+ * the store. The key list is used to enumerate `obs`/`obsm`/`var` children
+ * since `AsyncReadable` has no LIST operation.
+ *   - Local drag-drop: FileMapStore + Array.from(fileMap.keys())
+ *   - S3:               PresignedFetchStore + result of /api/datasets/{id}/list
  */
 import { readZarr, get, AnnData } from "anndata.js";
+import type { AsyncReadable } from "@zarrita/storage";
 import * as zarr from "zarrita";
 
-import { FileMapStore } from "../storage/FileMapStore";
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
 
@@ -29,19 +35,21 @@ interface ClusterColumn {
 export class H5adZarrAdapter {
   // Routing signal used by umap-panel / visualization-panel / load-cluster-column /
   // sync hooks: "local" means "call this adapter on the main thread, don't ship
-  // to the S3 worker." Mirrors ChunkedDataAdapter's mode field.
+  // to the S3 worker." Both FileMap-backed and S3-backed zarr adapters use
+  // this signal — the call-site routing only needs to know "is this S3
+  // chunked or not?", and zarr (whether local or S3) is "not S3 chunked."
   readonly mode = "local" as const;
 
-  fileMap: Map<string, File>;
-  store: FileMapStore;
-  adata: AnnData<FileMapStore, any, any> | null = null;
+  store: AsyncReadable;
+  storeKeys: string[];
+  adata: AnnData<AsyncReadable, any, any> | null = null;
 
   numCells = 0;
   numGenes = 0;
   spatialDimensions = 2;
   xFormat: XFormat = "missing";
 
-  // Enumerated up front from the file map so we don't need group.keys()
+  // Enumerated up front from `storeKeys` so we don't need group.keys()
   obsColumns: string[] = [];
   obsmKeys: string[] = [];
   varColumns: string[] = [];
@@ -56,9 +64,9 @@ export class H5adZarrAdapter {
   // Cache for lazy gene queries (dense/CSC path)
   private geneExprCache = new Map<string, number[]>();
 
-  constructor(fileMap: Map<string, File>) {
-    this.fileMap = fileMap;
-    this.store = new FileMapStore(fileMap);
+  constructor(store: AsyncReadable, storeKeys: string[]) {
+    this.store = store;
+    this.storeKeys = storeKeys;
   }
 
   /**
@@ -95,9 +103,9 @@ export class H5adZarrAdapter {
 
     await onProgress?.(35, "Enumerating obs / obsm / var columns...");
 
-    this.obsColumns = enumerateChildArrays(this.fileMap, "obs");
-    this.obsmKeys = enumerateChildArrays(this.fileMap, "obsm");
-    this.varColumns = enumerateChildArrays(this.fileMap, "var");
+    this.obsColumns = enumerateChildArrays(this.storeKeys, "obs");
+    this.obsmKeys = enumerateChildArrays(this.storeKeys, "obsm");
+    this.varColumns = enumerateChildArrays(this.storeKeys, "var");
 
     // Spatial dimensions: derive from obsm/spatial or obsm/X_spatial shape if present
     const spatialKey = this.obsmKeys.includes("X_spatial")
@@ -401,20 +409,20 @@ export class H5adZarrAdapter {
 }
 
 /**
- * Enumerate immediate child names under a top-level zarr group prefix
- * by inspecting which paths in the file map start with `${prefix}/...`.
+ * Enumerate immediate child names under a top-level zarr group prefix by
+ * inspecting which keys in the store start with `${prefix}/...`.
  *
  * A child is considered an array/group if any of its keys looks like
  * `<prefix>/<child>/.zarray`, `.zgroup`, or `zarr.json`.
  */
 function enumerateChildArrays(
-  fileMap: Map<string, File>,
+  storeKeys: string[],
   prefix: string,
 ): string[] {
   const found = new Set<string>();
   const markers = [".zarray", ".zgroup", "zarr.json"];
 
-  for (const key of fileMap.keys()) {
+  for (const key of storeKeys) {
     if (!key.startsWith(`${prefix}/`)) continue;
     const rest = key.slice(prefix.length + 1);
     const parts = rest.split("/");

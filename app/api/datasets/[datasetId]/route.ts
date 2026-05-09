@@ -70,6 +70,25 @@ export async function GET(
       );
     }
 
+    // Zarr-formatted datasets don't track per-file rows or pre-signed file URLs.
+    // The client lists keys and resolves objects via dedicated endpoints.
+    if (dataset.formatVersion === "zarr") {
+      return NextResponse.json(
+        {
+          id: dataset.id,
+          title: dataset.title,
+          fingerprint: dataset.fingerprint,
+          numCells: dataset.numCells,
+          numGenes: dataset.numGenes,
+          status: dataset.status,
+          formatVersion: dataset.formatVersion,
+          createdAt: dataset.createdAt,
+          completedAt: dataset.completedAt,
+        },
+        { headers: corsHeaders },
+      );
+    }
+
     // Get file list from most recent upload session
     const uploadSession = dataset.uploadSessions[0];
     const fileKeys =
@@ -92,6 +111,7 @@ export async function GET(
         numCells: dataset.numCells,
         numGenes: dataset.numGenes,
         status: dataset.status,
+        formatVersion: dataset.formatVersion,
         manifestUrl: dataset.manifestUrl,
         createdAt: dataset.createdAt,
         completedAt: dataset.completedAt,
