@@ -249,7 +249,7 @@ function HomeContent() {
                   : "block lg:block lg:scale-100 lg:opacity-100 lg:blur-0 lg:pointer-events-auto",
               )}
             >
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-4 mx-auto max-w-2xl w-full">
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <FileUpload
                     description="Single .h5ad file"
@@ -261,9 +261,9 @@ function HomeContent() {
                     description="Xenium, MERSCOPE, chunked, or .zarr folder"
                     icons={
                       <>
-                        <ZarrIcon className="text-primary" />
-                        <XeniumIcon className="text-primary" />
-                        <MerscopeIcon className="text-primary" />
+                        <ZarrIcon />
+                        <XeniumIcon />
+                        <MerscopeIcon />
                         <ChunkedIcon className="text-primary" />
                       </>
                     }

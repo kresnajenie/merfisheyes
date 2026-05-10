@@ -42,118 +42,48 @@ export function AnnDataIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Zarr — chunked-grid glyph. */
-export function ZarrIcon(props: SVGProps<SVGSVGElement>) {
+/**
+ * Brand-logo tile. Wraps an image at /logos/{file} on a small white pill
+ * so dark logos remain visible against the dark page background. Pixel
+ * size matches the SVG glyphs (32px) so they sit in the same row cleanly.
+ */
+function LogoTile({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
   return (
-    <svg
-      className={baseIcon}
-      fill="none"
-      height="32"
-      viewBox="0 0 32 32"
-      width="32"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
+    <span
+      className={`inline-flex items-center justify-center bg-white/95 rounded-md ${className ?? ""}`}
+      style={{ width: 32, height: 32, padding: 4 }}
     >
-      <rect
-        fill="currentColor"
-        fillOpacity="0.1"
-        height="32"
-        rx="6"
-        width="32"
-      />
-      <rect
-        fill="currentColor"
-        fillOpacity="0.6"
-        height="8"
-        rx="1.5"
-        width="8"
-        x="6"
-        y="6"
-      />
-      <rect
-        fill="currentColor"
-        fillOpacity="0.4"
-        height="8"
-        rx="1.5"
-        width="8"
-        x="18"
-        y="6"
-      />
-      <rect
-        fill="currentColor"
-        fillOpacity="0.4"
-        height="8"
-        rx="1.5"
-        width="8"
-        x="6"
-        y="18"
-      />
-      <rect
-        fill="currentColor"
-        fillOpacity="0.6"
-        height="8"
-        rx="1.5"
-        width="8"
-        x="18"
-        y="18"
-      />
-    </svg>
+      {/* Plain <img> so we don't pull next/image in for tiny static logos */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img alt={alt} className="max-w-full max-h-full object-contain" src={src} />
+    </span>
   );
 }
 
-/** Xenium — labeled tile (real 10x brand mark not shipped). */
-export function XeniumIcon(props: SVGProps<SVGSVGElement>) {
+/** Zarr — uses /logos/zarr.png. */
+export function ZarrIcon(props: { className?: string }) {
+  return <LogoTile alt="Zarr" className={props.className} src="/logos/zarr.png" />;
+}
+
+/** Xenium — uses /logos/10x.png. */
+export function XeniumIcon(props: { className?: string }) {
   return (
-    <svg
-      className={baseIcon}
-      fill="none"
-      height="32"
-      viewBox="0 0 32 32"
-      width="32"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <rect fill="currentColor" fillOpacity="0.15" height="32" rx="6" width="32" />
-      <text
-        fill="currentColor"
-        fontFamily="ui-sans-serif, system-ui"
-        fontSize="13"
-        fontWeight="700"
-        textAnchor="middle"
-        x="16"
-        y="20"
-      >
-        Xn
-      </text>
-    </svg>
+    <LogoTile alt="Xenium (10x Genomics)" className={props.className} src="/logos/10x.png" />
   );
 }
 
-/** MERSCOPE — labeled tile. */
-export function MerscopeIcon(props: SVGProps<SVGSVGElement>) {
+/** MERSCOPE — uses /logos/vizgen.jpg. */
+export function MerscopeIcon(props: { className?: string }) {
   return (
-    <svg
-      className={baseIcon}
-      fill="none"
-      height="32"
-      viewBox="0 0 32 32"
-      width="32"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <rect fill="currentColor" fillOpacity="0.15" height="32" rx="6" width="32" />
-      <text
-        fill="currentColor"
-        fontFamily="ui-sans-serif, system-ui"
-        fontSize="13"
-        fontWeight="700"
-        textAnchor="middle"
-        x="16"
-        y="20"
-      >
-        Ms
-      </text>
-    </svg>
+    <LogoTile alt="MERSCOPE (Vizgen)" className={props.className} src="/logos/vizgen.jpg" />
   );
 }
 
