@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
@@ -12,7 +13,16 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 
-type UploadType = "h5ad" | "h5ad-zarr" | "xenium" | "merscope" | "chunked";
+// "folder" is a meta-type that auto-detects the dropped folder shape
+// (zarr / chunked / xenium / merscope / h5ad-inside) and dispatches to the
+// appropriate handler.
+type UploadType =
+  | "h5ad"
+  | "h5ad-zarr"
+  | "xenium"
+  | "merscope"
+  | "chunked"
+  | "folder";
 
 // Map UploadType to MoleculeDatasetType for single molecule datasets
 const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
@@ -21,6 +31,7 @@ const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
   xenium: "xenium",
   merscope: "merscope",
   chunked: "custom",
+  folder: "custom",
 };
 
 interface FileUploadProps {
@@ -28,6 +39,11 @@ interface FileUploadProps {
   title: string;
   description: string;
   singleMolecule?: boolean;
+  /**
+   * Optional row of small icons rendered under the description. Used by the
+   * unified "Folder" card to advertise which formats it accepts.
+   */
+  icons?: ReactNode;
 }
 
 export function FileUpload({
@@ -35,6 +51,7 @@ export function FileUpload({
   title,
   description,
   singleMolecule = false,
+  icons,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -120,6 +137,54 @@ export function FileUpload({
 
       return rel === ".zgroup" || rel === ".zarray" || rel === "zarr.json";
     });
+  };
+
+  /** Detect Xenium folder by canonical files (cells.csv[.gz]). */
+  const isXeniumFolder = (files: File[]): boolean => {
+    return files.some((f) => {
+      const name = (f.name || "").toLowerCase();
+
+      return name === "cells.csv" || name === "cells.csv.gz";
+    });
+  };
+
+  /** Detect MERSCOPE folder by canonical files (cell_metadata.csv). */
+  const isMerscopeFolder = (files: File[]): boolean => {
+    return files.some((f) => {
+      const name = (f.name || "").toLowerCase();
+
+      return name === "cell_metadata.csv";
+    });
+  };
+
+  /** Detect a single .h5ad file living inside a dropped folder. */
+  const findH5adFile = (files: File[]): File | null => {
+    return (
+      files.find((f) => {
+        const name = (f.name || "").toLowerCase();
+        const rel = (f.webkitRelativePath || "").toLowerCase();
+
+        return name.endsWith(".h5ad") || rel.endsWith(".h5ad");
+      }) ?? null
+    );
+  };
+
+  /**
+   * Auto-detect the format of a dropped folder. Order matters — zarr's
+   * .zgroup is unambiguous; chunked's manifest cluster is unambiguous;
+   * xenium / merscope have format-specific files. h5ad-inside is the catch
+   * for "folder containing an .h5ad" (matches existing MERSCOPE fallback).
+   */
+  const detectFolderFormat = (
+    files: File[],
+  ): "h5ad-zarr" | "chunked" | "xenium" | "merscope" | "h5ad" | null => {
+    if (isZarrFolder(files)) return "h5ad-zarr";
+    if (isChunkedDatasetFolder(files)) return "chunked";
+    if (isXeniumFolder(files)) return "xenium";
+    if (isMerscopeFolder(files)) return "merscope";
+    if (findH5adFile(files)) return "h5ad";
+
+    return null;
   };
 
   /**
@@ -262,8 +327,30 @@ export function FileUpload({
           console.log("Summary:", dataset.getSummary());
         }
       } else {
-        // Single cell mode
-        if (type === "chunked") {
+        // Single cell mode.
+        //
+        // The unified "Folder" card uses type="folder" — auto-detect which of
+        // zarr / chunked / xenium / merscope / h5ad-inside the dropped folder
+        // is, then dispatch to the existing per-format branch below.
+        let effectiveType: UploadType = type;
+
+        if (type === "folder") {
+          const detected = detectFolderFormat(files);
+
+          if (!detected) {
+            throw new Error(
+              "Could not recognize this folder. Supported formats: " +
+                "zarr (with .zgroup), pre-chunked (manifest.json + expr/), " +
+                "Xenium (cells.csv), MERSCOPE (cell_metadata.csv), " +
+                "or any folder containing a .h5ad file.",
+            );
+          }
+          effectiveType = detected;
+          console.log(`[FileUpload] Auto-detected folder format: ${detected}`);
+          toast.info(`Detected ${detected.toUpperCase()} folder`);
+        }
+
+        if (effectiveType === "chunked") {
           // Chunked folder upload - verify it's a valid chunked dataset
           if (!isChunkedDatasetFolder(files)) {
             throw new Error(
@@ -324,14 +411,16 @@ export function FileUpload({
             "Pre-chunked dataset ready. File map size:",
             fileMap.size,
           );
-        } else if (type === "h5ad") {
-          const file = files[0];
+        } else if (effectiveType === "h5ad") {
+          // h5ad can come from the .h5ad file card OR an auto-detected
+          // folder containing a .h5ad (e.g., a MERSCOPE export with one).
+          const h5adFile = findH5adFile(files) ?? files[0];
 
-          toast.info(`Processing ${file.name}...`);
+          toast.info(`Processing ${h5adFile.name}...`);
           console.log("=== Starting H5AD file processing ===");
-          console.log("File:", file.name, "Size:", file.size, "bytes");
-          dataset = await StandardizedDataset.fromH5ad(file, onProgress);
-        } else if (type === "h5ad-zarr") {
+          console.log("File:", h5adFile.name, "Size:", h5adFile.size, "bytes");
+          dataset = await StandardizedDataset.fromH5ad(h5adFile, onProgress);
+        } else if (effectiveType === "h5ad-zarr") {
           if (!isZarrFolder(files)) {
             throw new Error(
               "Dropped folder is not a zarr store (expected a .zgroup, .zarray, or zarr.json marker at the root).",
@@ -341,41 +430,16 @@ export function FileUpload({
           console.log("=== Starting h5ad-zarr folder processing ===");
           console.log("Files:", files.length);
           dataset = await StandardizedDataset.fromH5adZarr(files, onProgress);
-        } else if (type === "xenium") {
+        } else if (effectiveType === "xenium") {
           toast.info(`Processing Xenium folder (${files.length} files)...`);
           console.log("=== Starting Xenium folder processing ===");
           console.log("Files:", files.length);
           dataset = await StandardizedDataset.fromXenium(files, onProgress);
         } else {
-          // MERSCOPE uploads may contain a preprocessed H5AD
-          const h5adFile = files.find((f) => {
-            const name = f.name.toLowerCase();
-            const rel = (f.webkitRelativePath || "").toLowerCase();
-
-            return name.endsWith(".h5ad") || rel.endsWith(".h5ad");
-          });
-
-          if (h5adFile) {
-            toast.info(
-              `Detected H5AD file (${h5adFile.name}); processing as H5AD...`,
-            );
-            console.log(
-              "=== H5AD detected inside MERSCOPE upload; routing to H5AD parser ===",
-            );
-            console.log(
-              "File:",
-              h5adFile.name,
-              "Size:",
-              h5adFile.size,
-              "bytes",
-            );
-            dataset = await StandardizedDataset.fromH5ad(h5adFile, onProgress);
-          } else {
-            toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
-            console.log("=== Starting MERSCOPE folder processing ===");
-            console.log("Files:", files.length);
-            dataset = await StandardizedDataset.fromMerscope(files, onProgress);
-          }
+          toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
+          console.log("=== Starting MERSCOPE folder processing ===");
+          console.log("Files:", files.length);
+          dataset = await StandardizedDataset.fromMerscope(files, onProgress);
         }
 
         console.log("=== Dataset created successfully ===");
@@ -437,7 +501,8 @@ export function FileUpload({
     (type === "xenium" ||
       type === "merscope" ||
       type === "chunked" ||
-      type === "h5ad-zarr") &&
+      type === "h5ad-zarr" ||
+      type === "folder") &&
     (singleMolecule ? type === "chunked" : true);
 
   // Get isLoading from appropriate store
@@ -485,6 +550,12 @@ export function FileUpload({
         <div className="flex flex-col items-center gap-2 w-full">
           <p className="text-lg font-semibold text-foreground">{title}</p>
           <p className="text-xs text-default-500">{description}</p>
+
+          {icons ? (
+            <div className="flex items-center justify-center gap-2 mt-1 text-default-500">
+              {icons}
+            </div>
+          ) : null}
 
           {isLoading && progress > 0 && (
             <div className="w-full mt-4 px-4">
