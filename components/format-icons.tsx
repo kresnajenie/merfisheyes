@@ -9,131 +9,140 @@ import type { SVGProps } from "react";
 
 const baseIcon = "rounded-md";
 
-/** AnnData / .h5ad — abstract "data matrix in a cell" glyph. */
-export function AnnDataIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      className={baseIcon}
-      fill="none"
-      height="32"
-      viewBox="0 0 32 32"
-      width="32"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <rect
-        fill="currentColor"
-        fillOpacity="0.1"
-        height="32"
-        rx="6"
-        width="32"
-      />
-      <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="1.4" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="11" y="11" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="15" y="11" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="19" y="11" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="11" y="15" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="15" y="15" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="19" y="15" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="11" y="19" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="15" y="19" />
-      <rect fill="currentColor" height="2" rx="1" width="2" x="19" y="19" />
-    </svg>
-  );
+/**
+ * AnnData / .h5ad — uses /logos/scverse.png. The scverse mark is monochrome
+ * (black/gray on transparent), so we invert it to render light-on-dark.
+ *
+ * `className` is accepted for API compatibility with the SVG icons but isn't
+ * threaded through (the tile drives the look).
+ */
+export function AnnDataIcon(_props: SVGProps<SVGSVGElement>) {
+  return <LogoTile alt="AnnData / scverse" invert src="/logos/scverse.png" />;
 }
 
 /**
- * Brand-logo tile. Wraps an image at /logos/{file} on a small white pill
- * so dark logos remain visible against the dark page background. Pixel
- * size matches the SVG glyphs (32px) so they sit in the same row cleanly.
+ * Brand-logo tile. The page is dark, so by default the wrapper uses a
+ * glass-on-dark style (subtle border + faint white wash), which works for
+ * transparent-PNG logos. For monochrome marks (e.g. scverse) we invert
+ * the image so a black glyph becomes white. For raster logos with baked-in
+ * white backgrounds (JPGs) we use `tone="light"` to keep a small white pill
+ * — inverting would just flip the white square to black.
  */
+type LogoTone = "dark" | "light";
 function LogoTile({
   src,
   alt,
   className,
+  tone = "dark",
+  invert = false,
 }: {
   src: string;
   alt: string;
   className?: string;
+  tone?: LogoTone;
+  invert?: boolean;
 }) {
+  const tile =
+    tone === "light"
+      ? "bg-white/95 border border-white/30"
+      : "bg-white/10 border border-white/15 backdrop-blur-sm";
+
   return (
     <span
-      className={`inline-flex items-center justify-center bg-white/95 rounded-md ${className ?? ""}`}
-      style={{ width: 32, height: 32, padding: 4 }}
+      className={`inline-flex items-center justify-center rounded-md ${tile} ${className ?? ""}`}
+      style={{ width: 48, height: 48, padding: 6 }}
     >
       {/* Plain <img> so we don't pull next/image in for tiny static logos */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img alt={alt} className="max-w-full max-h-full object-contain" src={src} />
+      <img
+        alt={alt}
+        className="max-w-full max-h-full object-contain"
+        src={src}
+        style={invert ? { filter: "invert(1) brightness(1.4)" } : undefined}
+      />
     </span>
   );
 }
 
 /** Zarr — uses /logos/zarr.png. */
 export function ZarrIcon(props: { className?: string }) {
-  return <LogoTile alt="Zarr" className={props.className} src="/logos/zarr.png" />;
+  return (
+    <LogoTile alt="Zarr" className={props.className} src="/logos/zarr.png" />
+  );
 }
 
-/** Xenium — uses /logos/10x.png. */
+/** Xenium — uses /logos/10x.png (transparent PNG, sits on the dark glass). */
 export function XeniumIcon(props: { className?: string }) {
   return (
-    <LogoTile alt="Xenium (10x Genomics)" className={props.className} src="/logos/10x.png" />
+    <LogoTile
+      alt="Xenium (10x Genomics)"
+      className={props.className}
+      src="/logos/10x.png"
+    />
   );
 }
 
-/** MERSCOPE — uses /logos/vizgen.jpg. */
+/**
+ * MERSCOPE — Vizgen logo is shipped as a JPG with a baked-in white
+ * background, so we keep a white pill rather than inverting (which would
+ * flip the whole tile black).
+ */
 export function MerscopeIcon(props: { className?: string }) {
   return (
-    <LogoTile alt="MERSCOPE (Vizgen)" className={props.className} src="/logos/vizgen.jpg" />
+    <LogoTile
+      alt="MERSCOPE (Vizgen)"
+      className={props.className}
+      src="/logos/vizgen.png"
+      tone="light"
+    />
   );
 }
 
-/** Chunked (our preprocessed format) — stacked-blocks glyph. */
+/** Chunked (our preprocessed format) — stacked-blocks glyph at tile size. */
 export function ChunkedIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      className={baseIcon}
-      fill="none"
-      height="32"
-      viewBox="0 0 32 32"
-      width="32"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
+    <span
+      className="inline-flex items-center justify-center rounded-md bg-white/10 border border-white/15 backdrop-blur-sm"
+      style={{ width: 48, height: 48, padding: 6 }}
     >
-      <rect
-        fill="currentColor"
-        fillOpacity="0.1"
+      <svg
+        className={baseIcon}
+        fill="none"
         height="32"
-        rx="6"
+        viewBox="0 0 32 32"
         width="32"
-      />
-      <rect
-        fill="currentColor"
-        fillOpacity="0.7"
-        height="4"
-        rx="1"
-        width="18"
-        x="7"
-        y="8"
-      />
-      <rect
-        fill="currentColor"
-        fillOpacity="0.5"
-        height="4"
-        rx="1"
-        width="18"
-        x="7"
-        y="14"
-      />
-      <rect
-        fill="currentColor"
-        fillOpacity="0.3"
-        height="4"
-        rx="1"
-        width="18"
-        x="7"
-        y="20"
-      />
-    </svg>
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <rect
+          fill="currentColor"
+          fillOpacity="0.7"
+          height="4"
+          rx="1"
+          width="22"
+          x="5"
+          y="9"
+        />
+        <rect
+          fill="currentColor"
+          fillOpacity="0.5"
+          height="4"
+          rx="1"
+          width="22"
+          x="5"
+          y="15"
+        />
+        <rect
+          fill="currentColor"
+          fillOpacity="0.3"
+          height="4"
+          rx="1"
+          width="22"
+          x="5"
+          y="21"
+        />
+      </svg>
+    </span>
   );
 }
 
