@@ -16,13 +16,17 @@ import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManag
 // "folder" is a meta-type that auto-detects the dropped folder shape
 // (zarr / chunked / xenium / merscope / h5ad-inside) and dispatches to the
 // appropriate handler.
+//
+// "file" (single-molecule only) is the parquet/csv equivalent: sniff the
+// dropped file's column names and pick xenium / merscope / custom on the fly.
 type UploadType =
   | "h5ad"
   | "h5ad-zarr"
   | "xenium"
   | "merscope"
   | "chunked"
-  | "folder";
+  | "folder"
+  | "file";
 
 // Map UploadType to MoleculeDatasetType for single molecule datasets
 const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
@@ -32,6 +36,7 @@ const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
   merscope: "merscope",
   chunked: "custom",
   folder: "custom",
+  file: "custom",
 };
 
 interface FileUploadProps {
@@ -275,14 +280,38 @@ export function FileUpload({
           );
           console.log("File:", file.name, "Size:", file.size, "bytes");
           console.log("File extension:", fileExtension);
-          console.log(
-            "Dataset type:",
-            type,
-            "→",
-            UPLOAD_TYPE_TO_PARQUET_TYPE[type],
-          );
 
-          const parquetDatasetType = UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+          // For the unified "file" upload, sniff column names to pick the
+          // right schema (xenium / merscope / custom). For the legacy
+          // type="xenium" / type="merscope" cards, keep the explicit choice.
+          let parquetDatasetType: MoleculeDatasetType =
+            UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+
+          if (type === "file") {
+            const { detectMoleculeFileType } = await import(
+              "@/lib/services/molecule-file-sniffer"
+            );
+
+            onProgress(2, "Inspecting file schema...");
+            const sniff = await detectMoleculeFileType(file);
+
+            console.log(
+              `[FileUpload] Sniffed columns: [${sniff.columns.slice(0, 8).join(", ")}${sniff.columns.length > 8 ? ", …" : ""}] → ${sniff.type}`,
+            );
+            parquetDatasetType = sniff.type;
+            toast.info(
+              sniff.type === "custom"
+                ? "Using custom column mapping (xenium/merscope schema not detected)"
+                : `Detected ${sniff.type.toUpperCase()} schema`,
+            );
+          } else {
+            console.log(
+              "Dataset type:",
+              type,
+              "→",
+              parquetDatasetType,
+            );
+          }
 
           // Get singleton worker instance
           const workerApi = await getSingleMoleculeWorker();
@@ -514,6 +543,9 @@ export function FileUpload({
   const getAcceptedFileTypes = () => {
     if (singleMolecule) {
       return ".parquet,.csv";
+    }
+    if (type === "file") {
+      return ".parquet,.csv,.tsv,.txt";
     }
 
     return type === "h5ad" ? ".h5ad" : ".csv,.tsv,.txt";
