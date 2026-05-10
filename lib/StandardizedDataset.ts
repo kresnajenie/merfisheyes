@@ -1026,20 +1026,67 @@ export class StandardizedDataset {
       formatVersion: string;
     };
 
-    await onProgress?.(10, "Listing zarr keys...");
+    await onProgress?.(8, "Reading manifest...");
 
     const { fetchDatasetKeyList, PresignedFetchStore } = await import(
       "./storage/PresignedFetchStore"
     );
-    const storeKeys = await fetchDatasetKeyList(datasetId);
+
+    // Newer uploads live at `datasets/{id}/data.zarr/...` with a manifest.json
+    // at the root. Older uploads (pre-manifest) put the zarr files directly
+    // at `datasets/{id}/...`. Probe for the manifest; fall back if missing.
+    let zarrPathPrefix = ""; // relative to dataset root
+    let manifestJson: Record<string, any> | null = null;
+
+    try {
+      const manifestRes = await fetch(
+        `/api/datasets/${datasetId}/object?key=manifest.json`,
+      );
+
+      if (manifestRes.ok) {
+        const { url } = (await manifestRes.json()) as { url: string };
+        const manifestFetch = await fetch(url);
+
+        if (manifestFetch.ok) {
+          manifestJson = await manifestFetch.json();
+          if (manifestJson?.zarrPath) {
+            zarrPathPrefix = String(manifestJson.zarrPath);
+            if (!zarrPathPrefix.endsWith("/")) zarrPathPrefix += "/";
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[fromS3Zarr] manifest probe failed, assuming legacy layout:", e);
+    }
+
+    if (manifestJson) {
+      console.log(
+        `[fromS3Zarr] manifest found, zarr at "${zarrPathPrefix || "(root)"}"`,
+      );
+    } else {
+      console.log("[fromS3Zarr] no manifest.json — using legacy root layout");
+    }
+
+    await onProgress?.(12, "Listing zarr keys...");
+    const allKeys = await fetchDatasetKeyList(datasetId);
+
+    // Filter keys to just those under the zarr subtree, and strip the prefix
+    // so the adapter sees a "rooted" view.
+    const storeKeys = zarrPathPrefix
+      ? allKeys
+          .filter((k) => k.startsWith(zarrPathPrefix))
+          .map((k) => k.slice(zarrPathPrefix.length))
+      : allKeys;
 
     if (storeKeys.length === 0) {
-      throw new Error("No zarr files found for this dataset in S3");
+      throw new Error(
+        `No zarr files found for this dataset in S3 (expected under "${zarrPathPrefix || "(root)"}")`,
+      );
     }
 
     await onProgress?.(15, "Initializing h5ad-zarr adapter...");
 
-    const store = new PresignedFetchStore(datasetId);
+    const store = new PresignedFetchStore(datasetId, { keyPrefix: zarrPathPrefix });
     const { H5adZarrAdapter } = await import("./adapters/H5adZarrAdapter");
     const adapter = new H5adZarrAdapter(store, storeKeys);
 

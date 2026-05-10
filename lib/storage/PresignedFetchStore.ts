@@ -16,18 +16,32 @@ import type { AbsolutePath, AsyncReadable } from "@zarrita/storage";
 export class PresignedFetchStore implements AsyncReadable {
   private datasetId: string;
   private apiBase: string;
+  /**
+   * Optional prefix prepended to every key. Lets the adapter see a "rooted"
+   * view of a sub-tree (e.g. when the AnnData-zarr lives at
+   * `datasets/{id}/data.zarr/...` instead of at the dataset root).
+   * Empty string = no rewrite.
+   */
+  private keyPrefix: string;
   private urlCache = new Map<string, { url: string; expiresAt: number }>();
   // Sub-second margin to avoid using a URL that's about to expire mid-fetch.
   private readonly safetyMarginMs = 60_000;
 
-  constructor(datasetId: string, apiBase = "") {
+  constructor(datasetId: string, opts: { keyPrefix?: string; apiBase?: string } = {}) {
     this.datasetId = datasetId;
-    this.apiBase = apiBase;
+    this.apiBase = opts.apiBase ?? "";
+    // Normalize: ensure trailing slash if non-empty, no leading slash.
+    let p = opts.keyPrefix ?? "";
+
+    if (p.startsWith("/")) p = p.slice(1);
+    if (p && !p.endsWith("/")) p = `${p}/`;
+    this.keyPrefix = p;
   }
 
   async get(key: AbsolutePath): Promise<Uint8Array | undefined> {
     const relativeKey = key.startsWith("/") ? key.slice(1) : key;
-    const presigned = await this.getPresignedUrl(relativeKey);
+    const fullKey = this.keyPrefix + relativeKey;
+    const presigned = await this.getPresignedUrl(fullKey);
 
     if (!presigned) return undefined;
 
@@ -36,7 +50,7 @@ export class PresignedFetchStore implements AsyncReadable {
     if (res.status === 404 || res.status === 403) return undefined;
     if (!res.ok) {
       throw new Error(
-        `S3 GET ${res.status} for ${relativeKey}: ${res.statusText}`,
+        `S3 GET ${res.status} for ${fullKey}: ${res.statusText}`,
       );
     }
     const buf = await res.arrayBuffer();
@@ -44,20 +58,20 @@ export class PresignedFetchStore implements AsyncReadable {
     return new Uint8Array(buf);
   }
 
-  private async getPresignedUrl(relativeKey: string): Promise<string | null> {
+  private async getPresignedUrl(fullKey: string): Promise<string | null> {
     const now = Date.now();
-    const cached = this.urlCache.get(relativeKey);
+    const cached = this.urlCache.get(fullKey);
 
     if (cached && cached.expiresAt - now > this.safetyMarginMs) {
       return cached.url;
     }
 
-    const apiUrl = `${this.apiBase}/api/datasets/${this.datasetId}/object?key=${encodeURIComponent(relativeKey)}`;
+    const apiUrl = `${this.apiBase}/api/datasets/${this.datasetId}/object?key=${encodeURIComponent(fullKey)}`;
     const res = await fetch(apiUrl);
 
     if (res.status === 404) return null;
     if (!res.ok) {
-      throw new Error(`/object failed (${res.status}) for ${relativeKey}`);
+      throw new Error(`/object failed (${res.status}) for ${fullKey}`);
     }
 
     const { url, expiresIn } = (await res.json()) as {
@@ -65,7 +79,7 @@ export class PresignedFetchStore implements AsyncReadable {
       expiresIn: number;
     };
 
-    this.urlCache.set(relativeKey, {
+    this.urlCache.set(fullKey, {
       url,
       expiresAt: now + expiresIn * 1000,
     });

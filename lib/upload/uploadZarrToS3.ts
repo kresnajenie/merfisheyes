@@ -12,6 +12,11 @@ const MAX_CONCURRENCY = 8;
 const MAX_RETRIES = 3;
 const PROGRESS_BATCH_SIZE = 25; // flush completedFiles to server every N files
 
+// Where the AnnData-zarr lives within the dataset prefix. Fixed name so the
+// reader doesn't have to negotiate it. Sidecar files (gene means, presets, etc.)
+// land alongside `data.zarr/` under `datasets/{id}/`.
+const ZARR_SUBDIR = "data.zarr";
+
 interface InitiateZarrResponse {
   datasetId: string;
   uploadId: string;
@@ -21,7 +26,7 @@ interface InitiateZarrResponse {
 }
 
 export interface ZarrUploadOptions {
-  fileMap: Map<string, File>; // relativePath -> File
+  fileMap: Map<string, File>; // relativePath -> File (zarr files only)
   fingerprint: string;
   metadata: {
     title?: string;
@@ -31,6 +36,12 @@ export interface ZarrUploadOptions {
   };
   email: string;
   datasetName: string;
+  /**
+   * Builds the manifest.json that lands at `datasets/{id}/manifest.json`.
+   * Called after the server assigns a `datasetId`. Anything the caller needs
+   * to embed (statistics, format hints, future sidecars) goes here.
+   */
+  buildManifest: (datasetId: string) => Record<string, any>;
   onProgress?: (progress: number, message: string) => void;
 }
 
@@ -64,7 +75,8 @@ export async function uploadZarrToS3(
     body: JSON.stringify({
       fingerprint,
       metadata,
-      totalFiles: fileMap.size,
+      // +1 for manifest.json at the dataset root (alongside data.zarr/).
+      totalFiles: fileMap.size + 1,
     }),
   });
 
@@ -77,12 +89,29 @@ export async function uploadZarrToS3(
   const init: InitiateZarrResponse = await initRes.json();
   const { datasetId, uploadId, keyPrefix, url, fields } = init;
 
+  // Build manifest.json now that we have a server-assigned datasetId.
+  const manifestObj = opts.buildManifest(datasetId);
+  const manifestBlob = new Blob([JSON.stringify(manifestObj, null, 2)], {
+    type: "application/json",
+  });
+
+  // Combine manifest + zarr files into a single upload list. Manifest goes
+  // at the dataset root; every zarr file is prefixed with `data.zarr/`.
+  type UploadEntry = { destKey: string; blob: Blob; filename: string };
+  const entries: UploadEntry[] = [
+    { destKey: "manifest.json", blob: manifestBlob, filename: "manifest.json" },
+    ...Array.from(fileMap.entries()).map(([relPath, file]) => ({
+      destKey: `${ZARR_SUBDIR}/${relPath}`,
+      blob: file as Blob,
+      filename: relPath,
+    })),
+  ];
+
   console.log(
-    `[uploadZarrToS3] datasetId=${datasetId} uploadId=${uploadId} files=${fileMap.size}`,
+    `[uploadZarrToS3] datasetId=${datasetId} uploadId=${uploadId} totalUploads=${entries.length} (1 manifest + ${fileMap.size} zarr)`,
   );
 
   // 2. Upload with bounded concurrency
-  const entries = Array.from(fileMap.entries());
   const total = entries.length;
   let completed = 0;
   let progressBuffer = 0;
@@ -107,7 +136,7 @@ export async function uploadZarrToS3(
     }
   };
 
-  const uploadOne = async (relPath: string, file: File): Promise<void> => {
+  const uploadOne = async (entry: UploadEntry): Promise<void> => {
     let attempt = 0;
     let lastErr: unknown = null;
 
@@ -122,8 +151,8 @@ export async function uploadZarrToS3(
           if (k === "key") continue;
           fd.append(k, v);
         }
-        fd.append("key", `${keyPrefix}${relPath}`);
-        fd.append("file", file, relPath);
+        fd.append("key", `${keyPrefix}${entry.destKey}`);
+        fd.append("file", entry.blob, entry.filename);
 
         const res = await fetch(url, { method: "POST", body: fd });
 
@@ -145,7 +174,7 @@ export async function uploadZarrToS3(
       }
     }
     throw new Error(
-      `Failed to upload ${relPath} after ${MAX_RETRIES} attempts: ${lastErr}`,
+      `Failed to upload ${entry.destKey} after ${MAX_RETRIES} attempts: ${lastErr}`,
     );
   };
 
@@ -157,9 +186,9 @@ export async function uploadZarrToS3(
       const idx = cursor++;
 
       if (idx >= entries.length) return;
-      const [relPath, file] = entries[idx];
+      const entry = entries[idx];
 
-      await uploadOne(relPath, file);
+      await uploadOne(entry);
       completed++;
       progressBuffer++;
       const pct = (completed / total) * 100;

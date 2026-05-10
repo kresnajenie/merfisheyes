@@ -153,6 +153,40 @@ export function UploadSettingsModal({
           },
           email,
           datasetName,
+          // Manifest mirrors the chunked-format schema; the `format`
+          // discriminator and `zarrPath` tell the reader to use H5adZarrAdapter
+          // against `datasets/{id}/data.zarr/`. `files` is open-ended so future
+          // sidecars (e.g. gene_means.json) can register here.
+          buildManifest: (datasetId) => ({
+            version: "2.0",
+            format: "zarr",
+            zarrPath: "data.zarr",
+            normalized: dataset.normalized,
+            created_at: new Date().toISOString(),
+            dataset_id: datasetId,
+            name: datasetName,
+            type: dataset.type,
+            statistics: {
+              total_cells: dataset.getPointCount(),
+              total_genes: dataset.genes.length,
+              spatial_dimensions: dataset.spatial.dimensions,
+              available_embeddings:
+                dataset.allEmbeddingNames && dataset.allEmbeddingNames.length > 0
+                  ? [...dataset.allEmbeddingNames]
+                  : Object.keys(dataset.embeddings ?? {}),
+              cluster_count: dataset.allClusterColumnNames?.length ?? 0,
+            },
+            files: {
+              zarr: "data.zarr/",
+              // Future sidecars register here, e.g.:
+              //   gene_means: "gene_means.json"
+            },
+            processing: {
+              format: "anndata-zarr",
+              created_by: "MERFISH Visualizer",
+              source_file: dataset.name || "unknown",
+            },
+          }),
           onProgress: (prog, msg) => {
             setUploadProgress(prog);
             setUploadMessage(msg);
