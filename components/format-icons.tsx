@@ -49,8 +49,8 @@ function LogoTile({
 
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-md ${tile} ${className ?? ""}`}
-      style={{ width: 48, height: 48, padding: 6 }}
+      className={`inline-flex items-center justify-center rounded-lg ${tile} ${className ?? ""}`}
+      style={{ width: 64, height: 64, padding: 8 }}
     >
       {/* Plain <img> so we don't pull next/image in for tiny static logos */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -82,18 +82,13 @@ export function XeniumIcon(props: { className?: string }) {
   );
 }
 
-/**
- * MERSCOPE — Vizgen logo is shipped as a JPG with a baked-in white
- * background, so we keep a white pill rather than inverting (which would
- * flip the whole tile black).
- */
+/** MERSCOPE — uses /logos/vizgen.png on the same dark glass tile. */
 export function MerscopeIcon(props: { className?: string }) {
   return (
     <LogoTile
       alt="MERSCOPE (Vizgen)"
       className={props.className}
       src="/logos/vizgen.png"
-      tone="light"
     />
   );
 }
@@ -102,15 +97,15 @@ export function MerscopeIcon(props: { className?: string }) {
 export function ChunkedIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <span
-      className="inline-flex items-center justify-center rounded-md bg-white/10 border border-white/15 backdrop-blur-sm"
-      style={{ width: 48, height: 48, padding: 6 }}
+      className="inline-flex items-center justify-center rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm"
+      style={{ width: 64, height: 64, padding: 8 }}
     >
       <svg
         className={baseIcon}
         fill="none"
-        height="32"
+        height="48"
         viewBox="0 0 32 32"
-        width="32"
+        width="48"
         xmlns="http://www.w3.org/2000/svg"
         {...props}
       >
