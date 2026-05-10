@@ -84,12 +84,35 @@ export function FileUpload({
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
+    async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
 
-      const files = Array.from(e.dataTransfer.files);
+      // dataTransfer.files does NOT recurse into dropped folders — for that
+      // we have to walk dataTransfer.items via webkitGetAsEntry. We patch
+      // webkitRelativePath on each yielded File so the detection helpers and
+      // downstream upload code (which all key off webkitRelativePath) work
+      // identically to the click-to-pick path.
+      let files: File[] = [];
+
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+        // Capture entries synchronously; FileSystemEntry handles become
+        // invalid after the drop event finishes propagating.
+        const entries = Array.from(e.dataTransfer.items)
+          .filter((item) => item.kind === "file")
+          .map((item) => (item as any).webkitGetAsEntry?.())
+          .filter(Boolean);
+
+        try {
+          files = await collectFilesFromEntries(entries);
+        } catch (err) {
+          console.error("[FileUpload] folder walk failed:", err);
+          files = Array.from(e.dataTransfer.files);
+        }
+      } else {
+        files = Array.from(e.dataTransfer.files);
+      }
 
       handleFiles(files);
     },
@@ -605,4 +628,69 @@ export function FileUpload({
       </div>
     </div>
   );
+}
+
+/**
+ * Recursively walk a list of FileSystemEntry trees (from dataTransfer.items
+ * via webkitGetAsEntry) and return all leaf File objects.
+ *
+ * Each yielded File gets its `webkitRelativePath` patched to the dropped-tree
+ * path so downstream detection (`isXeniumFolder`, etc.) and file-map building
+ * (`fromH5adZarr`, `fromLocalChunked`) behave the same as the click-to-pick
+ * `<input webkitdirectory>` path.
+ */
+async function collectFilesFromEntries(entries: any[]): Promise<File[]> {
+  const out: File[] = [];
+
+  await Promise.all(entries.map((entry) => walkEntry(entry, "", out)));
+
+  return out;
+}
+
+async function walkEntry(
+  entry: any,
+  parentPath: string,
+  out: File[],
+): Promise<void> {
+  if (!entry) return;
+
+  const namePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+  if (entry.isFile) {
+    const file: File = await new Promise((resolve, reject) => {
+      entry.file(resolve, reject);
+    });
+
+    // webkitRelativePath is a getter on File.prototype; defining an own
+    // property on the instance shadows it. This is the standard trick for
+    // drag-and-drop folder uploads — supported in Chromium, Firefox, Safari.
+    try {
+      Object.defineProperty(file, "webkitRelativePath", {
+        value: namePath,
+        configurable: true,
+        writable: false,
+      });
+    } catch {
+      // Some engines lock down the prototype getter; fall back silently.
+      // The detection helpers will still see file.name; folder routing may
+      // misclassify but the user gets a friendly error.
+    }
+    out.push(file);
+
+    return;
+  }
+
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+
+    // readEntries returns up to ~100 entries per call; loop until empty.
+    while (true) {
+      const batch: any[] = await new Promise((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
+
+      if (batch.length === 0) break;
+      await Promise.all(batch.map((child) => walkEntry(child, namePath, out)));
+    }
+  }
 }
