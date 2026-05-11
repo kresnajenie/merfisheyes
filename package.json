@@ -20,6 +20,7 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@aws-sdk/client-s3": "^3.901.0",
     "@aws-sdk/client-ses": "^3.1021.0",
+    "@aws-sdk/s3-presigned-post": "^3.1045.0",
     "@aws-sdk/s3-request-presigner": "^3.901.0",
     "@heroui/accordion": "2.2.23",
     "@heroui/alert": "2.2.26",
@@ -67,6 +68,7 @@
     "@react-aria/visually-hidden": "3.8.27",
     "@types/three": "^0.180.0",
     "@vercel/analytics": "^1.6.1",
+    "anndata.js": "^0.0.2",
     "clsx": "2.1.1",
     "comlink": "^4.4.2",
     "dotenv": "^17.2.3",
@@ -92,6 +94,7 @@
     "react-rnd": "^10.5.3",
     "react-toastify": "^11.0.5",
     "three": "^0.180.0",
+    "zarrita": "0.5.1",
     "zod": "^4.1.11",
     "zustand": "^5.0.8"
   },

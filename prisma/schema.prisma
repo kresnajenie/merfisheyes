@@ -154,6 +154,7 @@ model Dataset {
   numCells       Int             @map("num_cells")
   numGenes       Int             @map("num_genes")
   datasetType    String?         @map("dataset_type") @db.VarChar(50)
+  formatVersion  String          @default("chunked") @map("format_version") @db.VarChar(20)
   manifestJson   Json?           @map("manifest_json")
   status         DatasetStatus   @default(UPLOADING)
   manifestUrl    String?         @map("manifest_url") @db.VarChar(1000)

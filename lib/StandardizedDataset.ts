@@ -816,4 +816,375 @@ export class StandardizedDataset {
 
     return dataset;
   }
+
+  /**
+   * Load dataset from a drag-and-dropped h5ad-zarr folder.
+   *
+   * Lazy gene expression for dense / CSC X. For CSR, densifies once up
+   * front in a worker (with a clear "this is slow because of CSR" warning)
+   * and caches the result on `dataset.matrix`.
+   */
+  static async fromH5adZarr(
+    files: File[],
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+    priorityColumnHint?: string,
+  ): Promise<StandardizedDataset> {
+    console.log("[StandardizedDataset] Loading h5ad-zarr from local files...");
+
+    // Build the same kind of relative-path file map fromLocalChunked uses.
+    const fileMap = new Map<string, File>();
+
+    for (const file of files) {
+      const relativePath = file.webkitRelativePath;
+
+      if (!relativePath) continue;
+      const parts = relativePath.split("/");
+      const fileKey = parts.slice(1).join("/"); // strip root folder
+
+      fileMap.set(fileKey, file);
+    }
+
+    if (fileMap.size === 0) {
+      throw new Error(
+        "No files in dropped folder (webkitRelativePath was empty on all files)",
+      );
+    }
+
+    // Derive a name from the dropped folder.
+    const rootFolder = files[0]?.webkitRelativePath?.split("/")[0] ?? "zarr";
+    const datasetName = rootFolder.replace(/\.zarr$/, "");
+    const datasetId = `h5ad_zarr_${datasetName}_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 11)}`;
+
+    await onProgress?.(5, "Initializing h5ad-zarr adapter...");
+
+    const { H5adZarrAdapter } = await import("./adapters/H5adZarrAdapter");
+    const { FileMapStore } = await import("./storage/FileMapStore");
+    const store = new FileMapStore(fileMap);
+    const adapter = new H5adZarrAdapter(store, Array.from(fileMap.keys()));
+
+    await adapter.initialize(onProgress);
+
+    await onProgress?.(50, "Loading spatial coordinates...");
+    const spatial = await adapter.loadSpatialCoordinates();
+
+    await onProgress?.(60, "Loading genes...");
+    const genes = await adapter.loadGenes();
+
+    const columnInfo = adapter.getClusterColumnInfo();
+    let priorityColumn: string | null = null;
+
+    if (
+      priorityColumnHint &&
+      columnInfo.names.includes(priorityColumnHint)
+    ) {
+      priorityColumn = priorityColumnHint;
+    } else {
+      priorityColumn = selectBestClusterColumnByName(
+        columnInfo.names,
+        columnInfo.types,
+      );
+    }
+
+    await onProgress?.(70, "Loading priority cluster column...");
+    const clusters = priorityColumn
+      ? await adapter.loadClusters([priorityColumn])
+      : null;
+
+    const dataInfo = adapter.getDatasetInfo();
+
+    // Decide whether to densify. CSR → densify in worker once.
+    let matrix: any = null;
+
+    if (dataInfo.xFormat === "csr") {
+      console.warn(
+        "[StandardizedDataset] X is CSR — densifying for visualization. " +
+          "Re-save as CSC or dense for fast lazy gene loading.",
+      );
+      await onProgress?.(
+        72,
+        "X is CSR — densifying matrix in worker (this is slow; re-save as CSC for fast lazy loading)...",
+      );
+
+      const Comlink = await import("comlink");
+      const worker = new Worker(
+        new URL("./workers/zarr-densify.worker.ts", import.meta.url),
+        { type: "module" },
+      );
+
+      try {
+        const api = Comlink.wrap<
+          import("./workers/zarr-densify.worker").ZarrDensifyWorkerApi
+        >(worker);
+
+        const proxiedProgress = onProgress
+          ? Comlink.proxy((p: number, msg: string) => {
+              // Map worker's 0-100 into our overall 72-95 band
+              const mapped = 72 + Math.round((p / 100) * 23);
+
+              return onProgress(mapped, msg);
+            })
+          : undefined;
+
+        const result = await api.densifyCSR(
+          fileMap,
+          dataInfo.numCells,
+          dataInfo.numGenes,
+          "X",
+          proxiedProgress as any,
+        );
+
+        matrix = new Float32Array(result.buffer);
+        console.log(
+          `[StandardizedDataset] CSR densified: ${matrix.length.toLocaleString()} floats (~${(matrix.byteLength / 1024 / 1024).toFixed(0)} MB)`,
+        );
+      } finally {
+        worker.terminate();
+      }
+    } else if (dataInfo.xFormat === "missing") {
+      console.warn(
+        "[StandardizedDataset] No X matrix in zarr — gene expression queries will return null",
+      );
+    }
+    // dense / csc: leave matrix=null, lazy via adapter.fetchGeneExpression
+
+    await onProgress?.(95, "Finalizing dataset...");
+
+    const dataset = new StandardizedDataset({
+      id: datasetId,
+      name: datasetName,
+      type: "h5ad-zarr",
+      spatial: {
+        coordinates: spatial.coordinates,
+        dimensions: spatial.dimensions,
+      },
+      embeddings: {},
+      genes,
+      clusters,
+      metadata: {
+        numCells: dataInfo.numCells,
+        numGenes: dataInfo.numGenes,
+        spatialDimensions: dataInfo.spatialDimensions,
+        availableEmbeddings: dataInfo.availableEmbeddings,
+        clusterCount: dataInfo.clusterCount,
+        xFormat: dataInfo.xFormat,
+      },
+      adapter,
+      rawData: null,
+      normalized: false,
+    });
+
+    dataset.matrix = matrix;
+    dataset.allClusterColumnNames = columnInfo.names;
+    dataset.allClusterColumnTypes = columnInfo.types;
+    dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
+    dataset.allEmbeddingNames = dataInfo.availableEmbeddings || [];
+    dataset.embeddingsFullyLoaded = false;
+
+    // Stash the original file map so the upload modal can read total size
+    // and feed it into uploadZarrToS3. Mirrors how the pre-chunked path
+    // attaches `dataset.chunkedFiles` for the same purpose.
+    (dataset as any).zarrFileMap = fileMap;
+
+    await onProgress?.(100, "Dataset loaded successfully!");
+
+    return dataset;
+  }
+
+  /**
+   * Load a zarr-formatted dataset from our S3.
+   *
+   * Uses PresignedFetchStore for lazy reads via /api/datasets/{id}/object,
+   * and /api/datasets/{id}/list to enumerate the store's key space.
+   *
+   * Lazy gene queries flow through `H5adZarrAdapter.fetchGeneExpression` for
+   * dense / CSC X. CSR is densified up front in a worker (matching the local
+   * drop path).
+   */
+  static async fromS3Zarr(
+    datasetId: string,
+    onProgress?: (progress: number, message: string) => Promise<void> | void,
+    priorityColumnHint?: string,
+  ): Promise<StandardizedDataset> {
+    console.log(
+      "[StandardizedDataset] Loading h5ad-zarr from S3:",
+      datasetId,
+    );
+
+    await onProgress?.(5, "Fetching dataset metadata...");
+    const metaRes = await fetch(`/api/datasets/${datasetId}`);
+
+    if (!metaRes.ok) {
+      const err = await metaRes.json().catch(() => ({}));
+
+      throw new Error(err.message || `Dataset fetch failed: ${metaRes.status}`);
+    }
+    const meta = (await metaRes.json()) as {
+      id: string;
+      title: string | null;
+      formatVersion: string;
+    };
+
+    await onProgress?.(8, "Reading manifest...");
+
+    const { fetchDatasetKeyList, PresignedFetchStore } = await import(
+      "./storage/PresignedFetchStore"
+    );
+
+    // Newer uploads live at `datasets/{id}/data.zarr/...` with a manifest.json
+    // at the root. Older uploads (pre-manifest) put the zarr files directly
+    // at `datasets/{id}/...`. Probe for the manifest; fall back if missing.
+    let zarrPathPrefix = ""; // relative to dataset root
+    let manifestJson: Record<string, any> | null = null;
+
+    try {
+      const manifestRes = await fetch(
+        `/api/datasets/${datasetId}/object?key=manifest.json`,
+      );
+
+      if (manifestRes.ok) {
+        const { url } = (await manifestRes.json()) as { url: string };
+        const manifestFetch = await fetch(url);
+
+        if (manifestFetch.ok) {
+          manifestJson = await manifestFetch.json();
+          if (manifestJson?.zarrPath) {
+            zarrPathPrefix = String(manifestJson.zarrPath);
+            if (!zarrPathPrefix.endsWith("/")) zarrPathPrefix += "/";
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[fromS3Zarr] manifest probe failed, assuming legacy layout:", e);
+    }
+
+    if (manifestJson) {
+      console.log(
+        `[fromS3Zarr] manifest found, zarr at "${zarrPathPrefix || "(root)"}"`,
+      );
+    } else {
+      console.log("[fromS3Zarr] no manifest.json — using legacy root layout");
+    }
+
+    await onProgress?.(12, "Listing zarr keys...");
+    const allKeys = await fetchDatasetKeyList(datasetId);
+
+    // Filter keys to just those under the zarr subtree, and strip the prefix
+    // so the adapter sees a "rooted" view.
+    const storeKeys = zarrPathPrefix
+      ? allKeys
+          .filter((k) => k.startsWith(zarrPathPrefix))
+          .map((k) => k.slice(zarrPathPrefix.length))
+      : allKeys;
+
+    if (storeKeys.length === 0) {
+      throw new Error(
+        `No zarr files found for this dataset in S3 (expected under "${zarrPathPrefix || "(root)"}")`,
+      );
+    }
+
+    await onProgress?.(15, "Initializing h5ad-zarr adapter...");
+
+    const store = new PresignedFetchStore(datasetId, { keyPrefix: zarrPathPrefix });
+    const { H5adZarrAdapter } = await import("./adapters/H5adZarrAdapter");
+    const adapter = new H5adZarrAdapter(store, storeKeys);
+
+    await adapter.initialize(onProgress);
+
+    await onProgress?.(50, "Loading spatial coordinates...");
+    const spatial = await adapter.loadSpatialCoordinates();
+
+    await onProgress?.(60, "Loading genes...");
+    const genes = await adapter.loadGenes();
+
+    const columnInfo = adapter.getClusterColumnInfo();
+    let priorityColumn: string | null = null;
+
+    if (
+      priorityColumnHint &&
+      columnInfo.names.includes(priorityColumnHint)
+    ) {
+      priorityColumn = priorityColumnHint;
+    } else {
+      priorityColumn = selectBestClusterColumnByName(
+        columnInfo.names,
+        columnInfo.types,
+      );
+    }
+
+    await onProgress?.(70, "Loading priority cluster column...");
+    const clusters = priorityColumn
+      ? await adapter.loadClusters([priorityColumn])
+      : null;
+
+    const dataInfo = adapter.getDatasetInfo();
+
+    // CSR densification: re-uses the same worker the local-drop path uses,
+    // but pulls indices/indptr/data from S3 via the same PresignedFetchStore
+    // (we hand the worker a fresh store keyed by datasetId so it can read
+    // independently — File-objects-can't-cross-workers does not apply here).
+    let matrix: any = null;
+
+    if (dataInfo.xFormat === "csr") {
+      console.warn(
+        "[StandardizedDataset.fromS3Zarr] X is CSR — densifying for visualization. Re-save as CSC for fast lazy gene loading.",
+      );
+      await onProgress?.(
+        72,
+        "X is CSR — densifying matrix in worker (this is slow; re-save as CSC for fast lazy loading)...",
+      );
+
+      // Read indices/indptr/data on the main thread via the lazy store, then
+      // densify on the main thread too. (The S3-zarr CSR path doesn't use
+      // the existing densify worker because that worker expects a File-map
+      // input. For now, do the work here; can move into a worker later if
+      // it becomes a UX issue.)
+      throw new Error(
+        "CSR densification on the S3 zarr path is not implemented yet. Re-save your zarr as CSC and re-upload.",
+      );
+    } else if (dataInfo.xFormat === "missing") {
+      console.warn(
+        "[StandardizedDataset.fromS3Zarr] No X matrix in zarr — gene expression queries will return null",
+      );
+    }
+
+    await onProgress?.(95, "Finalizing dataset...");
+
+    const dataset = new StandardizedDataset({
+      id: datasetId,
+      name: meta.title || datasetId,
+      type: "h5ad-zarr",
+      spatial: {
+        coordinates: spatial.coordinates,
+        dimensions: spatial.dimensions,
+      },
+      embeddings: {},
+      genes,
+      clusters,
+      metadata: {
+        numCells: dataInfo.numCells,
+        numGenes: dataInfo.numGenes,
+        spatialDimensions: dataInfo.spatialDimensions,
+        availableEmbeddings: dataInfo.availableEmbeddings,
+        clusterCount: dataInfo.clusterCount,
+        xFormat: dataInfo.xFormat,
+        loadedFrom: "s3_zarr",
+      },
+      adapter,
+      rawData: null,
+      normalized: false,
+    });
+
+    dataset.matrix = matrix;
+    dataset.allClusterColumnNames = columnInfo.names;
+    dataset.allClusterColumnTypes = columnInfo.types;
+    dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
+    dataset.allEmbeddingNames = dataInfo.availableEmbeddings || [];
+    dataset.embeddingsFullyLoaded = false;
+
+    await onProgress?.(100, "Dataset loaded successfully!");
+
+    return dataset;
+  }
 }

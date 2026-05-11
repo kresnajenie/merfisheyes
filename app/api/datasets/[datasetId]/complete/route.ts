@@ -64,20 +64,36 @@ export async function POST(
       );
     }
 
-    // Check if all files were uploaded
-    const completedFiles = uploadSession.files.filter(
-      (f) => f.status === "COMPLETE",
-    ).length;
+    // For zarr-format datasets, we don't track per-file UploadFile rows
+    // (potentially thousands of zarr chunks); rely on the aggregate
+    // UploadSession.completedFiles counter instead.
+    if (dataset.formatVersion === "zarr") {
+      if (uploadSession.completedFiles !== uploadSession.totalFiles) {
+        return NextResponse.json(
+          {
+            error: "Not all files have been uploaded",
+            uploaded: uploadSession.completedFiles,
+            total: uploadSession.totalFiles,
+          },
+          { status: 400, headers: corsHeaders },
+        );
+      }
+    } else {
+      // Chunked path: verify every UploadFile row reached COMPLETE.
+      const completedFiles = uploadSession.files.filter(
+        (f) => f.status === "COMPLETE",
+      ).length;
 
-    if (completedFiles !== uploadSession.totalFiles) {
-      return NextResponse.json(
-        {
-          error: "Not all files have been uploaded",
-          uploaded: completedFiles,
-          total: uploadSession.totalFiles,
-        },
-        { status: 400, headers: corsHeaders },
-      );
+      if (completedFiles !== uploadSession.totalFiles) {
+        return NextResponse.json(
+          {
+            error: "Not all files have been uploaded",
+            uploaded: completedFiles,
+            total: uploadSession.totalFiles,
+          },
+          { status: 400, headers: corsHeaders },
+        );
+      }
     }
 
     // Generate manifest URL if manifest was uploaded

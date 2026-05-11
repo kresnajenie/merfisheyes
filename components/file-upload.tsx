@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
@@ -12,14 +13,30 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 
-type UploadType = "h5ad" | "xenium" | "merscope" | "chunked";
+// "folder" is a meta-type that auto-detects the dropped folder shape
+// (zarr / chunked / xenium / merscope / h5ad-inside) and dispatches to the
+// appropriate handler.
+//
+// "file" (single-molecule only) is the parquet/csv equivalent: sniff the
+// dropped file's column names and pick xenium / merscope / custom on the fly.
+type UploadType =
+  | "h5ad"
+  | "h5ad-zarr"
+  | "xenium"
+  | "merscope"
+  | "chunked"
+  | "folder"
+  | "file";
 
 // Map UploadType to MoleculeDatasetType for single molecule datasets
 const UPLOAD_TYPE_TO_PARQUET_TYPE: Record<UploadType, MoleculeDatasetType> = {
   h5ad: "custom",
+  "h5ad-zarr": "custom",
   xenium: "xenium",
   merscope: "merscope",
   chunked: "custom",
+  folder: "custom",
+  file: "custom",
 };
 
 interface FileUploadProps {
@@ -27,6 +44,11 @@ interface FileUploadProps {
   title: string;
   description: string;
   singleMolecule?: boolean;
+  /**
+   * Optional row of small icons rendered under the description. Used by the
+   * unified "Folder" card to advertise which formats it accepts.
+   */
+  icons?: ReactNode;
 }
 
 export function FileUpload({
@@ -34,6 +56,7 @@ export function FileUpload({
   title,
   description,
   singleMolecule = false,
+  icons,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -61,12 +84,35 @@ export function FileUpload({
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
+    async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
 
-      const files = Array.from(e.dataTransfer.files);
+      // dataTransfer.files does NOT recurse into dropped folders — for that
+      // we have to walk dataTransfer.items via webkitGetAsEntry. We patch
+      // webkitRelativePath on each yielded File so the detection helpers and
+      // downstream upload code (which all key off webkitRelativePath) work
+      // identically to the click-to-pick path.
+      let files: File[] = [];
+
+      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+        // Capture entries synchronously; FileSystemEntry handles become
+        // invalid after the drop event finishes propagating.
+        const entries = Array.from(e.dataTransfer.items)
+          .filter((item) => item.kind === "file")
+          .map((item) => (item as any).webkitGetAsEntry?.())
+          .filter(Boolean);
+
+        try {
+          files = await collectFilesFromEntries(entries);
+        } catch (err) {
+          console.error("[FileUpload] folder walk failed:", err);
+          files = Array.from(e.dataTransfer.files);
+        }
+      } else {
+        files = Array.from(e.dataTransfer.files);
+      }
 
       handleFiles(files);
     },
@@ -105,6 +151,68 @@ export function FileUpload({
     );
 
     return hasManifest && hasExprIndex && hasChunks && hasSpatial;
+  };
+
+  /**
+   * Detect if a folder looks like an h5ad-zarr store (i.e. contains a top-level
+   * .zgroup / .zarray / zarr.json marker).
+   */
+  const isZarrFolder = (files: File[]): boolean => {
+    return files.some((f) => {
+      const path = f.webkitRelativePath || f.name;
+      const parts = path.split("/");
+      const rel = parts.length > 1 ? parts.slice(1).join("/") : path;
+
+      return rel === ".zgroup" || rel === ".zarray" || rel === "zarr.json";
+    });
+  };
+
+  /** Detect Xenium folder by canonical files (cells.csv[.gz]). */
+  const isXeniumFolder = (files: File[]): boolean => {
+    return files.some((f) => {
+      const name = (f.name || "").toLowerCase();
+
+      return name === "cells.csv" || name === "cells.csv.gz";
+    });
+  };
+
+  /** Detect MERSCOPE folder by canonical files (cell_metadata.csv). */
+  const isMerscopeFolder = (files: File[]): boolean => {
+    return files.some((f) => {
+      const name = (f.name || "").toLowerCase();
+
+      return name === "cell_metadata.csv";
+    });
+  };
+
+  /** Detect a single .h5ad file living inside a dropped folder. */
+  const findH5adFile = (files: File[]): File | null => {
+    return (
+      files.find((f) => {
+        const name = (f.name || "").toLowerCase();
+        const rel = (f.webkitRelativePath || "").toLowerCase();
+
+        return name.endsWith(".h5ad") || rel.endsWith(".h5ad");
+      }) ?? null
+    );
+  };
+
+  /**
+   * Auto-detect the format of a dropped folder. Order matters — zarr's
+   * .zgroup is unambiguous; chunked's manifest cluster is unambiguous;
+   * xenium / merscope have format-specific files. h5ad-inside is the catch
+   * for "folder containing an .h5ad" (matches existing MERSCOPE fallback).
+   */
+  const detectFolderFormat = (
+    files: File[],
+  ): "h5ad-zarr" | "chunked" | "xenium" | "merscope" | "h5ad" | null => {
+    if (isZarrFolder(files)) return "h5ad-zarr";
+    if (isChunkedDatasetFolder(files)) return "chunked";
+    if (isXeniumFolder(files)) return "xenium";
+    if (isMerscopeFolder(files)) return "merscope";
+    if (findH5adFile(files)) return "h5ad";
+
+    return null;
   };
 
   /**
@@ -195,14 +303,38 @@ export function FileUpload({
           );
           console.log("File:", file.name, "Size:", file.size, "bytes");
           console.log("File extension:", fileExtension);
-          console.log(
-            "Dataset type:",
-            type,
-            "→",
-            UPLOAD_TYPE_TO_PARQUET_TYPE[type],
-          );
 
-          const parquetDatasetType = UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+          // For the unified "file" upload, sniff column names to pick the
+          // right schema (xenium / merscope / custom). For the legacy
+          // type="xenium" / type="merscope" cards, keep the explicit choice.
+          let parquetDatasetType: MoleculeDatasetType =
+            UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+
+          if (type === "file") {
+            const { detectMoleculeFileType } = await import(
+              "@/lib/services/molecule-file-sniffer"
+            );
+
+            onProgress(2, "Inspecting file schema...");
+            const sniff = await detectMoleculeFileType(file);
+
+            console.log(
+              `[FileUpload] Sniffed columns: [${sniff.columns.slice(0, 8).join(", ")}${sniff.columns.length > 8 ? ", …" : ""}] → ${sniff.type}`,
+            );
+            parquetDatasetType = sniff.type;
+            toast.info(
+              sniff.type === "custom"
+                ? "Using custom column mapping (xenium/merscope schema not detected)"
+                : `Detected ${sniff.type.toUpperCase()} schema`,
+            );
+          } else {
+            console.log(
+              "Dataset type:",
+              type,
+              "→",
+              parquetDatasetType,
+            );
+          }
 
           // Get singleton worker instance
           const workerApi = await getSingleMoleculeWorker();
@@ -247,8 +379,30 @@ export function FileUpload({
           console.log("Summary:", dataset.getSummary());
         }
       } else {
-        // Single cell mode
-        if (type === "chunked") {
+        // Single cell mode.
+        //
+        // The unified "Folder" card uses type="folder" — auto-detect which of
+        // zarr / chunked / xenium / merscope / h5ad-inside the dropped folder
+        // is, then dispatch to the existing per-format branch below.
+        let effectiveType: UploadType = type;
+
+        if (type === "folder") {
+          const detected = detectFolderFormat(files);
+
+          if (!detected) {
+            throw new Error(
+              "Could not recognize this folder. Supported formats: " +
+                "zarr (with .zgroup), pre-chunked (manifest.json + expr/), " +
+                "Xenium (cells.csv), MERSCOPE (cell_metadata.csv), " +
+                "or any folder containing a .h5ad file.",
+            );
+          }
+          effectiveType = detected;
+          console.log(`[FileUpload] Auto-detected folder format: ${detected}`);
+          toast.info(`Detected ${detected.toUpperCase()} folder`);
+        }
+
+        if (effectiveType === "chunked") {
           // Chunked folder upload - verify it's a valid chunked dataset
           if (!isChunkedDatasetFolder(files)) {
             throw new Error(
@@ -309,48 +463,35 @@ export function FileUpload({
             "Pre-chunked dataset ready. File map size:",
             fileMap.size,
           );
-        } else if (type === "h5ad") {
-          const file = files[0];
+        } else if (effectiveType === "h5ad") {
+          // h5ad can come from the .h5ad file card OR an auto-detected
+          // folder containing a .h5ad (e.g., a MERSCOPE export with one).
+          const h5adFile = findH5adFile(files) ?? files[0];
 
-          toast.info(`Processing ${file.name}...`);
+          toast.info(`Processing ${h5adFile.name}...`);
           console.log("=== Starting H5AD file processing ===");
-          console.log("File:", file.name, "Size:", file.size, "bytes");
-          dataset = await StandardizedDataset.fromH5ad(file, onProgress);
-        } else if (type === "xenium") {
+          console.log("File:", h5adFile.name, "Size:", h5adFile.size, "bytes");
+          dataset = await StandardizedDataset.fromH5ad(h5adFile, onProgress);
+        } else if (effectiveType === "h5ad-zarr") {
+          if (!isZarrFolder(files)) {
+            throw new Error(
+              "Dropped folder is not a zarr store (expected a .zgroup, .zarray, or zarr.json marker at the root).",
+            );
+          }
+          toast.info(`Processing zarr folder (${files.length} files)...`);
+          console.log("=== Starting h5ad-zarr folder processing ===");
+          console.log("Files:", files.length);
+          dataset = await StandardizedDataset.fromH5adZarr(files, onProgress);
+        } else if (effectiveType === "xenium") {
           toast.info(`Processing Xenium folder (${files.length} files)...`);
           console.log("=== Starting Xenium folder processing ===");
           console.log("Files:", files.length);
           dataset = await StandardizedDataset.fromXenium(files, onProgress);
         } else {
-          // MERSCOPE uploads may contain a preprocessed H5AD
-          const h5adFile = files.find((f) => {
-            const name = f.name.toLowerCase();
-            const rel = (f.webkitRelativePath || "").toLowerCase();
-
-            return name.endsWith(".h5ad") || rel.endsWith(".h5ad");
-          });
-
-          if (h5adFile) {
-            toast.info(
-              `Detected H5AD file (${h5adFile.name}); processing as H5AD...`,
-            );
-            console.log(
-              "=== H5AD detected inside MERSCOPE upload; routing to H5AD parser ===",
-            );
-            console.log(
-              "File:",
-              h5adFile.name,
-              "Size:",
-              h5adFile.size,
-              "bytes",
-            );
-            dataset = await StandardizedDataset.fromH5ad(h5adFile, onProgress);
-          } else {
-            toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
-            console.log("=== Starting MERSCOPE folder processing ===");
-            console.log("Files:", files.length);
-            dataset = await StandardizedDataset.fromMerscope(files, onProgress);
-          }
+          toast.info(`Processing MERSCOPE folder (${files.length} files)...`);
+          console.log("=== Starting MERSCOPE folder processing ===");
+          console.log("Files:", files.length);
+          dataset = await StandardizedDataset.fromMerscope(files, onProgress);
         }
 
         console.log("=== Dataset created successfully ===");
@@ -409,7 +550,11 @@ export function FileUpload({
   };
 
   const isFolder =
-    (type === "xenium" || type === "merscope" || type === "chunked") &&
+    (type === "xenium" ||
+      type === "merscope" ||
+      type === "chunked" ||
+      type === "h5ad-zarr" ||
+      type === "folder") &&
     (singleMolecule ? type === "chunked" : true);
 
   // Get isLoading from appropriate store
@@ -422,6 +567,9 @@ export function FileUpload({
     if (singleMolecule) {
       return ".parquet,.csv";
     }
+    if (type === "file") {
+      return ".parquet,.csv,.tsv,.txt";
+    }
 
     return type === "h5ad" ? ".h5ad" : ".csv,.tsv,.txt";
   };
@@ -431,10 +579,11 @@ export function FileUpload({
       <div
         className={`
           relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
-          transition-all duration-200 ease-in-out aspect-square flex items-center justify-center
+          transition-all duration-200 ease-in-out flex items-center justify-center
+          min-h-[10rem]
           ${
             isDragging
-              ? "border-primary bg-primary/10 scale-105"
+              ? "border-primary bg-primary/10 scale-[1.02]"
               : "border-default-300 hover:border-primary/50 hover:bg-default-100/50"
           }
           ${isLoading ? "pointer-events-none opacity-60" : ""}
@@ -458,6 +607,12 @@ export function FileUpload({
           <p className="text-lg font-semibold text-foreground">{title}</p>
           <p className="text-xs text-default-500">{description}</p>
 
+          {icons ? (
+            <div className="flex items-center justify-center gap-2 mt-1 text-default-500">
+              {icons}
+            </div>
+          ) : null}
+
           {isLoading && progress > 0 && (
             <div className="w-full mt-4 px-4">
               <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
@@ -473,4 +628,69 @@ export function FileUpload({
       </div>
     </div>
   );
+}
+
+/**
+ * Recursively walk a list of FileSystemEntry trees (from dataTransfer.items
+ * via webkitGetAsEntry) and return all leaf File objects.
+ *
+ * Each yielded File gets its `webkitRelativePath` patched to the dropped-tree
+ * path so downstream detection (`isXeniumFolder`, etc.) and file-map building
+ * (`fromH5adZarr`, `fromLocalChunked`) behave the same as the click-to-pick
+ * `<input webkitdirectory>` path.
+ */
+async function collectFilesFromEntries(entries: any[]): Promise<File[]> {
+  const out: File[] = [];
+
+  await Promise.all(entries.map((entry) => walkEntry(entry, "", out)));
+
+  return out;
+}
+
+async function walkEntry(
+  entry: any,
+  parentPath: string,
+  out: File[],
+): Promise<void> {
+  if (!entry) return;
+
+  const namePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+
+  if (entry.isFile) {
+    const file: File = await new Promise((resolve, reject) => {
+      entry.file(resolve, reject);
+    });
+
+    // webkitRelativePath is a getter on File.prototype; defining an own
+    // property on the instance shadows it. This is the standard trick for
+    // drag-and-drop folder uploads — supported in Chromium, Firefox, Safari.
+    try {
+      Object.defineProperty(file, "webkitRelativePath", {
+        value: namePath,
+        configurable: true,
+        writable: false,
+      });
+    } catch {
+      // Some engines lock down the prototype getter; fall back silently.
+      // The detection helpers will still see file.name; folder routing may
+      // misclassify but the user gets a friendly error.
+    }
+    out.push(file);
+
+    return;
+  }
+
+  if (entry.isDirectory) {
+    const reader = entry.createReader();
+
+    // readEntries returns up to ~100 entries per call; loop until empty.
+    while (true) {
+      const batch: any[] = await new Promise((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
+
+      if (batch.length === 0) break;
+      await Promise.all(batch.map((child) => walkEntry(child, namePath, out)));
+    }
+  }
 }
