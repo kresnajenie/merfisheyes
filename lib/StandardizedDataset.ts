@@ -1,5 +1,6 @@
 import { normalizeCoordinates, normalizeCoordinatesFlat } from "./utils/coordinates";
 import { selectBestClusterColumnByName } from "./utils/dataset-utils";
+import type { DeStats } from "./utils/de-stats";
 
 interface SpatialData {
   coordinates: Float32Array | number[][];
@@ -93,6 +94,8 @@ export class StandardizedDataset {
   allEmbeddingNames: string[];
   embeddingsFullyLoaded: boolean;
   normalized: boolean; // false = raw coordinates, true = normalized [-1,1]
+  deStats: DeStats | null;
+  deStatsByColumn: Map<string, DeStats>;
 
   constructor({
     id,
@@ -157,6 +160,8 @@ export class StandardizedDataset {
     this.clustersFullyLoaded = true; // Default true; S3/chunked paths set false
     this.allEmbeddingNames = [];
     this.embeddingsFullyLoaded = true; // Default true; S3/chunked paths set false
+    this.deStats = null;
+    this.deStatsByColumn = new Map();
 
     this.validateStructure();
   }
@@ -378,6 +383,7 @@ export class StandardizedDataset {
     allClusterColumnTypes?: Record<string, string>;
     allEmbeddingNames?: string[];
     normalized?: boolean;
+    deStats?: DeStats | null;
   }): StandardizedDataset {
     const dataset = new StandardizedDataset({
       id: data.id,
@@ -396,6 +402,12 @@ export class StandardizedDataset {
     // Pre-cache the matrix if provided (from worker)
     if (data.matrix) {
       dataset.matrix = data.matrix;
+    }
+
+    // Pre-cache deStats if provided (from worker), and seed the per-column cache.
+    if (data.deStats) {
+      dataset.deStats = data.deStats;
+      dataset.deStatsByColumn.set(data.deStats.column, data.deStats);
     }
 
     // Set deferred cluster loading info if provided

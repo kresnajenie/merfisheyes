@@ -24,6 +24,7 @@ export interface VisualizationState {
   alphaScale: number;
   sizeScale: number;
   clusterVersion: number;
+  deStatsVersion: number;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
   celltypePlayback: boolean;
   celltypePlaybackInterval: number;
@@ -63,6 +64,7 @@ export interface VisualizationState {
   setCelltypeSearchTerm: (value: string) => void;
   setGeneSearchTerm: (value: string) => void;
   incrementClusterVersion: () => void;
+  incrementDeStatsVersion: () => void;
   toggleColumnType: (
     column: string,
     currentType: "categorical" | "numerical",
@@ -117,6 +119,7 @@ const initialState = {
   alphaScale: VISUALIZATION_CONFIG.POINT_BASE_ALPHA,
   sizeScale: 1.0,
   clusterVersion: 0,
+  deStatsVersion: 0,
   columnTypeOverrides: {} as Record<string, "categorical" | "numerical">,
   celltypePlayback: false,
   celltypePlaybackInterval: 1.0,
@@ -322,6 +325,10 @@ export function createVisualizationStoreInstance() {
 
     incrementClusterVersion: () => {
       set((state) => ({ clusterVersion: state.clusterVersion + 1 }));
+    },
+
+    incrementDeStatsVersion: () => {
+      set((state) => ({ deStatsVersion: state.deStatsVersion + 1 }));
     },
 
     toggleColumnType: (column, currentType) => {

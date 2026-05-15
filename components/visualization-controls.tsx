@@ -15,6 +15,12 @@ import { AdvancedVizPanel } from "./advanced-viz-panel";
 import { CameraPanel } from "./camera-panel";
 import { useSliderRange } from "./slider-range-popover";
 import { PlotPanel } from "./plot-panel";
+import { DegPanel } from "./deg-panel";
+import { toast } from "react-toastify";
+import {
+  ensureDeStatsForColumn,
+  isDeStatsInFlight,
+} from "@/lib/utils/de-stats";
 
 import {
   usePanelVisualizationStore,
@@ -92,11 +98,63 @@ export function VisualizationControls() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isDegOpen, setIsDegOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
+
+  const hasDeStats = !!dataset?.deStats;
+
+  // Recompute deStats when the user changes the cluster column. Numerical
+  // columns skip (the panel stays on its last categorical column). Cache hits
+  // return synchronously inside ensureDeStatsForColumn.
+  const incrementDeStatsVersion = usePanelVisualizationStore(
+    (s) => s.incrementDeStatsVersion,
+  );
+  useEffect(() => {
+    if (!dataset || !selectedColumn) return;
+    if (!dataset.deStats) return; // dataset doesn't support DEG (e.g. Xenium)
+    const cluster = dataset.clusters?.find((c) => c.column === selectedColumn);
+    if (!cluster || cluster.type !== "categorical") return;
+    if (dataset.deStatsByColumn.has(selectedColumn)) return;
+    if (isDeStatsInFlight(dataset.id, selectedColumn)) return;
+
+    const toastId = toast.loading(`Computing DEG for "${selectedColumn}"...`);
+    let lastPct = -1;
+    ensureDeStatsForColumn(dataset, selectedColumn, async (frac) => {
+      const pct = Math.round(frac * 100);
+      if (pct === lastPct) return;
+      lastPct = pct;
+      toast.update(toastId, {
+        render: `Computing DEG for "${selectedColumn}"... ${pct}%`,
+      });
+    })
+      .then((result) => {
+        if (result) {
+          toast.update(toastId, {
+            render: `DEG ready for "${selectedColumn}"`,
+            type: "success",
+            isLoading: false,
+            autoClose: 1500,
+          });
+          incrementDeStatsVersion();
+        } else {
+          toast.dismiss(toastId);
+        }
+      })
+      .catch((err) => {
+        console.warn("[deStats] compute failed:", err);
+        toast.update(toastId, {
+          render: `DEG compute failed for "${selectedColumn}"`,
+          type: "error",
+          isLoading: false,
+          autoClose: 3000,
+        });
+      });
+  }, [dataset, selectedColumn, clusterVersion, incrementDeStatsVersion]);
 
   const handleModeChange = (newMode: VisualizationMode) => {
     setIsAdvancedOpen(false);
     setIsCameraOpen(false);
+    setIsDegOpen(false);
     if (panelMode === newMode) {
       setIsPanelOpen(!isPanelOpen);
     } else {
@@ -196,6 +254,29 @@ export function VisualizationControls() {
         Gene
       </Button>
 
+      {/* DEG Button — only when deStats is available on the dataset */}
+      {hasDeStats && (
+        <Tooltip content="Differentially expressed genes" placement="right">
+          <Button
+            className={`${buttonBaseClass} ${isDegOpen ? "" : glassButton()}`}
+            color={isDegOpen ? "primary" : "default"}
+            variant={isDegOpen ? "shadow" : "light"}
+            onPress={() => {
+              setIsDegOpen((prev) => {
+                if (!prev) {
+                  setIsPanelOpen(false);
+                  setIsAdvancedOpen(false);
+                  setIsCameraOpen(false);
+                }
+                return !prev;
+              });
+            }}
+          >
+            DEG
+          </Button>
+        </Tooltip>
+      )}
+
       {/* Plot Panel Button */}
       <Tooltip content="Plot panel" placement="right">
         <Button
@@ -253,6 +334,7 @@ export function VisualizationControls() {
               if (!prev) {
                 setIsPanelOpen(false);
                 setIsAdvancedOpen(false);
+                setIsDegOpen(false);
               }
               return !prev;
             });
@@ -276,6 +358,7 @@ export function VisualizationControls() {
               if (!prev) {
                 setIsPanelOpen(false);
                 setIsCameraOpen(false);
+                setIsDegOpen(false);
               }
               return !prev;
             });
@@ -324,6 +407,14 @@ export function VisualizationControls() {
 
       {/* Plot Panel (floating, draggable, resizable) */}
       {plotPanelOpen && <PlotPanel />}
+
+      {/* DEG Panel */}
+      {isDegOpen && (
+        <DegPanel
+          controlsRef={controlsRef}
+          onClose={() => setIsDegOpen(false)}
+        />
+      )}
     </div>
   );
 }
