@@ -25,6 +25,8 @@ Usage:
       --out-dir /bil/data/meyes/_genes_inventory
 """
 
+from __future__ import annotations
+
 import argparse
 import csv
 import gzip
@@ -40,7 +42,7 @@ logger = logging.getLogger("count_genes")
 
 DEFAULT_DATASETS = "scripts/bil-scripts/all_datasets.csv"
 DEFAULT_MEYES_BASE = "/bil/data/meyes"
-DEFAULT_OUT = "/bil/data/meyes/_cells_inventory"
+DEFAULT_OUT = "/bil/data/meyes/_genes_inventory"
 
 MAX_WALK_DEPTH = 4
 DEFAULT_WALK_TIMEOUT = 60.0
