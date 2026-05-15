@@ -4,7 +4,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { Input } from "@heroui/input";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
 import {
   usePanelDatasetStore,
@@ -24,15 +24,28 @@ interface DegPanelProps {
 
 type SortKey = "log2FC" | "meanIn" | "pctIn";
 
-export function DegPanel({ onClose, controlsRef }: DegPanelProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
+// Sentinel Autocomplete key for the "vs Rest" reference option. Anything
+// starting with "__" can't collide with a real celltype label produced by
+// the obs JSON normalizer (which strings + fillna("") values).
+const REST_KEY = "__rest__";
+
+export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPanelProps) {
   const { getCurrentDataset } = usePanelDatasetStore();
   const {
     selectedColumn,
-    selectedCelltypes,
     selectedGene,
     setSelectedGene,
     deStatsVersion,
+    degTarget,
+    setDegTarget,
+    degReference,
+    setDegReference,
+    degSearchTerm,
+    setDegSearchTerm,
+    degSortKey,
+    setDegSortKey,
+    degSortDesc,
+    setDegSortDesc,
   } = usePanelVisualizationStore();
 
   const rawDataset = getCurrentDataset();
@@ -59,95 +72,62 @@ export function DegPanel({ onClose, controlsRef }: DegPanelProps) {
   // Touch deStatsVersion so this component re-renders when a compute finishes.
   void deStatsVersion;
 
-  // Default target celltype: first currently selected, else first in deStats.
-  const initialTarget = useMemo(() => {
-    if (!deStats || deStats.celltypes.length === 0) return null;
-    const cts = new Set(deStats.celltypes);
-    for (const ct of selectedCelltypes) {
-      if (cts.has(ct)) return ct;
-    }
-    return deStats.celltypes[0];
-  }, [deStats, selectedCelltypes]);
-
-  const [target, setTarget] = useState<string | null>(initialTarget);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("log2FC");
-  const [sortDesc, setSortDesc] = useState(true);
-
-  // Reset target whenever the active column changes (celltypes are a different
-  // set per column).
-  useEffect(() => {
-    setTarget(initialTarget);
-  }, [activeColumn, initialTarget]);
-
-  // Click outside to close
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const t = event.target as Node;
-      if (panelRef.current && panelRef.current.contains(t)) return;
-      if (controlsRef?.current && controlsRef.current.contains(t)) return;
-      if (
-        t instanceof HTMLElement &&
-        t.closest(
-          '[role="listbox"], [data-slot="content"], [role="dialog"], [data-slot="backdrop"]',
-        )
-      )
-        return;
-      onClose();
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose, controlsRef]);
-
   const ranked: RankedDeg[] = useMemo(() => {
-    if (!deStats || !target) return [];
-    return rankDegsForCelltype(deStats, target);
-  }, [deStats, target]);
+    if (!deStats || !degTarget) return [];
+    return rankDegsForCelltype(deStats, degTarget, {
+      reference: degReference,
+    });
+  }, [deStats, degTarget, degReference]);
 
   const sorted = useMemo(() => {
-    if (sortKey === "log2FC" && sortDesc) return ranked; // already sorted
+    if (degSortKey === "log2FC" && degSortDesc) return ranked; // already sorted
     const copy = ranked.slice();
     copy.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      return sortDesc ? bv - av : av - bv;
+      const av = a[degSortKey];
+      const bv = b[degSortKey];
+      return degSortDesc ? bv - av : av - bv;
     });
     return copy;
-  }, [ranked, sortKey, sortDesc]);
+  }, [ranked, degSortKey, degSortDesc]);
 
   const filtered = useMemo(() => {
-    if (!searchTerm.trim()) return sorted;
-    const q = searchTerm.toLowerCase();
+    if (!degSearchTerm.trim()) return sorted;
+    const q = degSearchTerm.toLowerCase();
     return sorted.filter((r) => r.gene.toLowerCase().includes(q));
-  }, [sorted, searchTerm]);
+  }, [sorted, degSearchTerm]);
 
   const targetCount = useMemo(() => {
-    if (!deStats || !target) return 0;
-    const i = deStats.celltypes.indexOf(target);
+    if (!deStats || !degTarget) return 0;
+    const i = deStats.celltypes.indexOf(degTarget);
     return i === -1 ? 0 : deStats.cellCounts[i];
-  }, [deStats, target]);
+  }, [deStats, degTarget]);
   const totalCount = useMemo(
     () => deStats?.cellCounts.reduce((a, b) => a + b, 0) ?? 0,
     [deStats],
   );
+  const referenceCount = useMemo(() => {
+    if (!deStats) return 0;
+    if (!degReference) return totalCount - targetCount;
+    const i = deStats.celltypes.indexOf(degReference);
+    return i === -1 ? 0 : deStats.cellCounts[i];
+  }, [deStats, degReference, targetCount, totalCount]);
 
   const handleSort = (key: SortKey) => {
-    if (key === sortKey) setSortDesc((d) => !d);
+    if (key === degSortKey) setDegSortDesc(!degSortDesc);
     else {
-      setSortKey(key);
-      setSortDesc(true);
+      setDegSortKey(key);
+      setDegSortDesc(true);
     }
   };
 
   return (
     <div
-      ref={panelRef}
       className={`absolute top-0 left-16 z-50 w-[420px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
     >
       <div className="p-4 space-y-3">
         {computing && !deStats ? (
           <div className="text-sm text-default-400 py-6 text-center">
-            Computing DEG for{" "}
+            Loading DEG for{" "}
             <span className="text-default-200 font-medium">
               {selectedColumn}
             </span>
@@ -177,9 +157,9 @@ export function DegPanel({ onClose, controlsRef }: DegPanelProps) {
               color="primary"
               label="Target celltype"
               placeholder="Pick a celltype"
-              selectedKey={target ?? undefined}
+              selectedKey={degTarget ?? undefined}
               onSelectionChange={(key) =>
-                setTarget((key as string) || null)
+                setDegTarget((key as string) || null)
               }
             >
               {deStats.celltypes.map((ct, i) => (
@@ -196,17 +176,57 @@ export function DegPanel({ onClose, controlsRef }: DegPanelProps) {
               ))}
             </Autocomplete>
 
+            <Autocomplete
+              className="max-w-full"
+              label="Reference"
+              placeholder="Rest"
+              selectedKey={degReference ?? REST_KEY}
+              onSelectionChange={(key) => {
+                const k = key as string | null;
+                setDegReference(!k || k === REST_KEY ? null : k);
+              }}
+            >
+              <AutocompleteItem
+                key={REST_KEY}
+                endContent={
+                  <span className="text-xs text-default-400">
+                    n={(totalCount - targetCount).toLocaleString()}
+                  </span>
+                }
+              >
+                Rest
+              </AutocompleteItem>
+              <>
+                {deStats.celltypes
+                  .map((ct, i) => ({ ct, i }))
+                  .filter(({ ct }) => ct !== degTarget)
+                  .map(({ ct, i }) => (
+                    <AutocompleteItem
+                      key={ct}
+                      endContent={
+                        <span className="text-xs text-default-400">
+                          n={deStats.cellCounts[i]}
+                        </span>
+                      }
+                    >
+                      {ct}
+                    </AutocompleteItem>
+                  ))}
+              </>
+            </Autocomplete>
+
             <div className="text-xs text-default-400 -mt-1">
-              {targetCount.toLocaleString()} cells in target ·{" "}
-              {(totalCount - targetCount).toLocaleString()} in rest
+              {targetCount.toLocaleString()} in target ·{" "}
+              {referenceCount.toLocaleString()} in{" "}
+              {degReference ?? "rest"}
             </div>
 
             <Input
               classNames={{ input: "text-sm" }}
               placeholder="Search gene"
               size="sm"
-              value={searchTerm}
-              onValueChange={setSearchTerm}
+              value={degSearchTerm}
+              onValueChange={setDegSearchTerm}
             />
 
             {/* Header */}
@@ -218,20 +238,20 @@ export function DegPanel({ onClose, controlsRef }: DegPanelProps) {
                 Gene
               </button>
               <SortHeader
-                active={sortKey === "log2FC"}
-                desc={sortDesc}
+                active={degSortKey === "log2FC"}
+                desc={degSortDesc}
                 label="log2FC"
                 onClick={() => handleSort("log2FC")}
               />
               <SortHeader
-                active={sortKey === "meanIn"}
-                desc={sortDesc}
+                active={degSortKey === "meanIn"}
+                desc={degSortDesc}
                 label="mean_in"
                 onClick={() => handleSort("meanIn")}
               />
               <SortHeader
-                active={sortKey === "pctIn"}
-                desc={sortDesc}
+                active={degSortKey === "pctIn"}
+                desc={degSortDesc}
                 label="pct_in"
                 onClick={() => handleSort("pctIn")}
               />

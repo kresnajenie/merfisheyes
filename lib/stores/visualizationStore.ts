@@ -38,6 +38,11 @@ interface VisualizationState {
   sizeScale: number; // multiplier
   clusterVersion: number;
   deStatsVersion: number;
+  degTarget: string | null;
+  degReference: string | null; // null = vs Rest
+  degSearchTerm: string;
+  degSortKey: "log2FC" | "meanIn" | "pctIn";
+  degSortDesc: boolean;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
   celltypePlayback: boolean;
   celltypePlaybackInterval: number;
@@ -79,6 +84,11 @@ interface VisualizationState {
   setGeneSearchTerm: (value: string) => void;
   incrementClusterVersion: () => void;
   incrementDeStatsVersion: () => void;
+  setDegTarget: (target: string | null) => void;
+  setDegReference: (reference: string | null) => void;
+  setDegSearchTerm: (term: string) => void;
+  setDegSortKey: (key: "log2FC" | "meanIn" | "pctIn") => void;
+  setDegSortDesc: (desc: boolean) => void;
   toggleColumnType: (
     column: string,
     currentType: "categorical" | "numerical",
@@ -134,6 +144,11 @@ const initialState = {
   sizeScale: 1.0,
   clusterVersion: 0,
   deStatsVersion: 0,
+  degTarget: null as string | null,
+  degReference: null as string | null,
+  degSearchTerm: "",
+  degSortKey: "log2FC" as "log2FC" | "meanIn" | "pctIn",
+  degSortDesc: true,
   columnTypeOverrides: {} as Record<string, "categorical" | "numerical">,
   celltypePlayback: false,
   celltypePlaybackInterval: 1.0,
@@ -349,6 +364,12 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   incrementDeStatsVersion: () => {
     set((state) => ({ deStatsVersion: state.deStatsVersion + 1 }));
   },
+
+  setDegTarget: (target) => set({ degTarget: target }),
+  setDegReference: (reference) => set({ degReference: reference }),
+  setDegSearchTerm: (term) => set({ degSearchTerm: term }),
+  setDegSortKey: (key) => set({ degSortKey: key }),
+  setDegSortDesc: (desc) => set({ degSortDesc: desc }),
 
   toggleColumnType: (column, currentType) => {
     set((state) => {

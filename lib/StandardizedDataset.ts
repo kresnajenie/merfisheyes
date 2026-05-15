@@ -96,6 +96,7 @@ export class StandardizedDataset {
   normalized: boolean; // false = raw coordinates, true = normalized [-1,1]
   deStats: DeStats | null;
   deStatsByColumn: Map<string, DeStats>;
+  availableDeStatsColumns: string[];
 
   constructor({
     id,
@@ -162,6 +163,7 @@ export class StandardizedDataset {
     this.embeddingsFullyLoaded = true; // Default true; S3/chunked paths set false
     this.deStats = null;
     this.deStatsByColumn = new Map();
+    this.availableDeStatsColumns = [];
 
     this.validateStructure();
   }
@@ -384,6 +386,7 @@ export class StandardizedDataset {
     allEmbeddingNames?: string[];
     normalized?: boolean;
     deStats?: DeStats | null;
+    availableDeStatsColumns?: string[];
   }): StandardizedDataset {
     const dataset = new StandardizedDataset({
       id: data.id,
@@ -408,6 +411,9 @@ export class StandardizedDataset {
     if (data.deStats) {
       dataset.deStats = data.deStats;
       dataset.deStatsByColumn.set(data.deStats.column, data.deStats);
+    }
+    if (data.availableDeStatsColumns) {
+      dataset.availableDeStatsColumns = data.availableDeStatsColumns;
     }
 
     // Set deferred cluster loading info if provided
@@ -557,6 +563,7 @@ export class StandardizedDataset {
     const columnInfo = adapter.getClusterColumnInfo();
     dataset.allClusterColumnNames = columnInfo.names;
     dataset.allClusterColumnTypes = columnInfo.types;
+    dataset.availableDeStatsColumns = adapter.getAvailableDeStatsColumns();
 
     return dataset;
   }
@@ -692,6 +699,7 @@ export class StandardizedDataset {
     dataset.allClusterColumnNames = columnInfo.names;
     dataset.allClusterColumnTypes = columnInfo.types;
     dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
+    dataset.availableDeStatsColumns = adapter.getAvailableDeStatsColumns();
 
     // Set deferred embedding loading info
     dataset.allEmbeddingNames = dataInfo.availableEmbeddings || [];
@@ -819,6 +827,7 @@ export class StandardizedDataset {
     dataset.allClusterColumnNames = columnInfo.names;
     dataset.allClusterColumnTypes = columnInfo.types;
     dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
+    dataset.availableDeStatsColumns = adapter.getAvailableDeStatsColumns();
 
     // Set deferred embedding loading info
     dataset.allEmbeddingNames = dataInfo.availableEmbeddings || [];

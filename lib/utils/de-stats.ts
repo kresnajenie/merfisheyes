@@ -191,6 +191,91 @@ function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * Parse the gzip-decompressed binary layout written by Python's
+ * write_de_stats_binary (scripts/process_spatial_data.py).
+ *
+ *   Header (16 bytes):
+ *     version       uint32
+ *     num_genes     uint32
+ *     num_celltypes uint32
+ *     reserved      uint32
+ *   Celltype names (variable):
+ *     for each celltype: { name_len: uint32; name_bytes: utf-8 }
+ *   Cell counts:        uint32[C]
+ *   Means:              float32[G * C]   row-major gene-major (g * C + c)
+ *   Pct expressing:     float32[G * C]
+ *
+ * Gene order is positional and must match `genes` here (which mirrors
+ * expr/index.json on disk).
+ */
+export function parseDeStatsBuffer(
+  buffer: ArrayBuffer,
+  column: string,
+  genes: string[],
+): DeStats {
+  const view = new DataView(buffer);
+  const version = view.getUint32(0, true);
+  if (version !== 1) {
+    throw new Error(`Unsupported de-stats binary version: ${version}`);
+  }
+  const numGenes = view.getUint32(4, true);
+  const numCelltypes = view.getUint32(8, true);
+
+  if (numGenes !== genes.length) {
+    throw new Error(
+      `de-stats numGenes ${numGenes} != dataset.genes.length ${genes.length} for column "${column}"`,
+    );
+  }
+
+  let offset = 16;
+  const decoder = new TextDecoder("utf-8");
+  const celltypes: string[] = new Array(numCelltypes);
+  for (let c = 0; c < numCelltypes; c++) {
+    const nameLen = view.getUint32(offset, true);
+    offset += 4;
+    celltypes[c] = decoder.decode(
+      new Uint8Array(buffer, offset, nameLen),
+    );
+    offset += nameLen;
+  }
+
+  // Cell counts: uint32[C]. Aligned reads via DataView (avoid alignment
+  // assumptions of typed-array views over the source buffer).
+  const cellCounts: number[] = new Array(numCelltypes);
+  for (let c = 0; c < numCelltypes; c++) {
+    cellCounts[c] = view.getUint32(offset, true);
+    offset += 4;
+  }
+
+  const total = numGenes * numCelltypes;
+  const meansBytes = total * 4;
+
+  // Float32 views need 4-byte alignment relative to the source buffer's
+  // origin. The buffer may not be aligned here, so copy into fresh arrays.
+  const means = new Float32Array(total);
+  const meansDV = new DataView(buffer, offset, meansBytes);
+  for (let i = 0; i < total; i++) {
+    means[i] = meansDV.getFloat32(i * 4, true);
+  }
+  offset += meansBytes;
+
+  const pctExpressing = new Float32Array(total);
+  const pctDV = new DataView(buffer, offset, meansBytes);
+  for (let i = 0; i < total; i++) {
+    pctExpressing[i] = pctDV.getFloat32(i * 4, true);
+  }
+
+  return {
+    column,
+    celltypes,
+    cellCounts,
+    genes,
+    means,
+    pctExpressing,
+  };
+}
+
 export interface RankedDeg {
   gene: string;
   log2FC: number;
@@ -201,19 +286,21 @@ export interface RankedDeg {
 }
 
 /**
- * Rank genes by fold change of mean expression for a target celltype vs the
- * rest. Reconstructs per-gene global sums from `means × cellCounts`, so we
- * never re-iterate the matrix.
+ * Rank genes by fold change of mean expression for a target celltype.
  *
- *   mean_out = (Σ_c means[g,c] × n_c  −  means[g,t] × n_t) / (N − n_t)
- *   log2FC   = log2((mean_in + ε) / (mean_out + ε))
+ * Reference is either:
+ *   - All other cells (default): `mean_out` reconstructed from the rest of
+ *     the per-celltype table via `Σ_c means[g,c] × n_c` minus the target.
+ *   - A specific celltype (opts.reference): read directly from the table.
+ *
+ *   log2FC = log2((mean_in + ε) / (mean_out + ε))
  *
  * Returns genes sorted by log2FC desc.
  */
 export function rankDegsForCelltype(
   deStats: DeStats,
   targetCelltype: string,
-  opts: { pseudocount?: number } = {},
+  opts: { pseudocount?: number; reference?: string | null } = {},
 ): RankedDeg[] {
   const pseudo = opts.pseudocount ?? 1e-9;
   const t = deStats.celltypes.indexOf(targetCelltype);
@@ -222,26 +309,45 @@ export function rankDegsForCelltype(
   const C = deStats.celltypes.length;
   const G = deStats.genes.length;
   const nIn = deStats.cellCounts[t];
-  const nTotal = deStats.cellCounts.reduce((a, b) => a + b, 0);
-  const nOut = nTotal - nIn;
+
+  let r = -1;
+  let nOut = 0;
+  if (opts.reference) {
+    r = deStats.celltypes.indexOf(opts.reference);
+    if (r === -1 || r === t) return [];
+    nOut = deStats.cellCounts[r];
+  } else {
+    const nTotal = deStats.cellCounts.reduce((a, b) => a + b, 0);
+    nOut = nTotal - nIn;
+  }
   if (nIn === 0 || nOut === 0) return [];
 
   const results: RankedDeg[] = new Array(G);
   const LOG2 = Math.log(2);
+  const useSpecificRef = r !== -1;
 
   for (let g = 0; g < G; g++) {
     const base = g * C;
-    let sumMeanWeighted = 0;
-    let sumPctWeighted = 0;
-    for (let c = 0; c < C; c++) {
-      const nC = deStats.cellCounts[c];
-      sumMeanWeighted += deStats.means[base + c] * nC;
-      sumPctWeighted += deStats.pctExpressing[base + c] * nC;
-    }
     const meanIn = deStats.means[base + t];
     const pctIn = deStats.pctExpressing[base + t];
-    const meanOut = (sumMeanWeighted - meanIn * nIn) / nOut;
-    const pctOut = (sumPctWeighted - pctIn * nIn) / nOut;
+
+    let meanOut: number;
+    let pctOut: number;
+
+    if (useSpecificRef) {
+      meanOut = deStats.means[base + r];
+      pctOut = deStats.pctExpressing[base + r];
+    } else {
+      let sumMeanWeighted = 0;
+      let sumPctWeighted = 0;
+      for (let c = 0; c < C; c++) {
+        const nC = deStats.cellCounts[c];
+        sumMeanWeighted += deStats.means[base + c] * nC;
+        sumPctWeighted += deStats.pctExpressing[base + c] * nC;
+      }
+      meanOut = (sumMeanWeighted - meanIn * nIn) / nOut;
+      pctOut = (sumPctWeighted - pctIn * nIn) / nOut;
+    }
 
     const log2FC = Math.log((meanIn + pseudo) / (meanOut + pseudo)) / LOG2;
 
@@ -260,8 +366,8 @@ export function rankDegsForCelltype(
 }
 
 /**
- * Minimal dataset shape we depend on for on-demand recompute. Defined locally
- * to avoid a circular import with StandardizedDataset.
+ * Minimal dataset shape we depend on for on-demand recompute or fetch.
+ * Defined locally to avoid a circular import with StandardizedDataset.
  */
 interface DatasetForDeStats {
   id: string;
@@ -269,6 +375,10 @@ interface DatasetForDeStats {
   matrix: any;
   clusters: ClusterLike[] | null;
   deStatsByColumn?: Map<string, DeStats>;
+  availableDeStatsColumns?: string[];
+  adapter?: {
+    loadDeStats?: (column: string, genes: string[]) => Promise<DeStats | null>;
+  } | null;
 }
 
 const inFlight = new Map<string, Promise<DeStats | null>>();
@@ -308,15 +418,48 @@ export async function ensureDeStatsForColumn(
   const existing = inFlight.get(key);
   if (existing) return existing;
 
-  const cluster = dataset.clusters?.find((c) => c.column === column);
-  if (!cluster || cluster.type !== "categorical") return null;
-  if (!cluster.valueIndices || !cluster.uniqueValues) return null;
-  if (!dataset.matrix) return null;
+  // Decide between fetch-from-disk (precomputed by Python) and main-thread
+  // recompute. Fetch is preferred when the adapter advertises this column.
+  const canFetch =
+    !!dataset.adapter?.loadDeStats &&
+    !!dataset.availableDeStatsColumns?.includes(column);
+
+  if (!canFetch) {
+    const cluster = dataset.clusters?.find((c) => c.column === column);
+    if (!cluster || cluster.type !== "categorical") return null;
+    if (!cluster.valueIndices || !cluster.uniqueValues) return null;
+    if (!dataset.matrix) return null;
+  }
 
   deStatsInFlight.add(key);
-  const promise = computeDeStats(cluster, dataset.genes, dataset.matrix, {
-    onProgress,
-  })
+  const compute = async (): Promise<DeStats | null> => {
+    if (canFetch) {
+      try {
+        const fetched = await dataset.adapter!.loadDeStats!(
+          column,
+          dataset.genes,
+        );
+        if (fetched) {
+          await onProgress?.(1);
+          return fetched;
+        }
+      } catch (err) {
+        console.warn(
+          `[deStats] adapter.loadDeStats("${column}") failed; falling back to compute:`,
+          err,
+        );
+      }
+    }
+    const cluster = dataset.clusters?.find((c) => c.column === column);
+    if (!cluster || cluster.type !== "categorical") return null;
+    if (!cluster.valueIndices || !cluster.uniqueValues) return null;
+    if (!dataset.matrix) return null;
+    return computeDeStats(cluster, dataset.genes, dataset.matrix, {
+      onProgress,
+    });
+  };
+
+  const promise = compute()
     .then((result) => {
       if (result && dataset.deStatsByColumn) {
         dataset.deStatsByColumn.set(column, result);

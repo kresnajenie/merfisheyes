@@ -758,6 +758,32 @@ export class ChunkedDataAdapter {
     return this.manifest;
   }
 
+  /**
+   * Categorical columns that have precomputed deStats binaries
+   * (written by scripts/process_spatial_data.py). Empty for old manifests
+   * that predate the feature.
+   */
+  getAvailableDeStatsColumns(): string[] {
+    const list = this.manifest?.files?.de_stats;
+    return Array.isArray(list) ? list.map((v: any) => String(v)) : [];
+  }
+
+  /**
+   * Load and parse a precomputed deStats binary for a single column.
+   * Returns null if the column isn't listed in the manifest.
+   */
+  async loadDeStats(
+    column: string,
+    genes: string[],
+  ): Promise<import("../utils/de-stats").DeStats | null> {
+    const available = this.getAvailableDeStatsColumns();
+    if (!available.includes(column)) return null;
+
+    const buffer = await this.fetchBinary(`de/${column}.bin.gz`);
+    const { parseDeStatsBuffer } = await import("../utils/de-stats");
+    return parseDeStatsBuffer(buffer, column, genes);
+  }
+
   getDatasetInfo() {
     if (!this.manifest) {
       throw new Error("Manifest not loaded");

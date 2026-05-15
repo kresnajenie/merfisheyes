@@ -382,6 +382,119 @@ def _write_chunk_worker(args):
     return chunk_id
 
 
+def compute_de_stats(
+    all_gene_sparse: List[Optional[Tuple[np.ndarray, np.ndarray]]],
+    num_genes: int,
+    col_values: Any,
+) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Compute per-celltype mean expression and pct-expressing for every gene.
+
+    Reads from the already-built per-gene sparse representation so the same
+    code path works for H5AD, Xenium, and MERSCOPE without re-touching the
+    original matrix.
+
+    Returns:
+        celltypes:      Sorted unique string values
+        cell_counts:    uint32 shape (C,)
+        means:          float32 shape (G, C) — per-celltype mean expression
+        pct_expressing: float32 shape (G, C) — fraction of cells with nonzero
+                        expression, per celltype
+    """
+    # Normalize values the same way the obs JSON does (string + NaN → ""), so
+    # the celltype labels here match exactly what the browser will see.
+    col_str = pd.Series(col_values).astype("string").fillna("").to_numpy()
+    celltypes = sorted(set(col_str.tolist()))
+    C = len(celltypes)
+
+    if C == 0:
+        return (
+            [],
+            np.zeros(0, dtype=np.uint32),
+            np.zeros((num_genes, 0), dtype=np.float32),
+            np.zeros((num_genes, 0), dtype=np.float32),
+        )
+
+    ct_idx = {ct: i for i, ct in enumerate(celltypes)}
+    cell_to_ct = np.fromiter(
+        (ct_idx[v] for v in col_str), dtype=np.int32, count=len(col_str)
+    )
+
+    cell_counts = np.bincount(cell_to_ct, minlength=C).astype(np.uint32)
+
+    # Float64 accumulators to keep precision over millions of cells.
+    mean_sum = np.zeros((num_genes, C), dtype=np.float64)
+    nonzero_counts = np.zeros((num_genes, C), dtype=np.uint64)
+
+    for g in range(num_genes):
+        entry = all_gene_sparse[g]
+        if entry is None:
+            continue
+        indices, values = entry
+        if len(indices) == 0:
+            continue
+        cts = cell_to_ct[indices]
+        mean_sum[g] = np.bincount(cts, weights=values, minlength=C)
+        nonzero_counts[g] = np.bincount(cts, minlength=C)
+
+    safe_counts = np.maximum(cell_counts, 1).astype(np.float64)
+    means = (mean_sum / safe_counts).astype(np.float32)
+    pct_expressing = (nonzero_counts / safe_counts).astype(np.float32)
+
+    # Columns with zero cells stay at 0.
+    zero_mask = cell_counts == 0
+    if zero_mask.any():
+        means[:, zero_mask] = 0
+        pct_expressing[:, zero_mask] = 0
+
+    return celltypes, cell_counts, means, pct_expressing
+
+
+def write_de_stats_binary(
+    celltypes: List[str],
+    cell_counts: np.ndarray,
+    means: np.ndarray,
+    pct_expressing: np.ndarray,
+    output_path: Path,
+):
+    """
+    Write per-celltype DE stats to gzipped binary.
+
+    Layout (after gunzip):
+        Header (16 bytes):
+            version:        uint32  = 1
+            num_genes:      uint32  (G)
+            num_celltypes:  uint32  (C)
+            reserved:       uint32  = 0
+        Celltype names (variable):
+            for each of C celltypes:
+                name_len:   uint32
+                name_bytes: utf-8, length=name_len
+        Cell counts: uint32[C]
+        Means:          float32[G * C]  row-major gene-major, idx = g*C + c
+        Pct expressing: float32[G * C]  same indexing
+
+    Gene order is positional and must match expr/index.json.
+    """
+    G, C = means.shape
+
+    output = bytearray()
+    output.extend(struct.pack('<IIII', 1, G, C, 0))
+
+    for ct in celltypes:
+        name_bytes = ct.encode('utf-8')
+        output.extend(struct.pack('<I', len(name_bytes)))
+        output.extend(name_bytes)
+
+    output.extend(np.ascontiguousarray(cell_counts, dtype=np.uint32).tobytes())
+    output.extend(np.ascontiguousarray(means, dtype=np.float32).tobytes())
+    output.extend(np.ascontiguousarray(pct_expressing, dtype=np.float32).tobytes())
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(output_path, 'wb') as f:
+        f.write(bytes(output))
+
+
 def _process_obs_column_worker(args):
     """Worker function for parallel obs column processing. Must be top-level for pickling."""
     col_name, col_values, obs_dir, palettes_dir = args
@@ -1396,6 +1509,43 @@ def process_dataset(
 
     log(f"  Chunk writing done ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
 
+    # Step 4.5: Per-celltype DE stats for every categorical obs column.
+    # Computed from all_gene_sparse (same data already in expr/) so the
+    # per-gene loop is a single pass over the nonzeros.
+    log(f"=== STEP 4.5: Computing DE stats for categorical columns ===", _t_start)
+    t_destats = time.perf_counter()
+    de_dir = output_dir / 'de'
+    de_columns: List[str] = []
+
+    categorical_cols = [
+        col for col, meta in obs_metadata.items() if meta['type'] == 'categorical'
+    ]
+    log(f"  {len(categorical_cols)} categorical column(s) to process", _t_start)
+
+    for col_idx, col in enumerate(categorical_cols, 1):
+        t_col = time.perf_counter()
+        col_values = obs_columns.get(col)
+        if col_values is None:
+            log(f"  [{col_idx}/{len(categorical_cols)}] {col}: values missing, skipping", _t_start)
+            continue
+
+        celltypes, cell_counts, means, pct = compute_de_stats(
+            all_gene_sparse, num_genes, col_values
+        )
+        if len(celltypes) == 0:
+            log(f"  [{col_idx}/{len(categorical_cols)}] {col}: 0 celltypes, skipping", _t_start)
+            continue
+
+        write_de_stats_binary(celltypes, cell_counts, means, pct, de_dir / f'{col}.bin.gz')
+        de_columns.append(col)
+        log(
+            f"  [{col_idx}/{len(categorical_cols)}] {col}: "
+            f"{len(celltypes)} celltypes ({fmt_elapsed(time.perf_counter() - t_col)})",
+            _t_start,
+        )
+
+    log(f"  DE stats done ({fmt_elapsed(time.perf_counter() - t_destats)})", _t_start)
+
     del all_gene_sparse
     gc.collect()
 
@@ -1428,7 +1578,8 @@ def process_dataset(
         'files': {
             'coordinates': ['spatial'] + available_embeddings,
             'expression_chunks': num_chunks,
-            'observation_columns': list(obs_metadata.keys())
+            'observation_columns': list(obs_metadata.keys()),
+            'de_stats': de_columns,
         }
     }
 
@@ -1445,6 +1596,7 @@ def process_dataset(
     log(f"  Genes: {num_genes:,}", _t_start)
     log(f"  Chunks: {num_chunks}", _t_start)
     log(f"  Obs columns: {len(obs_metadata)}", _t_start)
+    log(f"  DE stats columns: {len(de_columns)}", _t_start)
     log(f"  Output: {output_dir}", _t_start)
     log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}", _t_start)
     log(f"{'='*60}", _t_start)

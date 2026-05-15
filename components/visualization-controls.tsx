@@ -101,30 +101,96 @@ export function VisualizationControls() {
   const [isDegOpen, setIsDegOpen] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);
 
-  const hasDeStats = !!dataset?.deStats;
+  const hasDeStats =
+    !!dataset?.deStats || (dataset?.availableDeStatsColumns?.length ?? 0) > 0;
+
+  // Auto-pick the DEG target celltype whenever the active deStats column
+  // changes. Runs even when the panel is closed so opening it lands on a
+  // sensible default. A manually picked target survives unless it becomes
+  // invalid (column switched to a different set of celltypes).
+  const degTarget = usePanelVisualizationStore((s) => s.degTarget);
+  const setDegTarget = usePanelVisualizationStore((s) => s.setDegTarget);
+  const degReference = usePanelVisualizationStore((s) => s.degReference);
+  const setDegReference = usePanelVisualizationStore((s) => s.setDegReference);
+  const deStatsVersion = usePanelVisualizationStore((s) => s.deStatsVersion);
+  useEffect(() => {
+    if (!dataset) return;
+    const activeCol =
+      selectedColumn && dataset.deStatsByColumn.has(selectedColumn)
+        ? selectedColumn
+        : dataset.deStats?.column ?? null;
+    const deStats = activeCol
+      ? dataset.deStatsByColumn.get(activeCol) ?? null
+      : null;
+    if (!deStats || deStats.celltypes.length === 0) return;
+
+    // Auto-pick target if missing or invalid for this column.
+    let nextTarget = degTarget;
+    if (!nextTarget || !deStats.celltypes.includes(nextTarget)) {
+      const cts = new Set(deStats.celltypes);
+      let pick = deStats.celltypes[0];
+      for (const ct of selectedCelltypes) {
+        if (cts.has(ct)) {
+          pick = ct;
+          break;
+        }
+      }
+      nextTarget = pick;
+      setDegTarget(pick);
+    }
+
+    // Reference becomes invalid if the column changed (and the celltype no
+    // longer exists) or now equals the target. Either way: fall back to Rest.
+    if (
+      degReference &&
+      (!deStats.celltypes.includes(degReference) || degReference === nextTarget)
+    ) {
+      setDegReference(null);
+    }
+  }, [
+    dataset,
+    selectedColumn,
+    deStatsVersion,
+    selectedCelltypes,
+    degTarget,
+    setDegTarget,
+    degReference,
+    setDegReference,
+  ]);
 
   // Recompute deStats when the user changes the cluster column. Numerical
   // columns skip (the panel stays on its last categorical column). Cache hits
-  // return synchronously inside ensureDeStatsForColumn.
+  // return synchronously inside ensureDeStatsForColumn. For chunked datasets
+  // the adapter fetches the precomputed file from disk/S3 instead.
   const incrementDeStatsVersion = usePanelVisualizationStore(
     (s) => s.incrementDeStatsVersion,
   );
   useEffect(() => {
     if (!dataset || !selectedColumn) return;
-    if (!dataset.deStats) return; // dataset doesn't support DEG (e.g. Xenium)
-    const cluster = dataset.clusters?.find((c) => c.column === selectedColumn);
-    if (!cluster || cluster.type !== "categorical") return;
+    if (!hasDeStats) return; // dataset doesn't support DEG (e.g. Xenium)
     if (dataset.deStatsByColumn.has(selectedColumn)) return;
     if (isDeStatsInFlight(dataset.id, selectedColumn)) return;
 
-    const toastId = toast.loading(`Computing DEG for "${selectedColumn}"...`);
+    const canFetchFromAdapter =
+      !!dataset.adapter?.loadDeStats &&
+      dataset.availableDeStatsColumns?.includes(selectedColumn);
+
+    if (!canFetchFromAdapter) {
+      // Must recompute — requires the cluster to be loaded and matrix in memory.
+      const cluster = dataset.clusters?.find((c) => c.column === selectedColumn);
+      if (!cluster || cluster.type !== "categorical") return;
+      if (!dataset.matrix) return;
+    }
+
+    const verb = canFetchFromAdapter ? "Loading" : "Computing";
+    const toastId = toast.loading(`${verb} DEG for "${selectedColumn}"...`);
     let lastPct = -1;
     ensureDeStatsForColumn(dataset, selectedColumn, async (frac) => {
       const pct = Math.round(frac * 100);
       if (pct === lastPct) return;
       lastPct = pct;
       toast.update(toastId, {
-        render: `Computing DEG for "${selectedColumn}"... ${pct}%`,
+        render: `${verb} DEG for "${selectedColumn}"... ${pct}%`,
       });
     })
       .then((result) => {
@@ -141,15 +207,15 @@ export function VisualizationControls() {
         }
       })
       .catch((err) => {
-        console.warn("[deStats] compute failed:", err);
+        console.warn("[deStats] load/compute failed:", err);
         toast.update(toastId, {
-          render: `DEG compute failed for "${selectedColumn}"`,
+          render: `DEG failed for "${selectedColumn}"`,
           type: "error",
           isLoading: false,
           autoClose: 3000,
         });
       });
-  }, [dataset, selectedColumn, clusterVersion, incrementDeStatsVersion]);
+  }, [dataset, selectedColumn, clusterVersion, incrementDeStatsVersion, hasDeStats]);
 
   const handleModeChange = (newMode: VisualizationMode) => {
     setIsAdvancedOpen(false);

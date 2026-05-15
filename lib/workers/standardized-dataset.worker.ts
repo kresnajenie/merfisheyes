@@ -69,6 +69,7 @@ export interface SerializableStandardizedDataset {
   allEmbeddingNames?: string[];
   normalized?: boolean; // false = raw coordinates, true/undefined = normalized [-1,1]
   deStats?: DeStats | null;
+  availableDeStatsColumns?: string[];
 }
 
 /**
@@ -513,6 +514,7 @@ const workerApi = {
       allClusterColumnTypes: clusterColumnInfo.types,
       allEmbeddingNames: dataInfo.availableEmbeddings || [],
       normalized: false, // always false now — coords are always raw
+      availableDeStatsColumns: adapter.getAvailableDeStatsColumns(),
     };
 
     console.log("[Worker] S3 loading complete");
