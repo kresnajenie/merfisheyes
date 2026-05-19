@@ -2,22 +2,40 @@
 """
 count_genes_per_year.py
 
-Like count_cells_per_year.py, but counts genes instead of cells.
+Counts the TOTAL NUMBER OF GENES IMAGED per year.
+
+"Genes imaged" here means individual detected-transcript molecules — every
+RNA spot the microscope called, NOT the size of the gene panel. A 300-gene
+MERFISH run that detects 67 million transcripts contributes 67,000,000, not
+300. Per-year totals therefore land in the hundreds of millions / billions.
 
 For each dataset in the all-datasets spreadsheet:
   - publication_date = mtime of the BIL data path.
-  - gene panel = column names from cell_by_gene (the post-pipeline file in
-    /bil/data/meyes/<dataset>/combined_output/, with a fallback walk of the
-    BIL data path for cell_by_gene.csv / cell_by_gene.h5ad).
-  - n_genes = len(panel).
+  - n_genes_imaged = total detected molecules, found from (in priority order):
+      1. The single-molecule processed manifest the meyes pipeline writes
+         (`manifest.json[.gz]` whose statistics carry `total_molecules`),
+         searched first under <meyes-base>/<dataset>/ then the BIL path.
+      2. Fallback: a streamed row count of a raw molecule table in the BIL
+         path — MERSCOPE `detected_transcripts.csv[.gz]` or Xenium
+         `transcripts.csv[.gz]` (one row = one detected molecule). Parquet
+         molecule tables are counted via pyarrow metadata when available.
 
 Outputs (in --out-dir):
-  genes_inventory.csv             one row per dataset with date, year, n_genes, source, genes (semicolon-joined)
-  genes_per_year.csv              year, n_datasets, sum_genes, unique_genes
+  genes_inventory.csv             one row per dataset: date, year,
+                                  n_genes_imaged, source, source path
+  genes_per_year.csv              year, n_datasets, total_genes_imaged
+                                  (plus a final TOTAL row across all years)
   genes_per_year_manifest.csv     per-dataset included/excluded with reasons
 
-sum_genes  = sum of per-dataset panel sizes (shared genes double-counted)
-unique_genes = size of the union of gene panels across all datasets in the year
+total_genes_imaged = sum of per-dataset detected-molecule counts for that
+year. There is no "unique genes" column anymore — a molecule total is a
+plain sum, the union of panels is a different question and is not what this
+script answers.
+
+Note (multi-region datasets): like count_xenium_cells_per_year.py, a single
+spreadsheet row resolves to a single best source. If a dataset has several
+independent single-molecule manifests, the largest is used (see
+--sum-regions to add them instead).
 
 Usage:
   python count_genes_per_year.py                          # defaults
@@ -30,6 +48,7 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import json
 import logging
 import os
 import sys
@@ -48,11 +67,7 @@ MAX_WALK_DEPTH = 4
 DEFAULT_WALK_TIMEOUT = 60.0
 DEFAULT_MAX_WALK_FILES = 20000
 
-# How many gene names to embed in the inventory CSV (full list kept for the
-# year-level union; this is just a peek so the inventory stays readable).
-INVENTORY_GENE_PREVIEW = 25
-
-# Raise the csv field-size limit — cell_by_gene.csv headers can be huge.
+# Raw molecule tables can have huge headers / fields.
 csv.field_size_limit(sys.maxsize)
 
 
@@ -68,15 +83,19 @@ def parse_args():
     p.add_argument("--out-dir", default=DEFAULT_OUT,
                    help=f"Output directory (default: {DEFAULT_OUT}).")
     p.add_argument("--max-walk-depth", type=int, default=MAX_WALK_DEPTH,
-                   help=f"How many subdir levels to scan under each BIL "
-                        f"path when looking for cell_by_gene "
-                        f"(default: {MAX_WALK_DEPTH}).")
+                   help=f"How many subdir levels to scan under each search "
+                        f"root (default: {MAX_WALK_DEPTH}).")
     p.add_argument("--walk-timeout", type=float, default=DEFAULT_WALK_TIMEOUT,
-                   help=f"Per-dataset wall-clock cap on the BIL fallback "
-                        f"walk, in seconds (default: {DEFAULT_WALK_TIMEOUT}).")
+                   help=f"Per-search wall-clock cap, in seconds "
+                        f"(default: {DEFAULT_WALK_TIMEOUT}).")
     p.add_argument("--max-walk-files", type=int, default=DEFAULT_MAX_WALK_FILES,
-                   help=f"Per-dataset cap on files inspected during the BIL "
-                        f"fallback walk (default: {DEFAULT_MAX_WALK_FILES}).")
+                   help=f"Per-search cap on files inspected "
+                        f"(default: {DEFAULT_MAX_WALK_FILES}).")
+    p.add_argument("--sum-regions", action="store_true",
+                   help="If a dataset has multiple single-molecule manifests, "
+                        "sum their total_molecules instead of taking the "
+                        "largest. Off by default to avoid double-counting "
+                        "overlapping exports of the same molecules.")
     return p.parse_args()
 
 
@@ -103,83 +122,7 @@ def path_publication_date(path_str: str) -> str:
     return datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d")
 
 
-def read_cell_by_gene_header(path: Path) -> list[str]:
-    """Read the first row of cell_by_gene.csv (.gz ok) and return the gene
-    names — every column except the first (cell ID). Returns [] on failure."""
-    opener = gzip.open if path.suffix == ".gz" else open
-    try:
-        with opener(path, "rt", errors="replace") as fh:
-            reader = csv.reader(fh)
-            header = next(reader, None)
-    except OSError as e:
-        logger.warning("Failed to read %s: %s", path, e)
-        return []
-    if not header:
-        return []
-    return [c.strip() for c in header[1:] if c.strip()]
-
-
-def read_h5ad_var_names(path: Path) -> list[str]:
-    """Return var (gene) names from an h5ad file, or [] on failure."""
-    try:
-        import h5py
-    except ImportError:
-        logger.warning("h5py not available — skipping h5ad at %s", path)
-        return []
-    try:
-        with h5py.File(str(path), "r") as f:
-            var = f.get("var")
-            if var is None:
-                return []
-            for key in ("_index", "index", "feature_name", "gene_name",
-                        "gene_symbol", "gene_ids"):
-                if key in var:
-                    ds = var[key]
-                    if hasattr(ds, "shape") and ds.shape:
-                        return [
-                            v.decode("utf-8") if isinstance(v, bytes) else str(v)
-                            for v in ds[:]
-                        ]
-            # Last resort: first string-typed dataset under var.
-            for k in var.keys():
-                ds = var[k]
-                if hasattr(ds, "shape") and ds.shape:
-                    try:
-                        return [
-                            v.decode("utf-8") if isinstance(v, bytes) else str(v)
-                            for v in ds[:]
-                        ]
-                    except Exception:
-                        continue
-            return []
-    except Exception as e:
-        logger.warning("Failed to read h5ad %s: %s", path, e)
-        return []
-
-
-def genes_from_meyes(meyes_base: Path, sample: str) -> tuple[list[str], str, str]:
-    """Try the canonical post-pipeline cell_by_gene first."""
-    combined = meyes_base / sample / "combined_output"
-    for name, label in (
-        ("cell_by_gene.csv", "meyes_cell_by_gene_csv"),
-        ("cell_by_gene.csv.gz", "meyes_cell_by_gene_csv"),
-        ("cell_by_gene.h5ad", "meyes_cell_by_gene_h5ad"),
-    ):
-        candidate = combined / name
-        try:
-            exists = candidate.exists()
-        except PermissionError:
-            return [], "permission_denied", ""
-        if not exists:
-            continue
-        genes = (read_h5ad_var_names(candidate)
-                 if candidate.suffix == ".h5ad"
-                 else read_cell_by_gene_header(candidate))
-        if genes:
-            return genes, label, str(candidate)
-        return [], f"{label}_unreadable", str(candidate)
-    return [], "no_meyes_cell_by_gene", ""
-
+# ── Budgeted directory walk ───────────────────────────────────────
 
 class WalkBudget:
     def __init__(self, max_files: int, deadline: float):
@@ -227,54 +170,194 @@ def walk_files(root: Path, max_depth: int, budget: WalkBudget):
                 continue
 
 
-# Ordered list of (matcher, reader, label).
-GENE_FILE_PATTERNS: list[tuple] = [
-    (lambda n: n == "cell_by_gene.csv" or n == "cell_by_gene.csv.gz",
-        read_cell_by_gene_header, "bil_cell_by_gene_csv"),
-    (lambda n: n == "cell_by_gene.h5ad",
-        read_h5ad_var_names, "bil_cell_by_gene_h5ad"),
-    (lambda n: n.endswith(".h5ad"),
-        read_h5ad_var_names, "bil_h5ad_other"),
-]
+# ── Source 1: single-molecule manifest ────────────────────────────
+
+def read_manifest_total_molecules(path: Path) -> int | None:
+    """Return statistics.total_molecules from a (optionally gzipped) manifest
+    JSON, or None if the file is not a molecule manifest / unreadable."""
+    opener = gzip.open if path.suffix == ".gz" else open
+    try:
+        with opener(path, "rt", errors="replace") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as e:
+        logger.debug("manifest unreadable %s: %s", path, e)
+        return None
+    if not isinstance(data, dict):
+        return None
+    stats = data.get("statistics")
+    if not isinstance(stats, dict):
+        return None
+    tm = stats.get("total_molecules")
+    if isinstance(tm, bool) or not isinstance(tm, (int, float)):
+        return None
+    tm = int(tm)
+    return tm if tm >= 0 else None
 
 
-def genes_from_bil_path(root: Path, max_depth: int,
-                        walk_timeout: float,
-                        max_walk_files: int) -> tuple[list[str], str, str]:
-    """Walk root looking for the first recognized gene-bearing file."""
+def find_molecule_manifests(root: Path, max_depth: int,
+                            walk_timeout: float,
+                            max_walk_files: int,
+                            ) -> tuple[list[tuple[Path, int]], str]:
+    """Walk `root` collecting (path, total_molecules) for every
+    single-molecule manifest. Returns (hits, bail_reason)."""
     try:
         if not root.exists():
-            return [], "missing_path", ""
+            return [], "missing_path"
     except PermissionError:
-        return [], "permission_denied", ""
+        return [], "permission_denied"
     except OSError as e:
-        return [], f"stat_error:{e.errno}", ""
+        return [], f"stat_error:{e.errno}"
+
     budget = WalkBudget(max_files=max_walk_files,
-                         deadline=time.monotonic() + walk_timeout)
-    found_by_pattern: dict[int, Path] = {}
+                        deadline=time.monotonic() + walk_timeout)
+    hits: list[tuple[Path, int]] = []
     for f in walk_files(root, max_depth, budget):
-        for idx, (matcher, _, _) in enumerate(GENE_FILE_PATTERNS):
-            if matcher(f.name):
-                if idx not in found_by_pattern:
-                    found_by_pattern[idx] = f
-                break
-        if 0 in found_by_pattern:
-            break
-    for idx in range(len(GENE_FILE_PATTERNS)):
-        if idx not in found_by_pattern:
+        name = f.name.lower()
+        if name not in ("manifest.json", "manifest.json.gz"):
             continue
-        path = found_by_pattern[idx]
-        _, reader, label = GENE_FILE_PATTERNS[idx]
-        genes = reader(path)
-        if genes:
-            try:
-                rel = str(path.relative_to(root))
-            except ValueError:
-                rel = str(path)
-            return genes, label, rel
+        tm = read_manifest_total_molecules(f)
+        if tm is not None:
+            hits.append((f, tm))
+    return hits, (budget.bail_reason or "")
+
+
+def pick_manifest_total(hits: list[tuple[Path, int]],
+                        sum_regions: bool) -> tuple[int, str]:
+    """Collapse manifest hits to one number. De-duplicates exact-equal
+    totals (same molecules exported under two paths) before summing."""
+    if not sum_regions:
+        path, tm = max(hits, key=lambda h: h[1])
+        return tm, str(path)
+    seen: set[int] = set()
+    total = 0
+    used: list[str] = []
+    for path, tm in sorted(hits, key=lambda h: -h[1]):
+        if tm in seen:
+            continue
+        seen.add(tm)
+        total += tm
+        used.append(str(path))
+    return total, "; ".join(used)
+
+
+# ── Source 2: raw molecule table row count ────────────────────────
+
+RAW_MOLECULE_TABLES = (
+    "detected_transcripts.csv",
+    "detected_transcripts.csv.gz",
+    "transcripts.csv",
+    "transcripts.csv.gz",
+)
+
+
+def count_csv_data_rows(path: Path) -> int:
+    """Stream a molecule CSV and count data rows (one row = one molecule)."""
+    opener = gzip.open if path.suffix == ".gz" else open
+    try:
+        with opener(path, "rt", errors="replace") as fh:
+            reader = csv.reader(fh)
+            if next(reader, None) is None:        # header
+                return 0
+            n = 0
+            for _ in reader:
+                n += 1
+            return n
+    except OSError as e:
+        logger.warning("Failed to read %s: %s", path, e)
+        return -1
+
+
+def count_parquet_rows(path: Path) -> int:
+    """Row count from parquet footer metadata (no full read). -1 if pyarrow
+    is unavailable or the file is unreadable."""
+    try:
+        import pyarrow.parquet as pq
+    except ImportError:
+        return -1
+    try:
+        return pq.ParquetFile(str(path)).metadata.num_rows
+    except Exception as e:
+        logger.warning("Failed to read parquet %s: %s", path, e)
+        return -1
+
+
+def molecules_from_raw_tables(root: Path, max_depth: int,
+                              walk_timeout: float,
+                              max_walk_files: int,
+                              ) -> tuple[int, str, str]:
+    """Walk `root` for the first raw molecule table and count its rows.
+    Returns (n_molecules, source_label, source_path); n_molecules < 0 means
+    nothing usable was found (source_label carries the reason)."""
+    try:
+        if not root.exists():
+            return -1, "missing_path", ""
+    except PermissionError:
+        return -1, "permission_denied", ""
+    except OSError as e:
+        return -1, f"stat_error:{e.errno}", ""
+
+    budget = WalkBudget(max_files=max_walk_files,
+                        deadline=time.monotonic() + walk_timeout)
+    csv_hit: Path | None = None
+    parquet_hit: Path | None = None
+    for f in walk_files(root, max_depth, budget):
+        low = f.name.lower()
+        if csv_hit is None and low in RAW_MOLECULE_TABLES:
+            csv_hit = f
+            break
+        if parquet_hit is None and low in ("detected_transcripts.parquet",
+                                           "transcripts.parquet"):
+            parquet_hit = f
+
+    if csv_hit is not None:
+        n = count_csv_data_rows(csv_hit)
+        if n >= 0:
+            return n, "raw_molecule_csv_rows", str(csv_hit)
+        return -1, "raw_molecule_csv_unreadable", str(csv_hit)
+    if parquet_hit is not None:
+        n = count_parquet_rows(parquet_hit)
+        if n >= 0:
+            return n, "raw_molecule_parquet_rows", str(parquet_hit)
+        return -1, "raw_molecule_parquet_no_pyarrow", str(parquet_hit)
     if budget.bail_reason:
-        return [], budget.bail_reason, ""
-    return [], "no_recognized_files", ""
+        return -1, budget.bail_reason, ""
+    return -1, "no_molecule_table", ""
+
+
+# ── Per-dataset resolution ────────────────────────────────────────
+
+def resolve_molecules(sample: str, bil_path: str, meyes_base: Path,
+                       args) -> tuple[int | None, str, str]:
+    """Return (n_genes_imaged, source, source_path). n is None on failure."""
+    # 1. meyes processed single-molecule manifest.
+    meyes_dir = meyes_base / sample
+    hits, _ = find_molecule_manifests(
+        meyes_dir, args.max_walk_depth,
+        args.walk_timeout, args.max_walk_files)
+    if hits:
+        total, used = pick_manifest_total(hits, args.sum_regions)
+        return total, "meyes_sm_manifest", used
+
+    if not bil_path:
+        return None, "no_bil_path", ""
+
+    bil_root = Path(bil_path.rstrip("/"))
+
+    # 2a. single-molecule manifest somewhere in the BIL path.
+    hits, bail = find_molecule_manifests(
+        bil_root, args.max_walk_depth,
+        args.walk_timeout, args.max_walk_files)
+    if hits:
+        total, used = pick_manifest_total(hits, args.sum_regions)
+        return total, "bil_sm_manifest", used
+
+    # 2b. raw molecule table row count.
+    n, label, src = molecules_from_raw_tables(
+        bil_root, args.max_walk_depth,
+        args.walk_timeout, args.max_walk_files)
+    if n >= 0:
+        return n, label, src
+    return None, (label or bail or "no_molecule_source"), src
 
 
 def main():
@@ -295,69 +378,46 @@ def main():
     logger.info("Loaded %d datasets from %s", len(rows), datasets_csv)
 
     inventory: list[dict] = []
-    # Keep the full per-dataset gene list around so we can compute yearly
-    # unions without re-reading the inventory CSV.
-    panels: dict[str, list[str]] = {}
-
     for r in rows:
         sample = r.get("dataset", "")
         if not sample:
             continue
         bil_path = r.get("bil data path", "")
-        status = r.get("status", "")
-        notes = r.get("notes", "")
 
         out: dict = {
             "dataset": sample,
-            "status": status,
-            "notes": notes,
+            "status": r.get("status", ""),
+            "notes": r.get("notes", ""),
             "bil_path": bil_path,
             "publication_date": "",
             "year": "",
-            "n_genes": "",
-            "gene_source": "",
-            "gene_source_path": "",
-            "in_meyes": "",
-            "genes_preview": "",
+            "n_genes_imaged": "",
+            "source": "",
+            "source_path": "",
         }
 
         date = path_publication_date(bil_path) if bil_path else ""
         out["publication_date"] = date
         out["year"] = date[:4] if date else ""
 
-        # 1. Try meyes combined_output first.
-        genes, source, source_path = genes_from_meyes(meyes_base, sample)
-        out["in_meyes"] = "true" if genes else "false"
+        n, source, source_path = resolve_molecules(
+            sample, bil_path, meyes_base, args)
+        out["source"] = source
+        out["source_path"] = source_path
+        if n is not None:
+            out["n_genes_imaged"] = n
 
-        # 2. Fall back to the BIL path itself.
-        if not genes and bil_path:
-            genes, source, source_path = genes_from_bil_path(
-                Path(bil_path.rstrip("/")), args.max_walk_depth,
-                walk_timeout=args.walk_timeout,
-                max_walk_files=args.max_walk_files,
-            )
-
-        if genes:
-            out["n_genes"] = len(genes)
-            out["gene_source"] = source
-            out["gene_source_path"] = source_path
-            out["genes_preview"] = ";".join(genes[:INVENTORY_GENE_PREVIEW])
-            panels[sample] = genes
-        else:
-            out["gene_source"] = source
-
-        logger.info("[%s] date=%s n_genes=%s source=%s",
+        logger.info("[%s] date=%s n_genes_imaged=%s source=%s",
                     sample, out["publication_date"] or "—",
-                    out["n_genes"] if out["n_genes"] != "" else "—",
-                    out["gene_source"] or "—")
+                    out["n_genes_imaged"] if out["n_genes_imaged"] != "" else "—",
+                    out["source"] or "—")
         inventory.append(out)
 
-    # ── Write per-dataset inventory ───────────────────────────────
+    # ── Per-dataset inventory ─────────────────────────────────────
     inv_path = out_dir / "genes_inventory.csv"
     fieldnames = ["dataset", "status", "notes", "bil_path",
-                  "publication_date", "year", "n_genes",
-                  "gene_source", "gene_source_path", "in_meyes",
-                  "genes_preview"]
+                  "publication_date", "year", "n_genes_imaged",
+                  "source", "source_path"]
     with open(inv_path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
@@ -365,27 +425,24 @@ def main():
     logger.info("Wrote %s (%d rows)", inv_path, len(inventory))
 
     # ── Aggregate by year + manifest ──────────────────────────────
-    sum_by_year: dict[str, int] = defaultdict(int)
-    union_by_year: dict[str, set[str]] = defaultdict(set)
+    total_by_year: dict[str, int] = defaultdict(int)
     datasets_by_year: dict[str, int] = defaultdict(int)
     manifest_rows: list[dict] = []
-    n_included = 0
-    n_excluded = 0
+    n_included = n_excluded = 0
     for r in inventory:
         year = r["year"]
-        n_genes = r["n_genes"] if isinstance(r["n_genes"], int) else None
+        n_genes = r["n_genes_imaged"] if isinstance(r["n_genes_imaged"], int) else None
 
         reasons = []
         if not year:
             reasons.append("no_publication_date")
         if n_genes is None:
-            reasons.append(f"no_gene_count:{r['gene_source'] or 'unknown'}")
+            reasons.append(f"no_gene_count:{r['source'] or 'unknown'}")
         included = not reasons
 
         if included:
-            sum_by_year[year] += n_genes  # type: ignore[arg-type]
+            total_by_year[year] += n_genes  # type: ignore[arg-type]
             datasets_by_year[year] += 1
-            union_by_year[year].update(panels.get(r["dataset"], []))
             n_included += 1
         else:
             n_excluded += 1
@@ -394,24 +451,30 @@ def main():
             "dataset": r["dataset"],
             "included": "true" if included else "false",
             "year": year,
-            "n_genes": n_genes if n_genes is not None else "",
+            "n_genes_imaged": n_genes if n_genes is not None else "",
             "reason": "; ".join(reasons),
         })
 
     yearly_path = out_dir / "genes_per_year.csv"
     with open(yearly_path, "w", newline="") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["year", "n_datasets", "sum_genes", "unique_genes"])
-        for y in sorted(sum_by_year):
-            writer.writerow([y, datasets_by_year[y],
-                             sum_by_year[y], len(union_by_year[y])])
-    logger.info("Wrote %s (%d years)", yearly_path, len(sum_by_year))
+        writer.writerow(["year", "n_datasets", "total_genes_imaged"])
+        grand_total = 0
+        grand_datasets = 0
+        for y in sorted(total_by_year):
+            writer.writerow([y, datasets_by_year[y], total_by_year[y]])
+            grand_total += total_by_year[y]
+            grand_datasets += datasets_by_year[y]
+        writer.writerow(["TOTAL", grand_datasets, grand_total])
+    logger.info("Wrote %s (%d years, %d genes imaged total)",
+                yearly_path, len(total_by_year), grand_total)
 
     manifest_path = out_dir / "genes_per_year_manifest.csv"
     with open(manifest_path, "w", newline="") as fh:
         writer = csv.DictWriter(
             fh,
-            fieldnames=["dataset", "included", "year", "n_genes", "reason"],
+            fieldnames=["dataset", "included", "year",
+                        "n_genes_imaged", "reason"],
         )
         writer.writeheader()
         writer.writerows(manifest_rows)
