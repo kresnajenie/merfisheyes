@@ -6,9 +6,11 @@
 # Use launch_process_sync.sh afterwards for process_spatial + s3_sync.
 #
 # Usage:
-#   ./launch_combine_mmc.sh ace-dip-use /bil/data/18/aa/.../input   # single sample
-#   ./launch_combine_mmc.sh samples.csv                              # from file (sample_name,input_path)
-#   ./launch_combine_mmc.sh                                          # uses samples.csv in same dir
+#   ./launch_combine_mmc.sh ace-dip-use /bil/data/18/aa/.../input [species]  # single sample
+#   ./launch_combine_mmc.sh samples.csv                                       # from CSV (sample_name,input_path,species)
+#   ./launch_combine_mmc.sh                                                   # uses samples.csv in same dir
+#
+# species column is optional and defaults to "mouse" when absent.
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -25,17 +27,17 @@ elif [ $# -eq 1 ] && [ -f "$1" ]; then
     # One arg that's a file — read from it
     SAMPLE_FILE="$1"
     SINGLE_MODE=false
-elif [ $# -eq 2 ]; then
-    # Two args — single sample mode (sample_name, input_path)
+elif [ $# -eq 2 ] || [ $# -eq 3 ]; then
+    # Single sample mode (sample_name, input_path, [species])
     SAMPLE_FILE=$(mktemp)
-    echo "$1,$2" > "$SAMPLE_FILE"
+    echo "$1,$2,${3:-mouse}" > "$SAMPLE_FILE"
     trap "rm -f $SAMPLE_FILE" EXIT
     SINGLE_MODE=true
 else
     echo "Usage:"
-    echo "  $0 <sample_name> <input_path>   # single sample"
-    echo "  $0 <samples.csv>                # from CSV (sample_name,input_path)"
-    echo "  $0                              # uses samples.csv in same dir"
+    echo "  $0 <sample_name> <input_path> [species]   # single sample"
+    echo "  $0 <samples.csv>                          # from CSV (sample_name,input_path,species)"
+    echo "  $0                                        # uses samples.csv in same dir"
     exit 1
 fi
 
@@ -52,11 +54,14 @@ echo ""
 
 count=0
 
-while IFS=',' read -r sample_name input_path; do
+while IFS=',' read -r sample_name input_path species; do
     sample_name="$(echo "$sample_name" | xargs)"
     input_path="$(echo "$input_path" | xargs)"
+    species="$(echo "${species:-}" | xargs)"
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
+    # Default species when the column is absent or empty
+    species="${species:-mouse}"
 
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
@@ -67,6 +72,7 @@ while IFS=',' read -r sample_name input_path; do
     echo "  Input:    ${input_path}"
     echo "  Combined: ${combined_output}"
     echo "  MMC:      ${mmc_output}"
+    echo "  Species:  ${species}"
 
     # Step 1: combine_slices
     combine_job=$(sbatch --parsable \
@@ -91,7 +97,8 @@ while IFS=',' read -r sample_name input_path; do
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
         "$combined_output" \
-        "$mmc_output")
+        "$mmc_output" \
+        "$species")
     echo "  [3/3] map_my_cell     -> Job ${mmc_job} (after ${filter_job})"
 
     echo ""
