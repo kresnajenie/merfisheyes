@@ -27,6 +27,8 @@ export interface VisualizationState {
   deStatsVersion: number;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
+  degTargetAuto: boolean; // target follows the most-recently-selected celltype
+  degReferenceAuto: boolean; // reference follows the 2nd-most-recently-selected celltype
   degSearchTerm: string;
   degSortKey: "log2FC" | "meanIn" | "pctIn";
   degSortDesc: boolean;
@@ -72,6 +74,8 @@ export interface VisualizationState {
   incrementDeStatsVersion: () => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
+  setDegTargetAuto: (auto: boolean) => void;
+  setDegReferenceAuto: (auto: boolean) => void;
   setDegSearchTerm: (term: string) => void;
   setDegSortKey: (key: "log2FC" | "meanIn" | "pctIn") => void;
   setDegSortDesc: (desc: boolean) => void;
@@ -132,6 +136,8 @@ const initialState = {
   deStatsVersion: 0,
   degTarget: null as string | null,
   degReference: null as string | null,
+  degTargetAuto: true,
+  degReferenceAuto: false,
   degSearchTerm: "",
   degSortKey: "log2FC" as "log2FC" | "meanIn" | "pctIn",
   degSortDesc: true,
@@ -348,6 +354,8 @@ export function createVisualizationStoreInstance() {
 
     setDegTarget: (target) => set({ degTarget: target }),
     setDegReference: (reference) => set({ degReference: reference }),
+    setDegTargetAuto: (auto) => set({ degTargetAuto: auto }),
+    setDegReferenceAuto: (auto) => set({ degReferenceAuto: auto }),
     setDegSearchTerm: (term) => set({ degSearchTerm: term }),
     setDegSortKey: (key) => set({ degSortKey: key }),
     setDegSortDesc: (desc) => set({ degSortDesc: desc }),

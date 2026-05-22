@@ -104,14 +104,20 @@ export function VisualizationControls() {
   const hasDeStats =
     !!dataset?.deStats || (dataset?.availableDeStatsColumns?.length ?? 0) > 0;
 
-  // Auto-pick the DEG target celltype whenever the active deStats column
-  // changes. Runs even when the panel is closed so opening it lands on a
-  // sensible default. A manually picked target survives unless it becomes
-  // invalid (column switched to a different set of celltypes).
+  // Keep the DEG target/reference in sync with the celltype selection.
+  // Runs even when the panel is closed so opening it lands on a sensible
+  // default. In Auto mode the target tracks the most-recently-selected
+  // celltype and the reference (when its own Auto is on) tracks the 2nd
+  // most-recently-selected one. In Manual mode each is only corrected when
+  // it becomes invalid for the active column.
   const degTarget = usePanelVisualizationStore((s) => s.degTarget);
   const setDegTarget = usePanelVisualizationStore((s) => s.setDegTarget);
   const degReference = usePanelVisualizationStore((s) => s.degReference);
   const setDegReference = usePanelVisualizationStore((s) => s.setDegReference);
+  const degTargetAuto = usePanelVisualizationStore((s) => s.degTargetAuto);
+  const degReferenceAuto = usePanelVisualizationStore(
+    (s) => s.degReferenceAuto,
+  );
   const deStatsVersion = usePanelVisualizationStore((s) => s.deStatsVersion);
   useEffect(() => {
     if (!dataset) return;
@@ -124,26 +130,31 @@ export function VisualizationControls() {
       : null;
     if (!deStats || deStats.celltypes.length === 0) return;
 
-    // Auto-pick target if missing or invalid for this column.
-    let nextTarget = degTarget;
-    if (!nextTarget || !deStats.celltypes.includes(nextTarget)) {
-      const cts = new Set(deStats.celltypes);
-      let pick = deStats.celltypes[0];
-      for (const ct of selectedCelltypes) {
-        if (cts.has(ct)) {
-          pick = ct;
-          break;
-        }
-      }
-      nextTarget = pick;
-      setDegTarget(pick);
-    }
+    const valid = new Set(deStats.celltypes);
+    // Selected celltypes that exist in this column's deStats, in selection
+    // order — the last entry is the most recently selected.
+    const picks = [...selectedCelltypes].filter((ct) => valid.has(ct));
+    const mostRecent = picks[picks.length - 1];
+    const secondRecent = picks[picks.length - 2];
 
-    // Reference becomes invalid if the column changed (and the celltype no
-    // longer exists) or now equals the target. Either way: fall back to Rest.
-    if (
+    // Target.
+    let effectiveTarget: string;
+    if (degTargetAuto) {
+      effectiveTarget = mostRecent ?? deStats.celltypes[0];
+    } else {
+      effectiveTarget =
+        degTarget && valid.has(degTarget) ? degTarget : deStats.celltypes[0];
+    }
+    if (effectiveTarget !== degTarget) setDegTarget(effectiveTarget);
+
+    // Reference (null = vs Rest).
+    if (degReferenceAuto) {
+      const ref =
+        secondRecent && secondRecent !== effectiveTarget ? secondRecent : null;
+      if (ref !== degReference) setDegReference(ref);
+    } else if (
       degReference &&
-      (!deStats.celltypes.includes(degReference) || degReference === nextTarget)
+      (!valid.has(degReference) || degReference === effectiveTarget)
     ) {
       setDegReference(null);
     }
@@ -156,6 +167,8 @@ export function VisualizationControls() {
     setDegTarget,
     degReference,
     setDegReference,
+    degTargetAuto,
+    degReferenceAuto,
   ]);
 
   // Recompute deStats when the user changes the cluster column. Numerical

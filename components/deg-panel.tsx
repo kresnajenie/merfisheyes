@@ -3,6 +3,7 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { Input } from "@heroui/input";
+import { Button } from "@heroui/button";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
 import { useMemo } from "react";
 
@@ -40,6 +41,10 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
     setDegTarget,
     degReference,
     setDegReference,
+    degTargetAuto,
+    setDegTargetAuto,
+    degReferenceAuto,
+    setDegReferenceAuto,
     degSearchTerm,
     setDegSearchTerm,
     degSortKey,
@@ -152,68 +157,102 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
               )}
             </div>
 
-            <Autocomplete
-              className="max-w-full"
-              color="primary"
-              label="Target celltype"
-              placeholder="Pick a celltype"
-              selectedKey={degTarget ?? undefined}
-              onSelectionChange={(key) =>
-                setDegTarget((key as string) || null)
-              }
-            >
-              {deStats.celltypes.map((ct, i) => (
+            <div className="flex items-end gap-2">
+              <Autocomplete
+                className="flex-1"
+                color="primary"
+                isDisabled={degTargetAuto}
+                label="Target celltype"
+                placeholder="Pick a celltype"
+                selectedKey={degTarget ?? undefined}
+                onSelectionChange={(key) =>
+                  setDegTarget((key as string) || null)
+                }
+              >
+                {deStats.celltypes.map((ct, i) => (
+                  <AutocompleteItem
+                    key={ct}
+                    endContent={
+                      <span className="text-xs text-default-400">
+                        n={deStats.cellCounts[i]}
+                      </span>
+                    }
+                  >
+                    {ct}
+                  </AutocompleteItem>
+                ))}
+              </Autocomplete>
+              <Button
+                className="mb-1 shrink-0"
+                color={degTargetAuto ? "primary" : "default"}
+                size="sm"
+                title={
+                  degTargetAuto
+                    ? "Target follows the most recently selected celltype"
+                    : "Target is set manually"
+                }
+                variant={degTargetAuto ? "solid" : "flat"}
+                onPress={() => setDegTargetAuto(!degTargetAuto)}
+              >
+                {degTargetAuto ? "Auto" : "Manual"}
+              </Button>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <Autocomplete
+                className="flex-1"
+                isDisabled={degReferenceAuto}
+                label="Reference"
+                placeholder="Rest"
+                selectedKey={degReference ?? REST_KEY}
+                onSelectionChange={(key) => {
+                  const k = key as string | null;
+                  setDegReference(!k || k === REST_KEY ? null : k);
+                }}
+              >
                 <AutocompleteItem
-                  key={ct}
+                  key={REST_KEY}
                   endContent={
                     <span className="text-xs text-default-400">
-                      n={deStats.cellCounts[i]}
+                      n={(totalCount - targetCount).toLocaleString()}
                     </span>
                   }
                 >
-                  {ct}
+                  Rest
                 </AutocompleteItem>
-              ))}
-            </Autocomplete>
-
-            <Autocomplete
-              className="max-w-full"
-              label="Reference"
-              placeholder="Rest"
-              selectedKey={degReference ?? REST_KEY}
-              onSelectionChange={(key) => {
-                const k = key as string | null;
-                setDegReference(!k || k === REST_KEY ? null : k);
-              }}
-            >
-              <AutocompleteItem
-                key={REST_KEY}
-                endContent={
-                  <span className="text-xs text-default-400">
-                    n={(totalCount - targetCount).toLocaleString()}
-                  </span>
+                <>
+                  {deStats.celltypes
+                    .map((ct, i) => ({ ct, i }))
+                    .filter(({ ct }) => ct !== degTarget)
+                    .map(({ ct, i }) => (
+                      <AutocompleteItem
+                        key={ct}
+                        endContent={
+                          <span className="text-xs text-default-400">
+                            n={deStats.cellCounts[i]}
+                          </span>
+                        }
+                      >
+                        {ct}
+                      </AutocompleteItem>
+                    ))}
+                </>
+              </Autocomplete>
+              <Button
+                className="mb-1 shrink-0"
+                color={degReferenceAuto ? "primary" : "default"}
+                size="sm"
+                title={
+                  degReferenceAuto
+                    ? "Reference follows the 2nd most recently selected celltype (vs Rest when there isn't one)"
+                    : "Reference is set manually"
                 }
+                variant={degReferenceAuto ? "solid" : "flat"}
+                onPress={() => setDegReferenceAuto(!degReferenceAuto)}
               >
-                Rest
-              </AutocompleteItem>
-              <>
-                {deStats.celltypes
-                  .map((ct, i) => ({ ct, i }))
-                  .filter(({ ct }) => ct !== degTarget)
-                  .map(({ ct, i }) => (
-                    <AutocompleteItem
-                      key={ct}
-                      endContent={
-                        <span className="text-xs text-default-400">
-                          n={deStats.cellCounts[i]}
-                        </span>
-                      }
-                    >
-                      {ct}
-                    </AutocompleteItem>
-                  ))}
-              </>
-            </Autocomplete>
+                {degReferenceAuto ? "2nd selected" : "Manual"}
+              </Button>
+            </div>
 
             <div className="text-xs text-default-400 -mt-1">
               {targetCount.toLocaleString()} in target ·{" "}
