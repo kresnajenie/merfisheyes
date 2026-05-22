@@ -71,6 +71,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedGene,
     selectedColumn,
     selectedCelltypes,
+    geneEverywhere,
     colorPalette,
     alphaScale,
     sizeScale,
@@ -787,7 +788,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         hasGeneMode &&
         hasCelltypeMode &&
         selectedGene &&
-        selectedCelltypes.size > 0
+        selectedCelltypes.size > 0 &&
+        !geneEverywhere
       ) {
         // Combined mode: gene expression on selected celltypes
         try {
@@ -904,6 +906,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedGene,
     selectedColumn,
     selectedCelltypes,
+    geneEverywhere,
     colorPalette,
     alphaScale,
     geneScaleMin,

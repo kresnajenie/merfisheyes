@@ -15,6 +15,9 @@ export interface VisualizationState {
   selectedClusterColumn: string | null;
   selectedColumn: string | null;
   selectedCelltypes: Set<string>;
+  // When true, a selected gene is rendered on every cell even while
+  // celltypes are selected (bypasses the combined gene+celltype view).
+  geneEverywhere: boolean;
   numericalScaleMin: number;
   numericalScaleMax: number;
   celltypeSearchTerm: string;
@@ -56,6 +59,7 @@ export interface VisualizationState {
   setPanelMode: (mode: VisualizationMode) => void;
   setViewMode: (mode: CellViewMode) => void;
   setSelectedGene: (gene: string | null) => void;
+  setGeneEverywhere: (everywhere: boolean) => void;
   setGeneScaleMin: (min: number) => void;
   setGeneScaleMax: (max: number) => void;
   setNumericalScaleMin: (min: number) => void;
@@ -119,6 +123,7 @@ const initialState = {
   panelMode: "celltype" as VisualizationMode,
   viewMode: "2D" as CellViewMode,
   selectedGene: null,
+  geneEverywhere: false,
   geneScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
   geneScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
   selectedClusterColumn: null,
@@ -356,6 +361,7 @@ export function createVisualizationStoreInstance() {
     setDegReference: (reference) => set({ degReference: reference }),
     setDegTargetAuto: (auto) => set({ degTargetAuto: auto }),
     setDegReferenceAuto: (auto) => set({ degReferenceAuto: auto }),
+    setGeneEverywhere: (everywhere) => set({ geneEverywhere: everywhere }),
     setDegSearchTerm: (term) => set({ degSearchTerm: term }),
     setDegSortKey: (key) => set({ degSortKey: key }),
     setDegSortDesc: (desc) => set({ degSortDesc: desc }),

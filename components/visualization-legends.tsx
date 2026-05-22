@@ -3,7 +3,7 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { X, Globe } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 import { generateColorPalette } from "@/lib/utils/color-palette";
 
@@ -27,6 +27,8 @@ export const VisualizationLegends: React.FC = () => {
     setSelectedGene,
     selectedColumn,
     selectedCelltypes,
+    geneEverywhere,
+    setGeneEverywhere,
     toggleCelltype,
     mode,
     geneScaleMin,
@@ -179,14 +181,36 @@ export const VisualizationLegends: React.FC = () => {
       {hasGene && (
         <div className="flex flex-col items-end gap-2">
           <div className="text-xs text-white/70 font-medium">Selected Gene</div>
-          <div
-            className="group flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/70 hover:bg-blue-500 transition-colors cursor-pointer"
-            onClick={() => setSelectedGene(null)}
-          >
-            <span className="text-xs font-medium text-white">
-              {selectedGene}
-            </span>
-            <X className="w-2 h-2 text-white/70 group-hover:text-white" />
+          <div className="flex items-center gap-2">
+            {/* Show-everywhere toggle — only meaningful while celltypes are
+                selected (otherwise the gene already shows on every cell). */}
+            {hasCelltypes && (
+              <button
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                  geneEverywhere
+                    ? "bg-blue-500 text-white"
+                    : "bg-white/10 text-white/60 hover:bg-white/20"
+                }`}
+                title={
+                  geneEverywhere
+                    ? "Showing gene on all cells — click to limit to selected celltypes"
+                    : "Show gene expression on all cells (ignore celltype selection)"
+                }
+                type="button"
+                onClick={() => setGeneEverywhere(!geneEverywhere)}
+              >
+                <Globe className="w-4 h-4" />
+              </button>
+            )}
+            <div
+              className="group flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/70 hover:bg-blue-500 transition-colors cursor-pointer"
+              onClick={() => setSelectedGene(null)}
+            >
+              <span className="text-xs font-medium text-white">
+                {selectedGene}
+              </span>
+              <X className="w-2 h-2 text-white/70 group-hover:text-white" />
+            </div>
           </div>
         </div>
       )}
