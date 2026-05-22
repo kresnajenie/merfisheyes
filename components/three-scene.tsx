@@ -72,6 +72,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedColumn,
     selectedCelltypes,
     geneEverywhere,
+    hiddenCelltypes,
     colorPalette,
     alphaScale,
     sizeScale,
@@ -753,6 +754,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const hasGeneMode = mode.includes("gene");
       const hasCelltypeMode = mode.includes("celltype");
 
+      // The 3D scene renders only the visible subset of the selection
+      // (selectedCelltypes minus hiddenCelltypes, set via the per-badge eye
+      // toggles). selectedCelltypes itself is untouched, so DEG / plots keep
+      // the full selection.
+      const effectiveCelltypes =
+        hiddenCelltypes.size > 0
+          ? new Set(
+              [...selectedCelltypes].filter((ct) => !hiddenCelltypes.has(ct)),
+            )
+          : selectedCelltypes;
+
       // Check if the selected column is numerical (respects overrides)
       const isNumerical = selectedColumn
         ? getEffectiveColumnType(
@@ -808,7 +820,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             dataset,
             selectedGene,
             selectedColumn,
-            selectedCelltypes,
+            effectiveCelltypes,
             alphaScale,
             sizeScale,
             geneScaleMin,
@@ -876,7 +888,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           : updateCelltypeVisualization(
               dataset,
               selectedColumn,
-              selectedCelltypes,
+              effectiveCelltypes,
               colorPalette,
               alphaScale,
               sizeScale,
@@ -907,6 +919,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedColumn,
     selectedCelltypes,
     geneEverywhere,
+    hiddenCelltypes,
     colorPalette,
     alphaScale,
     geneScaleMin,

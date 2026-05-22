@@ -27,6 +27,10 @@ interface VisualizationState {
   // When true, a selected gene is rendered on every cell even while
   // celltypes are selected (bypasses the combined gene+celltype view).
   geneEverywhere: boolean;
+  // Celltypes hidden from the 3D scene via the per-badge eye toggle. They
+  // stay in selectedCelltypes (so DEG / plots use the full selection) but
+  // are greyed out in the point cloud.
+  hiddenCelltypes: Set<string>;
   numericalScaleMin: number; // Minimum value for numerical cluster scale
   numericalScaleMax: number; // Maximum value for numerical cluster scale
   celltypeSearchTerm: string;
@@ -48,6 +52,7 @@ interface VisualizationState {
   degSearchTerm: string;
   degSortKey: "log2FC" | "meanIn" | "pctIn";
   degSortDesc: boolean;
+  degPanelOpen: boolean;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
   celltypePlayback: boolean;
   celltypePlaybackInterval: number;
@@ -74,6 +79,8 @@ interface VisualizationState {
   setViewMode: (mode: CellViewMode) => void;
   setSelectedGene: (gene: string | null) => void;
   setGeneEverywhere: (everywhere: boolean) => void;
+  toggleCelltypeVisibility: (celltype: string) => void;
+  soloCelltype: (celltype: string) => void;
   setGeneScaleMin: (min: number) => void;
   setGeneScaleMax: (max: number) => void;
   setNumericalScaleMin: (min: number) => void;
@@ -96,6 +103,7 @@ interface VisualizationState {
   setDegReferenceAuto: (auto: boolean) => void;
   setDegSearchTerm: (term: string) => void;
   setDegSortKey: (key: "log2FC" | "meanIn" | "pctIn") => void;
+  setDegPanelOpen: (open: boolean) => void;
   setDegSortDesc: (desc: boolean) => void;
   toggleColumnType: (
     column: string,
@@ -138,6 +146,7 @@ const initialState = {
   viewMode: "2D" as CellViewMode,
   selectedGene: null,
   geneEverywhere: false,
+  hiddenCelltypes: new Set<string>(),
   geneScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
   geneScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
   selectedClusterColumn: null,
@@ -160,6 +169,7 @@ const initialState = {
   degSearchTerm: "",
   degSortKey: "log2FC" as "log2FC" | "meanIn" | "pctIn",
   degSortDesc: true,
+  degPanelOpen: false,
   columnTypeOverrides: {} as Record<string, "categorical" | "numerical">,
   celltypePlayback: false,
   celltypePlaybackInterval: 1.0,
@@ -291,7 +301,16 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         }
       }
 
-      return { selectedCelltypes: newCelltypes, mode: newMode };
+      // Toggling a celltype's selection resets its isolate-visibility.
+      const newHidden = state.hiddenCelltypes.has(celltype)
+        ? new Set([...state.hiddenCelltypes].filter((ct) => ct !== celltype))
+        : state.hiddenCelltypes;
+
+      return {
+        selectedCelltypes: newCelltypes,
+        mode: newMode,
+        hiddenCelltypes: newHidden,
+      };
     });
   },
 
@@ -312,7 +331,16 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         }
       }
 
-      return { selectedCelltypes: celltypes, mode: newMode };
+      // Drop any hidden celltypes that are no longer selected.
+      const newHidden = new Set(
+        [...state.hiddenCelltypes].filter((ct) => celltypes.has(ct)),
+      );
+
+      return {
+        selectedCelltypes: celltypes,
+        mode: newMode,
+        hiddenCelltypes: newHidden,
+      };
     });
   },
 
@@ -325,6 +353,7 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
       const updates: Partial<VisualizationState> = {
         selectedColumn: column,
         selectedCelltypes: new Set<string>(),
+        hiddenCelltypes: new Set<string>(),
         // Changing the primary column invalidates the grouping pairs.
         secondaryColumn: null,
         selectedSecondaryValues: new Set<string>(),
@@ -381,9 +410,34 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   setDegTargetAuto: (auto) => set({ degTargetAuto: auto }),
   setDegReferenceAuto: (auto) => set({ degReferenceAuto: auto }),
   setGeneEverywhere: (everywhere) => set({ geneEverywhere: everywhere }),
+  toggleCelltypeVisibility: (celltype) =>
+    set((state) => {
+      const next = new Set(state.hiddenCelltypes);
+
+      if (next.has(celltype)) next.delete(celltype);
+      else next.add(celltype);
+
+      return { hiddenCelltypes: next };
+    }),
+  soloCelltype: (celltype) =>
+    set((state) => {
+      const others = [...state.selectedCelltypes].filter(
+        (ct) => ct !== celltype,
+      );
+      // Already soloed to this celltype → restore everything.
+      const alreadySolo =
+        others.length > 0 &&
+        !state.hiddenCelltypes.has(celltype) &&
+        others.every((ct) => state.hiddenCelltypes.has(ct));
+
+      return {
+        hiddenCelltypes: alreadySolo ? new Set<string>() : new Set(others),
+      };
+    }),
   setDegSearchTerm: (term) => set({ degSearchTerm: term }),
   setDegSortKey: (key) => set({ degSortKey: key }),
   setDegSortDesc: (desc) => set({ degSortDesc: desc }),
+  setDegPanelOpen: (open) => set({ degPanelOpen: open }),
 
   toggleColumnType: (column, currentType) => {
     set((state) => {
@@ -402,6 +456,7 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
       if (state.selectedColumn === column && newType === "numerical") {
         updates.selectedGene = null;
         updates.selectedCelltypes = new Set<string>();
+        updates.hiddenCelltypes = new Set<string>();
         updates.mode = ["celltype"];
       }
 

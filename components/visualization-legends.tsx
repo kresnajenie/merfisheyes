@@ -3,7 +3,7 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { X, Globe } from "lucide-react";
+import { X, Globe, Eye, EyeOff } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
 import { generateColorPalette } from "@/lib/utils/color-palette";
 
@@ -29,7 +29,13 @@ export const VisualizationLegends: React.FC = () => {
     selectedCelltypes,
     geneEverywhere,
     setGeneEverywhere,
+    hiddenCelltypes,
+    toggleCelltypeVisibility,
+    soloCelltype,
     toggleCelltype,
+    setDegTarget,
+    setDegTargetAuto,
+    setDegPanelOpen,
     mode,
     geneScaleMin,
     geneScaleMax,
@@ -159,6 +165,14 @@ export const VisualizationLegends: React.FC = () => {
     );
   }, [dataset, selectedColumn, clusterVersion, columnTypeOverrides]);
 
+  // Whether this dataset supports DEG (drives the right-click-to-rank action)
+  const hasDeStats = useMemo(() => {
+    if (!dataset || !("clusters" in dataset)) return false;
+    const ds = dataset as StandardizedDataset;
+
+    return !!ds.deStats || (ds.availableDeStatsColumns?.length ?? 0) > 0;
+  }, [dataset]);
+
   // Debug logging removed for performance
 
   // Don't render if nothing is selected
@@ -254,6 +268,7 @@ export const VisualizationLegends: React.FC = () => {
           <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto">
             {Array.from(selectedCelltypes).map((celltype) => {
               const color = storeColorPalette[celltype] || "#888888";
+              const hidden = hiddenCelltypes.has(celltype);
 
               return (
                 <Popover
@@ -268,9 +283,49 @@ export const VisualizationLegends: React.FC = () => {
                       className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer"
                       style={{
                         backgroundColor: color,
+                        opacity: hidden ? 0.4 : 1,
                       }}
+                      title={
+                        hasDeStats
+                          ? "Right-click to rank DEGs for this celltype"
+                          : undefined
+                      }
                       onClick={() => setOpenPopoverCelltype(celltype)}
+                      onContextMenu={(e) => {
+                        // Right-click → make this the DEG target and open
+                        // the DEG panel. No-op (native menu) when the
+                        // dataset has no DEG support.
+                        if (!hasDeStats) return;
+                        e.preventDefault();
+                        setDegTarget(celltype);
+                        // Manual mode so the right-clicked target sticks.
+                        setDegTargetAuto(false);
+                        setDegPanelOpen(true);
+                      }}
                     >
+                      <button
+                        className="text-black/60 hover:text-black"
+                        title={
+                          hidden
+                            ? "Hidden — click to show, ⌘-click to solo"
+                            : "Visible — click to hide, ⌘-click to solo"
+                        }
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (e.metaKey || e.ctrlKey || e.altKey) {
+                            soloCelltype(celltype);
+                          } else {
+                            toggleCelltypeVisibility(celltype);
+                          }
+                        }}
+                      >
+                        {hidden ? (
+                          <EyeOff className="w-3 h-3" />
+                        ) : (
+                          <Eye className="w-3 h-3" />
+                        )}
+                      </button>
                       <span className="text-xs font-medium text-black">
                         {celltype}
                       </span>

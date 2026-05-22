@@ -98,7 +98,10 @@ export function VisualizationControls() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [isDegOpen, setIsDegOpen] = useState(false);
+  // DEG panel open state lives in the store so it can be opened from
+  // elsewhere (e.g. right-clicking a celltype badge in the legends).
+  const isDegOpen = usePanelVisualizationStore((s) => s.degPanelOpen);
+  const setIsDegOpen = usePanelVisualizationStore((s) => s.setDegPanelOpen);
   const controlsRef = useRef<HTMLDivElement>(null);
 
   const hasDeStats =
@@ -341,14 +344,14 @@ export function VisualizationControls() {
             color={isDegOpen ? "primary" : "default"}
             variant={isDegOpen ? "shadow" : "light"}
             onPress={() => {
-              setIsDegOpen((prev) => {
-                if (!prev) {
-                  setIsPanelOpen(false);
-                  setIsAdvancedOpen(false);
-                  setIsCameraOpen(false);
-                }
-                return !prev;
-              });
+              const next = !isDegOpen;
+
+              if (next) {
+                setIsPanelOpen(false);
+                setIsAdvancedOpen(false);
+                setIsCameraOpen(false);
+              }
+              setIsDegOpen(next);
             }}
           >
             DEG
