@@ -86,8 +86,8 @@ const DEFAULT_YIELD_EVERY = 100_000;
  * Supported matrix shapes:
  *   - Flat TypedArray, row-major [cell × gene]: index = cellIdx * G + geneIdx
  *   - number[][] nested row-major: matrix[cellIdx][geneIdx]
- *
- * Map<gene, Float32Array> (Xenium/MERSCOPE) is not handled yet — H5AD only.
+ *   - Map<gene, Float32Array|number[]> (Xenium/MERSCOPE): one cell-indexed
+ *     array per gene name; missing genes are skipped.
  */
 export async function computeDeStats(
   cluster: ClusterLike,
@@ -154,6 +154,35 @@ export async function computeDeStats(
       }
       if (i > 0 && i % yieldEvery === 0) {
         await opts.onProgress?.(i / N);
+        await yieldToEventLoop();
+      }
+    }
+  } else if (matrix instanceof Map) {
+    // Xenium / MERSCOPE: Map<geneName, cell-indexed Float32Array|number[]>.
+    // Iterate gene-outer / cell-inner for good locality on each gene's array.
+    const genesPerYield = Math.max(1, Math.floor(yieldEvery / Math.max(1, N)));
+
+    for (let g = 0; g < G; g++) {
+      const geneVec = matrix.get(genes[g]) as
+        | Float32Array
+        | number[]
+        | undefined;
+
+      if (!geneVec) continue;
+      const base = g * C;
+
+      for (let i = 0; i < N; i++) {
+        const v = geneVec[i];
+
+        if (!v) continue;
+        const ct = valueIndices[i];
+        const idx = base + ct;
+
+        meanSum[idx] += v;
+        nonzeroCounts[idx]++;
+      }
+      if (g > 0 && g % genesPerYield === 0) {
+        await opts.onProgress?.(g / G);
         await yieldToEventLoop();
       }
     }
@@ -401,8 +430,7 @@ function flightKey(datasetId: string, column: string): string {
  *
  *  - Returns null and skips compute if the column isn't loaded as a
  *    categorical cluster on the dataset.
- *  - Returns null on unsupported matrix shapes (e.g. Map-based for
- *    Xenium/MERSCOPE — not yet wired up).
+ *  - Returns null on unsupported matrix shapes.
  */
 export async function ensureDeStatsForColumn(
   dataset: DatasetForDeStats,
