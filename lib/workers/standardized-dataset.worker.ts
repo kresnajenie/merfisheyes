@@ -238,6 +238,21 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
+    // Precompute per-celltype DE stats from the loaded matrix (mirrors the
+    // H5AD branch). Skipped gracefully if there's no categorical column.
+    const priorityCluster = selectPriorityCategoricalCluster(clusters);
+    const deStats = priorityCluster
+      ? await computeDeStats(priorityCluster, genes, matrix)
+      : null;
+
+    if (deStats) {
+      console.log(
+        `[Worker] deStats computed for "${deStats.column}": ${deStats.celltypes.length} celltypes × ${deStats.genes.length} genes`,
+      );
+    } else {
+      console.log("[Worker] deStats skipped (no categorical cluster column)");
+    }
+
     // Round spatial coordinates to 2 decimal places (no normalization)
     const coords = spatial.coordinates;
     const roundedCoords: number[][] = [];
@@ -278,6 +293,7 @@ const workerApi = {
       },
       matrix: matrix,
       normalized: false,
+      deStats: deStats,
     };
 
     console.log("[Worker] Xenium parsing complete");
@@ -353,6 +369,21 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
+    // Precompute per-celltype DE stats from the loaded matrix (mirrors the
+    // H5AD branch). Skipped gracefully if there's no categorical column.
+    const priorityCluster = selectPriorityCategoricalCluster(clusters);
+    const deStats = priorityCluster
+      ? await computeDeStats(priorityCluster, genes, matrix)
+      : null;
+
+    if (deStats) {
+      console.log(
+        `[Worker] deStats computed for "${deStats.column}": ${deStats.celltypes.length} celltypes × ${deStats.genes.length} genes`,
+      );
+    } else {
+      console.log("[Worker] deStats skipped (no categorical cluster column)");
+    }
+
     // Round spatial coordinates to 2 decimal places (no normalization)
     const coords = spatial.coordinates;
     const roundedCoords: number[][] = [];
@@ -393,6 +424,7 @@ const workerApi = {
       },
       matrix: matrix,
       normalized: false,
+      deStats: deStats,
     };
 
     console.log("[Worker] MERSCOPE parsing complete");
