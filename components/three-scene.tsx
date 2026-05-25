@@ -18,6 +18,7 @@ import {
   updateCelltypeVisualization,
   updateNumericalCelltypeVisualization,
   updateCombinedVisualization,
+  updateCoexpressionVisualization,
   type AdvancedVizSettings,
 } from "@/lib/webgl/visualization-utils";
 import {
@@ -113,6 +114,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     transformColumn,
     sampleTransforms,
     transformVersion,
+    coexpressEnabled,
+    selectedGene2,
+    coexpressSwapped,
+    gene2ScaleMin,
+    gene2ScaleMax,
+    setGene2ScaleMin,
+    setGene2ScaleMax,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -193,6 +201,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const selectedGeneRef = useRef(selectedGene);
   const selectedColumnRef = useRef(selectedColumn);
   const previousGeneRef = useRef<string | null>(null);
+  const previousGene2Ref = useRef<string | null>(null);
   const previousColumnRef = useRef<string | null>(null);
   const previousColumnTypeRef = useRef<boolean>(false);
 
@@ -860,6 +869,15 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         previousGeneRef.current = selectedGene;
       }
 
+      // Check if 2nd gene has changed (for coexpression auto-scaling).
+      const gene2Changed = previousGene2Ref.current !== selectedGene2;
+      if (gene2Changed) {
+        previousGene2Ref.current = selectedGene2;
+      }
+
+      const coexpressActive =
+        coexpressEnabled && !!selectedGene && !!selectedGene2;
+
       // Check if column or its effective type has changed (for auto-scaling numerical columns)
       const columnChanged = previousColumnRef.current !== selectedColumn;
       const typeChanged = previousColumnTypeRef.current !== isNumerical;
@@ -873,7 +891,50 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       const shouldAutoScale = columnChanged || typeChanged;
 
-      if (
+      if (coexpressActive) {
+        // Two-gene coexpression: green + magenta additive blend.
+        try {
+          if (geneChanged || gene2Changed) {
+            geneToastIdRef.current = toast.loading(
+              `Loading "${selectedGene}" + "${selectedGene2}"…`,
+            );
+          }
+
+          // Cache primary gene expression for tooltips (use gene 1).
+          geneExpressionRef.current = await dataset.getGeneExpression(
+            selectedGene as string,
+          );
+
+          const greyOutNonSelected =
+            hasCelltypeMode && selectedCelltypes.size > 0 && !geneEverywhere;
+
+          result = await updateCoexpressionVisualization(
+            dataset,
+            selectedGene as string,
+            selectedGene2 as string,
+            geneScaleMin,
+            geneScaleMax,
+            geneChanged ? setGeneScaleMin : undefined,
+            geneChanged ? setGeneScaleMax : undefined,
+            gene2ScaleMin,
+            gene2ScaleMax,
+            gene2Changed ? setGene2ScaleMin : undefined,
+            gene2Changed ? setGene2ScaleMax : undefined,
+            coexpressSwapped,
+            alphaScale,
+            sizeScale,
+            selectedColumn,
+            effectiveCelltypes,
+            greyOutNonSelected,
+            adv,
+          );
+        } finally {
+          if (geneToastIdRef.current != null) {
+            toast.dismiss(geneToastIdRef.current);
+            geneToastIdRef.current = null;
+          }
+        }
+      } else if (
         hasGeneMode &&
         hasCelltypeMode &&
         selectedGene &&
@@ -1016,6 +1077,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     pointSizeMultiplierMax,
     pinnedTooltipColumns,
     colormap,
+    coexpressEnabled,
+    selectedGene2,
+    coexpressSwapped,
+    gene2ScaleMin,
+    gene2ScaleMax,
   ]);
 
   // Effect 3: Update dotSize uniform when slider or targetPx changes (instant)

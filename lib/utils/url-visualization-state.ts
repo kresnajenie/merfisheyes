@@ -21,6 +21,11 @@ export interface CellVizUrlState {
   fx?: boolean; // flipX
   fy?: boolean; // flipY
   cm?: string; // colormap
+  // Two-gene coexpression
+  g2?: string; // selectedGene2
+  gs2?: [number, number]; // [gene2ScaleMin, gene2ScaleMax]
+  ce?: boolean; // coexpressEnabled (omitted when false)
+  cw?: boolean; // coexpressSwapped (omitted when false)
 }
 
 // Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
@@ -99,6 +104,11 @@ export function encodeCellVizState(state: {
   flipX: boolean;
   flipY: boolean;
   colormap: string;
+  selectedGene2: string | null;
+  gene2ScaleMin: number;
+  gene2ScaleMax: number;
+  coexpressEnabled: boolean;
+  coexpressSwapped: boolean;
 }): string | null {
   const obj: CellVizUrlState = {};
 
@@ -153,6 +163,16 @@ export function encodeCellVizState(state: {
   if (state.flipY) obj.fy = true;
   if (state.colormap && state.colormap !== "bwr") obj.cm = state.colormap;
 
+  // Two-gene coexpression
+  if (state.selectedGene2) obj.g2 = state.selectedGene2;
+  if (
+    state.gene2ScaleMin !== DEFAULT_SCALE_MIN ||
+    state.gene2ScaleMax !== DEFAULT_SCALE_MAX
+  )
+    obj.gs2 = [state.gene2ScaleMin, state.gene2ScaleMax];
+  if (state.coexpressEnabled) obj.ce = true;
+  if (state.coexpressSwapped) obj.cw = true;
+
   // Don't encode if nothing interesting
   if (Object.keys(obj).length === 0) return null;
 
@@ -178,6 +198,11 @@ export function decodeCellVizState(encoded: string): CellVizUrlState | null {
   if (obj.to !== undefined && (typeof obj.to !== "object" || obj.to === null))
     return null;
   if (obj.vm !== undefined && obj.vm !== "2D" && obj.vm !== "3D") return null;
+  if (obj.g2 !== undefined && typeof obj.g2 !== "string") return null;
+  if (obj.gs2 !== undefined && (!Array.isArray(obj.gs2) || obj.gs2.length !== 2))
+    return null;
+  if (obj.ce !== undefined && typeof obj.ce !== "boolean") return null;
+  if (obj.cw !== undefined && typeof obj.cw !== "boolean") return null;
 
   return obj;
 }

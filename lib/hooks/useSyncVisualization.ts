@@ -14,7 +14,13 @@ import { useSplitScreenStore } from "../stores/splitScreenStore";
 
 type SyncFields = Pick<
   VisualizationState,
-  "selectedColumn" | "selectedCelltypes" | "selectedGene" | "colorPalette"
+  | "selectedColumn"
+  | "selectedCelltypes"
+  | "selectedGene"
+  | "colorPalette"
+  | "coexpressEnabled"
+  | "selectedGene2"
+  | "coexpressSwapped"
 >;
 
 function pickSyncFields(state: VisualizationState): SyncFields {
@@ -23,6 +29,9 @@ function pickSyncFields(state: VisualizationState): SyncFields {
     selectedCelltypes: state.selectedCelltypes,
     selectedGene: state.selectedGene,
     colorPalette: state.colorPalette,
+    coexpressEnabled: state.coexpressEnabled,
+    selectedGene2: state.selectedGene2,
+    coexpressSwapped: state.coexpressSwapped,
   };
 }
 
@@ -317,6 +326,41 @@ export function useSyncVisualization(
           } else {
             targetStore.getState().setSelectedGene(null);
           }
+        }
+
+        // 3b. selectedGene2 changed (coexpression mode's second gene)
+        if (sourceFields.selectedGene2 !== prevFields?.selectedGene2) {
+          const gene2 = sourceFields.selectedGene2;
+
+          if (gene2) {
+            if (!datasetHasGene(targetDataset, gene2)) {
+              throttledToast(
+                `Gene "${gene2}" not found in the other dataset`,
+              );
+            } else {
+              targetStore.getState().setSelectedGene2(gene2);
+            }
+          } else {
+            targetStore.getState().setSelectedGene2(null);
+          }
+        }
+
+        // 3c. coexpressEnabled toggle
+        if (
+          sourceFields.coexpressEnabled !== prevFields?.coexpressEnabled
+        ) {
+          targetStore
+            .getState()
+            .setCoexpressEnabled(sourceFields.coexpressEnabled);
+        }
+
+        // 3d. coexpressSwapped (color channel swap)
+        if (
+          sourceFields.coexpressSwapped !== prevFields?.coexpressSwapped
+        ) {
+          targetStore
+            .getState()
+            .setCoexpressSwapped(sourceFields.coexpressSwapped);
         }
 
         // 4. colorPalette changed

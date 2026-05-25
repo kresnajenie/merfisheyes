@@ -12,6 +12,7 @@ import {
   usePanelDatasetStore,
 } from "@/lib/hooks/usePanelStores";
 import { GeneScalebar } from "@/components/gene-scalebar";
+import { ChannelScalebar } from "@/components/channel-scalebar";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import {
   ColorPicker,
@@ -49,6 +50,14 @@ export const VisualizationLegends: React.FC = () => {
     setColorPalette,
     clusterVersion,
     columnTypeOverrides,
+    coexpressEnabled,
+    selectedGene2,
+    setSelectedGene2,
+    coexpressSwapped,
+    gene2ScaleMin,
+    gene2ScaleMax,
+    setGene2ScaleMin,
+    setGene2ScaleMax,
   } = usePanelVisualizationStore();
 
   const { getCurrentDataset } = usePanelDatasetStore();
@@ -192,9 +201,19 @@ export const VisualizationLegends: React.FC = () => {
   return (
     <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
       {/* Selected Gene Badge */}
-      {hasGene && (
+      {hasGene && (() => {
+        const coexpressActive = coexpressEnabled && selectedGene && selectedGene2;
+        const gene1Color = coexpressActive
+          ? (coexpressSwapped ? "#FF00FF" : "#00FF00")
+          : null;
+        const gene2Color = coexpressActive
+          ? (coexpressSwapped ? "#00FF00" : "#FF00FF")
+          : null;
+        return (
         <div className="flex flex-col items-end gap-2">
-          <div className="text-xs text-white/70 font-medium">Selected Gene</div>
+          <div className="text-xs text-white/70 font-medium">
+            {coexpressActive ? "Co-expression" : "Selected Gene"}
+          </div>
           <div className="flex items-center gap-2">
             {/* Show-everywhere toggle — only meaningful while celltypes are
                 selected (otherwise the gene already shows on every cell). */}
@@ -217,22 +236,62 @@ export const VisualizationLegends: React.FC = () => {
               </button>
             )}
             <div
-              className="group flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/70 hover:bg-blue-500 transition-colors cursor-pointer"
+              className="group flex items-center gap-2 px-4 py-2 rounded-full hover:opacity-100 transition-colors cursor-pointer"
+              style={{
+                backgroundColor: coexpressActive
+                  ? `${gene1Color}b3` // 70% alpha
+                  : "rgb(59 130 246 / 0.7)", // blue-500/70
+              }}
               onClick={() => setSelectedGene(null)}
             >
-              <span className="text-xs font-medium text-white">
+              <span
+                className="text-xs font-medium"
+                style={{ color: coexpressActive ? "#000000" : "#ffffff" }}
+              >
                 {selectedGene}
               </span>
-              <X className="w-2 h-2 text-white/70 group-hover:text-white" />
+              <X className="w-2 h-2 text-black/60 group-hover:text-black" />
             </div>
           </div>
+          {coexpressActive && (
+            <div
+              className="group flex items-center gap-2 px-4 py-2 rounded-full hover:opacity-100 transition-colors cursor-pointer"
+              style={{ backgroundColor: `${gene2Color}b3` }}
+              onClick={() => setSelectedGene2(null)}
+            >
+              <span className="text-xs font-medium text-black">
+                {selectedGene2}
+              </span>
+              <X className="w-2 h-2 text-black/60 group-hover:text-black" />
+            </div>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Gene/Numerical Scale Bar */}
       {showScalebar && (
         <div className="flex flex-col items-end">
-          {mode.includes("gene") && selectedGene ? (
+          {coexpressEnabled && selectedGene && selectedGene2 ? (
+            <div className="flex items-start gap-3">
+              <ChannelScalebar
+                color={coexpressSwapped ? "#FF00FF" : "#00FF00"}
+                label={selectedGene}
+                maxValue={geneScaleMax}
+                minValue={geneScaleMin}
+                onMaxChange={setGeneScaleMax}
+                onMinChange={setGeneScaleMin}
+              />
+              <ChannelScalebar
+                color={coexpressSwapped ? "#00FF00" : "#FF00FF"}
+                label={selectedGene2}
+                maxValue={gene2ScaleMax}
+                minValue={gene2ScaleMin}
+                onMaxChange={setGene2ScaleMax}
+                onMinChange={setGene2ScaleMin}
+              />
+            </div>
+          ) : mode.includes("gene") && selectedGene ? (
             <GeneScalebar
               maxValue={geneScaleMax}
               minValue={geneScaleMin}

@@ -125,6 +125,18 @@ export interface VisualizationState {
   toggleSecondaryValue: (value: string) => void;
   setSecondaryPaletteOverride: (value: string, color: string) => void;
 
+  // Two-gene coexpression mode.
+  coexpressEnabled: boolean;
+  selectedGene2: string | null;
+  coexpressSwapped: boolean;
+  gene2ScaleMin: number;
+  gene2ScaleMax: number;
+  setCoexpressEnabled: (on: boolean) => void;
+  setSelectedGene2: (gene: string | null) => void;
+  setCoexpressSwapped: (swapped: boolean) => void;
+  setGene2ScaleMin: (min: number) => void;
+  setGene2ScaleMax: (max: number) => void;
+
   // Per-sample 2D transforms (translate + rotate around centroid).
   transformColumn: string | null;
   activeSampleId: string | null;
@@ -195,6 +207,11 @@ const initialState = {
   activeSampleId: null as string | null,
   sampleTransforms: new Map<string, SampleTransform>(),
   transformVersion: 0,
+  coexpressEnabled: false,
+  selectedGene2: null as string | null,
+  coexpressSwapped: false,
+  gene2ScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
+  gene2ScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
 };
 
 const updateModeArray = (
@@ -563,6 +580,22 @@ export function createVisualizationStoreInstance() {
           [value]: color,
         },
       }));
+    },
+
+    setCoexpressEnabled: (on) => {
+      set({ coexpressEnabled: on });
+    },
+    setSelectedGene2: (gene) => {
+      set({ selectedGene2: gene });
+    },
+    setCoexpressSwapped: (swapped) => {
+      set({ coexpressSwapped: swapped });
+    },
+    setGene2ScaleMin: (min) => {
+      set({ gene2ScaleMin: min });
+    },
+    setGene2ScaleMax: (max) => {
+      set({ gene2ScaleMax: max });
     },
 
     setTransformColumn: (column) => {

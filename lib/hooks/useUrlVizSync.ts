@@ -185,6 +185,21 @@ export async function applyCellVizState(
   if (decoded.cm) {
     store.setColormap(decoded.cm);
   }
+
+  // Two-gene coexpression
+  if (decoded.g2 && dataset.genes?.includes(decoded.g2)) {
+    store.setSelectedGene2(decoded.g2);
+  }
+  if (decoded.gs2) {
+    store.setGene2ScaleMin(decoded.gs2[0]);
+    store.setGene2ScaleMax(decoded.gs2[1]);
+  }
+  if (decoded.ce !== undefined) {
+    store.setCoexpressEnabled(decoded.ce);
+  }
+  if (decoded.cw !== undefined) {
+    store.setCoexpressSwapped(decoded.cw);
+  }
 }
 
 export function applySMVizState(
@@ -353,6 +368,11 @@ export function useCellVizUrlSync(
     flipX,
     flipY,
     colormap,
+    selectedGene2,
+    gene2ScaleMin,
+    gene2ScaleMax,
+    coexpressEnabled,
+    coexpressSwapped,
   } = store;
 
   useEffect(() => {
@@ -383,6 +403,11 @@ export function useCellVizUrlSync(
       flipX,
       flipY,
       colormap,
+      selectedGene2,
+      gene2ScaleMin,
+      gene2ScaleMax,
+      coexpressEnabled,
+      coexpressSwapped,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -413,6 +438,11 @@ export function useCellVizUrlSync(
     flipX,
     flipY,
     colormap,
+    selectedGene2,
+    gene2ScaleMin,
+    gene2ScaleMax,
+    coexpressEnabled,
+    coexpressSwapped,
   ]);
 
   return { hasUrlState, hasUrlStateRef };
