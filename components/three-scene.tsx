@@ -33,6 +33,10 @@ import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import {
+  applyTransformsToPositions,
+  computeSampleCentroids,
+} from "@/lib/utils/sample-transforms";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -44,6 +48,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const sceneGroupRef = useRef<THREE.Group | null>(null);
+  // Untransformed scene-space positions (xyz interleaved). Used as the base
+  // when applying per-sample transforms so edits compose from identity.
+  const basePositionsRef = useRef<Float32Array | null>(null);
+  const sceneScaleRef = useRef<number>(1);
   const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
@@ -102,6 +110,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     flipY,
     pinnedTooltipColumns,
     colormap,
+    transformColumn,
+    sampleTransforms,
+    transformVersion,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -632,6 +643,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         }
       }
 
+      // Stash base (untransformed) positions and the scene-space scale so the
+      // per-sample transform effect can recompute live without re-deriving.
+      basePositionsRef.current = new Float32Array(positions);
+      sceneScaleRef.current = cs;
+
       // Create point cloud mesh with custom shaders
       // The shader computes: gl_PointSize = size * dotSize * proj[1][1] / -mvPosition.z
       // We want ~3px dots at the initial zoom level.
@@ -682,6 +698,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         (pointCloud.material as any).dispose();
         pointCloudRef.current = null;
         sceneRef.current = null;
+        basePositionsRef.current = null;
         cameraRef.current = null;
         rendererRef.current = null;
         controlsRef.current = null;
@@ -699,6 +716,66 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       };
     }
   }, [dataset, viewMode]);
+
+  // Effect 1b: Apply per-sample transforms to the live position buffer.
+  // Reads base positions stashed during scene init and writes the result
+  // into geometry.attributes.position. Marks needsUpdate so the GPU re-uploads.
+  const centroidsCacheRef = useRef<{
+    column: string | null;
+    centroids: Map<string, [number, number]> | null;
+  }>({ column: null, centroids: null });
+
+  // Invalidate centroid cache when dataset changes.
+  useEffect(() => {
+    centroidsCacheRef.current = { column: null, centroids: null };
+  }, [dataset]);
+
+  useEffect(() => {
+    const base = basePositionsRef.current;
+    const pc = pointCloudRef.current;
+    if (!base || !pc || !dataset) return;
+
+    const positionAttr = pc.geometry.attributes.position as THREE.BufferAttribute;
+    const out = positionAttr.array as Float32Array;
+
+    if (!transformColumn || sampleTransforms.size === 0) {
+      out.set(base);
+      positionAttr.needsUpdate = true;
+      return;
+    }
+
+    const cluster =
+      dataset.clusters?.find((c) => c.column === transformColumn) ?? null;
+    if (!cluster) {
+      // Column not loaded yet — fall back to base positions.
+      out.set(base);
+      positionAttr.needsUpdate = true;
+      return;
+    }
+
+    // Centroids depend only on (spatial, column); cache them across edits.
+    let centroids = centroidsCacheRef.current.centroids;
+    if (centroidsCacheRef.current.column !== transformColumn) {
+      centroids = computeSampleCentroids(dataset.spatial, cluster);
+      centroidsCacheRef.current = { column: transformColumn, centroids };
+    }
+
+    applyTransformsToPositions(
+      base,
+      out,
+      cluster,
+      centroids,
+      sampleTransforms,
+      sceneScaleRef.current,
+    );
+    positionAttr.needsUpdate = true;
+  }, [
+    dataset,
+    pointCloudVersion,
+    transformColumn,
+    transformVersion,
+    clusterVersion,
+  ]);
 
   // Effect 2: Update visualization based on mode array
   useEffect(() => {

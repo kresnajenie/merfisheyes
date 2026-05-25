@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { VISUALIZATION_CONFIG } from "../config/visualization.config";
+import type { SampleTransform } from "../utils/sample-transforms";
 
 export type VisualizationMode = "celltype" | "gene";
 export type CellViewMode = "2D" | "3D";
@@ -137,6 +138,18 @@ interface VisualizationState {
   setSelectedSecondaryValues: (values: Set<string>) => void;
   toggleSecondaryValue: (value: string) => void;
   setSecondaryPaletteOverride: (value: string, color: string) => void;
+
+  // Per-sample 2D transforms (translate + rotate around centroid).
+  transformColumn: string | null;
+  activeSampleId: string | null;
+  sampleTransforms: Map<string, SampleTransform>;
+  transformVersion: number;
+  setTransformColumn: (column: string | null) => void;
+  setActiveSampleId: (id: string | null) => void;
+  setSampleTransform: (sampleId: string, transform: SampleTransform) => void;
+  clearSampleTransform: (sampleId: string) => void;
+  clearAllSampleTransforms: () => void;
+
   reset: () => void;
 }
 
@@ -192,6 +205,10 @@ const initialState = {
   secondaryColumn: null as string | null,
   selectedSecondaryValues: new Set<string>(),
   secondaryPaletteOverrides: {} as Record<string, string>,
+  transformColumn: null as string | null,
+  activeSampleId: null as string | null,
+  sampleTransforms: new Map<string, SampleTransform>(),
+  transformVersion: 0,
 };
 
 // Helper function to update mode array
@@ -561,6 +578,44 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         ...state.secondaryPaletteOverrides,
         [value]: color,
       },
+    }));
+  },
+
+  setTransformColumn: (column) => {
+    set({ transformColumn: column, activeSampleId: null });
+  },
+
+  setActiveSampleId: (id) => {
+    set({ activeSampleId: id });
+  },
+
+  setSampleTransform: (sampleId, transform) => {
+    set((state) => {
+      const next = new Map(state.sampleTransforms);
+      next.set(sampleId, transform);
+      return {
+        sampleTransforms: next,
+        transformVersion: state.transformVersion + 1,
+      };
+    });
+  },
+
+  clearSampleTransform: (sampleId) => {
+    set((state) => {
+      if (!state.sampleTransforms.has(sampleId)) return {} as Partial<VisualizationState>;
+      const next = new Map(state.sampleTransforms);
+      next.delete(sampleId);
+      return {
+        sampleTransforms: next,
+        transformVersion: state.transformVersion + 1,
+      };
+    });
+  },
+
+  clearAllSampleTransforms: () => {
+    set((state) => ({
+      sampleTransforms: new Map<string, SampleTransform>(),
+      transformVersion: state.transformVersion + 1,
     }));
   },
 
