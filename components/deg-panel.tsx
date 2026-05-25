@@ -5,7 +5,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import {
   usePanelDatasetStore,
@@ -123,6 +123,61 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
       setDegSortKey(key);
       setDegSortDesc(true);
     }
+  };
+
+  const [copyState, setCopyState] = useState<"idle" | "ok" | "err">("idle");
+
+  const buildCsv = (): string => {
+    const header = "gene,log2FC,mean_in,mean_out,pct_in,pct_out,n_in,n_out";
+    const lines = [header];
+    const nIn = targetCount;
+    const nOut = referenceCount;
+    for (const r of filtered) {
+      lines.push(
+        [
+          csvCell(r.gene),
+          csvNum(r.log2FC),
+          csvNum(r.meanIn),
+          csvNum(r.meanOut),
+          csvNum(r.pctIn),
+          csvNum(r.pctOut),
+          nIn,
+          nOut,
+        ].join(","),
+      );
+    }
+    return lines.join("\n");
+  };
+
+  const exportFilename = (): string => {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const target = sanitizeForFilename(degTarget ?? "target");
+    const ref = sanitizeForFilename(degReference ?? "rest");
+    return `deg_${target}_vs_${ref}_${stamp}.csv`;
+  };
+
+  const onCopy = async () => {
+    if (!filtered.length) return;
+    try {
+      await navigator.clipboard.writeText(buildCsv());
+      setCopyState("ok");
+    } catch {
+      setCopyState("err");
+    }
+    setTimeout(() => setCopyState("idle"), 1500);
+  };
+
+  const onDownload = () => {
+    if (!filtered.length) return;
+    const blob = new Blob([buildCsv()], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = exportFilename();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -260,13 +315,37 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
               {degReference ?? "rest"}
             </div>
 
-            <Input
-              classNames={{ input: "text-sm" }}
-              placeholder="Search gene"
-              size="sm"
-              value={degSearchTerm}
-              onValueChange={setDegSearchTerm}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                classNames={{ input: "text-sm" }}
+                className="flex-1"
+                placeholder="Search gene"
+                size="sm"
+                value={degSearchTerm}
+                onValueChange={setDegSearchTerm}
+              />
+              <Button
+                className="shrink-0"
+                color={copyState === "ok" ? "success" : copyState === "err" ? "danger" : "default"}
+                isDisabled={!filtered.length}
+                size="sm"
+                title="Copy filtered rows as CSV to clipboard"
+                variant="flat"
+                onPress={onCopy}
+              >
+                {copyState === "ok" ? "Copied" : copyState === "err" ? "Error" : "Copy"}
+              </Button>
+              <Button
+                className="shrink-0"
+                isDisabled={!filtered.length}
+                size="sm"
+                title="Download filtered rows as CSV"
+                variant="flat"
+                onPress={onDownload}
+              >
+                CSV
+              </Button>
+            </div>
 
             {/* Header */}
             <div className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr] gap-2 text-[11px] uppercase tracking-wide text-default-400 px-2">
@@ -375,4 +454,20 @@ function formatLog2FC(v: number): string {
   if (!isFinite(v)) return v > 0 ? "+∞" : "-∞";
   const sign = v > 0 ? "+" : "";
   return sign + v.toFixed(2);
+}
+
+function csvCell(s: string): string {
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function csvNum(v: number): string {
+  if (Number.isNaN(v)) return "NaN";
+  if (v === Infinity) return "Inf";
+  if (v === -Infinity) return "-Inf";
+  return String(v);
+}
+
+function sanitizeForFilename(s: string): string {
+  return s.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 64);
 }
