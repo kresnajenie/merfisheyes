@@ -199,7 +199,10 @@ export const VisualizationLegends: React.FC = () => {
   }
 
   return (
-    <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
+    <div
+      className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs"
+      data-ui-overlay
+    >
       {/* Selected Gene Badge */}
       {hasGene && (() => {
         const coexpressActive = coexpressEnabled && selectedGene && selectedGene2;

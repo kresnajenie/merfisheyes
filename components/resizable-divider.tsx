@@ -60,6 +60,7 @@ export function ResizableDivider() {
       className={`w-2 cursor-col-resize flex-shrink-0 relative group ${
         isDragging ? "bg-primary/40" : "bg-white/10 hover:bg-white/20"
       } transition-colors`}
+      data-ui-overlay
       onMouseDown={handleMouseDown}
     >
       {/* Visual grip indicator */}
