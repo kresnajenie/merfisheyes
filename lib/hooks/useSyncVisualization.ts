@@ -21,6 +21,7 @@ type SyncFields = Pick<
   | "coexpressEnabled"
   | "selectedGene2"
   | "coexpressSwapped"
+  | "hiddenCelltypes"
 >;
 
 function pickSyncFields(state: VisualizationState): SyncFields {
@@ -32,6 +33,7 @@ function pickSyncFields(state: VisualizationState): SyncFields {
     coexpressEnabled: state.coexpressEnabled,
     selectedGene2: state.selectedGene2,
     coexpressSwapped: state.coexpressSwapped,
+    hiddenCelltypes: state.hiddenCelltypes,
   };
 }
 
@@ -309,6 +311,33 @@ export function useSyncVisualization(
                   targetStore.getState().toggleCelltype(ct);
                 }
               }
+            }
+          }
+        }
+
+        // 2b. hiddenCelltypes changed (per-celltype eye toggle / cmd-click solo).
+        // Diff source vs target so solo state stays in sync between panels.
+        // Runs independently of the column/celltypes branches above so it
+        // catches both per-celltype toggles AND the bulk reassignment from
+        // soloCelltype().
+        {
+          const sourceHidden = sourceFields.hiddenCelltypes;
+          // Re-read target state — earlier blocks may have toggled celltypes
+          // and `targetState` was captured before that.
+          const targetHidden = targetStore.getState().hiddenCelltypes;
+          const targetSelected = targetStore.getState().selectedCelltypes;
+
+          // Hide on target: in source's hidden set, not yet hidden on target,
+          // and the celltype is currently selected on target.
+          for (const ct of sourceHidden) {
+            if (!targetHidden.has(ct) && targetSelected.has(ct)) {
+              targetStore.getState().toggleCelltypeVisibility(ct);
+            }
+          }
+          // Unhide on target: hidden on target but not in source.
+          for (const ct of targetHidden) {
+            if (!sourceHidden.has(ct)) {
+              targetStore.getState().toggleCelltypeVisibility(ct);
             }
           }
         }
