@@ -776,7 +776,7 @@ export function VisualizationPanel({
               onValueChange={updateSearchTerm}
             />
 
-            {/* Clear Button + Copy Genes */}
+            {/* Clear Button + Select-all + Copy Genes */}
             <div className="flex gap-1">
               <Button
                 className="flex-1"
@@ -795,6 +795,31 @@ export function VisualizationPanel({
               >
                 Clear
               </Button>
+              {mode === "celltype" && (
+                <Tooltip
+                  content={
+                    currentSearchTerm
+                      ? `Select all ${filteredItems.length} filtered`
+                      : `Select all ${filteredItems.length}`
+                  }
+                  delay={300}
+                  placement="top"
+                >
+                  <Button
+                    className="flex-1"
+                    color="primary"
+                    isDisabled={filteredItems.length === 0}
+                    variant="ghost"
+                    onPress={() => {
+                      const union = new Set(selectedCelltypes);
+                      for (const item of filteredItems) union.add(item.id);
+                      setCelltypes(union);
+                    }}
+                  >
+                    Select all
+                  </Button>
+                </Tooltip>
+              )}
               {mode === "gene" && dataset && (
                 <Tooltip content="Copy all gene names" delay={300} placement="top">
                   <Button
