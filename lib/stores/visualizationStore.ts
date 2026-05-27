@@ -134,10 +134,14 @@ interface VisualizationState {
   secondaryColumn: string | null;
   selectedSecondaryValues: Set<string>;
   secondaryPaletteOverrides: Record<string, string>;
+  // User-customised ordering for the current secondary column's values. Empty
+  // means "use the column's natural order". Resets when secondaryColumn changes.
+  secondaryValueOrder: string[];
   setSecondaryColumn: (column: string | null) => void;
   setSelectedSecondaryValues: (values: Set<string>) => void;
   toggleSecondaryValue: (value: string) => void;
   setSecondaryPaletteOverride: (value: string, color: string) => void;
+  setSecondaryValueOrder: (values: string[]) => void;
 
   // Two-gene coexpression mode.
   coexpressEnabled: boolean;
@@ -217,6 +221,7 @@ const initialState = {
   secondaryColumn: null as string | null,
   selectedSecondaryValues: new Set<string>(),
   secondaryPaletteOverrides: {} as Record<string, string>,
+  secondaryValueOrder: [] as string[],
   transformColumn: null as string | null,
   activeSampleId: null as string | null,
   sampleTransforms: new Map<string, SampleTransform>(),
@@ -392,6 +397,7 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         secondaryColumn: null,
         selectedSecondaryValues: new Set<string>(),
         secondaryPaletteOverrides: {},
+        secondaryValueOrder: [],
       };
 
       // If selecting a numerical column, clear gene and set mode to celltype only
@@ -572,6 +578,7 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         secondaryColumn: column,
         selectedSecondaryValues: new Set<string>(),
         secondaryPaletteOverrides: {},
+        secondaryValueOrder: [],
       };
     });
   },
@@ -596,6 +603,10 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         [value]: color,
       },
     }));
+  },
+
+  setSecondaryValueOrder: (values) => {
+    set({ secondaryValueOrder: [...values] });
   },
 
   setCoexpressEnabled: (on) => {

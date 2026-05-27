@@ -6,6 +6,7 @@ import type { Data, Layout, Config } from "plotly.js";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { colormapRgb } from "@/lib/utils/colormaps";
 import { getColorFromPalette } from "@/lib/utils/color-palette";
+import { getOrderedSecondaryValues } from "@/lib/utils/secondary-order";
 
 import { Plot } from "./plot-loader";
 
@@ -21,6 +22,7 @@ interface GeneHistogramProps {
   secondaryColumn?: string | null;
   selectedSecondaryValues?: Set<string>;
   secondaryPaletteOverrides?: Record<string, string>;
+  secondaryValueOrder?: string[];
   clusterVersion?: number;
   // When true and grouping is active, normalize each group to its own
   // probability-density (matplotlib-style density=True) so groups of
@@ -37,6 +39,7 @@ export function GeneHistogram({
   secondaryColumn,
   selectedSecondaryValues,
   secondaryPaletteOverrides,
+  secondaryValueOrder,
   density,
 }: GeneHistogramProps) {
   const [expression, setExpression] = useState<number[] | null>(null);
@@ -101,12 +104,13 @@ export function GeneHistogram({
         ? secondaryCluster.uniqueValues[secondaryCluster.valueIndices[i]]
         : String(secondaryCluster.values[i]);
 
-    const allUnique =
+    const naturalUnique =
       secondaryCluster.uniqueValues ??
       Array.from(new Set(secondaryCluster.values.map(String)));
-    const secondaryOrder = allUnique.filter((v) =>
-      selectedSecondaryValues!.has(v),
-    );
+    const secondaryOrder = getOrderedSecondaryValues(
+      naturalUnique,
+      secondaryValueOrder ?? [],
+    ).filter((v) => selectedSecondaryValues!.has(v));
 
     // Two passes: count then fill, so we can size Float32Arrays exactly.
     const sizes = new Map<string, number>();
@@ -154,6 +158,7 @@ export function GeneHistogram({
     selectedCelltypes,
     selectedSecondaryValues,
     secondaryPaletteOverrides,
+    secondaryValueOrder,
     secondaryActive,
   ]);
 
