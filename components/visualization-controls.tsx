@@ -40,6 +40,9 @@ export function VisualizationControls() {
     selectedColumn, selectedCelltypes, setCelltypes, clusterVersion, columnTypeOverrides,
     sceneRotation, setSceneRotation, flipX, setFlipX, flipY, setFlipY,
     plotPanelOpen, setPlotPanelOpen,
+    exportBoxEnabled, exportBoxWidthMm, exportBoxHeightMm,
+    setExportBoxEnabled, setExportBoxWidthMm, setExportBoxHeightMm,
+    setExportBoxCenterPx,
   } = usePanelVisualizationStore();
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
@@ -489,17 +492,27 @@ export function VisualizationControls() {
       {/* Camera Panel */}
       {isCameraOpen && (
         <CameraPanel
+          canExportBox={!!dataset && !dataset.metadata?.wasNormalized}
           controlsRef={controlsRef}
-          onClose={() => setIsCameraOpen(false)}
-          sceneRotation={sceneRotation}
-          setSceneRotation={setSceneRotation}
+          exportBox={{
+            enabled: exportBoxEnabled,
+            widthMm: exportBoxWidthMm,
+            heightMm: exportBoxHeightMm,
+            setEnabled: setExportBoxEnabled,
+            setWidthMm: setExportBoxWidthMm,
+            setHeightMm: setExportBoxHeightMm,
+            resetCenter: () => setExportBoxCenterPx(null),
+          }}
           flipX={flipX}
-          setFlipX={setFlipX}
           flipY={flipY}
-          setFlipY={setFlipY}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
           is3DDataset={dataset?.spatial?.dimensions === 3}
+          sceneRotation={sceneRotation}
+          setFlipX={setFlipX}
+          setFlipY={setFlipY}
+          setSceneRotation={setSceneRotation}
+          setViewMode={setViewMode}
+          viewMode={viewMode}
+          onClose={() => setIsCameraOpen(false)}
         />
       )}
 

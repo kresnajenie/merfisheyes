@@ -12,6 +12,7 @@ import {
 } from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+import { ExportBoxOverlay } from "@/components/export-box-overlay";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 
 
@@ -118,6 +119,8 @@ export function SingleMoleculeThreeScene() {
   const {
     selectedGenes, globalScale, viewMode, showAssigned, showUnassigned,
     sceneRotation, flipX, flipY,
+    exportBoxEnabled, exportBoxWidthMm, exportBoxHeightMm,
+    exportBoxCenterPx, setExportBoxCenterPx,
   } = usePanelSingleMoleculeVisualizationStore();
 
   // Keep refs in sync with store values
@@ -760,6 +763,19 @@ export function SingleMoleculeThreeScene() {
         cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
         rendererRef={rendererRef}
         controlsRef={controlsRef}
+      />
+      <ExportBoxOverlay
+        canShow={viewMode === "2D"}
+        cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
+        controlsRef={controlsRef}
+        rendererRef={rendererRef}
+        setCenterPx={setExportBoxCenterPx}
+        state={{
+          enabled: exportBoxEnabled,
+          widthMm: exportBoxWidthMm,
+          heightMm: exportBoxHeightMm,
+          centerPx: exportBoxCenterPx,
+        }}
       />
     </>
   );

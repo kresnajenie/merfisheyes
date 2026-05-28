@@ -37,6 +37,18 @@ interface CameraPanelProps {
   viewMode?: string;
   setViewMode?: (mode: any) => void;
   is3DDataset?: boolean;
+  // Export box tool — provided by viewers that support exact-mm screenshots.
+  // Section only renders when canExportBox is true and viewMode === "2D".
+  canExportBox?: boolean;
+  exportBox?: {
+    enabled: boolean;
+    widthMm: number;
+    heightMm: number;
+    setEnabled: (e: boolean) => void;
+    setWidthMm: (mm: number) => void;
+    setHeightMm: (mm: number) => void;
+    resetCenter: () => void;
+  };
 }
 
 export function CameraPanel({
@@ -51,9 +63,12 @@ export function CameraPanel({
   viewMode,
   setViewMode,
   is3DDataset = false,
+  canExportBox = false,
+  exportBox,
 }: CameraPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [alignOpen, setAlignOpen] = useState(false);
+  const [exportBoxOpen, setExportBoxOpen] = useState(false);
 
   // Handle click outside to close panel
   useEffect(() => {
@@ -182,6 +197,35 @@ export function CameraPanel({
         >
           Reset
         </Button>
+
+        {/* Export box (exact-mm screenshot tool) */}
+        {canExportBox && exportBox && viewMode === "2D" && (
+          <>
+            <button
+              aria-expanded={exportBoxOpen}
+              className="w-full flex items-center justify-between text-xs text-default-400 hover:text-default-200 pt-1"
+              onClick={() => setExportBoxOpen(!exportBoxOpen)}
+            >
+              <span>Export box</span>
+              <span
+                className={`transition-transform ${exportBoxOpen ? "rotate-90" : ""}`}
+              >
+                ▸
+              </span>
+            </button>
+            {exportBoxOpen && (
+              <ExportBoxSection
+                heightMm={exportBox.heightMm}
+                enabled={exportBox.enabled}
+                resetCenter={exportBox.resetCenter}
+                setEnabled={exportBox.setEnabled}
+                setHeightMm={exportBox.setHeightMm}
+                setWidthMm={exportBox.setWidthMm}
+                widthMm={exportBox.widthMm}
+              />
+            )}
+          </>
+        )}
 
         {/* Per-sample align (advanced, collapsed by default) */}
         <button
@@ -471,4 +515,110 @@ function parseFloatOr(s: string, fallback: number): number {
   if (s === "" || s === "-" || s === "." || s === "-.") return fallback;
   const n = Number(s);
   return Number.isFinite(n) ? n : fallback;
+}
+
+interface ExportBoxSectionProps {
+  enabled: boolean;
+  widthMm: number;
+  heightMm: number;
+  setEnabled: (e: boolean) => void;
+  setWidthMm: (mm: number) => void;
+  setHeightMm: (mm: number) => void;
+  resetCenter: () => void;
+}
+
+function ExportBoxSection({
+  enabled,
+  widthMm,
+  heightMm,
+  setEnabled,
+  setWidthMm,
+  setHeightMm,
+  resetCenter,
+}: ExportBoxSectionProps) {
+  // Local string state so the user can type freely (e.g. "0." while heading
+  // toward "0.5") without the store rounding/clamping every keystroke.
+  const [wStr, setWStr] = useState(String(widthMm));
+  const [hStr, setHStr] = useState(String(heightMm));
+  useEffect(() => {
+    setWStr(String(widthMm));
+  }, [widthMm]);
+  useEffect(() => {
+    setHStr(String(heightMm));
+  }, [heightMm]);
+
+  const commitW = () => {
+    const n = parseFloat(wStr);
+    if (Number.isFinite(n) && n > 0) setWidthMm(n);
+    else setWStr(String(widthMm));
+  };
+  const commitH = () => {
+    const n = parseFloat(hStr);
+    if (Number.isFinite(n) && n > 0) setHeightMm(n);
+    else setHStr(String(heightMm));
+  };
+
+  return (
+    <div className="space-y-2 text-xs">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          checked={enabled}
+          className="accent-yellow-300"
+          type="checkbox"
+          onChange={(e) => setEnabled(e.target.checked)}
+        />
+        <span>Show export box</span>
+      </label>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <div className="text-default-400 mb-1">Width (mm)</div>
+          <Input
+            classNames={{ input: "text-xs" }}
+            min={0.01}
+            size="sm"
+            step={0.1}
+            type="number"
+            value={wStr}
+            onBlur={commitW}
+            onChange={(e) => setWStr(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitW();
+            }}
+          />
+        </div>
+        <div>
+          <div className="text-default-400 mb-1">Height (mm)</div>
+          <Input
+            classNames={{ input: "text-xs" }}
+            min={0.01}
+            size="sm"
+            step={0.1}
+            type="number"
+            value={hStr}
+            onBlur={commitH}
+            onChange={(e) => setHStr(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitH();
+            }}
+          />
+        </div>
+      </div>
+
+      <Button
+        className="w-full"
+        isDisabled={!enabled}
+        size="sm"
+        variant="flat"
+        onPress={resetCenter}
+      >
+        Recenter
+      </Button>
+
+      <p className="text-[10px] text-default-400 leading-snug">
+        Drag the yellow box to position. Use Save / Copy on the box toolbar to
+        export the cropped region at the current zoom.
+      </p>
+    </div>
+  );
 }

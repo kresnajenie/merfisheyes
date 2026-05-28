@@ -64,6 +64,13 @@ export function SingleMoleculeControls() {
     setFlipX,
     flipY,
     setFlipY,
+    exportBoxEnabled,
+    exportBoxWidthMm,
+    exportBoxHeightMm,
+    setExportBoxEnabled,
+    setExportBoxWidthMm,
+    setExportBoxHeightMm,
+    setExportBoxCenterPx,
   } = usePanelSingleMoleculeVisualizationStore();
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -406,16 +413,26 @@ export function SingleMoleculeControls() {
       {/* Camera Panel */}
       {isCameraOpen && (
         <CameraPanel
+          canExportBox={true}
           controlsRef={controlsRef}
-          onClose={() => setIsCameraOpen(false)}
-          sceneRotation={sceneRotation}
-          setSceneRotation={setSceneRotation}
+          exportBox={{
+            enabled: exportBoxEnabled,
+            widthMm: exportBoxWidthMm,
+            heightMm: exportBoxHeightMm,
+            setEnabled: setExportBoxEnabled,
+            setWidthMm: setExportBoxWidthMm,
+            setHeightMm: setExportBoxHeightMm,
+            resetCenter: () => setExportBoxCenterPx(null),
+          }}
           flipX={flipX}
-          setFlipX={setFlipX}
           flipY={flipY}
+          sceneRotation={sceneRotation}
+          setFlipX={setFlipX}
           setFlipY={setFlipY}
-          viewMode={viewMode}
+          setSceneRotation={setSceneRotation}
           setViewMode={setViewMode}
+          viewMode={viewMode}
+          onClose={() => setIsCameraOpen(false)}
         />
       )}
     </div>

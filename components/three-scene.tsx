@@ -32,6 +32,7 @@ import {
 } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+import { ExportBoxOverlay } from "@/components/export-box-overlay";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import {
@@ -121,6 +122,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     gene2ScaleMax,
     setGene2ScaleMin,
     setGene2ScaleMax,
+    exportBoxEnabled,
+    exportBoxWidthMm,
+    exportBoxHeightMm,
+    exportBoxCenterPx,
+    setExportBoxCenterPx,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -1126,6 +1132,25 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           controlsRef={controlsRef}
         />
       )}
+
+      {/* Export box overlay — gated by viewMode + raw-coords (same as scale bar). */}
+      <ExportBoxOverlay
+        canShow={
+          viewMode === "2D" && !!dataset && !dataset.metadata?.wasNormalized
+        }
+        cameraRef={
+          cameraRef as React.RefObject<THREE.PerspectiveCamera | null>
+        }
+        controlsRef={controlsRef}
+        rendererRef={rendererRef}
+        setCenterPx={setExportBoxCenterPx}
+        state={{
+          enabled: exportBoxEnabled,
+          widthMm: exportBoxWidthMm,
+          heightMm: exportBoxHeightMm,
+          centerPx: exportBoxCenterPx,
+        }}
+      />
     </>
   );
 }

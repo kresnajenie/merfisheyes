@@ -129,6 +129,19 @@ export interface VisualizationState {
   setSecondaryPaletteOverride: (value: string, color: string) => void;
   setSecondaryValueOrder: (values: string[]) => void;
 
+  // "Export box" overlay tool — draws an exact-mm rectangle in the 2D scene
+  // for cropped PNG screenshots. Panel-local, not persisted.
+  exportBoxEnabled: boolean;
+  exportBoxWidthMm: number;
+  exportBoxHeightMm: number;
+  // Center position in CSS px relative to the scene container.
+  // null = use viewport center on the next render.
+  exportBoxCenterPx: { x: number; y: number } | null;
+  setExportBoxEnabled: (enabled: boolean) => void;
+  setExportBoxWidthMm: (mm: number) => void;
+  setExportBoxHeightMm: (mm: number) => void;
+  setExportBoxCenterPx: (pos: { x: number; y: number } | null) => void;
+
   // Two-gene coexpression mode.
   coexpressEnabled: boolean;
   selectedGene2: string | null;
@@ -208,6 +221,10 @@ const initialState = {
   selectedSecondaryValues: new Set<string>(),
   secondaryPaletteOverrides: {} as Record<string, string>,
   secondaryValueOrder: [] as string[],
+  exportBoxEnabled: false,
+  exportBoxWidthMm: 1,
+  exportBoxHeightMm: 1,
+  exportBoxCenterPx: null as { x: number; y: number } | null,
   transformColumn: null as string | null,
   activeSampleId: null as string | null,
   sampleTransforms: new Map<string, SampleTransform>(),
@@ -592,6 +609,13 @@ export function createVisualizationStoreInstance() {
     setSecondaryValueOrder: (values) => {
       set({ secondaryValueOrder: [...values] });
     },
+
+    setExportBoxEnabled: (enabled) => set({ exportBoxEnabled: enabled }),
+    setExportBoxWidthMm: (mm) =>
+      set({ exportBoxWidthMm: Math.max(0.01, mm) }),
+    setExportBoxHeightMm: (mm) =>
+      set({ exportBoxHeightMm: Math.max(0.01, mm) }),
+    setExportBoxCenterPx: (pos) => set({ exportBoxCenterPx: pos }),
 
     setCoexpressEnabled: (on) => {
       set({ coexpressEnabled: on });

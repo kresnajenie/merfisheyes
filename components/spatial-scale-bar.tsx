@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
+import { micronsPerPixel } from "@/lib/utils/world-units";
+
 interface SpatialScaleBarProps {
   cameraRef: React.RefObject<THREE.PerspectiveCamera | null>;
   rendererRef: React.RefObject<THREE.WebGLRenderer | null>;
@@ -63,15 +65,11 @@ export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: Spatial
       if (camera && renderer) {
         const canvasHeight = renderer.domElement.clientHeight;
         const canvasWidth = renderer.domElement.clientWidth;
-        // Distance from camera to look-at target (not origin — raw coords may be far from origin)
-        const target = controlsRef?.current?.target;
-        const cameraDistance = target
-          ? camera.position.distanceTo(target)
-          : camera.position.length();
-        const fovRad = (camera.fov / 2) * (Math.PI / 180);
-
-        // World units per pixel
-        const worldPerPx = (2 * cameraDistance * Math.tan(fovRad)) / canvasHeight;
+        const worldPerPx = micronsPerPixel(
+          camera,
+          controlsRef?.current,
+          canvasHeight,
+        );
 
         // Target bar width ~120px, find nice micron value
         const targetPx = 120;
