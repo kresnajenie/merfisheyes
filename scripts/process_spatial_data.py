@@ -948,6 +948,7 @@ def process_dataset(
     mask_keep: str = 'false',
     mmc_csv_path: Optional[Path] = None,
     reorder: bool = False,
+    de_max_celltypes: int = 20000,
 ):
     """Main processing function that handles all formats"""
     global _t_start
@@ -1445,6 +1446,14 @@ def process_dataset(
 
     else:
         # H5AD / Xenium: expression matrix already in memory
+        # Per-column slicing is O(nnz) per gene on CSR; convert to CSC once so
+        # each column slice is cheap.
+        if sparse.issparse(expr_matrix) and not sparse.isspmatrix_csc(expr_matrix):
+            log(f"  Converting expression matrix to CSC for column extraction...", _t_start)
+            t_csc = time.perf_counter()
+            expr_matrix = expr_matrix.tocsc()
+            log(f"  CSC conversion done ({fmt_elapsed(time.perf_counter() - t_csc)})", _t_start)
+
         for gene_idx in range(num_genes):
             if sparse.issparse(expr_matrix):
                 gene_col = expr_matrix[:, gene_idx].toarray().flatten()
@@ -1520,13 +1529,25 @@ def process_dataset(
     categorical_cols = [
         col for col, meta in obs_metadata.items() if meta['type'] == 'categorical'
     ]
-    log(f"  {len(categorical_cols)} categorical column(s) to process", _t_start)
+    log(f"  {len(categorical_cols)} categorical column(s) to process "
+        f"(skip threshold: {de_max_celltypes:,} celltypes)", _t_start)
+    for col in categorical_cols:
+        log(f"    {col}: {obs_metadata[col]['unique_values']:,} unique", _t_start)
 
     for col_idx, col in enumerate(categorical_cols, 1):
         t_col = time.perf_counter()
         col_values = obs_columns.get(col)
         if col_values is None:
             log(f"  [{col_idx}/{len(categorical_cols)}] {col}: values missing, skipping", _t_start)
+            continue
+
+        # High-cardinality columns (e.g. string IDs misclassified as categorical)
+        # produce a giant gene x celltype matrix that thrashes memory without
+        # yielding a meaningful DE grouping. Skip them.
+        n_unique = obs_metadata[col]['unique_values']
+        if n_unique > de_max_celltypes:
+            log(f"  [{col_idx}/{len(categorical_cols)}] {col}: {n_unique:,} unique "
+                f"> {de_max_celltypes:,}, skipping DE", _t_start)
             continue
 
         celltypes, cell_counts, means, pct = compute_de_stats(
@@ -1652,6 +1673,9 @@ Examples:
                         help='MapMyCells output CSV to add as observation columns (e.g. mapping_output.csv)')
     parser.add_argument('--reorder', action='store_true', default=False,
                         help='Reorder cell_metadata and MMC CSV to match cell_by_gene row order (default: off)')
+    parser.add_argument('--de-max-celltypes', type=int, default=20000,
+                        help='Skip DE stats for categorical columns with more unique values than this '
+                             '(avoids thrashing on ID-like columns misclassified as categorical, default: 20000)')
 
     args = parser.parse_args()
 
@@ -1672,7 +1696,8 @@ Examples:
     try:
         process_dataset(args.input, args.output, args.chunk_size, args.format, args.workers,
                         mask_path=args.mask, mask_col=args.mask_col, mask_keep=args.mask_keep,
-                        mmc_csv_path=args.mmc_csv, reorder=args.reorder)
+                        mmc_csv_path=args.mmc_csv, reorder=args.reorder,
+                        de_max_celltypes=args.de_max_celltypes)
     except Exception as e:
         print(f"\n❌ Error during processing: {e}")
         import traceback
