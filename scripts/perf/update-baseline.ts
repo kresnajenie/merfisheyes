@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { recordKey, baselinePath } from "./compare-baseline";
+import { recordKey, baselinePath, resultsEnv } from "./compare-baseline";
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const RESULTS = path.join(ROOT, "perf", "results", "latest.json");
@@ -23,6 +23,7 @@ interface PerfRecord {
   browser?: string;
 }
 interface ResultsFile {
+  env?: string;
   platform: string;
   gitSha: string;
   records: PerfRecord[];
@@ -34,7 +35,8 @@ function main(): void {
     process.exit(2);
   }
   const results: ResultsFile = JSON.parse(fs.readFileSync(RESULTS, "utf8"));
-  const blPath = baselinePath(results.platform);
+  const env = resultsEnv(results);
+  const blPath = baselinePath(env);
 
   const existing: Record<string, number> = fs.existsSync(blPath)
     ? JSON.parse(fs.readFileSync(blPath, "utf8")).metrics ?? {}
@@ -44,6 +46,7 @@ function main(): void {
 
   fs.mkdirSync(path.dirname(blPath), { recursive: true });
   const out = {
+    env,
     platform: results.platform,
     updatedAt: new Date().toISOString(),
     gitSha: results.gitSha,

@@ -26,9 +26,15 @@ interface PerfRecord {
   tier?: string;
 }
 interface ResultsFile {
+  env?: string;
   platform: string;
   gitSha: string;
   records: PerfRecord[];
+}
+
+/** Baseline namespace for a results file (PERF_ENV-aware, platform fallback). */
+export function resultsEnv(r: { env?: string; platform: string }): string {
+  return r.env ?? r.platform;
 }
 interface BaselineFile {
   platform: string;
@@ -81,10 +87,11 @@ function main(): void {
     process.exit(2);
   }
   const results: ResultsFile = JSON.parse(fs.readFileSync(RESULTS, "utf8"));
-  const blPath = baselinePath(results.platform);
+  const env = resultsEnv(results);
+  const blPath = baselinePath(env);
 
   if (!fs.existsSync(blPath)) {
-    console.log(`No baseline for platform '${results.platform}' at ${path.relative(ROOT, blPath)}.`);
+    console.log(`No baseline for env '${env}' at ${path.relative(ROOT, blPath)}.`);
     console.log("Nothing to compare. Bless the current run with `npm run test:perf:update`.");
     process.exit(0);
   }
@@ -115,7 +122,7 @@ function main(): void {
   }
 
   // Report.
-  console.log(`\nPerf comparison — platform=${results.platform}  baseline=${baseline.gitSha}  current=${results.gitSha}`);
+  console.log(`\nPerf comparison — env=${env}  baseline=${baseline.gitSha}  current=${results.gitSha}`);
   console.log(`Thresholds: warn >${WARN_PCT}%, fail >${FAIL_PCT}%\n`);
   console.log(
     `${pad("metric (browser/dataset/metric)", 48)} ${padL("base ms", 10)} ${padL("cur ms", 10)} ${padL("Δ%", 8)}  status`,

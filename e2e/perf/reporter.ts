@@ -58,6 +58,9 @@ export default class PerfReporter implements Reporter {
     if (!this.records.length) return;
     fs.mkdirSync(RESULTS_DIR, { recursive: true });
     const out = {
+      // Baseline namespace: PERF_ENV (e.g. "ci-ubuntu") so CI and local machines
+      // never compare against each other; falls back to the OS platform.
+      env: process.env.PERF_ENV || process.platform,
       platform: process.platform,
       gitSha: gitSha(),
       generatedAt: new Date().toISOString(),

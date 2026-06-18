@@ -93,6 +93,10 @@ jobs:
     name: Performance suite + baseline gate
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_perf)
+    # Namespace the baseline so CI timings compare only against other CI runs,
+    # never against a developer's local machine.
+    env:
+      PERF_ENV: ci-ubuntu
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
