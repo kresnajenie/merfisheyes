@@ -1,0 +1,112 @@
+name: E2E & Performance
+
+on:
+  push: # every push to any branch runs the quick suite
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch:
+    inputs:
+      run_perf:
+        description: "Run the performance suite + baseline comparison"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 6 * * *" # nightly perf run
+
+# Cancel a superseded run when new commits land on the same ref, and avoid the
+# duplicate push+pull_request run on a PR branch piling up.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Dummy values let the app boot for the local-viewer flow (no real DB/S3 needed).
+env:
+  DATABASE_URL: "postgresql://user:pass@localhost:5432/placeholder"
+  DIRECT_URL: "postgresql://user:pass@localhost:5432/placeholder"
+  AUTH_SECRET: "e2e-ci-placeholder-secret"
+  NEXT_PUBLIC_BASE_URL: "http://localhost:3000"
+
+jobs:
+  e2e-quick:
+    name: E2E quick (viewer, tiny datasets)
+    runs-on: ubuntu-latest
+    # Runs on every push (any branch) and on PRs to develop/main.
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      - name: Run quick E2E suite
+        run: npm run test:e2e:ci
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-quick
+          path: playwright-report/
+          retention-days: 14
+
+  e2e-upload:
+    name: E2E upload (Postgres + MinIO)
+    runs-on: ubuntu-latest
+    # Heavier (Docker). Runs on PRs and on pushes to main/develop — not every
+    # feature-branch push. Widen this condition if you want it on all pushes.
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'push' &&
+       (github.ref_name == 'main' || github.ref_name == 'develop'))
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      - name: Start test infra (Postgres + MinIO)
+        run: npm run test:infra:up
+      - name: Run upload E2E suite
+        run: npm run test:upload
+        env:
+          E2E_UPLOAD: "1"
+          CI: "1"
+      - name: Stop test infra
+        if: always()
+        run: npm run test:infra:down
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-upload
+          path: playwright-report/
+          retention-days: 14
+
+  perf:
+    name: Performance suite + baseline gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_perf)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      - name: Run performance suite
+        run: npm run test:perf
+      - name: Compare against baseline
+        run: npm run test:perf:compare
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-results
+          path: |
+            perf/results/
+            playwright-report/
+          retention-days: 30
