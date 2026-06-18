@@ -1,0 +1,12 @@
+{
+  "Neuron": "#1f77b4",
+  "Microglia": "#ff7f0e",
+  "Astrocyte": "#2ca02c",
+  "Macrophage": "#d62728",
+  "Endothelial": "#9467bd",
+  "Pericyte": "#00d9ff",
+  "T_Cell": "#e377c2",
+  "B_Cell": "#ffeb3b",
+  "Fibroblast": "#bcbd22",
+  "Oligodendrocyte": "#17becf"
+}

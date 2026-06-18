@@ -33,6 +33,11 @@ import {
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { ExportBoxOverlay } from "@/components/export-box-overlay";
+import {
+  markSceneReady,
+  markRenderComplete,
+  markGeneRendered,
+} from "@/lib/utils/test-hooks";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import {
@@ -691,6 +696,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Start animation
       animate();
+      markSceneReady();
 
       // Cleanup on unmount
       return () => {
@@ -1054,6 +1060,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           baseDotSizeRef.current * sizeScale,
         );
       }
+
+      // E2E timing hook: mark this render complete (covers initial render and
+      // every gene/celltype change). Stats are read straight off the dataset.
+      markRenderComplete({
+        pointCount: dataset.getPointCount(),
+        geneCount: dataset.genes.length,
+        dimensions: dataset.spatial.dimensions,
+        dataType: "single_cell",
+      });
+      if (mode.includes("gene") && selectedGene) {
+        markGeneRendered(selectedGene, dataset.getPointCount());
+      }
     };
 
     updateVisualization();
@@ -1115,6 +1133,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     <>
       <div
         ref={containerRef}
+        data-testid="sc-scene-canvas"
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />

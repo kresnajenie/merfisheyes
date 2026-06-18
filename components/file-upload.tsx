@@ -12,6 +12,7 @@ import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
+import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
 
 // "folder" is a meta-type that auto-detects the dropped folder shape
 // (zarr / chunked / xenium / merscope / h5ad-inside) and dispatches to the
@@ -244,6 +245,7 @@ export function FileUpload({
     if (files.length === 0) return;
 
     try {
+      resetHooks();
       setLoading(true);
       setError(null);
       setProgress(0);
@@ -520,9 +522,24 @@ export function FileUpload({
       setProgressMessage("Complete!");
 
       if (singleMolecule) {
-        smStore.addDataset(dataset as SingleMoleculeDataset);
+        const sm = dataset as SingleMoleculeDataset;
+
+        smStore.addDataset(sm);
+        markDatasetLoaded({
+          geneCount: sm.uniqueGenes.length,
+          dimensions: sm.dimensions,
+          dataType: "single_molecule",
+        });
       } else {
-        cellStore.addDataset(dataset as StandardizedDataset);
+        const sc = dataset as StandardizedDataset;
+
+        cellStore.addDataset(sc);
+        markDatasetLoaded({
+          pointCount: sc.getPointCount(),
+          geneCount: sc.genes.length,
+          dimensions: sc.spatial.dimensions,
+          dataType: "single_cell",
+        });
       }
 
       toast.success(`Dataset loaded successfully!`);
@@ -617,6 +634,8 @@ export function FileUpload({
             <div className="w-full mt-4 px-4">
               <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
                 <div
+                  data-testid="upload-progress"
+                  data-progress={progress}
                   className="bg-primary h-full transition-all duration-300 ease-out"
                   style={{ width: `${progress}%` }}
                 />

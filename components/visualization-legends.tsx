@@ -239,6 +239,8 @@ export const VisualizationLegends: React.FC = () => {
               </button>
             )}
             <div
+              data-testid="selected-gene-badge"
+              data-gene={selectedGene ?? ""}
               className="group flex items-center gap-2 px-4 py-2 rounded-full hover:opacity-100 transition-colors cursor-pointer"
               style={{
                 backgroundColor: coexpressActive
