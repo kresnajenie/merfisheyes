@@ -40,7 +40,9 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npx prisma generate
-      - run: npx playwright install --with-deps chromium
+      # ubuntu-latest already ships the browser system libraries, so skip the
+      # slow/flaky `--with-deps` apt step and just fetch the browser binary.
+      - run: npx playwright install chromium
       - name: Run quick E2E suite
         run: npm run test:e2e:ci
       - uses: actions/upload-artifact@v4
@@ -67,7 +69,9 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npx prisma generate
-      - run: npx playwright install --with-deps chromium
+      # ubuntu-latest already ships the browser system libraries, so skip the
+      # slow/flaky `--with-deps` apt step and just fetch the browser binary.
+      - run: npx playwright install chromium
       - name: Start test infra (Postgres + MinIO)
         run: npm run test:infra:up
       - name: Run upload E2E suite
@@ -97,7 +101,9 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npx prisma generate
-      - run: npx playwright install --with-deps chromium
+      # ubuntu-latest already ships the browser system libraries, so skip the
+      # slow/flaky `--with-deps` apt step and just fetch the browser binary.
+      - run: npx playwright install chromium
       - name: Run performance suite
         run: npm run test:perf
       - name: Compare against baseline
