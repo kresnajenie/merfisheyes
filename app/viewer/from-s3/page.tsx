@@ -128,8 +128,15 @@ function ViewerFromS3Content() {
 
       console.log("Loading dataset from custom S3:", baseUrl);
 
-      // Import StandardizedDataset
+      // Import StandardizedDataset and URL state reader
       const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
+      const { tryReadCellVizFromUrl } = await import(
+        "@/lib/hooks/useUrlVizSync"
+      );
+
+      // Read URL state to get priority column hint (bypass auto-detection)
+      const urlState = tryReadCellVizFromUrl("left");
+      const priorityColumnHint = urlState?.c || undefined;
 
       // Load dataset using fromCustomS3 method
       const standardizedDataset = await StandardizedDataset.fromCustomS3(
@@ -139,6 +146,7 @@ function ViewerFromS3Content() {
           setLoadingProgress(progress);
           setLoadingMessage(message);
         },
+        priorityColumnHint,
       );
 
       console.log(

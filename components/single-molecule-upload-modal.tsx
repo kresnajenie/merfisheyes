@@ -92,7 +92,7 @@ export function SingleMoleculeUploadModal({
 
     try {
       // Generate fingerprint
-      const fingerprint = await generateSingleMoleculeFingerprint(dataset);
+      let fingerprint = await generateSingleMoleculeFingerprint(dataset);
 
       console.log("Single molecule dataset fingerprint:", fingerprint);
 
@@ -119,6 +119,9 @@ export function SingleMoleculeUploadModal({
 
             return;
           }
+
+          // Make fingerprint unique so the DB allows re-upload (VarChar(64) limit)
+          fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
         }
       }
 
@@ -281,12 +284,14 @@ export function SingleMoleculeUploadModal({
       setProgressMessage("Completing upload...");
       setProgress(95);
 
+      console.log(`[SM Upload] Completing upload - datasetId: ${datasetId}, uploadId: ${uploadId}, email: ${email}`);
+
       const completeResponse = await fetch(
         `/api/single-molecule/${datasetId}/complete`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ uploadId, email }),
+          body: JSON.stringify({ uploadId }),
         },
       );
 
@@ -294,6 +299,20 @@ export function SingleMoleculeUploadModal({
         const error = await completeResponse.json();
 
         throw new Error(error.error || "Failed to complete upload");
+      }
+
+      // Send email notification from client side (server-side fetch hits Vercel auth)
+      if (email) {
+        try {
+          await fetch("/api/send-email-single-molecule", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, datasetId }),
+          });
+        } catch (error) {
+          console.error("Failed to send email notification:", error);
+          // Don't fail the upload if email fails
+        }
       }
 
       setProgress(100);

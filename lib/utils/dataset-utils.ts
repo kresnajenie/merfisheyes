@@ -3,12 +3,26 @@ import type { StandardizedDataset } from "../StandardizedDataset";
 /**
  * Determines the best cluster column to use for visualization
  * Priority:
- * 1. "leiden" if it exists
- * 2. Any column containing "celltype"
- * 3. First available categorical column
- * 4. First available column
- * 5. null if no clusters exist
+ * 1. Taxonomy columns (class_name, subclass_name, supertype_name, etc.)
+ * 2. "leiden"
+ * 3. "Cluster"
+ * 4. Any column containing "celltype"
+ * 5. First available categorical column
+ * 6. First available column
+ * 7. null if no clusters exist
  */
+
+const PRIORITY_COLUMNS = [
+  "class_name",
+  "subclass_name",
+  "supertype_name",
+  "cluster_name",
+  "subcluster_name",
+  "super_cluster_name",
+  "leiden",
+  "Cluster",
+];
+
 export function selectBestClusterColumn(
   dataset: StandardizedDataset | null,
 ): string | null {
@@ -17,19 +31,13 @@ export function selectBestClusterColumn(
   }
 
   const clusters = dataset.clusters;
+  const columnSet = new Set(clusters.map((c) => c.column));
 
-  // Priority 1: Check for "class_name"
-  const className = clusters.find((c) => c.column === "class_name");
+  // Priority 1-2: Check priority columns in order
+  for (const col of PRIORITY_COLUMNS) {
+    if (columnSet.has(col)) return col;
+  }
 
-  if (className) return className.column;
-
-  // Priority 2: Check for "leiden"
-  const leiden = clusters.find((c) => c.column === "leiden");
-
-  if (leiden) return leiden.column;
-  const categoryCluster = clusters.find((c) => c.column === "Cluster");
-
-  if (categoryCluster) return categoryCluster.column;
   // Priority 3: Find anything with "celltype" in it
   const celltype = clusters.find((c) =>
     c.column.toLowerCase().includes("celltype"),
@@ -56,27 +64,23 @@ export function selectBestClusterColumnByName(
 ): string | null {
   if (!columnNames || columnNames.length === 0) return null;
 
-  // Priority 1: "class_name"
-  if (columnNames.includes("class_name")) return "class_name";
+  // Priority 1-2: Check priority columns in order
+  for (const col of PRIORITY_COLUMNS) {
+    if (columnNames.includes(col)) return col;
+  }
 
-  // Priority 2: "leiden"
-  if (columnNames.includes("leiden")) return "leiden";
-
-  // Priority 3: "Cluster"
-  if (columnNames.includes("Cluster")) return "Cluster";
-
-  // Priority 4: contains "celltype"
+  // Priority 3: contains "celltype"
   const celltype = columnNames.find((name) =>
     name.toLowerCase().includes("celltype"),
   );
   if (celltype) return celltype;
 
-  // Priority 5: first categorical column
+  // Priority 4: first categorical column
   const categoricalColumn = columnNames.find(
     (name) => columnTypes[name] !== "numerical",
   );
   if (categoricalColumn) return categoricalColumn;
 
-  // Priority 6: first available column
+  // Priority 5: first available column
   return columnNames[0];
 }

@@ -10,12 +10,23 @@
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
 
 # ── Arguments ────────────────────────────────────────────────
-INPUT_PATH="$1"    # e.g. /bil/data/18/aa/18aa91680201e328/QM23.50.001.CX.42
-OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dud-vex/
+# Normal mode:    sbatch combine_slices.sbatch <input_path> <output_base>
+# Mask-only mode: sbatch combine_slices.sbatch --mask-only <combined_output_dir>
 
-echo "=== combine_slices ==="
-echo "Input:  $INPUT_PATH"
-echo "Output: $OUTPUT_BASE"
+MODE="$1"
+
+if [ "$MODE" == "--mask-only" ]; then
+    COMBINED_DIR="$2"
+    echo "=== combine_slices (mask-only mode) ==="
+    echo "Combined dir: $COMBINED_DIR"
+else
+    INPUT_PATH="$1"
+    OUTPUT_BASE="$2"
+    echo "=== combine_slices ==="
+    echo "Input:  $INPUT_PATH"
+    echo "Output: $OUTPUT_BASE"
+fi
+
 echo "Started at $(date)"
 
 # ── Environment setup ────────────────────────────────────────
@@ -24,8 +35,16 @@ source ~/merfisheyes_env/bin/activate
 
 # ── Run ──────────────────────────────────────────────────────
 cd ~/merfisheyes/scripts
-python combine_slices_v3.py \
-    "$INPUT_PATH" \
-    "$OUTPUT_BASE"
+
+if [ "$MODE" == "--mask-only" ]; then
+    python combine_slices_v3.py \
+        --mask-only \
+        "$COMBINED_DIR" \
+        "$COMBINED_DIR"
+else
+    python combine_slices_v3.py \
+        "$INPUT_PATH" \
+        "$OUTPUT_BASE"
+fi
 
 echo "Job finished at $(date)"

@@ -7,7 +7,7 @@ import { getClusterValue } from "@/lib/StandardizedDataset";
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Tooltip, Select, SelectItem } from "@heroui/react";
+import { Tooltip, Select, SelectItem, Slider } from "@heroui/react";
 import { toast } from "react-toastify";
 import { TbChartDots3 } from "react-icons/tb";
 import { IoClose } from "react-icons/io5";
@@ -21,6 +21,7 @@ import {
 import {
   createPointCloud,
   updatePointCloudAttributes,
+  updateDotSize,
 } from "@/lib/webgl/point-cloud";
 import { normalizeCoordinates } from "@/lib/utils/coordinates";
 import {
@@ -31,6 +32,7 @@ import {
 } from "@/lib/webgl/visualization-utils";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+import { useSliderRange } from "./slider-range-popover";
 
 export default function UMAPPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -38,6 +40,13 @@ export default function UMAPPanel() {
   const [availableEmbeddings, setAvailableEmbeddings] = useState<string[]>([]);
   const [sceneReady, setSceneReady] = useState(false);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
+  const [umapDotSize, setUmapDotSize] = useState<number>(VISUALIZATION_CONFIG.UMAP_POINT_SIZE);
+  const umapDotRange = useSliderRange(
+    "umapDotSize",
+    VISUALIZATION_CONFIG.UMAP_POINT_SIZE_MIN,
+    VISUALIZATION_CONFIG.UMAP_POINT_SIZE_MAX,
+    umapDotSize,
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -755,12 +764,36 @@ export default function UMAPPanel() {
                 }}
                 selectedKeys={selectedEmbedding ? [selectedEmbedding] : []}
                 size="sm"
-                onChange={(e) => setSelectedEmbedding(e.target.value)}
+                onChange={(e) => {
+                  setSelectedEmbedding(e.target.value);
+                  setUmapDotSize(VISUALIZATION_CONFIG.UMAP_POINT_SIZE);
+                }}
               >
                 {availableEmbeddings.map((key) => (
                   <SelectItem key={key}>{key.toUpperCase()}</SelectItem>
                 ))}
               </Select>
+              <Tooltip content="Dot size (right-click to edit range)" placement="bottom">
+                <div className="w-24" onContextMenu={umapDotRange.onContextMenu}>
+                  <Slider
+                    aria-label="UMAP dot size"
+                    className="w-full"
+                    maxValue={umapDotRange.max}
+                    minValue={umapDotRange.min}
+                    size="sm"
+                    step={VISUALIZATION_CONFIG.UMAP_POINT_SIZE_STEP}
+                    value={umapDotSize}
+                    onChange={(v) => {
+                      const val = v as number;
+                      setUmapDotSize(val);
+                      if (pointCloudRef.current) {
+                        updateDotSize(pointCloudRef.current, val);
+                      }
+                    }}
+                  />
+                </div>
+              </Tooltip>
+              {umapDotRange.popover}
             </div>
 
             {/* Floating Close Button */}

@@ -4,10 +4,46 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
+import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 import type { CatalogDatasetItem, CatalogDatasetEntry } from "./types";
+
+/**
+ * Compute a static destination URL for the card if exactly one exists.
+ * Returns null when the card needs runtime branching (e.g. multi-entry
+ * datasets that expand a dropdown). Used to render the card as an actual
+ * <a>/<Link> so right-click and middle-click open in new tab.
+ */
+function getCardHref(
+  dataset: CatalogDatasetItem,
+  entries: CatalogDatasetEntry[],
+): { href: string; external?: boolean } | null {
+  if (dataset.bilCode) {
+    return { href: `/explore/bil/${dataset.bilCode}` };
+  }
+  if (entries.length === 0) {
+    return dataset.externalLink
+      ? { href: dataset.externalLink, external: true }
+      : null;
+  }
+  if (entries.length === 1) {
+    const e = entries[0];
+    const base =
+      e.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
+
+    if (e.s3BaseUrl) {
+      const url = e.s3BaseUrl.replace(/\/+$/, "");
+
+      return { href: `${base}/from-s3?url=${encodeURIComponent(url)}` };
+    }
+    if (e.datasetId) {
+      return { href: `${base}/${e.datasetId}` };
+    }
+  }
+  return null;
+}
 
 interface ExploreDatasetCardProps {
   dataset: CatalogDatasetItem;
@@ -15,6 +51,8 @@ interface ExploreDatasetCardProps {
   usePopover?: boolean;
   /** When provided, calls this instead of navigating via router */
   onSelect?: (dataset: CatalogDatasetItem, entry: CatalogDatasetEntry) => void;
+  /** Highlight matching genes from search */
+  geneHighlight?: string;
 }
 
 function navigateToEntry(entry: CatalogDatasetEntry, router: ReturnType<typeof useRouter>) {
@@ -75,7 +113,7 @@ function EntryList({
   );
 }
 
-export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDatasetCardProps) {
+export function ExploreDatasetCard({ dataset, usePopover, onSelect, geneHighlight }: ExploreDatasetCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -146,6 +184,13 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
   }, [isExpanded, handleClickOutside]);
 
   const handlePress = () => {
+    // Navigate to detail page
+    if (dataset.bilCode) {
+      router.push(`/explore/bil/${dataset.bilCode}`);
+      return;
+    }
+
+    // Non-BIL datasets: keep existing behavior
     // Zero entries: open external link or do nothing
     if (entries.length === 0) {
       if (dataset.externalLink) {
@@ -177,6 +222,14 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
 
   const hasSomeEntry = entries.length > 0 || dataset.externalLink;
 
+  // If the card has a single static destination AND no onSelect handler,
+  // render the whole thing as a real link (right-click → open in new tab,
+  // middle-click, cmd-click, etc. all work). Multi-entry cards or onSelect
+  // overrides keep the click-driven button behavior so the dropdown / handler
+  // can run.
+  const cardHref = onSelect ? null : getCardHref(dataset, entries);
+  const linkified = cardHref !== null;
+
   // Portal-based dropdown for usePopover mode
   const portalDropdown =
     usePopover && isExpanded && hasMultipleEntries && typeof document !== "undefined"
@@ -195,15 +248,14 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
         )
       : null;
 
-  return (
-    <div ref={cardRef} className="relative">
-      <Card
-        isBlurred
-        isPressable={!!hasSomeEntry}
-        className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer"
-        shadow="sm"
-        onPress={handlePress}
-      >
+  const cardElement = (
+    <Card
+      isBlurred
+      isPressable={!linkified && !!hasSomeEntry}
+      className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer"
+      shadow="sm"
+      onPress={linkified ? undefined : handlePress}
+    >
         <CardBody className="p-0 overflow-hidden">
           {/* Thumbnail — only shown when image exists */}
           {dataset.thumbnailUrl && (
@@ -243,6 +295,7 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                       role="link"
                       title="Open publication"
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         window.open(dataset.publicationLink!, "_blank", "noopener,noreferrer");
                       }}
@@ -268,6 +321,7 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                       role="link"
                       title="Open source page"
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         window.open(dataset.externalLink!, "_blank", "noopener,noreferrer");
                       }}
@@ -320,6 +374,7 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                         role="link"
                         title="Open publication"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           window.open(dataset.publicationLink!, "_blank", "noopener,noreferrer");
                         }}
@@ -345,6 +400,7 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                         role="link"
                         title="Open source page"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           window.open(dataset.externalLink!, "_blank", "noopener,noreferrer");
                         }}
@@ -372,6 +428,13 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
             <h3 className="font-semibold text-foreground text-sm line-clamp-2">
               {dataset.title}
             </h3>
+
+            {/* Investigator */}
+            {dataset.metadata && (dataset.metadata as Record<string, unknown>).investigator ? (
+              <p className="text-xs text-default-400">
+                {String((dataset.metadata as Record<string, unknown>).investigator)}
+              </p>
+            ) : null}
 
             {/* Description — show more lines when no thumbnail */}
             {dataset.description && (
@@ -413,9 +476,54 @@ export function ExploreDatasetCard({ dataset, usePopover, onSelect }: ExploreDat
                 ))}
               </div>
             )}
+
+            {/* Matching genes */}
+            {geneHighlight && dataset.genes && (() => {
+              const term = geneHighlight.toLowerCase();
+              const matches = dataset.genes.filter((g) => g.toLowerCase().includes(term));
+              if (matches.length === 0) return null;
+              return (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {matches.slice(0, 8).map((gene) => (
+                    <Chip key={gene} className="text-[10px]" color="secondary" size="sm" variant="flat">
+                      {gene}
+                    </Chip>
+                  ))}
+                  {matches.length > 8 && (
+                    <span className="text-[10px] text-default-400 self-center">+{matches.length - 8} more</span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </CardBody>
       </Card>
+  );
+
+  // Wrap in a real anchor when a static href exists. Internal links use
+  // NextLink (prefetch + client nav). External (e.g. dataset.externalLink)
+  // gets a plain <a target="_blank">.
+  const wrappedCard =
+    cardHref === null ? (
+      cardElement
+    ) : cardHref.external ? (
+      <a
+        className="block"
+        href={cardHref.href}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {cardElement}
+      </a>
+    ) : (
+      <NextLink className="block" href={cardHref.href}>
+        {cardElement}
+      </NextLink>
+    );
+
+  return (
+    <div ref={cardRef} className="relative">
+      {wrappedCard}
 
       {/* Expanded entry list — inline (grid cards) */}
       {!usePopover && (

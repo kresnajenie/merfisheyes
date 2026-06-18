@@ -3,6 +3,7 @@ export interface MoleculeColumnMapping {
   x: string;
   y: string;
   z: string;
+  cellId: string | null;
 }
 
 export type MoleculeDatasetType = "xenium" | "merscope" | "custom";
@@ -19,17 +20,20 @@ export const MOLECULE_COLUMN_MAPPINGS: Record<
     x: "x_location",
     y: "y_location",
     z: "z_location",
+    cellId: null,
   },
   merscope: {
     gene: "gene",
     x: "global_x",
     y: "global_y",
     z: "global_z",
+    cellId: "cell_id",
   },
   custom: {
     gene: "feature_name",
     x: "x_location",
     y: "y_location",
     z: "z_location",
+    cellId: null,
   },
 };

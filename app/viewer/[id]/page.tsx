@@ -154,15 +154,33 @@ function ViewerByIdContent() {
       const urlState = tryReadCellVizFromUrl("left");
       const priorityColumn = urlState?.c || undefined;
 
-      const standardizedDataset = await StandardizedDataset.fromS3(
-        id,
-        (progress, message) => {
-          console.log(`${progress}%: ${message}`);
-          setLoadingProgress(progress);
-          setLoadingMessage(message);
-        },
-        priorityColumn,
-      );
+      // One pre-flight call so we can route based on storage format.
+      // 202 = "still uploading/processing" — surface clearly.
+      const metaRes = await fetch(`/api/datasets/${id}`);
+
+      if (metaRes.status === 202) {
+        const body = await metaRes.json().catch(() => ({}));
+
+        throw new Error(
+          body.message || "Dataset is not ready yet. Try again shortly.",
+        );
+      }
+      if (!metaRes.ok) {
+        const body = await metaRes.json().catch(() => ({}));
+
+        throw new Error(body.message || `Dataset fetch failed: ${metaRes.status}`);
+      }
+      const meta = await metaRes.json();
+      const onProg = (progress: number, message: string) => {
+        console.log(`${progress}%: ${message}`);
+        setLoadingProgress(progress);
+        setLoadingMessage(message);
+      };
+
+      const standardizedDataset =
+        meta.formatVersion === "zarr"
+          ? await StandardizedDataset.fromS3Zarr(id, onProg, priorityColumn)
+          : await StandardizedDataset.fromS3(id, onProg, priorityColumn);
 
       console.log("StandardizedDataset created:", standardizedDataset);
 

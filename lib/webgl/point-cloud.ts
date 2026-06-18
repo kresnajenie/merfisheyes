@@ -35,7 +35,43 @@ export function generateRandomPoints(config: PointCloudConfig): PointData[] {
 }
 
 /**
- * Creates a Three.js Points mesh with custom shader material from point data
+ * Creates a Three.js Points mesh with custom shader material from typed arrays.
+ * Accepts positions directly as Float32Array — no intermediate PointData[] needed.
+ */
+export function createPointCloudFromBuffers(
+  positions: Float32Array,
+  count: number,
+  dotSize: number = 5,
+): THREE.Points {
+  const geometry = new THREE.BufferGeometry();
+
+  // Position buffer passed directly — zero copy
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+  // Initialize color/size/alpha buffers with defaults
+  const colors = new Float32Array(count * 3); // all zeros (black)
+  const sizes = new Float32Array(count).fill(1.0);
+  const alphas = new Float32Array(count); // all zeros
+
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+  geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      dotSize: { value: dotSize },
+    },
+    vertexShader,
+    fragmentShader,
+    transparent: true,
+  });
+
+  return new THREE.Points(geometry, material);
+}
+
+/**
+ * Creates a Three.js Points mesh with custom shader material from PointData objects.
+ * @deprecated Use createPointCloudFromBuffers for better performance.
  */
 export function createPointCloud(
   data: PointData[],
@@ -115,32 +151,14 @@ export function updatePointCloudAttributes(
   const geometry = pointsMesh.geometry;
 
   if (colors) {
-    const colorAttribute = geometry.getAttribute("color");
-
-    if (colorAttribute) {
-      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    } else {
-      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    }
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   }
 
   if (sizes) {
-    const sizeAttribute = geometry.getAttribute("size");
-
-    if (sizeAttribute) {
-      geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
-    } else {
-      geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
-    }
+    geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
   }
 
   if (alphas) {
-    const alphaAttribute = geometry.getAttribute("alpha");
-
-    if (alphaAttribute) {
-      geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
-    } else {
-      geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
-    }
+    geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
   }
 }

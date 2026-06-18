@@ -7,8 +7,11 @@ import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Checkbox } from "@heroui/checkbox";
 import { RadioGroup, Radio } from "@heroui/radio";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
+import { Slider, Textarea } from "@heroui/react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Tooltip } from "@heroui/tooltip";
 import { toast } from "react-toastify";
 
@@ -37,15 +40,23 @@ export function VisualizationPanel({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 1000; // Show 1000 items per page
   const panelRef = useRef<HTMLDivElement>(null);
+  const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
+  const [sequenceText, setSequenceText] = useState("");
   const { getCurrentDataset } = usePanelDatasetStore();
   const {
     selectedColumn,
     setSelectedColumn,
     selectedCelltypes,
+    setCelltypes,
     selectedGene,
     toggleCelltype,
+    celltypePlayback: isPlaying,
+    celltypePlaybackInterval: playInterval,
+    celltypePlaybackSequence,
+    setCelltypePlayback,
+    setCelltypePlaybackInterval,
+    setCelltypePlaybackSequence,
     setSelectedGene,
-    setMode,
     celltypeSearchTerm,
     geneSearchTerm,
     setCelltypeSearchTerm,
@@ -54,6 +65,8 @@ export function VisualizationPanel({
     incrementClusterVersion,
     columnTypeOverrides,
     toggleColumnType,
+    pinnedTooltipColumns,
+    togglePinnedTooltipColumn,
   } = usePanelVisualizationStore();
 
   const currentSearchTerm =
@@ -64,6 +77,9 @@ export function VisualizationPanel({
   // Handle click outside to close panel
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Don't close if a modal is open
+      if (isSequenceModalOpen) return;
+
       const target = event.target as Node;
 
       // Don't close if clicking inside the panel
@@ -76,10 +92,10 @@ export function VisualizationPanel({
         return;
       }
 
-      // Don't close if clicking inside a popover/listbox (autocomplete dropdown rendered via portal)
+      // Don't close if clicking inside a popover/listbox/modal (rendered via portal)
       if (
         target instanceof HTMLElement &&
-        target.closest('[role="listbox"], [data-slot="content"]')
+        target.closest('[role="listbox"], [data-slot="content"], [role="dialog"], .nextui-modal-backdrop, [data-slot="backdrop"]')
       ) {
         return;
       }
@@ -105,6 +121,59 @@ export function VisualizationPanel({
       : null;
 
   // Get all cluster columns for dropdown (including unloaded ones)
+  // Lazy-load a cluster column if not already loaded.
+  // Returns true on success (or already loaded), false on failure.
+  const ensureColumnLoaded = useCallback(
+    async (columnKey: string): Promise<boolean> => {
+      const ds = getCurrentDataset() as StandardizedDataset | null;
+      if (!ds) return false;
+      if (ds.clusters?.some((c) => c.column === columnKey)) return true;
+      if (!ds.adapter) return false;
+
+      const toastId = toast.loading(`Loading cluster column "${columnKey}"...`);
+      try {
+        let newClusters: Array<{
+          column: string;
+          type: string;
+          values: any[];
+          palette: Record<string, string> | null;
+          uniqueValues?: string[];
+        }> | null = null;
+
+        if (ds.adapter.mode === "local") {
+          newClusters = await ds.adapter.loadClusters([columnKey]);
+        } else {
+          const { getStandardizedDatasetWorker } = await import(
+            "@/lib/workers/standardizedDatasetWorkerManager"
+          );
+          const worker = await getStandardizedDatasetWorker();
+          newClusters = await worker.loadClusterFromS3(
+            ds.id,
+            [columnKey],
+            ds.metadata?.customS3BaseUrl,
+          );
+        }
+
+        if (newClusters && newClusters.length > 0) {
+          ds.addClusters(newClusters);
+          incrementClusterVersion();
+        }
+        toast.dismiss(toastId);
+        return true;
+      } catch (error) {
+        console.warn(`Failed to load cluster column ${columnKey}:`, error);
+        toast.update(toastId, {
+          render: `Failed to load "${columnKey}"`,
+          type: "error",
+          isLoading: false,
+          autoClose: 3000,
+        });
+        return false;
+      }
+    },
+    [getCurrentDataset, incrementClusterVersion],
+  );
+
   const clusterColumns = useMemo(() => {
     if (!dataset) return [];
 
@@ -183,13 +252,11 @@ export function VisualizationPanel({
         )
           return [];
 
-        // Use pre-computed uniqueValues if available (already sorted),
-        // otherwise fall back to computing from raw values
+        // Get unique values then always sort alphabetically
         const palette = selectedCluster.palette || {};
-        const uniqueVals = selectedCluster.uniqueValues
-          ?? [...new Set(selectedCluster.values.map(String))].sort(
-            (a, b) => a.localeCompare(b, undefined, { numeric: true }),
-          );
+        const uniqueVals = (selectedCluster.uniqueValues
+          ?? [...new Set(selectedCluster.values.map(String))]
+        ).slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
         return uniqueVals.map((val) => ({
           id: val,
@@ -234,6 +301,10 @@ export function VisualizationPanel({
   const endIndex = startIndex + itemsPerPage;
   const paginatedItems = filteredItems.slice(startIndex, endIndex);
 
+  const stopPlayback = useCallback(() => {
+    setCelltypePlayback(false);
+  }, [setCelltypePlayback]);
+
   const getTitle = () => {
     switch (mode) {
       case "celltype":
@@ -246,6 +317,7 @@ export function VisualizationPanel({
   };
 
   return (
+    <>
     <div
       ref={panelRef}
       className={`absolute top-0 left-16 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
@@ -284,7 +356,6 @@ export function VisualizationPanel({
                   ) === "numerical";
 
                 setSelectedColumn(columnKey, isNumerical);
-                setMode(["celltype"]);
               } else if (dataset.adapter) {
                 // Not loaded yet — fetch on demand
                 const isNumerical =
@@ -295,7 +366,6 @@ export function VisualizationPanel({
                   ) === "numerical";
 
                 setSelectedColumn(columnKey, isNumerical);
-                setMode(["celltype"]);
 
                 const toastId = toast.loading(
                   `Loading cluster column "${columnKey}"...`,
@@ -396,15 +466,169 @@ export function VisualizationPanel({
                   </Tooltip>
                 }
                 endContent={
-                  column.loaded ? (
-                    <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                  ) : null
+                  <div className="flex items-center gap-1.5">
+                    {column.loaded && (
+                      <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                    )}
+                    <Tooltip content={pinnedTooltipColumns.has(column.key) ? "Unpin from tooltip" : "Pin to tooltip"} delay={300} placement="right">
+                      <button
+                        className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          const willPin = !pinnedTooltipColumns.has(column.key);
+                          if (willPin && !column.loaded) {
+                            const ok = await ensureColumnLoaded(column.key);
+                            if (!ok) return;
+                          }
+                          togglePinnedTooltipColumn(column.key);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <svg
+                          className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${pinnedTooltipColumns.has(column.key) ? "text-primary" : "text-default-400"}`}
+                          fill={pinnedTooltipColumns.has(column.key) ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M12 2l-2 7H4l6 4.5L8 21l4-3 4 3-2-7.5L20 9h-6z" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </Tooltip>
+                  </div>
                 }
               >
                 {column.label}
               </AutocompleteItem>
             ))}
           </Autocomplete>
+
+          {/* Celltype playback controls — only for categorical columns */}
+          {selectedColumn && !isNumericalColumn && items.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Tooltip content={isPlaying ? "Stop" : "Play through celltypes"} placement="bottom">
+                  <Button
+                    className="min-w-0 w-10 h-8"
+                    color={isPlaying ? "danger" : "primary"}
+                    size="sm"
+                    variant={isPlaying ? "solid" : "flat"}
+                    onPress={() => {
+                      if (isPlaying) {
+                        setCelltypePlayback(false);
+                      } else {
+                        setCelltypePlayback(true);
+                        onClose();
+                      }
+                    }}
+                  >
+                    {isPlaying ? (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="4" width="4" height="16" />
+                        <rect x="14" y="4" width="4" height="16" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <polygon points="5,3 19,12 5,21" />
+                      </svg>
+                    )}
+                  </Button>
+                </Tooltip>
+                <Tooltip content="Edit playback sequence" placement="bottom">
+                  <Button
+                    className="min-w-0 w-10 h-8"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => {
+                      setSequenceText(celltypePlaybackSequence.join(", "));
+                      setIsSequenceModalOpen(true);
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path d="M4 6h16M4 12h16M4 18h7" strokeLinecap="round" />
+                    </svg>
+                  </Button>
+                </Tooltip>
+                <Tooltip
+                  content={
+                    selectedCelltypes.size > 0
+                      ? `Copy ${selectedCelltypes.size} selected`
+                      : `Copy all ${items.length}`
+                  }
+                  placement="bottom"
+                >
+                  <Button
+                    className="min-w-0 w-10 h-8"
+                    size="sm"
+                    variant="flat"
+                    onPress={async () => {
+                      const list =
+                        selectedCelltypes.size > 0
+                          ? items
+                              .map((it) => it.id)
+                              .filter((id) => selectedCelltypes.has(id))
+                          : items.map((it) => it.id);
+                      if (list.length === 0) return;
+                      try {
+                        await navigator.clipboard.writeText(list.join(","));
+                        toast.success(
+                          `Copied ${list.length} celltype${list.length === 1 ? "" : "s"}`,
+                          { autoClose: 1500 },
+                        );
+                      } catch (err) {
+                        toast.error("Failed to copy to clipboard");
+                      }
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <rect x="9" y="9" width="11" height="11" rx="2" strokeLinejoin="round" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </Button>
+                </Tooltip>
+                <div className="flex-1 flex items-center gap-2">
+                  <Slider
+                    aria-label="Playback speed"
+                    className="flex-1"
+                    maxValue={5}
+                    minValue={0.2}
+                    size="sm"
+                    step={0.1}
+                    value={playInterval}
+                    onChange={(v) => setCelltypePlaybackInterval(v as number)}
+                  />
+                  <Input
+                    aria-label="Interval seconds"
+                    className="w-14"
+                    classNames={{ input: "text-xs text-center" }}
+                    size="sm"
+                    type="number"
+                    value={playInterval.toFixed(1)}
+                    onValueChange={(v) => {
+                      const num = parseFloat(v);
+                      if (!isNaN(num) && num >= 0.1) setCelltypePlaybackInterval(num);
+                    }}
+                  />
+                  <span className="text-xs text-default-400">s</span>
+                </div>
+              </div>
+              {celltypePlaybackSequence.length > 0 && (
+                <div className="text-xs text-default-400">
+                  Sequence: {celltypePlaybackSequence.length} celltypes
+                  <Button
+                    className="min-w-0 h-5 ml-1"
+                    color="danger"
+                    size="sm"
+                    variant="light"
+                    onPress={() => setCelltypePlaybackSequence([])}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Column type toggle for the selected column */}
           {showTypeToggle && selectedColumn && (
@@ -479,24 +703,52 @@ export function VisualizationPanel({
               onValueChange={updateSearchTerm}
             />
 
-            {/* Clear Button */}
-            <Button
-              className="w-full"
-              color="danger"
-              variant="ghost"
-              onPress={() => {
-                updateSearchTerm("");
-                if (mode === "celltype") {
-                  // Clear all selected celltypes
-                  selectedCelltypes.forEach((ct) => toggleCelltype(ct));
-                } else if (mode === "gene") {
-                  // Clear selected gene
-                  setSelectedGene(null);
-                }
-              }}
-            >
-              Clear
-            </Button>
+            {/* Clear Button + Copy Genes */}
+            <div className="flex gap-1">
+              <Button
+                className="flex-1"
+                color="danger"
+                variant="ghost"
+                onPress={() => {
+                  updateSearchTerm("");
+                  if (mode === "celltype") {
+                    // Clear all selected celltypes
+                    selectedCelltypes.forEach((ct) => toggleCelltype(ct));
+                  } else if (mode === "gene") {
+                    // Clear selected gene
+                    setSelectedGene(null);
+                  }
+                }}
+              >
+                Clear
+              </Button>
+              {mode === "gene" && dataset && (
+                <Tooltip content="Copy all gene names" delay={300} placement="top">
+                  <Button
+                    className="min-w-0 px-3"
+                    variant="ghost"
+                    onPress={() => {
+                      navigator.clipboard.writeText(dataset.genes.join(","));
+                      toast.success("Gene names copied to clipboard");
+                    }}
+                  >
+                    <svg
+                      className="w-4 h-4 text-default-500"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
 
             {/* Pagination Info */}
             {filteredItems.length > itemsPerPage && (
@@ -518,8 +770,8 @@ export function VisualizationPanel({
                     isSelected={selectedCelltypes.has(item.id)}
                     size="sm"
                     onValueChange={() => {
+                      if (isPlaying) stopPlayback();
                       toggleCelltype(item.id);
-                      // Mode is now automatically updated by toggleCelltype
                     }}
                   >
                     <span style={{ color: item.color }}>{item.label}</span>
@@ -598,5 +850,74 @@ export function VisualizationPanel({
         </div>
       </div> */}
     </div>
+
+    {/* Playback sequence modal */}
+    <Modal
+      isOpen={isSequenceModalOpen}
+      onClose={() => setIsSequenceModalOpen(false)}
+      size="lg"
+    >
+      <ModalContent>
+        <ModalHeader>Playback Sequence</ModalHeader>
+        <ModalBody>
+          <p className="text-sm text-default-500 mb-2">
+            Enter celltype names separated by commas. Playback will iterate through them in order.
+            Leave empty to play all celltypes.
+          </p>
+          <Textarea
+            label="Celltype sequence"
+            placeholder="e.g. Neuron, Astrocyte, Microglia"
+            value={sequenceText}
+            onValueChange={setSequenceText}
+            minRows={3}
+            maxRows={10}
+          />
+          {sequenceText.trim() && (
+            <div className="text-xs text-default-400 mt-1">
+              {sequenceText.split(",").map((s) => s.trim()).filter(Boolean).length} celltypes in sequence
+            </div>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            color="danger"
+            variant="light"
+            onPress={() => {
+              setSequenceText("");
+              setCelltypePlaybackSequence([]);
+              setIsSequenceModalOpen(false);
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            color="primary"
+            onPress={() => {
+              const sequence = sequenceText
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+
+              // Validate against available items
+              const validSet = new Set(items.map((i) => i.id));
+              const invalid = sequence.filter((s) => !validSet.has(s));
+              if (invalid.length > 0) {
+                toast.warning(
+                  `Skipping unknown celltypes: ${invalid.join(", ")}`,
+                  { autoClose: 4000 },
+                );
+              }
+
+              const valid = sequence.filter((s) => validSet.has(s));
+              setCelltypePlaybackSequence(valid);
+              setIsSequenceModalOpen(false);
+            }}
+          >
+            Save
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+    </>
   );
 }

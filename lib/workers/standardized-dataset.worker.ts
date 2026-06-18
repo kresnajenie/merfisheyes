@@ -62,6 +62,7 @@ export interface SerializableStandardizedDataset {
   allClusterColumnNames?: string[];
   allClusterColumnTypes?: Record<string, string>;
   allEmbeddingNames?: string[];
+  normalized?: boolean; // false = raw coordinates, true/undefined = normalized [-1,1]
 }
 
 /**
@@ -108,8 +109,17 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
-    // Normalize spatial coordinates
-    const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
+    // Round spatial coordinates to 2 decimal places (no normalization)
+    const coords = spatial.coordinates;
+    const roundedCoords: number[][] = [];
+
+    for (let i = 0; i < coords.length; i++) {
+      const point = coords[i];
+
+      roundedCoords.push(
+        point.map((v) => Math.round(v * 100) / 100),
+      );
+    }
 
     // Generate dataset ID
     const timestamp = Date.now();
@@ -121,9 +131,9 @@ const workerApi = {
       name: file.name.replace(".h5ad", ""),
       type: "h5ad",
       spatial: {
-        coordinates: normalizedSpatial?.normalized || spatial.coordinates,
+        coordinates: roundedCoords,
         dimensions: spatial.dimensions,
-        scalingFactor: normalizedSpatial?.scalingFactor || 1,
+        scalingFactor: 1,
       },
       embeddings: embeddings,
       genes: genes,
@@ -133,9 +143,10 @@ const workerApi = {
         originalFileName: file.name,
         numCells: dataInfo.numCells,
         numGenes: dataInfo.numGenes,
-        spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
+        spatialScalingFactor: 1,
       },
       matrix: matrix,
+      normalized: false,
     };
 
     console.log("[Worker] H5AD parsing complete");
@@ -204,8 +215,17 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
-    // Normalize spatial coordinates
-    const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
+    // Round spatial coordinates to 2 decimal places (no normalization)
+    const coords = spatial.coordinates;
+    const roundedCoords: number[][] = [];
+
+    for (let i = 0; i < coords.length; i++) {
+      const point = coords[i];
+
+      roundedCoords.push(
+        point.map((v) => Math.round(v * 100) / 100),
+      );
+    }
 
     // Generate dataset ID and name from folder
     const timestamp = Date.now();
@@ -219,9 +239,9 @@ const workerApi = {
       name: folderName,
       type: "xenium",
       spatial: {
-        coordinates: normalizedSpatial?.normalized || spatial.coordinates,
+        coordinates: roundedCoords,
         dimensions: spatial.dimensions,
-        scalingFactor: normalizedSpatial?.scalingFactor || 1,
+        scalingFactor: 1,
       },
       embeddings: embeddings,
       genes: genes,
@@ -231,9 +251,10 @@ const workerApi = {
         fileCount: files.length,
         numCells: dataInfo.numCells,
         numGenes: dataInfo.numGenes,
-        spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
+        spatialScalingFactor: 1,
       },
       matrix: matrix,
+      normalized: false,
     };
 
     console.log("[Worker] Xenium parsing complete");
@@ -309,8 +330,17 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
-    // Normalize spatial coordinates
-    const normalizedSpatial = normalizeCoordinates(spatial.coordinates);
+    // Round spatial coordinates to 2 decimal places (no normalization)
+    const coords = spatial.coordinates;
+    const roundedCoords: number[][] = [];
+
+    for (let i = 0; i < coords.length; i++) {
+      const point = coords[i];
+
+      roundedCoords.push(
+        point.map((v) => Math.round(v * 100) / 100),
+      );
+    }
 
     // Generate dataset ID and name from folder
     const timestamp = Date.now();
@@ -324,9 +354,9 @@ const workerApi = {
       name: folderName,
       type: "merscope",
       spatial: {
-        coordinates: normalizedSpatial?.normalized || spatial.coordinates,
+        coordinates: roundedCoords,
         dimensions: spatial.dimensions,
-        scalingFactor: normalizedSpatial?.scalingFactor || 1,
+        scalingFactor: 1,
       },
       embeddings: embeddings,
       genes: genes,
@@ -336,9 +366,10 @@ const workerApi = {
         fileCount: files.length,
         numCells: dataInfo.numCells,
         numGenes: dataInfo.numGenes,
-        spatialScalingFactor: normalizedSpatial?.scalingFactor || 1,
+        spatialScalingFactor: 1,
       },
       matrix: matrix,
+      normalized: false,
     };
 
     console.log("[Worker] MERSCOPE parsing complete");
@@ -408,26 +439,30 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
-    // Normalize spatial coordinates
-    // For S3/chunked datasets, coordinates may be Float32Array (already normalized from Python)
+    // All datasets now use raw coordinates.
+    // Old datasets (normalized !== false): coords are in [-1,1], denormalize using scalingFactor.
+    // New datasets (normalized: false): coords are already raw microns.
+    const wasNormalized = dataInfo.normalized !== false;
     const coords = spatial.coordinates;
-    let normalizedCoords: Float32Array | number[][] = coords;
+    let finalCoords: Float32Array | number[][] = coords;
     let scalingFactor = (spatial as any).scalingFactor || 1;
 
-    if (coords instanceof Float32Array) {
-      const result = normalizeCoordinatesFlat(coords, spatial.dimensions);
-
-      if (result) {
-        normalizedCoords = result.normalized;
-        scalingFactor = result.scalingFactor;
+    if (wasNormalized && scalingFactor > 1) {
+      // Old dataset: denormalize back to raw coordinates
+      console.log(`[Worker] Denormalizing old coords (×${scalingFactor})`);
+      if (coords instanceof Float32Array) {
+        const denorm = new Float32Array(coords.length);
+        for (let i = 0; i < coords.length; i++) {
+          denorm[i] = coords[i] * scalingFactor;
+        }
+        finalCoords = denorm;
+      } else {
+        finalCoords = (coords as number[][]).map((point) =>
+          point.map((v) => v * scalingFactor),
+        );
       }
-    } else {
-      const result = normalizeCoordinates(coords);
-
-      if (result) {
-        normalizedCoords = result.normalized;
-        scalingFactor = result.scalingFactor;
-      }
+    } else if (!wasNormalized) {
+      console.log("[Worker] Using raw coordinates (normalized: false)");
     }
 
     const serializable: SerializableStandardizedDataset = {
@@ -435,9 +470,9 @@ const workerApi = {
       name: dataInfo.name,
       type: dataInfo.type,
       spatial: {
-        coordinates: normalizedCoords,
+        coordinates: finalCoords,
         dimensions: spatial.dimensions,
-        scalingFactor: scalingFactor,
+        scalingFactor: 1, // always 1 now — coords are raw
       },
       embeddings: embeddings,
       genes: genes,
@@ -448,12 +483,14 @@ const workerApi = {
         spatialDimensions: dataInfo.spatialDimensions,
         availableEmbeddings: dataInfo.availableEmbeddings,
         clusterCount: dataInfo.clusterCount,
-        spatialScalingFactor: scalingFactor,
+        spatialScalingFactor: 1,
+        wasNormalized,
       },
       matrix: matrix,
       allClusterColumnNames: clusterColumnInfo.names,
       allClusterColumnTypes: clusterColumnInfo.types,
       allEmbeddingNames: dataInfo.availableEmbeddings || [],
+      normalized: false, // always false now — coords are always raw
     };
 
     console.log("[Worker] S3 loading complete");

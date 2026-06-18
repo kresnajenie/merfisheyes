@@ -1,10 +1,13 @@
+import { Suspense } from "react";
+
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { title } from "@/components/primitives";
 import { ExplorePageClient } from "@/components/explore/explore-page-client";
 import { ExploreBackground } from "@/components/explore/explore-background";
 
-export const dynamic = "force-dynamic";
+// Revalidate every 60 seconds — cached page served instantly, rebuilt in background
+export const revalidate = 60;
 
 const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
 
@@ -12,8 +15,9 @@ export default async function ExplorePage() {
   const session = await auth();
   const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
 
-  // Base filter: published + not internal (for public queries)
-  const publicBase = { isPublished: true, isInternal: false };
+  // Base filter: published + not internal + has at least one viewable entry
+  const hasViewableEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
+  const publicBase = { isPublished: true, isInternal: false, ...hasViewableEntry };
 
   // SSR: fetch initial data directly from DB
   const [items, featured, bil, speciesRaw, tissueRaw, platformRaw] = await Promise.all([
@@ -91,15 +95,17 @@ export default async function ExplorePage() {
           </p>
         </div>
 
-        <ExplorePageClient
-          initialBil={serialize(bil)}
-          initialFeatured={serialize(featured)}
-          initialFilters={filters}
-          initialInternal={serialize(internal)}
-          initialItems={serialize(items)}
-          initialTotal={total}
-          isAdmin={isAdmin}
-        />
+        <Suspense>
+          <ExplorePageClient
+            initialBil={serialize(bil)}
+            initialFeatured={serialize(featured)}
+            initialFilters={filters}
+            initialInternal={serialize(internal)}
+            initialItems={serialize(items)}
+            initialTotal={total}
+            isAdmin={isAdmin}
+          />
+        </Suspense>
       </div>
     </>
   );

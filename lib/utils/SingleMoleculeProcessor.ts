@@ -2,6 +2,8 @@ import { gzip } from "pako";
 
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 
+const UNASSIGNED_SUFFIX = "_uuuuuuuuuu";
+
 /**
  * Manifest structure for single molecule datasets
  */
@@ -11,6 +13,7 @@ interface SingleMoleculeManifest {
   dataset_id: string;
   name: string;
   type: string;
+  has_unassigned?: boolean;
   statistics: {
     total_molecules: number;
     unique_genes: number;
@@ -18,6 +21,7 @@ interface SingleMoleculeManifest {
   };
   genes: {
     unique_gene_names: string[];
+    molecule_counts?: Record<string, { assigned: number; unassigned: number }>;
   };
   processing: {
     compression: string;
@@ -48,6 +52,7 @@ export class SingleMoleculeProcessor {
       dataset_id: datasetId,
       name: datasetName,
       type: dataset.type,
+      has_unassigned: dataset.hasUnassigned,
       statistics: {
         total_molecules: dataset.getMoleculeCount(),
         unique_genes: dataset.uniqueGenes.length,
@@ -55,11 +60,14 @@ export class SingleMoleculeProcessor {
       },
       genes: {
         unique_gene_names: [...dataset.uniqueGenes],
+        ...(dataset.moleculeCounts && {
+          molecule_counts: dataset.moleculeCounts as Record<string, { assigned: number; unassigned: number }>,
+        }),
       },
       processing: {
         compression: "gzip",
         coordinate_format: "float32_flat_array",
-        coordinate_range: "normalized_[-1,1]",
+        coordinate_range: "raw_rounded_2dp",
         scaling_factor: dataset.scalingFactor,
         created_by: "MERFISH Eyes - Single Molecule Viewer",
         source_file: dataset.name || "unknown",
@@ -88,24 +96,32 @@ export class SingleMoleculeProcessor {
         `Processing gene ${i + 1}/${totalGenes}: ${gene}`,
       );
 
-      // Get coordinates for this gene (already normalized in flat array format)
+      const sanitizedName = this.sanitizeGeneName(gene);
+
+      // Process assigned coordinates
       const coordinates = dataset.getCoordinatesByGene(gene);
 
       if (coordinates && coordinates.length > 0) {
-        // Convert number array to Float32Array for binary storage
         const float32Array = new Float32Array(coordinates);
+        const compressed = gzip(new Uint8Array(float32Array.buffer));
 
-        // Get the underlying buffer
-        const buffer = float32Array.buffer;
+        geneFiles[sanitizedName] = new Blob([compressed], { type: "application/gzip" });
+      } else {
+        // Write empty file for genes that only have unassigned molecules
+        const compressed = gzip(new Uint8Array(new Float32Array(0).buffer));
 
-        // Compress with gzip
-        const compressed = gzip(new Uint8Array(buffer));
-        const blob = new Blob([compressed], { type: "application/gzip" });
+        geneFiles[sanitizedName] = new Blob([compressed], { type: "application/gzip" });
+      }
 
-        // Sanitize gene name for filename
-        const sanitizedName = this.sanitizeGeneName(gene);
+      // Process unassigned coordinates
+      if (dataset.hasUnassigned) {
+        const unassignedCoords = await dataset.getUnassignedCoordinatesByGene(gene);
 
-        geneFiles[sanitizedName] = blob;
+        if (unassignedCoords && unassignedCoords.length > 0) {
+          const compressed = gzip(new Uint8Array(unassignedCoords.buffer));
+
+          geneFiles[`${sanitizedName}${UNASSIGNED_SUFFIX}`] = new Blob([compressed], { type: "application/gzip" });
+        }
       }
 
       // Yield to browser every 10 genes
