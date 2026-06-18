@@ -15,6 +15,12 @@ import { AdvancedVizPanel } from "./advanced-viz-panel";
 import { CameraPanel } from "./camera-panel";
 import { useSliderRange } from "./slider-range-popover";
 import { PlotPanel } from "./plot-panel";
+import { DegPanel } from "./deg-panel";
+import { toast } from "react-toastify";
+import {
+  ensureDeStatsForColumn,
+  isDeStatsInFlight,
+} from "@/lib/utils/de-stats";
 
 import {
   usePanelVisualizationStore,
@@ -34,6 +40,9 @@ export function VisualizationControls() {
     selectedColumn, selectedCelltypes, setCelltypes, clusterVersion, columnTypeOverrides,
     sceneRotation, setSceneRotation, flipX, setFlipX, flipY, setFlipY,
     plotPanelOpen, setPlotPanelOpen,
+    exportBoxEnabled, exportBoxWidthMm, exportBoxHeightMm,
+    setExportBoxEnabled, setExportBoxWidthMm, setExportBoxHeightMm,
+    setExportBoxCenterPx,
   } = usePanelVisualizationStore();
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
@@ -92,11 +101,146 @@ export function VisualizationControls() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  // DEG panel open state lives in the store so it can be opened from
+  // elsewhere (e.g. right-clicking a celltype badge in the legends).
+  const isDegOpen = usePanelVisualizationStore((s) => s.degPanelOpen);
+  const setIsDegOpen = usePanelVisualizationStore((s) => s.setDegPanelOpen);
+  const setHideUi = useSplitScreenStore((s) => s.setHideUi);
   const controlsRef = useRef<HTMLDivElement>(null);
+
+  const hasDeStats =
+    !!dataset?.deStats || (dataset?.availableDeStatsColumns?.length ?? 0) > 0;
+
+  // Keep the DEG target/reference in sync with the celltype selection.
+  // Runs even when the panel is closed so opening it lands on a sensible
+  // default. In Auto mode the target tracks the most-recently-selected
+  // celltype and the reference (when its own Auto is on) tracks the 2nd
+  // most-recently-selected one. In Manual mode each is only corrected when
+  // it becomes invalid for the active column.
+  const degTarget = usePanelVisualizationStore((s) => s.degTarget);
+  const setDegTarget = usePanelVisualizationStore((s) => s.setDegTarget);
+  const degReference = usePanelVisualizationStore((s) => s.degReference);
+  const setDegReference = usePanelVisualizationStore((s) => s.setDegReference);
+  const degTargetAuto = usePanelVisualizationStore((s) => s.degTargetAuto);
+  const degReferenceAuto = usePanelVisualizationStore(
+    (s) => s.degReferenceAuto,
+  );
+  const deStatsVersion = usePanelVisualizationStore((s) => s.deStatsVersion);
+  useEffect(() => {
+    if (!dataset) return;
+    const activeCol =
+      selectedColumn && dataset.deStatsByColumn.has(selectedColumn)
+        ? selectedColumn
+        : dataset.deStats?.column ?? null;
+    const deStats = activeCol
+      ? dataset.deStatsByColumn.get(activeCol) ?? null
+      : null;
+    if (!deStats || deStats.celltypes.length === 0) return;
+
+    const valid = new Set(deStats.celltypes);
+    // Selected celltypes that exist in this column's deStats, in selection
+    // order — the last entry is the most recently selected.
+    const picks = [...selectedCelltypes].filter((ct) => valid.has(ct));
+    const mostRecent = picks[picks.length - 1];
+    const secondRecent = picks[picks.length - 2];
+
+    // Target.
+    let effectiveTarget: string;
+    if (degTargetAuto) {
+      effectiveTarget = mostRecent ?? deStats.celltypes[0];
+    } else {
+      effectiveTarget =
+        degTarget && valid.has(degTarget) ? degTarget : deStats.celltypes[0];
+    }
+    if (effectiveTarget !== degTarget) setDegTarget(effectiveTarget);
+
+    // Reference (null = vs Rest).
+    if (degReferenceAuto) {
+      const ref =
+        secondRecent && secondRecent !== effectiveTarget ? secondRecent : null;
+      if (ref !== degReference) setDegReference(ref);
+    } else if (
+      degReference &&
+      (!valid.has(degReference) || degReference === effectiveTarget)
+    ) {
+      setDegReference(null);
+    }
+  }, [
+    dataset,
+    selectedColumn,
+    deStatsVersion,
+    selectedCelltypes,
+    degTarget,
+    setDegTarget,
+    degReference,
+    setDegReference,
+    degTargetAuto,
+    degReferenceAuto,
+  ]);
+
+  // Recompute deStats when the user changes the cluster column. Numerical
+  // columns skip (the panel stays on its last categorical column). Cache hits
+  // return synchronously inside ensureDeStatsForColumn. For chunked datasets
+  // the adapter fetches the precomputed file from disk/S3 instead.
+  const incrementDeStatsVersion = usePanelVisualizationStore(
+    (s) => s.incrementDeStatsVersion,
+  );
+  useEffect(() => {
+    if (!dataset || !selectedColumn) return;
+    if (!hasDeStats) return; // dataset doesn't support DEG (e.g. Xenium)
+    if (dataset.deStatsByColumn.has(selectedColumn)) return;
+    if (isDeStatsInFlight(dataset.id, selectedColumn)) return;
+
+    const canFetchFromAdapter =
+      !!dataset.adapter?.loadDeStats &&
+      dataset.availableDeStatsColumns?.includes(selectedColumn);
+
+    if (!canFetchFromAdapter) {
+      // Must recompute — requires the cluster to be loaded and matrix in memory.
+      const cluster = dataset.clusters?.find((c) => c.column === selectedColumn);
+      if (!cluster || cluster.type !== "categorical") return;
+      if (!dataset.matrix) return;
+    }
+
+    const verb = canFetchFromAdapter ? "Loading" : "Computing";
+    const toastId = toast.loading(`${verb} DEG for "${selectedColumn}"...`);
+    let lastPct = -1;
+    ensureDeStatsForColumn(dataset, selectedColumn, async (frac) => {
+      const pct = Math.round(frac * 100);
+      if (pct === lastPct) return;
+      lastPct = pct;
+      toast.update(toastId, {
+        render: `${verb} DEG for "${selectedColumn}"... ${pct}%`,
+      });
+    })
+      .then((result) => {
+        if (result) {
+          toast.update(toastId, {
+            render: `DEG ready for "${selectedColumn}"`,
+            type: "success",
+            isLoading: false,
+            autoClose: 1500,
+          });
+          incrementDeStatsVersion();
+        } else {
+          toast.dismiss(toastId);
+        }
+      })
+      .catch((err) => {
+        console.warn("[deStats] load/compute failed:", err);
+        toast.update(toastId, {
+          render: `DEG failed for "${selectedColumn}"`,
+          type: "error",
+          isLoading: false,
+          autoClose: 3000,
+        });
+      });
+  }, [dataset, selectedColumn, clusterVersion, incrementDeStatsVersion, hasDeStats]);
 
   const handleModeChange = (newMode: VisualizationMode) => {
     setIsAdvancedOpen(false);
     setIsCameraOpen(false);
+    setIsDegOpen(false);
     if (panelMode === newMode) {
       setIsPanelOpen(!isPanelOpen);
     } else {
@@ -175,6 +319,7 @@ export function VisualizationControls() {
     <div
       ref={controlsRef}
       className="absolute top-28 left-4 z-[70] flex flex-col gap-2"
+      data-ui-overlay
     >
       {/* Celltype Button */}
       <Button
@@ -195,6 +340,30 @@ export function VisualizationControls() {
       >
         Gene
       </Button>
+
+      {/* DEG Button — only when deStats is available on the dataset */}
+      {hasDeStats && (
+        <Tooltip content="Differentially expressed genes" placement="right">
+          <Button
+            data-testid="deg-button"
+            className={`${buttonBaseClass} ${isDegOpen ? "" : glassButton()}`}
+            color={isDegOpen ? "primary" : "default"}
+            variant={isDegOpen ? "shadow" : "light"}
+            onPress={() => {
+              const next = !isDegOpen;
+
+              if (next) {
+                setIsPanelOpen(false);
+                setIsAdvancedOpen(false);
+                setIsCameraOpen(false);
+              }
+              setIsDegOpen(next);
+            }}
+          >
+            DEG
+          </Button>
+        </Tooltip>
+      )}
 
       {/* Plot Panel Button */}
       <Tooltip content="Plot panel" placement="right">
@@ -242,6 +411,20 @@ export function VisualizationControls() {
       {/* Dot Size Slider */}
       <DotSizeSlider sizeScale={sizeScale} setSizeScale={setSizeScale} />
 
+      {/* Hide UI Button — strips overlays for screenshotting (H key) */}
+      <Tooltip content="Hide UI for screenshot (H)" placement="right">
+        <Button
+          className={`${buttonBaseClass} ${glassButton()}`}
+          color="default"
+          variant="light"
+          onPress={() => setHideUi(true)}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Button>
+      </Tooltip>
+
       {/* Camera Button */}
       <Tooltip content="Camera controls" placement="right">
         <Button
@@ -253,6 +436,7 @@ export function VisualizationControls() {
               if (!prev) {
                 setIsPanelOpen(false);
                 setIsAdvancedOpen(false);
+                setIsDegOpen(false);
               }
               return !prev;
             });
@@ -276,6 +460,7 @@ export function VisualizationControls() {
               if (!prev) {
                 setIsPanelOpen(false);
                 setIsCameraOpen(false);
+                setIsDegOpen(false);
               }
               return !prev;
             });
@@ -308,22 +493,40 @@ export function VisualizationControls() {
       {/* Camera Panel */}
       {isCameraOpen && (
         <CameraPanel
+          canExportBox={!!dataset && !dataset.metadata?.wasNormalized}
           controlsRef={controlsRef}
-          onClose={() => setIsCameraOpen(false)}
-          sceneRotation={sceneRotation}
-          setSceneRotation={setSceneRotation}
+          exportBox={{
+            enabled: exportBoxEnabled,
+            widthMm: exportBoxWidthMm,
+            heightMm: exportBoxHeightMm,
+            setEnabled: setExportBoxEnabled,
+            setWidthMm: setExportBoxWidthMm,
+            setHeightMm: setExportBoxHeightMm,
+            resetCenter: () => setExportBoxCenterPx(null),
+          }}
           flipX={flipX}
-          setFlipX={setFlipX}
           flipY={flipY}
-          setFlipY={setFlipY}
-          viewMode={viewMode}
-          setViewMode={setViewMode}
           is3DDataset={dataset?.spatial?.dimensions === 3}
+          sceneRotation={sceneRotation}
+          setFlipX={setFlipX}
+          setFlipY={setFlipY}
+          setSceneRotation={setSceneRotation}
+          setViewMode={setViewMode}
+          viewMode={viewMode}
+          onClose={() => setIsCameraOpen(false)}
         />
       )}
 
       {/* Plot Panel (floating, draggable, resizable) */}
       {plotPanelOpen && <PlotPanel />}
+
+      {/* DEG Panel */}
+      {isDegOpen && (
+        <DegPanel
+          controlsRef={controlsRef}
+          onClose={() => setIsDegOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -738,6 +738,7 @@ export default function UMAPPanel() {
         {isOpen && (
           <motion.div
             animate={{ opacity: 1, y: 0 }}
+            data-ui-overlay
             className="!absolute bottom-4 right-4 md:bottom-8 md:right-8
                        w-[50vh] h-[50vh]
                        bg-black
@@ -821,6 +822,7 @@ export default function UMAPPanel() {
         {!isOpen && (
           <motion.div
             animate={{ opacity: 1, scale: 1 }}
+            data-ui-overlay
             className="!absolute bottom-4 right-4 md:bottom-8 md:right-8 z-[9999]"
             exit={{ opacity: 0, scale: 0.8 }}
             initial={{ opacity: 0, scale: 0.8 }}

@@ -10,6 +10,8 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+import { HideUiManager } from "@/components/hide-ui-manager";
+
 export interface ProvidersProps {
   children: React.ReactNode;
   themeProps?: ThemeProviderProps;
@@ -31,6 +33,7 @@ export function Providers({ children, themeProps }: ProvidersProps) {
       <HeroUIProvider navigate={router.push}>
         <NextThemesProvider {...themeProps}>
           {children}
+          <HideUiManager />
           <ToastContainer
           closeOnClick
           draggable

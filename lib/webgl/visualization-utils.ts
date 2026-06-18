@@ -555,3 +555,130 @@ export async function updateCombinedVisualization(
 
   return { colors, sizes, alphas };
 }
+
+/**
+ * Two-gene additive coexpression: gene A in lime green, gene B in magenta,
+ * coexpressing cells in white, neither in black. Each gene normalizes
+ * independently to [0,1] using its own scale range, then drives one channel:
+ *   R = magenta intensity, G = green intensity, B = magenta intensity
+ *
+ * When `clusterColumn` + `selectedCelltypes` are provided and
+ * `greyOutNonSelected` is true, cells whose category is not in the set
+ * are greyed out (matches the combined gene+celltype behavior).
+ */
+export async function updateCoexpressionVisualization(
+  dataset: StandardizedDataset,
+  geneA: string,
+  geneB: string,
+  scaleMinA: number,
+  scaleMaxA: number,
+  setScaleMinA: ((min: number) => void) | undefined,
+  setScaleMaxA: ((max: number) => void) | undefined,
+  scaleMinB: number,
+  scaleMaxB: number,
+  setScaleMinB: ((min: number) => void) | undefined,
+  setScaleMaxB: ((max: number) => void) | undefined,
+  swapped: boolean,
+  alphaScale: number,
+  _sizeScale: number,
+  clusterColumn: string | null,
+  selectedCelltypes: Set<string>,
+  greyOutNonSelected: boolean,
+  adv: AdvancedVizSettings = defaultAdvanced,
+): Promise<{
+  colors: Float32Array;
+  sizes: Float32Array;
+  alphas: Float32Array;
+} | null> {
+  const count = dataset.getPointCount();
+  if (!geneA || !geneB) return null;
+
+  const [expA, expB] = await Promise.all([
+    dataset.getGeneExpression(geneA),
+    dataset.getGeneExpression(geneB),
+  ]);
+  if (!expA || !expB) {
+    console.warn(`Coexpression: missing expression for ${geneA} or ${geneB}`);
+    return null;
+  }
+
+  // Auto-scale each gene's range to 0..95th percentile when the caller asks
+  // for it (i.e. that gene just changed).
+  if (setScaleMinA && setScaleMaxA) {
+    const p95A = calculateGenePercentile(
+      expA,
+      VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE,
+    );
+    setScaleMinA(0);
+    setScaleMaxA(p95A);
+    scaleMinA = 0;
+    scaleMaxA = p95A;
+  }
+  if (setScaleMinB && setScaleMaxB) {
+    const p95B = calculateGenePercentile(
+      expB,
+      VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE,
+    );
+    setScaleMinB(0);
+    setScaleMaxB(p95B);
+    scaleMinB = 0;
+    scaleMaxB = p95B;
+  }
+
+  const cluster =
+    clusterColumn && greyOutNonSelected && selectedCelltypes.size > 0
+      ? dataset.clusters?.find((c) => c.column === clusterColumn) ?? null
+      : null;
+  const applyCelltypeFilter = !!cluster;
+
+  const colors = new Float32Array(count * 3);
+  const sizes = new Float32Array(count);
+  const alphas = new Float32Array(count);
+  const baseSize = VISUALIZATION_CONFIG.POINT_BASE_SIZE;
+  const [gr, gg, gb] = hexToRgb(grey);
+
+  const rangeA = scaleMaxA - scaleMinA || 1;
+  const rangeB = scaleMaxB - scaleMinB || 1;
+
+  for (let i = 0; i < count; i++) {
+    if (applyCelltypeFilter) {
+      const category = getClusterValue(cluster!, i);
+      if (!selectedCelltypes.has(category)) {
+        colors[i * 3] = gr;
+        colors[i * 3 + 1] = gg;
+        colors[i * 3 + 2] = gb;
+        sizes[i] = baseSize * adv.greyedOutSizeMultiplier;
+        alphas[i] = adv.greyedOutAlpha * alphaScale;
+        continue;
+      }
+    }
+
+    const vA = expA[i];
+    const vB = expB[i];
+    const nA =
+      isNaN(vA) || vA === null
+        ? 0
+        : Math.max(0, Math.min(1, (vA - scaleMinA) / rangeA));
+    const nB =
+      isNaN(vB) || vB === null
+        ? 0
+        : Math.max(0, Math.min(1, (vB - scaleMinB) / rangeB));
+
+    // gene1 → green channel, gene2 → magenta channel (swap flips it).
+    const greenIntensity = swapped ? nB : nA;
+    const magentaIntensity = swapped ? nA : nB;
+
+    colors[i * 3] = magentaIntensity; // R
+    colors[i * 3 + 1] = greenIntensity; // G
+    colors[i * 3 + 2] = magentaIntensity; // B
+
+    const drive = Math.max(nA, nB);
+    sizes[i] = baseSize * calcSizeMultiplier(drive, adv);
+    const alpha =
+      adv.expressionAlphaMin +
+      (adv.expressionAlphaMax - adv.expressionAlphaMin) * drive;
+    alphas[i] = alpha * alphaScale;
+  }
+
+  return { colors, sizes, alphas };
+}

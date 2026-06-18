@@ -10,7 +10,7 @@ import { RadioGroup, Radio } from "@heroui/radio";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 
 import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
-import { Slider, Textarea } from "@heroui/react";
+import { Slider, Switch, Textarea } from "@heroui/react";
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/modal";
 import { Tooltip } from "@heroui/tooltip";
 import { toast } from "react-toastify";
@@ -67,6 +67,12 @@ export function VisualizationPanel({
     toggleColumnType,
     pinnedTooltipColumns,
     togglePinnedTooltipColumn,
+    coexpressEnabled,
+    setCoexpressEnabled,
+    selectedGene2,
+    setSelectedGene2,
+    coexpressSwapped,
+    setCoexpressSwapped,
   } = usePanelVisualizationStore();
 
   const currentSearchTerm =
@@ -693,6 +699,73 @@ export function VisualizationPanel({
         {/* Only show search, clear, and list if not numerical column in celltype mode */}
         {!(mode === "celltype" && isNumericalColumn) && (
           <>
+            {/* Coexpression controls (gene mode only) */}
+            {mode === "gene" && dataset && (
+              <div className="rounded-xl border border-default-200/40 p-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-default-500">
+                    Compare 2nd gene
+                  </span>
+                  <Switch
+                    isSelected={coexpressEnabled}
+                    size="sm"
+                    onValueChange={setCoexpressEnabled}
+                  />
+                </div>
+                {coexpressEnabled && (
+                  <>
+                    <div className="flex items-center gap-2 text-[11px] text-default-400">
+                      <span
+                        className="inline-block w-3 h-3 rounded"
+                        style={{
+                          background: coexpressSwapped ? "#FF00FF" : "#00FF00",
+                        }}
+                      />
+                      <span className="truncate flex-1">
+                        {selectedGene ?? "Pick gene 1 below"}
+                      </span>
+                      <Tooltip content="Swap colors" placement="top">
+                        <Button
+                          className="h-6 w-6 min-w-0"
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          onPress={() => setCoexpressSwapped(!coexpressSwapped)}
+                        >
+                          ⇅
+                        </Button>
+                      </Tooltip>
+                      <span
+                        className="inline-block w-3 h-3 rounded"
+                        style={{
+                          background: coexpressSwapped ? "#00FF00" : "#FF00FF",
+                        }}
+                      />
+                      <span className="truncate flex-1 text-right">
+                        {selectedGene2 ?? "Pick gene 2"}
+                      </span>
+                    </div>
+                    <Autocomplete
+                      aria-label="Second gene"
+                      defaultItems={dataset.genes.map((g) => ({ key: g }))}
+                      placeholder="Second gene"
+                      selectedKey={selectedGene2 ?? null}
+                      size="sm"
+                      onSelectionChange={(key) =>
+                        setSelectedGene2((key as string) || null)
+                      }
+                    >
+                      {(item) => (
+                        <AutocompleteItem key={item.key}>
+                          {item.key}
+                        </AutocompleteItem>
+                      )}
+                    </Autocomplete>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Search Input */}
             <Input
               classNames={{
@@ -703,7 +776,7 @@ export function VisualizationPanel({
               onValueChange={updateSearchTerm}
             />
 
-            {/* Clear Button + Copy Genes */}
+            {/* Clear Button + Select-all + Copy Genes */}
             <div className="flex gap-1">
               <Button
                 className="flex-1"
@@ -722,6 +795,31 @@ export function VisualizationPanel({
               >
                 Clear
               </Button>
+              {mode === "celltype" && (
+                <Tooltip
+                  content={
+                    currentSearchTerm
+                      ? `Select all ${filteredItems.length} filtered`
+                      : `Select all ${filteredItems.length}`
+                  }
+                  delay={300}
+                  placement="top"
+                >
+                  <Button
+                    className="flex-1"
+                    color="primary"
+                    isDisabled={filteredItems.length === 0}
+                    variant="ghost"
+                    onPress={() => {
+                      const union = new Set(selectedCelltypes);
+                      for (const item of filteredItems) union.add(item.id);
+                      setCelltypes(union);
+                    }}
+                  >
+                    Select all
+                  </Button>
+                </Tooltip>
+              )}
               {mode === "gene" && dataset && (
                 <Tooltip content="Copy all gene names" delay={300} placement="top">
                   <Button

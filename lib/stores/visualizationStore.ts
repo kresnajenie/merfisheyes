@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { VISUALIZATION_CONFIG } from "../config/visualization.config";
+import type { SampleTransform } from "../utils/sample-transforms";
 
 export type VisualizationMode = "celltype" | "gene";
 export type CellViewMode = "2D" | "3D";
@@ -24,6 +25,13 @@ interface VisualizationState {
   selectedClusterColumn: string | null;
   selectedColumn: string | null; // Currently active obs column for celltype mode
   selectedCelltypes: Set<string>; // Selected celltypes from the list
+  // When true, a selected gene is rendered on every cell even while
+  // celltypes are selected (bypasses the combined gene+celltype view).
+  geneEverywhere: boolean;
+  // Celltypes hidden from the 3D scene via the per-badge eye toggle. They
+  // stay in selectedCelltypes (so DEG / plots use the full selection) but
+  // are greyed out in the point cloud.
+  hiddenCelltypes: Set<string>;
   numericalScaleMin: number; // Minimum value for numerical cluster scale
   numericalScaleMax: number; // Maximum value for numerical cluster scale
   celltypeSearchTerm: string;
@@ -37,6 +45,15 @@ interface VisualizationState {
   alphaScale: number; // 0-1
   sizeScale: number; // multiplier
   clusterVersion: number;
+  deStatsVersion: number;
+  degTarget: string | null;
+  degReference: string | null; // null = vs Rest
+  degTargetAuto: boolean; // target follows the most-recently-selected celltype
+  degReferenceAuto: boolean; // reference follows the 2nd-most-recently-selected celltype
+  degSearchTerm: string;
+  degSortKey: "log2FC" | "meanIn" | "pctIn";
+  degSortDesc: boolean;
+  degPanelOpen: boolean;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
   celltypePlayback: boolean;
   celltypePlaybackInterval: number;
@@ -62,6 +79,9 @@ interface VisualizationState {
   setPanelMode: (mode: VisualizationMode) => void;
   setViewMode: (mode: CellViewMode) => void;
   setSelectedGene: (gene: string | null) => void;
+  setGeneEverywhere: (everywhere: boolean) => void;
+  toggleCelltypeVisibility: (celltype: string) => void;
+  soloCelltype: (celltype: string) => void;
   setGeneScaleMin: (min: number) => void;
   setGeneScaleMax: (max: number) => void;
   setNumericalScaleMin: (min: number) => void;
@@ -77,6 +97,15 @@ interface VisualizationState {
   setCelltypeSearchTerm: (value: string) => void;
   setGeneSearchTerm: (value: string) => void;
   incrementClusterVersion: () => void;
+  incrementDeStatsVersion: () => void;
+  setDegTarget: (target: string | null) => void;
+  setDegReference: (reference: string | null) => void;
+  setDegTargetAuto: (auto: boolean) => void;
+  setDegReferenceAuto: (auto: boolean) => void;
+  setDegSearchTerm: (term: string) => void;
+  setDegSortKey: (key: "log2FC" | "meanIn" | "pctIn") => void;
+  setDegPanelOpen: (open: boolean) => void;
+  setDegSortDesc: (desc: boolean) => void;
   toggleColumnType: (
     column: string,
     currentType: "categorical" | "numerical",
@@ -105,10 +134,49 @@ interface VisualizationState {
   secondaryColumn: string | null;
   selectedSecondaryValues: Set<string>;
   secondaryPaletteOverrides: Record<string, string>;
+  // User-customised ordering for the current secondary column's values. Empty
+  // means "use the column's natural order". Resets when secondaryColumn changes.
+  secondaryValueOrder: string[];
   setSecondaryColumn: (column: string | null) => void;
   setSelectedSecondaryValues: (values: Set<string>) => void;
   toggleSecondaryValue: (value: string) => void;
   setSecondaryPaletteOverride: (value: string, color: string) => void;
+  setSecondaryValueOrder: (values: string[]) => void;
+
+  // "Export box" overlay tool — draws an exact-mm rectangle in the 2D scene
+  // for cropped PNG screenshots. Panel-local, not persisted.
+  exportBoxEnabled: boolean;
+  exportBoxWidthMm: number;
+  exportBoxHeightMm: number;
+  exportBoxCenterPx: { x: number; y: number } | null;
+  setExportBoxEnabled: (enabled: boolean) => void;
+  setExportBoxWidthMm: (mm: number) => void;
+  setExportBoxHeightMm: (mm: number) => void;
+  setExportBoxCenterPx: (pos: { x: number; y: number } | null) => void;
+
+  // Two-gene coexpression mode.
+  coexpressEnabled: boolean;
+  selectedGene2: string | null;
+  coexpressSwapped: boolean;
+  gene2ScaleMin: number;
+  gene2ScaleMax: number;
+  setCoexpressEnabled: (on: boolean) => void;
+  setSelectedGene2: (gene: string | null) => void;
+  setCoexpressSwapped: (swapped: boolean) => void;
+  setGene2ScaleMin: (min: number) => void;
+  setGene2ScaleMax: (max: number) => void;
+
+  // Per-sample 2D transforms (translate + rotate around centroid).
+  transformColumn: string | null;
+  activeSampleId: string | null;
+  sampleTransforms: Map<string, SampleTransform>;
+  transformVersion: number;
+  setTransformColumn: (column: string | null) => void;
+  setActiveSampleId: (id: string | null) => void;
+  setSampleTransform: (sampleId: string, transform: SampleTransform) => void;
+  clearSampleTransform: (sampleId: string) => void;
+  clearAllSampleTransforms: () => void;
+
   reset: () => void;
 }
 
@@ -117,6 +185,8 @@ const initialState = {
   panelMode: "celltype" as VisualizationMode,
   viewMode: "2D" as CellViewMode,
   selectedGene: null,
+  geneEverywhere: false,
+  hiddenCelltypes: new Set<string>(),
   geneScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
   geneScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
   selectedClusterColumn: null,
@@ -131,6 +201,15 @@ const initialState = {
   alphaScale: VISUALIZATION_CONFIG.POINT_BASE_ALPHA,
   sizeScale: 1.0,
   clusterVersion: 0,
+  deStatsVersion: 0,
+  degTarget: null as string | null,
+  degReference: null as string | null,
+  degTargetAuto: true,
+  degReferenceAuto: false,
+  degSearchTerm: "",
+  degSortKey: "log2FC" as "log2FC" | "meanIn" | "pctIn",
+  degSortDesc: true,
+  degPanelOpen: false,
   columnTypeOverrides: {} as Record<string, "categorical" | "numerical">,
   celltypePlayback: false,
   celltypePlaybackInterval: 1.0,
@@ -153,6 +232,20 @@ const initialState = {
   secondaryColumn: null as string | null,
   selectedSecondaryValues: new Set<string>(),
   secondaryPaletteOverrides: {} as Record<string, string>,
+  secondaryValueOrder: [] as string[],
+  exportBoxEnabled: false,
+  exportBoxWidthMm: 1,
+  exportBoxHeightMm: 1,
+  exportBoxCenterPx: null as { x: number; y: number } | null,
+  transformColumn: null as string | null,
+  activeSampleId: null as string | null,
+  sampleTransforms: new Map<string, SampleTransform>(),
+  transformVersion: 0,
+  coexpressEnabled: false,
+  selectedGene2: null as string | null,
+  coexpressSwapped: false,
+  gene2ScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
+  gene2ScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
 };
 
 // Helper function to update mode array
@@ -262,7 +355,16 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         }
       }
 
-      return { selectedCelltypes: newCelltypes, mode: newMode };
+      // Toggling a celltype's selection resets its isolate-visibility.
+      const newHidden = state.hiddenCelltypes.has(celltype)
+        ? new Set([...state.hiddenCelltypes].filter((ct) => ct !== celltype))
+        : state.hiddenCelltypes;
+
+      return {
+        selectedCelltypes: newCelltypes,
+        mode: newMode,
+        hiddenCelltypes: newHidden,
+      };
     });
   },
 
@@ -283,7 +385,16 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         }
       }
 
-      return { selectedCelltypes: celltypes, mode: newMode };
+      // Drop any hidden celltypes that are no longer selected.
+      const newHidden = new Set(
+        [...state.hiddenCelltypes].filter((ct) => celltypes.has(ct)),
+      );
+
+      return {
+        selectedCelltypes: celltypes,
+        mode: newMode,
+        hiddenCelltypes: newHidden,
+      };
     });
   },
 
@@ -296,10 +407,12 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
       const updates: Partial<VisualizationState> = {
         selectedColumn: column,
         selectedCelltypes: new Set<string>(),
+        hiddenCelltypes: new Set<string>(),
         // Changing the primary column invalidates the grouping pairs.
         secondaryColumn: null,
         selectedSecondaryValues: new Set<string>(),
         secondaryPaletteOverrides: {},
+        secondaryValueOrder: [],
       };
 
       // If selecting a numerical column, clear gene and set mode to celltype only
@@ -343,6 +456,44 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
     set((state) => ({ clusterVersion: state.clusterVersion + 1 }));
   },
 
+  incrementDeStatsVersion: () => {
+    set((state) => ({ deStatsVersion: state.deStatsVersion + 1 }));
+  },
+
+  setDegTarget: (target) => set({ degTarget: target }),
+  setDegReference: (reference) => set({ degReference: reference }),
+  setDegTargetAuto: (auto) => set({ degTargetAuto: auto }),
+  setDegReferenceAuto: (auto) => set({ degReferenceAuto: auto }),
+  setGeneEverywhere: (everywhere) => set({ geneEverywhere: everywhere }),
+  toggleCelltypeVisibility: (celltype) =>
+    set((state) => {
+      const next = new Set(state.hiddenCelltypes);
+
+      if (next.has(celltype)) next.delete(celltype);
+      else next.add(celltype);
+
+      return { hiddenCelltypes: next };
+    }),
+  soloCelltype: (celltype) =>
+    set((state) => {
+      const others = [...state.selectedCelltypes].filter(
+        (ct) => ct !== celltype,
+      );
+      // Already soloed to this celltype → restore everything.
+      const alreadySolo =
+        others.length > 0 &&
+        !state.hiddenCelltypes.has(celltype) &&
+        others.every((ct) => state.hiddenCelltypes.has(ct));
+
+      return {
+        hiddenCelltypes: alreadySolo ? new Set<string>() : new Set(others),
+      };
+    }),
+  setDegSearchTerm: (term) => set({ degSearchTerm: term }),
+  setDegSortKey: (key) => set({ degSortKey: key }),
+  setDegSortDesc: (desc) => set({ degSortDesc: desc }),
+  setDegPanelOpen: (open) => set({ degPanelOpen: open }),
+
   toggleColumnType: (column, currentType) => {
     set((state) => {
       const newType: "categorical" | "numerical" =
@@ -360,6 +511,7 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
       if (state.selectedColumn === column && newType === "numerical") {
         updates.selectedGene = null;
         updates.selectedCelltypes = new Set<string>();
+        updates.hiddenCelltypes = new Set<string>();
         updates.mode = ["celltype"];
       }
 
@@ -441,6 +593,7 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         secondaryColumn: column,
         selectedSecondaryValues: new Set<string>(),
         secondaryPaletteOverrides: {},
+        secondaryValueOrder: [],
       };
     });
   },
@@ -464,6 +617,69 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
         ...state.secondaryPaletteOverrides,
         [value]: color,
       },
+    }));
+  },
+
+  setSecondaryValueOrder: (values) => {
+    set({ secondaryValueOrder: [...values] });
+  },
+
+  setExportBoxEnabled: (enabled) => set({ exportBoxEnabled: enabled }),
+  setExportBoxWidthMm: (mm) => set({ exportBoxWidthMm: Math.max(0.01, mm) }),
+  setExportBoxHeightMm: (mm) => set({ exportBoxHeightMm: Math.max(0.01, mm) }),
+  setExportBoxCenterPx: (pos) => set({ exportBoxCenterPx: pos }),
+
+  setCoexpressEnabled: (on) => {
+    set({ coexpressEnabled: on });
+  },
+  setSelectedGene2: (gene) => {
+    set({ selectedGene2: gene });
+  },
+  setCoexpressSwapped: (swapped) => {
+    set({ coexpressSwapped: swapped });
+  },
+  setGene2ScaleMin: (min) => {
+    set({ gene2ScaleMin: min });
+  },
+  setGene2ScaleMax: (max) => {
+    set({ gene2ScaleMax: max });
+  },
+
+  setTransformColumn: (column) => {
+    set({ transformColumn: column, activeSampleId: null });
+  },
+
+  setActiveSampleId: (id) => {
+    set({ activeSampleId: id });
+  },
+
+  setSampleTransform: (sampleId, transform) => {
+    set((state) => {
+      const next = new Map(state.sampleTransforms);
+      next.set(sampleId, transform);
+      return {
+        sampleTransforms: next,
+        transformVersion: state.transformVersion + 1,
+      };
+    });
+  },
+
+  clearSampleTransform: (sampleId) => {
+    set((state) => {
+      if (!state.sampleTransforms.has(sampleId)) return {} as Partial<VisualizationState>;
+      const next = new Map(state.sampleTransforms);
+      next.delete(sampleId);
+      return {
+        sampleTransforms: next,
+        transformVersion: state.transformVersion + 1,
+      };
+    });
+  },
+
+  clearAllSampleTransforms: () => {
+    set((state) => ({
+      sampleTransforms: new Map<string, SampleTransform>(),
+      transformVersion: state.transformVersion + 1,
     }));
   },
 

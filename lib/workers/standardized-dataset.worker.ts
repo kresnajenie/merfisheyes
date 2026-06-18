@@ -8,6 +8,11 @@ import { ChunkedDataAdapter } from "../adapters/ChunkedDataAdapter";
 import { normalizeCoordinates, normalizeCoordinatesFlat } from "../utils/coordinates";
 import { isCategorical } from "../utils/column-type-detection";
 import { selectBestClusterColumnByName } from "../utils/dataset-utils";
+import {
+  computeDeStats,
+  selectPriorityCategoricalCluster,
+  type DeStats,
+} from "../utils/de-stats";
 
 /**
  * Progress callback type that can be proxied by Comlink
@@ -63,6 +68,8 @@ export interface SerializableStandardizedDataset {
   allClusterColumnTypes?: Record<string, string>;
   allEmbeddingNames?: string[];
   normalized?: boolean; // false = raw coordinates, true/undefined = normalized [-1,1]
+  deStats?: DeStats | null;
+  availableDeStatsColumns?: string[];
 }
 
 /**
@@ -109,6 +116,21 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
+    // Precompute per-celltype expression stats for the priority categorical
+    // cluster column. Skipped gracefully if no categorical column exists.
+    const priorityCluster = selectPriorityCategoricalCluster(clusters);
+    const deStats = priorityCluster
+      ? await computeDeStats(priorityCluster, genes, matrix)
+      : null;
+
+    if (deStats) {
+      console.log(
+        `[Worker] deStats computed for "${deStats.column}": ${deStats.celltypes.length} celltypes × ${deStats.genes.length} genes`,
+      );
+    } else {
+      console.log("[Worker] deStats skipped (no categorical cluster column)");
+    }
+
     // Round spatial coordinates to 2 decimal places (no normalization)
     const coords = spatial.coordinates;
     const roundedCoords: number[][] = [];
@@ -147,6 +169,7 @@ const workerApi = {
       },
       matrix: matrix,
       normalized: false,
+      deStats: deStats,
     };
 
     console.log("[Worker] H5AD parsing complete");
@@ -215,6 +238,21 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
+    // Precompute per-celltype DE stats from the loaded matrix (mirrors the
+    // H5AD branch). Skipped gracefully if there's no categorical column.
+    const priorityCluster = selectPriorityCategoricalCluster(clusters);
+    const deStats = priorityCluster
+      ? await computeDeStats(priorityCluster, genes, matrix)
+      : null;
+
+    if (deStats) {
+      console.log(
+        `[Worker] deStats computed for "${deStats.column}": ${deStats.celltypes.length} celltypes × ${deStats.genes.length} genes`,
+      );
+    } else {
+      console.log("[Worker] deStats skipped (no categorical cluster column)");
+    }
+
     // Round spatial coordinates to 2 decimal places (no normalization)
     const coords = spatial.coordinates;
     const roundedCoords: number[][] = [];
@@ -255,6 +293,7 @@ const workerApi = {
       },
       matrix: matrix,
       normalized: false,
+      deStats: deStats,
     };
 
     console.log("[Worker] Xenium parsing complete");
@@ -330,6 +369,21 @@ const workerApi = {
 
     console.log("[Worker] Expression matrix loaded");
 
+    // Precompute per-celltype DE stats from the loaded matrix (mirrors the
+    // H5AD branch). Skipped gracefully if there's no categorical column.
+    const priorityCluster = selectPriorityCategoricalCluster(clusters);
+    const deStats = priorityCluster
+      ? await computeDeStats(priorityCluster, genes, matrix)
+      : null;
+
+    if (deStats) {
+      console.log(
+        `[Worker] deStats computed for "${deStats.column}": ${deStats.celltypes.length} celltypes × ${deStats.genes.length} genes`,
+      );
+    } else {
+      console.log("[Worker] deStats skipped (no categorical cluster column)");
+    }
+
     // Round spatial coordinates to 2 decimal places (no normalization)
     const coords = spatial.coordinates;
     const roundedCoords: number[][] = [];
@@ -370,6 +424,7 @@ const workerApi = {
       },
       matrix: matrix,
       normalized: false,
+      deStats: deStats,
     };
 
     console.log("[Worker] MERSCOPE parsing complete");
@@ -491,6 +546,7 @@ const workerApi = {
       allClusterColumnTypes: clusterColumnInfo.types,
       allEmbeddingNames: dataInfo.availableEmbeddings || [],
       normalized: false, // always false now — coords are always raw
+      availableDeStatsColumns: adapter.getAvailableDeStatsColumns(),
     };
 
     console.log("[Worker] S3 loading complete");

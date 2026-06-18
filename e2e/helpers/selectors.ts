@@ -41,6 +41,12 @@ export const SELECTORS = {
   celltypeModeButton: 'button:has-text("Celltype")',
   geneSearchInput: 'input[placeholder="Search gene"]',
 
+  // DEG panel.
+  degButton: '[data-testid="deg-button"]',
+  degPanel: '[data-testid="deg-panel"]',
+  degRow: '[data-testid="deg-row"]',
+  degSearchInput: '[data-testid="deg-panel"] input[placeholder="Search gene"]',
+
   // Single-molecule controls.
   smGenesButton: 'button:has-text("Genes")',
   smGeneSearchInput: 'input[placeholder="Search genes..."]',

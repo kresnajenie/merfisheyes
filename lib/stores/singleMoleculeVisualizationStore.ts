@@ -48,6 +48,16 @@ interface SingleMoleculeVisualizationState {
   flipX: boolean;
   flipY: boolean;
 
+  // "Export box" overlay tool — exact-mm rectangle for cropped PNG screenshots.
+  exportBoxEnabled: boolean;
+  exportBoxWidthMm: number;
+  exportBoxHeightMm: number;
+  exportBoxCenterPx: { x: number; y: number } | null;
+  setExportBoxEnabled: (enabled: boolean) => void;
+  setExportBoxWidthMm: (mm: number) => void;
+  setExportBoxHeightMm: (mm: number) => void;
+  setExportBoxCenterPx: (pos: { x: number; y: number } | null) => void;
+
   // Actions
   addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
@@ -84,6 +94,19 @@ export const useSingleMoleculeVisualizationStore =
     sceneRotation: 0,
     flipX: false,
     flipY: false,
+    exportBoxEnabled: false,
+    exportBoxWidthMm: 1,
+    exportBoxHeightMm: 1,
+    exportBoxCenterPx: null as { x: number; y: number } | null,
+
+    setExportBoxEnabled: (enabled: boolean) =>
+      set({ exportBoxEnabled: enabled }),
+    setExportBoxWidthMm: (mm: number) =>
+      set({ exportBoxWidthMm: Math.max(0.01, mm) }),
+    setExportBoxHeightMm: (mm: number) =>
+      set({ exportBoxHeightMm: Math.max(0.01, mm) }),
+    setExportBoxCenterPx: (pos: { x: number; y: number } | null) =>
+      set({ exportBoxCenterPx: pos }),
 
     addGene: (gene: string, color?: string, localScale?: number) =>
       set((state) => {
