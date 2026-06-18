@@ -1,3 +1,5 @@
+import { markDeStatsReady } from "./test-hooks";
+
 /**
  * Per-celltype expression stats precomputed during in-browser parsing.
  *
@@ -491,6 +493,7 @@ export async function ensureDeStatsForColumn(
     .then((result) => {
       if (result && dataset.deStatsByColumn) {
         dataset.deStatsByColumn.set(column, result);
+        markDeStatsReady(column);
       }
       return result;
     })

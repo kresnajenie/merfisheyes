@@ -1,6 +1,7 @@
 import { normalizeCoordinates, normalizeCoordinatesFlat } from "./utils/coordinates";
 import { selectBestClusterColumnByName } from "./utils/dataset-utils";
 import type { DeStats } from "./utils/de-stats";
+import { markDeStatsReady } from "./utils/test-hooks";
 
 interface SpatialData {
   coordinates: Float32Array | number[][];
@@ -411,6 +412,7 @@ export class StandardizedDataset {
     if (data.deStats) {
       dataset.deStats = data.deStats;
       dataset.deStatsByColumn.set(data.deStats.column, data.deStats);
+      markDeStatsReady(data.deStats.column);
     }
     if (data.availableDeStatsColumns) {
       dataset.availableDeStatsColumns = data.availableDeStatsColumns;

@@ -50,6 +50,12 @@ export interface MerfishTestHooks {
   stats: MerfishRenderStats | null;
   /** Most recently rendered gene + count. */
   lastGene: MerfishGeneRender | null;
+  /** performance.now() when DE stats for the most recent column became ready. */
+  deStatsReadyAt: number | null;
+  /** Cluster column the most recent DE stats are for. */
+  deStatsColumn: string | null;
+  /** Monotonic counter incremented every time DE stats resolve. */
+  deStatsCount: number;
 }
 
 const E2E_ENABLED =
@@ -74,6 +80,9 @@ function getHooks(): MerfishTestHooks | null {
       datasetLoadedAt: null,
       stats: null,
       lastGene: null,
+      deStatsReadyAt: null,
+      deStatsColumn: null,
+      deStatsCount: 0,
     };
   }
   return w.__merfish;
@@ -89,6 +98,9 @@ export function resetHooks(): void {
   h.datasetLoadedAt = null;
   h.stats = null;
   h.lastGene = null;
+  h.deStatsReadyAt = null;
+  h.deStatsColumn = null;
+  h.deStatsCount = 0;
 }
 
 /** Record that a dataset has been parsed and added to the store. */
@@ -120,4 +132,13 @@ export function markGeneRendered(gene: string, count: number): void {
   const h = getHooks();
   if (!h) return;
   h.lastGene = { gene, count, at: nowMs() };
+}
+
+/** Record that DE stats for a cluster column have finished computing/loading. */
+export function markDeStatsReady(column: string): void {
+  const h = getHooks();
+  if (!h) return;
+  h.deStatsReadyAt = nowMs();
+  h.deStatsColumn = column;
+  h.deStatsCount += 1;
 }

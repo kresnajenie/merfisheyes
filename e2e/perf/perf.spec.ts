@@ -6,6 +6,7 @@ import {
   annotate,
   loadLocalDataset,
   selectGeneAndMeasure,
+  waitForDeStatsReady,
   recordSamples,
   type DatasetEntry,
 } from "../fixtures/merfish-fixtures";
@@ -93,5 +94,36 @@ for (const ds of candidates) {
       },
       geneSamples,
     );
+
+    // Sample DEG-ready latency — single-cell only. Measures from the moment we
+    // hand the dataset to the app until `markDeStatsReady` fires (either the
+    // worker's eager priority compute or the adapter-backed lazy fetch).
+    if (ds.dataType === "single_cell") {
+      const degSamples: number[] = [];
+      for (let i = 0; i < SAMPLES; i++) {
+        const ms = await inFreshContext(async (page) => {
+          const start = await page.evaluate(() => performance.now());
+          await loadLocalDataset(page, ds);
+          await waitForDeStatsReady(page);
+          const readyAt = await page.evaluate(
+            () =>
+              (window as unknown as { __merfish?: { deStatsReadyAt: number | null } })
+                .__merfish?.deStatsReadyAt ?? performance.now(),
+          );
+          return readyAt - start;
+        });
+        degSamples.push(ms);
+      }
+      await recordSamples(
+        testInfo,
+        {
+          datasetId: ds.id,
+          format: ds.format,
+          metric: "deStatsReady",
+          tier: ds.tier,
+        },
+        degSamples,
+      );
+    }
   });
 }

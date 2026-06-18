@@ -19,6 +19,9 @@ export interface MerfishHooks {
     pointClouds?: number;
   } | null;
   lastGene: { gene: string; count: number; at: number } | null;
+  deStatsReadyAt: number | null;
+  deStatsColumn: string | null;
+  deStatsCount: number;
 }
 
 export interface LoadTiming {
@@ -192,6 +195,32 @@ async function selectGeneSM(page: Page, gene: string): Promise<number> {
     () => (window as unknown as { __merfish?: MerfishHooks }).__merfish?.renderComplete ?? performance.now(),
   );
   return end - start;
+}
+
+/**
+ * Wait for the DEG stats hook to fire — i.e. either the worker eager compute
+ * resolved (h5ad/xenium/merscope) or the adapter-backed lazy load finished
+ * (chunked). Resolves to the column the stats were computed for.
+ */
+export async function waitForDeStatsReady(page: Page): Promise<string> {
+  await page.waitForFunction(
+    () => {
+      const m = (window as unknown as { __merfish?: MerfishHooks }).__merfish;
+
+      return !!m && m.deStatsReadyAt != null && m.deStatsColumn != null;
+    },
+    undefined,
+    { timeout: HOOK_TIMEOUT },
+  );
+
+  const col = await page.evaluate(
+    () =>
+      (window as unknown as { __merfish?: MerfishHooks }).__merfish?.deStatsColumn ?? null,
+  );
+
+  if (!col) throw new Error("deStatsColumn was null after waitForDeStatsReady");
+
+  return col;
 }
 
 /**

@@ -345,6 +345,7 @@ export function VisualizationControls() {
       {hasDeStats && (
         <Tooltip content="Differentially expressed genes" placement="right">
           <Button
+            data-testid="deg-button"
             className={`${buttonBaseClass} ${isDegOpen ? "" : glassButton()}`}
             color={isDegOpen ? "primary" : "default"}
             variant={isDegOpen ? "shadow" : "light"}

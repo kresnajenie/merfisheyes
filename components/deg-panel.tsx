@@ -182,6 +182,10 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
 
   return (
     <div
+      data-testid="deg-panel"
+      data-deg-column={deStats?.column ?? ""}
+      data-deg-target={degTarget ?? ""}
+      data-deg-reference={degReference ?? ""}
       className={`absolute top-0 left-16 z-50 w-[420px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
     >
       <div className="p-4 space-y-3">
@@ -216,6 +220,7 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
               <Autocomplete
                 className="flex-1"
                 color="primary"
+                data-testid="deg-target"
                 isDisabled={degTargetAuto}
                 label="Target celltype"
                 placeholder="Pick a celltype"
@@ -256,6 +261,7 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
             <div className="flex items-end gap-2">
               <Autocomplete
                 className="flex-1"
+                data-testid="deg-reference"
                 isDisabled={degReferenceAuto}
                 label="Reference"
                 placeholder="Rest"
@@ -382,11 +388,14 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
                   No genes match.
                 </div>
               ) : (
-                filtered.slice(0, 500).map((r) => {
+                filtered.slice(0, 500).map((r, rowIndex) => {
                   const isSelected = r.gene === selectedGene;
                   return (
                     <button
                       key={r.gene}
+                      data-testid="deg-row"
+                      data-gene={r.gene}
+                      data-row-index={rowIndex}
                       className={`grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr] gap-2 px-2 py-1.5 rounded text-left text-xs hover:bg-white/10 transition-colors ${
                         isSelected ? "bg-primary/30" : ""
                       }`}

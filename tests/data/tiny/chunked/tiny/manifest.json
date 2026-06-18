@@ -27,6 +27,10 @@
     "observation_columns": [
       "leiden",
       "celltype"
+    ],
+    "de_stats": [
+      "leiden",
+      "celltype"
     ]
   }
 }
