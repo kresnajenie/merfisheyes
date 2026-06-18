@@ -5,7 +5,9 @@ import dotenv from "dotenv";
 // Load test infra env (Postgres + MinIO) before anything else so both the
 // dev server (webServer) and globalSetup see it. Only for the upload suite.
 if (process.env.E2E_UPLOAD === "1") {
-  dotenv.config({ path: path.join(__dirname, ".env.test") });
+  // override: .env.test is authoritative for the upload suite — it must win over
+  // any placeholder DATABASE_URL/S3 env the CI workflow sets for the other jobs.
+  dotenv.config({ path: path.join(__dirname, ".env.test"), override: true });
 }
 
 /**
