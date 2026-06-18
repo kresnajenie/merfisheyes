@@ -180,6 +180,8 @@ export const VisualizationLegends: React.FC = () => {
         <div className="flex flex-col items-end gap-2">
           <div className="text-xs text-white/70 font-medium">Selected Gene</div>
           <div
+            data-testid="selected-gene-badge"
+            data-gene={selectedGene ?? ""}
             className="group flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/70 hover:bg-blue-500 transition-colors cursor-pointer"
             onClick={() => setSelectedGene(null)}
           >

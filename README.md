@@ -137,6 +137,19 @@ The deploy script:
 
 **Note**: The script does NOT transfer `.env.local` - production server should have its own environment variables configured.
 
+## Testing
+
+This project has unit tests (Vitest), end-to-end browser tests (Playwright), and
+a performance regression pipeline. See **[TESTING.md](TESTING.md)** for the full
+guide.
+
+```bash
+npm test                 # unit tests
+npm run e2e:install      # one-time: download the Playwright browser
+npm run test:e2e:quick   # fast E2E smoke suite over the tiny test datasets
+npm run test:perf        # performance suite (compares against perf/baselines/)
+```
+
 ## Usage
 
 ### Uploading Data

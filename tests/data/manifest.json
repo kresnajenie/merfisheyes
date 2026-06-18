@@ -1,0 +1,169 @@
+{
+  "version": 1,
+  "description": "MERFISHEYES E2E test databank. Tiny datasets are committed; medium/large are produced on demand by scripts/testdata/generate.py (source.kind=generate) or downloaded (source.kind=download) into tests/data/generated/ (git-ignored). Regenerate tiny fixtures with `npm run test:data:make-tiny`.",
+  "datasets": [
+    {
+      "id": "h5ad-tiny",
+      "format": "h5ad",
+      "dataType": "single_cell",
+      "tier": "tiny",
+      "path": "tests/data/tiny/h5ad/tiny.h5ad",
+      "committed": true,
+      "source": null,
+      "expected": {
+        "cells": 300,
+        "genes": 40,
+        "dimensions": 2,
+        "clusterColumns": ["leiden", "celltype"],
+        "obsFields": ["leiden", "celltype"],
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "xenium-tiny",
+      "format": "xenium",
+      "dataType": "single_cell",
+      "tier": "tiny",
+      "path": "tests/data/tiny/xenium/tiny",
+      "committed": true,
+      "source": null,
+      "expected": {
+        "cells": 300,
+        "genes": 40,
+        "dimensions": 2,
+        "clusterColumns": ["leiden", "celltype"],
+        "obsFields": ["leiden", "celltype"],
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "merscope-tiny",
+      "format": "merscope",
+      "dataType": "single_cell",
+      "tier": "tiny",
+      "path": "tests/data/tiny/merscope/tiny",
+      "committed": true,
+      "source": null,
+      "expected": {
+        "cells": 300,
+        "genes": 40,
+        "dimensions": 2,
+        "clusterColumns": ["leiden", "celltype"],
+        "obsFields": ["leiden", "celltype"],
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "chunked-tiny",
+      "format": "chunked",
+      "dataType": "single_cell",
+      "tier": "tiny",
+      "path": "tests/data/tiny/chunked/tiny",
+      "committed": true,
+      "source": null,
+      "expected": {
+        "cells": 300,
+        "genes": 40,
+        "dimensions": 2,
+        "clusterColumns": ["leiden", "celltype"],
+        "obsFields": ["leiden", "celltype"],
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "sm-tiny",
+      "format": "single-molecule",
+      "dataType": "single_molecule",
+      "tier": "tiny",
+      "path": "tests/data/tiny/single-molecule/tiny.parquet",
+      "committed": true,
+      "source": null,
+      "expected": {
+        "molecules": 5000,
+        "genes": 40,
+        "dimensions": 3,
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "h5ad-medium",
+      "format": "h5ad",
+      "dataType": "single_cell",
+      "tier": "medium",
+      "path": "tests/data/generated/medium/h5ad/sc_50000c_500g.h5ad",
+      "committed": false,
+      "source": {
+        "kind": "generate",
+        "args": ["--format", "h5ad", "--cells", "50000", "--genes", "500", "--seed", "42"],
+        "outDir": "tests/data/generated/medium/h5ad/sc_50000c_500g.h5ad"
+      },
+      "expected": {
+        "cells": 50000,
+        "genes": 500,
+        "dimensions": 2,
+        "clusterColumns": ["leiden", "celltype"],
+        "obsFields": ["leiden", "celltype"],
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "sm-medium",
+      "format": "single-molecule",
+      "dataType": "single_molecule",
+      "tier": "medium",
+      "path": "tests/data/generated/medium/single-molecule/sm_1000000m_500g.parquet",
+      "committed": false,
+      "source": {
+        "kind": "generate",
+        "args": ["--format", "single-molecule", "--genes", "500", "--molecules", "1000000", "--seed", "42", "--dims", "3"],
+        "outDir": "tests/data/generated/medium/single-molecule/sm_1000000m_500g.parquet"
+      },
+      "expected": {
+        "molecules": 1000000,
+        "genes": 500,
+        "dimensions": 3,
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "chunked-large",
+      "format": "chunked",
+      "dataType": "single_cell",
+      "tier": "large",
+      "path": "tests/data/generated/large/chunked/sc_500000c_500g",
+      "committed": false,
+      "source": {
+        "kind": "generate",
+        "args": ["--format", "chunked", "--cells", "500000", "--genes", "500", "--seed", "42"],
+        "outDir": "tests/data/generated/large/chunked/sc_500000c_500g"
+      },
+      "expected": {
+        "cells": 500000,
+        "genes": 500,
+        "dimensions": 2,
+        "clusterColumns": ["leiden", "celltype"],
+        "obsFields": ["leiden", "celltype"],
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    },
+    {
+      "id": "sm-large",
+      "format": "single-molecule",
+      "dataType": "single_molecule",
+      "tier": "large",
+      "path": "tests/data/generated/large/single-molecule/sm_20000000m_500g.parquet",
+      "committed": false,
+      "source": {
+        "kind": "generate",
+        "args": ["--format", "single-molecule", "--genes", "500", "--molecules", "20000000", "--seed", "42", "--dims", "3"],
+        "outDir": "tests/data/generated/large/single-molecule/sm_20000000m_500g.parquet"
+      },
+      "expected": {
+        "molecules": 20000000,
+        "genes": 500,
+        "dimensions": 3,
+        "knownGenes": ["gene_0", "gene_1", "gene_2"]
+      }
+    }
+  ]
+}

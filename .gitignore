@@ -14,8 +14,23 @@
 *.lcov
 .nyc_output
 
+# Playwright E2E
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# Browser storage-state / auth sessions (contain cookies — never commit)
+/.auth/
+
+# E2E databank: large datasets are generated/downloaded, not committed
+/tests/data/generated/
+
+# Perf pipeline: per-run results are artifacts; baselines ARE committed
+/perf/results/
+
 # next.js
 /.next/
+/.next-e2e/
 /out/
 
 # production
