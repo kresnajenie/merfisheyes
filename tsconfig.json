@@ -40,6 +40,10 @@
     ".next-e2e/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "e2e",
+    "scripts",
+    "tests",
+    "playwright.config.ts"
   ]
 }
