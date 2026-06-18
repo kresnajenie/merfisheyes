@@ -237,10 +237,24 @@ export async function dragDropFile(page: Page, ds: DatasetEntry): Promise<number
       const arr = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
       const file = new File([arr], name);
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      card.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: dt }));
-      card.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: dt }));
+      // The drop handler prefers dataTransfer.items + webkitGetAsEntry (folder
+      // walking); synthetic items have no webkitGetAsEntry, so present an empty
+      // items list to force the plain-files code path.
+      const dataTransfer = {
+        files: [file],
+        items: [],
+        types: ["Files"],
+        getData: () => "",
+      };
+      const fire = (type: string) => {
+        const ev = new Event(type, { bubbles: true, cancelable: true });
+
+        Object.defineProperty(ev, "dataTransfer", { value: dataTransfer });
+        card.dispatchEvent(ev);
+      };
+
+      fire("dragover");
+      fire("drop");
     },
     { sel: selector, data: b64, name: fileName },
   );

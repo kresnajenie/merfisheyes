@@ -6,21 +6,26 @@ import type { DatasetFormat } from "./databank";
  * lib/utils/test-hooks.ts and the data-testid attributes referenced here.
  */
 
-/** File-input id for a given format (see components/file-upload.tsx). */
+/**
+ * File-input id for a given format (see components/file-upload.tsx).
+ *
+ * The homepage consolidated to two cards per pipeline:
+ *  - single cell:    `h5ad` (single .h5ad file) + `folder` (auto-detects
+ *    xenium / merscope / chunked / zarr / h5ad-in-folder from the dropped dir)
+ *  - single molecule: `file` (parquet/csv, schema sniffed) + `chunked` (folder)
+ * So every folder-based single-cell format goes through the one `folder` input,
+ * and single-molecule parquet goes through the `file` input.
+ */
 export function fileInputSelector(format: DatasetFormat): string {
   switch (format) {
     case "h5ad":
       return "#sc-file-input-h5ad";
     case "xenium":
-      return "#sc-file-input-xenium";
     case "merscope":
-      return "#sc-file-input-merscope";
     case "chunked":
-      return "#sc-file-input-chunked";
+      return "#sc-file-input-folder";
     case "single-molecule":
-      // Single-molecule parquet uses the Xenium column mapping
-      // (feature_name / x_location / y_location).
-      return "#sm-file-input-xenium";
+      return "#sm-file-input-file";
   }
 }
 
