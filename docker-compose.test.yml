@@ -33,16 +33,8 @@ services:
       timeout: 3s
       retries: 20
 
-  # One-shot: create the test bucket and make it readable for presigned access.
-  createbucket:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin &&
-      mc mb --ignore-existing local/merfisheyes-test &&
-      mc anonymous set download local/merfisheyes-test &&
-      echo 'bucket merfisheyes-test ready';
-      "
+# The test bucket is created by e2e/global-setup.ts (HeadBucket → CreateBucket
+# via the S3 SDK) before the suite runs. A one-shot compose service is avoided
+# on purpose: `docker compose up --wait` fails when a service exits (even 0),
+# and presigned PUT/GET work against a private bucket, so no public policy is
+# needed.
