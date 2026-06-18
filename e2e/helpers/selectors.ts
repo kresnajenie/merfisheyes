@@ -1,0 +1,52 @@
+import type { DatasetFormat } from "./databank";
+
+/**
+ * Central selector registry. Prefers stable ids / data-testid / roles so the
+ * tests survive styling changes. Hooks added to the app live in
+ * lib/utils/test-hooks.ts and the data-testid attributes referenced here.
+ */
+
+/** File-input id for a given format (see components/file-upload.tsx). */
+export function fileInputSelector(format: DatasetFormat): string {
+  switch (format) {
+    case "h5ad":
+      return "#sc-file-input-h5ad";
+    case "xenium":
+      return "#sc-file-input-xenium";
+    case "merscope":
+      return "#sc-file-input-merscope";
+    case "chunked":
+      return "#sc-file-input-chunked";
+    case "single-molecule":
+      // Single-molecule parquet uses the Xenium column mapping
+      // (feature_name / x_location / y_location).
+      return "#sm-file-input-xenium";
+  }
+}
+
+export const SELECTORS = {
+  // Canvas containers (data-testid added in the scene components).
+  scCanvas: '[data-testid="sc-scene-canvas"] canvas',
+  smCanvas: '[data-testid="sm-scene-canvas"] canvas',
+  uploadProgress: '[data-testid="upload-progress"]',
+  selectedGeneBadge: '[data-testid="selected-gene-badge"]',
+
+  // Single-cell controls.
+  geneModeButton: 'button:has-text("Gene")',
+  celltypeModeButton: 'button:has-text("Celltype")',
+  geneSearchInput: 'input[placeholder="Search gene"]',
+
+  // Single-molecule controls.
+  smGenesButton: 'button:has-text("Genes")',
+  smGeneSearchInput: 'input[placeholder="Search genes..."]',
+
+  // Upload flow.
+  uploadSaveButton: 'button:has-text("Upload & Save")',
+  processSaveButton: 'button:has-text("Process & Save")',
+  processUploadButton: 'button:has-text("Process & Upload")',
+  uploadSuccessHeading: 'text=/Upload Success|Upload Complete/i',
+
+  // Toasts / errors.
+  toastError: ".Toastify__toast--error",
+  errorBoundary: 'text="Something went wrong!"',
+} as const;

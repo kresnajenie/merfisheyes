@@ -1,0 +1,48 @@
+# Hermetic infrastructure for the @upload E2E suite: Postgres + MinIO (S3).
+# Start with:  npm run test:infra:up      (waits until healthy)
+# Stop with:   npm run test:infra:down    (also removes volumes)
+#
+# Matches the values in .env.test, which the upload tests load.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: merfish
+      POSTGRES_PASSWORD: merfish
+      POSTGRES_DB: merfisheyes_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merfish -d merfisheyes_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: create the test bucket and make it readable for presigned access.
+  createbucket:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/merfisheyes-test &&
+      mc anonymous set download local/merfisheyes-test &&
+      echo 'bucket merfisheyes-test ready';
+      "

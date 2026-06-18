@@ -1,0 +1,25 @@
+{
+  "platform": "linux",
+  "updatedAt": "2026-06-18T18:27:41.497Z",
+  "gitSha": "9918ad9",
+  "metrics": {
+    "chromium/h5ad-tiny/loadToRender": 1710.65,
+    "chromium/h5ad-tiny/geneSelectionLatency": 102.45,
+    "chromium/xenium-tiny/loadToRender": 1592.75,
+    "chromium/xenium-tiny/geneSelectionLatency": 115.65,
+    "chromium/merscope-tiny/loadToRender": 1515.35,
+    "chromium/merscope-tiny/geneSelectionLatency": 136.15,
+    "chromium/chunked-tiny/loadToRender": 997.9,
+    "chromium/chunked-tiny/geneSelectionLatency": 170.6,
+    "chromium/sm-tiny/loadToRender": 1521.15,
+    "chromium/sm-tiny/geneSelectionLatency": 150.95,
+    "chromium/sm-large/loadToRender": 28317.6,
+    "chromium/sm-large/geneSelectionLatency": 246.4,
+    "chromium/h5ad-medium/loadToRender": 3323.15,
+    "chromium/h5ad-medium/geneSelectionLatency": 218.45,
+    "chromium/sm-medium/loadToRender": 3211.25,
+    "chromium/sm-medium/geneSelectionLatency": 145.7,
+    "chromium/chunked-large/loadToRender": 1583,
+    "chromium/chunked-large/geneSelectionLatency": 2962.25
+  }
+}
