@@ -1,0 +1,18 @@
+{
+  "env": "ci-ubuntu",
+  "platform": "linux",
+  "updatedAt": "2026-06-18T19:41:00.322Z",
+  "gitSha": "142c50a",
+  "metrics": {
+    "chromium/h5ad-tiny/loadToRender": 3122.3,
+    "chromium/h5ad-tiny/geneSelectionLatency": 131.8,
+    "chromium/xenium-tiny/loadToRender": 3095.5,
+    "chromium/xenium-tiny/geneSelectionLatency": 139.2,
+    "chromium/merscope-tiny/loadToRender": 3051.2,
+    "chromium/merscope-tiny/geneSelectionLatency": 148.1,
+    "chromium/chunked-tiny/loadToRender": 2294.8,
+    "chromium/chunked-tiny/geneSelectionLatency": 189,
+    "chromium/sm-tiny/loadToRender": 3095.2,
+    "chromium/sm-tiny/geneSelectionLatency": 153.7
+  }
+}
