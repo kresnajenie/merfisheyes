@@ -11,6 +11,11 @@ import {
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import {
+  markSceneReady,
+  markRenderComplete,
+  markGeneRendered,
+} from "@/lib/utils/test-hooks";
 
 
 // Create solid circular sprite texture for points
@@ -202,6 +207,7 @@ export function SingleMoleculeThreeScene() {
 
     // Start custom animation loop
     customAnimate();
+    markSceneReady();
 
     // Cleanup
     return () => {
@@ -424,6 +430,7 @@ export function SingleMoleculeThreeScene() {
             console.log(
               `  ✅ Point cloud created with ${moleculeCount} molecules`,
             );
+            markGeneRendered(gene, moleculeCount);
 
             // Update toast to success
             toast.update(toastId, {
@@ -492,6 +499,13 @@ export function SingleMoleculeThreeScene() {
         "Final point clouds genes:",
         Array.from(pointCloudsRef.current.keys()),
       );
+      // E2E timing hook: all selected genes' point clouds are now built.
+      markRenderComplete({
+        geneCount: dataset.uniqueGenes.length,
+        dimensions: dataset.dimensions,
+        dataType: "single_molecule",
+        pointClouds: pointCloudsRef.current.size,
+      });
     });
 
     // Cleanup: cancel the async operation if effect is cleaned up
@@ -516,6 +530,7 @@ export function SingleMoleculeThreeScene() {
     <>
       <div
         ref={containerRef}
+        data-testid="sm-scene-canvas"
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
