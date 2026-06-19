@@ -2,41 +2,40 @@
 """
 collect_dataset_stats.py
 
-Collect per-dataset preprocessing statistics into a single growing CSV, one row
-per dataset. Designed to run at the tail of stage 1 (after combine + map_my_cell)
-so it can read both the combined matrices and the MapMyCells output.
+Collect per-dataset preprocessing statistics into growing CSVs. Designed to run
+at the tail of stage 1 (after combine + map_my_cell, both methods) so it can read
+the combined matrices and BOTH MapMyCells outputs.
 
-For each dataset folder under ${MEYES_BASE} (default /bil/data/meyes), reads:
-  <meyes_base>/<dataset>/combined_output/cell_metadata.csv   (samples, cells)
-  <meyes_base>/<dataset>/combined_output/cell_by_gene.csv    (genes, counts)
-  <meyes_base>/<dataset>/combined_output/artifact_mask_p<P>.csv  (artifact flags)
-  <meyes_base>/<dataset>/mmc_output/mapping_output.csv        (cell types)
+Two accumulators are written:
 
-Metrics collected:
-  n_samples            distinct sections combined (unique _sample_id)
-  n_cells              total cells
-  n_genes              panel width (cell_by_gene columns minus the cell-id column)
-  n_genes_detected     genes with >=1 count anywhere in the dataset
-  total_counts         summed transcript counts across all cells
-  mean/median_counts_per_cell   per-cell total-count distribution
-  n_artifact / pct_artifact     cells flagged by the p<P> artifact mask
-  n_clusters           distinct leaf clusters assigned (cluster_name)
-  n_classes            distinct broad classes assigned (class_name/supercluster_name)
-  mapping_method       'correlation' or 'hierarchical' (from CSV header / default)
+1. --out  (dataset_stats.csv) — one row per dataset:
+     n_samples, n_cells, n_genes, n_genes_detected, total/mean/median counts,
+     p<P> artifact count, and MMC summary: one n_<level> count for EVERY
+     taxonomy level present (mouse: class/subclass/supertype/cluster;
+     human: supercluster/cluster/subcluster — detected dynamically), plus
+     mean_boot (mean leaf bootstrapping) and mean_corr (mean correlation).
 
-Behavior (mirrors collect_correlation_sections.py):
-  - If --out exists, it is loaded and merged with this run.
-  - Any dataset scraped this run REPLACES its existing row.
-  - Datasets not mentioned this run are left untouched.
+2. --group-out  (group_stats.csv) — long format, one row per
+   (dataset, method, level, group): n_cells, mean_score where mean_score is the
+   mean bootstrapping probability (hierarchical) or mean correlation coefficient
+   (correlation) for cells assigned to that group. This delivers "mean
+   correlation/bootstrapping per group" at every taxonomy level for both methods.
+
+Inputs per dataset under ${MEYES_BASE}/<dataset>/:
+     combined_output/cell_metadata.csv, cell_by_gene.csv, artifact_mask_p<P>.csv
+     mmc_output/mapping_output.csv        (hierarchical)
+     mmc_output_corr/mapping_output.csv   (correlation)
+   For h5ad datasets there is no combined_output; pass --h5ad <file> and the
+   combine-derived metrics are read straight from the h5ad instead.
+
+Behavior: if an output exists it is loaded and merged; any dataset scraped this
+run REPLACES its existing rows; untouched datasets are left as-is. Writes are
+fcntl-locked so concurrent per-sample jobs don't clobber the files.
 
 Usage:
-  # Single dataset (how the stage-1 launcher calls it, after MMC)
   python collect_dataset_stats.py --datasets ace-irk-sag --species human \
-      --out /bil/data/meyes/_dataset_stats/dataset_stats.csv
-
-  # Several at once
-  python collect_dataset_stats.py --datasets ace-den-fix ace-dip-use \
-      --out /bil/data/meyes/_dataset_stats/dataset_stats.csv
+      --out       /bil/data/meyes/_dataset_stats/dataset_stats.csv \
+      --group-out /bil/data/meyes/_dataset_stats/group_stats.csv
 """
 from __future__ import annotations
 
@@ -44,6 +43,7 @@ import argparse
 import contextlib
 import datetime as dt
 import fcntl
+import json
 import os
 import sys
 from pathlib import Path
@@ -52,46 +52,38 @@ import numpy as np
 import pandas as pd
 
 
-COLUMNS = [
+# Preferred leading column order for dataset_stats; n_<level> columns are
+# appended dynamically after these (they differ by species).
+DATASET_BASE_ORDER = [
     "dataset", "species", "n_samples", "n_cells", "n_genes", "n_genes_detected",
     "total_counts", "mean_counts_per_cell", "median_counts_per_cell",
     "mask_percentile", "n_artifact", "pct_artifact",
-    "n_clusters", "n_classes", "mapping_method", "scraped_at",
+    "mmc_methods", "mmc_levels", "mean_boot", "mean_corr",
 ]
-
-META_ID_CANDIDATES = ("EntityID", "id", "cell_id")
-CLUSTER_COLS = ("cluster_name", "cluster_label")
-CLASS_COLS = ("class_name", "supercluster_name", "subclass_name")
+GROUP_COLUMNS = [
+    "dataset", "species", "method", "score_type", "level",
+    "group_label", "group_name", "n_cells", "mean_score", "scraped_at",
+]
 CHUNK = 100_000
 
 
-def _meta_paths(meyes_base: Path, sample: str):
-    combined = meyes_base / sample / "combined_output"
-    mmc = meyes_base / sample / "mmc_output" / "mapping_output.csv"
-    return combined, mmc
-
-
+# ─────────────────────────────────────────────────────────────
+# Combine-derived metrics (CSV or h5ad)
+# ─────────────────────────────────────────────────────────────
 def _samples_and_cells(meta_path: Path):
-    """Return (n_samples, n_cells) from cell_metadata.csv."""
     header = pd.read_csv(meta_path, nrows=0).columns.tolist()
     if "_sample_id" in header:
         sid = pd.read_csv(meta_path, usecols=["_sample_id"])
         return int(sid["_sample_id"].nunique()), int(len(sid))
-    # No section column (e.g. a single-section combine) — count rows only.
     n_cells = sum(len(c) for c in pd.read_csv(meta_path, usecols=[0], chunksize=CHUNK))
     return pd.NA, int(n_cells)
 
 
-def _gene_stats(cbg_path: Path):
-    """Single chunked pass over cell_by_gene.csv.
-
-    Returns (n_genes, n_genes_detected, total_counts, mean_per_cell,
-    median_per_cell).
-    """
+def _gene_stats_csv(cbg_path: Path):
+    """Single chunked pass over cell_by_gene.csv."""
     gene_cols = None
-    detected = None          # bool per gene: has any nonzero count
-    per_cell_sums = []       # one total per cell
-
+    detected = None
+    per_cell_sums = []
     for chunk in pd.read_csv(cbg_path, chunksize=CHUNK):
         cols = [c for c in chunk.columns if c != "cell"]
         if gene_cols is None:
@@ -100,30 +92,50 @@ def _gene_stats(cbg_path: Path):
         mat = chunk[gene_cols].to_numpy()
         per_cell_sums.append(mat.sum(axis=1))
         detected |= (mat > 0).any(axis=0)
-
     if gene_cols is None:
         raise ValueError(f"{cbg_path} has no data rows")
-
     per_cell = np.concatenate(per_cell_sums)
+    return _pack_gene_stats(len(gene_cols), int(detected.sum()), per_cell)
+
+
+def _gene_stats_h5ad(h5ad_path: Path):
+    """Combine-derived metrics straight from a single-sample h5ad (raw counts)."""
+    import anndata
+    import scipy.sparse as sp
+
+    adata = anndata.read_h5ad(h5ad_path)
+    X = adata.X
+    sample = X[:10].toarray() if sp.issparse(X) else np.asarray(X[:10])
+    is_raw = np.issubdtype(X.dtype, np.integer) or np.all(sample == np.floor(sample))
+    if not is_raw and "X_raw" in adata.obsm:
+        X = adata.obsm["X_raw"]
+
+    if sp.issparse(X):
+        per_cell = np.asarray(X.sum(axis=1)).ravel()
+        n_detected = int(np.asarray((X != 0).sum(axis=0)).ravel().astype(bool).sum())
+    else:
+        X = np.asarray(X)
+        per_cell = X.sum(axis=1)
+        n_detected = int((X > 0).any(axis=0).sum())
+    return (1, X.shape[0]) + _pack_gene_stats(X.shape[1], n_detected, per_cell)
+
+
+def _pack_gene_stats(n_genes, n_detected, per_cell):
     return (
-        len(gene_cols),
-        int(detected.sum()),
+        n_genes,
+        n_detected,
         float(per_cell.sum()),
-        float(per_cell.mean()),
-        float(np.median(per_cell)),
+        round(float(per_cell.mean()), 3),
+        round(float(np.median(per_cell)), 3),
     )
 
 
 def _artifact_stats(combined: Path, percentile: int, n_cells: int):
-    """Return (n_artifact, pct_artifact) from artifact_mask_p<P>.csv, or (NA, NA)."""
     mask_path = combined / f"artifact_mask_p{percentile}.csv"
     if not mask_path.exists():
         return pd.NA, pd.NA
-    flag_col = "is_artifact"
     cols = pd.read_csv(mask_path, nrows=0).columns.tolist()
-    if flag_col not in cols:
-        # Fall back to the last column if the schema ever changes.
-        flag_col = cols[-1]
+    flag_col = "is_artifact" if "is_artifact" in cols else cols[-1]
     flags = pd.read_csv(mask_path, usecols=[flag_col])[flag_col]
     is_art = flags.astype(str).str.strip().str.lower().isin(("true", "1"))
     n_art = int(is_art.sum())
@@ -131,91 +143,164 @@ def _artifact_stats(combined: Path, percentile: int, n_cells: int):
     return n_art, pct
 
 
-def _celltype_stats(mmc_csv: Path):
-    """Return (n_clusters, n_classes, mapping_method) from mapping_output.csv."""
-    if not mmc_csv.exists():
-        return pd.NA, pd.NA, pd.NA
+# ─────────────────────────────────────────────────────────────
+# MapMyCells output parsing (species-agnostic, both methods)
+# ─────────────────────────────────────────────────────────────
+def _read_mmc(csv_path: Path):
+    """Parse a mapping_output.csv into {method, df, levels}.
 
-    # mapping_method is recorded as a leading "# mapping method: ..." comment by
-    # the correlation runner; hierarchical writes no comment.
+    Levels are taken from the '# readable taxonomy hierarchy' comment when
+    present (hierarchical), else derived from the '<level>_name' columns
+    (our correlation output). Works for mouse and human alike.
+    """
+    if not csv_path.exists():
+        return None
+
     method = "hierarchical"
-    with open(mmc_csv) as fh:
+    readable = None
+    with open(csv_path) as fh:
         for line in fh:
             if not line.startswith("#"):
                 break
-            if "mapping method:" in line:
+            low = line.lower()
+            if "mapping method:" in low:
                 method = line.split("mapping method:", 1)[1].strip().split()[0]
-                break
+                method = method.rstrip(";").strip("'\"")
+            if "readable taxonomy hierarchy" in low:
+                with contextlib.suppress(Exception):
+                    readable = json.loads(line.split("=", 1)[1].strip())
 
-    df = pd.read_csv(mmc_csv, comment="#")
+    df = pd.read_csv(csv_path, comment="#")
+    if readable:
+        levels = [lvl for lvl in readable if f"{lvl}_name" in df.columns]
+    else:
+        levels = [c[:-len("_name")] for c in df.columns if c.endswith("_name")]
+    if not levels:
+        return None
+    return {"method": method, "df": df, "levels": levels}
 
-    def _nunique(candidates):
-        for col in candidates:
-            if col in df.columns and not df[col].isna().all():
-                return int(df[col].nunique())
-        return pd.NA
 
-    return _nunique(CLUSTER_COLS), _nunique(CLASS_COLS), method
+def _score_col(df, level, method):
+    if method == "correlation":
+        return "correlation_coefficient" if "correlation_coefficient" in df.columns else None
+    col = f"{level}_bootstrapping_probability"
+    return col if col in df.columns else None
 
 
-def scrape_dataset(name: str, meyes_base: Path, percentile: int, species: str) -> dict:
-    combined, mmc_csv = _meta_paths(meyes_base, name)
+def _mmc_summary(hier, corr):
+    """Per-dataset MMC summary columns."""
+    out = {}
+    methods = []
+    if hier:
+        methods.append("hierarchical")
+    if corr:
+        methods.append("correlation")
+    out["mmc_methods"] = ",".join(methods) if methods else pd.NA
+
+    canonical = hier or corr
+    if canonical:
+        out["mmc_levels"] = ",".join(canonical["levels"])
+        df = canonical["df"]
+        for level in canonical["levels"]:
+            out[f"n_{level}"] = int(df[f"{level}_name"].nunique())
+
+    if hier:
+        leaf = hier["levels"][-1]
+        col = f"{leaf}_bootstrapping_probability"
+        if col in hier["df"].columns:
+            vals = pd.to_numeric(hier["df"][col], errors="coerce")
+            out["mean_boot"] = round(float(vals.mean()), 4)
+    if corr and "correlation_coefficient" in corr["df"].columns:
+        vals = pd.to_numeric(corr["df"]["correlation_coefficient"], errors="coerce")
+        out["mean_corr"] = round(float(vals.mean()), 4)
+    return out
+
+
+def _group_rows(name, species, info, now):
+    """Long-format per-group rows for one MMC output."""
+    if info is None:
+        return []
+    df = info["df"]
+    method = info["method"]
+    score_type = "correlation" if method == "correlation" else "bootstrapping"
+    rows = []
+    for level in info["levels"]:
+        name_col = f"{level}_name"
+        label_col = f"{level}_label"
+        score_col = _score_col(df, level, method)
+
+        grouped = df.groupby(name_col, dropna=False)
+        sizes = grouped.size()
+        means = (pd.to_numeric(df[score_col], errors="coerce").groupby(df[name_col]).mean()
+                 if score_col else None)
+        labels = grouped[label_col].first() if label_col in df.columns else None
+
+        for group_name, n_cells in sizes.items():
+            rows.append({
+                "dataset": name,
+                "species": species or pd.NA,
+                "method": method,
+                "score_type": score_type,
+                "level": level,
+                "group_label": (labels.get(group_name, pd.NA) if labels is not None else pd.NA),
+                "group_name": group_name,
+                "n_cells": int(n_cells),
+                "mean_score": (round(float(means.get(group_name)), 4)
+                               if means is not None and pd.notna(means.get(group_name)) else pd.NA),
+                "scraped_at": now,
+            })
+    return rows
+
+
+# ─────────────────────────────────────────────────────────────
+# Per-dataset scrape
+# ─────────────────────────────────────────────────────────────
+def scrape_dataset(name, meyes_base, percentile, species, h5ad_path, now):
+    combined = meyes_base / name / "combined_output"
     meta_path = combined / "cell_metadata.csv"
     cbg_path = combined / "cell_by_gene.csv"
-    if not meta_path.exists() or not cbg_path.exists():
-        raise FileNotFoundError(f"combined_output CSVs not found in {combined}")
 
-    n_samples, n_cells = _samples_and_cells(meta_path)
-    n_genes, n_detected, total, mean_pc, median_pc = _gene_stats(cbg_path)
-    n_art, pct_art = _artifact_stats(combined, percentile, n_cells)
-    n_clusters, n_classes, method = _celltype_stats(mmc_csv)
+    if meta_path.exists() and cbg_path.exists():
+        n_samples, n_cells = _samples_and_cells(meta_path)
+        n_genes, n_det, total, mean_pc, median_pc = _gene_stats_csv(cbg_path)
+        n_art, pct_art = _artifact_stats(combined, percentile, n_cells)
+    elif h5ad_path is not None and Path(h5ad_path).exists():
+        n_samples, n_cells, n_genes, n_det, total, mean_pc, median_pc = \
+            _gene_stats_h5ad(Path(h5ad_path))
+        n_art, pct_art = pd.NA, pd.NA  # h5ad datasets are intentionally unmasked
+    else:
+        raise FileNotFoundError(
+            f"no combined_output CSVs in {combined} and no usable --h5ad given")
 
-    return {
+    hier = _read_mmc(meyes_base / name / "mmc_output" / "mapping_output.csv")
+    corr = _read_mmc(meyes_base / name / "mmc_output_corr" / "mapping_output.csv")
+
+    row = {
         "dataset": name,
         "species": species or pd.NA,
         "n_samples": n_samples,
         "n_cells": n_cells,
         "n_genes": n_genes,
-        "n_genes_detected": n_detected,
+        "n_genes_detected": n_det,
         "total_counts": total,
-        "mean_counts_per_cell": round(mean_pc, 3),
-        "median_counts_per_cell": round(median_pc, 3),
+        "mean_counts_per_cell": mean_pc,
+        "median_counts_per_cell": median_pc,
         "mask_percentile": percentile,
         "n_artifact": n_art,
         "pct_artifact": pct_art,
-        "n_clusters": n_clusters,
-        "n_classes": n_classes,
-        "mapping_method": method,
-        "scraped_at": dt.datetime.now().isoformat(timespec="seconds"),
+        "scraped_at": now,
     }
+    row.update(_mmc_summary(hier, corr))
+
+    group_rows = _group_rows(name, species, hier, now) + _group_rows(name, species, corr, now)
+    return row, group_rows
 
 
-def parse_args():
-    p = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("--datasets", nargs="+", required=True,
-                   help="Dataset folder name(s) to scrape.")
-    p.add_argument("--out", required=True,
-                   help="Output accumulator CSV. Created or merged into.")
-    p.add_argument("--species", default="",
-                   help="Species label applied to the scraped dataset(s).")
-    p.add_argument("--mask-percentile", type=int, default=25,
-                   help="Artifact-mask percentile to read (default: 25).")
-    p.add_argument("--meyes-base",
-                   default=os.environ.get("MEYES_BASE", "/bil/data/meyes"),
-                   help="Root containing one folder per dataset (default: %(default)s).")
-    return p.parse_args()
-
-
+# ─────────────────────────────────────────────────────────────
+# Locked accumulator merge
+# ─────────────────────────────────────────────────────────────
 @contextlib.contextmanager
-def _accumulator_lock(out_path: Path):
-    """Exclusive lock so concurrent per-sample jobs can't clobber the CSV.
-
-    The heavy scraping happens before this is taken, so the lock is held only
-    for the brief load → merge → write critical section.
-    """
+def _lock(out_path: Path):
     lock_path = out_path.with_name(out_path.name + ".lock")
     with open(lock_path, "w") as fh:
         fcntl.flock(fh, fcntl.LOCK_EX)
@@ -225,53 +310,77 @@ def _accumulator_lock(out_path: Path):
             fcntl.flock(fh, fcntl.LOCK_UN)
 
 
+def _order_cols(df, preferred):
+    front = [c for c in preferred if c in df.columns]
+    rest = sorted(c for c in df.columns if c not in front)
+    return df[front + rest]
+
+
+def _merge_write(out_path: Path, new_df: pd.DataFrame, preferred, sort_by):
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    scraped = set(new_df["dataset"])
+    with _lock(out_path):
+        if out_path.exists():
+            existing = pd.read_csv(out_path)
+            existing = existing[~existing["dataset"].isin(scraped)]
+        else:
+            existing = pd.DataFrame()
+        combined = pd.concat([existing, new_df], ignore_index=True)
+        combined = _order_cols(combined, preferred)
+        combined = combined.sort_values(sort_by).reset_index(drop=True)
+        combined.to_csv(out_path, index=False)
+    return combined
+
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--datasets", nargs="+", required=True)
+    p.add_argument("--out", required=True, help="dataset_stats.csv accumulator.")
+    p.add_argument("--group-out", required=True, help="group_stats.csv accumulator.")
+    p.add_argument("--species", default="")
+    p.add_argument("--mask-percentile", type=int, default=25)
+    p.add_argument("--h5ad", default=None,
+                   help="h5ad file for combine-derived metrics when the dataset "
+                        "has no combined_output (single-sample h5ad pipeline).")
+    p.add_argument("--meyes-base",
+                   default=os.environ.get("MEYES_BASE", "/bil/data/meyes"))
+    return p.parse_args()
+
+
 def main():
     args = parse_args()
     meyes_base = Path(args.meyes_base)
-    out_path = Path(args.out).expanduser()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    now = dt.datetime.now().isoformat(timespec="seconds")
 
-    # Heavy work first, without the lock held.
-    new_rows = []
+    rows, group_rows = [], []
     for name in args.datasets:
         try:
-            row = scrape_dataset(name, meyes_base, args.mask_percentile, args.species)
+            row, groups = scrape_dataset(
+                name, meyes_base, args.mask_percentile, args.species, args.h5ad, now)
         except (FileNotFoundError, ValueError) as e:
             print(f"[skip ] {name}: {e}", file=sys.stderr)
             continue
-        new_rows.append(row)
-        print(f"[ok   ] {name}: samples={row['n_samples']} cells={row['n_cells']:,} "
-              f"genes={row['n_genes']} ({row['n_genes_detected']} detected) "
-              f"clusters={row['n_clusters']} classes={row['n_classes']}")
+        rows.append(row)
+        group_rows.extend(groups)
+        lvls = [f"{k[2:]}={v}" for k, v in row.items() if k.startswith("n_")
+                and k not in ("n_samples", "n_cells", "n_genes", "n_genes_detected", "n_artifact")]
+        print(f"[ok   ] {name}: cells={row['n_cells']:,} genes={row['n_genes']} "
+              f"methods={row.get('mmc_methods')} levels[{' '.join(lvls)}] "
+              f"mean_boot={row.get('mean_boot')} mean_corr={row.get('mean_corr')} "
+              f"({len(groups)} group rows)")
 
-    if not new_rows:
+    if not rows:
         sys.exit("Nothing to write — no datasets produced usable rows.")
 
-    new_df = pd.DataFrame(new_rows, columns=COLUMNS)
-    scraped = set(new_df["dataset"])
-
-    # Critical section: re-read the latest file under lock, merge, write.
-    with _accumulator_lock(out_path):
-        if out_path.exists():
-            existing = pd.read_csv(out_path)
-            for col in COLUMNS:  # tolerate older files missing new columns
-                if col not in existing.columns:
-                    existing[col] = pd.NA
-            existing = existing[COLUMNS]
-            print(f"[load] {out_path}: {len(existing)} dataset row(s)")
-        else:
-            existing = pd.DataFrame(columns=COLUMNS)
-            print(f"[load] {out_path}: not present — creating new file")
-
-        kept = existing[~existing["dataset"].isin(scraped)]
-        combined = pd.concat([kept, new_df], ignore_index=True)
-        combined = combined.sort_values("dataset").reset_index(drop=True)
-        combined.to_csv(out_path, index=False)
-        replaced = sorted(set(existing["dataset"]) & scraped)
-
-    print(f"\nWrote {out_path}: {len(combined)} dataset row(s)")
-    if replaced:
-        print(f"       Replaced rows for: {', '.join(replaced)}")
+    ds = _merge_write(Path(args.out).expanduser(),
+                      pd.DataFrame(rows), DATASET_BASE_ORDER, ["dataset"])
+    print(f"\nWrote {args.out}: {len(ds)} dataset row(s)")
+    if group_rows:
+        gd = _merge_write(Path(args.group_out).expanduser(),
+                          pd.DataFrame(group_rows, columns=GROUP_COLUMNS),
+                          GROUP_COLUMNS, ["dataset", "method", "level", "group_name"])
+        print(f"Wrote {args.group_out}: {len(gd)} group row(s)")
 
 
 if __name__ == "__main__":

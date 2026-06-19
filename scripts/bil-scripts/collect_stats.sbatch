@@ -3,7 +3,7 @@
 #SBATCH --output=/bil/users/ijenie/meyes_process_logs/collect_stats_%j.log
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --time=04:00:00
 #SBATCH --partition=compute
 #SBATCH --mail-type=END,FAIL
