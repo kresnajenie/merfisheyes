@@ -2,8 +2,19 @@
 # ═══════════════════════════════════════════════════════════════
 # launch_combine_mmc.sh
 #
-# Runs combine_slices -> artifact mask -> map_my_cell.
+# Runs combine_slices (which also writes artifact masks) -> map_my_cell
+# (both hierarchical AND correlation methods) -> collect_dataset_stats.
 # Use launch_process_sync.sh afterwards for process_spatial + s3_sync.
+#
+# Per sample: mmc_output/ holds the hierarchical mapping, mmc_output_corr/
+# holds the correlation mapping. Both depend only on combine and run in parallel.
+#
+# Note: combine_slices_v3.py generates the artifact masks as part of its normal
+# run, so no separate mask job is submitted here. To regenerate masks for an
+# already-combined dataset, run combine_slices.sbatch with --mask-only manually.
+#
+# Stats for every sample accumulate in one CSV (see STATS_CSV below), one row
+# per dataset; re-running a sample replaces its row.
 #
 # Usage:
 #   ./launch_combine_mmc.sh ace-dip-use /bil/data/18/aa/.../input [species]  # single sample
@@ -17,6 +28,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MEYES_BASE="/bil/data/meyes"
+STATS_CSV="${MEYES_BASE}/_dataset_stats/dataset_stats.csv"
 
 # Parse arguments
 if [ $# -eq 0 ]; then
@@ -66,40 +78,55 @@ while IFS=',' read -r sample_name input_path species; do
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
     combined_output="${output_base}/combined_output"
-    mmc_output="${output_base}/mmc_output"
+    mmc_output="${output_base}/mmc_output"            # hierarchical method
+    mmc_corr_output="${output_base}/mmc_output_corr"  # correlation method
 
     echo "── Sample ${count}: ${sample_name} ──"
     echo "  Input:    ${input_path}"
     echo "  Combined: ${combined_output}"
-    echo "  MMC:      ${mmc_output}"
+    echo "  MMC hier: ${mmc_output}"
+    echo "  MMC corr: ${mmc_corr_output}"
     echo "  Species:  ${species}"
 
-    # Step 1: combine_slices
+    # Step 1: combine_slices (also writes artifact masks)
     combine_job=$(sbatch --parsable \
         --job-name="combine_${sample_name}" \
         "${SCRIPT_DIR}/combine_slices.sbatch" \
         "$input_path" \
         "$output_base")
-    echo "  [1/3] combine_slices  -> Job ${combine_job}"
+    echo "  [1/4] combine_slices  -> Job ${combine_job}"
 
-    # Step 2: artifact mask (after combine)
-    filter_job=$(sbatch --parsable \
-        --dependency=afterok:${combine_job} \
-        --job-name="filter_${sample_name}" \
-        "${SCRIPT_DIR}/combine_slices.sbatch" \
-        --mask-only \
-        "$combined_output")
-    echo "  [2/3] artifact_mask   -> Job ${filter_job} (after ${combine_job})"
-
-    # Step 3: map_my_cell (after mask)
+    # Step 2: map_my_cell — hierarchical (after combine)
     mmc_job=$(sbatch --parsable \
-        --dependency=afterok:${filter_job} \
+        --dependency=afterok:${combine_job} \
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
         "$combined_output" \
         "$mmc_output" \
-        "$species")
-    echo "  [3/3] map_my_cell     -> Job ${mmc_job} (after ${filter_job})"
+        "$species" \
+        "hierarchical")
+    echo "  [2/4] mmc hierarchical -> Job ${mmc_job} (after ${combine_job})"
+
+    # Step 3: map_my_cell — correlation (after combine, parallel to hierarchical)
+    mmc_corr_job=$(sbatch --parsable \
+        --dependency=afterok:${combine_job} \
+        --job-name="mmccorr_${sample_name}" \
+        "${SCRIPT_DIR}/map_my_cell.sbatch" \
+        "$combined_output" \
+        "$mmc_corr_output" \
+        "$species" \
+        "correlation")
+    echo "  [3/4] mmc correlation  -> Job ${mmc_corr_job} (after ${combine_job})"
+
+    # Step 4: collect dataset stats (after hierarchical MMC, which it reads)
+    stats_job=$(sbatch --parsable \
+        --dependency=afterok:${mmc_job} \
+        --job-name="stats_${sample_name}" \
+        "${SCRIPT_DIR}/collect_stats.sbatch" \
+        --datasets "$sample_name" \
+        --species "$species" \
+        --out "$STATS_CSV")
+    echo "  [4/4] collect_stats    -> Job ${stats_job} (after ${mmc_job})"
 
     echo ""
 

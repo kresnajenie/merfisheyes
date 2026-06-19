@@ -666,8 +666,8 @@ cx_all = meta_all[x_col].values
 cy_all = meta_all[y_col].values
 del meta_all
 
-# Determine percentile thresholds to compare
-compare_percentiles = [10,15,20,25,30,35,40,45,50,55,60,65,70,75]
+# Determine percentile thresholds to compare (5th–75th in 5% increments)
+compare_percentiles = list(range(5, 76, 5))
 compare_thresholds = [(p, np.percentile(cell_sums, p)) for p in compare_percentiles]
 
 # Generate threshold comparison grid
@@ -720,7 +720,9 @@ for percentile in compare_percentiles:
     log(f"  p{percentile}: threshold={threshold:.4f}, flagged {n_flagged:,} / {len(cell_sums):,} ({pct_flagged:.1f}%)", t_start)
     del mask_df
 
-del cell_sums, cell_ids, cx_all, cy_all
+# Keep cell_sums — step 8's expression histogram reuses it (only mask-only mode,
+# which skips step 8, never needs it again).
+del cell_ids, cx_all, cy_all
 gc.collect()
 
 
@@ -731,7 +733,14 @@ if not args.mask_only:
     # ─────────────────────────────────────────────
     log("=== STEP 7/8: Generating per-gene expression plots ===", t_start)
 
-    MARKER_GENES = ["Slc17a7", "Gfap", "Gad2", "Drd1", "VIM", "KLHL1"]
+    # Mixed mouse + human marker panel; only genes present in the matrix are
+    # plotted, so the same list works across species/datasets.
+    MARKER_GENES = [
+        # mouse
+        "Slc17a7", "Gfap", "Gad2", "Drd1", "Aqp4", "Mbp",
+        # human
+        "SLC17A7", "GFAP", "GAD1", "AQP4", "MBP", "VIM", "KLHL1",
+    ]
 
     # Read available columns from combined cell_by_gene header
     cbg_all_cols = pd.read_csv(out_cbg_path, nrows=0).columns.tolist()
@@ -788,16 +797,9 @@ if not args.mask_only:
     # ─────────────────────────────────────────────
     log("=== STEP 8/8: Generating expression distribution plot ===", t_start)
 
-    all_gene_sums = []
-    header_cols = None
-
-    for chunk in pd.read_csv(out_cbg_path, chunksize=50_000):
-        if header_cols is None:
-            header_cols = [c for c in chunk.columns if c != "cell"]
-        gene_sums = chunk[header_cols].sum(axis=1).values
-        all_gene_sums.append(gene_sums)
-
-    all_gene_sums = np.concatenate(all_gene_sums)
+    # Per-cell total gene counts are identical to the row sums already computed
+    # in step 6b — reuse them instead of re-reading the whole cell_by_gene CSV.
+    all_gene_sums = cell_sums
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.hist(all_gene_sums, bins=100, color="steelblue", edgecolor="none")
@@ -810,7 +812,7 @@ if not args.mask_only:
     plt.savefig(out_dir / "check_expression.png", dpi=150)
     plt.close()
 
-    del all_gene_sums
+    del all_gene_sums, cell_sums
     gc.collect()
     log(f"  Saved {out_dir / 'check_expression.png'}", t_start)
 

@@ -1,8 +1,4 @@
 # sample_name,input_path,species
-ace-irk-sag,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.13,human
-ace-irk-sap,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.16,human
-ace-irk-sat,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.17,human
-ace-irk-saw,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.19,human
-ace-irk-say,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.20,human
-ace-irk-set,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.CX.21,human
-ace-irk-shy,/bil/data/a6/b2/a6b296ab78fed4dd/H22.30.001.BS.3,human
+ace-dip-use,/bil/data/63/05/63053886eb9f9771/660406,mouse
+ace-low-bet,/bil/data/50/51/505118bf1edfb3e6/702265/1296400263/merfish_output/1296400263_SISSeg_mousedevmodel_20241007,mouse
+ace-dry-dub,/bil/data/f4/e6/f4e6e00f004c85ba/NIH-4392-BA17/,human
