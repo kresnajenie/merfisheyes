@@ -16,12 +16,10 @@
 # run, so no separate mask job is submitted here. To regenerate masks for an
 # already-combined dataset, run combine_slices.sbatch with --mask-only manually.
 #
-# Stats accumulate in two CSVs under ${MEYES_BASE}/_dataset_stats/:
-#   dataset_stats.csv  one row per dataset (counts at every taxonomy level,
-#                      mean bootstrapping + mean correlation)
-#   group_stats.csv    one row per (dataset, method, level, group) with
-#                      per-group cell count + mean bootstrapping/correlation
-# Re-running a sample replaces its rows in both.
+# Stats accumulate in ${MEYES_BASE}/_dataset_stats/dataset_stats.csv — one row
+# per dataset, with a per-taxonomy-level group count (n_<level>) and mean
+# bootstrapping (mean_boot_<level>), plus one overall mean_corr. Re-running a
+# sample replaces its row.
 #
 # Usage:
 #   ./launch_combine_mmc.sh ace-dip-use /bil/data/18/aa/.../input [species]  # single sample
@@ -36,7 +34,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MEYES_BASE="/bil/data/meyes"
 STATS_CSV="${MEYES_BASE}/_dataset_stats/dataset_stats.csv"
-GROUP_CSV="${MEYES_BASE}/_dataset_stats/group_stats.csv"
 
 # Parse arguments
 if [ $# -eq 0 ]; then
@@ -159,7 +156,6 @@ while IFS=',' read -r sample_name input_path species; do
         --datasets "$sample_name" \
         --species "$species" \
         --out "$STATS_CSV" \
-        --group-out "$GROUP_CSV" \
         ${stats_h5ad[@]+"${stats_h5ad[@]}"})
     echo "  [4/4] collect_stats    -> Job ${stats_job} (after hier+corr)"
 

@@ -2,24 +2,18 @@
 """
 collect_dataset_stats.py
 
-Collect per-dataset preprocessing statistics into growing CSVs. Designed to run
-at the tail of stage 1 (after combine + map_my_cell, both methods) so it can read
-the combined matrices and BOTH MapMyCells outputs.
+Collect per-dataset preprocessing statistics into one growing CSV, one row per
+dataset. Designed to run at the tail of stage 1 (after combine + map_my_cell,
+both methods) so it can read the combined matrices and BOTH MapMyCells outputs.
 
-Two accumulators are written:
-
-1. --out  (dataset_stats.csv) — one row per dataset:
-     n_samples, n_cells, n_genes, n_genes_detected, total/mean/median counts,
-     p<P> artifact count, and MMC summary: one n_<level> count for EVERY
-     taxonomy level present (mouse: class/subclass/supertype/cluster;
-     human: supercluster/cluster/subcluster — detected dynamically), plus
-     mean_boot (mean leaf bootstrapping) and mean_corr (mean correlation).
-
-2. --group-out  (group_stats.csv) — long format, one row per
-   (dataset, method, level, group): n_cells, mean_score where mean_score is the
-   mean bootstrapping probability (hierarchical) or mean correlation coefficient
-   (correlation) for cells assigned to that group. This delivers "mean
-   correlation/bootstrapping per group" at every taxonomy level for both methods.
+--out (dataset_stats.csv) — one row per dataset:
+    n_samples, n_cells, n_genes, n_genes_detected, total/mean/median counts,
+    p<P> artifact count, and an MMC summary aggregated PER TAXONOMY LEVEL (not
+    per individual group): for every level present (mouse: class/subclass/
+    supertype/cluster; human: supercluster/cluster/subcluster — detected
+    dynamically) a n_<level> count and a mean_boot_<level> (mean bootstrapping
+    probability across all cells at that level), plus one overall mean_corr
+    (mean correlation coefficient; the correlation method has one value per cell).
 
 Inputs per dataset under ${MEYES_BASE}/<dataset>/:
      combined_output/cell_metadata.csv, cell_by_gene.csv, artifact_mask_p<P>.csv
@@ -58,11 +52,7 @@ DATASET_BASE_ORDER = [
     "dataset", "species", "n_samples", "n_cells", "n_genes", "n_genes_detected",
     "total_counts", "mean_counts_per_cell", "median_counts_per_cell",
     "mask_percentile", "n_artifact", "pct_artifact",
-    "mmc_methods", "mmc_levels", "mean_boot", "mean_corr",
-]
-GROUP_COLUMNS = [
-    "dataset", "species", "method", "score_type", "level",
-    "group_label", "group_name", "n_cells", "mean_score", "scraped_at",
+    "mmc_methods", "mmc_levels", "mean_corr",
 ]
 CHUNK = 100_000
 
@@ -180,15 +170,10 @@ def _read_mmc(csv_path: Path):
     return {"method": method, "df": df, "levels": levels}
 
 
-def _score_col(df, level, method):
-    if method == "correlation":
-        return "correlation_coefficient" if "correlation_coefficient" in df.columns else None
-    col = f"{level}_bootstrapping_probability"
-    return col if col in df.columns else None
-
-
 def _mmc_summary(hier, corr):
-    """Per-dataset MMC summary columns."""
+    """Per-dataset MMC summary: one group count + one mean bootstrapping value
+    per taxonomy level (NOT per individual group), plus one overall mean
+    correlation. Keeps the sheet at one row per dataset."""
     out = {}
     methods = []
     if hier:
@@ -204,52 +189,20 @@ def _mmc_summary(hier, corr):
         for level in canonical["levels"]:
             out[f"n_{level}"] = int(df[f"{level}_name"].nunique())
 
+    # Mean bootstrapping probability per level (averaged over all cells).
     if hier:
-        leaf = hier["levels"][-1]
-        col = f"{leaf}_bootstrapping_probability"
-        if col in hier["df"].columns:
-            vals = pd.to_numeric(hier["df"][col], errors="coerce")
-            out["mean_boot"] = round(float(vals.mean()), 4)
+        df = hier["df"]
+        for level in hier["levels"]:
+            col = f"{level}_bootstrapping_probability"
+            if col in df.columns:
+                vals = pd.to_numeric(df[col], errors="coerce")
+                out[f"mean_boot_{level}"] = round(float(vals.mean()), 4)
+
+    # Correlation method has a single coefficient per cell → one overall mean.
     if corr and "correlation_coefficient" in corr["df"].columns:
         vals = pd.to_numeric(corr["df"]["correlation_coefficient"], errors="coerce")
         out["mean_corr"] = round(float(vals.mean()), 4)
     return out
-
-
-def _group_rows(name, species, info, now):
-    """Long-format per-group rows for one MMC output."""
-    if info is None:
-        return []
-    df = info["df"]
-    method = info["method"]
-    score_type = "correlation" if method == "correlation" else "bootstrapping"
-    rows = []
-    for level in info["levels"]:
-        name_col = f"{level}_name"
-        label_col = f"{level}_label"
-        score_col = _score_col(df, level, method)
-
-        grouped = df.groupby(name_col, dropna=False)
-        sizes = grouped.size()
-        means = (pd.to_numeric(df[score_col], errors="coerce").groupby(df[name_col]).mean()
-                 if score_col else None)
-        labels = grouped[label_col].first() if label_col in df.columns else None
-
-        for group_name, n_cells in sizes.items():
-            rows.append({
-                "dataset": name,
-                "species": species or pd.NA,
-                "method": method,
-                "score_type": score_type,
-                "level": level,
-                "group_label": (labels.get(group_name, pd.NA) if labels is not None else pd.NA),
-                "group_name": group_name,
-                "n_cells": int(n_cells),
-                "mean_score": (round(float(means.get(group_name)), 4)
-                               if means is not None and pd.notna(means.get(group_name)) else pd.NA),
-                "scraped_at": now,
-            })
-    return rows
 
 
 # ─────────────────────────────────────────────────────────────
@@ -291,9 +244,7 @@ def scrape_dataset(name, meyes_base, percentile, species, h5ad_path, now):
         "scraped_at": now,
     }
     row.update(_mmc_summary(hier, corr))
-
-    group_rows = _group_rows(name, species, hier, now) + _group_rows(name, species, corr, now)
-    return row, group_rows
+    return row
 
 
 # ─────────────────────────────────────────────────────────────
@@ -337,7 +288,6 @@ def parse_args():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--datasets", nargs="+", required=True)
     p.add_argument("--out", required=True, help="dataset_stats.csv accumulator.")
-    p.add_argument("--group-out", required=True, help="group_stats.csv accumulator.")
     p.add_argument("--species", default="")
     p.add_argument("--mask-percentile", type=int, default=25)
     p.add_argument("--h5ad", default=None,
@@ -353,22 +303,20 @@ def main():
     meyes_base = Path(args.meyes_base)
     now = dt.datetime.now().isoformat(timespec="seconds")
 
-    rows, group_rows = [], []
+    rows = []
     for name in args.datasets:
         try:
-            row, groups = scrape_dataset(
+            row = scrape_dataset(
                 name, meyes_base, args.mask_percentile, args.species, args.h5ad, now)
         except (FileNotFoundError, ValueError) as e:
             print(f"[skip ] {name}: {e}", file=sys.stderr)
             continue
         rows.append(row)
-        group_rows.extend(groups)
         lvls = [f"{k[2:]}={v}" for k, v in row.items() if k.startswith("n_")
                 and k not in ("n_samples", "n_cells", "n_genes", "n_genes_detected", "n_artifact")]
         print(f"[ok   ] {name}: cells={row['n_cells']:,} genes={row['n_genes']} "
               f"methods={row.get('mmc_methods')} levels[{' '.join(lvls)}] "
-              f"mean_boot={row.get('mean_boot')} mean_corr={row.get('mean_corr')} "
-              f"({len(groups)} group rows)")
+              f"mean_corr={row.get('mean_corr')}")
 
     if not rows:
         sys.exit("Nothing to write — no datasets produced usable rows.")
@@ -376,11 +324,6 @@ def main():
     ds = _merge_write(Path(args.out).expanduser(),
                       pd.DataFrame(rows), DATASET_BASE_ORDER, ["dataset"])
     print(f"\nWrote {args.out}: {len(ds)} dataset row(s)")
-    if group_rows:
-        gd = _merge_write(Path(args.group_out).expanduser(),
-                          pd.DataFrame(group_rows, columns=GROUP_COLUMNS),
-                          GROUP_COLUMNS, ["dataset", "method", "level", "group_name"])
-        print(f"Wrote {args.group_out}: {len(gd)} group row(s)")
 
 
 if __name__ == "__main__":
