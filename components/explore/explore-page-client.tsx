@@ -5,7 +5,6 @@ import { Tabs, Tab } from "@heroui/tabs";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { FeaturedDatasets } from "./featured-datasets";
-import { BilDatasets } from "./bil-datasets";
 import { ExploreSearchBar } from "./explore-search-bar";
 import { ExploreFilterChips } from "./explore-filter-chips";
 import { ExploreDatasetGrid } from "./explore-dataset-grid";
@@ -42,6 +41,17 @@ export function ExplorePageClient({
     (searchParams.get("tab") as ExploreTab) || "all",
   );
   const [search, setSearch] = useState(searchParams.get("q") || "");
+  // Debounced mirror of `search`: the input stays bound to `search` for
+  // instant typing feedback, but URL sync + fetch use the debounced value so
+  // we don't spam the API / history on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    searchParams.get("q") || "",
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
   const [species, setSpecies] = useState(searchParams.get("species") || "");
   const [tissue, setTissue] = useState(searchParams.get("tissue") || "");
   const [platform, setPlatform] = useState(searchParams.get("platform") || "");
@@ -67,7 +77,7 @@ export function ExplorePageClient({
   const [hasFetched, setHasFetched] = useState(false);
   const isInitialMount = useRef(true);
 
-  const hasActiveFilters = search || species || tissue || platform || geneSearch || geneChips.length > 0;
+  const hasActiveFilters = debouncedSearch || species || tissue || platform || geneSearch || geneChips.length > 0;
 
   // Sync state to URL (replace, not push, to avoid polluting history)
   useEffect(() => {
@@ -79,7 +89,7 @@ export function ExplorePageClient({
 
     const params = new URLSearchParams();
     if (activeTab !== "all") params.set("tab", activeTab);
-    if (search) params.set("q", search);
+    if (debouncedSearch) params.set("q", debouncedSearch);
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
     if (platform) params.set("platform", platform);
@@ -89,12 +99,12 @@ export function ExplorePageClient({
 
     const qs = params.toString();
     router.replace(`/explore${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [activeTab, search, species, tissue, platform, geneSearch, geneChips, page, router]);
+  }, [activeTab, debouncedSearch, species, tissue, platform, geneSearch, geneChips, page, router]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (search) params.set("search", search);
+    if (debouncedSearch) params.set("search", debouncedSearch);
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
     if (platform) params.set("platform", platform);
@@ -132,7 +142,7 @@ export function ExplorePageClient({
     setFilters(data.filters);
     setLoading(false);
     setHasFetched(true);
-  }, [search, species, tissue, platform, geneSearch, geneChips, page, activeTab]);
+  }, [debouncedSearch, species, tissue, platform, geneSearch, geneChips, page, activeTab]);
 
   // Refetch when filters/page/tab change
   useEffect(() => {
@@ -155,7 +165,7 @@ export function ExplorePageClient({
   // Reset page when filters or tab change
   useEffect(() => {
     setPage(1);
-  }, [search, species, tissue, platform, geneSearch, geneChips, activeTab]);
+  }, [debouncedSearch, species, tissue, platform, geneSearch, geneChips, activeTab]);
 
   const activeFilters = [
     species && { key: "species", label: "Species", value: species, onClear: () => setSpecies("") },
@@ -210,9 +220,8 @@ export function ExplorePageClient({
         onSelectionChange={(key) => setActiveTab(key as ExploreTab)}
       >
         <Tab key="all" title="All">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="mb-8">
             <FeaturedDatasets datasets={featuredItems} onViewAll={() => setActiveTab("featured")} />
-            <BilDatasets datasets={bilItems} onViewAll={() => setActiveTab("bil")} />
           </div>
           {renderSearchAndGrid(allItems, allTotal)}
         </Tab>
