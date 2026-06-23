@@ -6,7 +6,7 @@ import type {
   ExploreFilters,
 } from "./types";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Spinner } from "@heroui/react";
 import { useSession } from "next-auth/react";
@@ -45,7 +45,7 @@ export function ExploreModal({
   onClose,
   onSelectEntry,
 }: ExploreModalProps) {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const isAdmin =
     session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
 
@@ -58,9 +58,19 @@ export function ExploreModal({
     null,
   );
 
-  // Fetch initial data once when the modal first opens.
+  // Single-shot guard. Using a ref instead of the `loading`/`data` state
+  // avoids the bug where `setLoading(true)` re-runs the effect, runs the
+  // cleanup (`cancelled = true`), and the still-pending fetch silently
+  // bails in its finally block — leaving `loading` stuck true forever.
+  const hasFetchedRef = useRef(false);
+
+  // Fetch initial data once when the modal first opens. Waits for session
+  // to resolve so admin users actually get internal datasets.
   useEffect(() => {
-    if (!isOpen || data || loading) return;
+    if (!isOpen || sessionStatus === "loading" || hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
     let cancelled = false;
 
     (async () => {
@@ -100,11 +110,15 @@ export function ExploreModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, data, loading, isAdmin]);
+  }, [isOpen, sessionStatus, isAdmin]);
 
-  // Reset detail view when the modal closes.
+  // Reset detail view + fetch guard when the modal closes so the next open
+  // refetches.
   useEffect(() => {
-    if (!isOpen) setDetailDataset(null);
+    if (!isOpen) {
+      setDetailDataset(null);
+      hasFetchedRef.current = false;
+    }
   }, [isOpen]);
 
   // ESC to close.
@@ -156,30 +170,45 @@ export function ExploreModal({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] bg-background overflow-y-auto">
-      {/* Close button — top right, fixed so it stays in view when scrolling */}
-      <button
-        aria-label="Close"
-        className="fixed top-4 right-4 z-[101] w-9 h-9 rounded-full bg-default-100 hover:bg-default-200 text-default-700 flex items-center justify-center transition-colors shadow"
-        type="button"
-        onClick={onClose}
+    // Outer layer — fills the viewport so clicks anywhere outside the card
+    // close the modal. Backdrop-blur softens the viewer behind without
+    // darkening it; the viewer's colors still show through the blur.
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-6 sm:p-12 md:p-16 lg:p-20 backdrop-blur-md"
+      role="presentation"
+      onClick={onClose}
+    >
+      {/* Inner card — capped width, centered, bordered, rounded, own scroll.
+          Stops click propagation so interacting inside doesn't dismiss. */}
+      <div
+        className="relative w-full h-full max-w-7xl rounded-2xl bg-background shadow-2xl border border-default-200 overflow-y-auto"
+        role="dialog"
+        onClick={(e) => e.stopPropagation()}
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          viewBox="0 0 24 24"
+        {/* Close button — sits inside the card, top-right corner. Solid
+            danger color for prominence. */}
+        <button
+          aria-label="Close"
+          className="absolute top-4 right-4 z-[101] w-10 h-10 rounded-full bg-danger hover:bg-danger-600 text-white flex items-center justify-center transition-colors shadow-lg"
+          type="button"
+          onClick={onClose}
         >
-          <path
-            d="M6 18L18 6M6 6l12 12"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M6 18L18 6M6 6l12 12"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
 
-      <div className="container mx-auto max-w-7xl px-6 py-8">
+        <div className="container mx-auto max-w-7xl px-6 py-8">
         {loading && !data ? (
           <div className="flex items-center justify-center py-24">
             <Spinner size="lg" />
@@ -219,6 +248,7 @@ export function ExploreModal({
             />
           )
         ) : null}
+        </div>
       </div>
     </div>,
     document.body,
