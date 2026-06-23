@@ -1,0 +1,57 @@
+[
+  {
+    "title": "Mouse Whole-Brain MERFISH Atlas (sample)",
+    "description": "Reference example showing every field accepted by the catalog importer. Drop a file with this shape into Admin → Datasets → Import JSON.",
+    "species": "Mouse",
+    "disease": null,
+    "institute": "Allen Institute",
+    "tissue": "Brain",
+    "platform": "MERSCOPE",
+    "tags": ["atlas", "reference", "cortex"],
+    "genes": ["Gad1", "Slc17a7", "Pvalb"],
+    "thumbnailUrl": "https://example.com/thumb.jpg",
+    "bilCode": null,
+    "metadata": {
+      "investigator": "Jane Doe",
+      "institution": "Allen Institute",
+      "publicationYear": 2024,
+      "license": "CC-BY-4.0"
+    },
+    "externalLink": "https://example.com/study",
+    "publicationLink": "https://doi.org/10.0000/example",
+    "isPublished": true,
+    "isFeatured": false,
+    "isBil": false,
+    "isInternal": false,
+    "sortOrder": 0,
+    "numCells": 250000,
+    "numGenes": 500,
+    "entries": [
+      {
+        "label": "Single Cell — whole brain (paste viewer URL)",
+        "s3BaseUrl": "https://merfisheyes.com/viewer/ds_abc123"
+      },
+      {
+        "label": "Single Molecule — coronal section 7 (paste sm-viewer URL)",
+        "s3BaseUrl": "https://merfisheyes.com/sm-viewer/ds_def456"
+      },
+      {
+        "label": "Single Cell — from raw S3 base URL",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://your-bucket.s3.amazonaws.com/datasets/abc123/"
+      },
+      {
+        "label": "Single Molecule — viewer from-s3 link is also parsed",
+        "s3BaseUrl": "https://merfisheyes.com/sm-viewer/from-s3?url=https%3A%2F%2Fyour-bucket.s3.amazonaws.com%2Fdatasets%2Fghi789%2F"
+      }
+    ]
+  },
+  {
+    "title": "Minimal entry — only required fields",
+    "entries": [
+      {
+        "s3BaseUrl": "https://merfisheyes.com/viewer/ds_abc123"
+      }
+    ]
+  }
+]
