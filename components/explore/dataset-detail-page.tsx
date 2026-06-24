@@ -1,12 +1,12 @@
 "use client";
 
+import type { CatalogDatasetItem, CatalogDatasetEntry } from "./types";
+
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-import type { CatalogDatasetItem, CatalogDatasetEntry } from "./types";
 
 // Metadata keys to display with human-readable labels
 const METADATA_LABELS: Record<string, string> = {
@@ -45,11 +45,13 @@ function getEntryHref(entry: CatalogDatasetEntry): string {
 
   if (entry.s3BaseUrl) {
     const url = entry.s3BaseUrl.replace(/\/+$/, "");
+
     return `${base}/from-s3?url=${encodeURIComponent(url)}`;
   }
   if (entry.datasetId) {
     return `${base}/${entry.datasetId}`;
   }
+
   return "#";
 }
 
@@ -57,32 +59,41 @@ function EntryCard({
   entry,
   color,
   large,
+  onSelect,
 }: {
   entry: CatalogDatasetEntry;
   color: "blue" | "purple";
   large?: boolean;
+  onSelect?: (entry: CatalogDatasetEntry) => void;
 }) {
   const s = COLOR_STYLES[color];
-
-  return (
-    <a
-      className={`group rounded-xl border ${s.border} ${s.bg} overflow-hidden transition-all block`}
-      href={getEntryHref(entry)}
-    >
+  const className = `group rounded-xl border ${s.border} ${s.bg} overflow-hidden transition-all block w-full text-left`;
+  const body = (
+    <>
       {entry.thumbnailUrl ? (
-        <div className={`relative w-full ${large ? "aspect-[4/3]" : "aspect-[16/10]"} bg-default-100`}>
+        <div
+          className={`relative w-full ${large ? "aspect-[4/3]" : "aspect-[16/10]"} bg-default-100`}
+        >
           <img
             alt={entry.label}
             className="w-full h-full object-cover"
             src={entry.thumbnailUrl}
           />
-          <div className={`absolute top-2 left-2 w-2 h-2 rounded-full ${s.accent}`} />
+          <div
+            className={`absolute top-2 left-2 w-2 h-2 rounded-full ${s.accent}`}
+          />
         </div>
       ) : (
         <div className={`w-full ${large ? "h-2" : "h-1"} ${s.accent}`} />
       )}
-      <div className={`flex items-center justify-between gap-2 ${large ? "px-4 py-3" : "px-3 py-2.5"}`}>
-        <span className={`${large ? "text-base font-medium" : "text-sm"} truncate`}>{entry.label}</span>
+      <div
+        className={`flex items-center justify-between gap-2 ${large ? "px-4 py-3" : "px-3 py-2.5"}`}
+      >
+        <span
+          className={`${large ? "text-base font-medium" : "text-sm"} truncate`}
+        >
+          {entry.label}
+        </span>
         <svg
           className={`w-3.5 h-3.5 shrink-0 transition-colors ${s.arrow}`}
           fill="none"
@@ -97,15 +108,37 @@ function EntryCard({
           />
         </svg>
       </div>
+    </>
+  );
+
+  if (onSelect) {
+    return (
+      <button
+        className={className}
+        type="button"
+        onClick={() => onSelect(entry)}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <a className={className} href={getEntryHref(entry)}>
+      {body}
     </a>
   );
 }
 
 interface Props {
   dataset: CatalogDatasetItem;
+  /** When provided, entry clicks call this instead of navigating to the viewer. */
+  onSelectEntry?: (entry: CatalogDatasetEntry) => void;
+  /** When provided, the back button calls this instead of router.push("/explore"). */
+  onBack?: () => void;
 }
 
-export function DatasetDetailPage({ dataset }: Props) {
+export function DatasetDetailPage({ dataset, onSelectEntry, onBack }: Props) {
   const router = useRouter();
   const [showAllGenes, setShowAllGenes] = useState(false);
 
@@ -127,7 +160,7 @@ export function DatasetDetailPage({ dataset }: Props) {
         className="text-default-500"
         size="sm"
         variant="light"
-        onPress={() => router.push("/explore")}
+        onPress={() => (onBack ? onBack() : router.push("/explore"))}
       >
         ← Back to Explore
       </Button>
@@ -188,9 +221,10 @@ export function DatasetDetailPage({ dataset }: Props) {
                 {scEntries.map((entry) => (
                   <EntryCard
                     key={entry.id}
+                    large
                     color="blue"
                     entry={entry}
-                    large
+                    onSelect={onSelectEntry}
                   />
                 ))}
               </div>
@@ -199,16 +233,21 @@ export function DatasetDetailPage({ dataset }: Props) {
 
           {/* Single Molecule — takes 2 columns, smaller cards */}
           {smEntries.length > 0 && (
-            <div className={`space-y-2 ${scEntries.length > 0 ? "md:col-span-2" : "md:col-span-3"}`}>
+            <div
+              className={`space-y-2 ${scEntries.length > 0 ? "md:col-span-2" : "md:col-span-3"}`}
+            >
               <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
                 Single Molecule ({smEntries.length})
               </h2>
-              <div className={`grid grid-cols-2 ${scEntries.length > 0 ? "lg:grid-cols-3" : "lg:grid-cols-4"} gap-2`}>
+              <div
+                className={`grid grid-cols-2 ${scEntries.length > 0 ? "lg:grid-cols-3" : "lg:grid-cols-4"} gap-2`}
+              >
                 {smEntries.map((entry) => (
                   <EntryCard
                     key={entry.id}
                     color="purple"
                     entry={entry}
+                    onSelect={onSelectEntry}
                   />
                 ))}
               </div>
@@ -248,9 +287,7 @@ export function DatasetDetailPage({ dataset }: Props) {
       {genes.length > 0 && (
         <Card>
           <CardBody className="space-y-3">
-            <h2 className="text-lg font-semibold">
-              Genes ({genes.length})
-            </h2>
+            <h2 className="text-lg font-semibold">Genes ({genes.length})</h2>
             <div className="flex flex-wrap gap-1.5">
               {displayGenes.map((gene) => (
                 <Chip key={gene} size="sm" variant="flat">
@@ -264,9 +301,7 @@ export function DatasetDetailPage({ dataset }: Props) {
                 variant="light"
                 onPress={() => setShowAllGenes(!showAllGenes)}
               >
-                {showAllGenes
-                  ? "Show less"
-                  : `Show all ${genes.length} genes`}
+                {showAllGenes ? "Show less" : `Show all ${genes.length} genes`}
               </Button>
             )}
           </CardBody>

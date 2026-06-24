@@ -1,11 +1,13 @@
 "use client";
 
-import { Input } from "@heroui/input";
-import { Select, SelectItem } from "@heroui/select";
-import { Chip } from "@heroui/chip";
-import { SearchIcon } from "@/components/icons";
-
 import type { ExploreFilters } from "./types";
+
+import { Input } from "@heroui/input";
+import { Chip } from "@heroui/chip";
+
+import { FilterPill } from "./filter-pill";
+
+import { SearchIcon } from "@/components/icons";
 
 interface ExploreSearchBarProps {
   search: string;
@@ -38,6 +40,11 @@ export function ExploreSearchBar({
   onGeneChipsChange,
   filters,
 }: ExploreSearchBarProps) {
+  const hasAnyPill =
+    filters.species.length > 0 ||
+    filters.tissues.length > 0 ||
+    filters.platforms.length > 0;
+
   return (
     <div className="flex flex-col gap-3 mb-6">
       <div className="flex flex-col sm:flex-row gap-3">
@@ -57,70 +64,53 @@ export function ExploreSearchBar({
           classNames={{ inputWrapper: "bg-default-100" }}
           placeholder="Search by gene (Enter for exact)"
           value={geneSearch}
-          onValueChange={onGeneSearchChange}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
               const gene = geneSearch.trim();
-              if (gene && !geneChips.some((g) => g.toLowerCase() === gene.toLowerCase())) {
+
+              if (
+                gene &&
+                !geneChips.some((g) => g.toLowerCase() === gene.toLowerCase())
+              ) {
                 onGeneChipsChange([...geneChips, gene]);
               }
               onGeneSearchChange("");
             }
           }}
+          onValueChange={onGeneSearchChange}
         />
-
-        {filters.species.length > 0 && (
-          <Select
-            className="w-full sm:w-40"
-            label="Species"
-            selectedKeys={species ? [species] : []}
-            size="sm"
-            onSelectionChange={(keys) => {
-              const val = Array.from(keys)[0] as string | undefined;
-              onSpeciesChange(val ?? "");
-            }}
-          >
-            {filters.species.map((s) => (
-              <SelectItem key={s}>{s}</SelectItem>
-            ))}
-          </Select>
-        )}
-
-        {filters.tissues.length > 0 && (
-          <Select
-            className="w-full sm:w-40"
-            label="Tissue"
-            selectedKeys={tissue ? [tissue] : []}
-            size="sm"
-            onSelectionChange={(keys) => {
-              const val = Array.from(keys)[0] as string | undefined;
-              onTissueChange(val ?? "");
-            }}
-          >
-            {filters.tissues.map((t) => (
-              <SelectItem key={t}>{t}</SelectItem>
-            ))}
-          </Select>
-        )}
-
-        {filters.platforms.length > 0 && (
-          <Select
-            className="w-full sm:w-40"
-            label="Platform"
-            selectedKeys={platform ? [platform] : []}
-            size="sm"
-            onSelectionChange={(keys) => {
-              const val = Array.from(keys)[0] as string | undefined;
-              onPlatformChange(val ?? "");
-            }}
-          >
-            {filters.platforms.map((p) => (
-              <SelectItem key={p}>{p}</SelectItem>
-            ))}
-          </Select>
-        )}
       </div>
+
+      {/* LinkedIn-style filter pill bar — wraps when it runs out of room. */}
+      {hasAnyPill && (
+        <div className="flex flex-wrap gap-2">
+          {filters.species.length > 0 && (
+            <FilterPill
+              label="Species"
+              options={filters.species}
+              value={species}
+              onChange={onSpeciesChange}
+            />
+          )}
+          {filters.tissues.length > 0 && (
+            <FilterPill
+              label="Tissue"
+              options={filters.tissues}
+              value={tissue}
+              onChange={onTissueChange}
+            />
+          )}
+          {filters.platforms.length > 0 && (
+            <FilterPill
+              label="Platform"
+              options={filters.platforms}
+              value={platform}
+              onChange={onPlatformChange}
+            />
+          )}
+        </div>
+      )}
 
       {/* Gene exact-match chips */}
       {geneChips.length > 0 && (

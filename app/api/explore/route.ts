@@ -41,16 +41,32 @@ export async function GET(req: NextRequest) {
   if (tab === "bil") conditions.push({ isBil: true });
 
   if (search) {
-    conditions.push({
-      OR: [
-        { title: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
-        { tags: { hasSome: [search] } },
-        { bilCode: { contains: search, mode: "insensitive" } },
-        // Search investigator name inside metadata JSONB
-        { metadata: { path: ["investigator"], string_contains: search } },
-      ],
-    });
+    // Tokenize on whitespace: each token must match SOME searched field
+    // (title / description / bil_code / a tag element / metadata.investigator),
+    // tokens AND'd together. Lets "mouse brain" match a row where one field
+    // contains "mouse" and another contains "brain".
+    const tokens = search.split(/\s+/).filter(Boolean).slice(0, 10);
+    if (tokens.length > 0) {
+      const escapeIlike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
+      const args = tokens.map((t) => `%${escapeIlike(t)}%`);
+      const perTokenSql = tokens
+        .map((_, i) => {
+          const p = `$${i + 1}`;
+          return `(
+            title ILIKE ${p} ESCAPE '\\' OR
+            description ILIKE ${p} ESCAPE '\\' OR
+            bil_code ILIKE ${p} ESCAPE '\\' OR
+            metadata->>'investigator' ILIKE ${p} ESCAPE '\\' OR
+            EXISTS (SELECT 1 FROM unnest(tags) tg WHERE tg ILIKE ${p} ESCAPE '\\')
+          )`;
+        })
+        .join(" AND ");
+      const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT id FROM catalog_datasets WHERE ${perTokenSql}`,
+        ...args,
+      );
+      conditions.push({ id: { in: matchingIds.map((r) => r.id) } });
+    }
   }
   if (species) conditions.push({ species: { equals: species, mode: "insensitive" } });
   if (tissue) conditions.push({ tissue: { equals: tissue, mode: "insensitive" } });

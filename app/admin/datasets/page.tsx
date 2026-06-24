@@ -14,6 +14,8 @@ import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import NextLink from "next/link";
 
+import { CatalogImportModal } from "@/components/admin/catalog-import-modal";
+
 interface CatalogEntry {
   id: string;
   label: string;
@@ -37,11 +39,13 @@ interface CatalogItem {
 export default function AdminDatasetsPage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importOpen, setImportOpen] = useState(false);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/admin/catalog");
     const data = await res.json();
+
     setItems(data.items ?? []);
     setLoading(false);
   }, []);
@@ -50,7 +54,11 @@ export default function AdminDatasetsPage() {
     fetchItems();
   }, [fetchItems]);
 
-  const toggleField = async (id: string, field: "isPublished" | "isFeatured" | "isInternal", current: boolean) => {
+  const toggleField = async (
+    id: string,
+    field: "isPublished" | "isFeatured" | "isInternal",
+    current: boolean,
+  ) => {
     await fetch(`/api/admin/catalog/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -69,10 +77,24 @@ export default function AdminDatasetsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Catalog Datasets</h1>
-        <Button as={NextLink} color="primary" href="/admin/datasets/new">
-          Add Dataset
-        </Button>
+        <div className="flex gap-2">
+          <Button as="a" href="/api/admin/catalog/export" variant="bordered">
+            Export JSON
+          </Button>
+          <Button variant="bordered" onPress={() => setImportOpen(true)}>
+            Import JSON
+          </Button>
+          <Button as={NextLink} color="primary" href="/admin/datasets/new">
+            Add Dataset
+          </Button>
+        </div>
       </div>
+
+      <CatalogImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={fetchItems}
+      />
 
       {loading ? (
         <div className="flex justify-center py-12">
@@ -107,11 +129,16 @@ export default function AdminDatasetsPage() {
                       item.entries.map((entry) => (
                         <Chip
                           key={entry.id}
-                          color={entry.datasetType === "single_cell" ? "primary" : "secondary"}
+                          color={
+                            entry.datasetType === "single_cell"
+                              ? "primary"
+                              : "secondary"
+                          }
                           size="sm"
                           variant="flat"
                         >
-                          {entry.label || (entry.datasetType === "single_cell" ? "SC" : "SM")}
+                          {entry.label ||
+                            (entry.datasetType === "single_cell" ? "SC" : "SM")}
                         </Chip>
                       ))
                     )}
@@ -124,7 +151,9 @@ export default function AdminDatasetsPage() {
                     color={item.isPublished ? "success" : "default"}
                     size="sm"
                     variant="flat"
-                    onClick={() => toggleField(item.id, "isPublished", item.isPublished)}
+                    onClick={() =>
+                      toggleField(item.id, "isPublished", item.isPublished)
+                    }
                   >
                     {item.isPublished ? "Published" : "Draft"}
                   </Chip>
@@ -135,7 +164,9 @@ export default function AdminDatasetsPage() {
                     color={item.isFeatured ? "warning" : "default"}
                     size="sm"
                     variant="flat"
-                    onClick={() => toggleField(item.id, "isFeatured", item.isFeatured)}
+                    onClick={() =>
+                      toggleField(item.id, "isFeatured", item.isFeatured)
+                    }
                   >
                     {item.isFeatured ? "Featured" : "—"}
                   </Chip>
@@ -146,7 +177,9 @@ export default function AdminDatasetsPage() {
                     color={item.isInternal ? "secondary" : "default"}
                     size="sm"
                     variant="flat"
-                    onClick={() => toggleField(item.id, "isInternal", item.isInternal)}
+                    onClick={() =>
+                      toggleField(item.id, "isInternal", item.isInternal)
+                    }
                   >
                     {item.isInternal ? "Internal" : "—"}
                   </Chip>

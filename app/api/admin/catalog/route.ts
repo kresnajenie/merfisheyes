@@ -8,12 +8,16 @@ const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
 // GET /api/admin/catalog — list all catalog datasets
 export async function GET(req: NextRequest) {
   const { error } = await requireAdmin();
+
   if (error) return error;
 
   const url = new URL(req.url);
   const search = url.searchParams.get("search") ?? "";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
-  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "50")));
+  const limit = Math.min(
+    100,
+    Math.max(1, Number(url.searchParams.get("limit") ?? "50")),
+  );
   const skip = (page - 1) * limit;
 
   const where = search
@@ -42,6 +46,7 @@ export async function GET(req: NextRequest) {
 // POST /api/admin/catalog — create a new catalog dataset
 export async function POST(req: NextRequest) {
   const { error, session } = await requireAdmin();
+
   if (error) return error;
 
   const body = await req.json();
@@ -58,6 +63,7 @@ export async function POST(req: NextRequest) {
       tissue: body.tissue ?? null,
       platform: body.platform ?? null,
       tags: body.tags ?? [],
+      genes: body.genes ?? [],
       thumbnailUrl: body.thumbnailUrl ?? null,
       externalLink: body.externalLink ?? null,
       publicationLink: body.publicationLink ?? null,
@@ -68,15 +74,28 @@ export async function POST(req: NextRequest) {
       sortOrder: body.sortOrder ?? 0,
       numCells: body.numCells ?? null,
       numGenes: body.numGenes ?? null,
+      metadata: body.metadata ?? {},
+      bilCode: body.bilCode ?? null,
       createdBy: session!.user.id,
       entries: {
-        create: entries.map((e: { label: string; datasetType: string; s3BaseUrl?: string; datasetId?: string; sortOrder?: number }, i: number) => ({
-          label: e.label,
-          datasetType: e.datasetType,
-          s3BaseUrl: e.s3BaseUrl || null,
-          datasetId: e.datasetId || null,
-          sortOrder: e.sortOrder ?? i,
-        })),
+        create: entries.map(
+          (
+            e: {
+              label: string;
+              datasetType: string;
+              s3BaseUrl?: string;
+              datasetId?: string;
+              sortOrder?: number;
+            },
+            i: number,
+          ) => ({
+            label: e.label,
+            datasetType: e.datasetType,
+            s3BaseUrl: e.s3BaseUrl || null,
+            datasetId: e.datasetId || null,
+            sortOrder: e.sortOrder ?? i,
+          }),
+        ),
       },
     },
     include: includeEntries,

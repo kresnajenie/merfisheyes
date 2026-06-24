@@ -1,15 +1,18 @@
 "use client";
 
+import type {
+  CatalogDatasetItem,
+  ExploreFilters,
+  ExploreApiResponse,
+} from "./types";
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Tabs, Tab } from "@heroui/tabs";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { FeaturedDatasets } from "./featured-datasets";
-import { BilDatasets } from "./bil-datasets";
 import { ExploreSearchBar } from "./explore-search-bar";
-import { ExploreFilterChips } from "./explore-filter-chips";
 import { ExploreDatasetGrid } from "./explore-dataset-grid";
-import type { CatalogDatasetItem, ExploreFilters, ExploreApiResponse } from "./types";
 
 const PAGE_LIMIT = 50;
 
@@ -23,6 +26,20 @@ interface ExplorePageClientProps {
   initialInternal: CatalogDatasetItem[];
   initialFilters: ExploreFilters;
   isAdmin: boolean;
+  /**
+   * When provided, intercepts dataset card clicks instead of letting the
+   * card link/navigate. Used by the in-viewer explore modal to switch into
+   * the in-modal detail view (multi-entry / BIL) or directly load
+   * single-entry datasets into the right panel.
+   */
+  onCardClick?: (dataset: CatalogDatasetItem) => void;
+  /**
+   * When true, skip both reading initial filter state from `?q=...` etc.
+   * AND syncing state back into the URL. Used by the modal so opening it
+   * on `/viewer/X` doesn't try to push `?q=...` onto the viewer URL or
+   * read leftover params from it.
+   */
+  disableUrlSync?: boolean;
 }
 
 export function ExplorePageClient({
@@ -33,23 +50,37 @@ export function ExplorePageClient({
   initialInternal,
   initialFilters,
   isAdmin,
+  onCardClick,
+  disableUrlSync = false,
 }: ExplorePageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Initialize state from URL params
+  // Initialize state from URL params (skip when URL sync is disabled —
+  // otherwise the viewer's own params would bleed into the modal).
+  const sp = disableUrlSync ? new URLSearchParams() : searchParams;
   const [activeTab, setActiveTab] = useState<ExploreTab>(
-    (searchParams.get("tab") as ExploreTab) || "all",
+    (sp.get("tab") as ExploreTab) || "all",
   );
-  const [search, setSearch] = useState(searchParams.get("q") || "");
-  const [species, setSpecies] = useState(searchParams.get("species") || "");
-  const [tissue, setTissue] = useState(searchParams.get("tissue") || "");
-  const [platform, setPlatform] = useState(searchParams.get("platform") || "");
-  const [geneSearch, setGeneSearch] = useState(searchParams.get("gene") || "");
+  const [search, setSearch] = useState(sp.get("q") || "");
+  // Debounced mirror of `search`: the input stays bound to `search` for
+  // instant typing feedback, but URL sync + fetch use the debounced value so
+  // we don't spam the API / history on every keystroke.
+  const [debouncedSearch, setDebouncedSearch] = useState(sp.get("q") || "");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+
+    return () => clearTimeout(t);
+  }, [search]);
+  const [species, setSpecies] = useState(sp.get("species") || "");
+  const [tissue, setTissue] = useState(sp.get("tissue") || "");
+  const [platform, setPlatform] = useState(sp.get("platform") || "");
+  const [geneSearch, setGeneSearch] = useState(sp.get("gene") || "");
   const [geneChips, setGeneChips] = useState<string[]>(
-    searchParams.get("geneExact")?.split(",").filter(Boolean) || [],
+    sp.get("geneExact")?.split(",").filter(Boolean) || [],
   );
-  const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
+  const [page, setPage] = useState(Number(sp.get("page")) || 1);
 
   // Per-tab data
   const [allItems, setAllItems] = useState(initialItems);
@@ -67,19 +98,28 @@ export function ExplorePageClient({
   const [hasFetched, setHasFetched] = useState(false);
   const isInitialMount = useRef(true);
 
-  const hasActiveFilters = search || species || tissue || platform || geneSearch || geneChips.length > 0;
+  const hasActiveFilters =
+    debouncedSearch ||
+    species ||
+    tissue ||
+    platform ||
+    geneSearch ||
+    geneChips.length > 0;
 
   // Sync state to URL (replace, not push, to avoid polluting history)
   useEffect(() => {
+    if (disableUrlSync) return;
     // Skip on initial mount to avoid overwriting the URL we just read from
     if (isInitialMount.current) {
       isInitialMount.current = false;
+
       return;
     }
 
     const params = new URLSearchParams();
+
     if (activeTab !== "all") params.set("tab", activeTab);
-    if (search) params.set("q", search);
+    if (debouncedSearch) params.set("q", debouncedSearch);
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
     if (platform) params.set("platform", platform);
@@ -88,13 +128,26 @@ export function ExplorePageClient({
     if (page > 1) params.set("page", String(page));
 
     const qs = params.toString();
+
     router.replace(`/explore${qs ? `?${qs}` : ""}`, { scroll: false });
-  }, [activeTab, search, species, tissue, platform, geneSearch, geneChips, page, router]);
+  }, [
+    activeTab,
+    debouncedSearch,
+    species,
+    tissue,
+    platform,
+    geneSearch,
+    geneChips,
+    page,
+    router,
+    disableUrlSync,
+  ]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (search) params.set("search", search);
+
+    if (debouncedSearch) params.set("search", debouncedSearch);
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
     if (platform) params.set("platform", platform);
@@ -132,7 +185,16 @@ export function ExplorePageClient({
     setFilters(data.filters);
     setLoading(false);
     setHasFetched(true);
-  }, [search, species, tissue, platform, geneSearch, geneChips, page, activeTab]);
+  }, [
+    debouncedSearch,
+    species,
+    tissue,
+    platform,
+    geneSearch,
+    geneChips,
+    page,
+    activeTab,
+  ]);
 
   // Refetch when filters/page/tab change
   useEffect(() => {
@@ -150,20 +212,20 @@ export function ExplorePageClient({
       setAllTotal(initialTotal);
       setHasFetched(false);
     }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // Reset page when filters or tab change
   useEffect(() => {
     setPage(1);
-  }, [search, species, tissue, platform, geneSearch, geneChips, activeTab]);
-
-  const activeFilters = [
-    species && { key: "species", label: "Species", value: species, onClear: () => setSpecies("") },
-    tissue && { key: "tissue", label: "Tissue", value: tissue, onClear: () => setTissue("") },
-    platform && { key: "platform", label: "Platform", value: platform, onClear: () => setPlatform("") },
-    geneSearch && { key: "gene", label: "Gene (includes)", value: geneSearch, onClear: () => setGeneSearch("") },
-    geneChips.length > 0 && { key: "geneExact", label: "Gene (exact)", value: geneChips.join(", "), onClear: () => setGeneChips([]) },
-  ].filter(Boolean) as { key: string; label: string; value: string; onClear: () => void }[];
+  }, [
+    debouncedSearch,
+    species,
+    tissue,
+    platform,
+    geneSearch,
+    geneChips,
+    activeTab,
+  ]);
 
   const renderSearchAndGrid = (
     datasetItems: CatalogDatasetItem[],
@@ -186,8 +248,6 @@ export function ExplorePageClient({
         onTissueChange={setTissue}
       />
 
-      <ExploreFilterChips filters={activeFilters} />
-
       <ExploreDatasetGrid
         datasets={datasetItems}
         geneHighlight={geneSearch}
@@ -195,6 +255,7 @@ export function ExplorePageClient({
         loading={loading}
         page={page}
         total={datasetTotal}
+        onCardClick={onCardClick}
         onPageChange={setPage}
       />
     </>
@@ -210,9 +271,12 @@ export function ExplorePageClient({
         onSelectionChange={(key) => setActiveTab(key as ExploreTab)}
       >
         <Tab key="all" title="All">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <FeaturedDatasets datasets={featuredItems} onViewAll={() => setActiveTab("featured")} />
-            <BilDatasets datasets={bilItems} onViewAll={() => setActiveTab("bil")} />
+          <div className="mb-8">
+            <FeaturedDatasets
+              datasets={featuredItems}
+              onCardClick={onCardClick}
+              onViewAll={() => setActiveTab("featured")}
+            />
           </div>
           {renderSearchAndGrid(allItems, allTotal)}
         </Tab>

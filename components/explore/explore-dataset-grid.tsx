@@ -1,10 +1,11 @@
 "use client";
 
+import type { CatalogDatasetItem } from "./types";
+
 import { Pagination } from "@heroui/pagination";
 import { Spinner } from "@heroui/spinner";
 
 import { ExploreDatasetCard } from "./explore-dataset-card";
-import type { CatalogDatasetItem } from "./types";
 
 interface ExploreDatasetGridProps {
   datasets: CatalogDatasetItem[];
@@ -14,6 +15,7 @@ interface ExploreDatasetGridProps {
   limit: number;
   onPageChange: (page: number) => void;
   geneHighlight?: string;
+  onCardClick?: (dataset: CatalogDatasetItem) => void;
 }
 
 export function ExploreDatasetGrid({
@@ -24,6 +26,7 @@ export function ExploreDatasetGrid({
   limit,
   onPageChange,
   geneHighlight,
+  onCardClick,
 }: ExploreDatasetGridProps) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -50,7 +53,8 @@ export function ExploreDatasetGrid({
       <div className={loading ? "opacity-50 pointer-events-none" : ""}>
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-default-500">
-            Showing {rangeStart}–{rangeEnd} of {total} dataset{total !== 1 ? "s" : ""}
+            Showing {rangeStart}–{rangeEnd} of {total} dataset
+            {total !== 1 ? "s" : ""}
           </p>
           {totalPages > 1 && (
             <Pagination
@@ -65,7 +69,12 @@ export function ExploreDatasetGrid({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {datasets.map((dataset) => (
-            <ExploreDatasetCard key={dataset.id} dataset={dataset} geneHighlight={geneHighlight} />
+            <ExploreDatasetCard
+              key={dataset.id}
+              dataset={dataset}
+              geneHighlight={geneHighlight}
+              onCardClick={onCardClick}
+            />
           ))}
         </div>
 

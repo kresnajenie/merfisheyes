@@ -6,12 +6,13 @@ import type {
   CatalogDatasetItem,
 } from "@/components/explore/types";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Input, Skeleton } from "@heroui/react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { ExploreDatasetCard } from "@/components/explore/explore-dataset-card";
+import { ExploreModal } from "@/components/explore/explore-modal";
 
 function SkeletonCard() {
   return (
@@ -39,7 +40,7 @@ function SkeletonGrid({ count = 4 }: { count?: number }) {
   );
 }
 
-type PickerView = "main" | "link" | "catalog";
+type PickerView = "main" | "link";
 
 export function SplitPanelPicker() {
   const { setRightPanel, setRightPanelS3 } = useSplitScreenStore();
@@ -47,14 +48,11 @@ export function SplitPanelPicker() {
   const searchParams = useSearchParams();
   const [linkInput, setLinkInput] = useState("");
   const [view, setView] = useState<PickerView>("main");
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
 
-  // Catalog state
-  const [catalogItems, setCatalogItems] = useState<CatalogDatasetItem[]>([]);
+  // Featured rail — shown on the main picker view.
   const [featuredItems, setFeaturedItems] = useState<CatalogDatasetItem[]>([]);
-  const [catalogSearch, setCatalogSearch] = useState("");
-  const [catalogLoading, setCatalogLoading] = useState(false);
   const [featuredLoaded, setFeaturedLoaded] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFromS3Page = pathname.includes("/from-s3");
 
@@ -195,41 +193,6 @@ export function SplitPanelPicker() {
     })();
   }, [featuredLoaded]);
 
-  // Fetch catalog datasets (for catalog view search)
-  const fetchCatalog = useCallback(async (search: string) => {
-    setCatalogLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: "50" });
-
-      if (search) params.set("search", search);
-      const res = await fetch(`/api/explore?${params}`);
-
-      if (!res.ok) throw new Error("Failed to fetch catalog");
-      const data = await res.json();
-
-      setCatalogItems(data.items ?? []);
-    } catch {
-      setCatalogItems([]);
-    } finally {
-      setCatalogLoading(false);
-    }
-  }, []);
-
-  // Fetch on catalog open + debounced search
-  useEffect(() => {
-    if (view !== "catalog") return;
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(
-      () => fetchCatalog(catalogSearch),
-      catalogSearch ? 300 : 0,
-    );
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [view, catalogSearch, fetchCatalog]);
-
   // Handle selecting a catalog entry
   const handleSelectEntry = (
     _dataset: CatalogDatasetItem,
@@ -247,114 +210,6 @@ export function SplitPanelPicker() {
 
   const { id: currentId, s3Url: currentS3Url } = getCurrentDatasetInfo();
   const hasCurrentDataset = !!(currentId || currentS3Url);
-
-  // Are we currently searching?
-  const isSearching = catalogSearch.trim().length > 0;
-
-  // Catalog browser view
-  if (view === "catalog") {
-    return (
-      <div className="absolute inset-0 flex flex-col bg-black">
-        {/* Header — mt-16 clears navbar */}
-        <div className="flex items-center gap-2 px-4 pt-4 pb-2 mt-16">
-          <Button
-            isIconOnly
-            className="text-white/70"
-            size="sm"
-            variant="light"
-            onPress={() => {
-              setView("main");
-              setCatalogSearch("");
-            }}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M15.75 19.5L8.25 12l7.5-7.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </Button>
-          <h3 className="text-sm font-semibold text-white">Browse Catalog</h3>
-        </div>
-
-        {/* Search */}
-        <div className="px-4 pb-3">
-          <Input
-            classNames={{
-              input: "text-white",
-              inputWrapper: "bg-white/5 border-white/20 hover:bg-white/10",
-            }}
-            placeholder="Search datasets..."
-            size="sm"
-            value={catalogSearch}
-            onChange={(e) => setCatalogSearch(e.target.value)}
-          />
-        </div>
-
-        {/* Dataset list */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-          {catalogLoading && catalogItems.length === 0 ? (
-            <div className="flex flex-col gap-4">
-              <SkeletonGrid count={4} />
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {/* Featured section — shown when not searching */}
-              {!isSearching && featuredItems.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                    Featured
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {featuredItems.map((item) => (
-                      <ExploreDatasetCard
-                        key={item.id}
-                        dataset={item}
-                        onSelect={handleSelectEntry}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* All / search results */}
-              <div>
-                {!isSearching && catalogItems.length > 0 && (
-                  <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-2">
-                    All Datasets
-                  </p>
-                )}
-                {catalogLoading ? (
-                  <SkeletonGrid count={4} />
-                ) : catalogItems.length === 0 ? (
-                  <p className="text-sm text-white/40 text-center py-8">
-                    No datasets found
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {catalogItems.map((item) => (
-                      <ExploreDatasetCard
-                        key={item.id}
-                        dataset={item}
-                        onSelect={handleSelectEntry}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   // Link input view
   if (view === "link") {
@@ -411,23 +266,54 @@ export function SplitPanelPicker() {
 
   // Main picker view
   return (
-    <div className="absolute inset-0 flex flex-col bg-black overflow-y-auto">
-      <div className="flex flex-col items-center gap-6 w-full px-6 pt-24 pb-8">
-        <div className="text-center mb-2">
-          <h3 className="text-lg font-semibold text-white">Choose a Dataset</h3>
-          <p className="text-sm text-white/50 mt-1">
-            Select what to display in this panel
-          </p>
-        </div>
+    <>
+      <ExploreModal
+        isOpen={isExploreOpen}
+        onClose={() => setIsExploreOpen(false)}
+        onSelectEntry={handleSelectEntry}
+      />
+      <div className="absolute inset-0 flex flex-col bg-black overflow-y-auto">
+        <div className="flex flex-col items-center gap-6 w-full px-6 pt-24 pb-8">
+          <div className="text-center mb-2">
+            <h3 className="text-lg font-semibold text-white">
+              Choose a Dataset
+            </h3>
+            <p className="text-sm text-white/50 mt-1">
+              Select what to display in this panel
+            </p>
+          </div>
 
-        <div className="flex flex-col gap-3 w-full max-w-sm">
-          {/* Same Dataset */}
-          {hasCurrentDataset && (
+          <div className="flex flex-col gap-3 w-full max-w-sm">
+            {/* Same Dataset */}
+            {hasCurrentDataset && (
+              <Button
+                className="w-full justify-start"
+                color="primary"
+                variant="bordered"
+                onPress={handleSameDataset}
+              >
+                <svg
+                  className="w-5 h-5 mr-2 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Same Dataset
+              </Button>
+            )}
+
+            {/* Paste Link */}
             <Button
               className="w-full justify-start"
-              color="primary"
               variant="bordered"
-              onPress={handleSameDataset}
+              onPress={() => setView("link")}
             >
               <svg
                 className="w-5 h-5 mr-2 flex-shrink-0"
@@ -437,80 +323,58 @@ export function SplitPanelPicker() {
                 viewBox="0 0 24 24"
               >
                 <path
-                  d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"
+                  d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-3.06a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364l1.757 1.757"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               </svg>
-              Same Dataset
+              Paste Link
             </Button>
-          )}
 
-          {/* Paste Link */}
-          <Button
-            className="w-full justify-start"
-            variant="bordered"
-            onPress={() => setView("link")}
-          >
-            <svg
-              className="w-5 h-5 mr-2 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              viewBox="0 0 24 24"
+            {/* Browse Catalog */}
+            <Button
+              className="w-full justify-start"
+              variant="bordered"
+              onPress={() => setIsExploreOpen(true)}
             >
-              <path
-                d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-3.06a4.5 4.5 0 00-1.242-7.244l-4.5-4.5a4.5 4.5 0 00-6.364 6.364l1.757 1.757"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Paste Link
-          </Button>
-
-          {/* Browse Catalog */}
-          <Button
-            className="w-full justify-start"
-            variant="bordered"
-            onPress={() => setView("catalog")}
-          >
-            <svg
-              className="w-5 h-5 mr-2 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Browse Catalog
-          </Button>
-        </div>
-
-        {/* Featured datasets shown on main view */}
-        <div className="w-full mt-4">
-          <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">
-            Featured Datasets
-          </p>
-          {!featuredLoaded ? (
-            <SkeletonGrid count={4} />
-          ) : featuredItems.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3">
-              {featuredItems.map((item) => (
-                <ExploreDatasetCard
-                  key={item.id}
-                  dataset={item}
-                  onSelect={handleSelectEntry}
+              <svg
+                className="w-5 h-5 mr-2 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
-              ))}
-            </div>
-          ) : null}
+              </svg>
+              Browse Catalog
+            </Button>
+          </div>
+
+          {/* Featured datasets shown on main view */}
+          <div className="w-full mt-4">
+            <p className="text-xs font-medium text-white/40 uppercase tracking-wider mb-3">
+              Featured Datasets
+            </p>
+            {!featuredLoaded ? (
+              <SkeletonGrid count={4} />
+            ) : featuredItems.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {featuredItems.map((item) => (
+                  <ExploreDatasetCard
+                    key={item.id}
+                    dataset={item}
+                    onSelect={handleSelectEntry}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

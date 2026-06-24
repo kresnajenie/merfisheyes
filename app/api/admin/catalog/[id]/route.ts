@@ -11,6 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAdmin();
+
   if (error) return error;
 
   const { id } = await params;
@@ -30,6 +31,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAdmin();
+
   if (error) return error;
 
   const { id } = await params;
@@ -45,6 +47,7 @@ export async function PATCH(
     "tissue",
     "platform",
     "tags",
+    "genes",
     "thumbnailUrl",
     "externalLink",
     "publicationLink",
@@ -55,9 +58,12 @@ export async function PATCH(
     "sortOrder",
     "numCells",
     "numGenes",
+    "metadata",
+    "bilCode",
   ] as const;
 
   const data: Record<string, unknown> = {};
+
   for (const key of allowedFields) {
     if (key in body) {
       data[key] = body[key];
@@ -68,13 +74,24 @@ export async function PATCH(
   if ("entries" in body && Array.isArray(body.entries)) {
     await prisma.catalogDatasetEntry.deleteMany({ where: { catalogId: id } });
     data.entries = {
-      create: body.entries.map((e: { label: string; datasetType: string; s3BaseUrl?: string; datasetId?: string; sortOrder?: number }, i: number) => ({
-        label: e.label,
-        datasetType: e.datasetType,
-        s3BaseUrl: e.s3BaseUrl || null,
-        datasetId: e.datasetId || null,
-        sortOrder: e.sortOrder ?? i,
-      })),
+      create: body.entries.map(
+        (
+          e: {
+            label: string;
+            datasetType: string;
+            s3BaseUrl?: string;
+            datasetId?: string;
+            sortOrder?: number;
+          },
+          i: number,
+        ) => ({
+          label: e.label,
+          datasetType: e.datasetType,
+          s3BaseUrl: e.s3BaseUrl || null,
+          datasetId: e.datasetId || null,
+          sortOrder: e.sortOrder ?? i,
+        }),
+      ),
     };
   }
 
@@ -93,6 +110,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAdmin();
+
   if (error) return error;
 
   const { id } = await params;
