@@ -49,7 +49,9 @@ export function NavbarWrapper() {
 
   return (
     <>
-      <Navbar onUploadClick={() => setIsUploadModalOpen(true)} />
+      <div data-ui-overlay>
+        <Navbar onUploadClick={() => setIsUploadModalOpen(true)} />
+      </div>
       {isSingleMolecule ? (
         <SingleMoleculeUploadModal
           dataset={getSmDataset()}

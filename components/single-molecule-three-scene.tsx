@@ -11,7 +11,13 @@ import {
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import {
+  markSceneReady,
+  markRenderComplete,
+  markGeneRendered,
+} from "@/lib/utils/test-hooks";
 import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+import { ExportBoxOverlay } from "@/components/export-box-overlay";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 
 
@@ -118,6 +124,8 @@ export function SingleMoleculeThreeScene() {
   const {
     selectedGenes, globalScale, viewMode, showAssigned, showUnassigned,
     sceneRotation, flipX, flipY,
+    exportBoxEnabled, exportBoxWidthMm, exportBoxHeightMm,
+    exportBoxCenterPx, setExportBoxCenterPx,
   } = usePanelSingleMoleculeVisualizationStore();
 
   // Keep refs in sync with store values
@@ -262,6 +270,7 @@ export function SingleMoleculeThreeScene() {
 
     // Start custom animation loop
     customAnimate();
+    markSceneReady();
 
     // Cleanup
     return () => {
@@ -551,6 +560,10 @@ export function SingleMoleculeThreeScene() {
           const shouldShowUnassigned =
             dataset.hasUnassigned && showUnassigned && geneViz.showUnassigned;
 
+            console.log(
+              `  ✅ Point cloud created with ${moleculeCount} molecules`,
+            );
+            markGeneRendered(gene, moleculeCount);
           if (shouldShowUnassigned) {
             const unassignedExists = currentPointClouds.has(uKey);
             const uViz = {
@@ -661,6 +674,13 @@ export function SingleMoleculeThreeScene() {
         "Final point clouds keys:",
         Array.from(pointCloudsRef.current.keys()),
       );
+      // E2E timing hook: all selected genes' point clouds are now built.
+      markRenderComplete({
+        geneCount: dataset.uniqueGenes.length,
+        dimensions: dataset.dimensions,
+        dataType: "single_molecule",
+        pointClouds: pointCloudsRef.current.size,
+      });
 
       // Auto-fit camera to data bounds (only on first gene load)
       if (
@@ -753,6 +773,7 @@ export function SingleMoleculeThreeScene() {
     <>
       <div
         ref={containerRef}
+        data-testid="sm-scene-canvas"
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
@@ -760,6 +781,19 @@ export function SingleMoleculeThreeScene() {
         cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
         rendererRef={rendererRef}
         controlsRef={controlsRef}
+      />
+      <ExportBoxOverlay
+        canShow={viewMode === "2D"}
+        cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
+        controlsRef={controlsRef}
+        rendererRef={rendererRef}
+        setCenterPx={setExportBoxCenterPx}
+        state={{
+          enabled: exportBoxEnabled,
+          widthMm: exportBoxWidthMm,
+          heightMm: exportBoxHeightMm,
+          centerPx: exportBoxCenterPx,
+        }}
       />
     </>
   );

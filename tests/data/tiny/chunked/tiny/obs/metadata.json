@@ -1,0 +1,10 @@
+{
+  "leiden": {
+    "type": "categorical",
+    "unique_values": 15
+  },
+  "celltype": {
+    "type": "categorical",
+    "unique_values": 10
+  }
+}

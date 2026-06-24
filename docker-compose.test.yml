@@ -1,0 +1,40 @@
+# Hermetic infrastructure for the @upload E2E suite: Postgres + MinIO (S3).
+# Start with:  npm run test:infra:up      (waits until healthy)
+# Stop with:   npm run test:infra:down    (also removes volumes)
+#
+# Matches the values in .env.test, which the upload tests load.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: merfish
+      POSTGRES_PASSWORD: merfish
+      POSTGRES_DB: merfisheyes_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merfish -d merfisheyes_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+# The test bucket is created by e2e/global-setup.ts (HeadBucket → CreateBucket
+# via the S3 SDK) before the suite runs. A one-shot compose service is avoided
+# on purpose: `docker compose up --wait` fails when a service exits (even 0),
+# and presigned PUT/GET work against a private bucket, so no public policy is
+# needed.

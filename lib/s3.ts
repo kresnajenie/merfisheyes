@@ -8,6 +8,11 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
+// Optional S3-compatible endpoint (e.g. MinIO for local/E2E testing). When
+// AWS_S3_ENDPOINT is set we switch to path-style addressing and pass explicit
+// credentials; otherwise behaviour is unchanged (real AWS S3, default creds).
+const S3_ENDPOINT = process.env.AWS_S3_ENDPOINT || process.env.S3_ENDPOINT || "";
+
 // Initialize S3 client
 export const s3Client = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
@@ -15,6 +20,16 @@ export const s3Client = new S3Client({
   // 1. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
   // 2. IAM role (when running on EC2)
   // 3. AWS credentials file
+  ...(S3_ENDPOINT
+    ? {
+        endpoint: S3_ENDPOINT,
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+        },
+      }
+    : {}),
 });
 
 export const S3_BUCKET =

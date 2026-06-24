@@ -5,6 +5,7 @@ import type { Data, Layout, Config } from "plotly.js";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { getColorFromPalette } from "@/lib/utils/color-palette";
+import { getOrderedSecondaryValues } from "@/lib/utils/secondary-order";
 
 import { Plot } from "./plot-loader";
 
@@ -22,6 +23,7 @@ interface GeneCelltypeBoxplotProps {
   secondaryColumn?: string | null;
   selectedSecondaryValues?: Set<string>;
   secondaryPaletteOverrides?: Record<string, string>;
+  secondaryValueOrder?: string[];
   // User-controllable y-axis cap. null = auto-range.
   yMax?: number | null;
   // When true, render `boxpoints: "outliers"` (Plotly's tukey outlier
@@ -77,6 +79,7 @@ export function GeneCelltypeBoxplot({
   secondaryColumn,
   selectedSecondaryValues,
   secondaryPaletteOverrides,
+  secondaryValueOrder,
   yMax,
   showOutliers,
 }: GeneCelltypeBoxplotProps) {
@@ -232,14 +235,15 @@ export function GeneCelltypeBoxplot({
         return avgB - avgA;
       });
 
-    // Secondary value order from the column's uniqueValues, filtered by
-    // selection (per Q30).
-    const allUnique =
+    // Secondary value order honours the user's customised ordering when
+    // set, then filters down to the currently-selected values.
+    const naturalUnique =
       secondaryCluster.uniqueValues ??
       Array.from(new Set(secondaryCluster.values.map(String)));
-    const secondaryOrder = allUnique.filter((v) =>
-      selectedSecondaryValues!.has(v),
-    );
+    const secondaryOrder = getOrderedSecondaryValues(
+      naturalUnique,
+      secondaryValueOrder ?? [],
+    ).filter((v) => selectedSecondaryValues!.has(v));
 
     // Fill missing pairs with empty placeholders so the grid stays aligned
     // (per Q14).
@@ -288,6 +292,7 @@ export function GeneCelltypeBoxplot({
     selectedCelltypes,
     selectedSecondaryValues,
     secondaryPaletteOverrides,
+    secondaryValueOrder,
     secondaryActive,
     clusterVersion,
   ]);

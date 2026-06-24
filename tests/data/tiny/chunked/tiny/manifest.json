@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "dataset_id": "local_dataset",
+  "name": "tiny",
+  "type": "h5ad",
+  "statistics": {
+    "total_cells": 300,
+    "total_genes": 40,
+    "spatial_dimensions": 2,
+    "available_embeddings": [
+      "umap"
+    ],
+    "cluster_count": 2
+  },
+  "processing": {
+    "spatial_scaling_factor": 992.7208251953125,
+    "chunk_size": 50,
+    "num_chunks": 1,
+    "created_by": "process_spatial_data.py"
+  },
+  "files": {
+    "coordinates": [
+      "spatial",
+      "umap"
+    ],
+    "expression_chunks": 1,
+    "observation_columns": [
+      "leiden",
+      "celltype"
+    ],
+    "de_stats": [
+      "leiden",
+      "celltype"
+    ]
+  }
+}

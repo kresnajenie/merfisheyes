@@ -53,8 +53,13 @@ export function initializeScene(
     camera.lookAt(lookAtPosition);
   }
 
-  // Renderer setup
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  // Renderer setup. preserveDrawingBuffer keeps the WebGL framebuffer
+  // around after compositing so canvas.toBlob() / toDataURL() can read
+  // pixels (used by the export-box-overlay screenshot tool).
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    preserveDrawingBuffer: true,
+  });
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(window.devicePixelRatio);

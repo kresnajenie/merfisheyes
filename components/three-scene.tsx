@@ -18,6 +18,7 @@ import {
   updateCelltypeVisualization,
   updateNumericalCelltypeVisualization,
   updateCombinedVisualization,
+  updateCoexpressionVisualization,
   type AdvancedVizSettings,
 } from "@/lib/webgl/visualization-utils";
 import {
@@ -31,8 +32,18 @@ import {
 } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+import { ExportBoxOverlay } from "@/components/export-box-overlay";
+import {
+  markSceneReady,
+  markRenderComplete,
+  markGeneRendered,
+} from "@/lib/utils/test-hooks";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import {
+  applyTransformsToPositions,
+  computeSampleCentroids,
+} from "@/lib/utils/sample-transforms";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -44,6 +55,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const sceneGroupRef = useRef<THREE.Group | null>(null);
+  // Untransformed scene-space positions (xyz interleaved). Used as the base
+  // when applying per-sample transforms so edits compose from identity.
+  const basePositionsRef = useRef<Float32Array | null>(null);
+  const sceneScaleRef = useRef<number>(1);
   const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
@@ -71,6 +86,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedGene,
     selectedColumn,
     selectedCelltypes,
+    geneEverywhere,
+    hiddenCelltypes,
     colorPalette,
     alphaScale,
     sizeScale,
@@ -100,6 +117,21 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     flipY,
     pinnedTooltipColumns,
     colormap,
+    transformColumn,
+    sampleTransforms,
+    transformVersion,
+    coexpressEnabled,
+    selectedGene2,
+    coexpressSwapped,
+    gene2ScaleMin,
+    gene2ScaleMax,
+    setGene2ScaleMin,
+    setGene2ScaleMax,
+    exportBoxEnabled,
+    exportBoxWidthMm,
+    exportBoxHeightMm,
+    exportBoxCenterPx,
+    setExportBoxCenterPx,
   } = usePanelVisualizationStore();
 
   // Split screen support
@@ -180,6 +212,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const selectedGeneRef = useRef(selectedGene);
   const selectedColumnRef = useRef(selectedColumn);
   const previousGeneRef = useRef<string | null>(null);
+  const previousGene2Ref = useRef<string | null>(null);
   const previousColumnRef = useRef<string | null>(null);
   const previousColumnTypeRef = useRef<boolean>(false);
 
@@ -630,6 +663,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         }
       }
 
+      // Stash base (untransformed) positions and the scene-space scale so the
+      // per-sample transform effect can recompute live without re-deriving.
+      basePositionsRef.current = new Float32Array(positions);
+      sceneScaleRef.current = cs;
+
       // Create point cloud mesh with custom shaders
       // The shader computes: gl_PointSize = size * dotSize * proj[1][1] / -mvPosition.z
       // We want ~3px dots at the initial zoom level.
@@ -658,6 +696,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Start animation
       animate();
+      markSceneReady();
 
       // Cleanup on unmount
       return () => {
@@ -680,6 +719,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         (pointCloud.material as any).dispose();
         pointCloudRef.current = null;
         sceneRef.current = null;
+        basePositionsRef.current = null;
         cameraRef.current = null;
         rendererRef.current = null;
         controlsRef.current = null;
@@ -697,6 +737,66 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       };
     }
   }, [dataset, viewMode]);
+
+  // Effect 1b: Apply per-sample transforms to the live position buffer.
+  // Reads base positions stashed during scene init and writes the result
+  // into geometry.attributes.position. Marks needsUpdate so the GPU re-uploads.
+  const centroidsCacheRef = useRef<{
+    column: string | null;
+    centroids: Map<string, [number, number]> | null;
+  }>({ column: null, centroids: null });
+
+  // Invalidate centroid cache when dataset changes.
+  useEffect(() => {
+    centroidsCacheRef.current = { column: null, centroids: null };
+  }, [dataset]);
+
+  useEffect(() => {
+    const base = basePositionsRef.current;
+    const pc = pointCloudRef.current;
+    if (!base || !pc || !dataset) return;
+
+    const positionAttr = pc.geometry.attributes.position as THREE.BufferAttribute;
+    const out = positionAttr.array as Float32Array;
+
+    if (!transformColumn || sampleTransforms.size === 0) {
+      out.set(base);
+      positionAttr.needsUpdate = true;
+      return;
+    }
+
+    const cluster =
+      dataset.clusters?.find((c) => c.column === transformColumn) ?? null;
+    if (!cluster) {
+      // Column not loaded yet — fall back to base positions.
+      out.set(base);
+      positionAttr.needsUpdate = true;
+      return;
+    }
+
+    // Centroids depend only on (spatial, column); cache them across edits.
+    let centroids = centroidsCacheRef.current.centroids;
+    if (centroidsCacheRef.current.column !== transformColumn) {
+      centroids = computeSampleCentroids(dataset.spatial, cluster);
+      centroidsCacheRef.current = { column: transformColumn, centroids };
+    }
+
+    applyTransformsToPositions(
+      base,
+      out,
+      cluster,
+      centroids,
+      sampleTransforms,
+      sceneScaleRef.current,
+    );
+    positionAttr.needsUpdate = true;
+  }, [
+    dataset,
+    pointCloudVersion,
+    transformColumn,
+    transformVersion,
+    clusterVersion,
+  ]);
 
   // Effect 2: Update visualization based on mode array
   useEffect(() => {
@@ -752,6 +852,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const hasGeneMode = mode.includes("gene");
       const hasCelltypeMode = mode.includes("celltype");
 
+      // The 3D scene renders only the visible subset of the selection
+      // (selectedCelltypes minus hiddenCelltypes, set via the per-badge eye
+      // toggles). selectedCelltypes itself is untouched, so DEG / plots keep
+      // the full selection.
+      const effectiveCelltypes =
+        hiddenCelltypes.size > 0
+          ? new Set(
+              [...selectedCelltypes].filter((ct) => !hiddenCelltypes.has(ct)),
+            )
+          : selectedCelltypes;
+
       // Check if the selected column is numerical (respects overrides)
       const isNumerical = selectedColumn
         ? getEffectiveColumnType(
@@ -770,6 +881,15 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         previousGeneRef.current = selectedGene;
       }
 
+      // Check if 2nd gene has changed (for coexpression auto-scaling).
+      const gene2Changed = previousGene2Ref.current !== selectedGene2;
+      if (gene2Changed) {
+        previousGene2Ref.current = selectedGene2;
+      }
+
+      const coexpressActive =
+        coexpressEnabled && !!selectedGene && !!selectedGene2;
+
       // Check if column or its effective type has changed (for auto-scaling numerical columns)
       const columnChanged = previousColumnRef.current !== selectedColumn;
       const typeChanged = previousColumnTypeRef.current !== isNumerical;
@@ -783,11 +903,55 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       const shouldAutoScale = columnChanged || typeChanged;
 
-      if (
+      if (coexpressActive) {
+        // Two-gene coexpression: green + magenta additive blend.
+        try {
+          if (geneChanged || gene2Changed) {
+            geneToastIdRef.current = toast.loading(
+              `Loading "${selectedGene}" + "${selectedGene2}"…`,
+            );
+          }
+
+          // Cache primary gene expression for tooltips (use gene 1).
+          geneExpressionRef.current = await dataset.getGeneExpression(
+            selectedGene as string,
+          );
+
+          const greyOutNonSelected =
+            hasCelltypeMode && selectedCelltypes.size > 0 && !geneEverywhere;
+
+          result = await updateCoexpressionVisualization(
+            dataset,
+            selectedGene as string,
+            selectedGene2 as string,
+            geneScaleMin,
+            geneScaleMax,
+            geneChanged ? setGeneScaleMin : undefined,
+            geneChanged ? setGeneScaleMax : undefined,
+            gene2ScaleMin,
+            gene2ScaleMax,
+            gene2Changed ? setGene2ScaleMin : undefined,
+            gene2Changed ? setGene2ScaleMax : undefined,
+            coexpressSwapped,
+            alphaScale,
+            sizeScale,
+            selectedColumn,
+            effectiveCelltypes,
+            greyOutNonSelected,
+            adv,
+          );
+        } finally {
+          if (geneToastIdRef.current != null) {
+            toast.dismiss(geneToastIdRef.current);
+            geneToastIdRef.current = null;
+          }
+        }
+      } else if (
         hasGeneMode &&
         hasCelltypeMode &&
         selectedGene &&
-        selectedCelltypes.size > 0
+        selectedCelltypes.size > 0 &&
+        !geneEverywhere
       ) {
         // Combined mode: gene expression on selected celltypes
         try {
@@ -806,7 +970,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             dataset,
             selectedGene,
             selectedColumn,
-            selectedCelltypes,
+            effectiveCelltypes,
             alphaScale,
             sizeScale,
             geneScaleMin,
@@ -874,7 +1038,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           : updateCelltypeVisualization(
               dataset,
               selectedColumn,
-              selectedCelltypes,
+              effectiveCelltypes,
               colorPalette,
               alphaScale,
               sizeScale,
@@ -896,6 +1060,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           baseDotSizeRef.current * sizeScale,
         );
       }
+
+      // E2E timing hook: mark this render complete (covers initial render and
+      // every gene/celltype change). Stats are read straight off the dataset.
+      markRenderComplete({
+        pointCount: dataset.getPointCount(),
+        geneCount: dataset.genes.length,
+        dimensions: dataset.spatial.dimensions,
+        dataType: "single_cell",
+      });
+      if (mode.includes("gene") && selectedGene) {
+        markGeneRendered(selectedGene, dataset.getPointCount());
+      }
     };
 
     updateVisualization();
@@ -904,6 +1080,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     selectedGene,
     selectedColumn,
     selectedCelltypes,
+    geneEverywhere,
+    hiddenCelltypes,
     colorPalette,
     alphaScale,
     geneScaleMin,
@@ -923,6 +1101,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     pointSizeMultiplierMax,
     pinnedTooltipColumns,
     colormap,
+    coexpressEnabled,
+    selectedGene2,
+    coexpressSwapped,
+    gene2ScaleMin,
+    gene2ScaleMax,
   ]);
 
   // Effect 3: Update dotSize uniform when slider or targetPx changes (instant)
@@ -950,6 +1133,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     <>
       <div
         ref={containerRef}
+        data-testid="sc-scene-canvas"
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
@@ -967,6 +1151,25 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           controlsRef={controlsRef}
         />
       )}
+
+      {/* Export box overlay — gated by viewMode + raw-coords (same as scale bar). */}
+      <ExportBoxOverlay
+        canShow={
+          viewMode === "2D" && !!dataset && !dataset.metadata?.wasNormalized
+        }
+        cameraRef={
+          cameraRef as React.RefObject<THREE.PerspectiveCamera | null>
+        }
+        controlsRef={controlsRef}
+        rendererRef={rendererRef}
+        setCenterPx={setExportBoxCenterPx}
+        state={{
+          enabled: exportBoxEnabled,
+          widthMm: exportBoxWidthMm,
+          heightMm: exportBoxHeightMm,
+          centerPx: exportBoxCenterPx,
+        }}
+      />
     </>
   );
 }

@@ -6,6 +6,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { getColorFromPalette } from "@/lib/utils/color-palette";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
+import { getOrderedSecondaryValues } from "@/lib/utils/secondary-order";
 
 interface Props {
   dataset: StandardizedDataset;
@@ -16,9 +17,11 @@ interface Props {
   secondaryColumn: string | null;
   selectedSecondaryValues: Set<string>;
   secondaryPaletteOverrides: Record<string, string>;
+  secondaryValueOrder: string[];
   setSecondaryColumn: (column: string | null) => void;
   toggleSecondaryValue: (value: string) => void;
   setSecondaryPaletteOverride: (value: string, color: string) => void;
+  setSecondaryValueOrder: (values: string[]) => void;
 }
 
 export function SecondaryGroupControls({
@@ -30,9 +33,11 @@ export function SecondaryGroupControls({
   secondaryColumn,
   selectedSecondaryValues,
   secondaryPaletteOverrides,
+  secondaryValueOrder,
   setSecondaryColumn,
   toggleSecondaryValue,
   setSecondaryPaletteOverride,
+  setSecondaryValueOrder,
 }: Props) {
   const [loading, setLoading] = useState(false);
 
@@ -76,15 +81,26 @@ export function SecondaryGroupControls({
     };
   }, [dataset, secondaryColumn, incrementClusterVersion]);
 
-  // Unique values for the loaded secondary column, in their natural order.
+  // Unique values for the loaded secondary column, respecting the user's
+  // custom ordering when set (falls back to natural order otherwise).
   const values = useMemo(() => {
     if (!secondaryColumn) return [] as string[];
     const cluster = dataset.clusters?.find((c) => c.column === secondaryColumn);
     if (!cluster) return [];
-    if (cluster.uniqueValues && cluster.uniqueValues.length > 0)
-      return cluster.uniqueValues;
-    return Array.from(new Set(cluster.values.map(String)));
-  }, [dataset, secondaryColumn, clusterVersion]);
+    const natural =
+      cluster.uniqueValues && cluster.uniqueValues.length > 0
+        ? cluster.uniqueValues
+        : Array.from(new Set(cluster.values.map(String)));
+    return getOrderedSecondaryValues(natural, secondaryValueOrder);
+  }, [dataset, secondaryColumn, clusterVersion, secondaryValueOrder]);
+
+  const moveValue = (idx: number, direction: -1 | 1) => {
+    const target = idx + direction;
+    if (target < 0 || target >= values.length) return;
+    const next = [...values];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setSecondaryValueOrder(next);
+  };
 
   return (
     <div
@@ -116,6 +132,8 @@ export function SecondaryGroupControls({
           {values.map((v, i) => (
             <SecondaryValueChip
               key={v}
+              canMoveLeft={i > 0}
+              canMoveRight={i < values.length - 1}
               color={
                 secondaryPaletteOverrides[v] ??
                 dataset.clusters?.find((c) => c.column === secondaryColumn)
@@ -125,6 +143,8 @@ export function SecondaryGroupControls({
               label={v}
               selected={selectedSecondaryValues.has(v)}
               onColorChange={(color) => setSecondaryPaletteOverride(v, color)}
+              onMoveLeft={() => moveValue(i, -1)}
+              onMoveRight={() => moveValue(i, 1)}
               onToggle={() => toggleSecondaryValue(v)}
             />
           ))}
@@ -138,14 +158,22 @@ function SecondaryValueChip({
   label,
   color,
   selected,
+  canMoveLeft,
+  canMoveRight,
   onToggle,
   onColorChange,
+  onMoveLeft,
+  onMoveRight,
 }: {
   label: string;
   color: string;
   selected: boolean;
+  canMoveLeft: boolean;
+  canMoveRight: boolean;
   onToggle: () => void;
   onColorChange: (color: string) => void;
+  onMoveLeft: () => void;
+  onMoveRight: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -173,6 +201,30 @@ function SecondaryValueChip({
         value={toHex(color)}
         onChange={(e) => onColorChange(e.target.value)}
       />
+      <button
+        aria-label={`Move ${label} earlier`}
+        className="px-0.5 text-default-400 enabled:hover:text-default-700 disabled:opacity-30 disabled:cursor-not-allowed leading-none"
+        disabled={!canMoveLeft}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onMoveLeft();
+        }}
+      >
+        ‹
+      </button>
+      <button
+        aria-label={`Move ${label} later`}
+        className="px-0.5 text-default-400 enabled:hover:text-default-700 disabled:opacity-30 disabled:cursor-not-allowed leading-none"
+        disabled={!canMoveRight}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onMoveRight();
+        }}
+      >
+        ›
+      </button>
       <button
         className="select-none"
         type="button"

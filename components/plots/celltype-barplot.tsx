@@ -5,6 +5,7 @@ import type { Data, Layout, Config } from "plotly.js";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { getColorFromPalette } from "@/lib/utils/color-palette";
+import { getOrderedSecondaryValues } from "@/lib/utils/secondary-order";
 
 import { Plot } from "./plot-loader";
 
@@ -23,6 +24,7 @@ interface CelltypeBarplotProps {
   secondaryColumn?: string | null;
   selectedSecondaryValues?: Set<string>;
   secondaryPaletteOverrides?: Record<string, string>;
+  secondaryValueOrder?: string[];
   // User-controllable cap on the count axis (horizontal bars → x-axis).
   // null = auto-range.
   xMax?: number | null;
@@ -40,6 +42,7 @@ export function CelltypeBarplot({
   secondaryColumn,
   selectedSecondaryValues,
   secondaryPaletteOverrides,
+  secondaryValueOrder,
   xMax,
 }: CelltypeBarplotProps) {
   const lastClickRef = useRef<{ name: string; time: number } | null>(null);
@@ -146,12 +149,13 @@ export function CelltypeBarplot({
       .filter((p) => primaryTotal.has(p))
       .sort((a, b) => (primaryTotal.get(b) ?? 0) - (primaryTotal.get(a) ?? 0));
 
-    const allUnique =
+    const naturalUnique =
       secondaryCluster.uniqueValues ??
       Array.from(new Set(secondaryCluster.values.map(String)));
-    const secondaryOrder = allUnique.filter((v) =>
-      selectedSecondaryValues!.has(v),
-    );
+    const secondaryOrder = getOrderedSecondaryValues(
+      naturalUnique,
+      secondaryValueOrder ?? [],
+    ).filter((v) => selectedSecondaryValues!.has(v));
 
     const secPalette = secondaryCluster.palette ?? {};
     const colorFor = (v: string, idx: number) =>
@@ -173,6 +177,7 @@ export function CelltypeBarplot({
     selectedCelltypes,
     selectedSecondaryValues,
     secondaryPaletteOverrides,
+    secondaryValueOrder,
     secondaryActive,
     clusterVersion,
   ]);

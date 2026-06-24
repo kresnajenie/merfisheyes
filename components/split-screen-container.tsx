@@ -78,6 +78,7 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
               {/* Close button */}
               <button
                 className="absolute top-4 right-4 z-[60] p-2 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 hover:bg-white/10 transition-colors"
+                data-ui-overlay
                 onClick={closeSplit}
               >
                 <svg

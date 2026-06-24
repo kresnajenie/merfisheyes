@@ -274,6 +274,9 @@ export function PlotPanel() {
   const secondaryPaletteOverrides = usePanelVisualizationStore(
     (s) => s.secondaryPaletteOverrides,
   );
+  const secondaryValueOrder = usePanelVisualizationStore(
+    (s) => s.secondaryValueOrder,
+  );
   const setSecondaryColumn = usePanelVisualizationStore(
     (s) => s.setSecondaryColumn,
   );
@@ -282,6 +285,9 @@ export function PlotPanel() {
   );
   const setSecondaryPaletteOverride = usePanelVisualizationStore(
     (s) => s.setSecondaryPaletteOverride,
+  );
+  const setSecondaryValueOrder = usePanelVisualizationStore(
+    (s) => s.setSecondaryValueOrder,
   );
 
   const dataset = usePanelDatasetStore((s) => {
@@ -715,9 +721,11 @@ export function PlotPanel() {
             primaryColumn={selectedColumn}
             secondaryColumn={secondaryColumn}
             secondaryPaletteOverrides={secondaryPaletteOverrides}
+            secondaryValueOrder={secondaryValueOrder}
             selectedSecondaryValues={selectedSecondaryValues}
             setSecondaryColumn={setSecondaryColumn}
             setSecondaryPaletteOverride={setSecondaryPaletteOverride}
+            setSecondaryValueOrder={setSecondaryValueOrder}
             toggleSecondaryValue={toggleSecondaryValue}
           />
         )}
@@ -741,6 +749,7 @@ export function PlotPanel() {
                 gene={selectedGene!}
                 secondaryColumn={secondaryColumn}
                 secondaryPaletteOverrides={secondaryPaletteOverrides}
+                secondaryValueOrder={secondaryValueOrder}
                 selectedCelltypes={selectedCelltypes}
                 selectedSecondaryValues={selectedSecondaryValues}
                 showOutliers={showOutliers}
@@ -758,6 +767,7 @@ export function PlotPanel() {
                 primaryColumn={selectedColumn}
                 secondaryColumn={secondaryColumn}
                 secondaryPaletteOverrides={secondaryPaletteOverrides}
+                secondaryValueOrder={secondaryValueOrder}
                 selectedCelltypes={selectedCelltypes}
                 selectedSecondaryValues={selectedSecondaryValues}
               />
@@ -768,6 +778,7 @@ export function PlotPanel() {
                 dataset={dataset}
                 secondaryColumn={secondaryColumn}
                 secondaryPaletteOverrides={secondaryPaletteOverrides}
+                secondaryValueOrder={secondaryValueOrder}
                 selectedCelltypes={selectedCelltypes}
                 selectedSecondaryValues={selectedSecondaryValues}
                 topN={topN}

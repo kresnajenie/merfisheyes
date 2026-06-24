@@ -78,6 +78,20 @@ export function UploadSettingsModal({
   // Check if dataset is pre-chunked
   const isPreChunked = (dataset as any)?.isPreChunked || false;
 
+  // Check if dataset is a drag-dropped h5ad-zarr folder.
+  // Zarr is uploaded verbatim — no chunking, no GeneChunkProcessor, no
+  // per-file UploadFile rows. The fileMap is stashed on the dataset by
+  // fromH5adZarr (same pattern as the pre-chunked path's chunkedFiles).
+  const isZarr = dataset?.type === "h5ad-zarr";
+  const zarrFileMap: Map<string, File> | null =
+    isZarr && (dataset as any)?.zarrFileMap
+      ? ((dataset as any).zarrFileMap as Map<string, File>)
+      : null;
+  const zarrTotalBytes =
+    zarrFileMap !== null
+      ? Array.from(zarrFileMap.values()).reduce((s, f) => s + f.size, 0)
+      : 0;
+
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
@@ -100,6 +114,99 @@ export function UploadSettingsModal({
     setProgressMessage("Generating fingerprint...");
 
     try {
+      // Zarr datasets bypass the chunked pipeline entirely: presigned-POST
+      // policy + direct uploads. No GeneChunkProcessor, no chunked manifest.
+      if (isZarr) {
+        if (!zarrFileMap || zarrFileMap.size === 0) {
+          throw new Error("Zarr dataset has no files to upload");
+        }
+
+        // Fingerprint: gene names + cell/gene counts hashed, then a
+        // timestamp suffix so every zarr upload is unique-by-construction
+        // (we said "skip dedupe for v1"). The DB column is VarChar(64);
+        // 50 hex chars + "_" + 13-digit ms timestamp = 64.
+        const fpInput = JSON.stringify({
+          format: "zarr",
+          cells: dataset.getPointCount(),
+          genes: dataset.genes.length,
+          gene_list: dataset.genes.slice().sort().join(","),
+        });
+        const enc = new TextEncoder().encode(fpInput);
+        const hashBuf = await crypto.subtle.digest("SHA-256", enc);
+        const fpHash = Array.from(new Uint8Array(hashBuf))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        const fp = `${fpHash.slice(0, 50)}_${Date.now()}`;
+
+        setProgressMessage("Uploading zarr to S3...");
+        setProgress(5);
+
+        const { uploadZarrToS3 } = await import("@/lib/upload/uploadZarrToS3");
+        const result = await uploadZarrToS3({
+          fileMap: zarrFileMap,
+          fingerprint: fp,
+          metadata: {
+            title: datasetName,
+            numCells: dataset.getPointCount(),
+            numGenes: dataset.genes.length,
+            platform: "h5ad-zarr",
+          },
+          email,
+          datasetName,
+          // Manifest mirrors the chunked-format schema; the `format`
+          // discriminator and `zarrPath` tell the reader to use H5adZarrAdapter
+          // against `datasets/{id}/data.zarr/`. `files` is open-ended so future
+          // sidecars (e.g. gene_means.json) can register here.
+          buildManifest: (datasetId) => ({
+            version: "2.0",
+            format: "zarr",
+            zarrPath: "data.zarr",
+            normalized: dataset.normalized,
+            created_at: new Date().toISOString(),
+            dataset_id: datasetId,
+            name: datasetName,
+            type: dataset.type,
+            statistics: {
+              total_cells: dataset.getPointCount(),
+              total_genes: dataset.genes.length,
+              spatial_dimensions: dataset.spatial.dimensions,
+              available_embeddings:
+                dataset.allEmbeddingNames && dataset.allEmbeddingNames.length > 0
+                  ? [...dataset.allEmbeddingNames]
+                  : Object.keys(dataset.embeddings ?? {}),
+              cluster_count: dataset.allClusterColumnNames?.length ?? 0,
+            },
+            files: {
+              zarr: "data.zarr/",
+              // Future sidecars register here, e.g.:
+              //   gene_means: "gene_means.json"
+            },
+            processing: {
+              format: "anndata-zarr",
+              created_by: "MERFISH Visualizer",
+              source_file: dataset.name || "unknown",
+            },
+          }),
+          onProgress: (prog, msg) => {
+            setUploadProgress(prog);
+            setUploadMessage(msg);
+            // Keep the top "processing" bar in sync so the modal feels alive
+            setProgress(5 + prog * 0.95);
+            setProgressMessage(msg);
+          },
+        });
+
+        setProgress(100);
+        setUploadProgress(100);
+        setProgressMessage("Complete!");
+        setUploadMessage("Upload successful!");
+        setUploadedDatasetId(result.datasetId);
+        setUploadComplete(true);
+        setIsProcessing(false);
+
+        return;
+      }
+
       let filesToUpload: Array<{
         key: string;
         blob: Blob;
@@ -422,7 +529,7 @@ export function UploadSettingsModal({
                 onValueChange={setEmail}
               />
 
-              {!isPreChunked && (
+              {!isPreChunked && !isZarr && (
                 <>
                   <Select
                     description="Number of genes per chunk (auto-determines based on total genes)"
@@ -467,6 +574,16 @@ export function UploadSettingsModal({
                 </div>
               )}
 
+              {isZarr && (
+                <div className="bg-primary-50 dark:bg-primary-950 p-3 rounded-lg">
+                  <p className="text-sm text-primary-600 dark:text-primary-400">
+                    ✓ Zarr folder will be uploaded as-is.{" "}
+                    {zarrFileMap?.size.toLocaleString()} files (
+                    {(zarrTotalBytes / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                </div>
+              )}
+
               {dataset && (
                 <div className="bg-default-100 p-4 rounded-lg">
                   <h4 className="text-sm font-semibold mb-2">Dataset Info</h4>
@@ -482,7 +599,7 @@ export function UploadSettingsModal({
                     <p>
                       <span className="font-medium">Type:</span> {dataset.type}
                     </p>
-                    {!isPreChunked && chunkSize !== "custom" && (
+                    {!isPreChunked && !isZarr && chunkSize !== "custom" && (
                       <p>
                         <span className="font-medium">Estimated chunks:</span>{" "}
                         {Math.ceil(
@@ -497,6 +614,13 @@ export function UploadSettingsModal({
                       <p>
                         <span className="font-medium">Status:</span> Pre-chunked
                         (ready for upload)
+                      </p>
+                    )}
+                    {isZarr && (
+                      <p>
+                        <span className="font-medium">Status:</span> Zarr folder
+                        ({zarrFileMap?.size.toLocaleString()} files,{" "}
+                        {(zarrTotalBytes / 1024 / 1024).toFixed(1)} MB)
                       </p>
                     )}
                   </div>

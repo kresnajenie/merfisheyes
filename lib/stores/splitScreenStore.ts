@@ -19,6 +19,11 @@ interface SplitScreenState {
   toggleSync: () => void;
   setSyncEnabled: (enabled: boolean) => void;
   setSyncFromUrl: (fromUrl: boolean) => void;
+
+  // Global "hide UI" mode — strips all overlay UI for clean screenshots.
+  hideUi: boolean;
+  setHideUi: (hidden: boolean) => void;
+  toggleHideUi: () => void;
 }
 
 export const useSplitScreenStore = create<SplitScreenState>((set) => ({
@@ -63,4 +68,8 @@ export const useSplitScreenStore = create<SplitScreenState>((set) => ({
   toggleSync: () => set((state) => ({ syncEnabled: !state.syncEnabled })),
   setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
   setSyncFromUrl: (fromUrl) => set({ syncFromUrl: fromUrl }),
+
+  hideUi: false,
+  setHideUi: (hidden) => set({ hideUi: hidden }),
+  toggleHideUi: () => set((state) => ({ hideUi: !state.hideUi })),
 }));

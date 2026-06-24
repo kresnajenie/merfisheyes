@@ -14,7 +14,14 @@ import { useSplitScreenStore } from "../stores/splitScreenStore";
 
 type SyncFields = Pick<
   VisualizationState,
-  "selectedColumn" | "selectedCelltypes" | "selectedGene" | "colorPalette"
+  | "selectedColumn"
+  | "selectedCelltypes"
+  | "selectedGene"
+  | "colorPalette"
+  | "coexpressEnabled"
+  | "selectedGene2"
+  | "coexpressSwapped"
+  | "hiddenCelltypes"
 >;
 
 function pickSyncFields(state: VisualizationState): SyncFields {
@@ -23,6 +30,10 @@ function pickSyncFields(state: VisualizationState): SyncFields {
     selectedCelltypes: state.selectedCelltypes,
     selectedGene: state.selectedGene,
     colorPalette: state.colorPalette,
+    coexpressEnabled: state.coexpressEnabled,
+    selectedGene2: state.selectedGene2,
+    coexpressSwapped: state.coexpressSwapped,
+    hiddenCelltypes: state.hiddenCelltypes,
   };
 }
 
@@ -304,6 +315,33 @@ export function useSyncVisualization(
           }
         }
 
+        // 2b. hiddenCelltypes changed (per-celltype eye toggle / cmd-click solo).
+        // Diff source vs target so solo state stays in sync between panels.
+        // Runs independently of the column/celltypes branches above so it
+        // catches both per-celltype toggles AND the bulk reassignment from
+        // soloCelltype().
+        {
+          const sourceHidden = sourceFields.hiddenCelltypes;
+          // Re-read target state — earlier blocks may have toggled celltypes
+          // and `targetState` was captured before that.
+          const targetHidden = targetStore.getState().hiddenCelltypes;
+          const targetSelected = targetStore.getState().selectedCelltypes;
+
+          // Hide on target: in source's hidden set, not yet hidden on target,
+          // and the celltype is currently selected on target.
+          for (const ct of sourceHidden) {
+            if (!targetHidden.has(ct) && targetSelected.has(ct)) {
+              targetStore.getState().toggleCelltypeVisibility(ct);
+            }
+          }
+          // Unhide on target: hidden on target but not in source.
+          for (const ct of targetHidden) {
+            if (!sourceHidden.has(ct)) {
+              targetStore.getState().toggleCelltypeVisibility(ct);
+            }
+          }
+        }
+
         // 3. selectedGene changed
         if (sourceFields.selectedGene !== prevFields?.selectedGene) {
           const gene = sourceFields.selectedGene;
@@ -317,6 +355,41 @@ export function useSyncVisualization(
           } else {
             targetStore.getState().setSelectedGene(null);
           }
+        }
+
+        // 3b. selectedGene2 changed (coexpression mode's second gene)
+        if (sourceFields.selectedGene2 !== prevFields?.selectedGene2) {
+          const gene2 = sourceFields.selectedGene2;
+
+          if (gene2) {
+            if (!datasetHasGene(targetDataset, gene2)) {
+              throttledToast(
+                `Gene "${gene2}" not found in the other dataset`,
+              );
+            } else {
+              targetStore.getState().setSelectedGene2(gene2);
+            }
+          } else {
+            targetStore.getState().setSelectedGene2(null);
+          }
+        }
+
+        // 3c. coexpressEnabled toggle
+        if (
+          sourceFields.coexpressEnabled !== prevFields?.coexpressEnabled
+        ) {
+          targetStore
+            .getState()
+            .setCoexpressEnabled(sourceFields.coexpressEnabled);
+        }
+
+        // 3d. coexpressSwapped (color channel swap)
+        if (
+          sourceFields.coexpressSwapped !== prevFields?.coexpressSwapped
+        ) {
+          targetStore
+            .getState()
+            .setCoexpressSwapped(sourceFields.coexpressSwapped);
         }
 
         // 4. colorPalette changed
