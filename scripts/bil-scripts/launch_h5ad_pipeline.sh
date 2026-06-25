@@ -2,7 +2,7 @@
 # ═══════════════════════════════════════════════════════════════
 # launch_h5ad_pipeline.sh
 #
-# Reads samples.csv (sample_name,input_dir) and for each sample submits:
+# Reads samples.csv (sample_name,input_dir[,species]) and for each sample submits:
 #   1. map_my_cell            (h5ad → mmc_output/mapping_output.csv)
 #   2. process_single_molecule (csv → sm_output, runs in parallel with step 1)
 #   3. process_spatial_data    (h5ad + mmc csv → meyes_output, after step 1)
@@ -45,14 +45,18 @@ echo ""
 count=0
 errors=0
 
-while IFS=',' read -r sample_name input_dir; do
+while IFS=',' read -r sample_name input_dir species; do
     # Trim leading/trailing whitespace
     sample_name="$(echo "$sample_name" | xargs)"
     input_dir="$(echo "$input_dir" | xargs)"
+    species="$(echo "${species:-}" | xargs)"
 
     # Skip comments, empty lines, and header
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
+
+    # Default species when the column is absent or empty
+    species="${species:-mouse}"
 
     # Validate input files
     h5ad_path="${input_dir}/cell_by_gene.h5ad"
@@ -86,14 +90,16 @@ while IFS=',' read -r sample_name input_dir; do
     echo "  SC output:    ${meyes_output}"
     echo "  SM output:    ${sm_output}"
     echo "  SM S3 URL:    ${sm_s3_url}"
+    echo "  Species:      ${species}"
 
-    # Step 1: map_my_cell (h5ad → mmc_output)
+    # Step 1: map_my_cell (h5ad → mmc_output). 3rd arg is SPECIES (mouse/human);
+    # the reference dir is hardcoded inside map_my_cell.sbatch.
     mmc_job=$(sbatch --parsable \
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
         "$h5ad_path" \
         "$mmc_output" \
-        "$REFERENCE_DIR")
+        "$species")
     echo "  [1/5] map_my_cell      -> Job ${mmc_job}"
 
     # Step 2: process_single_molecule (runs in parallel with step 1)
