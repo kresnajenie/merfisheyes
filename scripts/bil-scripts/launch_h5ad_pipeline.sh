@@ -3,11 +3,15 @@
 # launch_h5ad_pipeline.sh
 #
 # Reads samples.csv (sample_name,input_dir[,species]) and for each sample submits:
-#   1. map_my_cell            (h5ad → mmc_output/mapping_output.csv)
-#   2. process_single_molecule (csv → sm_output, runs in parallel with step 1)
-#   3. process_spatial_data    (h5ad + mmc csv → meyes_output, after step 1)
-#   4. copy mapping.json       (sm_output → meyes_output, after steps 2+3)
-#   5. s3 sync                 (both meyes_output + sm_output, after step 4)
+#   1. map_my_cell hierarchical (h5ad → mmc_output/mapping_output.csv)
+#   2. map_my_cell correlation  (h5ad → mmc_output_corr/, parallel with step 1)
+#   3. process_single_molecule  (csv → sm_output, parallel)
+#   4. process_spatial_data     (h5ad + hierarchical mmc csv → meyes_output, after step 1)
+#   5. copy mapping.json        (sm_output → meyes_output, after steps 3+4)
+#   6. s3 sync                  (both meyes_output + sm_output, after step 5)
+#
+# Note: process_spatial and the S3 sync use the HIERARCHICAL mapping; the
+# correlation mapping (mmc_output_corr/) is produced for analysis only.
 #
 # Expected input directory structure:
 #   {input_dir}/cell_by_gene.h5ad
@@ -77,7 +81,8 @@ while IFS=',' read -r sample_name input_dir species; do
 
     # Output paths
     output_base="${MEYES_BASE}/${sample_name}"
-    mmc_output="${output_base}/mmc_output"
+    mmc_output="${output_base}/mmc_output"            # hierarchical method
+    mmc_corr_output="${output_base}/mmc_output_corr"  # correlation method
     meyes_output="${output_base}/meyes_output"
     sm_output="${output_base}/sm_output"
     sm_s3_url="${S3_HTTPS_BASE}/${sample_name}/sm_output"
@@ -86,32 +91,44 @@ while IFS=',' read -r sample_name input_dir species; do
     echo "  Input dir:    ${input_dir}"
     echo "  H5AD:         ${h5ad_path}"
     echo "  CSV:          ${csv_path}"
-    echo "  MMC output:   ${mmc_output}"
+    echo "  MMC hier:     ${mmc_output}"
+    echo "  MMC corr:     ${mmc_corr_output}"
     echo "  SC output:    ${meyes_output}"
     echo "  SM output:    ${sm_output}"
     echo "  SM S3 URL:    ${sm_s3_url}"
     echo "  Species:      ${species}"
 
-    # Step 1: map_my_cell (h5ad → mmc_output). 3rd arg is SPECIES (mouse/human);
-    # the reference dir is hardcoded inside map_my_cell.sbatch.
+    # Step 1: map_my_cell — hierarchical (h5ad → mmc_output). 3rd arg is SPECIES
+    # (mouse/human), 4th is METHOD; reference dir is hardcoded in the sbatch.
     mmc_job=$(sbatch --parsable \
         --job-name="mmc_${sample_name}" \
         "${SCRIPT_DIR}/map_my_cell.sbatch" \
         "$h5ad_path" \
         "$mmc_output" \
-        "$species")
-    echo "  [1/5] map_my_cell      -> Job ${mmc_job}"
+        "$species" \
+        "hierarchical")
+    echo "  [1/6] mmc hierarchical -> Job ${mmc_job}"
 
-    # Step 2: process_single_molecule (runs in parallel with step 1)
+    # Step 2: map_my_cell — correlation (h5ad → mmc_output_corr, parallel)
+    mmc_corr_job=$(sbatch --parsable \
+        --job-name="mmccorr_${sample_name}" \
+        "${SCRIPT_DIR}/map_my_cell.sbatch" \
+        "$h5ad_path" \
+        "$mmc_corr_output" \
+        "$species" \
+        "correlation")
+    echo "  [2/6] mmc correlation  -> Job ${mmc_corr_job} (parallel)"
+
+    # Step 3: process_single_molecule (runs in parallel with MMC)
     sm_job=$(sbatch --parsable \
         --job-name="sm_${sample_name}" \
         "${SCRIPT_DIR}/process_h5ad_sm.sbatch" \
         "$csv_path" \
         "$sm_output" \
         "$sm_s3_url")
-    echo "  [2/5] process_sm       -> Job ${sm_job} (parallel)"
+    echo "  [3/6] process_sm       -> Job ${sm_job} (parallel)"
 
-    # Step 3: process_spatial_data (after map_my_cell finishes)
+    # Step 4: process_spatial_data (after hierarchical map_my_cell finishes)
     sc_job=$(sbatch --parsable \
         --dependency=afterok:${mmc_job} \
         --job-name="sc_${sample_name}" \
@@ -119,18 +136,18 @@ while IFS=',' read -r sample_name input_dir species; do
         "$h5ad_path" \
         "$meyes_output" \
         "${mmc_output}/mapping_output.csv")
-    echo "  [3/5] process_spatial  -> Job ${sc_job} (after ${mmc_job})"
+    echo "  [4/6] process_spatial  -> Job ${sc_job} (after ${mmc_job})"
 
-    # Step 4: copy mapping.json from sm_output to meyes_output (after both SC and SM)
+    # Step 5: copy mapping.json from sm_output to meyes_output (after both SC and SM)
     copy_job=$(sbatch --parsable \
         --dependency=afterok:${sc_job}:${sm_job} \
         --job-name="cpmap_${sample_name}" \
         --wrap="cp '${sm_output}/mapping.json' '${meyes_output}/mapping.json' && echo 'Copied mapping.json from ${sm_output} to ${meyes_output}'" \
         --output="/bil/users/ijenie/meyes_process_logs/cpmap_h5ad_${sample_name}_%j.log" \
         --ntasks=1 --cpus-per-task=1 --mem=1G --time=00:05:00 --partition=compute)
-    echo "  [4/5] copy mapping.json -> Job ${copy_job} (after ${sc_job} + ${sm_job})"
+    echo "  [5/6] copy mapping.json -> Job ${copy_job} (after ${sc_job} + ${sm_job})"
 
-    # Step 5: s3 sync both meyes_output and sm_output (after copy)
+    # Step 6: s3 sync both meyes_output and sm_output (after copy)
     sync_job=$(sbatch --parsable \
         --dependency=afterok:${copy_job} \
         --job-name="sync_${sample_name}" \
@@ -158,7 +175,7 @@ echo 'sm_output sync done at \$(date)'
 echo ''
 echo 'All syncs complete at \$(date)'
 ")
-    echo "  [5/5] s3_sync          -> Job ${sync_job} (after ${copy_job})"
+    echo "  [6/6] s3_sync          -> Job ${sync_job} (after ${copy_job})"
 
     echo ""
 
