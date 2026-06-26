@@ -435,10 +435,7 @@ def run_mapping_correlation(validated_h5ad_path, output_dir, reference_dir, spec
 
     adata = anndata.read_h5ad(validated_h5ad_path)
     query_genes = list(adata.var.index)
-    X = adata.X
-    if sp.issparse(X):
-        X = X.toarray()
-    X = X.astype(np.float64, copy=False)
+    X = adata.X  # sliced per chunk below; never densified all at once
 
     ref_gene_to_idx = {g: i for i, g in enumerate(ref_genes)}
     shared = [(qi, ref_gene_to_idx[g]) for qi, g in enumerate(query_genes)
@@ -463,15 +460,31 @@ def run_mapping_correlation(validated_h5ad_path, output_dir, reference_dir, spec
         sd = np.where(sd == 0, 1.0, sd)
         return (M - mu) / sd
 
-    Q = _lognorm(X[:, q_idx])
-    R = _lognorm(cluster_means[:, r_idx])
-    Qz = _zscore_rows(Q)
-    Rz = _zscore_rows(R)
+    # Normalize the reference once (small: n_clusters × n_shared_genes).
+    Rz = _zscore_rows(_lognorm(cluster_means[:, r_idx].astype(np.float64)))
+    n_shared = Rz.shape[1]
 
-    logger.info("Computing %d × %d correlation matrix...", Qz.shape[0], Rz.shape[0])
-    corr = (Qz @ Rz.T) / Qz.shape[1]
-    best = corr.argmax(axis=1)
-    best_r = corr[np.arange(len(best)), best]
+    # Correlate query cells against reference clusters in row chunks. Building the
+    # full (n_cells × n_clusters) product at once is what OOM-kills big datasets
+    # (millions of cells × 5k+ clusters in float64 = hundreds of GB), so we keep
+    # only the per-chunk argmax instead of the whole matrix.
+    n_cells = X.shape[0]
+    best = np.empty(n_cells, dtype=np.int64)
+    best_r = np.empty(n_cells, dtype=np.float64)
+    chunk = 50_000
+    logger.info("Correlating %d cells against %d clusters in chunks of %d...",
+                n_cells, len(cluster_ids), chunk)
+    for start in range(0, n_cells, chunk):
+        stop = min(start + chunk, n_cells)
+        block = X[start:stop]
+        block = block.toarray() if sp.issparse(block) else np.asarray(block)
+        Qz = _zscore_rows(_lognorm(block[:, q_idx].astype(np.float64)))
+        corr = (Qz @ Rz.T) / n_shared  # (chunk_cells × n_clusters)
+        bi = corr.argmax(axis=1)
+        best[start:stop] = bi
+        best_r[start:stop] = corr[np.arange(stop - start), bi]
+        del block, Qz, corr
+
     assigned_ids = [cluster_ids[i] for i in best]
     assigned_names = [cluster_names[i] for i in best]
 
