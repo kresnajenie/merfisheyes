@@ -1258,6 +1258,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     const currentClouds = smPointCloudsRef.current;
 
+    // Drop orphaned clouds whose parent group was disposed (e.g. on a 2D↔3D
+    // view-mode switch, which rebuilds the scene). They'll get recreated
+    // below under the fresh sceneGroupRef.
+    for (const [key, pc] of currentClouds) {
+      if (pc.parent !== parent) {
+        pc.geometry.dispose();
+        (pc.material as THREE.PointsMaterial).dispose();
+        currentClouds.delete(key);
+      }
+    }
+
     // Remove clouds for deselected genes (both keys).
     for (const [key, pc] of currentClouds) {
       const gene = key.slice(0, -2);
@@ -1386,7 +1397,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     };
 
     work();
-  }, [smDataset, smSelectedGenes, smShowAssigned, smShowUnassigned]);
+  }, [
+    smDataset,
+    smSelectedGenes,
+    smShowAssigned,
+    smShowUnassigned,
+    pointCloudVersion,
+  ]);
 
   // Effect 6: live-update SM material sizes when globalScale or per-gene
   // localScale changes — avoids tearing down/rebuilding the point clouds.
