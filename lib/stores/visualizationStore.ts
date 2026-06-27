@@ -46,6 +46,7 @@ interface VisualizationState {
   sizeScale: number; // multiplier
   clusterVersion: number;
   deStatsVersion: number;
+  cameraResetSignal: number;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -98,6 +99,7 @@ interface VisualizationState {
   setGeneSearchTerm: (value: string) => void;
   incrementClusterVersion: () => void;
   incrementDeStatsVersion: () => void;
+  resetCamera: () => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
   setDegTargetAuto: (auto: boolean) => void;
@@ -202,6 +204,7 @@ const initialState = {
   sizeScale: 1.0,
   clusterVersion: 0,
   deStatsVersion: 0,
+  cameraResetSignal: 0,
   degTarget: null as string | null,
   degReference: null as string | null,
   degTargetAuto: true,
@@ -458,6 +461,10 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 
   incrementDeStatsVersion: () => {
     set((state) => ({ deStatsVersion: state.deStatsVersion + 1 }));
+  },
+
+  resetCamera: () => {
+    set((state) => ({ cameraResetSignal: state.cameraResetSignal + 1 }));
   },
 
   setDegTarget: (target) => set({ degTarget: target }),

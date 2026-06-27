@@ -107,6 +107,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
   // Raycaster and interaction state
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
+  // World-space lookAt captured at scene init — restored by the camera reset.
+  const initialLookAtRef = useRef<THREE.Vector3 | null>(null);
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const cameraRef = useRef<THREE.Camera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -186,6 +188,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     toggleCelltype,
     clusterVersion,
     incrementClusterVersion,
+    cameraResetSignal,
     columnTypeOverrides,
     viewMode,
     targetPx,
@@ -639,6 +642,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       rendererRef.current = renderer;
       controlsRef.current = controls;
 
+      // Stash the initial lookAt so the camera reset can snap back to it.
+      initialLookAtRef.current = center.clone();
+
       // Create tooltip
       if (!tooltipRef.current) {
         tooltipRef.current = createTooltip();
@@ -697,15 +703,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         const index = hoveredPointRef.current;
 
-        // "__all__" linkColumn means every cell maps to the same SM dataset
-        if (linkConfig.linkColumn === "__all__") {
-          const smUrl = linkConfig.links["__all__"];
-          if (!smUrl) return;
-          enableSplit();
-          setRightPanelS3(smUrl, "sm");
-          toast.info("Opening SM dataset");
-          return;
-        }
+        // "__all__" linkColumn means every cell maps to the same SM dataset,
+        // which is already rendered as an overlay on this scene — no need to
+        // open a split panel on right-click.
+        if (linkConfig.linkColumn === "__all__") return;
 
         // Find the link column in dataset clusters (always reads the configured column,
         // regardless of which column is currently selected for visualization)
@@ -735,10 +736,37 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         toast.info(`Opening SM dataset for ${setValue}`);
       };
 
+      // Cmd/Ctrl+click in 3D mode: move the controls.target onto the clicked
+      // SC cell's world position. The camera position is left alone (only the
+      // orbit/look-at pivot moves), per the camera-controls design.
+      const handleClickRecenter = (event: MouseEvent) => {
+        if (!(event.metaKey || event.ctrlKey)) return;
+        if (viewMode !== "3D") return;
+        const idx = hoveredPointRef.current;
+        const pc = pointCloudRef.current;
+        const ctrls = controlsRef.current;
+
+        if (idx == null || !pc || !ctrls) return;
+
+        const posAttr = pc.geometry.attributes.position as THREE.BufferAttribute;
+        const local = new THREE.Vector3(
+          posAttr.getX(idx),
+          posAttr.getY(idx),
+          posAttr.getZ(idx),
+        );
+
+        pc.updateMatrixWorld();
+        const world = local.applyMatrix4(pc.matrixWorld);
+
+        ctrls.target.copy(world);
+        ctrls.update();
+      };
+
       // Add event listeners
       renderer.domElement.addEventListener("mousemove", handleMouseMove);
       renderer.domElement.addEventListener("dblclick", handleDoubleClick);
       renderer.domElement.addEventListener("contextmenu", handleContextMenu);
+      renderer.domElement.addEventListener("click", handleClickRecenter);
 
       // Build positions Float32Array directly from dataset coordinates
       const spatialCoords = dataset.spatial.coordinates;
@@ -817,6 +845,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           "contextmenu",
           handleContextMenu,
         );
+        renderer.domElement.removeEventListener("click", handleClickRecenter);
 
         // Hide tooltip
         hideTooltip();
@@ -847,6 +876,45 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       };
     }
   }, [dataset, viewMode]);
+
+  // Camera reset: snap controls.target back to the initial lookAt captured at
+  // scene init. Triggered by cameraResetSignal (Reset View button) or R key.
+  useEffect(() => {
+    if (cameraResetSignal === 0) return;
+    const ctrls = controlsRef.current;
+    const initial = initialLookAtRef.current;
+
+    if (!ctrls || !initial) return;
+    ctrls.target.copy(initial);
+    ctrls.update();
+  }, [cameraResetSignal]);
+
+  // R key resets the camera (skipped while typing in an input).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "r" && e.key !== "R") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      const ctrls = controlsRef.current;
+      const initial = initialLookAtRef.current;
+
+      if (!ctrls || !initial) return;
+      ctrls.target.copy(initial);
+      ctrls.update();
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Effect 1b: Apply per-sample transforms to the live position buffer.
   // Reads base positions stashed during scene init and writes the result

@@ -45,6 +45,7 @@ export function VisualizationControls() {
     exportBoxEnabled, exportBoxWidthMm, exportBoxHeightMm,
     setExportBoxEnabled, setExportBoxWidthMm, setExportBoxHeightMm,
     setExportBoxCenterPx,
+    resetCamera,
   } = usePanelVisualizationStore();
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
@@ -520,6 +521,7 @@ export function VisualizationControls() {
           setViewMode={setViewMode}
           viewMode={viewMode}
           onClose={() => setIsCameraOpen(false)}
+          onResetCamera={resetCamera}
         />
       )}
 

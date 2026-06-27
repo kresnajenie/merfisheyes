@@ -49,6 +49,8 @@ interface CameraPanelProps {
     setHeightMm: (mm: number) => void;
     resetCenter: () => void;
   };
+  // Optional reset-view action. When provided, a "Reset View" button is shown.
+  onResetCamera?: () => void;
 }
 
 export function CameraPanel({
@@ -65,6 +67,7 @@ export function CameraPanel({
   is3DDataset = false,
   canExportBox = false,
   exportBox,
+  onResetCamera,
 }: CameraPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [alignOpen, setAlignOpen] = useState(false);
@@ -105,6 +108,23 @@ export function CameraPanel({
             </svg>
           </Button>
         </div>
+
+        {/* Reset View — restores the camera lookAt to the initial framing. */}
+        {onResetCamera && (
+          <div>
+            <Button
+              className="w-full text-xs"
+              size="sm"
+              variant="flat"
+              onPress={onResetCamera}
+            >
+              Reset View (R)
+            </Button>
+            <p className="text-[10px] text-default-400 mt-1">
+              Cmd/Ctrl+click a cell to center on it
+            </p>
+          </div>
+        )}
 
         {/* Rotation */}
         <div>
