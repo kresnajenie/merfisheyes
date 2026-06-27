@@ -1163,15 +1163,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     group.scale.y = flipY ? -1 : 1;
   }, [sceneRotation, flipX, flipY]);
 
-  // Effect 5: Manage SM overlay point clouds
+  // Effect 5: Manage SM overlay point clouds.
+  // SM clouds parent under sceneGroupRef so scene rotation/flip applies to them too.
+  // SM material.size scales with SC's baseDotSize: raw-coord datasets span thousands
+  // of microns, so a fixed world-space size would be sub-pixel and invisible.
   useEffect(() => {
-    const scene = sceneRef.current;
+    const parent = sceneGroupRef.current ?? sceneRef.current;
     const smDs = smDatasetRef.current;
 
-    if (!scene || !smDs || smSelectedGenes.size === 0) {
-      // Clean up if no SM data or no genes selected
+    if (!parent || !smDs || smSelectedGenes.size === 0) {
       smPointCloudsRef.current.forEach((pc) => {
-        scene?.remove(pc);
+        pc.parent?.remove(pc);
         pc.geometry.dispose();
         (pc.material as THREE.PointsMaterial).dispose();
       });
@@ -1181,17 +1183,15 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     const currentClouds = smPointCloudsRef.current;
 
-    // Remove clouds for deselected genes
     for (const [gene, pc] of currentClouds) {
       if (!smSelectedGenes.has(gene)) {
-        scene.remove(pc);
+        pc.parent?.remove(pc);
         pc.geometry.dispose();
         (pc.material as THREE.PointsMaterial).dispose();
         currentClouds.delete(gene);
       }
     }
 
-    // Add/update clouds for selected genes
     const addGenes = async () => {
       const palette = [
         "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF",
@@ -1235,9 +1235,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           });
 
           const pointCloud = new THREE.Points(geometry, material);
-          pointCloud.renderOrder = -1; // Render below single cell points
+          pointCloud.renderOrder = -1;
 
-          scene.add(pointCloud);
+          parent.add(pointCloud);
           currentClouds.set(gene, pointCloud);
         } catch (error) {
           console.warn(`Failed to load SM gene ${gene}:`, error);
