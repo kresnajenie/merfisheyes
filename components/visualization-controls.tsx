@@ -13,6 +13,7 @@ import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { VisualizationPanel } from "./visualization-panel";
 import { AdvancedVizPanel } from "./advanced-viz-panel";
 import { CameraPanel } from "./camera-panel";
+import { ScSmModeToggle, type ScSmMode } from "./sc-sm-mode-toggle";
 import { useSliderRange } from "./slider-range-popover";
 import { PlotPanel } from "./plot-panel";
 import { DegPanel } from "./deg-panel";
@@ -26,6 +27,7 @@ import {
   usePanelVisualizationStore,
   usePanelDatasetStore,
   usePanelId,
+  usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
@@ -101,6 +103,9 @@ export function VisualizationControls() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  // Shared SC/SM mode for the Gene panel tab toggle AND the size-slider toggle.
+  // TODO: gate visibility on an SM-overlay-loaded signal.
+  const [scSmMode, setScSmMode] = useState<ScSmMode>("sc");
   // DEG panel open state lives in the store so it can be opened from
   // elsewhere (e.g. right-clicking a celltype badge in the legends).
   const isDegOpen = usePanelVisualizationStore((s) => s.degPanelOpen);
@@ -396,8 +401,19 @@ export function VisualizationControls() {
         </Tooltip>
       )}
 
-      {/* Dot Size Slider */}
-      <DotSizeSlider sizeScale={sizeScale} setSizeScale={setSizeScale} />
+      {/* Dot Size Slider — switches between SC sizeScale and SM globalScale. */}
+      <div className="flex flex-row items-center gap-1">
+        <DotSizeSlider
+          scSizeScale={sizeScale}
+          scSmMode={scSmMode}
+          setScSizeScale={setSizeScale}
+        />
+        <ScSmModeToggle
+          mode={scSmMode}
+          variant="vertical"
+          onChange={setScSmMode}
+        />
+      </div>
 
       {/* Hide UI Button — strips overlays for screenshotting (H key) */}
       <Tooltip content="Hide UI for screenshot (H)" placement="right">
@@ -466,6 +482,8 @@ export function VisualizationControls() {
         <VisualizationPanel
           controlsRef={controlsRef}
           mode={panelMode}
+          scSmMode={scSmMode}
+          setScSmMode={setScSmMode}
           onClose={() => setIsPanelOpen(false)}
         />
       )}
@@ -520,24 +538,56 @@ export function VisualizationControls() {
 }
 
 function DotSizeSlider({
-  sizeScale,
-  setSizeScale,
+  scSizeScale,
+  setScSizeScale,
+  scSmMode,
 }: {
-  sizeScale: number;
-  setSizeScale: (n: number) => void;
+  scSizeScale: number;
+  setScSizeScale: (n: number) => void;
+  scSmMode: ScSmMode;
 }) {
-  const { min, max, onContextMenu, popover } = useSliderRange(
+  // SC: editable range via right-click popover. SM: static range from config.
+  const sc = useSliderRange(
     "sizeScale",
     VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN,
     VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX,
-    sizeScale,
+    scSizeScale,
+  );
+  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.globalScale,
+  );
+  const setSmGlobalScale = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.setGlobalScale,
   );
 
+  const isSc = scSmMode === "sc";
+  const value = isSc ? scSizeScale : smGlobalScale;
+  const setValue = isSc ? setScSizeScale : setSmGlobalScale;
+  const min = isSc
+    ? sc.min
+    : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MIN;
+  const max = isSc
+    ? sc.max
+    : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MAX;
+  const step = isSc
+    ? VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP
+    : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_STEP;
+  const borderColor = isSc
+    ? "border-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.35)]"
+    : "border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.35)]";
+
   return (
-    <Tooltip content="Change dotsize (right-click to edit range)" placement="right">
+    <Tooltip
+      content={
+        isSc
+          ? "Change dotsize (right-click to edit range)"
+          : "Change SM molecule size"
+      }
+      placement="right"
+    >
       <div
-        className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
-        onContextMenu={onContextMenu}
+        className={`w-14 h-32 rounded-full border-2 p-2 flex flex-col items-center justify-center transition-colors transition-shadow ${borderColor} ${glassButton()}`}
+        onContextMenu={isSc ? sc.onContextMenu : undefined}
       >
         <Slider
           aria-label="Dot size"
@@ -546,11 +596,11 @@ function DotSizeSlider({
           minValue={min}
           orientation="vertical"
           size="sm"
-          step={VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP}
-          value={sizeScale}
-          onChange={(value) => setSizeScale(value as number)}
+          step={step}
+          value={value}
+          onChange={(v) => setValue(v as number)}
         />
-        {popover}
+        {isSc && sc.popover}
       </div>
     </Tooltip>
   );

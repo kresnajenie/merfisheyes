@@ -7,6 +7,48 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { toast } from "react-toastify";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+
+// Sprite textures for SM points (circle default, square for the legend's
+// shape selector). Created once per component instance.
+function createSmCircleTexture(): THREE.Texture {
+  const canvas = document.createElement("canvas");
+  const size = 64;
+
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) throw new Error("Could not get 2D context");
+  ctx.fillStyle = "white";
+  ctx.beginPath();
+  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(canvas);
+
+  tex.needsUpdate = true;
+
+  return tex;
+}
+
+function createSmSquareTexture(): THREE.Texture {
+  const canvas = document.createElement("canvas");
+  const size = 64;
+
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) throw new Error("Could not get 2D context");
+  ctx.fillStyle = "white";
+  ctx.fillRect(4, 4, size - 8, size - 8);
+  const tex = new THREE.CanvasTexture(canvas);
+
+  tex.needsUpdate = true;
+
+  return tex;
+}
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
@@ -32,6 +74,7 @@ import {
   fetchMappingConfig,
 } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
+import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { ExportBoxOverlay } from "@/components/export-box-overlay";
 import {
@@ -81,12 +124,45 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const baseDotSizeRef = useRef<number>(5);
   const cameraDistanceRef = useRef<number>(1);
 
-  // SM overlay state (for __all__ mapping)
+  // SM overlay state (for __all__ mapping). Gene selection lives in the
+  // global SM viz store so the picker + legends drive what's rendered.
   const smDatasetRef = useRef<SingleMoleculeDataset | null>(null);
   const smPointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
+  const smCircleTextureRef = useRef<THREE.Texture | null>(null);
+  const smSquareTextureRef = useRef<THREE.Texture | null>(null);
   const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(null);
   const [smLoading, setSmLoading] = useState(false);
-  const [smSelectedGenes, setSmSelectedGenes] = useState<Set<string>>(new Set());
+
+  // Create SM point sprite textures once on mount.
+  useEffect(() => {
+    smCircleTextureRef.current = createSmCircleTexture();
+    smSquareTextureRef.current = createSmSquareTexture();
+    return () => {
+      smCircleTextureRef.current?.dispose();
+      smSquareTextureRef.current?.dispose();
+      smCircleTextureRef.current = null;
+      smSquareTextureRef.current = null;
+    };
+  }, []);
+  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+    (s) => s.selectedGenes,
+  );
+  const smGlobalScale = useSingleMoleculeVisualizationStore(
+    (s) => s.globalScale,
+  );
+  const smShowAssigned = useSingleMoleculeVisualizationStore(
+    (s) => s.showAssigned,
+  );
+  const smShowUnassigned = useSingleMoleculeVisualizationStore(
+    (s) => s.showUnassigned,
+  );
+  // Mirror globalScale into a ref so Effect 5 can read the current value when
+  // creating new point clouds without depending on globalScale (which would
+  // re-create all clouds on every slider tick).
+  const smGlobalScaleRef = useRef(smGlobalScale);
+  useEffect(() => {
+    smGlobalScaleRef.current = smGlobalScale;
+  }, [smGlobalScale]);
 
   // Get visualization settings from store
   const {
@@ -183,12 +259,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             smDatasetRef.current = smDs;
             setSmDataset(smDs);
 
-            // Auto-select first 3 genes
-            const { pickDefaultGenes } = await import(
-              "@/lib/utils/auto-select-genes"
+            // Push into the (global) SM dataset store so the SM gene picker
+            // and legends see this dataset on the SC overlay page.
+            const { useSingleMoleculeStore } = await import(
+              "@/lib/stores/singleMoleculeStore"
             );
-            const defaults = pickDefaultGenes(smDs.uniqueGenes);
-            setSmSelectedGenes(new Set(defaults));
+            useSingleMoleculeStore.getState().addDataset(smDs);
           } catch (error) {
             console.warn("Failed to load SM overlay dataset:", error);
           } finally {
@@ -1164,9 +1240,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   }, [sceneRotation, flipX, flipY]);
 
   // Effect 5: Manage SM overlay point clouds.
-  // SM clouds parent under sceneGroupRef so scene rotation/flip applies to them too.
-  // SM material.size scales with SC's baseDotSize: raw-coord datasets span thousands
-  // of microns, so a fixed world-space size would be sub-pixel and invisible.
+  // Keys are composite: `${gene}:a` for assigned and `${gene}:u` for unassigned.
+  // Visibility per gene = (global flag) AND (per-gene flag) AND (dataset has it).
   useEffect(() => {
     const parent = sceneGroupRef.current ?? sceneRef.current;
     const smDs = smDatasetRef.current;
@@ -1183,72 +1258,183 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
     const currentClouds = smPointCloudsRef.current;
 
-    for (const [gene, pc] of currentClouds) {
+    // Remove clouds for deselected genes (both keys).
+    for (const [key, pc] of currentClouds) {
+      const gene = key.slice(0, -2);
+
       if (!smSelectedGenes.has(gene)) {
         pc.parent?.remove(pc);
         pc.geometry.dispose();
         (pc.material as THREE.PointsMaterial).dispose();
-        currentClouds.delete(gene);
+        currentClouds.delete(key);
       }
     }
 
-    const addGenes = async () => {
-      const palette = [
-        "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF",
-        "#FF8000", "#8000FF", "#00FF80", "#FF0080", "#80FF00", "#0080FF",
-      ];
-      let colorIdx = 0;
+    const textureFor = (shape: MoleculeShape) =>
+      shape === "square"
+        ? smSquareTextureRef.current
+        : smCircleTextureRef.current;
 
-      for (const gene of smSelectedGenes) {
-        if (currentClouds.has(gene)) {
-          colorIdx++;
-          continue;
+    const makeCloud = (
+      coords: Float32Array,
+      colorHex: string,
+      localScale: number,
+      shape: MoleculeShape,
+    ): THREE.Points => {
+      const geometry = new THREE.BufferGeometry();
+
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(coords, 3),
+      );
+
+      const material = new THREE.PointsMaterial({
+        color: new THREE.Color(colorHex),
+        size:
+          VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
+          smGlobalScaleRef.current *
+          localScale,
+        map: textureFor(shape),
+        transparent: true,
+        opacity: 0.8,
+        sizeAttenuation: true,
+        depthWrite: false,
+        alphaTest: 0.5,
+      });
+      const pc = new THREE.Points(geometry, material);
+
+      pc.renderOrder = -1;
+
+      return pc;
+    };
+
+    const removeKey = (key: string) => {
+      const pc = currentClouds.get(key);
+
+      if (!pc) return;
+      pc.parent?.remove(pc);
+      pc.geometry.dispose();
+      (pc.material as THREE.PointsMaterial).dispose();
+      currentClouds.delete(key);
+    };
+
+    const work = async () => {
+      for (const [gene, viz] of smSelectedGenes) {
+        const aKey = `${gene}:a`;
+        const uKey = `${gene}:u`;
+        const wantAssigned = smShowAssigned && viz.showAssigned;
+        const wantUnassigned =
+          smDs.hasUnassigned && smShowUnassigned && viz.showUnassigned;
+        const toastId = `loading-sm-${gene}`;
+        const needsAssigned = wantAssigned && !currentClouds.has(aKey);
+        const needsUnassigned = wantUnassigned && !currentClouds.has(uKey);
+
+        if (needsAssigned || needsUnassigned) {
+          toast.loading(`Loading ${gene}...`, {
+            toastId,
+            position: "bottom-left",
+            autoClose: false,
+          });
         }
 
         try {
-          const coords = await smDs.getCoordinatesByGene(gene);
-          if (!coords || coords.length === 0) continue;
+          // Assigned
+          if (needsAssigned) {
+            const coords = await smDs.getCoordinatesByGene(gene);
 
-          const moleculeCount = coords.length / 3;
-          const geometry = new THREE.BufferGeometry();
-          geometry.setAttribute(
-            "position",
-            new THREE.Float32BufferAttribute(coords, 3),
-          );
+            if (coords && coords.length > 0) {
+              const pc = makeCloud(
+                coords,
+                viz.color,
+                viz.localScale,
+                viz.assignedShape,
+              );
 
-          const color = new THREE.Color(palette[colorIdx % palette.length]);
-          const colors = new Float32Array(moleculeCount * 3);
-          for (let i = 0; i < moleculeCount; i++) {
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+              parent.add(pc);
+              currentClouds.set(aKey, pc);
+            }
+          } else if (!wantAssigned && currentClouds.has(aKey)) {
+            removeKey(aKey);
           }
-          geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
-          const material = new THREE.PointsMaterial({
-            size: VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.8,
-            sizeAttenuation: true,
-            depthWrite: false,
-          });
+          // Unassigned
+          if (needsUnassigned) {
+            const uCoords = await smDs.getUnassignedCoordinatesByGene(gene);
 
-          const pointCloud = new THREE.Points(geometry, material);
-          pointCloud.renderOrder = -1;
+            if (uCoords && uCoords.length > 0) {
+              const pc = makeCloud(
+                uCoords,
+                viz.unassignedColor,
+                viz.unassignedLocalScale,
+                viz.unassignedShape,
+              );
 
-          parent.add(pointCloud);
-          currentClouds.set(gene, pointCloud);
+              parent.add(pc);
+              currentClouds.set(uKey, pc);
+            }
+          } else if (!wantUnassigned && currentClouds.has(uKey)) {
+            removeKey(uKey);
+          }
         } catch (error) {
           console.warn(`Failed to load SM gene ${gene}:`, error);
+        } finally {
+          if (needsAssigned || needsUnassigned) {
+            toast.dismiss(toastId);
+          }
         }
-
-        colorIdx++;
       }
     };
 
-    addGenes();
-  }, [smDataset, smSelectedGenes]);
+    work();
+  }, [smDataset, smSelectedGenes, smShowAssigned, smShowUnassigned]);
+
+  // Effect 6: live-update SM material sizes when globalScale or per-gene
+  // localScale changes — avoids tearing down/rebuilding the point clouds.
+  useEffect(() => {
+    for (const [key, pc] of smPointCloudsRef.current) {
+      const gene = key.slice(0, -2);
+      const isAssigned = key.endsWith(":a");
+      const viz = smSelectedGenes.get(gene);
+
+      if (!viz) continue;
+      const localScale = isAssigned
+        ? viz.localScale
+        : viz.unassignedLocalScale;
+      const mat = pc.material as THREE.PointsMaterial;
+
+      mat.size =
+        VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
+        smGlobalScale *
+        localScale;
+    }
+  }, [smGlobalScale, smSelectedGenes]);
+
+  // Effect 7: live-update SM cloud colors + shapes from the SM viz store.
+  // Runs whenever the selectedGenes Map changes (color/shape edits create a
+  // new Map ref in the store).
+  useEffect(() => {
+    for (const [key, pc] of smPointCloudsRef.current) {
+      const gene = key.slice(0, -2);
+      const isAssigned = key.endsWith(":a");
+      const viz = smSelectedGenes.get(gene);
+
+      if (!viz) continue;
+      const colorHex = isAssigned ? viz.color : viz.unassignedColor;
+      const shape = isAssigned ? viz.assignedShape : viz.unassignedShape;
+      const mat = pc.material as THREE.PointsMaterial;
+
+      mat.color.set(colorHex);
+      const wantTexture =
+        shape === "square"
+          ? smSquareTextureRef.current
+          : smCircleTextureRef.current;
+
+      if (mat.map !== wantTexture) {
+        mat.map = wantTexture;
+        mat.needsUpdate = true;
+      }
+    }
+  }, [smSelectedGenes]);
 
   return (
     <>
@@ -1269,6 +1455,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       {/* Visualization legends panel (includes scale bar) */}
       <VisualizationLegends />
+
+      {/* SM gene legends — auto-hides when no SM genes selected. */}
+      <SingleMoleculeLegends />
 
       {/* Spatial scale bar — only for datasets with reliable raw coordinates */}
       {dataset && !dataset.metadata?.wasNormalized && (
