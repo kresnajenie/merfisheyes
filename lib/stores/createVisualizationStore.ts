@@ -36,6 +36,11 @@ export interface VisualizationState {
   // Bumped when the user requests a camera reset (button or shortcut).
   // ThreeScene watches this and snaps controls.target back to the initial lookAt.
   cameraResetSignal: number;
+  // 3D orbit (O key). orbitSpeed is a multiplier on the base azimuth period
+  // (1.0 = 4.5s/rev); orbitYBob is the vertical bob amplitude as a fraction
+  // of the camera→target XZ radius (0 = flat ring, 0.3 = current default).
+  orbitSpeed: number;
+  orbitYBob: number;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -194,6 +199,8 @@ const initialState = {
   sizeScale: 1.0,
   clusterVersion: 0,
   cameraResetSignal: 0,
+  orbitSpeed: 1.0,
+  orbitYBob: 0.3,
   deStatsVersion: 0,
   degTarget: null as string | null,
   degReference: null as string | null,

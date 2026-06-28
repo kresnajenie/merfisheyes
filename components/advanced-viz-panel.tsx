@@ -27,6 +27,9 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     targetPx,
+    orbitSpeed,
+    orbitYBob,
+    viewMode,
     setAdvancedViz,
   } = usePanelVisualizationStore();
 
@@ -55,6 +58,8 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     targetPx,
+    orbitSpeed,
+    orbitYBob,
   });
 
   // Sync local state when store changes externally (e.g. URL restore, reset)
@@ -68,10 +73,12 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
       pointSizeMultiplierMin,
       pointSizeMultiplierMax,
       targetPx,
+      orbitSpeed,
+      orbitYBob,
     });
   }, [selectedSizeMultiplier, greyedOutSizeMultiplier, greyedOutAlpha,
       expressionAlphaMin, expressionAlphaMax, pointSizeMultiplierMin,
-      pointSizeMultiplierMax, targetPx]);
+      pointSizeMultiplierMax, targetPx, orbitSpeed, orbitYBob]);
 
   const sliderRow = (
     label: string,
@@ -158,6 +165,15 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
           {sliderRow("Alpha min", "expressionAlphaMin", local.expressionAlphaMin, R.expressionAlphaMin.min, R.expressionAlphaMin.max, R.expressionAlphaMin.step)}
           {sliderRow("Alpha max", "expressionAlphaMax", local.expressionAlphaMax, R.expressionAlphaMax.min, R.expressionAlphaMax.max, R.expressionAlphaMax.step)}
         </div>
+
+        {/* 3D Orbit (O key) — only relevant in 3D view */}
+        {viewMode === "3D" && (
+          <div>
+            <span className="text-xs font-medium text-primary">3D Orbit (O)</span>
+            {sliderRow("Speed", "orbitSpeed", local.orbitSpeed, 0.25, 4, 0.05)}
+            {sliderRow("Vertical bob", "orbitYBob", local.orbitYBob, 0, 1, 0.05)}
+          </div>
+        )}
 
         {/* Reset */}
         <Button

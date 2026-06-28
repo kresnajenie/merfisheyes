@@ -110,6 +110,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   // World-space lookAt captured at scene init — restored by the camera reset.
   const initialLookAtRef = useRef<THREE.Vector3 | null>(null);
+  // gsap.ticker callback for the continuous O-orbit. Set while orbiting.
+  const orbitTickerRef = useRef<
+    ((time: number, deltaTime: number) => void) | null
+  >(null);
+  // Mirror orbit settings into refs so the ticker reads current values
+  // without having to restart the orbit on every slider drag.
+  const orbitSpeedRef = useRef(1.0);
+  const orbitYBobRef = useRef(0.3);
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const cameraRef = useRef<THREE.Camera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -201,6 +209,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     clusterVersion,
     incrementClusterVersion,
     cameraResetSignal,
+    orbitSpeed,
+    orbitYBob,
     columnTypeOverrides,
     viewMode,
     targetPx,
@@ -232,6 +242,15 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     exportBoxCenterPx,
     setExportBoxCenterPx,
   } = usePanelVisualizationStore();
+
+  // Mirror orbit settings into refs (read by gsap.ticker each frame so the
+  // sliders update a running orbit live without restarting it).
+  useEffect(() => {
+    orbitSpeedRef.current = orbitSpeed;
+  }, [orbitSpeed]);
+  useEffect(() => {
+    orbitYBobRef.current = orbitYBob;
+  }, [orbitYBob]);
 
   // Split screen support
   const panelId = usePanelId();
@@ -762,6 +781,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         if (idx == null || !pc || !ctrls || !cam) return;
 
+        // Stop a running orbit before panning — otherwise the orbit ticker
+        // keeps overwriting the camera position during the pan tween.
+        if (orbitTickerRef.current) {
+          gsap.ticker.remove(orbitTickerRef.current);
+          orbitTickerRef.current = null;
+        }
+
         const posAttr = pc.geometry.attributes.position as THREE.BufferAttribute;
         const local = new THREE.Vector3(
           posAttr.getX(idx),
@@ -945,10 +971,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // O key orbits 360° around controls.target in 3D mode. Rotates the camera
-  // position around the world Y axis at constant radius; distance + angle
-  // preserved. Pressing O during an orbit restarts it from the current pose.
+  // O key toggles a continuous orbit around controls.target in 3D mode.
+  // The camera rotates around world Y at ~4.5s per revolution and also bobs
+  // up/down (Y offset) on a slower phase, so the view sweeps the cell from
+  // multiple angles rather than tracing a flat ring. Pressing O again stops.
   useEffect(() => {
+    const stopOrbit = () => {
+      if (orbitTickerRef.current) {
+        gsap.ticker.remove(orbitTickerRef.current);
+        orbitTickerRef.current = null;
+      }
+    };
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "o" && e.key !== "O") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -963,6 +997,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         return;
       }
       if (viewMode !== "3D") return;
+
+      // Toggle off if already orbiting.
+      if (orbitTickerRef.current) {
+        stopOrbit();
+
+        return;
+      }
+
       const ctrls = controlsRef.current;
       const cam = cameraRef.current;
 
@@ -970,29 +1012,43 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       const target = ctrls.target.clone();
       const startRadius = cam.position.clone().sub(target);
-      const tweenObj = { theta: 0 };
+      const radiusXZ = Math.sqrt(
+        startRadius.x * startRadius.x + startRadius.z * startRadius.z,
+      );
+      const baseY = startRadius.y;
+      // Base period at speed 1.0 is 4.5s/rev. Live-updates via the ref.
+      const BASE_PERIOD_MS = 4500;
+      let angle = 0;
+      // The Y bob runs at half the azimuth frequency so XZ and Y waves drift
+      // out of sync — gives the "shifting figure-8" look.
+      let elev = 0;
 
-      gsap.to(tweenObj, {
-        theta: Math.PI * 2,
-        duration: 4.5,
-        ease: "power1.inOut",
-        overwrite: true,
-        onUpdate: () => {
-          const sin = Math.sin(tweenObj.theta);
-          const cos = Math.cos(tweenObj.theta);
+      const ticker = (_time: number, deltaTime: number) => {
+        const speed = Math.max(0.01, orbitSpeedRef.current);
 
-          cam.position.set(
-            target.x + startRadius.x * cos + startRadius.z * sin,
-            target.y + startRadius.y,
-            target.z + -startRadius.x * sin + startRadius.z * cos,
-          );
-          ctrls.update();
-        },
-      });
+        angle += (deltaTime / (BASE_PERIOD_MS / speed)) * Math.PI * 2;
+        elev += (deltaTime / ((BASE_PERIOD_MS * 2) / speed)) * Math.PI * 2;
+        const sin = Math.sin(angle);
+        const cos = Math.cos(angle);
+        const yOsc = Math.sin(elev) * radiusXZ * orbitYBobRef.current;
+
+        cam.position.set(
+          target.x + startRadius.x * cos + startRadius.z * sin,
+          target.y + baseY + yOsc,
+          target.z + -startRadius.x * sin + startRadius.z * cos,
+        );
+        ctrls.update();
+      };
+
+      orbitTickerRef.current = ticker;
+      gsap.ticker.add(ticker);
     };
 
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      stopOrbit();
+    };
   }, [viewMode]);
 
   // Effect 1b: Apply per-sample transforms to the live position buffer.

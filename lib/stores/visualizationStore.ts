@@ -47,6 +47,8 @@ interface VisualizationState {
   clusterVersion: number;
   deStatsVersion: number;
   cameraResetSignal: number;
+  orbitSpeed: number;
+  orbitYBob: number;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -205,6 +207,8 @@ const initialState = {
   clusterVersion: 0,
   deStatsVersion: 0,
   cameraResetSignal: 0,
+  orbitSpeed: 1.0,
+  orbitYBob: 0.3,
   degTarget: null as string | null,
   degReference: null as string | null,
   degTargetAuto: true,
