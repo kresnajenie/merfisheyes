@@ -6,6 +6,7 @@ import { getClusterValue } from "@/lib/StandardizedDataset";
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { toast } from "react-toastify";
+import gsap from "gsap";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
@@ -747,17 +748,19 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         toast.info(`Opening SM dataset for ${setValue}`);
       };
 
-      // Cmd/Ctrl+click in 3D mode: move the controls.target onto the clicked
-      // SC cell's world position. The camera position is left alone (only the
-      // orbit/look-at pivot moves), per the camera-controls design.
+      // Cmd/Ctrl+click in 3D mode: pan the camera (and its orbit pivot) so
+      // the clicked SC cell lands at the orbit center. Translation only —
+      // camera↔target distance and angle are preserved. ~350ms gsap tween;
+      // a second click during the tween overrides cleanly.
       const handleClickRecenter = (event: MouseEvent) => {
         if (!(event.metaKey || event.ctrlKey)) return;
         if (viewMode !== "3D") return;
         const idx = hoveredPointRef.current;
         const pc = pointCloudRef.current;
         const ctrls = controlsRef.current;
+        const cam = cameraRef.current;
 
-        if (idx == null || !pc || !ctrls) return;
+        if (idx == null || !pc || !ctrls || !cam) return;
 
         const posAttr = pc.geometry.attributes.position as THREE.BufferAttribute;
         const local = new THREE.Vector3(
@@ -769,8 +772,23 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         pc.updateMatrixWorld();
         const world = local.applyMatrix4(pc.matrixWorld);
 
-        ctrls.target.copy(world);
-        ctrls.update();
+        const targetStart = ctrls.target.clone();
+        const positionStart = cam.position.clone();
+        const delta = world.clone().sub(targetStart);
+        const positionEnd = positionStart.clone().add(delta);
+        const tweenObj = { t: 0 };
+
+        gsap.to(tweenObj, {
+          t: 1,
+          duration: 0.35,
+          ease: "power2.out",
+          overwrite: true,
+          onUpdate: () => {
+            ctrls.target.lerpVectors(targetStart, world, tweenObj.t);
+            cam.position.lerpVectors(positionStart, positionEnd, tweenObj.t);
+            ctrls.update();
+          },
+        });
       };
 
       // Add event listeners
@@ -926,6 +944,56 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // O key orbits 360° around controls.target in 3D mode. Rotates the camera
+  // position around the world Y axis at constant radius; distance + angle
+  // preserved. Pressing O during an orbit restarts it from the current pose.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "o" && e.key !== "O") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      if (viewMode !== "3D") return;
+      const ctrls = controlsRef.current;
+      const cam = cameraRef.current;
+
+      if (!ctrls || !cam) return;
+
+      const target = ctrls.target.clone();
+      const startRadius = cam.position.clone().sub(target);
+      const tweenObj = { theta: 0 };
+
+      gsap.to(tweenObj, {
+        theta: Math.PI * 2,
+        duration: 4.5,
+        ease: "power1.inOut",
+        overwrite: true,
+        onUpdate: () => {
+          const sin = Math.sin(tweenObj.theta);
+          const cos = Math.cos(tweenObj.theta);
+
+          cam.position.set(
+            target.x + startRadius.x * cos + startRadius.z * sin,
+            target.y + startRadius.y,
+            target.z + -startRadius.x * sin + startRadius.z * cos,
+          );
+          ctrls.update();
+        },
+      });
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewMode]);
 
   // Effect 1b: Apply per-sample transforms to the live position buffer.
   // Reads base positions stashed during scene init and writes the result
