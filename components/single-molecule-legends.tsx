@@ -23,7 +23,15 @@ import {
   ColorPickerSelection,
 } from "@/components/ui/shadcn-io/color-picker";
 
-export const SingleMoleculeLegends: React.FC = () => {
+interface SingleMoleculeLegendsProps {
+  // When true, render without the outer absolute positioning so the parent
+  // can stack this with other legends in a single container.
+  embedded?: boolean;
+}
+
+export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
+  embedded = false,
+}) => {
   const {
     selectedGenes,
     selectedGenesLegend,
@@ -141,7 +149,9 @@ export const SingleMoleculeLegends: React.FC = () => {
   };
 
   return (
-    <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
+    <div
+      className={`flex flex-col items-end gap-4 max-w-xs ${embedded ? "" : "absolute right-6 top-24 z-10"}`}
+    >
       {/* Selected Genes Badges */}
       <div className="flex flex-col items-end gap-2">
         <div

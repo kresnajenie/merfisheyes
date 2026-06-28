@@ -49,6 +49,8 @@ interface VisualizationState {
   cameraResetSignal: number;
   orbitSpeed: number;
   orbitYBob: number;
+  targetFilterEnabled: boolean;
+  targetFilterRadius: number;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -102,6 +104,8 @@ interface VisualizationState {
   incrementClusterVersion: () => void;
   incrementDeStatsVersion: () => void;
   resetCamera: () => void;
+  setTargetFilterEnabled: (enabled: boolean) => void;
+  setTargetFilterRadius: (r: number) => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
   setDegTargetAuto: (auto: boolean) => void;
@@ -209,6 +213,8 @@ const initialState = {
   cameraResetSignal: 0,
   orbitSpeed: 1.0,
   orbitYBob: 0.3,
+  targetFilterEnabled: false,
+  targetFilterRadius: 5000,
   degTarget: null as string | null,
   degReference: null as string | null,
   degTargetAuto: true,
@@ -470,6 +476,9 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   resetCamera: () => {
     set((state) => ({ cameraResetSignal: state.cameraResetSignal + 1 }));
   },
+
+  setTargetFilterEnabled: (enabled) => set({ targetFilterEnabled: enabled }),
+  setTargetFilterRadius: (r) => set({ targetFilterRadius: r }),
 
   setDegTarget: (target) => set({ degTarget: target }),
   setDegReference: (reference) => set({ degReference: reference }),

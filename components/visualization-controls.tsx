@@ -46,6 +46,8 @@ export function VisualizationControls() {
     setExportBoxEnabled, setExportBoxWidthMm, setExportBoxHeightMm,
     setExportBoxCenterPx,
     resetCamera,
+    targetFilterEnabled, setTargetFilterEnabled,
+    targetFilterRadius, setTargetFilterRadius,
   } = usePanelVisualizationStore();
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
@@ -522,6 +524,10 @@ export function VisualizationControls() {
           viewMode={viewMode}
           onClose={() => setIsCameraOpen(false)}
           onResetCamera={resetCamera}
+          setTargetFilterEnabled={setTargetFilterEnabled}
+          setTargetFilterRadius={setTargetFilterRadius}
+          targetFilterEnabled={targetFilterEnabled}
+          targetFilterRadius={targetFilterRadius}
         />
       )}
 

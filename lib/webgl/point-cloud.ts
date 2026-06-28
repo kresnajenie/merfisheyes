@@ -60,6 +60,10 @@ export function createPointCloudFromBuffers(
   const material = new THREE.ShaderMaterial({
     uniforms: {
       dotSize: { value: dotSize },
+      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
+      uTargetRadius: { value: 1.0 },
+      uTargetFeather: { value: 0.1 },
+      uTargetFilterEnabled: { value: 0.0 },
     },
     vertexShader,
     fragmentShader,
@@ -112,6 +116,10 @@ export function createPointCloud(
   const material = new THREE.ShaderMaterial({
     uniforms: {
       dotSize: { value: dotSize },
+      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
+      uTargetRadius: { value: 1.0 },
+      uTargetFeather: { value: 0.1 },
+      uTargetFilterEnabled: { value: 0.0 },
     },
     vertexShader,
     fragmentShader,

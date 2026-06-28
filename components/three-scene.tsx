@@ -118,6 +118,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // without having to restart the orbit on every slider drag.
   const orbitSpeedRef = useRef(1.0);
   const orbitYBobRef = useRef(0.3);
+  // Distance-from-target filter state — pushed to shader uniforms each frame.
+  // The radius is in absolute world units (microns for raw-coord datasets).
+  const targetFilterEnabledRef = useRef(false);
+  const targetFilterRadiusRef = useRef(5000);
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
   const cameraRef = useRef<THREE.Camera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -211,6 +215,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     cameraResetSignal,
     orbitSpeed,
     orbitYBob,
+    targetFilterEnabled,
+    targetFilterRadius,
     columnTypeOverrides,
     viewMode,
     targetPx,
@@ -251,6 +257,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   useEffect(() => {
     orbitYBobRef.current = orbitYBob;
   }, [orbitYBob]);
+  useEffect(() => {
+    targetFilterEnabledRef.current = targetFilterEnabled;
+  }, [targetFilterEnabled]);
+  useEffect(() => {
+    targetFilterRadiusRef.current = targetFilterRadius;
+  }, [targetFilterRadius]);
 
   // Split screen support
   const panelId = usePanelId();
@@ -797,6 +809,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         pc.updateMatrixWorld();
         const world = local.applyMatrix4(pc.matrixWorld);
+
+        console.log(
+          `[cmd+click] cell index=${idx} world=(${world.x.toFixed(2)}, ${world.y.toFixed(2)}, ${world.z.toFixed(2)})`,
+        );
 
         const targetStart = ctrls.target.clone();
         const positionStart = cam.position.clone();
@@ -1526,6 +1542,56 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         depthWrite: false,
         alphaTest: 0.5,
       });
+
+      // Inject the distance-from-target fade into PointsMaterial's shaders.
+      // Saves the shader on userData so we can update uniforms each frame.
+      material.onBeforeCompile = (shader) => {
+        shader.uniforms.uTargetCenter = { value: new THREE.Vector3() };
+        shader.uniforms.uTargetRadius = { value: 1.0 };
+        shader.uniforms.uTargetFeather = { value: 0.1 };
+        shader.uniforms.uTargetFilterEnabled = { value: 0.0 };
+
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            "#include <common>",
+            `#include <common>
+            uniform vec3 uTargetCenter;
+            varying float vTargetDist;`,
+          )
+          .replace(
+            "#include <begin_vertex>",
+            `#include <begin_vertex>
+            vTargetDist = distance(
+              (modelMatrix * vec4(transformed, 1.0)).xyz,
+              uTargetCenter
+            );`,
+          );
+
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            "#include <common>",
+            `#include <common>
+            varying float vTargetDist;
+            uniform float uTargetRadius;
+            uniform float uTargetFeather;
+            uniform float uTargetFilterEnabled;`,
+          )
+          .replace(
+            "#include <opaque_fragment>",
+            `if (uTargetFilterEnabled > 0.5) {
+              float fade = 1.0 - smoothstep(
+                uTargetRadius,
+                uTargetRadius + uTargetFeather,
+                vTargetDist
+              );
+              diffuseColor.a *= fade;
+              if (diffuseColor.a < 0.005) discard;
+            }
+            #include <opaque_fragment>`,
+          );
+
+        (material.userData as any).filterShader = shader;
+      };
       const pc = new THREE.Points(geometry, material);
 
       pc.renderOrder = smRenderOrderFor(
@@ -1698,6 +1764,47 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     }
   }, [smSelectedGenes]);
 
+  // Distance-filter uniforms: pushed every frame because controls.target
+  // mutates outside React (cmd+click pan, mouse drag, R reset, orbit). Cost
+  // is a handful of Vector3 copies per frame — negligible.
+  useEffect(() => {
+    const pushFilterUniforms = () => {
+      const ctrls = controlsRef.current;
+      const pc = pointCloudRef.current;
+
+      if (!ctrls) return;
+      const enabled = targetFilterEnabledRef.current ? 1.0 : 0.0;
+      const radius = targetFilterRadiusRef.current;
+      const feather = Math.max(1.0, radius * 0.1);
+      const center = ctrls.target;
+
+      if (pc) {
+        const mat = pc.material as THREE.ShaderMaterial;
+
+        if (mat.uniforms.uTargetCenter) {
+          (mat.uniforms.uTargetCenter.value as THREE.Vector3).copy(center);
+          mat.uniforms.uTargetRadius.value = radius;
+          mat.uniforms.uTargetFeather.value = feather;
+          mat.uniforms.uTargetFilterEnabled.value = enabled;
+        }
+      }
+
+      for (const [, smPc] of smPointCloudsRef.current) {
+        const mat = smPc.material as THREE.PointsMaterial;
+        const shader = (mat.userData as any).filterShader;
+
+        if (!shader) continue;
+        (shader.uniforms.uTargetCenter.value as THREE.Vector3).copy(center);
+        shader.uniforms.uTargetRadius.value = radius;
+        shader.uniforms.uTargetFeather.value = feather;
+        shader.uniforms.uTargetFilterEnabled.value = enabled;
+      }
+    };
+
+    gsap.ticker.add(pushFilterUniforms);
+    return () => gsap.ticker.remove(pushFilterUniforms);
+  }, []);
+
   // Effect 8: live-update SM cloud render order from selectedGenesLegend.
   // Later-inserted genes get higher renderOrder → render on top. Deselect +
   // reactivate from the gene picker pushes the gene to the end of the Set,
@@ -1734,11 +1841,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         </div>
       )}
 
-      {/* Visualization legends panel (includes scale bar) */}
-      <VisualizationLegends />
-
-      {/* SM gene legends — auto-hides when no SM genes selected. */}
-      <SingleMoleculeLegends />
+      {/* SC + SM legends share a single absolute container so the SM gene
+          pills stack below the SC celltype/gene legend instead of overlapping
+          it at top-right. */}
+      <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
+        <VisualizationLegends embedded />
+        <SingleMoleculeLegends embedded />
+      </div>
 
       {/* Spatial scale bar — only for datasets with reliable raw coordinates */}
       {dataset && !dataset.metadata?.wasNormalized && (

@@ -5,7 +5,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/react";
-import { Slider } from "@heroui/react";
+import { Slider, Switch } from "@heroui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { glassPanel } from "@/components/primitives";
@@ -51,6 +51,12 @@ interface CameraPanelProps {
   };
   // Optional reset-view action. When provided, a "Reset View" button is shown.
   onResetCamera?: () => void;
+  // Optional distance-from-target filter controls. When provided AND
+  // viewMode === "3D", a "Distance filter" section is shown.
+  targetFilterEnabled?: boolean;
+  setTargetFilterEnabled?: (b: boolean) => void;
+  targetFilterRadius?: number;
+  setTargetFilterRadius?: (r: number) => void;
 }
 
 export function CameraPanel({
@@ -68,6 +74,10 @@ export function CameraPanel({
   canExportBox = false,
   exportBox,
   onResetCamera,
+  targetFilterEnabled,
+  setTargetFilterEnabled,
+  targetFilterRadius,
+  setTargetFilterRadius,
 }: CameraPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [alignOpen, setAlignOpen] = useState(false);
@@ -125,6 +135,63 @@ export function CameraPanel({
             </p>
           </div>
         )}
+
+        {/* Distance filter — 3D only. Fades points beyond the radius from the
+            current orbit target (cmd+click recenter point). */}
+        {viewMode === "3D" &&
+          setTargetFilterEnabled &&
+          setTargetFilterRadius &&
+          targetFilterRadius !== undefined && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-default-500">
+                  Distance filter
+                </span>
+                <Switch
+                  isSelected={!!targetFilterEnabled}
+                  size="sm"
+                  onValueChange={setTargetFilterEnabled}
+                />
+              </div>
+              {targetFilterEnabled && (
+                <>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <span className="text-default-500">Radius</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        aria-label="Distance filter radius value"
+                        className="w-16 px-1 py-0.5 text-xs rounded bg-default-100/60 border border-default-300/40 text-right text-default-700 outline-none focus:border-primary"
+                        step={10}
+                        type="number"
+                        value={Math.round(targetFilterRadius)}
+                        onChange={(e) => {
+                          const n = parseFloat(e.target.value);
+
+                          if (!Number.isNaN(n)) {
+                            setTargetFilterRadius(Math.max(0, n));
+                          }
+                        }}
+                      />
+                      <span className="text-default-400">µm</span>
+                    </div>
+                  </div>
+                  <Slider
+                    aria-label="Distance filter radius"
+                    className="w-full"
+                    maxValue={30000}
+                    minValue={10}
+                    size="sm"
+                    step={10}
+                    value={Math.min(30000, Math.max(10, targetFilterRadius))}
+                    onChange={(v) => setTargetFilterRadius(v as number)}
+                  />
+                  <p className="text-[10px] text-default-400 mt-1">
+                    Radius from cmd+click target. 10% feather at the edge.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
         {/* Rotation */}
         <div>

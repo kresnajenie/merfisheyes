@@ -1,5 +1,10 @@
 /**
- * Custom GLSL shaders for point cloud rendering with adaptive sizing
+ * Custom GLSL shaders for point cloud rendering with adaptive sizing.
+ *
+ * Also implements a smooth-fade distance filter from a world-space anchor
+ * (the camera's orbit target / cmd-click recenter point). When
+ * uTargetFilterEnabled is on, points fade out over a feather band between
+ * uTargetRadius and uTargetRadius + uTargetFeather.
  */
 
 export const vertexShader = `
@@ -7,9 +12,11 @@ export const vertexShader = `
     attribute vec3 color;
     attribute float alpha;
     uniform float dotSize;
+    uniform vec3 uTargetCenter;
     varying vec3 vColor;
     varying float vAlpha;
     varying float vDistance;
+    varying float vTargetDist;
 
     void main() {
         vColor = color;
@@ -18,6 +25,10 @@ export const vertexShader = `
 
         // Distance from camera (for fragment shader edge effects)
         vDistance = -mvPosition.z;
+
+        // World-space distance from the orbit target (for the distance filter).
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vTargetDist = distance(worldPos.xyz, uTargetCenter);
 
         // World-space sizing: dotSize is pre-scaled to account for data extent.
         // projectionMatrix[1][1] = 1/tan(fov/2), dividing by -mvPosition.z gives perspective.
@@ -34,6 +45,10 @@ export const fragmentShader = `
     varying vec3 vColor;
     varying float vAlpha;
     varying float vDistance;
+    varying float vTargetDist;
+    uniform float uTargetRadius;
+    uniform float uTargetFeather;
+    uniform float uTargetFilterEnabled;
 
     void main() {
         // Circular points with smooth anti-aliased edges
@@ -44,6 +59,18 @@ export const fragmentShader = `
 
         // Anti-alias the edge
         float alpha = vAlpha * smoothstep(0.5, 0.45, dist);
+
+        // Distance-from-target fade: full alpha inside uTargetRadius,
+        // smoothly to 0 across the feather band.
+        if (uTargetFilterEnabled > 0.5) {
+            float fade = 1.0 - smoothstep(
+                uTargetRadius,
+                uTargetRadius + uTargetFeather,
+                vTargetDist
+            );
+            alpha *= fade;
+            if (alpha < 0.005) discard;
+        }
 
         gl_FragColor = vec4(vColor, alpha);
     }

@@ -41,6 +41,11 @@ export interface VisualizationState {
   // of the camera→target XZ radius (0 = flat ring, 0.3 = current default).
   orbitSpeed: number;
   orbitYBob: number;
+  // Distance-from-target filter. When enabled, points fade out smoothly
+  // beyond `targetFilterRadius * (dataset extent)` from the camera's orbit
+  // target (cmd+click recenter point). The feather band is 10% of that.
+  targetFilterEnabled: boolean;
+  targetFilterRadius: number;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -93,6 +98,8 @@ export interface VisualizationState {
   incrementClusterVersion: () => void;
   incrementDeStatsVersion: () => void;
   resetCamera: () => void;
+  setTargetFilterEnabled: (enabled: boolean) => void;
+  setTargetFilterRadius: (r: number) => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
   setDegTargetAuto: (auto: boolean) => void;
@@ -201,6 +208,10 @@ const initialState = {
   cameraResetSignal: 0,
   orbitSpeed: 1.0,
   orbitYBob: 0.3,
+  targetFilterEnabled: false,
+  // Distance filter radius is now absolute world units (microns for raw-coord
+  // datasets), measured from controls.target.
+  targetFilterRadius: 5000,
   deStatsVersion: 0,
   degTarget: null as string | null,
   degReference: null as string | null,
@@ -458,6 +469,9 @@ export function createVisualizationStoreInstance() {
     resetCamera: () => {
       set((state) => ({ cameraResetSignal: state.cameraResetSignal + 1 }));
     },
+
+    setTargetFilterEnabled: (enabled) => set({ targetFilterEnabled: enabled }),
+    setTargetFilterRadius: (r) => set({ targetFilterRadius: r }),
 
     setDegTarget: (target) => set({ degTarget: target }),
     setDegReference: (reference) => set({ degReference: reference }),

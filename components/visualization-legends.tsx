@@ -22,7 +22,15 @@ import {
   ColorPickerSelection,
 } from "@/components/ui/shadcn-io/color-picker";
 
-export const VisualizationLegends: React.FC = () => {
+interface VisualizationLegendsProps {
+  // When true, render without the outer absolute positioning so the parent
+  // can stack this with other legends in a single container.
+  embedded?: boolean;
+}
+
+export const VisualizationLegends: React.FC<VisualizationLegendsProps> = ({
+  embedded = false,
+}) => {
   const {
     selectedGene,
     setSelectedGene,
@@ -200,7 +208,7 @@ export const VisualizationLegends: React.FC = () => {
 
   return (
     <div
-      className="absolute right-6 top-24 z-[var(--z-legends)] flex flex-col items-end gap-4 max-w-xs"
+      className={`flex flex-col items-end gap-4 max-w-xs ${embedded ? "" : "absolute right-6 top-24 z-[var(--z-legends)]"}`}
       data-ui-overlay
     >
       {/* Selected Gene Badge */}
