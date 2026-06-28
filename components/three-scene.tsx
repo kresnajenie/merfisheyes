@@ -149,6 +149,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const smSelectedGenes = useSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
+  const smSelectedGenesLegend = useSingleMoleculeVisualizationStore(
+    (s) => s.selectedGenesLegend,
+  );
   const smGlobalScale = useSingleMoleculeVisualizationStore(
     (s) => s.globalScale,
   );
@@ -158,6 +161,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const smShowUnassigned = useSingleMoleculeVisualizationStore(
     (s) => s.showUnassigned,
   );
+
+  // Render-order helper: later in selectedGenesLegend → higher renderOrder.
+  // Assigned cloud sits on top of its own unassigned. All values stay below
+  // the SC point cloud (which uses the default renderOrder of 0).
+  const smRenderOrderFor = (
+    legendIndex: number,
+    isAssigned: boolean,
+  ): number => -1000 + legendIndex * 2 + (isAssigned ? 1 : 0);
   // Mirror globalScale into a ref so Effect 5 can read the current value when
   // creating new point clouds without depending on globalScale (which would
   // re-create all clouds on every slider tick).
@@ -1354,11 +1365,22 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         ? smSquareTextureRef.current
         : smCircleTextureRef.current;
 
+    // Snapshot legend order so each cloud's renderOrder is set deterministically
+    // from the user's legend (later-inserted gene renders on top).
+    const legendOrder = new Map<string, number>();
+    {
+      let i = 0;
+
+      for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
+    }
+
     const makeCloud = (
       coords: Float32Array,
       colorHex: string,
       localScale: number,
       shape: MoleculeShape,
+      gene: string,
+      isAssigned: boolean,
     ): THREE.Points => {
       const geometry = new THREE.BufferGeometry();
 
@@ -1382,7 +1404,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       });
       const pc = new THREE.Points(geometry, material);
 
-      pc.renderOrder = -1;
+      pc.renderOrder = smRenderOrderFor(
+        legendOrder.get(gene) ?? 0,
+        isAssigned,
+      );
 
       return pc;
     };
@@ -1440,6 +1465,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
                 viz.color,
                 viz.localScale,
                 viz.assignedShape,
+                gene,
+                true,
               );
 
               parent.add(pc);
@@ -1466,6 +1493,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
                 viz.unassignedColor,
                 viz.unassignedLocalScale,
                 viz.unassignedShape,
+                gene,
+                false,
               );
 
               parent.add(pc);
@@ -1544,6 +1573,25 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       }
     }
   }, [smSelectedGenes]);
+
+  // Effect 8: live-update SM cloud render order from selectedGenesLegend.
+  // Later-inserted genes get higher renderOrder → render on top. Deselect +
+  // reactivate from the gene picker pushes the gene to the end of the Set,
+  // so it comes to the front.
+  useEffect(() => {
+    const legendOrder = new Map<string, number>();
+    let i = 0;
+
+    for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
+
+    for (const [key, pc] of smPointCloudsRef.current) {
+      const gene = key.slice(0, -2);
+      const isAssigned = key.endsWith(":a");
+      const idx = legendOrder.get(gene) ?? 0;
+
+      pc.renderOrder = smRenderOrderFor(idx, isAssigned);
+    }
+  }, [smSelectedGenesLegend]);
 
   return (
     <>
