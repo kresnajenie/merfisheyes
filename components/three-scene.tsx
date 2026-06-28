@@ -1397,8 +1397,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       currentClouds.delete(key);
     };
 
+    // Per-invocation cancellation. If deps change while async loads are in
+    // flight (typical during auto-select when addGene fires three times back
+    // to back), the previous invocation's awaits would otherwise resolve and
+    // attach duplicate clouds to the scene. Cleanup flips this so post-await
+    // code exits without doing work.
+    let cancelled = false;
+
     const work = async () => {
       for (const [gene, viz] of smSelectedGenes) {
+        if (cancelled) return;
         const aKey = `${gene}:a`;
         const uKey = `${gene}:u`;
         const wantAssigned = smShowAssigned && viz.showAssigned;
@@ -1421,7 +1429,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           if (needsAssigned) {
             const coords = await smDs.getCoordinatesByGene(gene);
 
-            if (coords && coords.length > 0) {
+            if (cancelled) return;
+            if (
+              coords &&
+              coords.length > 0 &&
+              !currentClouds.has(aKey)
+            ) {
               const pc = makeCloud(
                 coords,
                 viz.color,
@@ -1436,11 +1449,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             removeKey(aKey);
           }
 
+          if (cancelled) return;
+
           // Unassigned
           if (needsUnassigned) {
             const uCoords = await smDs.getUnassignedCoordinatesByGene(gene);
 
-            if (uCoords && uCoords.length > 0) {
+            if (cancelled) return;
+            if (
+              uCoords &&
+              uCoords.length > 0 &&
+              !currentClouds.has(uKey)
+            ) {
               const pc = makeCloud(
                 uCoords,
                 viz.unassignedColor,
@@ -1465,6 +1485,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     };
 
     work();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     smDataset,
     smSelectedGenes,

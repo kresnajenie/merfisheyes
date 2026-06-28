@@ -13,9 +13,14 @@ import UMAPPanel from "@/components/umap-panel";
 import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+import {
+  useCellVizUrlSync,
+  useSMOverlayUrlSync,
+} from "@/lib/hooks/useUrlVizSync";
 
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
@@ -45,8 +50,21 @@ function ViewerFromS3Content() {
 
   const s3Url = searchParams.get("url");
 
-  // URL visualization state sync
+  // URL visualization state sync (SC viz writes to v=)
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+
+  // SM overlay URL state sync — uses a dedicated ov= slot so it doesn't
+  // collide with the SC viz. The SM dataset is loaded asynchronously by
+  // three-scene.tsx when mapping.json has linkColumn "__all__" and pushed
+  // into the global SM store, so we read it from there.
+  const smDataset = useSingleMoleculeStore((s) => {
+    const id = s.currentDatasetId;
+
+    return id ? s.datasets.get(id) ?? null : null;
+  });
+  const smVizStore = useSingleMoleculeVisualizationStore();
+
+  useSMOverlayUrlSync(!!smDataset, smDataset, smVizStore);
 
 
   // Read split params from URL on mount

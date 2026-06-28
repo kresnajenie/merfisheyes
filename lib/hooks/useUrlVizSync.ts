@@ -512,3 +512,83 @@ export function useSMVizUrlSync(
 
   return { hasUrlState, hasUrlStateRef };
 }
+
+/**
+ * Read the SM overlay URL slot (ov=) for the SC viewer page.
+ */
+export function tryReadSMOverlayFromUrl(): SMVizUrlState | null {
+  const urlState = readUrlVizState();
+
+  if (!urlState.overlay) return null;
+
+  return decodeSMVizState(urlState.overlay);
+}
+
+/**
+ * Syncs SM overlay state on the SC viewer to/from the ov= URL param.
+ * Uses a dedicated URL slot so it doesn't collide with the SC viz (v=) on
+ * the same page. When ov= is missing, auto-selects 3 default genes.
+ */
+export function useSMOverlayUrlSync(
+  datasetReady: boolean,
+  dataset: SingleMoleculeDataset | null,
+  store: SingleMoleculeVisualizationState,
+): { hasUrlState: boolean; hasUrlStateRef: React.RefObject<boolean> } {
+  const [hasUrlState, setHasUrlState] = useState(false);
+  const hasUrlStateRef = useRef(false);
+  const appliedRef = useRef(false);
+
+  // Reading: apply URL state once after dataset is ready. If no ov= slot,
+  // fall back to auto-selecting default genes.
+  useEffect(() => {
+    if (!datasetReady || !dataset || appliedRef.current) return;
+    appliedRef.current = true;
+
+    const decoded = tryReadSMOverlayFromUrl();
+
+    if (decoded) {
+      applySMVizState(decoded, store, dataset);
+      hasUrlStateRef.current = true;
+      setHasUrlState(true);
+    } else {
+      pickDefaultGenes(dataset.uniqueGenes).forEach((gene) =>
+        store.addGene(gene),
+      );
+    }
+  }, [datasetReady, dataset, store]);
+
+  // Writing: encode state changes to URL (debounced) using the overlay slot.
+  const {
+    selectedGenes,
+    geneDataCache,
+    globalScale,
+    viewMode,
+    showAssigned,
+    showUnassigned,
+  } = store;
+
+  useEffect(() => {
+    if (!datasetReady) return;
+
+    const encoded = encodeSMVizState({
+      selectedGenes,
+      geneDataCache,
+      globalScale,
+      viewMode,
+      showAssigned,
+      showUnassigned,
+    });
+
+    scheduleUrlUpdate("overlay", encoded);
+  }, [
+    datasetReady,
+    selectedGenes,
+    geneDataCache,
+    globalScale,
+    viewMode,
+    showAssigned,
+    showUnassigned,
+  ]);
+
+  return { hasUrlState, hasUrlStateRef };
+}
