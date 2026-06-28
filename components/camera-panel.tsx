@@ -176,8 +176,8 @@ export function CameraPanel({
           </div>
         </div>
 
-        {/* 2D/3D Toggle */}
-        {is3DDataset && setViewMode && viewMode && (
+        {/* 2D/3D Toggle — always available; 2D datasets render as a flat plane in 3D. */}
+        {setViewMode && viewMode && (
           <div>
             <span className="text-xs text-default-500 mb-2 block">View Mode</span>
             <div className="flex gap-2">
