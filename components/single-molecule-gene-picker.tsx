@@ -201,49 +201,42 @@ export function SingleMoleculeGenePicker() {
         )}
       </div>
 
-      {/* Gene List */}
+      {/* Gene List — per-row Tooltip removed for mount-cost perf at 500+ genes.
+          Abbreviated counts stay inline; native title= shows full precision. */}
       <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
         {filteredGenes.length > 0 ? (
           filteredGenes.map((gene) => {
             const counts = dataset.moleculeCounts?.[gene];
+            const title = counts
+              ? `${counts.assigned.toLocaleString()} assigned${counts.unassigned != null ? ` | ${counts.unassigned.toLocaleString()} unassigned` : ""}`
+              : gene;
 
             return (
-              <Tooltip
-                key={gene}
-                content={
-                  counts
-                    ? `${counts.assigned.toLocaleString()} assigned${counts.unassigned != null ? ` | ${counts.unassigned.toLocaleString()} unassigned` : ""}`
-                    : gene
-                }
-                delay={300}
-                placement="right"
-              >
-                <div>
-                  <Checkbox
-                    className="w-full"
-                    isSelected={selectedGenes.has(gene)}
-                    size="sm"
-                    onValueChange={() => {
-                      if (selectedGenes.has(gene)) {
-                        removeGene(gene);
-                      } else {
-                        addGene(gene);
-                      }
-                    }}
-                  >
-                    <span className="text-sm">
-                      {gene}
-                      {counts && (
-                        <span className="text-default-400 ml-1">
-                          {formatCount(counts.assigned)}
-                          {counts.unassigned != null &&
-                            ` | ${formatCount(counts.unassigned)}`}
-                        </span>
-                      )}
-                    </span>
-                  </Checkbox>
-                </div>
-              </Tooltip>
+              <div key={gene} title={title}>
+                <Checkbox
+                  className="w-full"
+                  isSelected={selectedGenes.has(gene)}
+                  size="sm"
+                  onValueChange={() => {
+                    if (selectedGenes.has(gene)) {
+                      removeGene(gene);
+                    } else {
+                      addGene(gene);
+                    }
+                  }}
+                >
+                  <span className="text-sm">
+                    {gene}
+                    {counts && (
+                      <span className="text-default-400 ml-1">
+                        {formatCount(counts.assigned)}
+                        {counts.unassigned != null &&
+                          ` | ${formatCount(counts.unassigned)}`}
+                      </span>
+                    )}
+                  </span>
+                </Checkbox>
+              </div>
             );
           })
         ) : (
