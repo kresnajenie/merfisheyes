@@ -147,6 +147,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const smSquareTextureRef = useRef<THREE.Texture | null>(null);
   const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(null);
   const [smLoading, setSmLoading] = useState(false);
+  // Last cmd/ctrl+click world coordinates; rendered as a small overlay chip
+  // so the user can read them directly without opening devtools.
+  const [lastClickCoords, setLastClickCoords] = useState<{
+    x: number;
+    y: number;
+    z: number;
+  } | null>(null);
 
   // Create SM point sprite textures once on mount.
   useEffect(() => {
@@ -810,9 +817,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         pc.updateMatrixWorld();
         const world = local.applyMatrix4(pc.matrixWorld);
 
-        console.log(
-          `[cmd+click] cell index=${idx} world=(${world.x.toFixed(2)}, ${world.y.toFixed(2)}, ${world.z.toFixed(2)})`,
-        );
+        setLastClickCoords({ x: world.x, y: world.y, z: world.z });
 
         const targetStart = ctrls.target.clone();
         const positionStart = cam.position.clone();
@@ -1838,6 +1843,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         <div className="absolute top-28 right-6 z-50 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/60 backdrop-blur-sm text-white text-sm">
           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           Loading molecules...
+        </div>
+      )}
+
+      {/* Last cmd/ctrl+click coordinates. */}
+      {lastClickCoords && (
+        <div className="absolute bottom-4 left-4 z-50 px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-sm text-white text-xs font-mono">
+          ({lastClickCoords.x.toFixed(2)}, {lastClickCoords.y.toFixed(2)},{" "}
+          {lastClickCoords.z.toFixed(2)})
         </div>
       )}
 
