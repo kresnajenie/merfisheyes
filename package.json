@@ -22,10 +22,9 @@
     "test:data:make-tiny": "python3 scripts/testdata/make-tiny-fixtures.py",
     "test:data:fetch": "tsx scripts/testdata/fetch.ts",
     "dev": "next dev --turbopack",
-    "build": "npx prisma generate && NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=4096' next build",
-    "build:low-memory": "npx prisma generate && NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=2048' next build",
-    "build:strict": "npx prisma generate && NODE_OPTIONS='--max-old-space-size=4096' next build",
-    "postbuild": "node scripts/safe-migrate.js",
+    "build": "npx prisma generate && npx prisma migrate deploy && NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=4096' next build",
+    "build:low-memory": "npx prisma generate && npx prisma migrate deploy && NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=2048' next build",
+    "build:strict": "npx prisma generate && npx prisma migrate deploy && NODE_OPTIONS='--max-old-space-size=4096' next build",
     "start": "next start",
     "lint": "eslint --fix"
   },
