@@ -2,22 +2,29 @@
 
 import { Button } from "@heroui/button";
 import { Slider } from "@heroui/react";
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState } from "react";
+
+import { useSliderRange } from "./slider-range-popover";
+import { TourSection } from "./tour-section";
 
 import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { glassPanel } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
-import { useSliderRange } from "./slider-range-popover";
 
 interface AdvancedVizPanelProps {
   onClose: () => void;
   controlsRef?: React.RefObject<HTMLDivElement>;
 }
 
-export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps) {
+export function AdvancedVizPanel({
+  onClose,
+  controlsRef,
+}: AdvancedVizPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const R = VISUALIZATION_CONFIG.ADVANCED_SLIDER_RANGES;
-  const clearSliderRanges = usePanelVisualizationStore((s) => s.clearSliderRanges);
+  const clearSliderRanges = usePanelVisualizationStore(
+    (s) => s.clearSliderRanges,
+  );
   const {
     selectedSizeMultiplier,
     greyedOutSizeMultiplier,
@@ -45,6 +52,7 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
     };
 
     document.addEventListener("mousedown", handleClickOutside);
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose, controlsRef]);
 
@@ -76,9 +84,18 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
       orbitSpeed,
       orbitYBob,
     });
-  }, [selectedSizeMultiplier, greyedOutSizeMultiplier, greyedOutAlpha,
-      expressionAlphaMin, expressionAlphaMax, pointSizeMultiplierMin,
-      pointSizeMultiplierMax, targetPx, orbitSpeed, orbitYBob]);
+  }, [
+    selectedSizeMultiplier,
+    greyedOutSizeMultiplier,
+    greyedOutAlpha,
+    expressionAlphaMin,
+    expressionAlphaMax,
+    pointSizeMultiplierMin,
+    pointSizeMultiplierMax,
+    targetPx,
+    orbitSpeed,
+    orbitYBob,
+  ]);
 
   const sliderRow = (
     label: string,
@@ -143,7 +160,13 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
             variant="light"
             onPress={onClose}
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg
+              className="w-3 h-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
             </svg>
           </Button>
@@ -151,29 +174,86 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
 
         {/* Celltype Mode */}
         <div>
-          <span className="text-xs font-medium text-primary">Celltype Mode</span>
-          {sizeSliderRow("Selected size", "selectedSizeMultiplier", local.selectedSizeMultiplier, R.selectedSizeMultiplier.step)}
-          {sizeSliderRow("Unselected size", "greyedOutSizeMultiplier", local.greyedOutSizeMultiplier, R.greyedOutSizeMultiplier.step)}
-          {sliderRow("Unselected alpha", "greyedOutAlpha", local.greyedOutAlpha, R.greyedOutAlpha.min, R.greyedOutAlpha.max, R.greyedOutAlpha.step)}
+          <span className="text-xs font-medium text-primary">
+            Celltype Mode
+          </span>
+          {sizeSliderRow(
+            "Selected size",
+            "selectedSizeMultiplier",
+            local.selectedSizeMultiplier,
+            R.selectedSizeMultiplier.step,
+          )}
+          {sizeSliderRow(
+            "Unselected size",
+            "greyedOutSizeMultiplier",
+            local.greyedOutSizeMultiplier,
+            R.greyedOutSizeMultiplier.step,
+          )}
+          {sliderRow(
+            "Unselected alpha",
+            "greyedOutAlpha",
+            local.greyedOutAlpha,
+            R.greyedOutAlpha.min,
+            R.greyedOutAlpha.max,
+            R.greyedOutAlpha.step,
+          )}
         </div>
 
         {/* Gene Expression Mode */}
         <div>
-          <span className="text-xs font-medium text-primary">Gene Expression</span>
-          {sizeSliderRow("Size min", "pointSizeMultiplierMin", local.pointSizeMultiplierMin, R.pointSizeMultiplierMin.step)}
-          {sizeSliderRow("Size max", "pointSizeMultiplierMax", local.pointSizeMultiplierMax, R.pointSizeMultiplierMax.step)}
-          {sliderRow("Alpha min", "expressionAlphaMin", local.expressionAlphaMin, R.expressionAlphaMin.min, R.expressionAlphaMin.max, R.expressionAlphaMin.step)}
-          {sliderRow("Alpha max", "expressionAlphaMax", local.expressionAlphaMax, R.expressionAlphaMax.min, R.expressionAlphaMax.max, R.expressionAlphaMax.step)}
+          <span className="text-xs font-medium text-primary">
+            Gene Expression
+          </span>
+          {sizeSliderRow(
+            "Size min",
+            "pointSizeMultiplierMin",
+            local.pointSizeMultiplierMin,
+            R.pointSizeMultiplierMin.step,
+          )}
+          {sizeSliderRow(
+            "Size max",
+            "pointSizeMultiplierMax",
+            local.pointSizeMultiplierMax,
+            R.pointSizeMultiplierMax.step,
+          )}
+          {sliderRow(
+            "Alpha min",
+            "expressionAlphaMin",
+            local.expressionAlphaMin,
+            R.expressionAlphaMin.min,
+            R.expressionAlphaMin.max,
+            R.expressionAlphaMin.step,
+          )}
+          {sliderRow(
+            "Alpha max",
+            "expressionAlphaMax",
+            local.expressionAlphaMax,
+            R.expressionAlphaMax.min,
+            R.expressionAlphaMax.max,
+            R.expressionAlphaMax.step,
+          )}
         </div>
 
         {/* 3D Orbit (O key) — only relevant in 3D view */}
         {viewMode === "3D" && (
           <div>
-            <span className="text-xs font-medium text-primary">3D Orbit (O)</span>
+            <span className="text-xs font-medium text-primary">
+              3D Orbit (O)
+            </span>
             {sliderRow("Speed", "orbitSpeed", local.orbitSpeed, 0.25, 4, 0.05)}
-            {sliderRow("Vertical bob", "orbitYBob", local.orbitYBob, 0, 1, 0.05)}
+            {sliderRow(
+              "Vertical bob",
+              "orbitYBob",
+              local.orbitYBob,
+              0,
+              1,
+              0.05,
+            )}
           </div>
         )}
+
+        {/* Tour */}
+        <TourSection />
 
         {/* Reset */}
         <Button
@@ -182,14 +262,38 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
           size="sm"
           variant="flat"
           onPress={() => {
-            setAdvancedViz("selectedSizeMultiplier", VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number);
-            setAdvancedViz("greyedOutSizeMultiplier", VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number);
-            setAdvancedViz("greyedOutAlpha", VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number);
-            setAdvancedViz("expressionAlphaMin", VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number);
-            setAdvancedViz("expressionAlphaMax", VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number);
-            setAdvancedViz("pointSizeMultiplierMin", VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number);
-            setAdvancedViz("pointSizeMultiplierMax", VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number);
-            setAdvancedViz("targetPx", VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number);
+            setAdvancedViz(
+              "selectedSizeMultiplier",
+              VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+            );
+            setAdvancedViz(
+              "greyedOutSizeMultiplier",
+              VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+            );
+            setAdvancedViz(
+              "greyedOutAlpha",
+              VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+            );
+            setAdvancedViz(
+              "expressionAlphaMin",
+              VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
+            );
+            setAdvancedViz(
+              "expressionAlphaMax",
+              VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
+            );
+            setAdvancedViz(
+              "pointSizeMultiplierMin",
+              VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+            );
+            setAdvancedViz(
+              "pointSizeMultiplierMax",
+              VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+            );
+            setAdvancedViz(
+              "targetPx",
+              VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
+            );
             clearSliderRanges([
               "selectedSizeMultiplier",
               "greyedOutSizeMultiplier",

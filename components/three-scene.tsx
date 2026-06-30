@@ -1,16 +1,16 @@
 "use client";
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import { getClusterValue } from "@/lib/StandardizedDataset";
+import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { toast } from "react-toastify";
 import gsap from "gsap";
-import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
-import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
+import { getClusterValue } from "@/lib/StandardizedDataset";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloudFromBuffers,
@@ -53,6 +53,7 @@ import {
   applyTransformsToPositions,
   computeSampleCentroids,
 } from "@/lib/utils/sample-transforms";
+import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -99,7 +100,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const colorPaletteRef = useRef<Record<string, string>>({});
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
-  const pinnedClustersRef = useRef<Array<{ column: string; cluster: any; palette: Record<string, string>; isNumerical: boolean }>>([]);
+  const pinnedClustersRef = useRef<
+    Array<{
+      column: string;
+      cluster: any;
+      palette: Record<string, string>;
+      isNumerical: boolean;
+    }>
+  >([]);
   const baseDotSizeRef = useRef<number>(5);
   const cameraDistanceRef = useRef<number>(1);
 
@@ -107,7 +115,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // global SM viz store so the picker + legends drive what's rendered.
   const smDatasetRef = useRef<SingleMoleculeDataset | null>(null);
   const smPointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
-  const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(null);
+  const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(
+    null,
+  );
   const [smLoading, setSmLoading] = useState(false);
   // Last cmd/ctrl+click world coordinates; rendered as a small overlay chip
   // so the user can read them directly without opening devtools.
@@ -135,14 +145,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // Render-order helper: later in selectedGenesLegend → higher renderOrder.
   // Assigned cloud sits on top of its own unassigned. All values stay below
   // the SC point cloud (which uses the default renderOrder of 0).
-  const smRenderOrderFor = (
-    legendIndex: number,
-    isAssigned: boolean,
-  ): number => -1000 + legendIndex * 2 + (isAssigned ? 1 : 0);
+  const smRenderOrderFor = (legendIndex: number, isAssigned: boolean): number =>
+    -1000 + legendIndex * 2 + (isAssigned ? 1 : 0);
   // Mirror globalScale into a ref so Effect 5 can read the current value when
   // creating new point clouds without depending on globalScale (which would
   // re-create all clouds on every slider tick).
   const smGlobalScaleRef = useRef(smGlobalScale);
+
   useEffect(() => {
     smGlobalScaleRef.current = smGlobalScale;
   }, [smGlobalScale]);
@@ -221,6 +230,27 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     targetFilterRadiusRef.current = targetFilterRadius;
   }, [targetFilterRadius]);
 
+  // Tour player — drives camera + SM gene selection from the loaded tour JSON.
+  // No-op until the user uploads a tour file and presses Play.
+  const setTargetFilterEnabledFn = usePanelVisualizationStore(
+    (s) => s.setTargetFilterEnabled,
+  );
+  const setTargetFilterRadiusFn = usePanelVisualizationStore(
+    (s) => s.setTargetFilterRadius,
+  );
+
+  useTourPlayer({
+    cameraRef,
+    controlsRef,
+    orbitTickerRef,
+    isNormalized: dataset?.normalized !== false,
+    targetFilterEnabledRef,
+    targetFilterRadiusRef,
+    setTargetFilterEnabled: setTargetFilterEnabledFn,
+    setTargetFilterRadius: setTargetFilterRadiusFn,
+    scPointCloudRef: pointCloudRef,
+  });
+
   // Split screen support
   const panelId = usePanelId();
   const { enableSplit, setRightPanelS3 } = useSplitScreenStore();
@@ -233,11 +263,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   useEffect(() => {
     if (!dataset) {
       linkConfigRef.current = null;
+
       return;
     }
 
     // Check hardcoded registry first
     const registryConfig = getDatasetLinkConfig(dataset);
+
     linkConfigRef.current = registryConfig;
 
     // Try fetching mapping.json (only for custom S3 datasets)
@@ -250,6 +282,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         // "__all__" means every cell links to the same SM dataset — load overlay
         if (mappingConfig.linkColumn === "__all__") {
           const smUrl = mappingConfig.links["__all__"];
+
           if (!smUrl) return;
 
           // Load SM dataset for overlay
@@ -259,6 +292,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
               "@/lib/SingleMoleculeDataset"
             );
             const smDs = await SMDataset.fromCustomS3(smUrl);
+
             smDatasetRef.current = smDs;
             setSmDataset(smDs);
 
@@ -267,12 +301,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             const { useSingleMoleculeStore } = await import(
               "@/lib/stores/singleMoleculeStore"
             );
+
             useSingleMoleculeStore.getState().addDataset(smDs);
           } catch (error) {
             console.warn("Failed to load SM overlay dataset:", error);
           } finally {
             setSmLoading(false);
           }
+
           return;
         }
 
@@ -280,6 +316,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         const alreadyLoaded = dataset.clusters?.some(
           (c) => c.column === mappingConfig.linkColumn,
         );
+
         if (alreadyLoaded) return;
 
         // Check if the column exists in the dataset
@@ -290,6 +327,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           console.warn(
             `mapping.json linkColumn "${mappingConfig.linkColumn}" not found in dataset columns`,
           );
+
           return;
         }
 
@@ -394,17 +432,21 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     const currentColumn = selectedColumnRef.current;
 
     // Build pinned column rows
-    const pinnedRows = pinnedClustersRef.current.map((p) => {
-      const val = getClusterValue(p.cluster, index);
-      if (p.isNumerical) {
-        return `<div class="text-xs text-default-400">${p.column}: ${val}</div>`;
-      }
-      const color = p.palette[String(val)] || "#808080";
-      return `<div class="flex items-center text-xs">
+    const pinnedRows = pinnedClustersRef.current
+      .map((p) => {
+        const val = getClusterValue(p.cluster, index);
+
+        if (p.isNumerical) {
+          return `<div class="text-xs text-default-400">${p.column}: ${val}</div>`;
+        }
+        const color = p.palette[String(val)] || "#808080";
+
+        return `<div class="flex items-center text-xs">
         <div style="width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; margin-right: 5px;"></div>
         <span class="text-default-400">${p.column}: ${val}</span>
       </div>`;
-    }).join("");
+      })
+      .join("");
 
     let tooltipContent = "";
 
@@ -758,7 +800,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           orbitTickerRef.current = null;
         }
 
-        const posAttr = pc.geometry.attributes.position as THREE.BufferAttribute;
+        const posAttr = pc.geometry.attributes
+          .position as THREE.BufferAttribute;
         const local = new THREE.Vector3(
           posAttr.getX(idx),
           posAttr.getY(idx),
@@ -820,6 +863,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       } else {
         // number[][] path
         const coords = spatialCoords as number[][];
+
         for (let p = 0; p < ptCount; p++) {
           positions[p * 3] = coords[p][0] * cs;
           positions[p * 3 + 1] = coords[p][1] * cs;
@@ -839,9 +883,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // Back-calculate: dotSize = targetPx * distance / (baseSize * proj[1][1])
       // where distance ≈ size*1.5, proj[1][1] ≈ 1.3 (75° FOV), baseSize = POINT_BASE_SIZE
       const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2); // ~1.3
+
       cameraDistanceRef.current = distance;
       const baseDotSize =
         (targetPx * distance) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+
       baseDotSizeRef.current = baseDotSize;
       const pointCloud = createPointCloudFromBuffers(
         positions,
@@ -854,6 +900,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Wrap point cloud in a group for scene transforms (rotation, flip)
       const group = new THREE.Group();
+
       group.add(pointCloud);
       scene.add(group);
       sceneGroupRef.current = group;
@@ -940,6 +987,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     };
 
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
@@ -1017,6 +1065,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     };
 
     window.addEventListener("keydown", onKey);
+
     return () => {
       window.removeEventListener("keydown", onKey);
       stopOrbit();
@@ -1039,28 +1088,34 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   useEffect(() => {
     const base = basePositionsRef.current;
     const pc = pointCloudRef.current;
+
     if (!base || !pc || !dataset) return;
 
-    const positionAttr = pc.geometry.attributes.position as THREE.BufferAttribute;
+    const positionAttr = pc.geometry.attributes
+      .position as THREE.BufferAttribute;
     const out = positionAttr.array as Float32Array;
 
     if (!transformColumn || sampleTransforms.size === 0) {
       out.set(base);
       positionAttr.needsUpdate = true;
+
       return;
     }
 
     const cluster =
       dataset.clusters?.find((c) => c.column === transformColumn) ?? null;
+
     if (!cluster) {
       // Column not loaded yet — fall back to base positions.
       out.set(base);
       positionAttr.needsUpdate = true;
+
       return;
     }
 
     // Centroids depend only on (spatial, column); cache them across edits.
     let centroids = centroidsCacheRef.current.centroids;
+
     if (centroidsCacheRef.current.column !== transformColumn) {
       centroids = computeSampleCentroids(dataset.spatial, cluster);
       centroidsCacheRef.current = { column: transformColumn, centroids };
@@ -1112,8 +1167,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       for (const col of pinnedTooltipColumns) {
         if (col === selectedColumn) continue; // active column already shown
         const cluster = dataset.clusters?.find((c) => c.column === col);
+
         if (!cluster) continue;
-        const isNum = getEffectiveColumnType(col, dataset, columnTypeOverrides) === "numerical";
+        const isNum =
+          getEffectiveColumnType(col, dataset, columnTypeOverrides) ===
+          "numerical";
+
         pinnedClustersRef.current.push({
           column: col,
           cluster,
@@ -1168,6 +1227,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
       // Check if 2nd gene has changed (for coexpression auto-scaling).
       const gene2Changed = previousGene2Ref.current !== selectedGene2;
+
       if (gene2Changed) {
         previousGene2Ref.current = selectedGene2;
       }
@@ -1398,7 +1458,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     if (pointCloudRef.current) {
       const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2);
       const newBaseDotSize =
-        (targetPx * cameraDistanceRef.current) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+        (targetPx * cameraDistanceRef.current) /
+        (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+
       baseDotSizeRef.current = newBaseDotSize;
       updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
     }
@@ -1407,6 +1469,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // Effect 4: Apply scene transforms (rotation, flip) — instant via group matrix
   useEffect(() => {
     const group = sceneGroupRef.current;
+
     if (!group) return;
 
     group.rotation.z = (sceneRotation * Math.PI) / 180;
@@ -1428,6 +1491,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         (pc.material as THREE.ShaderMaterial).dispose();
       });
       smPointCloudsRef.current.clear();
+
       return;
     }
 
@@ -1459,6 +1523,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     // Snapshot legend order so each cloud's renderOrder is set deterministically
     // from the user's legend (later-inserted gene renders on top).
     const legendOrder = new Map<string, number>();
+
     {
       let i = 0;
 
@@ -1485,10 +1550,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         shape,
       );
 
-      pc.renderOrder = smRenderOrderFor(
-        legendOrder.get(gene) ?? 0,
-        isAssigned,
-      );
+      pc.renderOrder = smRenderOrderFor(legendOrder.get(gene) ?? 0, isAssigned);
 
       return pc;
     };
@@ -1536,11 +1598,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             const coords = await smDs.getCoordinatesByGene(gene);
 
             if (cancelled) return;
-            if (
-              coords &&
-              coords.length > 0 &&
-              !currentClouds.has(aKey)
-            ) {
+            if (coords && coords.length > 0 && !currentClouds.has(aKey)) {
               const pc = makeCloud(
                 coords,
                 viz.color,
@@ -1564,11 +1622,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             const uCoords = await smDs.getUnassignedCoordinatesByGene(gene);
 
             if (cancelled) return;
-            if (
-              uCoords &&
-              uCoords.length > 0 &&
-              !currentClouds.has(uKey)
-            ) {
+            if (uCoords && uCoords.length > 0 && !currentClouds.has(uKey)) {
               const pc = makeCloud(
                 uCoords,
                 viz.unassignedColor,
@@ -1616,9 +1670,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const viz = smSelectedGenes.get(gene);
 
       if (!viz) continue;
-      const localScale = isAssigned
-        ? viz.localScale
-        : viz.unassignedLocalScale;
+      const localScale = isAssigned ? viz.localScale : viz.unassignedLocalScale;
       const userSize =
         VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
         smGlobalScale *
@@ -1683,6 +1735,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     };
 
     gsap.ticker.add(pushFilterUniforms);
+
     return () => gsap.ticker.remove(pushFilterUniforms);
   }, []);
 
@@ -1709,8 +1762,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     <>
       <div
         ref={containerRef}
-        data-testid="sc-scene-canvas"
         className="absolute inset-0 w-full h-full"
+        data-testid="sc-scene-canvas"
         style={{ margin: 0, padding: 0 }}
       />
 
@@ -1744,18 +1797,16 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           cameraRef={
             cameraRef as React.RefObject<THREE.PerspectiveCamera | null>
           }
-          rendererRef={rendererRef}
           controlsRef={controlsRef}
+          rendererRef={rendererRef}
         />
       )}
 
       {/* Export box overlay — gated by viewMode + raw-coords (same as scale bar). */}
       <ExportBoxOverlay
+        cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
         canShow={
           viewMode === "2D" && !!dataset && !dataset.metadata?.wasNormalized
-        }
-        cameraRef={
-          cameraRef as React.RefObject<THREE.PerspectiveCamera | null>
         }
         controlsRef={controlsRef}
         rendererRef={rendererRef}

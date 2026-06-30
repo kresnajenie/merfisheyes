@@ -1,0 +1,75 @@
+{
+  "defaults": {
+    "flyInMs": 1500,
+    "orbitMs": 2000,
+    "orbitRevolutions": 1,
+    "zoomOutMs": 1500,
+    "zoomRadius": 100,
+    "zoomOutRadius": 3000,
+    "filterRadius": 50,
+    "waitMs": 150,
+    "waitAfterMs": 150
+  },
+  "alwaysOnGenes": [
+    { "name": "total_cell_RNA", "color": "#ff0000" },
+    { "name": "somatic", "color": "#ffff00" }
+  ],
+  "stops": [
+    {
+      "name": "STRd Cholinergic GABA",
+      "z": 6.5,
+      "x": 9272.25,
+      "y": 1778.51,
+      "genes": ["CHAT"]
+    },
+    {
+      "name": "GPi Shell",
+      "z": 6.5,
+      "x": -6175.14,
+      "y": -1765.63,
+      "genes": ["CBLN1"]
+    },
+    {
+      "name": "GPi Core",
+      "z": 9.5,
+      "x": -5175.55,
+      "y": -2851.35,
+      "genes": ["GFRA1"]
+    },
+    {
+      "name": "GPe NDB SI",
+      "z": 7.5,
+      "x": -2135.13,
+      "y": -5029.33,
+      "genes": ["RAB3B"]
+    },
+    // {
+    //   "name": "GPe MEIS2 SOX6",
+    //   "z": 6,
+    //   "x": -3212.24,
+    //   "y": -835.43,
+    //   "genes": ["CACNG5", "NXPH1"]
+    // },
+    {
+      "name": "STRd D2 Matrix",
+      "z": 6,
+      "x": 5742.08,
+      "y": -3051.4,
+      "genes": ["DRD2", "PENK"]
+    },
+    // {
+    //   "name": "STRd D1 Matrix",
+    //   "z": 6,
+    //   "x": -2612.59,
+    //   "y": -11936.87,
+    //   "genes": ["DRD1"]
+    // },
+    {
+      "name": "STR SST CHODL",
+      "z": 5,
+      "x": -3800.52,
+      "y": -12363.42,
+      "genes": ["SST"]
+    }
+  ]
+}
