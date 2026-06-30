@@ -407,8 +407,11 @@ export function SingleMoleculeThreeScene() {
           globalScale *
           VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
         vertexColors: true,
-        transparent: true,
-        opacity: 1.0,
+        // Opaque + alphaTest lets the GPU depth-test reject points hidden
+        // behind closer ones. With `transparent: true` blending is on and
+        // every overlapping fragment runs the shader — fragment-bound when
+        // zoomed out with millions of molecules.
+        transparent: false,
         sizeAttenuation: true,
         map: texture,
         alphaTest: 0.5,
