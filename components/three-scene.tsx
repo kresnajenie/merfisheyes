@@ -736,13 +736,14 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         toast.info(`Opening SM dataset for ${setValue}`);
       };
 
-      // Cmd/Ctrl+click in 3D mode: pan the camera (and its orbit pivot) so
-      // the clicked SC cell lands at the orbit center. Translation only —
-      // camera↔target distance and angle are preserved. ~350ms gsap tween;
-      // a second click during the tween overrides cleanly.
+      // Cmd/Ctrl+click: pan the camera (and its orbit/pan pivot) so the
+      // clicked SC cell lands at the screen center. Translation only —
+      // camera↔target distance and angle are preserved. Works in both 2D
+      // (OrbitControls, top-down) and 3D (TrackballControls) because both
+      // expose the same .target/.position API. ~350ms gsap tween; a second
+      // click during the tween overrides cleanly.
       const handleClickRecenter = (event: MouseEvent) => {
         if (!(event.metaKey || event.ctrlKey)) return;
-        if (viewMode !== "3D") return;
         const idx = hoveredPointRef.current;
         const pc = pointCloudRef.current;
         const ctrls = controlsRef.current;
