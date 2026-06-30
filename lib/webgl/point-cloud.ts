@@ -64,6 +64,7 @@ export function createPointCloudFromBuffers(
       uTargetRadius: { value: 1.0 },
       uTargetFeather: { value: 0.1 },
       uTargetFilterEnabled: { value: 0.0 },
+      uShape: { value: 0.0 }, // circle
     },
     vertexShader,
     fragmentShader,
@@ -71,6 +72,109 @@ export function createPointCloudFromBuffers(
   });
 
   return new THREE.Points(geometry, material);
+}
+
+/**
+ * Multiplier that converts the legacy "PointsMaterial.size" SM scale (a
+ * world-ish unit picked when SM molecules were rendered with
+ * `sizeAttenuation: true`) into the `dotSize` uniform the shared shader
+ * expects. PointsMaterial scales by `viewportHeight/2`; the shared shader
+ * scales by `projectionMatrix[1][1]` (≈1.303 at 75° FOV). For a ~800px
+ * viewport these match with a factor of ~300. Exported so it can be tuned
+ * if SM molecules render too small/large on very different viewport sizes.
+ */
+export const SM_DOT_SIZE_FACTOR = 300;
+
+/**
+ * Creates an opaque, single-color point cloud using the shared shader.
+ * Built for single-molecule clouds where every point in a cloud shares one
+ * color and one shape, but we still want the shared sub-pixel cull,
+ * distance-from-target fade, and consistent sizing math.
+ *
+ * Opaque + alphaTest lets the GPU depth-test reject points hidden behind
+ * closer ones — the big perf win vs THREE.PointsMaterial with transparent:
+ * true (which forces alpha blending and disables early-z).
+ */
+export function createSmPointCloud(
+  positions: Float32Array,
+  count: number,
+  colorHex: string,
+  dotSize: number,
+  shape: "circle" | "square" = "circle",
+): THREE.Points {
+  const geometry = new THREE.BufferGeometry();
+
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+
+  // Fill the per-vertex color buffer with the single cloud color so the
+  // shared shader's `attribute vec3 color` path works without modification.
+  const c = new THREE.Color(colorHex);
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  const sizes = new Float32Array(count).fill(1.0);
+  const alphas = new Float32Array(count).fill(1.0);
+
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+  geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      dotSize: { value: dotSize },
+      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
+      uTargetRadius: { value: 1.0 },
+      uTargetFeather: { value: 0.1 },
+      uTargetFilterEnabled: { value: 0.0 },
+      uShape: { value: shape === "square" ? 1.0 : 0.0 },
+    },
+    vertexShader,
+    fragmentShader,
+    transparent: false,
+    alphaTest: 0.5,
+  });
+
+  return new THREE.Points(geometry, material);
+}
+
+/**
+ * Repaints every vertex of an existing point cloud to a new uniform color.
+ * Cheaper than recreating the cloud — just rewrites the color buffer.
+ */
+export function updatePointCloudColor(
+  pointsMesh: THREE.Points,
+  colorHex: string,
+): void {
+  const colorAttr = pointsMesh.geometry.getAttribute(
+    "color",
+  ) as THREE.BufferAttribute;
+  const colors = colorAttr.array as Float32Array;
+  const c = new THREE.Color(colorHex);
+  const count = colors.length / 3;
+
+  for (let i = 0; i < count; i++) {
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  colorAttr.needsUpdate = true;
+}
+
+/**
+ * Flips the shape uniform between circle and square.
+ */
+export function updatePointCloudShape(
+  pointsMesh: THREE.Points,
+  shape: "circle" | "square",
+): void {
+  const material = pointsMesh.material as THREE.ShaderMaterial;
+
+  if (material.uniforms?.uShape) {
+    material.uniforms.uShape.value = shape === "square" ? 1.0 : 0.0;
+  }
 }
 
 /**
@@ -120,6 +224,7 @@ export function createPointCloud(
       uTargetRadius: { value: 1.0 },
       uTargetFeather: { value: 0.1 },
       uTargetFilterEnabled: { value: 0.0 },
+      uShape: { value: 0.0 }, // circle
     },
     vertexShader,
     fragmentShader,

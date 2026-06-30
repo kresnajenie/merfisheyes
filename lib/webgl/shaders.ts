@@ -38,9 +38,12 @@ export const vertexShader = `
 
         // Cull sub-pixel points — without this they jam at the GPU's 1px floor
         // and pile up as overdraw when zoomed far out. Threshold sets the
-        // working distance: working distance scales as 1 / threshold, so 0.1
-        // gives 10× the camera range of 1.0 before the cloud goes empty.
-        if (gl_PointSize < 0.1) {
+        // working distance: working distance scales as 1 / threshold, so 0.025
+        // gives 40× the camera range of 1.0 before the cloud goes empty. The
+        // SM overlay needs the headroom because its molecules sit in [-1,1]
+        // while the cell cloud spans [-cs,cs], so the camera distance at the
+        // "whole dataset" zoom level is ~cs and SM points hit sub-pixel first.
+        if (gl_PointSize < 0.025) {
             gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
             return;
         }
@@ -58,16 +61,21 @@ export const fragmentShader = `
     uniform float uTargetRadius;
     uniform float uTargetFeather;
     uniform float uTargetFilterEnabled;
+    uniform float uShape; // 0 = circle (clipped + anti-aliased), 1 = square (full quad)
 
     void main() {
-        // Circular points with smooth anti-aliased edges
+        // Shape: circles clip outside r=0.5 and smooth the edge; squares
+        // render the full point quad (alphaTest handles edges in opaque mode).
         float dist = length(gl_PointCoord - vec2(0.5, 0.5));
-        if (dist > 0.5) {
-            discard;
+        float alpha;
+        if (uShape < 0.5) {
+            if (dist > 0.5) {
+                discard;
+            }
+            alpha = vAlpha * smoothstep(0.5, 0.45, dist);
+        } else {
+            alpha = vAlpha;
         }
-
-        // Anti-alias the edge
-        float alpha = vAlpha * smoothstep(0.5, 0.45, dist);
 
         // Distance-from-target fade: full alpha inside uTargetRadius,
         // smoothly to 0 across the feather band.

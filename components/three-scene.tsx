@@ -11,51 +11,15 @@ import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
-// Sprite textures for SM points (circle default, square for the legend's
-// shape selector). Created once per component instance.
-function createSmCircleTexture(): THREE.Texture {
-  const canvas = document.createElement("canvas");
-  const size = 64;
-
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) throw new Error("Could not get 2D context");
-  ctx.fillStyle = "white";
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-  ctx.fill();
-  const tex = new THREE.CanvasTexture(canvas);
-
-  tex.needsUpdate = true;
-
-  return tex;
-}
-
-function createSmSquareTexture(): THREE.Texture {
-  const canvas = document.createElement("canvas");
-  const size = 64;
-
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) throw new Error("Could not get 2D context");
-  ctx.fillStyle = "white";
-  ctx.fillRect(4, 4, size - 8, size - 8);
-  const tex = new THREE.CanvasTexture(canvas);
-
-  tex.needsUpdate = true;
-
-  return tex;
-}
-
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloudFromBuffers,
+  createSmPointCloud,
   updatePointCloudAttributes,
+  updatePointCloudColor,
+  updatePointCloudShape,
   updateDotSize,
+  SM_DOT_SIZE_FACTOR,
 } from "@/lib/webgl/point-cloud";
 import {
   updateGeneVisualization,
@@ -143,8 +107,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // global SM viz store so the picker + legends drive what's rendered.
   const smDatasetRef = useRef<SingleMoleculeDataset | null>(null);
   const smPointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
-  const smCircleTextureRef = useRef<THREE.Texture | null>(null);
-  const smSquareTextureRef = useRef<THREE.Texture | null>(null);
   const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(null);
   const [smLoading, setSmLoading] = useState(false);
   // Last cmd/ctrl+click world coordinates; rendered as a small overlay chip
@@ -154,18 +116,6 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     y: number;
     z: number;
   } | null>(null);
-
-  // Create SM point sprite textures once on mount.
-  useEffect(() => {
-    smCircleTextureRef.current = createSmCircleTexture();
-    smSquareTextureRef.current = createSmSquareTexture();
-    return () => {
-      smCircleTextureRef.current?.dispose();
-      smSquareTextureRef.current?.dispose();
-      smCircleTextureRef.current = null;
-      smSquareTextureRef.current = null;
-    };
-  }, []);
   const smSelectedGenes = useSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
@@ -1474,7 +1424,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       smPointCloudsRef.current.forEach((pc) => {
         pc.parent?.remove(pc);
         pc.geometry.dispose();
-        (pc.material as THREE.PointsMaterial).dispose();
+        (pc.material as THREE.ShaderMaterial).dispose();
       });
       smPointCloudsRef.current.clear();
       return;
@@ -1488,7 +1438,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     for (const [key, pc] of currentClouds) {
       if (pc.parent !== parent) {
         pc.geometry.dispose();
-        (pc.material as THREE.PointsMaterial).dispose();
+        (pc.material as THREE.ShaderMaterial).dispose();
         currentClouds.delete(key);
       }
     }
@@ -1500,15 +1450,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       if (!smSelectedGenes.has(gene)) {
         pc.parent?.remove(pc);
         pc.geometry.dispose();
-        (pc.material as THREE.PointsMaterial).dispose();
+        (pc.material as THREE.ShaderMaterial).dispose();
         currentClouds.delete(key);
       }
     }
-
-    const textureFor = (shape: MoleculeShape) =>
-      shape === "square"
-        ? smSquareTextureRef.current
-        : smCircleTextureRef.current;
 
     // Snapshot legend order so each cloud's renderOrder is set deterministically
     // from the user's legend (later-inserted gene renders on top).
@@ -1527,77 +1472,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       gene: string,
       isAssigned: boolean,
     ): THREE.Points => {
-      const geometry = new THREE.BufferGeometry();
-
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(coords, 3),
+      const userSize =
+        VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
+        smGlobalScaleRef.current *
+        localScale;
+      const pc = createSmPointCloud(
+        coords,
+        coords.length / 3,
+        colorHex,
+        userSize * SM_DOT_SIZE_FACTOR,
+        shape,
       );
-
-      const material = new THREE.PointsMaterial({
-        color: new THREE.Color(colorHex),
-        size:
-          VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
-          smGlobalScaleRef.current *
-          localScale,
-        map: textureFor(shape),
-        transparent: true,
-        opacity: 0.8,
-        sizeAttenuation: true,
-        depthWrite: false,
-        alphaTest: 0.5,
-      });
-
-      // Inject the distance-from-target fade into PointsMaterial's shaders.
-      // Saves the shader on userData so we can update uniforms each frame.
-      material.onBeforeCompile = (shader) => {
-        shader.uniforms.uTargetCenter = { value: new THREE.Vector3() };
-        shader.uniforms.uTargetRadius = { value: 1.0 };
-        shader.uniforms.uTargetFeather = { value: 0.1 };
-        shader.uniforms.uTargetFilterEnabled = { value: 0.0 };
-
-        shader.vertexShader = shader.vertexShader
-          .replace(
-            "#include <common>",
-            `#include <common>
-            uniform vec3 uTargetCenter;
-            varying float vTargetDist;`,
-          )
-          .replace(
-            "#include <begin_vertex>",
-            `#include <begin_vertex>
-            vTargetDist = distance(
-              (modelMatrix * vec4(transformed, 1.0)).xyz,
-              uTargetCenter
-            );`,
-          );
-
-        shader.fragmentShader = shader.fragmentShader
-          .replace(
-            "#include <common>",
-            `#include <common>
-            varying float vTargetDist;
-            uniform float uTargetRadius;
-            uniform float uTargetFeather;
-            uniform float uTargetFilterEnabled;`,
-          )
-          .replace(
-            "#include <opaque_fragment>",
-            `if (uTargetFilterEnabled > 0.5) {
-              float fade = 1.0 - smoothstep(
-                uTargetRadius,
-                uTargetRadius + uTargetFeather,
-                vTargetDist
-              );
-              diffuseColor.a *= fade;
-              if (diffuseColor.a < 0.005) discard;
-            }
-            #include <opaque_fragment>`,
-          );
-
-        (material.userData as any).filterShader = shader;
-      };
-      const pc = new THREE.Points(geometry, material);
 
       pc.renderOrder = smRenderOrderFor(
         legendOrder.get(gene) ?? 0,
@@ -1613,7 +1498,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       if (!pc) return;
       pc.parent?.remove(pc);
       pc.geometry.dispose();
-      (pc.material as THREE.PointsMaterial).dispose();
+      (pc.material as THREE.ShaderMaterial).dispose();
       currentClouds.delete(key);
     };
 
@@ -1733,12 +1618,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const localScale = isAssigned
         ? viz.localScale
         : viz.unassignedLocalScale;
-      const mat = pc.material as THREE.PointsMaterial;
-
-      mat.size =
+      const userSize =
         VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
         smGlobalScale *
         localScale;
+
+      updateDotSize(pc, userSize * SM_DOT_SIZE_FACTOR);
     }
   }, [smGlobalScale, smSelectedGenes]);
 
@@ -1754,18 +1639,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       if (!viz) continue;
       const colorHex = isAssigned ? viz.color : viz.unassignedColor;
       const shape = isAssigned ? viz.assignedShape : viz.unassignedShape;
-      const mat = pc.material as THREE.PointsMaterial;
 
-      mat.color.set(colorHex);
-      const wantTexture =
-        shape === "square"
-          ? smSquareTextureRef.current
-          : smCircleTextureRef.current;
-
-      if (mat.map !== wantTexture) {
-        mat.map = wantTexture;
-        mat.needsUpdate = true;
-      }
+      updatePointCloudColor(pc, colorHex);
+      updatePointCloudShape(pc, shape);
     }
   }, [smSelectedGenes]);
 
@@ -1795,14 +1671,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       }
 
       for (const [, smPc] of smPointCloudsRef.current) {
-        const mat = smPc.material as THREE.PointsMaterial;
-        const shader = (mat.userData as any).filterShader;
+        const mat = smPc.material as THREE.ShaderMaterial;
 
-        if (!shader) continue;
-        (shader.uniforms.uTargetCenter.value as THREE.Vector3).copy(center);
-        shader.uniforms.uTargetRadius.value = radius;
-        shader.uniforms.uTargetFeather.value = feather;
-        shader.uniforms.uTargetFilterEnabled.value = enabled;
+        if (!mat.uniforms?.uTargetCenter) continue;
+        (mat.uniforms.uTargetCenter.value as THREE.Vector3).copy(center);
+        mat.uniforms.uTargetRadius.value = radius;
+        mat.uniforms.uTargetFeather.value = feather;
+        mat.uniforms.uTargetFilterEnabled.value = enabled;
       }
     };
 
