@@ -75,3 +75,5 @@ echo "Exit code:  $EXIT_CODE"
 echo "Runtime:    ${MINUTES}m ${SECS}s"
 echo "Finished:   $(date)"
 echo "========================================"
+
+exit $EXIT_CODE

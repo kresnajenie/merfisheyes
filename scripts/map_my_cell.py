@@ -203,17 +203,45 @@ def load_h5ad(h5ad_path):
 def translate_genes_to_ensembl(cbg_df, gene_mapping_path):
     gene_map = pd.read_csv(gene_mapping_path)
     symbol_to_ensembl = dict(zip(gene_map["gene_symbol"], gene_map["gene_identifier"]))
-    
+
+    # Case-insensitive fallback: some panels list gene symbols in a different
+    # casing convention than the reference (e.g. all-caps human-style symbols
+    # on a mouse panel), which would otherwise drop nearly every gene.
+    upper_to_ensembl = {}
+    upper_collisions = set()
+    for symbol, ensembl_id in symbol_to_ensembl.items():
+        key = symbol.upper()
+        if key in upper_to_ensembl and upper_to_ensembl[key] != ensembl_id:
+            upper_collisions.add(key)
+        upper_to_ensembl[key] = ensembl_id
+
     gene_cols = [c for c in cbg_df.columns if c != "cell"]
-    translated = {g: symbol_to_ensembl.get(g) for g in gene_cols}
-    
-    mapped = {k: v for k, v in translated.items() if v is not None}
-    dropped = [k for k, v in translated.items() if v is None]
-    
+    mapped = {}
+    dropped = []
+    case_insensitive_matches = 0
+    for g in gene_cols:
+        ensembl_id = symbol_to_ensembl.get(g)
+        if ensembl_id is None:
+            key = g.upper()
+            if key not in upper_collisions:
+                ensembl_id = upper_to_ensembl.get(key)
+            if ensembl_id is not None:
+                case_insensitive_matches += 1
+        if ensembl_id is not None:
+            mapped[g] = ensembl_id
+        else:
+            dropped.append(g)
+
     logger.info("Gene translation: %d mapped, %d dropped (no Ensembl match).", len(mapped), len(dropped))
+    if case_insensitive_matches:
+        logger.warning(
+            "%d gene(s) matched only via case-insensitive symbol lookup — "
+            "query panel casing convention differs from the reference.",
+            case_insensitive_matches,
+        )
     if dropped:
         logger.info("Dropped genes: %s", dropped[:10])
-    
+
     cbg_df = cbg_df[["cell"] + list(mapped.keys())].copy()
     cbg_df = cbg_df.rename(columns=mapped)
     return cbg_df
