@@ -30,7 +30,6 @@ import {
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
-import { useTourStore } from "@/lib/stores/tourStore";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
@@ -544,10 +543,6 @@ export function VisualizationControls() {
         </Button>
       </Tooltip>
 
-      {/* Play Tour Button — quick access to start/stop the tour loaded
-          from Advanced Settings. Disabled when no tour JSON is loaded. */}
-      <TourButton buttonBaseClass={buttonBaseClass} viewMode={viewMode} />
-
       {/* Advanced Settings Button */}
       <Tooltip content="Advanced settings" placement="right">
         <Button
@@ -716,57 +711,3 @@ function DotSizeSlider({
   );
 }
 
-function TourButton({
-  buttonBaseClass,
-  viewMode,
-}: {
-  buttonBaseClass: string;
-  viewMode: string;
-}) {
-  const config = useTourStore((s) => s.config);
-  const isPlaying = useTourStore((s) => s.isPlaying);
-  const start = useTourStore((s) => s.start);
-  const stop = useTourStore((s) => s.stop);
-  const currentStopIndex = useTourStore((s) => s.currentStopIndex);
-
-  const hasTour = !!config;
-  const tooltip = !hasTour
-    ? "Load a tour JSON in Advanced Settings first"
-    : isPlaying
-      ? `Stop tour (${currentStopIndex + 1}/${config.stops.length}: ${config.stops[currentStopIndex]?.name ?? ""})`
-      : "Play tour";
-
-  return (
-    <Tooltip content={tooltip} placement="right">
-      <Button
-        className={`${buttonBaseClass} ${isPlaying ? "" : glassButton()}`}
-        color={isPlaying ? "danger" : "default"}
-        isDisabled={!hasTour}
-        variant={isPlaying ? "shadow" : "light"}
-        onPress={() => {
-          if (isPlaying) {
-            stop();
-
-            return;
-          }
-          if (viewMode !== "3D") {
-            toast.warning("Switch to 3D view before playing the tour");
-
-            return;
-          }
-          start();
-        }}
-      >
-        {isPlaying ? (
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <rect height="14" rx="1.5" width="14" x="5" y="5" />
-          </svg>
-        ) : (
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        )}
-      </Button>
-    </Tooltip>
-  );
-}

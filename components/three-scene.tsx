@@ -54,6 +54,7 @@ import {
   computeSampleCentroids,
 } from "@/lib/utils/sample-transforms";
 import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
+import { useTourStore } from "@/lib/stores/tourStore";
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -1070,6 +1071,39 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       window.removeEventListener("keydown", onKey);
       stopOrbit();
     };
+  }, [viewMode]);
+
+  // T key toggles tour playback. Works even while the UI is hidden (H), so a
+  // tour can be started/stopped for a clean screen recording. Requires a
+  // loaded tour config and 3D view (same gate as the Play tour button).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "t" && e.key !== "T") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      const tour = useTourStore.getState();
+
+      if (tour.isPlaying) {
+        tour.stop();
+
+        return;
+      }
+      if (!tour.config || viewMode !== "3D") return;
+      tour.start();
+    };
+
+    window.addEventListener("keydown", onKey);
+
+    return () => window.removeEventListener("keydown", onKey);
   }, [viewMode]);
 
   // Effect 1b: Apply per-sample transforms to the live position buffer.
