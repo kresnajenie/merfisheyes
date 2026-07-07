@@ -46,6 +46,8 @@ export interface VisualizationState {
   // target (cmd+click recenter point). The feather band is 10% of that.
   targetFilterEnabled: boolean;
   targetFilterRadius: number;
+  // Master show/hide for the whole single-cell point cloud layer.
+  scLayerVisible: boolean;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -99,6 +101,7 @@ export interface VisualizationState {
   incrementDeStatsVersion: () => void;
   resetCamera: () => void;
   setTargetFilterEnabled: (enabled: boolean) => void;
+  setScLayerVisible: (visible: boolean) => void;
   setTargetFilterRadius: (r: number) => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
@@ -209,6 +212,7 @@ const initialState = {
   orbitSpeed: 1.0,
   orbitYBob: 0.3,
   targetFilterEnabled: false,
+  scLayerVisible: true,
   // Distance filter radius is now absolute world units (microns for raw-coord
   // datasets), measured from controls.target.
   targetFilterRadius: 5000,
@@ -471,6 +475,8 @@ export function createVisualizationStoreInstance() {
     },
 
     setTargetFilterEnabled: (enabled) => set({ targetFilterEnabled: enabled }),
+
+    setScLayerVisible: (visible) => set({ scLayerVisible: visible }),
     setTargetFilterRadius: (r) => set({ targetFilterRadius: r }),
 
     setDegTarget: (target) => set({ degTarget: target }),

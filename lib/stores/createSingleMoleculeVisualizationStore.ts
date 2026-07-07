@@ -31,6 +31,8 @@ export interface SingleMoleculeVisualizationState {
   viewMode: ViewMode;
   showAssigned: boolean;
   showUnassigned: boolean;
+  // Master show/hide for the whole single-molecule layer (all gene clouds).
+  smLayerVisible: boolean;
   sceneRotation: number;
   flipX: boolean;
   flipY: boolean;
@@ -54,6 +56,7 @@ export interface SingleMoleculeVisualizationState {
   setViewMode: (mode: ViewMode) => void;
   setShowAssigned: (show: boolean) => void;
   setShowUnassigned: (show: boolean) => void;
+  setSmLayerVisible: (visible: boolean) => void;
   setGeneShowAssigned: (gene: string, show: boolean) => void;
   setGeneShowUnassigned: (gene: string, show: boolean) => void;
   setGeneAssignedShape: (gene: string, shape: MoleculeShape) => void;
@@ -77,6 +80,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
     viewMode: "2D",
     showAssigned: true,
     showUnassigned: true,
+    smLayerVisible: true,
     sceneRotation: 0,
     flipX: false,
     flipY: false,
@@ -233,6 +237,8 @@ export function createSingleMoleculeVisualizationStoreInstance() {
       }),
 
     setGlobalScale: (scale: number) => set({ globalScale: scale }),
+
+    setSmLayerVisible: (visible: boolean) => set({ smLayerVisible: visible }),
 
     setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 

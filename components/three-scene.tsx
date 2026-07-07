@@ -142,6 +142,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const smShowUnassigned = useSingleMoleculeVisualizationStore(
     (s) => s.showUnassigned,
   );
+  const smLayerVisible = useSingleMoleculeVisualizationStore(
+    (s) => s.smLayerVisible,
+  );
 
   // Render-order helper: later in selectedGenesLegend → higher renderOrder.
   // Assigned cloud sits on top of its own unassigned. All values stay below
@@ -156,6 +159,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   useEffect(() => {
     smGlobalScaleRef.current = smGlobalScale;
   }, [smGlobalScale]);
+
+  // Mirror the SM layer-visibility flag into a ref so Effect 5 can stamp it
+  // onto freshly created clouds without re-running when it toggles (the live
+  // toggle is handled by a dedicated effect below).
+  const smLayerVisibleRef = useRef(smLayerVisible);
+
+  useEffect(() => {
+    smLayerVisibleRef.current = smLayerVisible;
+    for (const [, pc] of smPointCloudsRef.current) {
+      pc.visible = smLayerVisible;
+    }
+  }, [smLayerVisible]);
 
   // Get visualization settings from store
   const {
@@ -184,6 +199,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     orbitYBob,
     targetFilterEnabled,
     targetFilterRadius,
+    scLayerVisible,
     columnTypeOverrides,
     viewMode,
     targetPx,
@@ -230,6 +246,18 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   useEffect(() => {
     targetFilterRadiusRef.current = targetFilterRadius;
   }, [targetFilterRadius]);
+
+  // Master show/hide for the single-cell point cloud. Mirror into a ref so the
+  // point-cloud build effect can stamp visibility onto a freshly created cloud,
+  // and apply live whenever the flag toggles.
+  const scLayerVisibleRef = useRef(scLayerVisible);
+
+  useEffect(() => {
+    scLayerVisibleRef.current = scLayerVisible;
+    if (pointCloudRef.current) {
+      pointCloudRef.current.visible = scLayerVisible;
+    }
+  }, [scLayerVisible]);
 
   // Tour player — drives camera + SM gene selection from the loaded tour JSON.
   // No-op until the user uploads a tour file and presses Play.
@@ -897,6 +925,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       );
 
       pointCloudRef.current = pointCloud; // Store reference
+      pointCloud.visible = scLayerVisibleRef.current; // honor master SC toggle
       sceneRef.current = scene; // Store scene reference
 
       // Wrap point cloud in a group for scene transforms (rotation, flip)
@@ -1585,6 +1614,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       );
 
       pc.renderOrder = smRenderOrderFor(legendOrder.get(gene) ?? 0, isAssigned);
+      pc.visible = smLayerVisibleRef.current;
 
       return pc;
     };

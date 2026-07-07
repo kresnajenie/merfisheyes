@@ -51,6 +51,8 @@ interface VisualizationState {
   orbitYBob: number;
   targetFilterEnabled: boolean;
   targetFilterRadius: number;
+  // Master show/hide for the whole single-cell point cloud layer.
+  scLayerVisible: boolean;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -105,6 +107,7 @@ interface VisualizationState {
   incrementDeStatsVersion: () => void;
   resetCamera: () => void;
   setTargetFilterEnabled: (enabled: boolean) => void;
+  setScLayerVisible: (visible: boolean) => void;
   setTargetFilterRadius: (r: number) => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
@@ -214,6 +217,7 @@ const initialState = {
   orbitSpeed: 1.0,
   orbitYBob: 0.3,
   targetFilterEnabled: false,
+  scLayerVisible: true,
   targetFilterRadius: 5000,
   degTarget: null as string | null,
   degReference: null as string | null,
@@ -478,6 +482,8 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   },
 
   setTargetFilterEnabled: (enabled) => set({ targetFilterEnabled: enabled }),
+
+  setScLayerVisible: (visible) => set({ scLayerVisible: visible }),
   setTargetFilterRadius: (r) => set({ targetFilterRadius: r }),
 
   setDegTarget: (target) => set({ degTarget: target }),
