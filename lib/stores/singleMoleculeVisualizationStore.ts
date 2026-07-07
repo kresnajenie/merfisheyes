@@ -64,6 +64,7 @@ interface SingleMoleculeVisualizationState {
   addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
   toggleGeneVisibility: (gene: string) => void;
+  soloGene: (gene: string) => void;
   setGeneColor: (gene: string, color: string) => void;
   setGeneLocalScale: (gene: string, scale: number) => void;
   setGlobalScale: (scale: number) => void;
@@ -204,6 +205,30 @@ export const useSingleMoleculeVisualizationStore =
           if (cachedData) {
             newSelectedGenes.set(gene, cachedData);
           }
+        }
+
+        return { selectedGenes: newSelectedGenes };
+      }),
+
+    // Isolate a single gene: hide every other legend gene (⌘-click on the
+    // eye toggle). Re-solo'ing the already-solo'd gene restores everything.
+    soloGene: (gene: string) =>
+      set((state) => {
+        const others = [...state.selectedGenesLegend].filter((g) => g !== gene);
+        const alreadySolo =
+          others.length > 0 &&
+          state.selectedGenes.has(gene) &&
+          others.every((g) => !state.selectedGenes.has(g));
+
+        const newSelectedGenes = new Map<string, GeneVisualization>();
+        const visibleGenes = alreadySolo
+          ? state.selectedGenesLegend
+          : new Set([gene]);
+
+        for (const g of visibleGenes) {
+          const cachedData = state.geneDataCache.get(g);
+
+          if (cachedData) newSelectedGenes.set(g, cachedData);
         }
 
         return { selectedGenes: newSelectedGenes };
