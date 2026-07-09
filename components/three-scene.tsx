@@ -65,7 +65,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  // Outer group sits at the data center and carries rotation/flip so the
+  // dataset spins in place; inner group is offset by -center and holds the
+  // point clouds (SC + SM overlay).
   const sceneGroupRef = useRef<THREE.Group | null>(null);
+  const innerGroupRef = useRef<THREE.Group | null>(null);
   // Untransformed scene-space positions (xyz interleaved). Used as the base
   // when applying per-sample transforms so edits compose from identity.
   const basePositionsRef = useRef<Float32Array | null>(null);
@@ -928,12 +932,21 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       pointCloud.visible = scLayerVisibleRef.current; // honor master SC toggle
       sceneRef.current = scene; // Store scene reference
 
-      // Wrap point cloud in a group for scene transforms (rotation, flip)
-      const group = new THREE.Group();
+      // Wrap point clouds in an outer/inner group pair so scene transforms
+      // (rotation, flip) pivot on the data center instead of the world
+      // origin. Outer sits at center and carries the transform; inner is
+      // offset by -center and holds the clouds, so a point at absolute
+      // coord P still renders at P (center + -center + P).
+      const outerGroup = new THREE.Group();
+      const innerGroup = new THREE.Group();
 
-      group.add(pointCloud);
-      scene.add(group);
-      sceneGroupRef.current = group;
+      outerGroup.position.copy(center);
+      innerGroup.position.set(-center.x, -center.y, -center.z);
+      outerGroup.add(innerGroup);
+      innerGroup.add(pointCloud);
+      scene.add(outerGroup);
+      sceneGroupRef.current = outerGroup;
+      innerGroupRef.current = innerGroup;
       setPointCloudVersion((v) => v + 1); // Trigger visualization update
 
       // Start animation
@@ -958,6 +971,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           scene.remove(sceneGroupRef.current);
           sceneGroupRef.current = null;
         }
+        innerGroupRef.current = null;
         pointCloud.geometry.dispose();
         (pointCloud.material as any).dispose();
         pointCloudRef.current = null;
@@ -1544,7 +1558,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // Keys are composite: `${gene}:a` for assigned and `${gene}:u` for unassigned.
   // Visibility per gene = (global flag) AND (per-gene flag) AND (dataset has it).
   useEffect(() => {
-    const parent = sceneGroupRef.current ?? sceneRef.current;
+    // Parent SM overlay clouds to the inner group so they share the SC
+    // point cloud's centered space (and rotate/flip about the data center).
+    const parent = innerGroupRef.current ?? sceneRef.current;
     const smDs = smDatasetRef.current;
 
     if (!parent || !smDs || smSelectedGenes.size === 0) {
