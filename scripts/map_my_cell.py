@@ -195,6 +195,13 @@ def load_h5ad(h5ad_path):
             remaining = [i for i in range(spatial.shape[1]) if i not in top2]
             if remaining:
                 metadata_df["center_z"] = spatial[:, remaining[0]]
+    elif "center_x" in adata.obs.columns and "center_y" in adata.obs.columns:
+        # Some BIL h5ad exports (e.g. SISSeg) have no obsm['X_spatial'] and
+        # store cell centroids directly in obs instead.
+        metadata_df["center_x"] = adata.obs["center_x"].values
+        metadata_df["center_y"] = adata.obs["center_y"].values
+        if "center_z" in adata.obs.columns:
+            metadata_df["center_z"] = adata.obs["center_z"].values
 
     return metadata_df, cbg_df
 
