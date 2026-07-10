@@ -31,6 +31,7 @@ import {
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { glassButton } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
@@ -82,6 +83,10 @@ export function VisualizationControls() {
   const setSmLayerVisible = useSingleMoleculeVisualizationStore(
     (s) => s.setSmLayerVisible,
   );
+  // An SM overlay is only present when a mapping.json with linkColumn
+  // "__all__" has loaded an SM dataset into the global SM store. The SC/SM
+  // layer toggles + SC↔SM mode toggles only make sense in that case.
+  const hasSmOverlay = useSingleMoleculeStore((s) => s.currentDatasetId != null);
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
 
@@ -481,32 +486,40 @@ export function VisualizationControls() {
       <div className="flex flex-row items-center gap-1">
         <DotSizeSlider
           scSizeScale={sizeScale}
-          scSmMode={scSmMode}
+          scSmMode={hasSmOverlay ? scSmMode : "sc"}
           setScSizeScale={setSizeScale}
         />
-        <ScSmModeToggle
-          mode={scSmMode}
-          variant="vertical"
-          onChange={setScSmMode}
-        />
+        {/* SC↔SM toggle only when an SM overlay is present. */}
+        {hasSmOverlay && (
+          <ScSmModeToggle
+            mode={scSmMode}
+            variant="vertical"
+            onChange={setScSmMode}
+          />
+        )}
       </div>
 
       {/* Layer visibility — show/hide the entire single-cell or single-molecule
-          layer. Flagged in danger colour with an eye-off icon when hidden. */}
-      <LayerVisibilityButton
-        buttonBaseClass={buttonBaseClass}
-        kind="single cell"
-        label="SC"
-        visible={scLayerVisible}
-        onToggle={() => setScLayerVisible(!scLayerVisible)}
-      />
-      <LayerVisibilityButton
-        buttonBaseClass={buttonBaseClass}
-        kind="single molecule"
-        label="SM"
-        visible={smLayerVisible}
-        onToggle={() => setSmLayerVisible(!smLayerVisible)}
-      />
+          layer. Only meaningful when an SM overlay is present, so both toggles
+          are hidden otherwise (a plain SC dataset has nothing to layer). */}
+      {hasSmOverlay && (
+        <>
+          <LayerVisibilityButton
+            buttonBaseClass={buttonBaseClass}
+            kind="single cell"
+            label="SC"
+            visible={scLayerVisible}
+            onToggle={() => setScLayerVisible(!scLayerVisible)}
+          />
+          <LayerVisibilityButton
+            buttonBaseClass={buttonBaseClass}
+            kind="single molecule"
+            label="SM"
+            visible={smLayerVisible}
+            onToggle={() => setSmLayerVisible(!smLayerVisible)}
+          />
+        </>
+      )}
 
       {/* Hide UI Button — strips overlays for screenshotting (H key) */}
       <Tooltip content="Hide UI for screenshot (H)" placement="right">
@@ -610,8 +623,8 @@ export function VisualizationControls() {
         <VisualizationPanel
           controlsRef={controlsRef}
           mode={panelMode}
-          scSmMode={scSmMode}
-          setScSmMode={setScSmMode}
+          scSmMode={hasSmOverlay ? scSmMode : undefined}
+          setScSmMode={hasSmOverlay ? setScSmMode : undefined}
           onClose={() => setIsPanelOpen(false)}
         />
       )}

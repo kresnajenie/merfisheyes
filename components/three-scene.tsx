@@ -294,6 +294,29 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   // 2. Try fetching mapping.json from custom S3 (async, background)
   // 3. If mapping found, lazy-load the link column so right-click works immediately
   useEffect(() => {
+    // Drop any SM overlay carried over from a previously-viewed dataset.
+    // Only an "__all__" mapping (handled below) re-establishes one, so a
+    // non-"__all__" (multi-slice) or unmapped dataset never inherits a
+    // stale overlay. The right-click split view for non-"__all__" mappings
+    // is unaffected — it reads linkConfigRef, not this overlay state.
+    const clearSmOverlay = () => {
+      const prev = smDatasetRef.current;
+
+      if (!prev) return;
+      smDatasetRef.current = null;
+      setSmDataset(null);
+      // Also wipe the SM viz selection so the gene picker + legends (gated on
+      // selectedGenesLegend, not on the dataset) disappear with the overlay.
+      useSingleMoleculeVisualizationStore.getState().clearGenes();
+      import("@/lib/stores/singleMoleculeStore").then(
+        ({ useSingleMoleculeStore }) => {
+          useSingleMoleculeStore.getState().removeDataset(prev.id);
+        },
+      );
+    };
+
+    clearSmOverlay();
+
     if (!dataset) {
       linkConfigRef.current = null;
 
