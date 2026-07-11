@@ -1583,6 +1583,9 @@ def process_dataset(
         'dataset_id': 'local_dataset',
         'name': dataset_name,
         'type': dataset_type,
+        # Full gene list for searching (identical across h5ad/xenium/merscope).
+        # Order matches expr/index.json positional gene order.
+        'genes': [str(g) for g in gene_names],
         'statistics': {
             'total_cells': int(num_cells),
             'total_genes': int(num_genes),
