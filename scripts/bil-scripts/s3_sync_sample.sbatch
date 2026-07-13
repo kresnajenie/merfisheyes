@@ -24,10 +24,22 @@ echo "Started at $(date)"
 # ── Environment setup ────────────────────────────────────────
 module load aws-cli
 
-# Increase AWS S3 transfer concurrency (default is 10)
+# Increase AWS S3 transfer concurrency (default is 10). Use a private,
+# per-job config file instead of `aws configure set` -- that mutates the
+# shared ~/.aws/config, and since many samples' sync jobs run concurrently
+# under this account with no dependency between them, concurrent
+# read-modify-write on that one file was tearing it (intermittent
+# "Unable to parse config file" + a sync that silently no-ops).
 export AWS_MAX_CONCURRENT_REQUESTS=50
-aws configure set default.s3.max_concurrent_requests 50
-aws configure set default.s3.multipart_chunksize 16MB
+AWS_CONFIG_FILE="$(mktemp)"
+export AWS_CONFIG_FILE
+trap 'rm -f "$AWS_CONFIG_FILE"' EXIT
+cat > "$AWS_CONFIG_FILE" <<'EOC'
+[default]
+s3 =
+    max_concurrent_requests = 50
+    multipart_chunksize = 16MB
+EOC
 
 # ── Preflight check ─────────────────────────────────────────
 if [ ! -d "$SOURCE" ]; then
@@ -49,5 +61,11 @@ fi
 aws s3 sync "$SOURCE" "$DESTINATION" \
     --exclude "*.csv" \
     --exclude "mmc_output/*"
+SYNC_EXIT=$?
+
+if [ "$SYNC_EXIT" -ne 0 ]; then
+    echo "ERROR: aws s3 sync failed with exit code $SYNC_EXIT"
+    exit "$SYNC_EXIT"
+fi
 
 echo "Sync complete at $(date)"

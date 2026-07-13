@@ -155,9 +155,20 @@ while IFS=',' read -r sample_name input_dir species; do
         --ntasks=1 --cpus-per-task=8 --mem=4G --time=2-00:00:00 --partition=compute \
         --wrap="
 module load aws-cli
+# Private per-job config file instead of 'aws configure set' -- that
+# mutates the shared ~/.aws/config, and concurrent sync jobs across
+# samples race on read-modify-write of that one file (intermittent
+# 'Unable to parse config file' + a sync that silently no-ops).
 export AWS_MAX_CONCURRENT_REQUESTS=50
-aws configure set default.s3.max_concurrent_requests 50
-aws configure set default.s3.multipart_chunksize 16MB
+AWS_CONFIG_FILE=\"\$(mktemp)\"
+export AWS_CONFIG_FILE
+trap 'rm -f \"\$AWS_CONFIG_FILE\"' EXIT
+cat > \"\$AWS_CONFIG_FILE\" <<'EOC'
+[default]
+s3 =
+    max_concurrent_requests = 50
+    multipart_chunksize = 16MB
+EOC
 
 echo '=== S3 sync for ${sample_name} ==='
 echo 'Started at \$(date)'
@@ -165,11 +176,13 @@ echo 'Started at \$(date)'
 echo ''
 echo '--- Syncing meyes_output ---'
 aws s3 sync '${meyes_output}/' 's3://${S3_BUCKET}/${S3_PREFIX_BASE}/${sample_name}/meyes_output/'
+[ \$? -ne 0 ] && { echo 'ERROR: meyes_output sync failed'; exit 1; }
 echo 'meyes_output sync done at \$(date)'
 
 echo ''
 echo '--- Syncing sm_output ---'
 aws s3 sync '${sm_output}/' 's3://${S3_BUCKET}/${S3_PREFIX_BASE}/${sample_name}/sm_output/' --exclude '*.csv'
+[ \$? -ne 0 ] && { echo 'ERROR: sm_output sync failed'; exit 1; }
 echo 'sm_output sync done at \$(date)'
 
 echo ''
