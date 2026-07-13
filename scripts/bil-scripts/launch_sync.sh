@@ -7,9 +7,10 @@
 # s3_sync_sample.sbatch per sample with no dependency, so it's safe to run
 # even while other jobs for the same sample are unrelated/finished.
 #
-# s3_sync_sample.sbatch uses `aws s3 sync --size-only`, so re-running is
-# idempotent — already-synced files are skipped, only missing/changed ones
-# upload.
+# s3_sync_sample.sbatch compares size + mtime (no --size-only, removed
+# because reprocessed files can land on the same byte size as a stale S3
+# copy with different content), so re-running only re-uploads files that
+# are actually missing or newer.
 #
 # Usage:
 #   ./launch_sync.sh ace-dip-use     # single sample

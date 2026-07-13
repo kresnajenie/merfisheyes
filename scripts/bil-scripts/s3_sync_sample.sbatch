@@ -42,8 +42,11 @@ if [ "$FILE_COUNT" -eq 0 ]; then
 fi
 
 # ── Sync ─────────────────────────────────────────────────────
+# No --size-only: reprocessed files (e.g. manifest.json, de/*.bin.gz) can
+# land on the same byte size as the stale S3 copy with different content.
+# Default sync also checks mtime, so a freshly regenerated file still
+# re-uploads even when its size happens to match.
 aws s3 sync "$SOURCE" "$DESTINATION" \
-    --size-only \
     --exclude "*.csv" \
     --exclude "mmc_output/*"
 

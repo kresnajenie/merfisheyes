@@ -164,12 +164,12 @@ echo 'Started at \$(date)'
 
 echo ''
 echo '--- Syncing meyes_output ---'
-aws s3 sync '${meyes_output}/' 's3://${S3_BUCKET}/${S3_PREFIX_BASE}/${sample_name}/meyes_output/' --size-only
+aws s3 sync '${meyes_output}/' 's3://${S3_BUCKET}/${S3_PREFIX_BASE}/${sample_name}/meyes_output/'
 echo 'meyes_output sync done at \$(date)'
 
 echo ''
 echo '--- Syncing sm_output ---'
-aws s3 sync '${sm_output}/' 's3://${S3_BUCKET}/${S3_PREFIX_BASE}/${sample_name}/sm_output/' --size-only --exclude '*.csv'
+aws s3 sync '${sm_output}/' 's3://${S3_BUCKET}/${S3_PREFIX_BASE}/${sample_name}/sm_output/' --exclude '*.csv'
 echo 'sm_output sync done at \$(date)'
 
 echo ''
