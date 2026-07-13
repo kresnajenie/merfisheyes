@@ -41,6 +41,8 @@ implementations that can drift).
 | Per-user compute | Add `User.computeTier` → job vCPU/RAM sized per uploader |
 | Raw files after processing | **Deleted** on success + S3 lifecycle rule as backstop |
 | Progress feedback | **Fine-grained, live** — worker → Supabase Realtime (GitHub-Actions style) |
+| Processing pipeline | **v1 = `process_spatial_data.py` only**; architected as extensible stages (§5.8) |
+| MapMyCells / QC | **Future opt-in stages**, within the default `computeTier` — not built in v1 |
 | Delivery of this pass | This design doc first |
 
 ---
@@ -130,7 +132,7 @@ and the two `scripts/process_*.py` files. Entrypoint (a thin Python/shell wrappe
 2. `POST callback status=PROCESSING`.
 3. Download `raw/{datasetId}/` from S3 to local scratch (Fargate ephemeral storage,
    sized for raw + output — configurable up to 200 GB).
-4. Run the right script:
+4. Run the enabled processing stages (§5.8) — **v1 is a single stage**:
    - single-cell → `process_spatial_data.py raw/ out/` (auto-detects h5ad/xenium/merscope)
    - single-molecule → `process_single_molecule.py raw_file out/ [--dataset-type ...]`
 5. Upload `out/` to `datasets/{datasetId}/` in S3 (same layout the viewer already
@@ -175,6 +177,46 @@ combos. Optionally route tiers to separate Batch **job queues** with different p
 Reuse the existing SES routes (`/api/send-email`, `/api/send-email-single-molecule`).
 The callback handler calls them (or the same SES helper) once status flips to
 `COMPLETE`, sending the `/viewer/{id}` or `/sm-viewer/{id}` link.
+
+### 5.8 Extensible processing pipeline (v1 = chunk only)
+
+**v1 runs a single stage** — `process_spatial_data.py` (chunking). But the worker is
+structured as an ordered **stage pipeline** so MapMyCells annotation and QC slot in
+later with **no rework**. This mirrors the BIL SLURM chain
+(`combine → map_my_cell → process_spatial → sync`) but parameterized and *not* a 1:1
+copy. Stages are declared in `Dataset.processingParams`:
+
+```json
+{
+  "kind": "single_cell",
+  "stages": {
+    "chunk": { "chunkSize": 1 }              // v1: the only enabled stage
+    // future, opt-in:
+    // "annotate": { "tool": "mapmycells", "species": "mouse", "flatten": true },
+    // "qc":       { "metrics": ["n_genes","total_counts","pct_mito"], "mask": "p65" }
+  }
+}
+```
+
+**Stage contract** (same way the BIL launcher threads scripts): each stage reads the
+shared scratch dir, writes its output, and hands artifacts to the next stage via the
+processor's existing flags — `annotate` → `mapping_output.csv` → `chunk --mmc-csv`;
+`qc` → mask CSV → `chunk --mask`. Each stage posts its own progress step (§5.5).
+
+**Execution:** v1 = **one Batch job** (chunk). When multi-stage is enabled later, submit
+**chained Batch jobs** with `dependsOn` (the cloud equivalent of SLURM `afterok`), each
+stage sized within our normal **`computeTier`** envelope — we deliberately do **not**
+replicate BIL's 512 GB MapMyCells (that was spare-HPC headroom, not a requirement).
+
+**Future — `annotate` (MapMyCells):** **opt-in per upload** with species select;
+**single-cell only**, mouse/human taxonomy, needs raw counts; Xenium's native layout
+needs an adapter. Reference taxonomy files mounted from S3/EFS via
+`MERFISHEYES_REFERENCE_DIR` (the script already reads that env var).
+
+**Future — `qc`:** emits QC obs columns (n_genes, total_counts, pct_mito, doublet score)
+that flow into the chunked output as numerical columns, a QC report artifact (PNG/HTML)
+to S3 for the dashboard, and optionally a filter mask via the existing `--mask` path
+(the BIL artifact-mask mechanism is the template).
 
 ---
 
@@ -282,6 +324,9 @@ One-time AWS setup (candidate for Terraform/CDK if we go "everything incl. worke
   orphaned incomplete multipart uploads.
 - **`computeTier`** → ship a **single default tier**, tune/add tiers from there.
 - **Upload UX** → full §10 (all resolved).
+- **Pipeline shape** → v1 runs **chunking only** (`process_spatial_data.py`), built as an
+  extensible stage pipeline (§5.8). **MapMyCells** = future **opt-in** stage (single-cell,
+  mouse/human, raw counts) sized to the default `computeTier`; **QC** = future stage.
 
 ---
 
@@ -357,6 +402,12 @@ server-side processing progress is separate (§5.5 / dashboard).
 **Phase 4 — Polish**
 - Failure surfacing + retries; CloudWatch "view log" expander; groundwork for the
   user dashboard (list `Dataset where ownerId = me`) and `computeTier` admin controls.
+
+**Later — optional pipeline stages (§5.8)**
+- `annotate` (MapMyCells, opt-in) and `qc` slot in as chained Batch jobs (`dependsOn`)
+  without touching the core flow: add the stage to `processingParams`, thread its output
+  into `process_spatial_data.py` (`--mmc-csv` / `--mask`), add a progress step. MapMyCells
+  needs the reference data on S3/EFS + species opt-in UI.
 
 ---
 
