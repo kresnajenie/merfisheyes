@@ -1,0 +1,51 @@
+%% Server-side ingestion — data-flow flowchart
+%% Render: https://mermaid.live  or any Mermaid-aware Markdown viewer
+flowchart TD
+    subgraph Browser["Browser (logged-in user)"]
+        A["Drag &amp; drop raw dataset<br/>.h5ad / Xenium / MERSCOPE / .parquet / .csv"]
+        B["Extract columns client-side<br/>CSV header · Parquet footer (no upload)"]
+        C["Confirm column mapping<br/>(mandatory Continue)"]
+        D["Full-screen upload overlay<br/>blue bar · MB/MB · ETA · cancel"]
+        DASH["Dashboard / status view<br/>live processing progress"]
+    end
+
+    subgraph App["Next.js API (Vercel)"]
+        E["POST /api/ingest/initiate<br/>create Dataset=UPLOADING + presigned URLs"]
+        F["POST /api/ingest/&#123;id&#125;/complete<br/>set QUEUED + SubmitJob (tier-sized)"]
+        G["POST /api/ingest/&#123;id&#125;/callback<br/>secret-authed: status + progress + email"]
+    end
+
+    S3R[("S3 &mdash; raw/&#123;id&#125;/")]
+    S3P[("S3 &mdash; datasets/&#123;id&#125;/")]
+    BATCH["AWS Batch queue"]
+
+    subgraph Worker["Fargate worker container (Python)"]
+        W1["Download raw/&#123;id&#125;/ from S3"]
+        W2["Run process_spatial_data.py /<br/>process_single_molecule.py"]
+        W3["Upload chunked output to S3"]
+        W4["Delete raw/&#123;id&#125;/ from S3"]
+    end
+
+    DB[("Supabase Postgres")]
+    RT{{"Supabase Realtime"}}
+    SES{{"AWS SES"}}
+    VIEW["/viewer · /sm-viewer<br/>loads chunked data"]
+
+    A --> B --> C --> E
+    E -->|presigned URLs| D
+    D -->|"direct upload (multipart &gt;100 MB)"| S3R
+    D -->|all files done| F
+    F --> BATCH --> W1
+    S3R --> W1 --> W2 --> W3 --> S3P
+    W3 --> W4
+    W2 -. progress .-> G
+    W3 -->|COMPLETE + stats| G
+    G --> DB
+    DB --> RT --> DASH
+    G --> SES -->|ready link| INBOX["User inbox"]
+    S3P -. loads .-> VIEW
+
+    classDef s3 fill:#f0f7ff,stroke:#1f77b4,color:#083b66;
+    classDef ext fill:#fff7e6,stroke:#ff9800,color:#663d00;
+    class S3R,S3P s3;
+    class RT,SES,BATCH ext;
