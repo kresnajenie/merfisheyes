@@ -1,6 +1,20 @@
 import { auth } from "@/lib/auth";
 
 /**
+ * Verify the current request is from any authenticated user.
+ * Returns the session if valid, or a 401 Response to send back.
+ */
+export async function requireUser() {
+  const session = await auth();
+
+  if (!session?.user) {
+    return { error: new Response("Unauthorized", { status: 401 }), session: null };
+  }
+
+  return { error: null, session };
+}
+
+/**
  * Verify the current request is from an authenticated ADMIN or SUPER_ADMIN user.
  * Returns the session if valid, or a Response to send back.
  */
