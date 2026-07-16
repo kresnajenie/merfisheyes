@@ -23,12 +23,14 @@ model User {
   emailVerified DateTime? @map("email_verified")
   image         String?
   role          UserRole  @default(USER)
+  computeTier   String    @default("standard") @map("compute_tier")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   accounts        Account[]
   sessions        Session[]
   catalogDatasets CatalogDataset[]
+  datasets        Dataset[]
 
   @@map("users")
 }
@@ -159,14 +161,21 @@ model Dataset {
   status         DatasetStatus   @default(UPLOADING)
   manifestUrl    String?         @map("manifest_url") @db.VarChar(1000)
   errorMessage   String?         @map("error_message")
+  ownerId            String? @map("owner_id")
+  ingestSource       String? @map("ingest_source")
+  batchJobId         String? @map("batch_job_id")
+  processingParams   Json?   @map("processing_params")
+  processingProgress Json?   @map("processing_progress")
   createdAt      DateTime        @default(now()) @map("created_at")
   completedAt    DateTime?       @map("completed_at")
+  owner          User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   uploadSessions UploadSession[]
 
   @@index([fingerprint])
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@index([datasetType])
+  @@index([ownerId])
   @@map("datasets")
 }
 
@@ -203,6 +212,7 @@ model UploadFile {
 
 enum DatasetStatus {
   UPLOADING
+  QUEUED
   PROCESSING
   COMPLETE
   FAILED

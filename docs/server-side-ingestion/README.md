@@ -5,9 +5,15 @@
 > background AWS worker runs the existing Python processors, uploads the
 > processed output to S3, records it in the DB, and emails the user a link.
 >
-> **Diagrams:** [`server-side-ingestion-flow.mermaid`](server-side-ingestion-flow.mermaid)
-> (data flow) · [`server-side-ingestion-sequence.mermaid`](server-side-ingestion-sequence.mermaid)
-> (temporal sequence).
+> **Diagrams:** [`flow.mermaid`](flow.mermaid) (data flow) ·
+> [`sequence.mermaid`](sequence.mermaid) (temporal sequence).
+>
+> **Phase docs:** [Phase 0 — Schema](phase-0-schema.md) ·
+> [Phase 1 — Raw upload](phase-1-raw-upload.md) ·
+> [Phase 2 — Worker container](phase-2-worker-container.md) ·
+> [Phase 3 — Trigger + callback + progress](phase-3-trigger-callback-progress.md) ·
+> [Phase 4 — Polish](phase-4-polish.md) ·
+> [Later — Optional stages](phase-later-optional-stages.md)
 
 ---
 
@@ -373,41 +379,18 @@ server-side processing progress is separate (§5.5 / dashboard).
 
 ## 11. Phased implementation plan
 
-**Phase 0 — Schema & scaffolding**
-- Add `ownerId`/`QUEUED`/`batchJobId`/`processingParams`; migration; `User.datasets`.
-- Verify: migration applies on dev DB; existing flows unaffected.
+Each phase is its own doc (goal · tasks · files touched · verification · provisioning):
 
-**Phase 1 — Raw upload (app-side, no worker yet)**
-- `POST /api/ingest/initiate` + per-file complete + `/complete` (stops at `QUEUED`) +
-  `/abort` (cancel/cleanup).
-- Multipart helpers in `lib/s3.ts` (raw path only, above 100 MB).
-- New RawUpload drop zone (auth-gated) + **client-side column extraction & confirm
-  step** (§7) + **full-screen upload overlay with blue bar, MB/MB, ETA, close guards,
-  cancel** (§10) that uploads raw to `raw/{id}/`.
-- Verify: raw files land in S3; `Dataset` reaches `QUEUED` with `processingParams`;
-  cancel + tab-close guards behave; ETA/byte counters accurate.
+| Phase | Doc | One-liner | AWS/Supabase work? |
+|---|---|---|---|
+| 0 | [Schema & scaffolding](phase-0-schema.md) | Prisma fields + migration | No |
+| 1 | [Raw upload](phase-1-raw-upload.md) | Ingest routes, multipart, drop-zone + overlay | No |
+| 2 | [Worker container](phase-2-worker-container.md) | Dockerfile + entrypoint, run manually | Local Docker |
+| 3 | [Trigger + callback + progress](phase-3-trigger-callback-progress.md) | SubmitJob, callback, Realtime, stand up Batch | **Yes** |
+| 4 | [Polish](phase-4-polish.md) | Retries, logs, dashboard, tiers | Minor |
+| — | [Later — optional stages](phase-later-optional-stages.md) | MapMyCells + QC as chained jobs | Later |
 
-**Phase 2 — Worker container (runs manually first)**
-- Dockerfile + entrypoint wrapper; run locally against a `QUEUED` dataset's raw S3
-  prefix; confirm it produces the exact chunked layout the viewer reads.
-- Verify: processed output opens in `/viewer` / `/sm-viewer` end-to-end.
-
-**Phase 3 — Wire the trigger + callback + live progress**
-- `SubmitJob` from `/complete` (tier-sized); `/callback` endpoint (secret-authed) →
-  status + progress + email.
-- Worker POSTs staged progress; browser subscribes via **Supabase Realtime**.
-- Push image to ECR; stand up Batch/Fargate + IAM + networking.
-- Verify: full path — drop raw → live progress → email arrives → link works; raw deleted.
-
-**Phase 4 — Polish**
-- Failure surfacing + retries; CloudWatch "view log" expander; groundwork for the
-  user dashboard (list `Dataset where ownerId = me`) and `computeTier` admin controls.
-
-**Later — optional pipeline stages (§5.8)**
-- `annotate` (MapMyCells, opt-in) and `qc` slot in as chained Batch jobs (`dependsOn`)
-  without touching the core flow: add the stage to `processingParams`, thread its output
-  into `process_spatial_data.py` (`--mmc-csv` / `--mask`), add a progress step. MapMyCells
-  needs the reference data on S3/EFS + species opt-in UI.
+Build order is strict 0 → 1 → 2 → 3; Phase 2 can be developed in parallel with Phase 1.
 
 ---
 
