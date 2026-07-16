@@ -1,8 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import * as Comlink from "comlink";
 
@@ -13,6 +14,15 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
+import {
+  uploadRawToS3,
+  abortRawUpload,
+  type RawUploadProgress,
+} from "@/lib/upload/uploadRawToS3";
+import {
+  RawUploadOverlay,
+  type RawUploadStatus,
+} from "@/components/raw-upload-overlay";
 
 // "folder" is a meta-type that auto-detects the dropped folder shape
 // (zarr / chunked / xenium / merscope / h5ad-inside) and dispatches to the
@@ -46,6 +56,12 @@ interface FileUploadProps {
   description: string;
   singleMolecule?: boolean;
   /**
+   * When true, this card uploads the raw bytes to the server-side ingestion
+   * pipeline (no browser parsing) instead of parsing locally and navigating to
+   * the viewer. Requires an authenticated session.
+   */
+  serverUpload?: boolean;
+  /**
    * Optional row of small icons rendered under the description. Used by the
    * unified "Folder" card to advertise which formats it accepts.
    */
@@ -57,11 +73,27 @@ export function FileUpload({
   title,
   description,
   singleMolecule = false,
+  serverUpload = false,
   icons,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
+
+  // Server-side raw-upload overlay state (only used when serverUpload=true).
+  const { data: session } = useSession();
+  const [serverStatus, setServerStatus] = useState<RawUploadStatus | "idle">(
+    "idle",
+  );
+  const [serverProgress, setServerProgress] = useState<RawUploadProgress>({
+    loaded: 0,
+    total: 0,
+    fileIndex: 0,
+    fileCount: 0,
+  });
+  const [serverError, setServerError] = useState<string>("");
+  const abortRef = useRef<AbortController | null>(null);
+  const datasetIdRef = useRef<string | null>(null);
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -84,7 +116,10 @@ export function FileUpload({
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback(
+  // NOTE: plain functions (not useCallback) so they always call the current
+  // handleFiles closure. Memoizing them would capture a stale handleFiles and
+  // miss prop changes like `serverUpload` toggling on.
+  const handleDrop =
     async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
@@ -116,18 +151,14 @@ export function FileUpload({
       }
 
       handleFiles(files);
-    },
-    [type],
-  );
+    };
 
-  const handleFileInput = useCallback(
+  const handleFileInput =
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files ? Array.from(e.target.files) : [];
 
       handleFiles(files);
-    },
-    [type],
-  );
+    };
 
   /**
    * Detect if files represent a chunked dataset folder (from Python script)
@@ -241,8 +272,84 @@ export function FileUpload({
     return hasManifest && hasGenesFolder && hasGeneBinFiles;
   };
 
+  // Server-side ingestion: upload raw bytes, no parsing, ends at QUEUED.
+  const handleServerUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    if (!session?.user) {
+      toast.error("Please sign in to upload & process on the server.");
+
+      return;
+    }
+
+    // Build raw keys from the folder-relative path (single files fall back to
+    // the file name).
+    const rawFiles = files.map((file) => ({
+      key: file.webkitRelativePath || file.name,
+      file,
+      contentType: "application/octet-stream",
+    }));
+
+    const kind = singleMolecule ? "single_molecule" : "single_cell";
+    const title =
+      files[0].webkitRelativePath?.split("/")[0] || files[0].name;
+
+    const controller = new AbortController();
+
+    abortRef.current = controller;
+    datasetIdRef.current = null;
+    setServerError("");
+    setServerProgress({
+      loaded: 0,
+      total: rawFiles.reduce((s, f) => s + f.file.size, 0),
+      fileIndex: 0,
+      fileCount: rawFiles.length,
+    });
+    setServerStatus("preparing");
+
+    try {
+      const { datasetId } = await uploadRawToS3({
+        kind,
+        title,
+        // v1 pipeline: chunk only (design §5.8). Column mapping is added by the
+        // column-confirm step (Step 2).
+        processingParams: { kind, stages: { chunk: { chunkSize: 1 } } },
+        files: rawFiles,
+        signal: controller.signal,
+        onProgress: setServerProgress,
+        onPhase: setServerStatus,
+      });
+
+      datasetIdRef.current = datasetId;
+      setServerStatus("done");
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        // Cancelled by the user; handled in handleServerCancel.
+        return;
+      }
+      console.error("[FileUpload] server upload failed:", err);
+      setServerError(err?.message || "Upload failed");
+      setServerStatus("error");
+    } finally {
+      abortRef.current = null;
+    }
+  };
+
+  const handleServerCancel = () => {
+    abortRef.current?.abort();
+    if (datasetIdRef.current) abortRawUpload(datasetIdRef.current);
+    datasetIdRef.current = null;
+    setServerStatus("idle");
+  };
+
   const handleFiles = async (files: File[]) => {
     if (files.length === 0) return;
+
+    if (serverUpload) {
+      await handleServerUpload(files);
+
+      return;
+    }
 
     try {
       resetHooks();
@@ -645,6 +752,19 @@ export function FileUpload({
           )}
         </div>
       </div>
+
+      {serverUpload && serverStatus !== "idle" && (
+        <RawUploadOverlay
+          error={serverError}
+          fileCount={serverProgress.fileCount}
+          fileIndex={serverProgress.fileIndex}
+          loaded={serverProgress.loaded}
+          status={serverStatus}
+          total={serverProgress.total}
+          onCancel={handleServerCancel}
+          onClose={() => setServerStatus("idle")}
+        />
+      )}
     </div>
   );
 }

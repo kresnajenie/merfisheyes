@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@heroui/button";
+import { Switch } from "@heroui/switch";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   useCallback,
@@ -80,6 +82,8 @@ function HomeContent() {
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
   const [isS3ModalOpen, setIsS3ModalOpen] = useState(false);
+  const { data: session } = useSession();
+  const [serverMode, setServerMode] = useState(false);
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -227,6 +231,26 @@ function HomeContent() {
               </span>{" "}
               datasets
             </div>
+
+            <div className="mt-5 flex flex-col items-center gap-1">
+              <Switch
+                isDisabled={!session?.user}
+                isSelected={serverMode}
+                size="sm"
+                onValueChange={setServerMode}
+              >
+                <span className="text-xs uppercase tracking-[0.2em] text-default-500">
+                  Upload &amp; process on server
+                </span>
+              </Switch>
+              <p className="text-[11px] text-default-400">
+                {session?.user
+                  ? serverMode
+                    ? "Raw files upload to the server for processing — you'll be emailed a link."
+                    : "Off: files are parsed in your browser."
+                  : "Sign in to upload & process large datasets on the server."}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -254,6 +278,7 @@ function HomeContent() {
                   <FileUpload
                     description="Single .h5ad file"
                     icons={<AnnDataIcon className="text-primary" />}
+                    serverUpload={serverMode}
                     title="H5AD File"
                     type="h5ad"
                   />
@@ -267,6 +292,7 @@ function HomeContent() {
                         <ChunkedIcon className="text-primary" />
                       </>
                     }
+                    serverUpload={serverMode}
                     title="Folder"
                     type="folder"
                   />
@@ -301,6 +327,7 @@ function HomeContent() {
                         <MerscopeIcon />
                       </>
                     }
+                    serverUpload={serverMode}
                     singleMolecule={true}
                     title="File"
                     type="file"
