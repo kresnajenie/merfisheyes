@@ -317,6 +317,41 @@ export async function listInProgressMultipartUploads(
 }
 
 /**
+ * List every object key under a prefix, returned RELATIVE to that prefix.
+ * Used by the ingestion callback to register the worker's output files.
+ */
+export async function listObjectKeys(
+  prefix: string,
+): Promise<Array<{ key: string; size: number }>> {
+  const bucket = ensureBucket();
+  const out: Array<{ key: string; size: number }> = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const listed = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }),
+    );
+
+    for (const obj of listed.Contents ?? []) {
+      if (!obj.Key) continue;
+      const rel = obj.Key.slice(prefix.length);
+
+      if (rel) out.push({ key: rel, size: obj.Size ?? 0 });
+    }
+
+    continuationToken = listed.IsTruncated
+      ? listed.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
+
+  return out;
+}
+
+/**
  * Delete every object under a key prefix (paginated list → batched delete).
  * @returns the number of objects deleted
  */

@@ -19,12 +19,17 @@ Env:
   SCRATCH_DIR         default /scratch
   CALLBACK_URL/SECRET Phase 3 — unused here beyond being echoed
 """
+import hashlib
+import hmac
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -38,10 +43,75 @@ def env(name, default=None, required=False):
     return val
 
 
+def post_callback(payload, attempts=3):
+    """POST the callback to the app, signed with an HMAC of the raw body.
+
+    No-ops when CALLBACK_URL/CALLBACK_SECRET are unset (hand-testing mode), so
+    the worker still runs standalone. Failures are logged, never fatal — except
+    that a lost COMPLETE means the app never learns, hence the retries.
+    """
+    url = os.environ.get("CALLBACK_URL")
+    secret = os.environ.get("CALLBACK_SECRET")
+
+    if not url or not secret:
+        return False
+
+    body = json.dumps(payload).encode()
+    sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "x-ingest-signature": f"sha256={sig}",
+        },
+    )
+
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                resp.read()
+            return True
+        except Exception as e:  # noqa: BLE001 — network errors are expected
+            detail = ""
+            if isinstance(e, urllib.error.HTTPError):
+                try:
+                    detail = f" body={e.read().decode()[:200]}"
+                except Exception:
+                    pass
+            print(
+                f"  !! callback POST failed (attempt {attempt}/{attempts}): {e}{detail}",
+                flush=True,
+            )
+            if attempt < attempts:
+                time.sleep(2 * attempt)
+
+    return False
+
+
 def callback(status, **extra):
-    """Phase 2 stub: print the callback payload. Phase 3 POSTs it (signed)."""
+    """Print the callback payload and POST it to the app when configured."""
     payload = {"status": status, **extra}
     print(f"CALLBACK {json.dumps(payload)}", flush=True)
+    post_callback(payload)
+
+
+_last_progress = [0.0]
+
+
+def progress(stage, percent=None, min_interval=0.0):
+    """Report staged progress (design §5.5). Throttled via min_interval."""
+    now = time.time()
+    if min_interval and (now - _last_progress[0]) < min_interval:
+        return
+    _last_progress[0] = now
+
+    prog = {"stage": stage}
+    if percent is not None:
+        prog["percent"] = percent
+    print(f"PROGRESS {json.dumps(prog)}", flush=True)
+    post_callback({"status": "PROCESSING", "progress": prog})
 
 
 def fail(msg):
@@ -147,6 +217,46 @@ def delete_prefix(s3, bucket, prefix):
     return len(to_delete)
 
 
+# process_spatial_data.py logs stages like:
+#   [10:16:21] [7.3s] === STEP 4: Processing expression matrix (815 genes, ...) ===
+# and per-chunk lines like "  [12/815] chunk_00011 (...)". Map both to progress.
+_STEP_RE = re.compile(r"===\s*STEP\s+([\w.]+):\s*(.+?)\s*===")
+_ITEM_RE = re.compile(r"\[(\d+)/(\d+)\]")
+
+
+def run_processor(cmd) -> int:
+    """Run the processor, echoing its output and reporting staged progress."""
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    stage = "Processing"
+
+    for line in proc.stdout:  # type: ignore[union-attr]
+        sys.stdout.write(line)
+        sys.stdout.flush()
+
+        step = _STEP_RE.search(line)
+        if step:
+            # Keep the stage label short for the UI.
+            stage = step.group(2).split("(")[0].strip()
+            progress(stage)
+            continue
+
+        item = _ITEM_RE.search(line)
+        if item:
+            done, total = int(item.group(1)), int(item.group(2))
+            if total:
+                # Throttle: with chunkSize=1 this fires hundreds of times.
+                progress(stage, percent=round(done * 100 / total), min_interval=3.0)
+
+    proc.wait()
+    return proc.returncode
+
+
 def find_single_cell_input(raw_dir: Path) -> Path:
     """A single .h5ad → that file; otherwise the folder (Xenium/MERSCOPE)."""
     h5ads = sorted(raw_dir.rglob("*.h5ad"))
@@ -216,6 +326,7 @@ def main():
 
     raw_prefix = f"raw/{dataset_id}/"
     print(f"== Downloading {raw_prefix} from {bucket} ==", flush=True)
+    progress("Downloading raw data")
     n = download_prefix(s3, bucket, raw_prefix, raw_dir)
     if n == 0:
         fail(f"No raw objects under {raw_prefix}")
@@ -229,9 +340,9 @@ def main():
         cmd += ["--chunk-size", str(chunk["chunkSize"])]
 
     print(f"== Running: {' '.join(cmd)} ==", flush=True)
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        fail(f"process_spatial_data.py exited {result.returncode}")
+    returncode = run_processor(cmd)
+    if returncode != 0:
+        fail(f"process_spatial_data.py exited {returncode}")
 
     if not (out_dir / "manifest.json").exists():
         fail("processor finished but out/manifest.json is missing")
@@ -246,6 +357,7 @@ def main():
         print(f"== Cleared {stale} stale object(s) under {out_prefix} ==", flush=True)
 
     print(f"== Uploading out/ to {out_prefix} ==", flush=True)
+    progress("Uploading results")
     uploaded = upload_dir(s3, bucket, out_dir, out_prefix, concurrency=concurrency)
 
     stats = read_stats(out_dir)
@@ -260,13 +372,14 @@ def main():
     else:
         print("== DELETE_RAW not set; leaving raw/ in place ==", flush=True)
 
+    # stats go under `stats` — that is the shape /api/ingest/[id]/callback reads.
     callback(
         "COMPLETE",
         datasetId=dataset_id,
         manifestKey=f"{out_prefix}manifest.json",
         uploadedFiles=uploaded,
         fingerprint=fingerprint,
-        **stats,
+        stats=stats,
     )
 
 
