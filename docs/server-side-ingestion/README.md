@@ -197,6 +197,11 @@ copy. Stages are declared in `Dataset.processingParams`:
   "kind": "single_cell",
   "stages": {
     "chunk": { "chunkSize": 1 }              // v1: the only enabled stage
+    // chunkSize = GENES PER CHUNK (process_spatial_data.py --chunk-size).
+    // 1 => one file per gene, so the viewer fetches only the selected gene
+    // (fast gene switching) instead of a whole multi-gene chunk. Omit it to
+    // let the script auto-determine (~200 genes/chunk) if you'd rather have
+    // fewer, larger objects.
     // future, opt-in:
     // "annotate": { "tool": "mapmycells", "species": "mouse", "flatten": true },
     // "qc":       { "metrics": ["n_genes","total_counts","pct_mito"], "mask": "p65" }

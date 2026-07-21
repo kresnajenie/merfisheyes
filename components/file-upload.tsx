@@ -313,6 +313,11 @@ export function FileUpload({
         title,
         // v1 pipeline: chunk only (design §5.8). Column mapping is added by the
         // column-confirm step (Step 2).
+        //
+        // chunkSize is "genes per chunk". 1 = one file per gene, so selecting a
+        // gene in the viewer fetches only that gene instead of a whole
+        // multi-gene chunk — much faster gene switching, at the cost of many
+        // more (smaller) objects.
         processingParams: { kind, stages: { chunk: { chunkSize: 1 } } },
         files: rawFiles,
         signal: controller.signal,
