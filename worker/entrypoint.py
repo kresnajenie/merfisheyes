@@ -24,6 +24,8 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import boto3
@@ -87,21 +89,51 @@ def download_prefix(s3, bucket, prefix, dest: Path):
     return count
 
 
-def upload_dir(s3, bucket, src: Path, prefix):
-    """Upload everything under `src` to `prefix`, preserving structure."""
-    count = 0
-    for path in sorted(src.rglob("*")):
-        if path.is_dir():
-            continue
+def upload_dir(s3, bucket, src: Path, prefix, concurrency=16):
+    """Upload everything under `src` to `prefix`, preserving structure.
+
+    Uploaded concurrently: with chunkSize=1 the output is thousands of small
+    per-gene objects, so the cost is per-request round-trip latency, not
+    bandwidth. Overlapping the waits is the whole win. (boto3 clients are
+    thread-safe; large individual files still get boto3's automatic multipart.)
+    """
+    files = [p for p in sorted(src.rglob("*")) if p.is_file()]
+    total = len(files)
+    started = time.time()
+    done = 0
+    errors = []
+
+    def put(path: Path):
         rel = path.relative_to(src).as_posix()
         key = f"{prefix}{rel}"
         s3.upload_file(
             str(path), bucket, key,
             ExtraArgs={"ContentType": content_type_for(path)},
         )
-        count += 1
-        print(f"  uploaded {path} -> {key}", flush=True)
-    return count
+        return key
+
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = {pool.submit(put, p): p for p in files}
+        for fut in as_completed(futures):
+            try:
+                fut.result()
+            except Exception as e:  # noqa: BLE001 — collected and re-raised below
+                errors.append(f"{futures[fut]}: {type(e).__name__}: {e}")
+            done += 1
+            if done % 200 == 0 or done == total:
+                rate = done / max(time.time() - started, 1e-6)
+                print(f"  uploaded {done}/{total} ({rate:.0f} obj/s)", flush=True)
+
+    if errors:
+        raise RuntimeError(f"{len(errors)} upload(s) failed; first: {errors[0]}")
+
+    elapsed = time.time() - started
+    print(
+        f"  upload finished: {total} objects in {elapsed:.1f}s "
+        f"({total / max(elapsed, 1e-6):.0f} obj/s, concurrency={concurrency})",
+        flush=True,
+    )
+    return total
 
 
 def delete_prefix(s3, bucket, prefix):
@@ -163,6 +195,7 @@ def main():
     bucket = env("AWS_S3_BUCKET") or env("S3_BUCKET", required=True)
     delete_raw = env("DELETE_RAW", "false").lower() == "true"
     scratch = Path(env("SCRATCH_DIR", "/scratch"))
+    concurrency = int(env("UPLOAD_CONCURRENCY", "16"))
 
     try:
         params = json.loads(env("PROCESSING_PARAMS", "") or "{}")
@@ -204,8 +237,16 @@ def main():
         fail("processor finished but out/manifest.json is missing")
 
     out_prefix = f"datasets/{dataset_id}/"
+
+    # The worker is the authoritative producer of datasets/{id}/ — clear it so a
+    # re-run can't leave stale objects behind (e.g. old 200-genes-per-chunk
+    # files sitting alongside new per-gene ones).
+    stale = delete_prefix(s3, bucket, out_prefix)
+    if stale:
+        print(f"== Cleared {stale} stale object(s) under {out_prefix} ==", flush=True)
+
     print(f"== Uploading out/ to {out_prefix} ==", flush=True)
-    uploaded = upload_dir(s3, bucket, out_dir, out_prefix)
+    uploaded = upload_dir(s3, bucket, out_dir, out_prefix, concurrency=concurrency)
 
     stats = read_stats(out_dir)
 
