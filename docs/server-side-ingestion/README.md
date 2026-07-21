@@ -391,7 +391,7 @@ Each phase is its own doc (goal · tasks · files touched · verification · pro
 | 0 | [Schema & scaffolding](phase-0-schema.md) | Prisma fields + migration | No |
 | 1 | [Raw upload](phase-1-raw-upload.md) | Ingest routes, multipart, drop-zone + overlay | No |
 | 2 | [Worker container](phase-2-worker-container.md) | Dockerfile + entrypoint, run manually | Local Docker |
-| 3 | [Trigger + callback + progress](phase-3-trigger-callback-progress.md) | SubmitJob, callback, Realtime, stand up Batch | **Yes** |
+| 3 | [Trigger + callback + progress](phase-3-trigger-callback-progress.md) | SubmitJob, callback, Realtime, stand up Batch | **Yes** — step-by-step: [AWS setup checklist](phase-3-aws-setup.md) |
 | 4 | [Polish](phase-4-polish.md) | Retries, logs, dashboard, tiers | Minor |
 | — | [Later — optional stages](phase-later-optional-stages.md) | MapMyCells + QC as chained jobs | Later |
 
