@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
+    "@aws-sdk/client-batch": "^3.1092.0",
     "@aws-sdk/client-s3": "^3.901.0",
     "@aws-sdk/client-ses": "^3.1021.0",
     "@aws-sdk/s3-presigned-post": "^3.1045.0",

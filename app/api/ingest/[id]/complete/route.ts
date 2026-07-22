@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/admin-auth";
+import { isBatchConfigured, submitIngestJob } from "@/lib/batch";
 import { prisma } from "@/lib/prisma";
 
 interface CompleteIngestRequest {
@@ -28,7 +29,7 @@ export async function POST(
 
     const uploadSession = await prisma.uploadSession.findUnique({
       where: { id: uploadId },
-      include: { dataset: true },
+      include: { dataset: { include: { owner: true } } },
     });
 
     if (!uploadSession || uploadSession.datasetId !== datasetId) {
@@ -52,17 +53,53 @@ export async function POST(
       );
     }
 
-    // Raw bytes are in place. Hand off to the queue.
-    // (SubmitJob to AWS Batch is Phase 3 — this phase stops at QUEUED.)
+    // Raw bytes are in place — mark QUEUED before submitting so the state is
+    // correct even if SubmitJob fails.
     await prisma.dataset.update({
       where: { id: datasetId },
       data: { status: "QUEUED" },
     });
 
+    // Fire-and-forget the Batch job: SubmitJob returns immediately and every
+    // status update arrives via /api/ingest/[id]/callback. Never block this
+    // route on processing (Vercel functions are short-lived).
+    let batchJobId: string | null = null;
+    let submitError: string | null = null;
+
+    if (isBatchConfigured()) {
+      try {
+        batchJobId = await submitIngestJob({
+          datasetId,
+          kind:
+            uploadSession.dataset.datasetType === "single_molecule"
+              ? "single_molecule"
+              : "single_cell",
+          processingParams: uploadSession.dataset.processingParams,
+          computeTier: uploadSession.dataset.owner?.computeTier,
+        });
+        await prisma.dataset.update({
+          where: { id: datasetId },
+          data: { batchJobId },
+        });
+      } catch (e: any) {
+        // The upload itself succeeded; leave the dataset QUEUED so the job can
+        // be resubmitted rather than losing the raw data.
+        submitError = e?.message || "SubmitJob failed";
+        console.error(`Ingest complete: SubmitJob failed for ${datasetId}:`, e);
+      }
+    } else {
+      submitError = "Batch not configured (CALLBACK_SECRET / callback base URL)";
+      console.warn(`Ingest complete: ${submitError}; ${datasetId} stays QUEUED`);
+    }
+
     return NextResponse.json({
       success: true,
-      message: "Raw upload complete; dataset queued for processing",
+      message: batchJobId
+        ? "Raw upload complete; processing job submitted"
+        : "Raw upload complete; dataset queued (job not submitted)",
       datasetId,
+      batchJobId,
+      submitError,
     });
   } catch (err: any) {
     console.error("Ingest complete error:", err);
