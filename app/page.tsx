@@ -84,6 +84,7 @@ function HomeContent() {
   const [isS3ModalOpen, setIsS3ModalOpen] = useState(false);
   const { data: session } = useSession();
   const [serverMode, setServerMode] = useState(false);
+  const [annotateCellTypes, setAnnotateCellTypes] = useState(false);
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -250,6 +251,25 @@ function HomeContent() {
                     : "Off: files are parsed in your browser."
                   : "Sign in to upload & process large datasets on the server."}
               </p>
+
+              {serverMode && session?.user ? (
+                <div className="mt-2 flex flex-col items-center gap-1">
+                  <Switch
+                    isSelected={annotateCellTypes}
+                    size="sm"
+                    onValueChange={setAnnotateCellTypes}
+                  >
+                    <span className="text-xs uppercase tracking-[0.2em] text-default-500">
+                      Annotate cell types
+                    </span>
+                  </Switch>
+                  <p className="text-[11px] text-default-400">
+                    {annotateCellTypes
+                      ? "MapMyCells will label cells against the mouse taxonomy (adds a few minutes)."
+                      : "Off: no cell-type annotation."}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -276,6 +296,9 @@ function HomeContent() {
               <div className="flex flex-col items-center gap-4 mx-auto max-w-2xl w-full">
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <FileUpload
+                    annotate={
+                      annotateCellTypes ? { species: "mouse" } : undefined
+                    }
                     description="Single .h5ad file"
                     icons={<AnnDataIcon className="text-primary" />}
                     serverUpload={serverMode}
@@ -291,6 +314,9 @@ function HomeContent() {
                         <MerscopeIcon />
                         <ChunkedIcon className="text-primary" />
                       </>
+                    }
+                    annotate={
+                      annotateCellTypes ? { species: "mouse" } : undefined
                     }
                     serverUpload={serverMode}
                     title="Folder"

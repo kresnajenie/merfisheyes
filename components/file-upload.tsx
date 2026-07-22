@@ -63,6 +63,11 @@ interface FileUploadProps {
    */
   serverUpload?: boolean;
   /**
+   * Opt into the MapMyCells annotate stage (single-cell only). Runs before
+   * chunking so the taxonomy labels get DE stats like any other cluster column.
+   */
+  annotate?: { species: string };
+  /**
    * Optional row of small icons rendered under the description. Used by the
    * unified "Folder" card to advertise which formats it accepts.
    */
@@ -75,6 +80,7 @@ export function FileUpload({
   description,
   singleMolecule = false,
   serverUpload = false,
+  annotate,
   icons,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -332,7 +338,16 @@ export function FileUpload({
         // gene in the viewer fetches only that gene instead of a whole
         // multi-gene chunk — much faster gene switching, at the cost of many
         // more (smaller) objects.
-        processingParams: { kind, stages: { chunk: { chunkSize: 1 } } },
+        //
+        // annotate (MapMyCells) is single-cell only and deliberately ordered
+        // before chunk, so its taxonomy columns get DE stats too.
+        processingParams: {
+          kind,
+          stages: {
+            ...(annotate && kind === "single_cell" ? { annotate } : {}),
+            chunk: { chunkSize: 1 },
+          },
+        },
         files: rawFiles,
         signal: controller.signal,
         onProgress: setServerProgress,

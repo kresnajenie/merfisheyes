@@ -43,17 +43,32 @@ def env(name, default=None, required=False):
     return val
 
 
-def post_callback(payload, attempts=3):
+# Consecutive callback failures. Once the endpoint is clearly unreachable
+# (misconfigured URL, deployment protection, app down) we stop attempting
+# best-effort progress posts entirely: without this, every progress update pays
+# the full retry cost and a 2-minute job stretches past 10 minutes.
+_callback_failures = [0]
+_CALLBACK_GIVE_UP_AFTER = 3
+
+
+def post_callback(payload, attempts=3, best_effort=False):
     """POST the callback to the app, signed with an HMAC of the raw body.
 
     No-ops when CALLBACK_URL/CALLBACK_SECRET are unset (hand-testing mode), so
     the worker still runs standalone. Failures are logged, never fatal — except
-    that a lost COMPLETE means the app never learns, hence the retries.
+    that a lost COMPLETE means the app never learns, hence the retries there.
+
+    best_effort=True (progress updates) means: one attempt, no backoff, and skip
+    entirely once the endpoint has repeatedly failed. Terminal status posts stay
+    persistent because losing them strands the dataset.
     """
     url = os.environ.get("CALLBACK_URL")
     secret = os.environ.get("CALLBACK_SECRET")
 
     if not url or not secret:
+        return False
+
+    if best_effort and _callback_failures[0] >= _CALLBACK_GIVE_UP_AFTER:
         return False
 
     body = json.dumps(payload).encode()
@@ -76,6 +91,8 @@ def post_callback(payload, attempts=3):
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 resp.read()
+            _callback_failures[0] = 0
+
             return True
         except Exception as e:  # noqa: BLE001 — network errors are expected
             detail = ""
@@ -91,6 +108,15 @@ def post_callback(payload, attempts=3):
             if attempt < attempts:
                 time.sleep(2 * attempt)
 
+    _callback_failures[0] += 1
+    if best_effort and _callback_failures[0] == _CALLBACK_GIVE_UP_AFTER:
+        print(
+            "  !! giving up on progress callbacks after "
+            f"{_CALLBACK_GIVE_UP_AFTER} consecutive failures — processing continues, "
+            "terminal status will still be attempted",
+            flush=True,
+        )
+
     return False
 
 
@@ -105,7 +131,13 @@ _last_progress = [0.0]
 
 
 def progress(stage, percent=None, min_interval=0.0):
-    """Report staged progress (design §5.5). Throttled via min_interval."""
+    """Report staged progress (design §5.5). Throttled via min_interval.
+
+    Progress is best-effort: a single attempt, no retry/backoff. Retrying here
+    was actively harmful — each failed post cost ~6s of backoff, which is longer
+    than the throttle window, so every update slipped through the throttle and a
+    2-minute job ran for over 10 minutes when the callback URL was unreachable.
+    """
     now = time.time()
     if min_interval and (now - _last_progress[0]) < min_interval:
         return
@@ -115,7 +147,7 @@ def progress(stage, percent=None, min_interval=0.0):
     if percent is not None:
         prog["percent"] = percent
     print(f"PROGRESS {json.dumps(prog)}", flush=True)
-    post_callback({"status": "PROCESSING", "progress": prog})
+    post_callback({"status": "PROCESSING", "progress": prog}, attempts=1, best_effort=True)
 
 
 def fail(msg):
