@@ -6,8 +6,22 @@ Hand-provisioning steps for the v1 spike (README §9: get it working by hand, co
 to CDK afterwards). Everything below is **your** side — the app + worker code is done
 and verified locally; this is what makes `SubmitJob` → Fargate → callback real.
 
-**Prereqs:** AWS CLI configured with an admin-ish profile, Docker running, and the
-account id handy (`aws sts get-caller-identity --query Account --output text`).
+**Prereqs:** Docker running, and the AWS CLI configured with an **admin profile**.
+
+The existing profiles (`default`, `staging`, `production`, `old-prod`) are all narrow
+S3-only service users — none can create IAM roles, ECR repos, or Batch resources.
+Create a dedicated admin user (IAM → Users → Create user → attach `AdministratorAccess`
+→ Security credentials → Create access key → CLI), then:
+
+```bash
+aws configure --profile mfe-admin     # region us-west-2, output json
+aws sts get-caller-identity --profile mfe-admin   # expect .../user/<your-admin-user>
+export AWS_PROFILE=mfe-admin          # every command below uses this
+```
+
+> Enable MFA on that user, and **delete the access key once provisioning is done** —
+> it's a long-lived admin credential on your laptop. If the account has IAM Identity
+> Center, prefer `aws configure sso` (short-lived credentials) instead.
 
 ---
 
