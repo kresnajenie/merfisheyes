@@ -2,7 +2,12 @@
 
 import { Button } from "@heroui/button";
 
-export type RawUploadStatus = "preparing" | "uploading" | "done" | "error";
+export type RawUploadStatus =
+  | "preparing"
+  | "uploading"
+  | "processing"
+  | "done"
+  | "error";
 
 interface RawUploadOverlayProps {
   status: RawUploadStatus;
@@ -11,6 +16,12 @@ interface RawUploadOverlayProps {
   fileIndex: number;
   fileCount: number;
   error?: string;
+  /** Live processing stage from /status, e.g. "Expression chunks". */
+  stage?: string;
+  stagePercent?: number;
+  /** Set when the upload succeeded but no processing job was submitted. */
+  submitWarning?: string;
+  viewerUrl?: string | null;
   onCancel: () => void;
   onClose: () => void;
 }
@@ -20,10 +31,9 @@ function mb(bytes: number): string {
 }
 
 /**
- * Full-screen blocking overlay for the raw server-side upload (design §10).
- * Card tone tracks status: blue while preparing/uploading, green on success,
- * danger on error. "preparing" (fetching presigned URLs) shows an indeterminate
- * bar so the UI never sits at a stalled-looking 0 MB.
+ * Full-screen blocking overlay for the raw server-side upload (design §10) plus
+ * live processing progress (§5.5). Card tone tracks status: blue while
+ * preparing/uploading/processing, green on success, danger on error.
  */
 export function RawUploadOverlay({
   status,
@@ -32,16 +42,22 @@ export function RawUploadOverlay({
   fileIndex,
   fileCount,
   error,
+  stage,
+  stagePercent,
+  submitWarning,
+  viewerUrl,
   onCancel,
   onClose,
 }: RawUploadOverlayProps) {
   const pct = total > 0 ? Math.min(100, (loaded / total) * 100) : 0;
 
-  // Clearly colored translucent card (not the muted global .glass bg): blue
-  // while preparing/uploading, green on success, danger on error.
+  // Green means "done and good". An upload whose processing never started is
+  // NOT that, so it gets amber rather than a success-coloured card.
   const tone =
     status === "done"
-      ? "bg-emerald-600/40 border-emerald-400/60"
+      ? submitWarning
+        ? "bg-amber-600/35 border-amber-400/60"
+        : "bg-emerald-600/40 border-emerald-400/60"
       : status === "error"
         ? "bg-danger-600/35 border-danger-400/60"
         : "bg-blue-600/40 border-blue-400/60";
@@ -128,18 +144,74 @@ export function RawUploadOverlay({
           </>
         )}
 
+        {status === "processing" && (
+          <>
+            <h2 className="text-lg font-semibold text-foreground">
+              ✅ Uploaded — processing on the server
+            </h2>
+            <p className="mt-1 text-sm text-default-300">
+              You can close this tab; we&apos;ll email you when it&apos;s done.
+            </p>
+
+            <div className="mt-6 w-full bg-default-200/30 rounded-full h-3 overflow-hidden">
+              {typeof stagePercent === "number" ? (
+                <div
+                  data-testid="raw-process-progress"
+                  data-progress={stagePercent}
+                  className="bg-blue-400 h-full transition-all duration-300 ease-out"
+                  style={{ width: `${Math.min(100, stagePercent)}%` }}
+                />
+              ) : (
+                <div
+                  className="h-full w-1/4 rounded-full bg-blue-400"
+                  style={{ animation: "rawIndeterminate 1.2s ease-in-out infinite" }}
+                />
+              )}
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-xs text-default-300">
+              <span data-testid="raw-process-stage">{stage || "Queued…"}</span>
+              {typeof stagePercent === "number" && <span>{stagePercent}%</span>}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <Button size="sm" variant="flat" onPress={onClose}>
+                Close
+              </Button>
+            </div>
+          </>
+        )}
+
         {status === "done" && (
           <>
             <h2 className="text-lg font-semibold text-foreground">
-              ✅ Uploaded
+              ✅ {submitWarning ? "Uploaded" : "Dataset ready"}
             </h2>
-            <p className="mt-2 text-sm text-default-300">
-              We&apos;ll email you when processing finishes. You can safely close
-              this tab or keep working.
-            </p>
-            <div className="mt-6 flex justify-end">
-              <Button size="sm" color="success" onPress={onClose}>
-                Done
+
+            {submitWarning ? (
+              <div className="mt-3 rounded-lg border border-amber-300/50 bg-black/25 p-3">
+                <p className="text-sm font-medium text-amber-100">
+                  Processing hasn&apos;t started
+                </p>
+                <p className="mt-1 break-words text-xs text-amber-100/80">
+                  Your files uploaded successfully, but the processing job could
+                  not be submitted: {submitWarning}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-default-300">
+                Processing finished. We&apos;ve also emailed you the link.
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-2">
+              {viewerUrl && !submitWarning && (
+                <Button as="a" href={viewerUrl} size="sm" color="success">
+                  Open dataset
+                </Button>
+              )}
+              <Button size="sm" variant="flat" onPress={onClose}>
+                Close
               </Button>
             </div>
           </>
@@ -147,9 +219,11 @@ export function RawUploadOverlay({
 
         {status === "error" && (
           <>
-            <h2 className="text-lg font-semibold text-danger">Upload failed</h2>
+            <h2 className="text-lg font-semibold text-danger">
+              {stage ? "Processing failed" : "Upload failed"}
+            </h2>
             <p className="mt-2 break-words text-sm text-default-300">
-              {error || "Something went wrong during the upload."}
+              {error || "Something went wrong."}
             </p>
             <div className="mt-6 flex justify-end">
               <Button size="sm" variant="flat" onPress={onClose}>

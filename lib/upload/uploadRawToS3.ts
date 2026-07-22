@@ -136,13 +136,25 @@ async function markFileComplete(
   }
 }
 
+export interface RawUploadResult {
+  datasetId: string;
+  /** Null when the processing job could not be submitted — see submitError. */
+  batchJobId: string | null;
+  /**
+   * Set when the raw upload succeeded but the processing job was NOT submitted
+   * (e.g. Batch misconfigured). The dataset stays QUEUED and can be retried —
+   * the UI must not present this as a clean success.
+   */
+  submitError: string | null;
+}
+
 /**
  * Upload raw files to S3 and queue the dataset for server-side processing.
- * Resolves with the created datasetId once the dataset reaches QUEUED.
+ * Resolves once the dataset reaches QUEUED.
  */
 export async function uploadRawToS3(
   params: UploadRawParams,
-): Promise<{ datasetId: string }> {
+): Promise<RawUploadResult> {
   const { kind, title, processingParams, files, signal, onProgress, onPhase } =
     params;
 
@@ -247,7 +259,75 @@ export async function uploadRawToS3(
     throw new Error(`Could not finalize upload: ${await readError(compRes)}`);
   }
 
-  return { datasetId };
+  const completed = await compRes.json().catch(() => ({}));
+
+  return {
+    datasetId,
+    batchJobId: completed?.batchJobId ?? null,
+    submitError: completed?.submitError ?? null,
+  };
+}
+
+export type IngestStatusValue =
+  | "UPLOADING"
+  | "QUEUED"
+  | "PROCESSING"
+  | "COMPLETE"
+  | "FAILED";
+
+export interface IngestStatus {
+  status: IngestStatusValue;
+  progress?: { stage?: string; percent?: number } | null;
+  errorMessage?: string | null;
+  viewerUrl?: string | null;
+  numCells?: number;
+  numGenes?: number;
+}
+
+/**
+ * Poll server-side processing status until it reaches a terminal state.
+ * Returns a stop function; safe to call after the user dismisses the UI.
+ *
+ * (Supabase Realtime can replace this later — see design §5.5 — but polling
+ * needs no extra infrastructure and works everywhere.)
+ */
+export function pollIngestStatus(
+  datasetId: string,
+  onUpdate: (status: IngestStatus) => void,
+  opts: { intervalMs?: number } = {},
+): () => void {
+  const intervalMs = opts.intervalMs ?? 3000;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const res = await fetch(`/api/ingest/${datasetId}/status`);
+
+      if (res.ok) {
+        const data: IngestStatus = await res.json();
+
+        if (stopped) return;
+        onUpdate(data);
+        if (data.status === "COMPLETE" || data.status === "FAILED") {
+          stopped = true;
+
+          return;
+        }
+      }
+    } catch {
+      // Transient network errors shouldn't kill the poll loop.
+    }
+    if (!stopped) timer = setTimeout(tick, intervalMs);
+  };
+
+  tick();
+
+  return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
+  };
 }
 
 /**

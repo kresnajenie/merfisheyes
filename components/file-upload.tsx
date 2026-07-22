@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
@@ -17,6 +17,7 @@ import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
 import {
   uploadRawToS3,
   abortRawUpload,
+  pollIngestStatus,
   type RawUploadProgress,
 } from "@/lib/upload/uploadRawToS3";
 import {
@@ -92,8 +93,16 @@ export function FileUpload({
     fileCount: 0,
   });
   const [serverError, setServerError] = useState<string>("");
+  const [serverStage, setServerStage] = useState<string>("");
+  const [serverStagePercent, setServerStagePercent] = useState<number>();
+  const [submitWarning, setSubmitWarning] = useState<string>("");
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const datasetIdRef = useRef<string | null>(null);
+  const stopPollRef = useRef<(() => void) | null>(null);
+
+  // Stop polling if the card unmounts (e.g. user navigates away).
+  useEffect(() => () => stopPollRef.current?.(), []);
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -298,7 +307,12 @@ export function FileUpload({
 
     abortRef.current = controller;
     datasetIdRef.current = null;
+    stopPollRef.current?.();
     setServerError("");
+    setServerStage("");
+    setServerStagePercent(undefined);
+    setSubmitWarning("");
+    setViewerUrl(null);
     setServerProgress({
       loaded: 0,
       total: rawFiles.reduce((s, f) => s + f.file.size, 0),
@@ -308,7 +322,7 @@ export function FileUpload({
     setServerStatus("preparing");
 
     try {
-      const { datasetId } = await uploadRawToS3({
+      const { datasetId, submitError } = await uploadRawToS3({
         kind,
         title,
         // v1 pipeline: chunk only (design §5.8). Column mapping is added by the
@@ -326,7 +340,29 @@ export function FileUpload({
       });
 
       datasetIdRef.current = datasetId;
-      setServerStatus("done");
+
+      if (submitError) {
+        // Upload worked but nothing will process it — don't present a plain
+        // success, and don't poll a status that will never advance.
+        setSubmitWarning(submitError);
+        setServerStatus("done");
+
+        return;
+      }
+
+      // Follow the server-side run through to COMPLETE/FAILED.
+      setServerStatus("processing");
+      stopPollRef.current = pollIngestStatus(datasetId, (s) => {
+        setServerStage(s.progress?.stage || (s.status === "QUEUED" ? "Queued…" : ""));
+        setServerStagePercent(s.progress?.percent);
+        if (s.status === "COMPLETE") {
+          setViewerUrl(s.viewerUrl ?? `/viewer/${datasetId}`);
+          setServerStatus("done");
+        } else if (s.status === "FAILED") {
+          setServerError(s.errorMessage || "Processing failed");
+          setServerStatus("error");
+        }
+      });
     } catch (err: any) {
       if (err?.name === "AbortError") {
         // Cancelled by the user; handled in handleServerCancel.
@@ -342,8 +378,15 @@ export function FileUpload({
 
   const handleServerCancel = () => {
     abortRef.current?.abort();
+    stopPollRef.current?.();
     if (datasetIdRef.current) abortRawUpload(datasetIdRef.current);
     datasetIdRef.current = null;
+    setServerStatus("idle");
+  };
+
+  const handleServerClose = () => {
+    // Processing continues server-side; the user gets an email either way.
+    stopPollRef.current?.();
     setServerStatus("idle");
   };
 
@@ -764,10 +807,14 @@ export function FileUpload({
           fileCount={serverProgress.fileCount}
           fileIndex={serverProgress.fileIndex}
           loaded={serverProgress.loaded}
+          stage={serverStage}
+          stagePercent={serverStagePercent}
           status={serverStatus}
+          submitWarning={submitWarning}
           total={serverProgress.total}
+          viewerUrl={viewerUrl}
           onCancel={handleServerCancel}
-          onClose={() => setServerStatus("idle")}
+          onClose={handleServerClose}
         />
       )}
     </div>
