@@ -17,9 +17,30 @@ const batch = new BatchClient({
     : {}),
 });
 
-const JOB_QUEUE = process.env.AWS_BATCH_JOB_QUEUE || "merfisheyes-ingest";
-const JOB_DEFINITION =
-  process.env.AWS_BATCH_JOB_DEFINITION || "merfisheyes-ingest";
+/** AWS Batch requires names to match this exactly. */
+const BATCH_NAME_RE = /^[a-zA-Z_0-9-]{1,128}$/;
+
+/**
+ * Env values pasted into dashboards routinely pick up surrounding quotes or
+ * trailing whitespace, which Batch rejects with an opaque "is not supported
+ * pattern" error. Normalise, then fail loudly naming the offending variable.
+ */
+function batchName(envValue: string | undefined, fallback: string, field: string): string {
+  const value = (envValue ?? "").trim().replace(/^["']|["']$/g, "") || fallback;
+
+  if (!BATCH_NAME_RE.test(value)) {
+    throw new Error(
+      `${field} is not a valid AWS Batch name (must match [a-zA-Z_0-9-]{1,128}): ${JSON.stringify(value)}`,
+    );
+  }
+
+  return value;
+}
+
+/** Strip anything Batch won't accept in a job name. */
+function sanitizeJobName(raw: string): string {
+  return (raw.replace(/[^a-zA-Z_0-9-]/g, "-").slice(0, 128) || "ingest-job");
+}
 
 /**
  * Per-user compute sizing (design §5.6). Fargate only accepts specific
@@ -100,9 +121,17 @@ export async function submitIngestJob({
   const tier = COMPUTE_TIERS[computeTier] ?? COMPUTE_TIERS.standard;
 
   const command = new SubmitJobCommand({
-    jobName: `ingest-${datasetId}`.slice(0, 128),
-    jobQueue: JOB_QUEUE,
-    jobDefinition: JOB_DEFINITION,
+    jobName: sanitizeJobName(`ingest-${datasetId}`),
+    jobQueue: batchName(
+      process.env.AWS_BATCH_JOB_QUEUE,
+      "merfisheyes-ingest",
+      "AWS_BATCH_JOB_QUEUE",
+    ),
+    jobDefinition: batchName(
+      process.env.AWS_BATCH_JOB_DEFINITION,
+      "merfisheyes-ingest",
+      "AWS_BATCH_JOB_DEFINITION",
+    ),
     containerOverrides: {
       resourceRequirements: [
         { type: "VCPU", value: tier.vcpu },
