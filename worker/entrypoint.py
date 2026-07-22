@@ -261,6 +261,58 @@ def run_processor(cmd) -> int:
     return proc.returncode
 
 
+def sync_reference(s3, bucket, prefix, dest: Path, species: str) -> Path:
+    """Download only the requested species' reference data.
+
+    Mouse is ~1.3 GB and human ~8.2 GB, so we never pull both. Fargate tasks are
+    ephemeral, so this re-downloads per job; in-region that is fast enough not to
+    warrant EFS yet.
+    """
+    species_prefix = f"{prefix.rstrip('/')}/{species}/"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    started = time.time()
+    n = download_prefix(s3, bucket, species_prefix, dest / species)
+    if n == 0:
+        raise RuntimeError(
+            f"No reference objects under s3://{bucket}/{species_prefix} — "
+            "upload the MapMyCells reference data before enabling the annotate stage."
+        )
+    print(
+        f"  reference: {n} file(s) in {time.time() - started:.1f}s",
+        flush=True,
+    )
+
+    # map_my_cell.py resolves paths as <reference_dir>/<species>/<file>, so the
+    # reference dir is the PARENT of the species folder.
+    return dest
+
+
+def run_annotate(input_path: Path, out_dir: Path, reference_dir: Path, cfg: dict) -> Path:
+    """Run MapMyCells, returning the mapping CSV for the chunk stage to consume."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        sys.executable, "scripts/map_my_cell.py",
+        str(input_path), str(out_dir),
+        "--species", cfg.get("species", "mouse"),
+        "--reference_dir", str(reference_dir),
+    ]
+    # Flattened mapping is the default; hierarchical is far slower and opt-in.
+    if cfg.get("hierarchical"):
+        cmd.append("--hierarchical")
+
+    print(f"== Running: {' '.join(cmd)} ==", flush=True)
+    returncode = run_processor(cmd)
+    if returncode != 0:
+        raise RuntimeError(f"map_my_cell.py exited {returncode}")
+
+    csv_path = out_dir / "mapping_output.csv"
+    if not csv_path.exists():
+        raise RuntimeError("map_my_cell.py finished but mapping_output.csv is missing")
+
+    return csv_path
+
+
 def find_single_cell_input(raw_dir: Path) -> Path:
     """A single .h5ad → that file; otherwise the folder (Xenium/MERSCOPE)."""
     h5ads = sorted(raw_dir.rglob("*.h5ad"))
@@ -338,10 +390,32 @@ def main():
     input_path = find_single_cell_input(raw_dir)
     print(f"== Input: {input_path} ==", flush=True)
 
+    stages = params.get("stages", {}) or {}
+
+    # ── annotate (MapMyCells) — opt-in, runs BEFORE chunking ──────────────
+    # Sequential on purpose: process_spatial_data.py computes DE stats for the
+    # mapped columns, which it can only do if the labels are present while it
+    # still has the expression matrix.
+    mmc_csv = None
+    annotate = stages.get("annotate") or None
+    if annotate:
+        species = annotate.get("species", "mouse")
+        ref_prefix = env("MMC_REFERENCE_S3_PREFIX", "reference/mapmycells")
+        print(f"== Annotate stage: MapMyCells ({species}) ==", flush=True)
+        progress(f"Fetching {species} reference data")
+        reference_dir = sync_reference(
+            s3, bucket, ref_prefix, work / "reference", species
+        )
+        progress("Mapping cell types")
+        mmc_csv = run_annotate(input_path, work / "mmc", reference_dir, annotate)
+        print(f"== Mapping CSV: {mmc_csv} ==", flush=True)
+
     cmd = [sys.executable, "scripts/process_spatial_data.py", str(input_path), str(out_dir)]
-    chunk = (params.get("stages", {}) or {}).get("chunk", {}) or {}
+    chunk = stages.get("chunk", {}) or {}
     if isinstance(chunk.get("chunkSize"), int):
         cmd += ["--chunk-size", str(chunk["chunkSize"])]
+    if mmc_csv is not None:
+        cmd += ["--mmc-csv", str(mmc_csv)]
 
     print(f"== Running: {' '.join(cmd)} ==", flush=True)
     returncode = run_processor(cmd)
