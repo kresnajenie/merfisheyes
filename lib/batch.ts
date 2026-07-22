@@ -44,6 +44,18 @@ export function isBatchConfigured(): boolean {
   return Boolean(process.env.CALLBACK_SECRET && callbackBaseUrl());
 }
 
+/**
+ * Vercel injects this once "Protection Bypass for Automation" is configured.
+ * VERCEL_BYPASS_SECRET is accepted as a manual override (e.g. local testing).
+ */
+function bypassSecret(): string | undefined {
+  return (
+    process.env.VERCEL_AUTOMATION_BYPASS_SECRET ||
+    process.env.VERCEL_BYPASS_SECRET ||
+    undefined
+  );
+}
+
 function callbackBaseUrl(): string {
   return (
     process.env.INGEST_CALLBACK_BASE_URL ||
@@ -90,6 +102,12 @@ export async function submitIngestJob({
         { name: "PROCESSING_PARAMS", value: JSON.stringify(processingParams ?? {}) },
         { name: "CALLBACK_URL", value: `${base}/api/ingest/${datasetId}/callback` },
         { name: "CALLBACK_SECRET", value: process.env.CALLBACK_SECRET },
+        // Lets the worker through Vercel Deployment Protection. Vercel injects
+        // VERCEL_AUTOMATION_BYPASS_SECRET once a bypass secret is configured;
+        // absent it, the callback would 401 on a protected deployment.
+        ...(bypassSecret()
+          ? [{ name: "VERCEL_BYPASS_SECRET", value: bypassSecret() }]
+          : []),
       ],
     },
   });

@@ -58,15 +58,19 @@ def post_callback(payload, attempts=3):
 
     body = json.dumps(payload).encode()
     sig = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    req = urllib.request.Request(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "x-ingest-signature": f"sha256={sig}",
-        },
-    )
+    headers = {
+        "Content-Type": "application/json",
+        "x-ingest-signature": f"sha256={sig}",
+    }
+
+    # Vercel Deployment Protection blocks unauthenticated requests to protected
+    # deployments (the callback would 401 with "Protected deployment"). The
+    # sanctioned automation path is Protection Bypass, sent as a header.
+    bypass = os.environ.get("VERCEL_BYPASS_SECRET")
+    if bypass:
+        headers["x-vercel-protection-bypass"] = bypass
+
+    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
 
     for attempt in range(1, attempts + 1):
         try:
