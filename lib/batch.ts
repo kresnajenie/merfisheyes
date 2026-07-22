@@ -56,13 +56,25 @@ function bypassSecret(): string | undefined {
   );
 }
 
+/**
+ * Public origin Fargate POSTs callbacks to.
+ *
+ * Falls back to Vercel's own system vars so **preview deployments work without
+ * any config** — VERCEL_BRANCH_URL is the stable per-branch alias, VERCEL_URL
+ * the per-deployment one. Set INGEST_CALLBACK_BASE_URL to override (e.g. to
+ * pin callbacks at a specific domain, or a tunnel during local testing).
+ */
 function callbackBaseUrl(): string {
-  return (
+  const explicit =
     process.env.INGEST_CALLBACK_BASE_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    ""
-  ).replace(/\/$/, "");
+    process.env.NEXT_PUBLIC_BASE_URL;
+
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  const vercelHost = process.env.VERCEL_BRANCH_URL || process.env.VERCEL_URL;
+
+  return vercelHost ? `https://${vercelHost.replace(/\/$/, "")}` : "";
 }
 
 /**
