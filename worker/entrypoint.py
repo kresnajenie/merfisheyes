@@ -267,6 +267,10 @@ def sync_reference(s3, bucket, prefix, dest: Path, species: str) -> Path:
     Mouse is ~1.3 GB and human ~8.2 GB, so we never pull both. Fargate tasks are
     ephemeral, so this re-downloads per job; in-region that is fast enough not to
     warrant EFS yet.
+
+    The bucket is separate from the dataset bucket (MMC_REFERENCE_S3_BUCKET)
+    because reference data is environment-independent — staging, dev and
+    production should share one copy rather than each holding their own.
     """
     species_prefix = f"{prefix.rstrip('/')}/{species}/"
     dest.mkdir(parents=True, exist_ok=True)
@@ -401,10 +405,17 @@ def main():
     if annotate:
         species = annotate.get("species", "mouse")
         ref_prefix = env("MMC_REFERENCE_S3_PREFIX", "reference/mapmycells")
-        print(f"== Annotate stage: MapMyCells ({species}) ==", flush=True)
+        # Defaults to the dataset bucket so nothing breaks before a dedicated
+        # shared reference bucket exists.
+        ref_bucket = env("MMC_REFERENCE_S3_BUCKET", "") or bucket
+        print(
+            f"== Annotate stage: MapMyCells ({species}) from "
+            f"s3://{ref_bucket}/{ref_prefix}/{species}/ ==",
+            flush=True,
+        )
         progress(f"Fetching {species} reference data")
         reference_dir = sync_reference(
-            s3, bucket, ref_prefix, work / "reference", species
+            s3, ref_bucket, ref_prefix, work / "reference", species
         )
         progress("Mapping cell types")
         mmc_csv = run_annotate(input_path, work / "mmc", reference_dir, annotate)
