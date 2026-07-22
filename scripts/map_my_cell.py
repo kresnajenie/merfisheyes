@@ -6,8 +6,12 @@ Emits exactly one artifact: ``mapping_output.csv``, shaped the way
 input's cell order, with a ``cell_id`` column plus the taxonomy label columns.
 Every other column in that CSV becomes an obs column downstream.
 
-Input is an ``.h5ad`` with raw counts (in ``X``, or ``obsm['X_raw']`` when ``X``
-has been normalized).
+Input is an ``.h5ad``. Raw counts are preferred (``obsm['X_raw']`` wins over a
+normalized ``X``), but normalized data is accepted and mapped as log2CPM — the
+hosted MapMyCells accepts normalized input too, so this is not a hard failure.
+
+Mapping is flattened by default (straight to leaf nodes, ``bootstrap_iteration=1``);
+``--hierarchical`` opts into the far slower 100-bootstrap traversal.
 
 Note: the intermediate query file is unavoidable — MapMyCells'
 ``FromSpecifiedMarkersRunner`` takes a *path*, not an in-memory object — but it
@@ -80,24 +84,36 @@ def resolve_reference_dir(species, cli_arg=None):
     return reference_dir
 
 
-def select_raw_matrix(adata):
-    """Return the raw-count matrix, preferring X and falling back to obsm['X_raw']."""
+def looks_like_raw_counts(X):
     import scipy.sparse as sp
 
-    X = adata.X
     sample = X[:10].toarray() if sp.issparse(X) else np.asarray(X[:10])
-    is_raw = np.issubdtype(X.dtype, np.integer) or np.all(sample == np.floor(sample))
 
-    if is_raw:
-        return X
+    return bool(np.issubdtype(X.dtype, np.integer) or np.all(sample == np.floor(sample)))
 
-    if "X_raw" not in adata.obsm:
-        raise ValueError(
-            "adata.X appears normalized and adata.obsm['X_raw'] is missing. "
-            "Provide an h5ad with raw counts in X or store them in obsm['X_raw']."
-        )
 
-    return adata.obsm["X_raw"]
+def select_matrix(adata):
+    """Pick the matrix to map, preferring genuine raw counts.
+
+    Raw counts are preferred (obsm['X_raw'] wins over a normalized X), but a
+    normalized matrix is NOT a hard failure — the hosted MapMyCells accepts
+    normalized input too. Returns (matrix, normalization) where normalization is
+    what cell_type_mapper should be told the data already is.
+    """
+    if "X_raw" in adata.obsm and looks_like_raw_counts(adata.obsm["X_raw"]):
+        logger.info("Using obsm['X_raw'] (raw counts).")
+
+        return adata.obsm["X_raw"], "raw"
+
+    if looks_like_raw_counts(adata.X):
+        return adata.X, "raw"
+
+    logger.warning(
+        "X appears normalized and no raw counts are available — mapping it as "
+        "log2CPM. Cell type assignments may be less reliable than with raw counts."
+    )
+
+    return adata.X, "log2CPM"
 
 
 def build_query_h5ad(input_h5ad, gene_mapping_path, tmp_dir):
@@ -107,7 +123,7 @@ def build_query_h5ad(input_h5ad, gene_mapping_path, tmp_dir):
     round-tripped through a per-gene pandas DataFrame.
     """
     adata = anndata.read_h5ad(input_h5ad)
-    X = select_raw_matrix(adata)
+    X, normalization = select_matrix(adata)
 
     gene_map = pd.read_csv(gene_mapping_path)
     symbol_to_ensembl = dict(zip(gene_map["gene_symbol"], gene_map["gene_identifier"]))
@@ -139,10 +155,11 @@ def build_query_h5ad(input_h5ad, gene_mapping_path, tmp_dir):
     query_path = Path(tmp_dir) / "query.h5ad"
     query.write_h5ad(query_path)
 
-    return query_path, n_mapped, n_total
+    return query_path, n_mapped, n_total, normalization
 
 
-def run_mapping(query_path, output_dir, reference_dir, species, n_processors, flatten=False):
+def run_mapping(query_path, output_dir, reference_dir, species, n_processors,
+                flatten=True, normalization=None):
     from cell_type_mapper.cli.from_specified_markers import FromSpecifiedMarkersRunner
 
     cfg = TAXONOMY_CONFIG[species]
@@ -167,9 +184,10 @@ def run_mapping(query_path, output_dir, reference_dir, species, n_processors, fl
 
     if flatten:
         bootstrap_iteration, bootstrap_factor = 1, 1.0
-        logger.info("Flatten mode: skipping hierarchy, bootstrap_iteration=1")
+        logger.info("Flattened mapping (default): straight to leaf nodes, bootstrap_iteration=1")
     else:
         bootstrap_iteration, bootstrap_factor = 100, 0.9
+        logger.info("Hierarchical mapping: 100 bootstrap iterations (slow).")
 
     try:
         runner = FromSpecifiedMarkersRunner(
@@ -185,7 +203,7 @@ def run_mapping(query_path, output_dir, reference_dir, species, n_processors, fl
                 "precomputed_stats": {"path": str(reference_dir / cfg["precomputed_stats"])},
                 "query_markers": {"serialized_lookup": str(reference_dir / cfg["markers"])},
                 "type_assignment": {
-                    "normalization": cfg["normalization"],
+                    "normalization": normalization or cfg["normalization"],
                     "n_processors": n_processors,
                     "chunk_size": 2000,
                     "bootstrap_iteration": bootstrap_iteration,
@@ -225,8 +243,9 @@ def parse_args():
     available = multiprocessing.cpu_count()
     parser.add_argument("--n_processors", type=int, default=max(1, available // 2),
                         help=f"Processors to use (default: half of {available}).")
-    parser.add_argument("--flatten", action="store_true",
-                        help="Map straight to leaf nodes (also sets bootstrap_iteration=1; much faster).")
+    parser.add_argument("--hierarchical", action="store_true",
+                        help="Traverse the taxonomy hierarchy with 100 bootstrap iterations. "
+                             "Far slower; flattened mapping is the default.")
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(0)
@@ -253,13 +272,14 @@ def main():
 
     # The query h5ad lives only for the duration of the run.
     with tempfile.TemporaryDirectory(prefix="mmc_query_") as tmp_dir:
-        query_path, n_mapped, n_total = build_query_h5ad(
+        query_path, n_mapped, n_total, normalization = build_query_h5ad(
             input_h5ad, gene_mapping_path, tmp_dir
         )
         n_cells = anndata.read_h5ad(query_path, backed="r").shape[0]
         csv_path = run_mapping(
             query_path, output_dir, reference_dir, args.species,
-            args.n_processors, flatten=args.flatten,
+            args.n_processors, flatten=not args.hierarchical,
+            normalization=normalization,
         )
 
     verify_output(csv_path, n_cells)
