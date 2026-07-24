@@ -84,7 +84,10 @@ function HomeContent() {
   const [isS3ModalOpen, setIsS3ModalOpen] = useState(false);
   const { data: session } = useSession();
   const [serverMode, setServerMode] = useState(false);
-  const [annotateCellTypes, setAnnotateCellTypes] = useState(false);
+  // Optional per-cell label CSV (e.g. a MapMyCells result the user generated
+  // themselves). Uploaded with the dataset; the chunk stage merges its columns
+  // into obs, with palettes and DE stats like any other cluster column.
+  const [annotationCsv, setAnnotationCsv] = useState<File | null>(null);
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -253,20 +256,40 @@ function HomeContent() {
               </p>
 
               {serverMode && session?.user ? (
-                <div className="mt-2 flex flex-col items-center gap-1">
-                  <Switch
-                    isSelected={annotateCellTypes}
-                    size="sm"
-                    onValueChange={setAnnotateCellTypes}
-                  >
-                    <span className="text-xs uppercase tracking-[0.2em] text-default-500">
-                      Annotate cell types
-                    </span>
-                  </Switch>
-                  <p className="text-[11px] text-default-400">
-                    {annotateCellTypes
-                      ? "MapMyCells will label cells against the mouse taxonomy (adds a few minutes)."
-                      : "Off: no cell-type annotation."}
+                <div className="mt-3 flex flex-col items-center gap-1">
+                  <span className="text-xs uppercase tracking-[0.2em] text-default-500">
+                    Cell type CSV
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label
+                      className="cursor-pointer rounded-full border border-default-300 px-3 py-1 text-[11px] text-default-600 hover:border-primary/50 hover:bg-default-100/50"
+                      htmlFor="annotation-csv"
+                    >
+                      {annotationCsv ? "Change file" : "Choose file"}
+                    </label>
+                    <input
+                      accept=".csv"
+                      className="hidden"
+                      id="annotation-csv"
+                      type="file"
+                      onChange={(e) =>
+                        setAnnotationCsv(e.target.files?.[0] ?? null)
+                      }
+                    />
+                    {annotationCsv ? (
+                      <button
+                        className="text-[11px] text-default-500 underline hover:text-default-700"
+                        type="button"
+                        onClick={() => setAnnotationCsv(null)}
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="max-w-xs text-center text-[11px] text-default-400">
+                    {annotationCsv
+                      ? `${annotationCsv.name} — its columns become cell type annotations, one row per cell in the same order.`
+                      : "Optional. Upload a MapMyCells result (or any per-cell label CSV) to add cell type columns."}
                   </p>
                 </div>
               ) : null}
@@ -296,9 +319,7 @@ function HomeContent() {
               <div className="flex flex-col items-center gap-4 mx-auto max-w-2xl w-full">
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <FileUpload
-                    annotate={
-                      annotateCellTypes ? { species: "mouse" } : undefined
-                    }
+                    annotationCsv={annotationCsv}
                     description="Single .h5ad file"
                     icons={<AnnDataIcon className="text-primary" />}
                     serverUpload={serverMode}
@@ -306,6 +327,7 @@ function HomeContent() {
                     type="h5ad"
                   />
                   <FileUpload
+                    annotationCsv={annotationCsv}
                     description="Xenium, MERSCOPE, chunked, or .zarr folder"
                     icons={
                       <>
@@ -314,9 +336,6 @@ function HomeContent() {
                         <MerscopeIcon />
                         <ChunkedIcon className="text-primary" />
                       </>
-                    }
-                    annotate={
-                      annotateCellTypes ? { species: "mouse" } : undefined
                     }
                     serverUpload={serverMode}
                     title="Folder"

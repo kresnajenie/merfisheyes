@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -14,6 +15,7 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
+import { classifyFolder } from "@/lib/ingest/classify-folder";
 import {
   uploadRawToS3,
   abortRawUpload,
@@ -24,6 +26,16 @@ import {
   RawUploadOverlay,
   type RawUploadStatus,
 } from "@/components/raw-upload-overlay";
+
+/**
+ * Reserved raw key for the user-supplied cell-type CSV.
+ *
+ * The worker moves this file out of the raw input tree before running the
+ * processor and passes it as --mmc-csv. It is named explicitly in
+ * processingParams rather than detected by extension, because a MERSCOPE
+ * upload consists entirely of CSVs.
+ */
+const ANNOTATION_CSV_KEY = "__annotations__/mapping.csv";
 
 // "folder" is a meta-type that auto-detects the dropped folder shape
 // (zarr / chunked / xenium / merscope / h5ad-inside) and dispatches to the
@@ -63,10 +75,11 @@ interface FileUploadProps {
    */
   serverUpload?: boolean;
   /**
-   * Opt into the MapMyCells annotate stage (single-cell only). Runs before
-   * chunking so the taxonomy labels get DE stats like any other cluster column.
+   * Optional per-cell label CSV uploaded alongside the dataset (single-cell
+   * only). Merged during chunking, so its columns get palettes and DE stats
+   * like any other cluster column.
    */
-  annotate?: { species: string };
+  annotationCsv?: File | null;
   /**
    * Optional row of small icons rendered under the description. Used by the
    * unified "Folder" card to advertise which formats it accepts.
@@ -80,7 +93,7 @@ export function FileUpload({
   description,
   singleMolecule = false,
   serverUpload = false,
-  annotate,
+  annotationCsv,
   icons,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -134,46 +147,44 @@ export function FileUpload({
   // NOTE: plain functions (not useCallback) so they always call the current
   // handleFiles closure. Memoizing them would capture a stale handleFiles and
   // miss prop changes like `serverUpload` toggling on.
-  const handleDrop =
-    async (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
 
-      // dataTransfer.files does NOT recurse into dropped folders — for that
-      // we have to walk dataTransfer.items via webkitGetAsEntry. We patch
-      // webkitRelativePath on each yielded File so the detection helpers and
-      // downstream upload code (which all key off webkitRelativePath) work
-      // identically to the click-to-pick path.
-      let files: File[] = [];
+    // dataTransfer.files does NOT recurse into dropped folders — for that
+    // we have to walk dataTransfer.items via webkitGetAsEntry. We patch
+    // webkitRelativePath on each yielded File so the detection helpers and
+    // downstream upload code (which all key off webkitRelativePath) work
+    // identically to the click-to-pick path.
+    let files: File[] = [];
 
-      if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
-        // Capture entries synchronously; FileSystemEntry handles become
-        // invalid after the drop event finishes propagating.
-        const entries = Array.from(e.dataTransfer.items)
-          .filter((item) => item.kind === "file")
-          .map((item) => (item as any).webkitGetAsEntry?.())
-          .filter(Boolean);
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      // Capture entries synchronously; FileSystemEntry handles become
+      // invalid after the drop event finishes propagating.
+      const entries = Array.from(e.dataTransfer.items)
+        .filter((item) => item.kind === "file")
+        .map((item) => (item as any).webkitGetAsEntry?.())
+        .filter(Boolean);
 
-        try {
-          files = await collectFilesFromEntries(entries);
-        } catch (err) {
-          console.error("[FileUpload] folder walk failed:", err);
-          files = Array.from(e.dataTransfer.files);
-        }
-      } else {
+      try {
+        files = await collectFilesFromEntries(entries);
+      } catch (err) {
+        console.error("[FileUpload] folder walk failed:", err);
         files = Array.from(e.dataTransfer.files);
       }
+    } else {
+      files = Array.from(e.dataTransfer.files);
+    }
 
-      handleFiles(files);
-    };
+    handleFiles(files);
+  };
 
-  const handleFileInput =
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files ? Array.from(e.target.files) : [];
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
 
-      handleFiles(files);
-    };
+    handleFiles(files);
+  };
 
   /**
    * Detect if files represent a chunked dataset folder (from Python script)
@@ -297,17 +308,62 @@ export function FileUpload({
       return;
     }
 
-    // Build raw keys from the folder-relative path (single files fall back to
-    // the file name).
-    const rawFiles = files.map((file) => ({
-      key: file.webkitRelativePath || file.name,
+    const kind = singleMolecule ? "single_molecule" : "single_cell";
+    const title = files[0].webkitRelativePath?.split("/")[0] || files[0].name;
+
+    // A picked folder is filtered down to the files the processor actually
+    // reads — a Xenium export is mostly images and QC output, and uploading it
+    // whole means sending gigabytes nothing will open.
+    const classification = classifyFolder(files);
+    const selected =
+      kind === "single_molecule"
+        ? classification.singleMolecule
+        : classification.singleCell;
+
+    if (!selected) {
+      toast.error(
+        `No ${kind === "single_molecule" ? "single-molecule" : "single-cell"} data found in that folder.`,
+      );
+
+      return;
+    }
+
+    // Single-molecule alongside single-cell is a separate dataset with its own
+    // processing run. Detected and reported here; wiring the second run is the
+    // next step, so say so rather than dropping it silently.
+    if (kind === "single_cell" && classification.singleMolecule) {
+      toast(
+        `Found single-molecule data too (${classification.singleMolecule.files[0].key}). Uploading the single-cell dataset only for now.`,
+      );
+    }
+
+    if (classification.ignored.length > 0) {
+      const skippedBytes = classification.ignored.reduce(
+        (sum, f) => sum + f.file.size,
+        0,
+      );
+
+      toast(
+        `Uploading ${selected.files.length} of ${files.length} files — skipping ${classification.ignored.length} the processor doesn't read (${(skippedBytes / 1024 ** 2).toFixed(0)} MB).`,
+      );
+    }
+
+    const rawFiles = selected.files.map(({ key, file }) => ({
+      key,
       file,
       contentType: "application/octet-stream",
     }));
 
-    const kind = singleMolecule ? "single_molecule" : "single_cell";
-    const title =
-      files[0].webkitRelativePath?.split("/")[0] || files[0].name;
+    // The user's cell-type CSV rides along under a reserved key. Named
+    // explicitly in processingParams rather than sniffed for, because a
+    // MERSCOPE upload is nothing but CSVs.
+    if (annotationCsv && kind === "single_cell") {
+      rawFiles.push({
+        key: ANNOTATION_CSV_KEY,
+        file: annotationCsv,
+        contentType: "text/csv",
+      });
+    }
 
     const controller = new AbortController();
 
@@ -339,13 +395,15 @@ export function FileUpload({
         // multi-gene chunk — much faster gene switching, at the cost of many
         // more (smaller) objects.
         //
-        // annotate (MapMyCells) is single-cell only and deliberately ordered
-        // before chunk, so its taxonomy columns get DE stats too.
         processingParams: {
           kind,
           stages: {
-            ...(annotate && kind === "single_cell" ? { annotate } : {}),
-            chunk: { chunkSize: 1 },
+            chunk: {
+              chunkSize: 1,
+              ...(annotationCsv && kind === "single_cell"
+                ? { mmcCsv: ANNOTATION_CSV_KEY }
+                : {}),
+            },
           },
         },
         files: rawFiles,
@@ -368,7 +426,9 @@ export function FileUpload({
       // Follow the server-side run through to COMPLETE/FAILED.
       setServerStatus("processing");
       stopPollRef.current = pollIngestStatus(datasetId, (s) => {
-        setServerStage(s.progress?.stage || (s.status === "QUEUED" ? "Queued…" : ""));
+        setServerStage(
+          s.progress?.stage || (s.status === "QUEUED" ? "Queued…" : ""),
+        );
         setServerStagePercent(s.progress?.percent);
         if (s.status === "COMPLETE") {
           setViewerUrl(s.viewerUrl ?? `/viewer/${datasetId}`);
@@ -500,12 +560,7 @@ export function FileUpload({
                 : `Detected ${sniff.type.toUpperCase()} schema`,
             );
           } else {
-            console.log(
-              "Dataset type:",
-              type,
-              "→",
-              parquetDatasetType,
-            );
+            console.log("Dataset type:", type, "→", parquetDatasetType);
           }
 
           // Get singleton worker instance
@@ -804,9 +859,9 @@ export function FileUpload({
             <div className="w-full mt-4 px-4">
               <div className="w-full bg-default-200 rounded-full h-2 overflow-hidden">
                 <div
-                  data-testid="upload-progress"
-                  data-progress={progress}
                   className="bg-primary h-full transition-all duration-300 ease-out"
+                  data-progress={progress}
+                  data-testid="upload-progress"
                   style={{ width: `${progress}%` }}
                 />
               </div>

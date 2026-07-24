@@ -48,7 +48,8 @@ implementations that can drift).
 | Raw files after processing | **Deleted** on success + S3 lifecycle rule as backstop |
 | Progress feedback | **Fine-grained, live** — worker → Supabase Realtime (GitHub-Actions style) |
 | Processing pipeline | **v1 = `process_spatial_data.py` only**; architected as extensible stages (§5.8) |
-| MapMyCells / QC | **Future opt-in stages**, within the default `computeTier` — not built in v1 |
+| Cell type annotation | **User-supplied CSV** merged during chunking — no server-side MapMyCells |
+| QC | **Future opt-in stage**, within the default `computeTier` — not built in v1 |
 | Delivery of this pass | This design doc first |
 
 ---
@@ -187,42 +188,53 @@ The callback handler calls them (or the same SES helper) once status flips to
 ### 5.8 Extensible processing pipeline (v1 = chunk only)
 
 **v1 runs a single stage** — `process_spatial_data.py` (chunking). But the worker is
-structured as an ordered **stage pipeline** so MapMyCells annotation and QC slot in
-later with **no rework**. This mirrors the BIL SLURM chain
-(`combine → map_my_cell → process_spatial → sync`) but parameterized and *not* a 1:1
-copy. Stages are declared in `Dataset.processingParams`:
+structured as an ordered **stage pipeline** so QC slots in later with **no rework**.
+This mirrors the BIL SLURM chain (`combine → map_my_cell → process_spatial → sync`)
+but parameterized and *not* a 1:1 copy — note that cell type mapping is deliberately
+**not** one of our stages; see below. Stages are declared in
+`Dataset.processingParams`:
 
 ```json
 {
   "kind": "single_cell",
   "stages": {
-    "chunk": { "chunkSize": 1 }              // v1: the only enabled stage
-    // chunkSize = GENES PER CHUNK (process_spatial_data.py --chunk-size).
-    // 1 => one file per gene, so the viewer fetches only the selected gene
-    // (fast gene switching) instead of a whole multi-gene chunk. Omit it to
-    // let the script auto-determine (~200 genes/chunk) if you'd rather have
-    // fewer, larger objects.
+    "chunk": {
+      "chunkSize": 1,                        // v1: the only enabled stage
+      // chunkSize = GENES PER CHUNK (process_spatial_data.py --chunk-size).
+      // 1 => one file per gene, so the viewer fetches only the selected gene
+      // (fast gene switching) instead of a whole multi-gene chunk. Omit it to
+      // let the script auto-determine (~200 genes/chunk) if you'd rather have
+      // fewer, larger objects.
+      "mmcCsv": "__annotations__/mapping.csv" // optional; see below
+    }
     // future, opt-in:
-    // "annotate": { "tool": "mapmycells", "species": "mouse", "flatten": true },
-    // "qc":       { "metrics": ["n_genes","total_counts","pct_mito"], "mask": "p65" }
+    // "qc": { "metrics": ["n_genes","total_counts","pct_mito"], "mask": "p65" }
   }
 }
 ```
 
+**Cell type annotation is the user's job, not ours.** Users run the hosted MapMyCells
+themselves and upload the resulting CSV with their dataset; there is no server-side
+mapping stage. `stages.chunk.mmcCsv` names the uploaded CSV by its reserved raw key.
+The worker moves that file out of the raw input tree — a MERSCOPE input directory is
+scanned for metadata / cell-by-gene CSVs, so a stray CSV there invites a
+misdetection — and passes it as `--mmc-csv`. Because the merge happens before the
+expensive steps, those columns get palettes and DE stats exactly like any other
+cluster column.
+
+The processor requires exactly one CSV row per cell. In server mode the browser never
+parses the dataset, so a mismatch cannot be caught client-side; it fails in the worker
+and the processor's own message ("CSV has N rows but dataset has M cells") is
+propagated to `errorMessage` and shown in the upload overlay.
+
 **Stage contract** (same way the BIL launcher threads scripts): each stage reads the
 shared scratch dir, writes its output, and hands artifacts to the next stage via the
-processor's existing flags — `annotate` → `mapping_output.csv` → `chunk --mmc-csv`;
-`qc` → mask CSV → `chunk --mask`. Each stage posts its own progress step (§5.5).
+processor's existing flags — `qc` → mask CSV → `chunk --mask`. Each stage posts its
+own progress step (§5.5).
 
 **Execution:** v1 = **one Batch job** (chunk). When multi-stage is enabled later, submit
 **chained Batch jobs** with `dependsOn` (the cloud equivalent of SLURM `afterok`), each
-stage sized within our normal **`computeTier`** envelope — we deliberately do **not**
-replicate BIL's 512 GB MapMyCells (that was spare-HPC headroom, not a requirement).
-
-**Future — `annotate` (MapMyCells):** **opt-in per upload** with species select;
-**single-cell only**, mouse/human taxonomy, needs raw counts; Xenium's native layout
-needs an adapter. Reference taxonomy files mounted from S3/EFS via
-`MERFISHEYES_REFERENCE_DIR` (the script already reads that env var).
+stage sized within our normal **`computeTier`** envelope.
 
 **Future — `qc`:** emits QC obs columns (n_genes, total_counts, pct_mito, doublet score)
 that flow into the chunked output as numerical columns, a QC report artifact (PNG/HTML)
@@ -336,8 +348,8 @@ One-time AWS setup (candidate for Terraform/CDK if we go "everything incl. worke
 - **`computeTier`** → ship a **single default tier**, tune/add tiers from there.
 - **Upload UX** → full §10 (all resolved).
 - **Pipeline shape** → v1 runs **chunking only** (`process_spatial_data.py`), built as an
-  extensible stage pipeline (§5.8). **MapMyCells** = future **opt-in** stage (single-cell,
-  mouse/human, raw counts) sized to the default `computeTier`; **QC** = future stage.
+  extensible stage pipeline (§5.8). **Cell type annotation** is a **user-supplied CSV**
+  merged by that same stage, not a server-side mapping run; **QC** = future stage.
 
 ---
 
@@ -393,7 +405,7 @@ Each phase is its own doc (goal · tasks · files touched · verification · pro
 | 2 | [Worker container](phase-2-worker-container.md) | Dockerfile + entrypoint, run manually | Local Docker |
 | 3 | [Trigger + callback + progress](phase-3-trigger-callback-progress.md) | SubmitJob, callback, Realtime, stand up Batch | **Yes** — step-by-step: [AWS setup checklist](phase-3-aws-setup.md) |
 | 4 | [Polish](phase-4-polish.md) | Retries, logs, dashboard, tiers | Minor |
-| — | [Later — optional stages](phase-later-optional-stages.md) | MapMyCells + QC as chained jobs | Later |
+| — | [Later — optional stages](phase-later-optional-stages.md) | QC as a chained job (the MapMyCells stage there is superseded: annotation is now a user-supplied CSV) | Later |
 
 Build order is strict 0 → 1 → 2 → 3; Phase 2 can be developed in parallel with Phase 1.
 

@@ -11,7 +11,11 @@ v1 scope: single-cell (process_spatial_data.py). Single-molecule is stubbed.
 Env:
   DATASET_ID          required — e.g. ds_xxx
   DATASET_KIND        single_cell (default) | single_molecule
-  PROCESSING_PARAMS   optional JSON, e.g. {"kind":"single_cell","stages":{"chunk":{"chunkSize":1}}}
+  PROCESSING_PARAMS   optional JSON, e.g.
+                      {"kind":"single_cell","stages":{"chunk":{"chunkSize":1,
+                       "mmcCsv":"__annotations__/mapping.csv"}}}
+                      stages.chunk.mmcCsv names a user-supplied per-cell label
+                      CSV uploaded with the dataset (see extract_annotation_csv).
   AWS_S3_BUCKET       required (or S3_BUCKET)
   AWS_REGION          default us-east-1
   AWS_S3_ENDPOINT     optional — S3-compatible endpoint (e.g. MinIO), path-style
@@ -30,6 +34,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -260,8 +265,14 @@ _STEP_RE = re.compile(r"===\s*STEP\s+([\w.]+):\s*(.+?)\s*===")
 _ITEM_RE = re.compile(r"\[(\d+)/(\d+)\]")
 
 
-def run_processor(cmd) -> int:
-    """Run the processor, echoing its output and reporting staged progress."""
+def run_processor(cmd):
+    """Run the processor, echoing its output and reporting staged progress.
+
+    Returns (returncode, reason). `reason` is the processor's own explanation of
+    a failure, so the dataset's error message says something actionable — "CSV
+    has 99 rows but dataset has 57,489 cells" rather than "exited 1", which is
+    all the user would otherwise see in the upload overlay.
+    """
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -270,10 +281,20 @@ def run_processor(cmd) -> int:
         bufsize=1,
     )
     stage = "Processing"
+    # process_spatial_data.py reports failures as "❌ Error during processing: …"
+    # before its traceback, so prefer that line; otherwise fall back to the tail.
+    error_line = None
+    recent = deque(maxlen=5)
 
     for line in proc.stdout:  # type: ignore[union-attr]
         sys.stdout.write(line)
         sys.stdout.flush()
+
+        stripped = line.strip()
+        if stripped:
+            recent.append(stripped)
+        if "Error during processing:" in line and error_line is None:
+            error_line = stripped.split("Error during processing:", 1)[1].strip()
 
         step = _STEP_RE.search(line)
         if step:
@@ -290,63 +311,52 @@ def run_processor(cmd) -> int:
                 progress(stage, percent=round(done * 100 / total), min_interval=3.0)
 
     proc.wait()
-    return proc.returncode
+
+    reason = error_line or (" | ".join(recent) if proc.returncode else None)
+
+    return proc.returncode, reason
 
 
-def sync_reference(s3, bucket, prefix, dest: Path, species: str) -> Path:
-    """Download only the requested species' reference data.
+def extract_annotation_csv(raw_dir: Path, dest_dir: Path, rel_key):
+    """Move the user's cell-type CSV out of the raw input tree.
 
-    Mouse is ~1.3 GB and human ~8.2 GB, so we never pull both. Fargate tasks are
-    ephemeral, so this re-downloads per job; in-region that is fast enough not to
-    warrant EFS yet.
+    The CSV is uploaded under a reserved key alongside the dataset. It must be
+    moved *out* before the processor runs: for MERSCOPE the raw directory itself
+    is the input, and format autodetection scans it for metadata / cell-by-gene
+    CSVs — an extra CSV sitting there is asking for a misdetection.
 
-    The bucket is separate from the dataset bucket (MMC_REFERENCE_S3_BUCKET)
-    because reference data is environment-independent — staging, dev and
-    production should share one copy rather than each holding their own.
+    Identified by an explicit key rather than by sniffing for "a .csv", because
+    a MERSCOPE upload is nothing but CSVs.
+
+    Returns the moved path, or None when no CSV was supplied.
     """
-    species_prefix = f"{prefix.rstrip('/')}/{species}/"
-    dest.mkdir(parents=True, exist_ok=True)
+    if not rel_key:
+        return None
 
-    started = time.time()
-    n = download_prefix(s3, bucket, species_prefix, dest / species)
-    if n == 0:
+    source = raw_dir / rel_key
+    if not source.is_file():
         raise RuntimeError(
-            f"No reference objects under s3://{bucket}/{species_prefix} — "
-            "upload the MapMyCells reference data before enabling the annotate stage."
+            f"processingParams names an annotation CSV at '{rel_key}' but it was "
+            f"not uploaded (looked in {raw_dir})"
         )
-    print(
-        f"  reference: {n} file(s) in {time.time() - started:.1f}s",
-        flush=True,
-    )
 
-    # map_my_cell.py resolves paths as <reference_dir>/<species>/<file>, so the
-    # reference dir is the PARENT of the species folder.
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / source.name
+    source.replace(dest)
+
+    # An empty parent left behind still counts as a directory entry that
+    # autodetection would list.
+    for parent in source.parents:
+        if parent == raw_dir:
+            break
+        try:
+            parent.rmdir()
+        except OSError:
+            break
+
+    print(f"== Annotation CSV: {dest} (moved out of raw input) ==", flush=True)
+
     return dest
-
-
-def run_annotate(input_path: Path, out_dir: Path, reference_dir: Path, cfg: dict) -> Path:
-    """Run MapMyCells, returning the mapping CSV for the chunk stage to consume."""
-    out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        sys.executable, "scripts/map_my_cell.py",
-        str(input_path), str(out_dir),
-        "--species", cfg.get("species", "mouse"),
-        "--reference_dir", str(reference_dir),
-    ]
-    # Flattened mapping is the default; hierarchical is far slower and opt-in.
-    if cfg.get("hierarchical"):
-        cmd.append("--hierarchical")
-
-    print(f"== Running: {' '.join(cmd)} ==", flush=True)
-    returncode = run_processor(cmd)
-    if returncode != 0:
-        raise RuntimeError(f"map_my_cell.py exited {returncode}")
-
-    csv_path = out_dir / "mapping_output.csv"
-    if not csv_path.exists():
-        raise RuntimeError("map_my_cell.py finished but mapping_output.csv is missing")
-
-    return csv_path
 
 
 def find_single_cell_input(raw_dir: Path) -> Path:
@@ -423,47 +433,26 @@ def main():
     if n == 0:
         fail(f"No raw objects under {raw_prefix}")
 
+    stages = params.get("stages", {}) or {}
+    chunk = stages.get("chunk", {}) or {}
+
+    # Before resolving the input: for a folder dataset the input IS raw_dir, so
+    # the annotation CSV has to be gone before anything inspects the directory.
+    mmc_csv = extract_annotation_csv(raw_dir, work / "annotations", chunk.get("mmcCsv"))
+
     input_path = find_single_cell_input(raw_dir)
     print(f"== Input: {input_path} ==", flush=True)
 
-    stages = params.get("stages", {}) or {}
-
-    # ── annotate (MapMyCells) — opt-in, runs BEFORE chunking ──────────────
-    # Sequential on purpose: process_spatial_data.py computes DE stats for the
-    # mapped columns, which it can only do if the labels are present while it
-    # still has the expression matrix.
-    mmc_csv = None
-    annotate = stages.get("annotate") or None
-    if annotate:
-        species = annotate.get("species", "mouse")
-        ref_prefix = env("MMC_REFERENCE_S3_PREFIX", "reference/mapmycells")
-        # Defaults to the dataset bucket so nothing breaks before a dedicated
-        # shared reference bucket exists.
-        ref_bucket = env("MMC_REFERENCE_S3_BUCKET", "") or bucket
-        print(
-            f"== Annotate stage: MapMyCells ({species}) from "
-            f"s3://{ref_bucket}/{ref_prefix}/{species}/ ==",
-            flush=True,
-        )
-        progress(f"Fetching {species} reference data")
-        reference_dir = sync_reference(
-            s3, ref_bucket, ref_prefix, work / "reference", species
-        )
-        progress("Mapping cell types")
-        mmc_csv = run_annotate(input_path, work / "mmc", reference_dir, annotate)
-        print(f"== Mapping CSV: {mmc_csv} ==", flush=True)
-
     cmd = [sys.executable, "scripts/process_spatial_data.py", str(input_path), str(out_dir)]
-    chunk = stages.get("chunk", {}) or {}
     if isinstance(chunk.get("chunkSize"), int):
         cmd += ["--chunk-size", str(chunk["chunkSize"])]
     if mmc_csv is not None:
         cmd += ["--mmc-csv", str(mmc_csv)]
 
     print(f"== Running: {' '.join(cmd)} ==", flush=True)
-    returncode = run_processor(cmd)
+    returncode, reason = run_processor(cmd)
     if returncode != 0:
-        fail(f"process_spatial_data.py exited {returncode}")
+        fail(reason or f"process_spatial_data.py exited {returncode}")
 
     if not (out_dir / "manifest.json").exists():
         fail("processor finished but out/manifest.json is missing")

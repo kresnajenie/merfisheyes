@@ -1,16 +1,8 @@
 # Server-side ingestion worker — pinned for reproducible images.
 #
-# Versions match the validated `cellmapper` conda env (Python 3.12), so the
-# chunk stage and the MapMyCells annotate stage share ONE environment. That is
-# only safe because process_spatial_data.py was verified to produce
-# byte-identical output under numpy 1.26.4 and 2.2.6 (858/858 files matched
-# after decompression), so moving to numpy 2 changes nothing downstream.
-# REQUIRED on Python 3.12: distutils was removed from the stdlib, but
-# marshmallow 3.12.2 (pulled in by argschema -> cell_type_mapper) still does
-# `from distutils.version import LooseVersion`. setuptools provides the shim.
-# python:3.12-slim ships none, unlike the reference conda env.
-setuptools==82.0.1
-
+# The numpy 2 line is safe here because process_spatial_data.py was verified to
+# produce byte-identical output under numpy 1.26.4 and 2.2.6 (858/858 files
+# matched after decompression), so moving to numpy 2 changed nothing downstream.
 numpy==2.2.6
 pandas==2.3.3
 scipy==1.14.1
@@ -21,9 +13,3 @@ boto3==1.42.85
 # Single-molecule path (process_single_molecule.py). Not in the reference env;
 # 18.x is the numpy-2-compatible line.
 pyarrow==18.1.0
-
-# NOTE: the MapMyCells packages are NOT listed here. They are not on PyPI and
-# must be installed from pinned GitHub commits *bottom-up in separate steps*
-# (see worker/Dockerfile) — resolving them together fails, because
-# mmc_gene_mapper declares its own abc_atlas_access requirement which pip
-# cannot reconcile with an explicit pin in the same pass.

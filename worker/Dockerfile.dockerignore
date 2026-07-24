@@ -5,4 +5,3 @@
 !worker/entrypoint.py
 !scripts/process_spatial_data.py
 !scripts/process_single_molecule.py
-!scripts/map_my_cell.py
