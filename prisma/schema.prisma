@@ -75,6 +75,23 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+// Throttles the email sign-in code flow. Needs to be shared state, not
+// in-process: on serverless every request may hit a different instance, so an
+// in-memory counter is trivially bypassed by spreading requests around.
+//
+// A wrong code does NOT consume its verification token (the adapter only
+// deletes on a successful lookup), so without this a 6-digit code can be
+// guessed indefinitely inside its validity window.
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  identifier String // email, normalized to lowercase
+  kind       String // "issue" | "verify_fail"
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([identifier, kind, createdAt])
+  @@map("login_attempts")
+}
+
 // ─── Catalog ────────────────────────────────────────────────────
 
 model CatalogDataset {

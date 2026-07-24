@@ -112,3 +112,63 @@ export async function sendDatasetReadyEmail({
 
   await ses.send(command);
 }
+
+export interface VerificationCodeEmailParams {
+  email: string;
+  code: string;
+  /** Minutes until the code stops working, quoted in the email. */
+  expiresInMinutes: number;
+}
+
+/**
+ * Send a sign-in code.
+ *
+ * Deliberately does NOT include a clickable sign-in link. The code is short
+ * enough to retype, and a link in an email gets prefetched by scanners and
+ * corporate link-checkers — which would consume the single-use token before
+ * the person ever clicks it.
+ */
+export async function sendVerificationCodeEmail({
+  email,
+  code,
+  expiresInMinutes,
+}: VerificationCodeEmailParams): Promise<void> {
+  const command = new SendEmailCommand({
+    Source: FROM_EMAIL,
+    Destination: {
+      ToAddresses: [email],
+    },
+    Message: {
+      Subject: { Data: `${code} is your MERFISHEYES sign-in code` },
+      Body: {
+        Text: {
+          Data: `Your MERFISHEYES sign-in code is ${code}\n\nIt expires in ${expiresInMinutes} minutes and can only be used once.\n\nIf you didn't try to sign in, you can ignore this email.`,
+        },
+        Html: {
+          Data: `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 520px; margin: 0 auto; padding: 20px;">
+    <div style="padding: 24px 0 16px 0;">
+      <span style="font-size: 14px; font-weight: 600; color: #111; letter-spacing: 0.5px;">MERFISHEYES</span>
+    </div>
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
+      <p style="margin: 0 0 16px 0; font-size: 14px; color: #666;">Your sign-in code</p>
+      <div style="font-size: 34px; font-weight: 600; letter-spacing: 8px; color: #111; padding: 16px 0;">${code}</div>
+      <p style="margin: 16px 0 0 0; font-size: 13px; color: #888;">Expires in ${expiresInMinutes} minutes. Can only be used once.</p>
+    </div>
+    <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #999;">
+      If you didn't try to sign in, you can ignore this email.
+    </div>
+  </body>
+</html>`,
+        },
+      },
+    },
+  });
+
+  await ses.send(command);
+}
