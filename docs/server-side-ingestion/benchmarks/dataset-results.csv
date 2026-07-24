@@ -1,0 +1,12 @@
+dataset,format,input_mb,cells,genes,obs_columns,de_columns,objects,local_process_s,local_peak_rss_mb,e2e_upload_s,e2e_process_s,status,dataset_id,annotation_csv
+140MB_cbm2_combined_neuropath.h5ad,h5ad,134.9,57489,223,15,10,265,7.5,409.1,24.9,61.3,COMPLETE,ds_7zy72LUpVt,no
+Human_Ovarian_Cancer_150mb,merscope,159.8,71381,550,7,1,563,32.0,797.5,28.9,91.8,COMPLETE,ds_J6IF1M0I14,no
+250MB_CBM7_labeled.h5ad,h5ad,238.0,139997,223,7,2,241,9.3,522.2,40.4,62.0,COMPLETE,ds_q5PO3-zUOX,no
+cbm5_combined_neuropath.h5ad,h5ad,523.0,152568,223,17,12,271,18.8,795.9,86.6,79.4,COMPLETE,ds_Sc2YMRp3xB,no
+scdata_2000gnMERFISH_DCBB_5_9_2024__set3.h5ad,h5ad,767.3,163800,275,6,1,290,26.9,1209.8,121.3,92.3,COMPLETE,ds_PI5Hoqsq3v,no
+Human_Uterine_Cancer_800mb,merscope,1071.6,741749,550,22,2,580,475.7,3885.4,177.7,727.4,COMPLETE,ds_-r5mrvsSm4,no
+Human_Colon_Cancer_1.2gb,merscope,1459.0,703879,900,20,2,928,233.5,4305.1,248.3,309.4,COMPLETE,ds_PuPDwrPZfk,no
+year1s_labelled_edu.h5ad,h5ad,1850.4,381811,275,10,4,302,66.7,2842.3,348.8,164.4,COMPLETE,ds_N3Iqns0vda,no
+scdata_2000gnMERFISH_DCBB_5_9_2024__set1_FULL_corrected__withsmFISH.h5ad,h5ad,3008.4,93022,2088,6,1,2103,65.6,3404.8,494.4,162.8,COMPLETE,ds_AOvGgFibM4,no
+4GB_2kset2_labelled_clusters.h5ad,h5ad,4067.4,125665,2088,8,2,2108,90.7,3319.1,705.3,199.7,COMPLETE,ds_3PWCad-2k6,no
+140MB_cbm2_combined_neuropath.h5ad (+ cell type CSV),h5ad,136.0,57489,223,17,12,271,,,26.0,55.0,COMPLETE,ds_rvxIdHGfgP,yes
