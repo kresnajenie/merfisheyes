@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { isStale, reconcileWithBatch } from "@/lib/ingest/reconcile";
 
 /**
  * Polling endpoint for ingestion progress (design §5.5). The browser polls this
@@ -19,22 +20,24 @@ export async function GET(
   try {
     const { id: datasetId } = await params;
 
-    const dataset = await prisma.dataset.findUnique({
+    const select = {
+      id: true,
+      title: true,
+      status: true,
+      ownerId: true,
+      datasetType: true,
+      numCells: true,
+      numGenes: true,
+      processingProgress: true,
+      errorMessage: true,
+      batchJobId: true,
+      createdAt: true,
+      completedAt: true,
+    };
+
+    let dataset = await prisma.dataset.findUnique({
       where: { id: datasetId },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        ownerId: true,
-        datasetType: true,
-        numCells: true,
-        numGenes: true,
-        processingProgress: true,
-        errorMessage: true,
-        batchJobId: true,
-        createdAt: true,
-        completedAt: true,
-      },
+      select,
     });
 
     if (!dataset) {
@@ -43,6 +46,23 @@ export async function GET(
 
     if (dataset.ownerId !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // A lost callback would otherwise leave this dataset at QUEUED/PROCESSING
+    // forever, with the client polling indefinitely. Batch still knows the
+    // job's fate, so ask it — but only once the row has gone quiet, so healthy
+    // jobs cost no extra API calls. Re-read afterwards to return the truth in
+    // the same response rather than on the next poll.
+    if (isStale(dataset)) {
+      const outcome = await reconcileWithBatch(dataset);
+
+      if (outcome.changed) {
+        dataset =
+          (await prisma.dataset.findUnique({
+            where: { id: datasetId },
+            select,
+          })) ?? dataset;
+      }
     }
 
     const viewerPath =

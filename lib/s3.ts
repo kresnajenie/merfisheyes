@@ -18,7 +18,8 @@ config({ path: ".env.local" });
 // Optional S3-compatible endpoint (e.g. MinIO for local/E2E testing). When
 // AWS_S3_ENDPOINT is set we switch to path-style addressing and pass explicit
 // credentials; otherwise behaviour is unchanged (real AWS S3, default creds).
-const S3_ENDPOINT = process.env.AWS_S3_ENDPOINT || process.env.S3_ENDPOINT || "";
+const S3_ENDPOINT =
+  process.env.AWS_S3_ENDPOINT || process.env.S3_ENDPOINT || "";
 
 // Initialize S3 client
 export const s3Client = new S3Client({
@@ -390,4 +391,29 @@ export async function deleteObjectsByPrefix(prefix: string): Promise<number> {
   } while (continuationToken);
 
   return deleted;
+}
+
+/**
+ * Read a small JSON object from the bucket, or null if it isn't there.
+ *
+ * Used to recover a dataset's statistics from its own manifest when the
+ * worker's completion callback never arrived. Intended for manifest-sized
+ * objects — it buffers the whole body.
+ */
+export async function getObjectJson<T = any>(key: string): Promise<T | null> {
+  const bucket = ensureBucket();
+
+  try {
+    const res = await s3Client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    const body = await res.Body?.transformToString();
+
+    return body ? (JSON.parse(body) as T) : null;
+  } catch (e: any) {
+    if (e?.name === "NoSuchKey" || e?.$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    throw e;
+  }
 }

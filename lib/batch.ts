@@ -5,7 +5,8 @@ import { BatchClient, SubmitJobCommand } from "@aws-sdk/client-batch";
 // through /api/ingest/[id]/callback (design §5.4, and Vercel functions are
 // short-lived anyway).
 
-const batch = new BatchClient({
+/** Exported so /status can DescribeJobs against the same configuration. */
+export const batchClient = new BatchClient({
   region: process.env.AWS_REGION || "us-west-2",
   ...(process.env.AWS_ACCESS_KEY_ID
     ? {
@@ -25,7 +26,11 @@ const BATCH_NAME_RE = /^[a-zA-Z_0-9-]{1,128}$/;
  * trailing whitespace, which Batch rejects with an opaque "is not supported
  * pattern" error. Normalise, then fail loudly naming the offending variable.
  */
-function batchName(envValue: string | undefined, fallback: string, field: string): string {
+function batchName(
+  envValue: string | undefined,
+  fallback: string,
+  field: string,
+): string {
   const value = (envValue ?? "").trim().replace(/^["']|["']$/g, "") || fallback;
 
   if (!BATCH_NAME_RE.test(value)) {
@@ -39,7 +44,7 @@ function batchName(envValue: string | undefined, fallback: string, field: string
 
 /** Strip anything Batch won't accept in a job name. */
 function sanitizeJobName(raw: string): string {
-  return (raw.replace(/[^a-zA-Z_0-9-]/g, "-").slice(0, 128) || "ingest-job");
+  return raw.replace(/[^a-zA-Z_0-9-]/g, "-").slice(0, 128) || "ingest-job";
 }
 
 /**
@@ -140,8 +145,14 @@ export async function submitIngestJob({
       environment: [
         { name: "DATASET_ID", value: datasetId },
         { name: "DATASET_KIND", value: kind },
-        { name: "PROCESSING_PARAMS", value: JSON.stringify(processingParams ?? {}) },
-        { name: "CALLBACK_URL", value: `${base}/api/ingest/${datasetId}/callback` },
+        {
+          name: "PROCESSING_PARAMS",
+          value: JSON.stringify(processingParams ?? {}),
+        },
+        {
+          name: "CALLBACK_URL",
+          value: `${base}/api/ingest/${datasetId}/callback`,
+        },
         { name: "CALLBACK_SECRET", value: process.env.CALLBACK_SECRET },
         // Lets the worker through Vercel Deployment Protection. Vercel injects
         // VERCEL_AUTOMATION_BYPASS_SECRET once a bypass secret is configured;
@@ -153,7 +164,7 @@ export async function submitIngestJob({
     },
   });
 
-  const result = await batch.send(command);
+  const result = await batchClient.send(command);
 
   if (!result.jobId) throw new Error("Batch SubmitJob returned no jobId");
 
