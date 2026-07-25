@@ -830,10 +830,19 @@ export function FileUpload({
           }
           ${isLoading ? "pointer-events-none opacity-60" : ""}
         `}
+        aria-label={`${title} — ${description}. Click or drop files to upload.`}
+        role="button"
+        tabIndex={isLoading ? -1 : 0}
         onClick={handleClick}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
       >
         <input
           accept={getAcceptedFileTypes()}

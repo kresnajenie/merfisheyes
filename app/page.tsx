@@ -32,6 +32,64 @@ import { LoadFromS3Modal } from "@/components/load-from-s3-modal";
 
 const MemoizedLightRays = memo(LightRays);
 
+// The two data-mode pills differ only by accent colour, so they share one
+// component rather than two near-identical class-string copies.
+const MODE_ACCENT = {
+  blue: {
+    ring: "focus-visible:ring-blue-400/80",
+    active: "bg-blue-500 text-white shadow-[0_12px_25px_rgba(59,130,246,0.35)]",
+    idle: "bg-transparent text-default-500 border border-blue-400/30 hover:bg-blue-500/15 hover:text-white",
+  },
+  purple: {
+    ring: "focus-visible:ring-purple-400/80",
+    active:
+      "bg-purple-500 text-white shadow-[0_12px_25px_rgba(168,85,247,0.35)]",
+    idle: "bg-transparent text-default-500 border border-purple-400/30 hover:bg-purple-500/15 hover:text-white",
+  },
+} as const;
+
+function ModeToggleButton({
+  active,
+  accent,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  accent: keyof typeof MODE_ACCENT;
+  label: string;
+  onClick: () => void;
+}) {
+  const a = MODE_ACCENT[accent];
+
+  return (
+    <button
+      aria-pressed={active}
+      className={clsx(
+        "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
+        a.ring,
+        active ? a.active : a.idle,
+      )}
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+function LoadFromS3Button({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border border-default-300 text-default-700 bg-default-100/40 hover:bg-default-200/60 hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
+      type="button"
+      onClick={onClick}
+    >
+      <CloudIcon />
+      <span>Load from S3</span>
+    </button>
+  );
+}
+
 function useModeToggleState() {
   const router = useRouter();
   const pathname = usePathname();
@@ -195,36 +253,22 @@ function HomeContent() {
               </span>
             </h1>
             <div className="flex items-center gap-6 mt-6 justify-center w-full">
-              <button
-                aria-pressed={!isSingleMolecule}
-                className={clsx(
-                  "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-slate-900",
-                  !isSingleMolecule
-                    ? "bg-blue-500 text-white shadow-[0_12px_25px_rgba(59,130,246,0.35)]"
-                    : "bg-transparent text-default-500 border border-blue-400/30 hover:bg-blue-500/15 hover:text-white",
-                )}
-                type="button"
+              <ModeToggleButton
+                accent="blue"
+                active={!isSingleMolecule}
+                label="single cell"
                 onClick={() => handleModeChange(false)}
-              >
-                single cell
-              </button>
+              />
               <BrainToggle
                 isActive={isSingleMolecule}
                 onToggle={handleModeChange}
               />
-              <button
-                aria-pressed={isSingleMolecule}
-                className={clsx(
-                  "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-400/80 focus-visible:ring-offset-slate-900",
-                  isSingleMolecule
-                    ? "bg-purple-500 text-white shadow-[0_12px_25px_rgba(168,85,247,0.35)]"
-                    : "bg-transparent text-default-500 border border-purple-400/30 hover:bg-purple-500/15 hover:text-white",
-                )}
-                type="button"
+              <ModeToggleButton
+                accent="purple"
+                active={isSingleMolecule}
+                label="single molecule"
                 onClick={() => handleModeChange(true)}
-              >
-                single molecule
-              </button>
+              />
             </div>
             <div className={subtitle({ class: "mt-4 text-center" })}>
               Explore your{" "}
@@ -343,14 +387,7 @@ function HomeContent() {
                   />
                 </div>
 
-                <button
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border border-default-300 text-default-700 bg-default-100/40 hover:bg-default-200/60 hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
-                  type="button"
-                  onClick={() => setIsS3ModalOpen(true)}
-                >
-                  <CloudIcon />
-                  <span>Load from S3</span>
-                </button>
+                <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
               </div>
             </div>
 
@@ -386,14 +423,7 @@ function HomeContent() {
                   />
                 </div>
 
-                <button
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border border-default-300 text-default-700 bg-default-100/40 hover:bg-default-200/60 hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
-                  type="button"
-                  onClick={() => setIsS3ModalOpen(true)}
-                >
-                  <CloudIcon />
-                  <span>Load from S3</span>
-                </button>
+                <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
               </div>
             </div>
           </div>
@@ -423,7 +453,13 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <span className="text-sm text-default-400">Loading…</span>
+        </div>
+      }
+    >
       <HomeContent />
     </Suspense>
   );

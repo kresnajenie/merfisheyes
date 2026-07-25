@@ -231,7 +231,7 @@ export const SingleMoleculeLegends: React.FC = () => {
                     </div>
                   </PopoverTrigger>
                 </Tooltip>
-                <PopoverContent className="!bg-[rgba(0,0,0,0.4)] backdrop-blur-[50px] border-white/20 p-3 w-64">
+                <PopoverContent className="glass-panel p-3 w-64">
                   <div className="space-y-3">
                     {/* Header */}
                     <div className="flex items-center justify-between">
