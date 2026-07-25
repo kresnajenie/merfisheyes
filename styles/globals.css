@@ -20,13 +20,15 @@ body {
                     carry text or charts *over the busy 3D scene*, where the
                     translucent chrome tier would be unreadable. */
 :root {
-  --glass-bg: rgba(0, 0, 0, 0.2);
-  --glass-blur: 15px;
+  --glass-bg: rgba(0, 0, 0, 0.5);
   --glass-border: rgba(255, 255, 255, 0.3);
 
-  --glass-panel-bg: rgba(0, 0, 0, 0.55);
-  --glass-panel-blur: 24px;
+  --glass-panel-bg: rgba(0, 0, 0, 0.7);
   --glass-panel-border: rgba(255, 255, 255, 0.15);
+  /* Blur is NOT a token: it's applied via `@apply backdrop-blur-[Npx]` in the
+     rules below. Tailwind v4's Lightning CSS silently strips a hand-written
+     `backdrop-filter` from this file, so it must come from a generated utility
+     — which is why the glass never actually frosted before. */
 
   /* Overlay stacking order. Panels sit ABOVE the rail that opens them —
      the previous ad-hoc values had the rail (70) painting over its own
@@ -40,9 +42,11 @@ body {
 
 /* Glassmorphism base styles */
 .glass {
+  /* Blur via @apply, not a raw `backdrop-filter` — Lightning CSS (Tailwind v4)
+     strips hand-written backdrop-filter from globals.css, but keeps its own
+     generated utilities. This is why the glass never actually frosted before. */
+  @apply backdrop-blur-[20px];
   background: var(--glass-bg) !important;
-  backdrop-filter: blur(var(--glass-blur)) !important;
-  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
   border: 1px solid var(--glass-border) !important;
   box-shadow:
     0 25px 23px rgba(0, 0, 0, 0.15),
@@ -55,9 +59,8 @@ body {
 /* Content-panel tier. Standalone (does NOT compose `.glass`, whose
    `!important` would override the more opaque background). */
 .glass-panel {
+  @apply backdrop-blur-[32px];
   background: var(--glass-panel-bg);
-  backdrop-filter: blur(var(--glass-panel-blur));
-  -webkit-backdrop-filter: blur(var(--glass-panel-blur));
   border: 1px solid var(--glass-panel-border);
   box-shadow:
     0 25px 40px rgba(0, 0, 0, 0.35),
@@ -68,9 +71,8 @@ body {
 /* Force glass effect on buttons */
 button.glass,
 button.glass[data-hover="true"] {
+  @apply backdrop-blur-[20px];
   background: var(--glass-bg) !important;
-  backdrop-filter: blur(var(--glass-blur)) !important;
-  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
 }
 
 /* Indeterminate progress bar (shared by the upload overlay). */
