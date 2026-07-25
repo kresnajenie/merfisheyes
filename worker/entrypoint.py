@@ -6,7 +6,8 @@ chunked output to datasets/{id}/, and (in Phase 3) reports progress/status back
 to the app via a signed callback. In Phase 2 the callbacks are STUBBED — printed
 as CALLBACK lines — and the canonical fingerprint is a placeholder (README §6).
 
-v1 scope: single-cell (process_spatial_data.py). Single-molecule is stubbed.
+Handles single-cell (process_spatial_data.py → manifest.json) and single-molecule
+(process_single_molecule.py → manifest.json.gz + genes/*.bin.gz).
 
 Env:
   DATASET_ID          required — e.g. ds_xxx
@@ -401,6 +402,83 @@ def read_stats(out_dir: Path) -> dict:
     }
 
 
+def find_single_molecule_input(raw_dir: Path) -> Path:
+    """Locate the transcripts file. The client uploads exactly one .csv/.parquet
+    (the classifier selects a single detected_transcripts file), so there is
+    normally one candidate; if several, prefer a detected_transcripts-style name.
+    """
+    candidates = sorted(
+        p for p in raw_dir.rglob("*") if p.suffix.lower() in (".csv", ".parquet")
+    )
+    if not candidates:
+        raise RuntimeError(f"No .csv/.parquet transcripts file under {raw_dir}")
+    if len(candidates) == 1:
+        return candidates[0]
+
+    def score(p: Path) -> int:
+        name = p.stem.lower()
+        if "detected" in name and "transcript" in name:
+            return 2
+        if "transcript" in name:
+            return 1
+        return 0
+
+    return max(candidates, key=score)
+
+
+def detect_molecule_type(input_path: Path) -> str:
+    """Pick the process_single_molecule.py --dataset-type from the column names.
+
+    MERSCOPE uses global_x/global_y; Xenium uses x_location/y_location. Peeking
+    the header (a single line for CSV, the schema for parquet) keeps type
+    detection server-side — no schema hint has to be threaded from the client.
+    """
+    if input_path.suffix.lower() == ".parquet":
+        import pyarrow.parquet as pq
+
+        columns = set(pq.read_schema(str(input_path)).names)
+    else:
+        with open(input_path, "r", encoding="utf-8", errors="replace") as f:
+            header = f.readline()
+        columns = {c.strip().strip('"') for c in header.split(",")}
+
+    if "global_x" in columns:
+        return "merscope"
+    if "x_location" in columns:
+        return "xenium"
+    raise RuntimeError(
+        "Could not detect molecule schema: expected 'global_x' (MERSCOPE) or "
+        f"'x_location' (Xenium) in the header. Columns: {sorted(columns)[:12]}"
+    )
+
+
+def read_sm_stats(out_dir: Path) -> dict:
+    """Molecule/gene counts from the single-molecule manifest.
+
+    process_single_molecule.py writes a GZIPPED manifest and nests the counts as
+    statistics.total_molecules / unique_genes. numCells carries the molecule
+    count — the SM API surfaces Dataset.numCells as `numMolecules`.
+    """
+    manifest = out_dir / "manifest.json.gz"
+    if not manifest.exists():
+        return {}
+    try:
+        import gzip
+
+        with gzip.open(manifest, "rt", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+
+    stats = data.get("statistics") or {}
+
+    return {
+        "numCells": stats.get("total_molecules"),
+        "numGenes": stats.get("unique_genes"),
+        "spatialDimensions": stats.get("spatial_dimensions"),
+    }
+
+
 def main():
     dataset_id = env("DATASET_ID", required=True)
     kind = env("DATASET_KIND", "single_cell")
@@ -414,8 +492,8 @@ def main():
     except json.JSONDecodeError as e:
         fail(f"PROCESSING_PARAMS is not valid JSON: {e}")
 
-    if kind != "single_cell":
-        fail(f"DATASET_KIND '{kind}' not supported yet (single_cell only in v1)")
+    if kind not in ("single_cell", "single_molecule"):
+        fail(f"DATASET_KIND '{kind}' not supported (single_cell | single_molecule)")
 
     callback("PROCESSING", datasetId=dataset_id)
 
@@ -436,26 +514,49 @@ def main():
     stages = params.get("stages", {}) or {}
     chunk = stages.get("chunk", {}) or {}
 
-    # Before resolving the input: for a folder dataset the input IS raw_dir, so
-    # the annotation CSV has to be gone before anything inspects the directory.
-    mmc_csv = extract_annotation_csv(raw_dir, work / "annotations", chunk.get("mmcCsv"))
+    if kind == "single_molecule":
+        # SM writes a GZIPPED manifest and no genes-per-chunk concept — it's a
+        # different processor and stats shape from single-cell.
+        input_path = find_single_molecule_input(raw_dir)
+        dataset_type = detect_molecule_type(input_path)
+        print(f"== Input: {input_path} (type={dataset_type}) ==", flush=True)
 
-    input_path = find_single_cell_input(raw_dir)
-    print(f"== Input: {input_path} ==", flush=True)
+        cmd = [
+            sys.executable, "scripts/process_single_molecule.py",
+            str(input_path), str(out_dir),
+            "--dataset-type", dataset_type,
+        ]
+        processor_name = "process_single_molecule.py"
+        manifest_name = "manifest.json.gz"
+        read_output_stats = read_sm_stats
+    else:
+        # Before resolving the input: for a folder dataset the input IS raw_dir,
+        # so the annotation CSV has to be gone before anything inspects the dir.
+        mmc_csv = extract_annotation_csv(
+            raw_dir, work / "annotations", chunk.get("mmcCsv")
+        )
+        input_path = find_single_cell_input(raw_dir)
+        print(f"== Input: {input_path} ==", flush=True)
 
-    cmd = [sys.executable, "scripts/process_spatial_data.py", str(input_path), str(out_dir)]
-    if isinstance(chunk.get("chunkSize"), int):
-        cmd += ["--chunk-size", str(chunk["chunkSize"])]
-    if mmc_csv is not None:
-        cmd += ["--mmc-csv", str(mmc_csv)]
+        cmd = [
+            sys.executable, "scripts/process_spatial_data.py",
+            str(input_path), str(out_dir),
+        ]
+        if isinstance(chunk.get("chunkSize"), int):
+            cmd += ["--chunk-size", str(chunk["chunkSize"])]
+        if mmc_csv is not None:
+            cmd += ["--mmc-csv", str(mmc_csv)]
+        processor_name = "process_spatial_data.py"
+        manifest_name = "manifest.json"
+        read_output_stats = read_stats
 
     print(f"== Running: {' '.join(cmd)} ==", flush=True)
     returncode, reason = run_processor(cmd)
     if returncode != 0:
-        fail(reason or f"process_spatial_data.py exited {returncode}")
+        fail(reason or f"{processor_name} exited {returncode}")
 
-    if not (out_dir / "manifest.json").exists():
-        fail("processor finished but out/manifest.json is missing")
+    if not (out_dir / manifest_name).exists():
+        fail(f"processor finished but out/{manifest_name} is missing")
 
     out_prefix = f"datasets/{dataset_id}/"
 
@@ -470,7 +571,7 @@ def main():
     progress("Uploading results")
     uploaded = upload_dir(s3, bucket, out_dir, out_prefix, concurrency=concurrency)
 
-    stats = read_stats(out_dir)
+    stats = read_output_stats(out_dir)
 
     # Phase 3 computes the canonical fingerprint here (README §6) and dedups.
     fingerprint = f"STUB_{dataset_id}"
@@ -486,7 +587,7 @@ def main():
     callback(
         "COMPLETE",
         datasetId=dataset_id,
-        manifestKey=f"{out_prefix}manifest.json",
+        manifestKey=f"{out_prefix}{manifest_name}",
         uploadedFiles=uploaded,
         fingerprint=fingerprint,
         stats=stats,

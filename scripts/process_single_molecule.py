@@ -19,7 +19,7 @@ Options:
     --y-col           Custom y coordinate column name (overrides dataset-type)
     --z-col           Custom z coordinate column name (overrides dataset-type, optional for 2D)
     --manifest-only   Only generate manifest.json.gz without creating gene files (faster)
-    --cell-id-col     Column name for cell assignment (auto-detected for MERSCOPE)
+    --cell-id-col     Opt in to split molecules by cell assignment (off by default)
                       Molecules with value -1 are treated as unassigned
     --s3-prefix       S3 base URL prefix for mapping file (directory mode only)
     --link-column     Cluster column name to read for linking (default: _sample_id)
@@ -372,8 +372,15 @@ def read_parquet_file(
 
     log(f"Reading parquet file: {file_path}")
 
-    # Read parquet file
-    table = pq.read_table(file_path)
+    # Read only the columns we use (see read_csv_file). Read the schema first so
+    # `columns=` never names an absent optional column (z / cell_id).
+    schema_names = set(pq.read_schema(file_path).names)
+    wanted = [
+        c
+        for c in (gene_col, x_col, y_col, z_col, cell_id_col)
+        if c and c in schema_names
+    ]
+    table = pq.read_table(file_path, columns=wanted)
     df = table.to_pandas()
 
     # Verify required columns exist (only gene, x, y are required)
@@ -443,8 +450,17 @@ def read_csv_file(
     """
     log(f"Reading CSV file: {file_path}")
 
-    # Read CSV file
-    df = pd.read_csv(file_path)
+    # Read ONLY the columns we use. A detected_transcripts.csv has ~10 columns
+    # (unnamed index, barcode_id, fov, transcript_id, …) over tens of millions
+    # of rows; loading all of them OOMs the worker. Peek the header first so
+    # usecols never references an absent optional column (z / cell_id).
+    header_cols = set(pd.read_csv(file_path, nrows=0).columns)
+    wanted = [
+        c
+        for c in (gene_col, x_col, y_col, z_col, cell_id_col)
+        if c and c in header_cols
+    ]
+    df = pd.read_csv(file_path, usecols=wanted)
 
     # Verify required columns exist (only gene, x, y are required)
     available_cols = set(df.columns)
@@ -524,7 +540,9 @@ def process_single_molecule_data(
     x_col = x_col or mapping["x"]
     y_col = y_col or mapping["y"]
     z_col = z_col or mapping["z"]
-    cell_id_col = cell_id_col or mapping.get("cell_id")
+    # cell_id defaults to None (no assignment split) — one file per gene, no
+    # `_uuuuuuuuuu` unassigned sibling. Opt in with --cell-id-col to split.
+    # (Deliberately NOT falling back to mapping["cell_id"].)
 
     log(f"{'='*60}")
     log(f"Processing Single Molecule Data")
@@ -937,9 +955,9 @@ def main():
     )
     parser.add_argument(
         "--cell-id-col",
-        help="Column name for cell assignment (auto-detected as 'cell_id' for MERSCOPE). "
-             "Molecules with value -1 are treated as unassigned and written to separate files. "
-             "Use this flag to override the auto-detected column name",
+        help="Opt in to splitting molecules by cell assignment. Off by default: "
+             "all molecules for a gene go in one file. When given (e.g. 'cell_id'), "
+             "molecules with value -1 are written to separate `_uuuuuuuuuu` files.",
     )
     parser.add_argument(
         "--manifest-only",
