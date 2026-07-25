@@ -1,4 +1,6 @@
 // lib/s3.ts (or src/lib/s3.ts)
+import { gunzipSync } from "zlib";
+
 import {
   S3Client,
   GetObjectCommand,
@@ -407,6 +409,16 @@ export async function getObjectJson<T = any>(key: string): Promise<T | null> {
     const res = await s3Client.send(
       new GetObjectCommand({ Bucket: bucket, Key: key }),
     );
+
+    // Single-molecule writes manifest.json.gz; single-cell writes plain json.
+    if (key.endsWith(".gz")) {
+      const bytes = await res.Body?.transformToByteArray();
+
+      return bytes
+        ? (JSON.parse(gunzipSync(Buffer.from(bytes)).toString("utf-8")) as T)
+        : null;
+    }
+
     const body = await res.Body?.transformToString();
 
     return body ? (JSON.parse(body) as T) : null;

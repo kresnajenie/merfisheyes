@@ -109,25 +109,28 @@ export async function reconcileWithBatch(
     if (job.status === "SUCCEEDED") {
       // The work is done and the output is in S3 — only the callback was lost.
       // Recover the statistics from the dataset's own manifest so the row isn't
-      // completed with zeroed counts.
+      // completed with zeroed counts. Single-molecule writes a gzipped manifest
+      // with molecule/gene counts; single-cell a plain one with cell/gene counts.
+      const isSM = dataset.id.startsWith("sm_");
       const manifest = await getObjectJson<any>(
-        `datasets/${dataset.id}/manifest.json`,
+        `datasets/${dataset.id}/manifest.json${isSM ? ".gz" : ""}`,
       );
 
       if (!manifest) {
         await markFailed(
           dataset.id,
-          `Processing job ${dataset.batchJobId} succeeded but produced no manifest.json. Re-upload to retry.`,
+          `Processing job ${dataset.batchJobId} succeeded but produced no manifest. Re-upload to retry.`,
         );
 
         return { changed: true, status: "FAILED", reason: "no manifest" };
       }
 
+      const s = manifest?.statistics ?? {};
+
       await finalizeCompletedDataset(dataset.id, {
-        stats: {
-          numCells: manifest?.statistics?.total_cells,
-          numGenes: manifest?.statistics?.total_genes,
-        },
+        stats: isSM
+          ? { numCells: s.total_molecules, numGenes: s.unique_genes }
+          : { numCells: s.total_cells, numGenes: s.total_genes },
       });
       console.warn(
         `Ingest reconcile: ${dataset.id} completed from Batch state; its worker callback never arrived.`,
