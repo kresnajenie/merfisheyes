@@ -8,12 +8,42 @@ body {
   background-color: #000000;
 }
 
+/* ── Design tokens ──────────────────────────────────────────────────────
+   The glassmorphism look and the overlay stacking order both live here so
+   they're defined once, not scattered as ad-hoc blur/opacity/z-index values
+   across every panel.
+
+   Two glass tiers on purpose:
+   - `.glass`       chrome — translucent, for buttons, the control rail, and
+                    small capsules that sit over solid backgrounds.
+   - `.glass-panel` content — more opaque and more blurred, for panels that
+                    carry text or charts *over the busy 3D scene*, where the
+                    translucent chrome tier would be unreadable. */
+:root {
+  --glass-bg: rgba(0, 0, 0, 0.2);
+  --glass-blur: 15px;
+  --glass-border: rgba(255, 255, 255, 0.3);
+
+  --glass-panel-bg: rgba(0, 0, 0, 0.45);
+  --glass-panel-blur: 24px;
+  --glass-panel-border: rgba(255, 255, 255, 0.15);
+
+  /* Overlay stacking order. Panels sit ABOVE the rail that opens them —
+     the previous ad-hoc values had the rail (70) painting over its own
+     flyouts (50). */
+  --z-legends: 20;
+  --z-rail: 30;
+  --z-panel: 40;
+  --z-chrome: 60;
+  --z-modal: 1000;
+}
+
 /* Glassmorphism base styles */
 .glass {
-  background: rgba(0, 0, 0, 0.2) !important;
-  backdrop-filter: blur(15px) !important;
-  -webkit-backdrop-filter: blur(15px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+  border: 1px solid var(--glass-border) !important;
   box-shadow:
     0 25px 23px rgba(0, 0, 0, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.5),
@@ -22,34 +52,34 @@ body {
   color: white !important;
 }
 
-.glass-light {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+/* Content-panel tier. Standalone (does NOT compose `.glass`, whose
+   `!important` would override the more opaque background). */
+.glass-panel {
+  background: var(--glass-panel-bg);
+  backdrop-filter: blur(var(--glass-panel-blur));
+  -webkit-backdrop-filter: blur(var(--glass-panel-blur));
+  border: 1px solid var(--glass-panel-border);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.1);
-  color: white;
-}
-
-.glass-dark {
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(15px);
-  -webkit-backdrop-filter: blur(15px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 25px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
   color: white;
 }
 
 /* Force glass effect on buttons */
 button.glass,
 button.glass[data-hover="true"] {
-  background: rgba(0, 0, 0, 0.2) !important;
-  backdrop-filter: blur(15px) !important;
-  -webkit-backdrop-filter: blur(15px) !important;
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) !important;
+}
+
+/* Indeterminate progress bar (shared by the upload overlay). */
+@keyframes glassIndeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
 }
 
