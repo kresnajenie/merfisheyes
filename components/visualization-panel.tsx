@@ -19,7 +19,7 @@ import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
-import { glassButton } from "@/components/primitives";
+import { glassPanel } from "@/components/primitives";
 import {
   getEffectiveColumnType,
   canTreatAsNumerical,
@@ -326,7 +326,7 @@ export function VisualizationPanel({
     <>
     <div
       ref={panelRef}
-      className={`absolute top-0 left-16 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+      className={`absolute top-0 left-16 z-[var(--z-panel)] w-[300px] ${glassPanel()}`}
     >
       {/* Content */}
       <div className="p-4 space-y-3">
@@ -929,24 +929,6 @@ export function VisualizationPanel({
           </>
         )}
       </div>
-      {/* Slider Section
-      <div className="p-4 border-t border-default-200">
-        <div className="space-y-2">
-          <input
-            type="range"
-            min="0"
-            max="3.39"
-            step="0.01"
-            defaultValue="0.92"
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-default-500">
-            <span>0.00</span>
-            <span className="text-default-900 font-semibold">0.92</span>
-            <span>3.39</span>
-          </div>
-        </div>
-      </div> */}
     </div>
 
     {/* Playback sequence modal */}

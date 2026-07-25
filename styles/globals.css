@@ -24,7 +24,7 @@ body {
   --glass-blur: 15px;
   --glass-border: rgba(255, 255, 255, 0.3);
 
-  --glass-panel-bg: rgba(0, 0, 0, 0.45);
+  --glass-panel-bg: rgba(0, 0, 0, 0.55);
   --glass-panel-blur: 24px;
   --glass-panel-border: rgba(255, 255, 255, 0.15);
 

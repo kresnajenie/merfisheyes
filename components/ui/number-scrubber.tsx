@@ -162,6 +162,47 @@ export const NumberScrubber = React.forwardRef<
       };
     }, [handleMouseMove, handleMouseUp]);
 
+    // Keyboard control — mirrors the drag: up/down nudge by one step, Shift for
+    // a 10× step, Home/End jump to the bounds, Enter/Space open the text editor.
+    // Without this the scrubber was operable by mouse only.
+    const handleKeyDown = useCallback(
+      (e: React.KeyboardEvent) => {
+        if (disabled) return;
+        const big = e.shiftKey ? 10 : 1;
+
+        switch (e.key) {
+          case "ArrowUp":
+          case "ArrowRight":
+            e.preventDefault();
+            onChange?.(clampValue(value + step * big));
+            break;
+          case "ArrowDown":
+          case "ArrowLeft":
+            e.preventDefault();
+            onChange?.(clampValue(value - step * big));
+            break;
+          case "Home":
+            if (Number.isFinite(min)) {
+              e.preventDefault();
+              onChange?.(min);
+            }
+            break;
+          case "End":
+            if (Number.isFinite(max)) {
+              e.preventDefault();
+              onChange?.(max);
+            }
+            break;
+          case "Enter":
+          case " ":
+            e.preventDefault();
+            startEditing();
+            break;
+        }
+      },
+      [disabled, value, step, min, max, clampValue, onChange, startEditing],
+    );
+
     // Display the dragging value if dragging, otherwise the prop value
     const displayValue = draggingValue !== null ? draggingValue : value;
 
@@ -194,6 +235,12 @@ export const NumberScrubber = React.forwardRef<
     return (
       <div
         ref={ref}
+        role="spinbutton"
+        tabIndex={disabled ? -1 : 0}
+        aria-valuenow={displayValue}
+        aria-valuemin={Number.isFinite(min) ? min : undefined}
+        aria-valuemax={Number.isFinite(max) ? max : undefined}
+        aria-disabled={disabled || undefined}
         className={cn(
           "inline-flex items-center justify-center cursor-ns-resize select-none",
           "font-mono text-sm font-medium",
@@ -201,9 +248,11 @@ export const NumberScrubber = React.forwardRef<
           "bg-black/30 backdrop-blur-md",
           "border border-white/20",
           "shadow-lg",
+          "outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70",
           disabled && "opacity-50 cursor-not-allowed",
           className,
         )}
+        onKeyDown={handleKeyDown}
         onMouseDown={handleMouseDown}
       >
         {formatValue(displayValue)}

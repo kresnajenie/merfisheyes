@@ -11,7 +11,7 @@ import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
-import { glassButton } from "@/components/primitives";
+import { glassPanel } from "@/components/primitives";
 import {
   rankDegsForCelltype,
   isDeStatsInFlight,
@@ -186,7 +186,7 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
       data-deg-column={deStats?.column ?? ""}
       data-deg-target={degTarget ?? ""}
       data-deg-reference={degReference ?? ""}
-      className={`absolute top-0 left-16 z-50 w-[420px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+      className={`absolute top-0 left-16 z-[var(--z-panel)] w-[420px] ${glassPanel()}`}
     >
       <div className="p-4 space-y-3">
         {computing && !deStats ? (

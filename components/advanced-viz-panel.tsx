@@ -5,7 +5,7 @@ import { Slider } from "@heroui/react";
 import { useRef, useEffect, useState, useCallback } from "react";
 
 import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
-import { glassButton } from "@/components/primitives";
+import { glassPanel } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { useSliderRange } from "./slider-range-popover";
 
@@ -124,7 +124,7 @@ export function AdvancedVizPanel({ onClose, controlsRef }: AdvancedVizPanelProps
   return (
     <div
       ref={panelRef}
-      className={`absolute top-0 left-16 z-50 w-[280px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+      className={`absolute top-0 left-16 z-[var(--z-panel)] w-[280px] ${glassPanel()}`}
     >
       <div className="p-4 space-y-4">
         {/* Header */}

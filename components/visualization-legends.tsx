@@ -200,7 +200,7 @@ export const VisualizationLegends: React.FC = () => {
 
   return (
     <div
-      className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs"
+      className="absolute right-6 top-24 z-[var(--z-legends)] flex flex-col items-end gap-4 max-w-xs"
       data-ui-overlay
     >
       {/* Selected Gene Badge */}
@@ -238,9 +238,11 @@ export const VisualizationLegends: React.FC = () => {
                 <Globe className="w-4 h-4" />
               </button>
             )}
-            <div
+            <button
               data-testid="selected-gene-badge"
               data-gene={selectedGene ?? ""}
+              aria-label={`Remove gene ${selectedGene}`}
+              type="button"
               className="group flex items-center gap-2 px-4 py-2 rounded-full hover:opacity-100 transition-colors cursor-pointer"
               style={{
                 backgroundColor: coexpressActive
@@ -255,11 +257,13 @@ export const VisualizationLegends: React.FC = () => {
               >
                 {selectedGene}
               </span>
-              <X className="w-2 h-2 text-black/60 group-hover:text-black" />
-            </div>
+              <X className="w-3.5 h-3.5 text-black/60 group-hover:text-black" />
+            </button>
           </div>
           {coexpressActive && (
-            <div
+            <button
+              aria-label={`Remove gene ${selectedGene2}`}
+              type="button"
               className="group flex items-center gap-2 px-4 py-2 rounded-full hover:opacity-100 transition-colors cursor-pointer"
               style={{ backgroundColor: `${gene2Color}b3` }}
               onClick={() => setSelectedGene2(null)}
@@ -267,8 +271,8 @@ export const VisualizationLegends: React.FC = () => {
               <span className="text-xs font-medium text-black">
                 {selectedGene2}
               </span>
-              <X className="w-2 h-2 text-black/60 group-hover:text-black" />
-            </div>
+              <X className="w-3.5 h-3.5 text-black/60 group-hover:text-black" />
+            </button>
           )}
         </div>
         );
@@ -394,7 +398,7 @@ export const VisualizationLegends: React.FC = () => {
                         {celltype}
                       </span>
                       <X
-                        className="w-2 h-2 text-black/70 group-hover:text-black"
+                        className="w-3.5 h-3.5 text-black/70 group-hover:text-black"
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleCelltype(celltype);
@@ -402,7 +406,7 @@ export const VisualizationLegends: React.FC = () => {
                       />
                     </div>
                   </PopoverTrigger>
-                  <PopoverContent className="!bg-[rgba(0,0,0,0.4)] backdrop-blur-[50px] border-white/20 p-3 w-64">
+                  <PopoverContent className="glass-panel p-3 w-64">
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-semibold">{celltype}</h4>
