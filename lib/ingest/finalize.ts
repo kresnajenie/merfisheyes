@@ -39,6 +39,41 @@ export async function finalizeCompletedDataset(
 
   if (!dataset) throw new Error(`Dataset ${datasetId} not found`);
 
+  // Dedup: the worker sends a SHA-256 hex digest of the raw upload (64 hex
+  // chars; placeholders are "raw_"/"STUB_"-prefixed). If another dataset already
+  // holds it, this is a re-upload of the identical file(s) — mark it FAILED
+  // pointing at the original rather than minting a second copy. (The fingerprint
+  // column is @unique, so at most one dataset can hold each value.)
+  if (
+    opts.fingerprint &&
+    /^[0-9a-f]{64}$/.test(opts.fingerprint) &&
+    opts.fingerprint !== dataset.fingerprint
+  ) {
+    const existing = await prisma.dataset.findFirst({
+      where: { fingerprint: opts.fingerprint, id: { not: datasetId } },
+      select: { id: true, title: true },
+    });
+
+    if (existing) {
+      await prisma.dataset.update({
+        where: { id: datasetId },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          errorMessage:
+            `Duplicate of already-ingested dataset ${existing.id}` +
+            (existing.title ? ` ("${existing.title}")` : "") +
+            ". Open that one instead of re-uploading.",
+        },
+      });
+      console.warn(
+        `Ingest finalize: ${datasetId} duplicates ${existing.id}; marked FAILED.`,
+      );
+
+      return { registeredFiles: 0, emailed: false };
+    }
+  }
+
   const outputFiles = await listObjectKeys(`datasets/${datasetId}/`);
 
   if (outputFiles.length === 0) {

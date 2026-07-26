@@ -402,6 +402,33 @@ def read_stats(out_dir: Path) -> dict:
     }
 
 
+def compute_raw_fingerprint(raw_dir: Path) -> str:
+    """SHA-256 over the raw uploaded bytes.
+
+    Streamed (1 MB chunks) so a 5 GB input never loads into memory. Files are
+    hashed in relative-path order for determinism, and each file's path + size
+    are folded in so a rename or truncation changes the result. Re-uploading the
+    identical file(s) reproduces the same digest, which the app dedups on.
+    """
+    files = sorted(
+        (p for p in raw_dir.rglob("*") if p.is_file()),
+        key=lambda p: p.relative_to(raw_dir).as_posix(),
+    )
+    h = hashlib.sha256()
+    for p in files:
+        rel = p.relative_to(raw_dir).as_posix()
+        h.update(f"{rel}:{p.stat().st_size}\n".encode())
+        with open(p, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                h.update(chunk)
+
+    # Bare hex digest — 64 chars, which fits the fingerprint column's
+    # VarChar(64) exactly. No prefix (a "sha256:" prefix pushed it to 71 and the
+    # DB rejected it). Placeholders are "raw_"/"STUB_"-prefixed, so a 64-hex
+    # string is unambiguously a real content fingerprint downstream.
+    return h.hexdigest()
+
+
 def find_single_molecule_input(raw_dir: Path) -> Path:
     """Locate the transcripts file. The client uploads exactly one .csv/.parquet
     (the classifier selects a single detected_transcripts file), so there is
@@ -511,6 +538,12 @@ def main():
     if n == 0:
         fail(f"No raw objects under {raw_prefix}")
 
+    # Fingerprint the raw upload before anything mutates raw_dir (single-cell
+    # moves the annotation CSV out). Re-uploading the identical file(s) yields
+    # the same fingerprint; the app dedups on it (@unique column).
+    fingerprint = compute_raw_fingerprint(raw_dir)
+    print(f"== Raw fingerprint: {fingerprint} ==", flush=True)
+
     stages = params.get("stages", {}) or {}
     chunk = stages.get("chunk", {}) or {}
 
@@ -572,10 +605,6 @@ def main():
     uploaded = upload_dir(s3, bucket, out_dir, out_prefix, concurrency=concurrency)
 
     stats = read_output_stats(out_dir)
-
-    # Phase 3 computes the canonical fingerprint here (README §6) and dedups.
-    fingerprint = f"STUB_{dataset_id}"
-    print(f"== Fingerprint (STUB, Phase 3 computes canonical): {fingerprint} ==", flush=True)
 
     if delete_raw:
         removed = delete_prefix(s3, bucket, raw_prefix)
