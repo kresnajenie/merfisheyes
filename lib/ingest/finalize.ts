@@ -2,7 +2,10 @@ import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
 import { listObjectKeys } from "@/lib/s3";
-import { sendDatasetReadyEmail } from "@/lib/ses";
+import {
+  sendDatasetReadyEmail,
+  sendDuplicateDatasetEmail,
+} from "@/lib/ses";
 
 /**
  * Mark a dataset COMPLETE and register the worker's output.
@@ -44,7 +47,16 @@ export async function finalizeCompletedDataset(
   // holds it, this is a re-upload of the identical file(s) — mark it FAILED
   // pointing at the original rather than minting a second copy. (The fingerprint
   // column is @unique, so at most one dataset can hold each value.)
+  //
+  // Admins are exempt: they're allowed to upload duplicates (e.g. re-processing,
+  // fixtures), so their re-upload completes normally. Its fingerprint will
+  // collide on the @unique column at the end, which the tail catch keeps as a
+  // placeholder — harmless.
+  const isAdmin =
+    dataset.owner?.role === "ADMIN" || dataset.owner?.role === "SUPER_ADMIN";
+
   if (
+    !isAdmin &&
     opts.fingerprint &&
     /^[0-9a-f]{64}$/.test(opts.fingerprint) &&
     opts.fingerprint !== dataset.fingerprint
@@ -70,7 +82,28 @@ export async function finalizeCompletedDataset(
         `Ingest finalize: ${datasetId} duplicates ${existing.id}; marked FAILED.`,
       );
 
-      return { registeredFiles: 0, emailed: false };
+      // Tell the owner it was a duplicate and where the original lives. Never
+      // fail the finalize over a mail error.
+      let emailed = false;
+
+      if (dataset.owner?.email) {
+        try {
+          await sendDuplicateDatasetEmail({
+            email: dataset.owner.email,
+            uploadedName: dataset.title ?? undefined,
+            existingId: existing.id,
+            existingTitle: existing.title ?? undefined,
+          });
+          emailed = true;
+        } catch (e: any) {
+          console.error(
+            "Ingest finalize: duplicate email failed:",
+            e?.message,
+          );
+        }
+      }
+
+      return { registeredFiles: 0, emailed };
     }
   }
 
