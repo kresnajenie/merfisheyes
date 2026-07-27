@@ -3,6 +3,7 @@
 import { Button } from "@heroui/button";
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 export type RawUploadStatus =
   | "preparing"
@@ -117,7 +118,12 @@ export function RawUploadOverlay({
     </div>
   );
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  // Portal to <body>: the upload card lives inside a transformed ancestor (the
+  // crossfade layout's translate/scale), which would otherwise anchor this
+  // `fixed` overlay to that ancestor instead of the viewport.
+  return createPortal(
     <div
       data-ui-overlay
       className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md"
@@ -135,7 +141,7 @@ export function RawUploadOverlay({
         <div className="flex items-center gap-3">
           <Icon />
           <h2
-            className={`text-lg font-semibold ${status === "error" ? "text-danger" : "text-foreground"}`}
+            className={`text-xl font-semibold ${status === "error" ? "text-danger" : "text-foreground"}`}
           >
             {heading}
           </h2>
@@ -145,7 +151,7 @@ export function RawUploadOverlay({
         <div aria-live="polite">
           {uploading && (
             <>
-              <p className="mt-1 text-sm text-default-400">
+              <p className="mt-1 text-base text-default-600">
                 Please don&apos;t close this tab.
               </p>
 
@@ -162,7 +168,7 @@ export function RawUploadOverlay({
                 </div>
               )}
 
-              <div className="mt-3 flex items-center justify-between text-xs text-default-400">
+              <div className="mt-3 flex items-center justify-between text-sm text-default-500">
                 <span>
                   {status === "preparing"
                     ? `Fetching upload links… preparing ${fileCount} ${fileCount === 1 ? "file" : "files"}.`
@@ -180,7 +186,7 @@ export function RawUploadOverlay({
 
           {status === "processing" && (
             <>
-              <p className="mt-1 text-sm text-default-300">
+              <p className="mt-1 text-base text-default-600">
                 You can close this tab; we&apos;ll email you when it&apos;s
                 done.
               </p>
@@ -198,7 +204,7 @@ export function RawUploadOverlay({
                 indeterminateBar
               )}
 
-              <div className="mt-3 flex items-center justify-between text-xs text-default-300">
+              <div className="mt-3 flex items-center justify-between text-sm text-default-500">
                 <span data-testid="raw-process-stage">
                   {stage || "Queued…"}
                 </span>
@@ -214,7 +220,7 @@ export function RawUploadOverlay({
               <p className="text-sm font-medium text-amber-100">
                 Processing hasn&apos;t started
               </p>
-              <p className="mt-1 break-words text-xs text-amber-100/80">
+              <p className="mt-1 break-words text-sm text-amber-100/90">
                 Your files uploaded successfully, but the processing job could
                 not be submitted: {submitWarning}
               </p>
@@ -222,13 +228,13 @@ export function RawUploadOverlay({
           )}
 
           {status === "done" && !doneWarning && (
-            <p className="mt-2 text-sm text-default-300">
+            <p className="mt-2 text-base text-default-600">
               Processing finished. We&apos;ve also emailed you the link.
             </p>
           )}
 
           {status === "error" && (
-            <p className="mt-2 break-words text-sm text-default-300">
+            <p className="mt-2 break-words text-base text-default-600">
               {error || "Something went wrong."}
             </p>
           )}
@@ -251,6 +257,7 @@ export function RawUploadOverlay({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

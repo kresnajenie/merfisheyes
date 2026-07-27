@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { title } from "@/components/primitives";
 import { ExplorePageClient } from "@/components/explore/explore-page-client";
 import { ExploreBackground } from "@/components/explore/explore-background";
+import { YourUploads } from "@/components/explore/your-uploads";
 
 // Revalidate every 60 seconds — cached page served instantly, rebuilt in background
 export const revalidate = 60;
@@ -94,6 +95,8 @@ export default async function ExplorePage() {
             transcriptomics datasets
           </p>
         </div>
+
+        <YourUploads isSignedIn={Boolean(session?.user)} />
 
         <Suspense>
           <ExplorePageClient

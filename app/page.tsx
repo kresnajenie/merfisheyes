@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@heroui/button";
-import { Switch } from "@heroui/switch";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
@@ -65,10 +64,40 @@ function ModeToggleButton({
     <button
       aria-pressed={active}
       className={clsx(
-        "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
+        "px-5 py-2.5 md:px-6 md:py-3 rounded-full text-sm md:text-base font-semibold tracking-[0.2em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
         a.ring,
         active ? a.active : a.idle,
       )}
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+// One option in the "where does processing happen" segmented control. Kept
+// large and clearly labelled (not a 12px switch) so the choice — and which
+// side is active — is obvious at a glance.
+function UploadModeOption({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-checked={active}
+      className={clsx(
+        "px-3.5 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black cursor-pointer",
+        active
+          ? "bg-primary text-white shadow-[0_6px_16px_rgba(59,130,246,0.3)]"
+          : "text-default-600 hover:text-foreground",
+      )}
+      role="radio"
       type="button"
       onClick={onClick}
     >
@@ -234,16 +263,16 @@ function HomeContent() {
           raysSpeed={1.0}
         />
       </div>
-      <section className="relative flex flex-col items-center gap-1 py-12 md:py-20 px-4 md:px-8">
-        <div className="relative z-10 flex flex-col items-center gap-10 max-w-3xl w-full">
+      <section className="relative flex flex-col items-center gap-1 -mt-4 py-3 md:py-4 px-4 md:px-8">
+        <div className="relative z-10 flex flex-col items-center gap-4 max-w-3xl w-full">
           <div className="flex flex-col items-center">
             <h1 className="flex flex-col items-center text-center">
-              <span className={title({ size: "xl" })}>
+              <span className={title({ size: "lg" })}>
                 Bring{" "}
                 <span
                   className={title({
                     color: isSingleMolecule ? "violet" : "blue",
-                    size: "xl",
+                    size: "lg",
                   })}
                   style={{ transition: "color 0.3s ease" }}
                 >
@@ -280,33 +309,60 @@ function HomeContent() {
               datasets
             </div>
 
-            <div className="mt-5 flex flex-col items-center gap-1">
-              <Switch
-                isDisabled={!session?.user}
-                isSelected={serverMode}
-                size="sm"
-                onValueChange={setServerMode}
+            <div className="mt-5 flex flex-col items-center gap-2">
+              <div
+                aria-label="Where to process your dataset"
+                className="inline-flex items-center gap-1 rounded-full border border-default-200 bg-default-100/40 p-1"
+                role="radiogroup"
               >
-                <span className="text-xs uppercase tracking-[0.2em] text-default-500">
-                  Upload &amp; process on server
-                </span>
-              </Switch>
-              <p className="text-[11px] text-default-400">
-                {session?.user
-                  ? serverMode
-                    ? "Raw files upload to the server for processing — you'll be emailed a link."
-                    : "Off: files are parsed in your browser."
-                  : "Sign in to upload & process large datasets on the server."}
+                <UploadModeOption
+                  active={!serverMode}
+                  label="Preview in browser"
+                  onClick={() => setServerMode(false)}
+                />
+                <UploadModeOption
+                  active={serverMode}
+                  label="Upload & process on server"
+                  onClick={() => setServerMode(true)}
+                />
+              </div>
+
+              <p className="max-w-2xl text-center text-sm text-default-500">
+                {serverMode
+                  ? session?.user
+                    ? "Uploads to the server; we email you a link when it's ready. Best for large datasets."
+                    : "Drop a file, verify with an email code, and we'll email you a link when it's ready."
+                  : "Parsed in your browser and opens instantly. Nothing leaves your computer."}
               </p>
 
-              {serverMode && session?.user ? (
-                <div className="mt-3 flex flex-col items-center gap-1">
-                  <span className="text-xs uppercase tracking-[0.2em] text-default-500">
-                    Cell type CSV
+              {serverMode ? (
+                <div className="mt-2 flex flex-col items-center gap-2">
+                  <span className="text-sm font-semibold text-default-600">
+                    <a
+                      className="text-primary underline"
+                      href="https://knowledge.brain-map.org/mapmycells/process"
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      MapMyCells
+                    </a>{" "}
+                    celltype CSV{" "}
+                    <span className="group relative inline-block">
+                      <span className="cursor-help font-normal text-default-500 underline decoration-dotted underline-offset-2">
+                        (optional)
+                      </span>
+                      <span
+                        className="pointer-events-none absolute bottom-full left-1/2 z-[var(--z-modal)] mb-2 hidden w-64 -translate-x-1/2 rounded-lg border border-default-200 bg-default-100 px-3 py-2 text-xs font-normal leading-snug text-default-600 shadow-lg group-hover:block"
+                        role="tooltip"
+                      >
+                        Upload a MapMyCells result (or any per-cell label CSV)
+                        to add cell type columns.
+                      </span>
+                    </span>
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <label
-                      className="cursor-pointer rounded-full border border-default-300 px-3 py-1 text-[11px] text-default-600 hover:border-primary/50 hover:bg-default-100/50"
+                      className="cursor-pointer rounded-full border border-default-300 px-4 py-1.5 text-sm text-default-700 hover:border-primary/50 hover:bg-default-100/50"
                       htmlFor="annotation-csv"
                     >
                       {annotationCsv ? "Change file" : "Choose file"}
@@ -321,28 +377,26 @@ function HomeContent() {
                       }
                     />
                     {annotationCsv ? (
-                      <button
-                        className="text-[11px] text-default-500 underline hover:text-default-700"
-                        type="button"
-                        onClick={() => setAnnotationCsv(null)}
-                      >
-                        Remove
-                      </button>
+                      <span className="text-sm text-default-500">
+                        {annotationCsv.name}{" "}
+                        <button
+                          className="underline hover:text-foreground"
+                          type="button"
+                          onClick={() => setAnnotationCsv(null)}
+                        >
+                          Remove
+                        </button>
+                      </span>
                     ) : null}
                   </div>
-                  <p className="max-w-xs text-center text-[11px] text-default-400">
-                    {annotationCsv
-                      ? `${annotationCsv.name} — its columns become cell type annotations, one row per cell in the same order.`
-                      : "Optional. Upload a MapMyCells result (or any per-cell label CSV) to add cell type columns."}
-                  </p>
                 </div>
               ) : null}
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-col items-center gap-8 max-w-5xl w-full">
-          <div className="relative w-full max-w-5xl min-h-[360px] flex flex-col gap-6 items-center justify-center lg:min-h-[420px]">
+        <div className="relative z-10 flex flex-col items-center gap-4 max-w-5xl w-full">
+          <div className="relative w-full max-w-5xl min-h-[232px] flex flex-col gap-3 items-center justify-center lg:min-h-[232px]">
             <div
               className={clsx(
                 "hidden lg:flex absolute inset-0 items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
@@ -360,7 +414,7 @@ function HomeContent() {
                   : "block lg:block lg:scale-100 lg:opacity-100 lg:blur-0 lg:pointer-events-auto",
               )}
             >
-              <div className="flex flex-col items-center gap-4 mx-auto max-w-2xl w-full">
+              <div className="flex flex-col items-center gap-3 mx-auto max-w-2xl w-full">
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <FileUpload
                     annotationCsv={annotationCsv}
@@ -399,7 +453,7 @@ function HomeContent() {
                   : "hidden lg:block lg:opacity-0 lg:scale-90 lg:pointer-events-none",
               )}
             >
-              <div className="flex flex-col items-center gap-4 mx-auto max-w-2xl w-full">
+              <div className="flex flex-col items-center gap-3 mx-auto max-w-2xl w-full">
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <FileUpload
                     description=".parquet or .csv (auto-detects schema)"
@@ -429,13 +483,13 @@ function HomeContent() {
           </div>
         </div>
 
-        <div className="relative z-10 flex justify-center mt-8">
+        <div className="relative z-10 flex justify-center mt-3">
           <Button
             as={Link}
             color="primary"
             href="/explore"
             radius="full"
-            size="lg"
+            size="md"
           >
             Explore Example Data
           </Button>

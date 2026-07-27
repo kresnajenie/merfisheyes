@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
@@ -16,16 +16,8 @@ import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
 import { classifyFolder } from "@/lib/ingest/classify-folder";
-import {
-  uploadRawToS3,
-  abortRawUpload,
-  pollIngestStatus,
-  type RawUploadProgress,
-} from "@/lib/upload/uploadRawToS3";
-import {
-  RawUploadOverlay,
-  type RawUploadStatus,
-} from "@/components/raw-upload-overlay";
+import { useUploadStore } from "@/lib/stores/uploadStore";
+import { AuthModal } from "@/components/auth-modal";
 
 /**
  * Reserved raw key for the user-supplied cell-type CSV.
@@ -100,28 +92,16 @@ export function FileUpload({
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
 
-  // Server-side raw-upload overlay state (only used when serverUpload=true).
   const { data: session } = useSession();
-  const [serverStatus, setServerStatus] = useState<RawUploadStatus | "idle">(
-    "idle",
-  );
-  const [serverProgress, setServerProgress] = useState<RawUploadProgress>({
-    loaded: 0,
-    total: 0,
-    fileIndex: 0,
-    fileCount: 0,
-  });
-  const [serverError, setServerError] = useState<string>("");
-  const [serverStage, setServerStage] = useState<string>("");
-  const [serverStagePercent, setServerStagePercent] = useState<number>();
-  const [submitWarning, setSubmitWarning] = useState<string>("");
-  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const datasetIdRef = useRef<string | null>(null);
-  const stopPollRef = useRef<(() => void) | null>(null);
 
-  // Stop polling if the card unmounts (e.g. user navigates away).
-  useEffect(() => () => stopPollRef.current?.(), []);
+  // Server-side raw upload runs in a global store so the transfer survives the
+  // navigation to /explore, where the top bar shows its progress.
+  const startUpload = useUploadStore((s) => s.start);
+
+  // Auth-on-drop: a signed-out user can drop a file; we stash it and pop the
+  // sign-in modal, then resume the upload on success (no sign-in wall first).
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const pendingFilesRef = useRef<File[] | null>(null);
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -298,16 +278,25 @@ export function FileUpload({
     return hasManifest && hasGenesFolder && hasGeneBinFiles;
   };
 
-  // Server-side ingestion: upload raw bytes, no parsing, ends at QUEUED.
+  // Server-side ingestion entry point. If the user isn't signed in yet, stash
+  // the dropped files and open the auth modal — the upload resumes on success,
+  // so there's no sign-in wall before the drop.
   const handleServerUpload = async (files: File[]) => {
     if (files.length === 0) return;
 
     if (!session?.user) {
-      toast.error("Please sign in to upload & process on the server.");
+      pendingFilesRef.current = files;
+      setAuthModalOpen(true);
 
       return;
     }
 
+    await doServerUpload(files);
+  };
+
+  // The actual raw-bytes upload. Assumes an authenticated session — the entry
+  // point above guarantees it, and the ingest API re-checks via cookie.
+  const doServerUpload = async (files: File[]) => {
     const kind = singleMolecule ? "single_molecule" : "single_cell";
     const title = files[0].webkitRelativePath?.split("/")[0] || files[0].name;
 
@@ -365,104 +354,30 @@ export function FileUpload({
       });
     }
 
-    const controller = new AbortController();
-
-    abortRef.current = controller;
-    datasetIdRef.current = null;
-    stopPollRef.current?.();
-    setServerError("");
-    setServerStage("");
-    setServerStagePercent(undefined);
-    setSubmitWarning("");
-    setViewerUrl(null);
-    setServerProgress({
-      loaded: 0,
-      total: rawFiles.reduce((s, f) => s + f.file.size, 0),
-      fileIndex: 0,
-      fileCount: rawFiles.length,
-    });
-    setServerStatus("preparing");
-
-    try {
-      const { datasetId, submitError } = await uploadRawToS3({
+    // Hand the transfer to the global upload store (so it survives navigation)
+    // and go straight to /explore, where the top bar shows byte progress and
+    // "Your uploads" shows the dataset processing once the bytes are up.
+    //
+    // v1 pipeline: chunk only. chunkSize 1 = one file per gene, so a gene
+    // selection in the viewer fetches only that gene instead of a whole chunk.
+    startUpload({
+      kind,
+      title,
+      files: rawFiles,
+      processingParams: {
         kind,
-        title,
-        // v1 pipeline: chunk only (design §5.8). Column mapping is added by the
-        // column-confirm step (Step 2).
-        //
-        // chunkSize is "genes per chunk". 1 = one file per gene, so selecting a
-        // gene in the viewer fetches only that gene instead of a whole
-        // multi-gene chunk — much faster gene switching, at the cost of many
-        // more (smaller) objects.
-        //
-        processingParams: {
-          kind,
-          stages: {
-            chunk: {
-              chunkSize: 1,
-              ...(annotationCsv && kind === "single_cell"
-                ? { mmcCsv: ANNOTATION_CSV_KEY }
-                : {}),
-            },
+        stages: {
+          chunk: {
+            chunkSize: 1,
+            ...(annotationCsv && kind === "single_cell"
+              ? { mmcCsv: ANNOTATION_CSV_KEY }
+              : {}),
           },
         },
-        files: rawFiles,
-        signal: controller.signal,
-        onProgress: setServerProgress,
-        onPhase: setServerStatus,
-      });
+      },
+    });
 
-      datasetIdRef.current = datasetId;
-
-      if (submitError) {
-        // Upload worked but nothing will process it — don't present a plain
-        // success, and don't poll a status that will never advance.
-        setSubmitWarning(submitError);
-        setServerStatus("done");
-
-        return;
-      }
-
-      // Follow the server-side run through to COMPLETE/FAILED.
-      setServerStatus("processing");
-      stopPollRef.current = pollIngestStatus(datasetId, (s) => {
-        setServerStage(
-          s.progress?.stage || (s.status === "QUEUED" ? "Queued…" : ""),
-        );
-        setServerStagePercent(s.progress?.percent);
-        if (s.status === "COMPLETE") {
-          setViewerUrl(s.viewerUrl ?? `/viewer/${datasetId}`);
-          setServerStatus("done");
-        } else if (s.status === "FAILED") {
-          setServerError(s.errorMessage || "Processing failed");
-          setServerStatus("error");
-        }
-      });
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
-        // Cancelled by the user; handled in handleServerCancel.
-        return;
-      }
-      console.error("[FileUpload] server upload failed:", err);
-      setServerError(err?.message || "Upload failed");
-      setServerStatus("error");
-    } finally {
-      abortRef.current = null;
-    }
-  };
-
-  const handleServerCancel = () => {
-    abortRef.current?.abort();
-    stopPollRef.current?.();
-    if (datasetIdRef.current) abortRawUpload(datasetIdRef.current);
-    datasetIdRef.current = null;
-    setServerStatus("idle");
-  };
-
-  const handleServerClose = () => {
-    // Processing continues server-side; the user gets an email either way.
-    stopPollRef.current?.();
-    setServerStatus("idle");
+    router.push("/explore");
   };
 
   const handleFiles = async (files: File[]) => {
@@ -820,9 +735,9 @@ export function FileUpload({
     <div className="w-full">
       <div
         className={`
-          relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+          relative border-2 border-dashed rounded-lg p-3 text-center cursor-pointer
           transition-all duration-200 ease-in-out flex items-center justify-center
-          min-h-[10rem]
+          min-h-[6rem]
           ${
             isDragging
               ? "border-primary bg-primary/10 scale-[1.02]"
@@ -854,12 +769,12 @@ export function FileUpload({
           {...(isFolder ? { webkitdirectory: "", directory: "" } : {})}
         />
 
-        <div className="flex flex-col items-center gap-2 w-full">
+        <div className="flex flex-col items-center gap-1.5 w-full">
           <p className="text-lg font-semibold text-foreground">{title}</p>
-          <p className="text-xs text-default-500">{description}</p>
+          <p className="text-sm text-default-500">{description}</p>
 
           {icons ? (
-            <div className="flex items-center justify-center gap-2 mt-1 text-default-500">
+            <div className="flex items-center justify-center gap-2 text-default-500">
               {icons}
             </div>
           ) : null}
@@ -874,26 +789,26 @@ export function FileUpload({
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-default-500 mt-2">{progressMessage}</p>
+              <p className="text-sm text-default-500 mt-2">{progressMessage}</p>
             </div>
           )}
         </div>
       </div>
 
-      {serverUpload && serverStatus !== "idle" && (
-        <RawUploadOverlay
-          error={serverError}
-          fileCount={serverProgress.fileCount}
-          fileIndex={serverProgress.fileIndex}
-          loaded={serverProgress.loaded}
-          stage={serverStage}
-          stagePercent={serverStagePercent}
-          status={serverStatus}
-          submitWarning={submitWarning}
-          total={serverProgress.total}
-          viewerUrl={viewerUrl}
-          onCancel={handleServerCancel}
-          onClose={handleServerClose}
+      {serverUpload && (
+        <AuthModal
+          isOpen={authModalOpen}
+          onAuthenticated={() => {
+            setAuthModalOpen(false);
+            const files = pendingFilesRef.current;
+
+            pendingFilesRef.current = null;
+            if (files) doServerUpload(files);
+          }}
+          onClose={() => {
+            setAuthModalOpen(false);
+            pendingFilesRef.current = null;
+          }}
         />
       )}
     </div>
