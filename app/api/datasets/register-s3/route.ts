@@ -134,6 +134,13 @@ export async function POST(request: NextRequest) {
   // New registration — read counts/title from the manifest (best-effort).
   const manifest = await fetchManifest(s3BaseUrl);
   const stats = manifest?.statistics ?? {};
+  // Single-molecule manifests report total_molecules; single-cell report
+  // total_cells. Normalize to the pipeline's datasetType so the viewer routes
+  // to /sm-viewer vs /viewer correctly.
+  const isSingleMolecule = stats.total_molecules != null;
+  const datasetType = isSingleMolecule
+    ? "single_molecule"
+    : (manifest?.type ?? null);
   const id = `s3_${nanoid(10)}`;
   const fingerprint = createHash("sha256").update(s3BaseUrl).digest("hex");
 
@@ -142,9 +149,11 @@ export async function POST(request: NextRequest) {
       id,
       fingerprint,
       title: manifest?.name ?? "Untitled dataset",
-      numCells: Number(stats.total_cells) || 0,
-      numGenes: Number(stats.total_genes) || 0,
-      datasetType: manifest?.type ?? null,
+      // total_cells/total_genes for single-cell; total_molecules/unique_genes
+      // for single-molecule manifests.
+      numCells: Number(stats.total_cells ?? stats.total_molecules) || 0,
+      numGenes: Number(stats.total_genes ?? stats.unique_genes) || 0,
+      datasetType,
       status: "COMPLETE",
       ownerId: adminClaim ? null : userId,
       adminOwned: adminClaim,
