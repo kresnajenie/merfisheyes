@@ -58,6 +58,7 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
   return (
     <HeroUINavbar
       className="w-3/4 mx-auto my-4 rounded-full glass"
+      classNames={{ wrapper: "px-8" }}
       maxWidth="xl"
       position="sticky"
     >
