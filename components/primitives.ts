@@ -53,6 +53,25 @@ export const subtitle = tv({
   },
 });
 
+/**
+ * Chrome-tier glass for buttons and small capsules.
+ *
+ * Just the `.glass` class — the old `!bg-[…]` and `backdrop-blur-[50px]` were
+ * both dead: `.glass` already sets the background, and its `blur(15px)
+ * !important` overrode the 50px every time.
+ */
 export const glassButton = tv({
-  base: "glass !bg-[rgba(0,0,0,0.2)] backdrop-blur-[50px]",
+  base: "glass",
+});
+
+/**
+ * Content-tier glass for flyout panels (viz / DEG / camera / legends / plot).
+ * More opaque than `glassButton` so text and charts stay readable over the 3D
+ * scene. Replaces the `border-2 border-white/20 rounded-3xl shadow-lg
+ * ${glassButton()}` string that was copy-pasted across the panel components;
+ * callers keep their own width/position. Border and shadow come from
+ * `.glass-panel`, so don't re-add them.
+ */
+export const glassPanel = tv({
+  base: "glass-panel rounded-3xl",
 });

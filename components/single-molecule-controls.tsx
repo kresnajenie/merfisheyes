@@ -17,7 +17,7 @@ import {
   usePanelId,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
-import { glassButton } from "@/components/primitives";
+import { glassButton, glassPanel } from "@/components/primitives";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 function formatCount(n: number): string {
@@ -222,7 +222,7 @@ export function SingleMoleculeControls() {
       {/* Gene Selection Panel */}
       {isPanelOpen && (
         <div
-          className={`absolute top-0 left-16 z-50 w-[320px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+          className={`absolute top-0 left-16 z-[var(--z-panel)] w-[320px] ${glassPanel()}`}
         >
           <div className="p-4 space-y-3">
             {/* Title */}

@@ -8,7 +8,7 @@ import { Select, SelectItem } from "@heroui/react";
 import { Slider } from "@heroui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { glassButton } from "@/components/primitives";
+import { glassPanel } from "@/components/primitives";
 import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
@@ -88,7 +88,7 @@ export function CameraPanel({
   return (
     <div
       ref={panelRef}
-      className={`absolute top-0 left-16 z-50 w-[300px] border-2 border-white/20 rounded-3xl shadow-lg ${glassButton()}`}
+      className={`absolute top-0 left-16 z-[var(--z-panel)] w-[300px] ${glassPanel()}`}
     >
       <div className="p-4 space-y-4">
         {/* Header */}

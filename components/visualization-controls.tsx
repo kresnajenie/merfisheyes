@@ -265,22 +265,6 @@ export function VisualizationControls() {
     };
   }, []);
 
-  // Track shift key for 45° snap on rotation slider
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Shift") (window as any).__shiftHeld = true;
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Shift") (window as any).__shiftHeld = false;
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
-  }, []);
-
   const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
 
   // Read playback from global store (works for both left and right panels)
@@ -294,7 +278,7 @@ export function VisualizationControls() {
 
     // Left panel: show floating pause button
     return (
-      <div className="absolute top-4 left-4 z-50">
+      <div className="absolute top-4 left-4 z-[var(--z-rail)]">
         <Tooltip content="Stop playback" placement="right">
           <Button
             className="w-12 h-12 min-w-0 rounded-full"
@@ -318,28 +302,32 @@ export function VisualizationControls() {
   return (
     <div
       ref={controlsRef}
-      className="absolute top-28 left-4 z-[70] flex flex-col gap-2"
+      className="absolute top-28 left-4 z-[var(--z-rail)] flex flex-col gap-2"
       data-ui-overlay
     >
       {/* Celltype Button */}
-      <Button
-        className={`${buttonBaseClass} ${isPanelOpen && panelMode === "celltype" ? "" : glassButton()}`}
-        color={isPanelOpen && panelMode === "celltype" ? "primary" : "default"}
-        variant={isPanelOpen && panelMode === "celltype" ? "shadow" : "light"}
-        onPress={() => handleModeChange("celltype")}
-      >
-        Celltype
-      </Button>
+      <Tooltip content="Color by cell type / cluster" placement="right">
+        <Button
+          className={`${buttonBaseClass} ${isPanelOpen && panelMode === "celltype" ? "" : glassButton()}`}
+          color={isPanelOpen && panelMode === "celltype" ? "primary" : "default"}
+          variant={isPanelOpen && panelMode === "celltype" ? "shadow" : "light"}
+          onPress={() => handleModeChange("celltype")}
+        >
+          Celltype
+        </Button>
+      </Tooltip>
 
       {/* Gene Button */}
-      <Button
-        className={`${buttonBaseClass} ${isPanelOpen && panelMode === "gene" ? "" : glassButton()}`}
-        color={isPanelOpen && panelMode === "gene" ? "primary" : "default"}
-        variant={isPanelOpen && panelMode === "gene" ? "shadow" : "light"}
-        onPress={() => handleModeChange("gene")}
-      >
-        Gene
-      </Button>
+      <Tooltip content="Color by gene expression" placement="right">
+        <Button
+          className={`${buttonBaseClass} ${isPanelOpen && panelMode === "gene" ? "" : glassButton()}`}
+          color={isPanelOpen && panelMode === "gene" ? "primary" : "default"}
+          variant={isPanelOpen && panelMode === "gene" ? "shadow" : "light"}
+          onPress={() => handleModeChange("gene")}
+        >
+          Gene
+        </Button>
+      </Tooltip>
 
       {/* DEG Button — only when deStats is available on the dataset */}
       {hasDeStats && (

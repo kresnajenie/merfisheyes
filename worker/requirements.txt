@@ -1,0 +1,15 @@
+# Server-side ingestion worker — pinned for reproducible images.
+#
+# The numpy 2 line is safe here because process_spatial_data.py was verified to
+# produce byte-identical output under numpy 1.26.4 and 2.2.6 (858/858 files
+# matched after decompression), so moving to numpy 2 changed nothing downstream.
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.14.1
+anndata==0.12.10
+h5py==3.16.0
+boto3==1.42.85
+
+# Single-molecule path (process_single_molecule.py). Not in the reference env;
+# 18.x is the numpy-2-compatible line.
+pyarrow==18.1.0

@@ -55,7 +55,7 @@ export function ColormapPicker({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[100] flex flex-col gap-1 p-2 rounded-lg shadow-xl backdrop-blur-md bg-background/85 border border-default-300/40 max-h-[80vh] overflow-y-auto"
+      className="glass-panel fixed z-[var(--z-modal)] flex flex-col gap-1 p-2 rounded-lg max-h-[80vh] overflow-y-auto"
       style={{ left, top, width: PICKER_WIDTH }}
     >
       <div className="text-[10px] uppercase tracking-wider text-default-500 px-1 pb-0.5">

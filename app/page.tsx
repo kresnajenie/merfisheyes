@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@heroui/button";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import {
   useCallback,
@@ -29,6 +30,94 @@ import { BrainToggle } from "@/components/brain-toggle";
 import { LoadFromS3Modal } from "@/components/load-from-s3-modal";
 
 const MemoizedLightRays = memo(LightRays);
+
+// The two data-mode pills differ only by accent colour, so they share one
+// component rather than two near-identical class-string copies.
+const MODE_ACCENT = {
+  blue: {
+    ring: "focus-visible:ring-blue-400/80",
+    active: "bg-blue-500 text-white shadow-[0_12px_25px_rgba(59,130,246,0.35)]",
+    idle: "bg-transparent text-default-500 border border-blue-400/30 hover:bg-blue-500/15 hover:text-white",
+  },
+  purple: {
+    ring: "focus-visible:ring-purple-400/80",
+    active:
+      "bg-purple-500 text-white shadow-[0_12px_25px_rgba(168,85,247,0.35)]",
+    idle: "bg-transparent text-default-500 border border-purple-400/30 hover:bg-purple-500/15 hover:text-white",
+  },
+} as const;
+
+function ModeToggleButton({
+  active,
+  accent,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  accent: keyof typeof MODE_ACCENT;
+  label: string;
+  onClick: () => void;
+}) {
+  const a = MODE_ACCENT[accent];
+
+  return (
+    <button
+      aria-pressed={active}
+      className={clsx(
+        "px-5 py-2.5 md:px-6 md:py-3 rounded-full text-sm md:text-base font-semibold tracking-[0.2em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
+        a.ring,
+        active ? a.active : a.idle,
+      )}
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+// One option in the "where does processing happen" segmented control. Kept
+// large and clearly labelled (not a 12px switch) so the choice — and which
+// side is active — is obvious at a glance.
+function UploadModeOption({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      aria-checked={active}
+      className={clsx(
+        "px-3.5 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black cursor-pointer",
+        active
+          ? "bg-primary text-white shadow-[0_6px_16px_rgba(59,130,246,0.3)]"
+          : "text-default-600 hover:text-foreground",
+      )}
+      role="radio"
+      type="button"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+function LoadFromS3Button({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border border-default-300 text-default-700 bg-default-100/40 hover:bg-default-200/60 hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
+      type="button"
+      onClick={onClick}
+    >
+      <CloudIcon />
+      <span>Load from S3</span>
+    </button>
+  );
+}
 
 function useModeToggleState() {
   const router = useRouter();
@@ -80,6 +169,12 @@ function HomeContent() {
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
   const [isS3ModalOpen, setIsS3ModalOpen] = useState(false);
+  const { data: session } = useSession();
+  const [serverMode, setServerMode] = useState(false);
+  // Optional per-cell label CSV (e.g. a MapMyCells result the user generated
+  // themselves). Uploaded with the dataset; the chunk stage merges its columns
+  // into obs, with palettes and DE stats like any other cluster column.
+  const [annotationCsv, setAnnotationCsv] = useState<File | null>(null);
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -168,16 +263,16 @@ function HomeContent() {
           raysSpeed={1.0}
         />
       </div>
-      <section className="relative flex flex-col items-center gap-1 py-12 md:py-20 px-4 md:px-8">
-        <div className="relative z-10 flex flex-col items-center gap-10 max-w-3xl w-full">
+      <section className="relative flex flex-col items-center gap-1 -mt-4 py-3 md:py-4 px-4 md:px-8">
+        <div className="relative z-10 flex flex-col items-center gap-4 max-w-3xl w-full">
           <div className="flex flex-col items-center">
             <h1 className="flex flex-col items-center text-center">
-              <span className={title({ size: "xl" })}>
+              <span className={title({ size: "lg" })}>
                 Bring{" "}
                 <span
                   className={title({
                     color: isSingleMolecule ? "violet" : "blue",
-                    size: "xl",
+                    size: "lg",
                   })}
                   style={{ transition: "color 0.3s ease" }}
                 >
@@ -187,36 +282,22 @@ function HomeContent() {
               </span>
             </h1>
             <div className="flex items-center gap-6 mt-6 justify-center w-full">
-              <button
-                aria-pressed={!isSingleMolecule}
-                className={clsx(
-                  "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400/80 focus-visible:ring-offset-slate-900",
-                  !isSingleMolecule
-                    ? "bg-blue-500 text-white shadow-[0_12px_25px_rgba(59,130,246,0.35)]"
-                    : "bg-transparent text-default-500 border border-blue-400/30 hover:bg-blue-500/15 hover:text-white",
-                )}
-                type="button"
+              <ModeToggleButton
+                accent="blue"
+                active={!isSingleMolecule}
+                label="single cell"
                 onClick={() => handleModeChange(false)}
-              >
-                single cell
-              </button>
+              />
               <BrainToggle
                 isActive={isSingleMolecule}
                 onToggle={handleModeChange}
               />
-              <button
-                aria-pressed={isSingleMolecule}
-                className={clsx(
-                  "px-4 py-2 rounded-full text-xs md:text-sm font-semibold tracking-[0.28em] uppercase transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-400/80 focus-visible:ring-offset-slate-900",
-                  isSingleMolecule
-                    ? "bg-purple-500 text-white shadow-[0_12px_25px_rgba(168,85,247,0.35)]"
-                    : "bg-transparent text-default-500 border border-purple-400/30 hover:bg-purple-500/15 hover:text-white",
-                )}
-                type="button"
+              <ModeToggleButton
+                accent="purple"
+                active={isSingleMolecule}
+                label="single molecule"
                 onClick={() => handleModeChange(true)}
-              >
-                single molecule
-              </button>
+              />
             </div>
             <div className={subtitle({ class: "mt-4 text-center" })}>
               Explore your{" "}
@@ -227,11 +308,95 @@ function HomeContent() {
               </span>{" "}
               datasets
             </div>
+
+            <div className="mt-5 flex flex-col items-center gap-2">
+              <div
+                aria-label="Where to process your dataset"
+                className="inline-flex items-center gap-1 rounded-full border border-default-200 bg-default-100/40 p-1"
+                role="radiogroup"
+              >
+                <UploadModeOption
+                  active={!serverMode}
+                  label="Preview in browser"
+                  onClick={() => setServerMode(false)}
+                />
+                <UploadModeOption
+                  active={serverMode}
+                  label="Upload & process on server"
+                  onClick={() => setServerMode(true)}
+                />
+              </div>
+
+              <p className="max-w-2xl text-center text-sm text-default-500">
+                {serverMode
+                  ? session?.user
+                    ? "Uploads to the server; we email you a link when it's ready. Best for large datasets."
+                    : "Drop a file, verify with an email code, and we'll email you a link when it's ready."
+                  : "Parsed in your browser and opens instantly. Nothing leaves your computer."}
+              </p>
+
+              {serverMode ? (
+                <div className="mt-2 flex flex-col items-center gap-2">
+                  <span className="text-sm font-semibold text-default-600">
+                    <a
+                      className="text-primary underline"
+                      href="https://knowledge.brain-map.org/mapmycells/process"
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      MapMyCells
+                    </a>{" "}
+                    celltype CSV{" "}
+                    <span className="group relative inline-block">
+                      <span className="cursor-help font-normal text-default-500 underline decoration-dotted underline-offset-2">
+                        (optional)
+                      </span>
+                      <span
+                        className="pointer-events-none absolute bottom-full left-1/2 z-[var(--z-modal)] mb-2 hidden w-64 -translate-x-1/2 rounded-lg border border-default-200 bg-default-100 px-3 py-2 text-xs font-normal leading-snug text-default-600 shadow-lg group-hover:block"
+                        role="tooltip"
+                      >
+                        Upload a MapMyCells result (or any per-cell label CSV)
+                        to add cell type columns.
+                      </span>
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <label
+                      className="cursor-pointer rounded-full border border-default-300 px-4 py-1.5 text-sm text-default-700 hover:border-primary/50 hover:bg-default-100/50"
+                      htmlFor="annotation-csv"
+                    >
+                      {annotationCsv ? "Change file" : "Choose file"}
+                    </label>
+                    <input
+                      accept=".csv"
+                      className="hidden"
+                      id="annotation-csv"
+                      type="file"
+                      onChange={(e) =>
+                        setAnnotationCsv(e.target.files?.[0] ?? null)
+                      }
+                    />
+                    {annotationCsv ? (
+                      <span className="text-sm text-default-500">
+                        {annotationCsv.name}{" "}
+                        <button
+                          className="underline hover:text-foreground"
+                          type="button"
+                          onClick={() => setAnnotationCsv(null)}
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-col items-center gap-8 max-w-5xl w-full">
-          <div className="relative w-full max-w-5xl min-h-[360px] flex flex-col gap-6 items-center justify-center lg:min-h-[420px]">
+        <div className="relative z-10 flex flex-col items-center gap-4 max-w-5xl w-full">
+          <div className="relative w-full max-w-5xl min-h-[232px] flex flex-col gap-3 items-center justify-center lg:min-h-[232px]">
             <div
               className={clsx(
                 "hidden lg:flex absolute inset-0 items-center justify-center transition-opacity duration-[1100ms] ease-out pointer-events-none",
@@ -249,15 +414,18 @@ function HomeContent() {
                   : "block lg:block lg:scale-100 lg:opacity-100 lg:blur-0 lg:pointer-events-auto",
               )}
             >
-              <div className="flex flex-col items-center gap-4 mx-auto max-w-2xl w-full">
+              <div className="flex flex-col items-center gap-3 mx-auto max-w-2xl w-full">
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <FileUpload
+                    annotationCsv={annotationCsv}
                     description="Single .h5ad file"
                     icons={<AnnDataIcon className="text-primary" />}
+                    serverUpload={serverMode}
                     title="H5AD File"
                     type="h5ad"
                   />
                   <FileUpload
+                    annotationCsv={annotationCsv}
                     description="Xenium, MERSCOPE, chunked, or .zarr folder"
                     icons={
                       <>
@@ -267,19 +435,13 @@ function HomeContent() {
                         <ChunkedIcon className="text-primary" />
                       </>
                     }
+                    serverUpload={serverMode}
                     title="Folder"
                     type="folder"
                   />
                 </div>
 
-                <button
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border border-default-300 text-default-700 bg-default-100/40 hover:bg-default-200/60 hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
-                  type="button"
-                  onClick={() => setIsS3ModalOpen(true)}
-                >
-                  <CloudIcon />
-                  <span>Load from S3</span>
-                </button>
+                <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
               </div>
             </div>
 
@@ -291,7 +453,7 @@ function HomeContent() {
                   : "hidden lg:block lg:opacity-0 lg:scale-90 lg:pointer-events-none",
               )}
             >
-              <div className="flex flex-col items-center gap-4 mx-auto max-w-2xl w-full">
+              <div className="flex flex-col items-center gap-3 mx-auto max-w-2xl w-full">
                 <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <FileUpload
                     description=".parquet or .csv (auto-detects schema)"
@@ -301,6 +463,7 @@ function HomeContent() {
                         <MerscopeIcon />
                       </>
                     }
+                    serverUpload={serverMode}
                     singleMolecule={true}
                     title="File"
                     type="file"
@@ -314,26 +477,19 @@ function HomeContent() {
                   />
                 </div>
 
-                <button
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm border border-default-300 text-default-700 bg-default-100/40 hover:bg-default-200/60 hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 transition-colors"
-                  type="button"
-                  onClick={() => setIsS3ModalOpen(true)}
-                >
-                  <CloudIcon />
-                  <span>Load from S3</span>
-                </button>
+                <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 flex justify-center mt-8">
+        <div className="relative z-10 flex justify-center mt-3">
           <Button
             as={Link}
             color="primary"
             href="/explore"
             radius="full"
-            size="lg"
+            size="md"
           >
             Explore Example Data
           </Button>
@@ -351,7 +507,13 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <span className="text-sm text-default-400">Loading…</span>
+        </div>
+      }
+    >
       <HomeContent />
     </Suspense>
   );

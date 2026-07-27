@@ -489,7 +489,7 @@ export function PlotPanel() {
   }
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[10]">
+    <div className="fixed inset-0 pointer-events-none z-[var(--z-legends)]">
     <Rnd
       bounds="window"
       className="pointer-events-auto"
@@ -521,7 +521,7 @@ export function PlotPanel() {
         window.dispatchEvent(new Event("resize"));
       }}
     >
-      <div className="w-full h-full flex flex-col rounded-xl overflow-hidden border border-white/15 shadow-2xl backdrop-blur-md bg-background/85">
+      <div className="w-full h-full flex flex-col rounded-xl overflow-hidden glass-panel">
         {/* Header */}
         <div
           className="plot-panel-drag-handle flex items-center gap-2 h-9 px-2 border-b border-white/10 cursor-move select-none"

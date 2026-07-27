@@ -86,32 +86,57 @@ export function LoadFromS3Modal({
 
       console.log("Manifest loaded:", manifest);
 
-      // Auto-detect dataset type if not provided
+      // Always detect the type from the manifest's own fields — that is the
+      // reliable signal. The `datasetType` prop is only the homepage's mode
+      // toggle, and it must NOT override a manifest that clearly says
+      // otherwise: pasting a single-molecule URL while the toggle sits on
+      // "single cell" used to force the cell viewer, which then crashed on a
+      // molecule manifest. We only fall back to the toggle when the manifest
+      // is genuinely ambiguous.
+      //
+      // Reliable, mutually-exclusive fields (see scripts/process_*.py):
+      //   SM manifest → genes.unique_gene_names, statistics.total_molecules
+      //   SC manifest → statistics.total_cells, files.expression_chunks
+      // Do NOT key off `manifest.type`: both pipelines write the *format*
+      // there ("h5ad" | "xenium" | "merscope"), so "merscope"/"xenium" appear
+      // on both kinds and can't discriminate.
+      const looksSingleMolecule =
+        Boolean(manifest.genes?.unique_gene_names) ||
+        manifest.statistics?.total_molecules != null;
+      const looksSingleCell =
+        manifest.statistics?.total_cells != null ||
+        manifest.files?.expression_chunks != null;
+
       let detectedType: "single_cell" | "single_molecule";
 
-      if (datasetType) {
+      if (looksSingleMolecule && !looksSingleCell) {
+        detectedType = "single_molecule";
+      } else if (looksSingleCell && !looksSingleMolecule) {
+        detectedType = "single_cell";
+      } else if (datasetType) {
+        // Ambiguous or self-contradictory manifest — defer to the mode toggle.
         detectedType = datasetType;
       } else {
-        // Detect based on manifest structure
-        if (
-          manifest.type === "single_molecule" ||
-          manifest.genes?.unique_gene_names
-        ) {
-          detectedType = "single_molecule";
-        } else if (
-          manifest.type === "single_cell" ||
-          manifest.cells ||
-          manifest.spatial_dimensions
-        ) {
-          detectedType = "single_cell";
-        } else {
-          throw new Error(
-            "Could not auto-detect dataset type from manifest. Please specify dataset type explicitly.",
-          );
-        }
+        throw new Error(
+          "Could not determine from the manifest whether this is a single-cell " +
+            "or single-molecule dataset.",
+        );
       }
 
       console.log("Detected dataset type:", detectedType);
+
+      // The toggle said one thing but the manifest is another — we route by the
+      // manifest (correct), but tell the user so the different viewer isn't a
+      // surprise.
+      if (datasetType && detectedType !== datasetType) {
+        setValidationStep(
+          `This is a ${
+            detectedType === "single_molecule"
+              ? "single-molecule"
+              : "single-cell"
+          } dataset — opening the matching viewer…`,
+        );
+      }
 
       setValidationStep("Loading dataset...");
 
