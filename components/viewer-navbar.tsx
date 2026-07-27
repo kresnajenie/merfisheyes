@@ -55,7 +55,7 @@ export const ViewerNavbar = ({ onUploadClick }: ViewerNavbarProps) => {
             overflow-hidden clip and the pill's rounded end. */}
         <div className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-[grid-template-columns] duration-300 ease-out">
           <div className="overflow-hidden">
-            <div className="flex items-center gap-4 pl-4 pr-3 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="flex items-center gap-4 pl-4 pr-3 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               {siteConfig.navItems.map((item) => (
                 <NextLink
                   key={item.href}
