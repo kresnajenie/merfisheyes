@@ -6,6 +6,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 
 import { Navbar } from "@/components/navbar";
+import { ViewerNavbar } from "@/components/viewer-navbar";
 import { UploadSettingsModal } from "@/components/upload-settings-modal";
 import { SingleMoleculeUploadModal } from "@/components/single-molecule-upload-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
@@ -18,6 +19,11 @@ export function NavbarWrapper() {
 
   // Check if we're in single molecule viewer based on path
   const isSingleMolecule = pathname?.startsWith("/sm-viewer");
+
+  // Both viewer families get the compact top-left brand pill instead of the
+  // centered nav bar.
+  const isViewer =
+    pathname?.startsWith("/viewer") || pathname?.startsWith("/sm-viewer");
 
   // Get dataset from appropriate store
   const cellDatasetId = useDatasetStore((state) => state.currentDatasetId);
@@ -50,7 +56,11 @@ export function NavbarWrapper() {
   return (
     <>
       <div data-ui-overlay>
-        <Navbar onUploadClick={() => setIsUploadModalOpen(true)} />
+        {isViewer ? (
+          <ViewerNavbar onUploadClick={() => setIsUploadModalOpen(true)} />
+        ) : (
+          <Navbar onUploadClick={() => setIsUploadModalOpen(true)} />
+        )}
       </div>
       {isSingleMolecule ? (
         <SingleMoleculeUploadModal
