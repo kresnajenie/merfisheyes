@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     select: {
       id: true,
       ownerId: true,
+      adminOwned: true,
       viewerConfig: true,
       viewCount: true,
       title: true,

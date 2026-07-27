@@ -54,6 +54,7 @@ function ViewerFromS3Content() {
   const [registration, setRegistration] = useState<{
     id: string;
     ownerId: string | null;
+    adminOwned: boolean;
     viewerConfig: ViewerConfig | null;
   } | null>(null);
   const setViewerRegistration = useViewerRegistrationStore((s) => s.set);
@@ -172,6 +173,7 @@ function ViewerFromS3Content() {
       let reg: {
         id: string;
         ownerId: string | null;
+        adminOwned: boolean;
         viewerConfig: ViewerConfig | null;
       } | null = null;
 
@@ -187,6 +189,7 @@ function ViewerFromS3Content() {
             reg = {
               id: j.id,
               ownerId: j.ownerId ?? null,
+              adminOwned: !!j.adminOwned,
               viewerConfig: (j.viewerConfig as ViewerConfig | null) ?? null,
             };
           }
@@ -198,6 +201,7 @@ function ViewerFromS3Content() {
       setViewerRegistration({
         dbId: reg?.id ?? null,
         ownerId: reg?.ownerId ?? null,
+        adminOwned: reg?.adminOwned ?? false,
         registered: !!reg,
         viewerConfig: reg?.viewerConfig ?? null,
         s3Url: baseUrl,

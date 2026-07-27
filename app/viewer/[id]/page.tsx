@@ -185,6 +185,7 @@ function ViewerByIdContent() {
       setViewerRegistration({
         dbId: id,
         ownerId: meta.ownerId ?? null,
+        adminOwned: !!meta.adminOwned,
         registered: true,
         viewerConfig: config,
         s3Url: null,

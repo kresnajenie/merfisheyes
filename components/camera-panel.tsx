@@ -356,21 +356,21 @@ export function CameraPanel({
 function OwnerDefaultsSection() {
   const { data: session } = useSession();
   const panelId = usePanelId();
-  const { dbId, ownerId } = useViewerRegistrationStore();
+  const { dbId, ownerId, adminOwned } = useViewerRegistrationStore();
   const { getCurrentDataset } = usePanelDatasetStore();
   const store = usePanelVisualizationStore();
   const [saving, setSaving] = useState(false);
 
   const dataset = getCurrentDataset() as StandardizedDataset | null;
   const userId = session?.user?.id ?? null;
-  const role = session?.user?.role;
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  // Personal owner edits their own; any admin edits admin-owned (shared).
   const canSave =
     !panelId &&
     !!dbId &&
     !!dataset &&
-    (role === "ADMIN" ||
-      role === "SUPER_ADMIN" ||
-      (!!ownerId && ownerId === userId));
+    ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
 
   if (!canSave) return null;
 

@@ -191,6 +191,10 @@ model Dataset {
   viewerConfig   Json?           @map("viewer_config")
   // Denormalized cache of the deduped view count (source of truth: dataset_views).
   viewCount      Int             @default(0) @map("view_count")
+  // Owned by "admin" collectively: any admin can edit, and it's not tied to a
+  // personal account. Distinct from an admin personally owning a dataset
+  // (adminOwned=false, ownerId=that admin), which is NOT shared.
+  adminOwned     Boolean         @default(false) @map("admin_owned")
   createdAt      DateTime        @default(now()) @map("created_at")
   completedAt    DateTime?       @map("completed_at")
   owner          User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)

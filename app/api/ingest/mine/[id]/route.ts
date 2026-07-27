@@ -25,14 +25,14 @@ export async function PATCH(
   const { id } = await params;
   const dataset = await prisma.dataset.findUnique({
     where: { id },
-    select: { id: true, ownerId: true },
+    select: { id: true, ownerId: true, adminOwned: true },
   });
 
   if (!dataset) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const forbidden = ownerOrAdminError(dataset.ownerId, session);
+  const forbidden = ownerOrAdminError(dataset, session);
 
   if (forbidden) return forbidden;
 

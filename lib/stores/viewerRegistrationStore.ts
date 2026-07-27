@@ -14,6 +14,7 @@ import type { ViewerConfig } from "@/lib/utils/viewer-config";
 interface ViewerRegistrationState {
   dbId: string | null; // Dataset.id, or null when unregistered
   ownerId: string | null;
+  adminOwned: boolean; // owned by "admin" collectively (any admin can edit)
   registered: boolean;
   viewerConfig: ViewerConfig | null;
   s3Url: string | null; // set for from-s3 viewers (needed to register/claim)
@@ -24,6 +25,7 @@ interface ViewerRegistrationState {
 const initial = {
   dbId: null,
   ownerId: null,
+  adminOwned: false,
   registered: false,
   viewerConfig: null,
   s3Url: null,

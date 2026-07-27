@@ -50,22 +50,30 @@ export async function requireSuperAdmin() {
   return { error: null, session };
 }
 
+function isAdminRole(role: string | null | undefined): boolean {
+  return role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
 /**
- * After requireUser(), check the current user may edit `ownerId`'s dataset:
- * the owner themselves, or any ADMIN/SUPER_ADMIN. Ownerless (null) rows are
- * editable by admins only. Returns a 403 Response to send back, or null if OK.
+ * After requireUser(), check the current user may edit a dataset:
+ *   - the personal owner (ownerId === me), any role, OR
+ *   - any admin when the dataset is admin-owned (shared).
+ * A personal dataset is editable only by its owner — an admin's personal
+ * dataset is NOT shared with other admins. Unclaimed datasets
+ * (no owner, not admin-owned) are editable by nobody until claimed.
+ * Returns a 403 Response to send back, or null if OK.
  */
 export function ownerOrAdminError(
-  ownerId: string | null | undefined,
+  dataset: { ownerId?: string | null; adminOwned?: boolean | null },
   session: { user?: { id?: string | null; role?: string | null } } | null,
 ): Response | null {
-  const role = session?.user?.role;
-
-  if (role === "ADMIN" || role === "SUPER_ADMIN") return null;
-
   const uid = session?.user?.id;
 
-  if (ownerId && uid && ownerId === uid) return null;
+  // Personal owner edits their own dataset.
+  if (dataset.ownerId && uid && dataset.ownerId === uid) return null;
+
+  // Admin-owned (shared) datasets: any admin may edit.
+  if (dataset.adminOwned && isAdminRole(session?.user?.role)) return null;
 
   return new Response("Forbidden", { status: 403 });
 }

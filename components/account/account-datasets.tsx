@@ -27,6 +27,7 @@ interface Row {
   numGenes: number;
   viewCount: number;
   ingestSource: string | null;
+  adminOwned: boolean;
   createdAt: string;
   viewerUrl: string | null;
 }
@@ -169,16 +170,23 @@ export function AccountDatasets() {
                     onValueChange={setDraftTitle}
                   />
                 ) : (
-                  <button
-                    className="text-left hover:underline"
-                    type="button"
-                    onClick={() => {
-                      setEditingId(item.id);
-                      setDraftTitle(item.title ?? "");
-                    }}
-                  >
-                    {item.title || "Untitled dataset"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="text-left hover:underline"
+                      type="button"
+                      onClick={() => {
+                        setEditingId(item.id);
+                        setDraftTitle(item.title ?? "");
+                      }}
+                    >
+                      {item.title || "Untitled dataset"}
+                    </button>
+                    {item.adminOwned && (
+                      <Chip color="secondary" size="sm" variant="flat">
+                        admin
+                      </Chip>
+                    )}
+                  </div>
                 )}
               </TableCell>
               <TableCell className="text-default-500">

@@ -24,7 +24,7 @@ export function ClaimDatasetBanner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const { dbId, ownerId, registered, s3Url, set } = useViewerRegistrationStore();
+  const { ownerId, adminOwned, s3Url, set } = useViewerRegistrationStore();
 
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -33,19 +33,19 @@ export function ClaimDatasetBanner() {
   const [code, setCode] = useState("");
   const autoClaimedRef = useRef(false);
 
-  const userId = session?.user?.id ?? null;
-  // "Not owned yet" = no owner. Owned-by-someone-else is simply hidden.
-  const notOwned = !!s3Url && ownerId == null;
-  const ownedByOther = !!ownerId && !!userId && ownerId !== userId;
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  // "Not owned yet" = unclaimed (no personal owner and not admin-owned).
+  const notOwned = !!s3Url && ownerId == null && !adminOwned;
 
-  async function claim() {
+  async function claim(asAdmin = false) {
     if (!s3Url) return;
     setBusy(true);
     try {
       const res = await fetch("/api/datasets/register-s3", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: s3Url }),
+        body: JSON.stringify({ url: s3Url, asAdmin }),
       });
 
       if (!res.ok) {
@@ -55,14 +55,20 @@ export function ClaimDatasetBanner() {
       }
       const { dataset, ownedByOther: taken } = await res.json();
 
+      set({
+        dbId: dataset.id,
+        ownerId: dataset.ownerId,
+        adminOwned: dataset.adminOwned,
+        registered: true,
+      });
       if (taken) {
         toast.error("This dataset is already owned by another user.");
-        set({ dbId: dataset.id, ownerId: dataset.ownerId, registered: true });
 
         return;
       }
-      set({ dbId: dataset.id, ownerId: dataset.ownerId, registered: true });
-      toast.success("Dataset added to your account.");
+      toast.success(
+        asAdmin ? "Dataset added to admin." : "Dataset added to your account.",
+      );
     } catch {
       toast.error("Couldn't add this dataset.");
     } finally {
@@ -94,9 +100,11 @@ export function ClaimDatasetBanner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, notOwned, searchParams]);
 
-  if (dismissed || ownedByOther || !notOwned || status === "loading") {
+  if (dismissed || !notOwned || status === "loading") {
     return null;
   }
+
+  const signedIn = !!session?.user;
 
   // Where to return after the email-code sign-in completes: back here with the
   // one-shot claim flag so the effect above finishes the claim.
@@ -153,8 +161,32 @@ export function ClaimDatasetBanner() {
           </p>
         </div>
 
-        {userId ? (
-          <Button color="primary" isLoading={busy} size="sm" onPress={claim}>
+        {signedIn && isAdmin ? (
+          <div className="flex items-center gap-2">
+            <Button
+              color="primary"
+              isLoading={busy}
+              size="sm"
+              onPress={() => claim(true)}
+            >
+              Add to admin
+            </Button>
+            <Button
+              isLoading={busy}
+              size="sm"
+              variant="flat"
+              onPress={() => claim(false)}
+            >
+              Add to me
+            </Button>
+          </div>
+        ) : signedIn ? (
+          <Button
+            color="primary"
+            isLoading={busy}
+            size="sm"
+            onPress={() => claim(false)}
+          >
             Add to my account
           </Button>
         ) : step === "idle" ? (

@@ -23,6 +23,7 @@ const select = {
   viewCount: true,
   s3BaseUrl: true,
   ingestSource: true,
+  adminOwned: true,
   processingProgress: true,
   errorMessage: true,
   batchJobId: true,
@@ -52,9 +53,14 @@ export async function GET(request: NextRequest) {
     // attempt (tab closed / interrupted before it finished) that would read as
     // a stuck "Uploading…" spinner. A dataset appears here once it reaches
     // QUEUED — i.e. as soon as the bytes are up and the job is submitted.
+    // Personal datasets, plus admin-owned (shared) ones for admins.
+    const isAdmin =
+      session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
     const where = {
-      ownerId: session.user.id,
       status: { not: "UPLOADING" as const },
+      ...(isAdmin
+        ? { OR: [{ ownerId: session.user.id }, { adminOwned: true }] }
+        : { ownerId: session.user.id }),
     };
 
     let datasets = await prisma.dataset.findMany({
@@ -105,6 +111,7 @@ export async function GET(request: NextRequest) {
           numGenes: d.numGenes,
           viewCount: d.viewCount,
           ingestSource: d.ingestSource,
+          adminOwned: d.adminOwned,
           createdAt: d.createdAt,
           completedAt: d.completedAt,
           viewerUrl,

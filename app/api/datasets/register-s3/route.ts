@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
   if (error) return error;
 
-  let body: { url?: string };
+  let body: { url?: string; asAdmin?: boolean };
 
   try {
     body = await request.json();
@@ -99,24 +99,35 @@ export async function POST(request: NextRequest) {
   }
 
   const userId = session.user.id;
+  const isAdmin =
+    session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
+  // Admins may claim on behalf of "admin" (shared). Everyone else — and admins
+  // who opt out — claim personally.
+  const adminClaim = !!body.asAdmin && isAdmin;
 
-  // Already registered? Claim it if ownerless; otherwise return as-is.
+  // Already registered? Claim it if unclaimed; otherwise return as-is.
   const existing = await prisma.dataset.findUnique({ where: { s3BaseUrl } });
 
   if (existing) {
-    if (existing.ownerId === null) {
+    const unclaimed = existing.ownerId === null && !existing.adminOwned;
+
+    if (unclaimed) {
       const claimed = await prisma.dataset.update({
         where: { id: existing.id },
-        data: { ownerId: userId },
+        data: adminClaim ? { adminOwned: true } : { ownerId: userId },
       });
 
       return NextResponse.json({ dataset: claimed, claimed: true });
     }
 
+    // Owned: "mine" if I'm the personal owner, or it's admin-owned and I'm an admin.
+    const mine =
+      existing.ownerId === userId || (existing.adminOwned && isAdmin);
+
     return NextResponse.json({
       dataset: existing,
       claimed: false,
-      ownedByOther: existing.ownerId !== userId,
+      ownedByOther: !mine,
     });
   }
 
@@ -135,7 +146,8 @@ export async function POST(request: NextRequest) {
       numGenes: Number(stats.total_genes) || 0,
       datasetType: manifest?.type ?? null,
       status: "COMPLETE",
-      ownerId: userId,
+      ownerId: adminClaim ? null : userId,
+      adminOwned: adminClaim,
       ingestSource: "s3_registered",
       s3BaseUrl,
       manifestUrl: s3BaseUrl,
