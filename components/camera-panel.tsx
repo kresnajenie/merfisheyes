@@ -14,6 +14,7 @@ import { glassPanel } from "@/components/primitives";
 import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
+  usePanelSingleMoleculeVisualizationStore,
   usePanelId,
 } from "@/lib/hooks/usePanelStores";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
@@ -36,6 +37,10 @@ interface CameraPanelProps {
   // Where the flyout anchors: "rail" opens to the right of the left rail;
   // "top-right" drops below the top-right control cluster.
   placement?: "rail" | "top-right";
+  // Which viewer this panel serves. "sc" (default) uses the single-cell stores
+  // for per-sample align + owner defaults; "sm" uses the single-molecule store
+  // for a camera-only owner preset and hides the SC-only align section.
+  viewerKind?: "sc" | "sm";
   sceneRotation: number;
   setSceneRotation: (degrees: number) => void;
   flipX: boolean;
@@ -71,6 +76,7 @@ export function CameraPanel({
   onClose,
   controlsRef,
   placement = "rail",
+  viewerKind = "sc",
   sceneRotation,
   setSceneRotation,
   flipX,
@@ -328,20 +334,30 @@ export function CameraPanel({
           </>
         )}
 
-        {/* Per-sample align (advanced, collapsed by default) */}
-        <button
-          aria-expanded={alignOpen}
-          className="w-full flex items-center justify-between text-xs text-default-400 hover:text-default-200 pt-1"
-          onClick={() => setAlignOpen(!alignOpen)}
-        >
-          <span>Per-sample align</span>
-          <span className={`transition-transform ${alignOpen ? "rotate-90" : ""}`}>
-            ▸
-          </span>
-        </button>
-        {alignOpen && <SampleAlignSection />}
+        {/* Per-sample align (advanced, collapsed by default) — single-cell only. */}
+        {viewerKind === "sc" && (
+          <>
+            <button
+              aria-expanded={alignOpen}
+              className="w-full flex items-center justify-between text-xs text-default-400 hover:text-default-200 pt-1"
+              onClick={() => setAlignOpen(!alignOpen)}
+            >
+              <span>Per-sample align</span>
+              <span
+                className={`transition-transform ${alignOpen ? "rotate-90" : ""}`}
+              >
+                ▸
+              </span>
+            </button>
+            {alignOpen && <SampleAlignSection />}
+          </>
+        )}
 
-        <OwnerDefaultsSection />
+        {viewerKind === "sm" ? (
+          <SMOwnerDefaultsSection />
+        ) : (
+          <OwnerDefaultsSection />
+        )}
       </div>
     </div>
   );
@@ -417,6 +433,78 @@ function OwnerDefaultsSection() {
           {store.selectedColumn ?? "current"}
         </span>{" "}
         column as this dataset&apos;s defaults on load.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Single-molecule owner preset: saves the camera (rotation, flips, 2D/3D) to
+ * the dataset's viewerConfig, applied on load. Owner/admin only, primary panel.
+ */
+function SMOwnerDefaultsSection() {
+  const { data: session } = useSession();
+  const panelId = usePanelId();
+  const { dbId, ownerId, adminOwned } = useViewerRegistrationStore();
+  const store = usePanelSingleMoleculeVisualizationStore();
+  const [saving, setSaving] = useState(false);
+
+  const userId = session?.user?.id ?? null;
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  const canSave =
+    !panelId &&
+    !!dbId &&
+    ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
+
+  if (!canSave) return null;
+
+  const save = async () => {
+    if (!dbId) return;
+    setSaving(true);
+    try {
+      const viewerConfig = {
+        version: 1 as const,
+        sceneRotation: store.sceneRotation,
+        flipX: store.flipX,
+        flipY: store.flipY,
+        viewMode: store.viewMode,
+      };
+      const res = await fetch(`/api/ingest/mine/${dbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewerConfig }),
+      });
+
+      if (!res.ok) {
+        toast.error("Couldn't save defaults.");
+
+        return;
+      }
+      useViewerRegistrationStore.getState().set({ viewerConfig });
+      toast.success("Saved as this dataset's defaults.");
+    } catch {
+      toast.error("Couldn't save defaults.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-white/10 pt-3">
+      <Button
+        className="w-full text-xs"
+        color="primary"
+        isLoading={saving}
+        size="sm"
+        variant="flat"
+        onPress={save}
+      >
+        Save current view as default
+      </Button>
+      <p className="text-[10px] text-default-400 mt-1">
+        Saves rotation, flips, and 2D/3D view as this dataset&apos;s defaults on
+        load.
       </p>
     </div>
   );

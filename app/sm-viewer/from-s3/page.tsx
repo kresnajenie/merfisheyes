@@ -14,6 +14,7 @@ import { SplitScreenContainer } from "@/components/split-screen-container";
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
+import { type ViewerConfig } from "@/lib/utils/viewer-config";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
@@ -136,8 +137,12 @@ function SingleMoleculeViewerFromS3Content() {
 
       // Look up the DB registration for this URL (ownership + the id to count
       // views against). 404 = unregistered → the claim banner offers to add it.
-      let reg: { id: string; ownerId: string | null; adminOwned: boolean } | null =
-        null;
+      let reg: {
+        id: string;
+        ownerId: string | null;
+        adminOwned: boolean;
+        viewerConfig: ViewerConfig | null;
+      } | null = null;
 
       try {
         const r = await fetch(
@@ -152,6 +157,7 @@ function SingleMoleculeViewerFromS3Content() {
               id: j.id,
               ownerId: j.ownerId ?? null,
               adminOwned: !!j.adminOwned,
+              viewerConfig: (j.viewerConfig as ViewerConfig | null) ?? null,
             };
           }
         }
@@ -164,7 +170,7 @@ function SingleMoleculeViewerFromS3Content() {
         ownerId: reg?.ownerId ?? null,
         adminOwned: reg?.adminOwned ?? false,
         registered: !!reg,
-        viewerConfig: null,
+        viewerConfig: reg?.viewerConfig ?? null,
         s3Url: baseUrl,
       });
 
@@ -190,6 +196,19 @@ function SingleMoleculeViewerFromS3Content() {
       setDataset(smDataset);
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
+
+      // Apply the owner-saved camera preset (rotation/flips/2D-3D) first, so a
+      // shared-link URL state below still overrides where they overlap.
+      const cfg = reg?.viewerConfig;
+
+      if (cfg) {
+        if (cfg.sceneRotation !== undefined) {
+          smVizStore.setSceneRotation(cfg.sceneRotation);
+        }
+        if (cfg.flipX !== undefined) smVizStore.setFlipX(cfg.flipX);
+        if (cfg.flipY !== undefined) smVizStore.setFlipY(cfg.flipY);
+        if (cfg.viewMode) smVizStore.setViewMode(cfg.viewMode);
+      }
 
       // Check if URL has viz state
       const urlVizState = tryReadSMVizFromUrl("left");

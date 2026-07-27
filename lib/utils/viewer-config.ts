@@ -17,6 +17,7 @@ export interface ViewerConfig {
   sceneRotation?: number; // degrees
   flipX?: boolean;
   flipY?: boolean;
+  viewMode?: "2D" | "3D"; // camera view mode (used by the single-molecule viewer)
   priorityColumn?: string | null; // default cluster column on load
   transformColumn?: string | null; // sample column for per-sample align
   sampleTransforms?: Record<string, SampleTransform>; // keyed by sample VALUE
@@ -40,6 +41,7 @@ export function validateViewerConfig(input: unknown): ViewerConfig | null {
   }
   if (typeof src.flipX === "boolean") out.flipX = src.flipX;
   if (typeof src.flipY === "boolean") out.flipY = src.flipY;
+  if (src.viewMode === "2D" || src.viewMode === "3D") out.viewMode = src.viewMode;
   if (src.priorityColumn === null || typeof src.priorityColumn === "string") {
     out.priorityColumn = src.priorityColumn as string | null;
   }

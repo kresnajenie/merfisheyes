@@ -228,6 +228,7 @@ export function SingleMoleculeControls() {
             flipX={flipX}
             flipY={flipY}
             placement="top-right"
+            viewerKind="sm"
             sceneRotation={sceneRotation}
             setFlipX={setFlipX}
             setFlipY={setFlipY}
