@@ -15,6 +15,7 @@ import {
   HeartFilledIcon,
 } from "@/components/icons";
 import { glassButton } from "@/components/primitives";
+import { UserMenu } from "@/components/auth/user-menu";
 
 interface ViewerNavbarProps {
   onUploadClick?: () => void;
@@ -34,7 +35,7 @@ export const ViewerNavbar = ({ onUploadClick }: ViewerNavbarProps) => {
     !!onUploadClick;
 
   return (
-    <div className="absolute top-4 left-4 z-[var(--z-chrome)]">
+    <div className="absolute top-4 left-4 z-[var(--z-chrome)] flex items-center gap-2">
       <div
         className={clsx(
           "group flex items-center h-12 pl-4 pr-4 rounded-full overflow-hidden",
@@ -100,20 +101,19 @@ export const ViewerNavbar = ({ onUploadClick }: ViewerNavbarProps) => {
                 Sponsor
               </Button>
 
-              {showUpload && (
-                <Button
-                  className="shrink-0"
-                  color="primary"
-                  size="sm"
-                  onPress={onUploadClick}
-                >
-                  Upload & Save
-                </Button>
-              )}
+              <UserMenu />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Upload & Save — a primary action for locally loaded datasets, kept
+          always visible (not behind the hover) so it's a one-click save. */}
+      {showUpload && (
+        <Button color="primary" onPress={onUploadClick}>
+          Upload & Save
+        </Button>
+      )}
     </div>
   );
 };

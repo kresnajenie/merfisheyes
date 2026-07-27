@@ -7,12 +7,17 @@ import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/react";
 import { Slider, Switch } from "@heroui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import { toast } from "react-toastify";
 
 import { glassPanel } from "@/components/primitives";
 import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
+  usePanelId,
 } from "@/lib/hooks/usePanelStores";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
+import { extractViewerConfig } from "@/lib/utils/viewer-config";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 import {
@@ -335,7 +340,84 @@ export function CameraPanel({
           </span>
         </button>
         {alignOpen && <SampleAlignSection />}
+
+        <OwnerDefaultsSection />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Owner-only "Save current view as default" control. Persists the current
+ * rotation, flips, priority cluster column, per-sample transforms, and custom
+ * colors to the dataset's viewerConfig (applied on future loads). Only shown to
+ * the dataset owner (or an admin) on the primary panel.
+ */
+function OwnerDefaultsSection() {
+  const { data: session } = useSession();
+  const panelId = usePanelId();
+  const { dbId, ownerId } = useViewerRegistrationStore();
+  const { getCurrentDataset } = usePanelDatasetStore();
+  const store = usePanelVisualizationStore();
+  const [saving, setSaving] = useState(false);
+
+  const dataset = getCurrentDataset() as StandardizedDataset | null;
+  const userId = session?.user?.id ?? null;
+  const role = session?.user?.role;
+  const canSave =
+    !panelId &&
+    !!dbId &&
+    !!dataset &&
+    (role === "ADMIN" ||
+      role === "SUPER_ADMIN" ||
+      (!!ownerId && ownerId === userId));
+
+  if (!canSave) return null;
+
+  const save = async () => {
+    if (!dataset || !dbId) return;
+    setSaving(true);
+    try {
+      const viewerConfig = extractViewerConfig(store as any, dataset);
+      const res = await fetch(`/api/ingest/mine/${dbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewerConfig }),
+      });
+
+      if (!res.ok) {
+        toast.error("Couldn't save defaults.");
+
+        return;
+      }
+      useViewerRegistrationStore.getState().set({ viewerConfig });
+      toast.success("Saved as this dataset's defaults.");
+    } catch {
+      toast.error("Couldn't save defaults.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-white/10 pt-3">
+      <Button
+        className="w-full text-xs"
+        color="primary"
+        isLoading={saving}
+        size="sm"
+        variant="flat"
+        onPress={save}
+      >
+        Save current view as default
+      </Button>
+      <p className="text-[10px] text-default-400 mt-1">
+        Saves rotation, colors, alignment, and the{" "}
+        <span className="text-default-300">
+          {store.selectedColumn ?? "current"}
+        </span>{" "}
+        column as this dataset&apos;s defaults on load.
+      </p>
     </div>
   );
 }

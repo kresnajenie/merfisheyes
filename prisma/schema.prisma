@@ -183,17 +183,56 @@ model Dataset {
   batchJobId         String? @map("batch_job_id")
   processingParams   Json?   @map("processing_params")
   processingProgress Json?   @map("processing_progress")
+  // Normalized S3 base URL for datasets registered from a raw S3 link.
+  // Unique so re-registering the same URL dedups to one row.
+  s3BaseUrl      String?         @unique @map("s3_base_url") @db.VarChar(1000)
+  // Owner-saved viewer defaults (rotation, flips, priority column, per-sample
+  // transforms, color overrides). See lib/utils/viewer-config.ts.
+  viewerConfig   Json?           @map("viewer_config")
+  // Denormalized cache of the deduped view count (source of truth: dataset_views).
+  viewCount      Int             @default(0) @map("view_count")
   createdAt      DateTime        @default(now()) @map("created_at")
   completedAt    DateTime?       @map("completed_at")
   owner          User?           @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   uploadSessions UploadSession[]
+  views          DatasetView[]
+  viewDaily      DatasetViewDaily[]
 
   @@index([fingerprint])
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@index([datasetType])
   @@index([ownerId])
+  @@index([s3BaseUrl])
   @@map("datasets")
+}
+
+// One row per (dataset, viewer session, UTC day) — the dedup guard for view
+// counting. sessionKey is the signed-in user id, else an anon cookie id.
+model DatasetView {
+  id         String   @id @default(cuid())
+  datasetId  String   @map("dataset_id") @db.VarChar(50)
+  sessionKey String   @map("session_key")
+  day        DateTime @db.Date
+  userId     String?  @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  dataset    Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@unique([datasetId, sessionKey, day])
+  @@index([datasetId, day])
+  @@map("dataset_views")
+}
+
+// Per-day view rollup for cheap trend queries (Phase 2 dashboard/notifications).
+model DatasetViewDaily {
+  datasetId String   @map("dataset_id") @db.VarChar(50)
+  day       DateTime @db.Date
+  count     Int      @default(0)
+  dataset   Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@id([datasetId, day])
+  @@index([day])
+  @@map("dataset_views_daily")
 }
 
 model UploadSession {

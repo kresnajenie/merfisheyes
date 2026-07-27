@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { generatePresignedUploadUrl } from "@/lib/s3";
 
 const corsHeaders = {
@@ -52,6 +53,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Attribute the upload to the signed-in user, if any (legacy anonymous
+    // uploads stay ownerless).
+    const session = await auth();
+    const ownerId = session?.user?.id ?? null;
+
     // Generate IDs
     const datasetId = `ds_${nanoid(10)}`;
     const uploadId = `up_${nanoid(10)}`;
@@ -70,6 +76,7 @@ export async function POST(request: NextRequest) {
             numGenes: metadata.numGenes,
             datasetType: "single_cell",
             status: "UPLOADING",
+            ownerId,
           },
         });
 

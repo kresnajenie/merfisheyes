@@ -49,3 +49,23 @@ export async function requireSuperAdmin() {
 
   return { error: null, session };
 }
+
+/**
+ * After requireUser(), check the current user may edit `ownerId`'s dataset:
+ * the owner themselves, or any ADMIN/SUPER_ADMIN. Ownerless (null) rows are
+ * editable by admins only. Returns a 403 Response to send back, or null if OK.
+ */
+export function ownerOrAdminError(
+  ownerId: string | null | undefined,
+  session: { user?: { id?: string | null; role?: string | null } } | null,
+): Response | null {
+  const role = session?.user?.role;
+
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return null;
+
+  const uid = session?.user?.id;
+
+  if (ownerId && uid && ownerId === uid) return null;
+
+  return new Response("Forbidden", { status: 403 });
+}
