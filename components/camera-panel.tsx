@@ -5,7 +5,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/react";
-import { Slider } from "@heroui/react";
+import { Slider, Switch } from "@heroui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { glassPanel } from "@/components/primitives";
@@ -28,6 +28,9 @@ const RAD_TO_DEG = 180 / Math.PI;
 interface CameraPanelProps {
   onClose: () => void;
   controlsRef?: React.RefObject<HTMLDivElement>;
+  // Where the flyout anchors: "rail" opens to the right of the left rail;
+  // "top-right" drops below the top-right control cluster.
+  placement?: "rail" | "top-right";
   sceneRotation: number;
   setSceneRotation: (degrees: number) => void;
   flipX: boolean;
@@ -49,11 +52,20 @@ interface CameraPanelProps {
     setHeightMm: (mm: number) => void;
     resetCenter: () => void;
   };
+  // Optional reset-view action. When provided, a "Reset View" button is shown.
+  onResetCamera?: () => void;
+  // Optional distance-from-target filter controls. When provided AND
+  // viewMode === "3D", a "Distance filter" section is shown.
+  targetFilterEnabled?: boolean;
+  setTargetFilterEnabled?: (b: boolean) => void;
+  targetFilterRadius?: number;
+  setTargetFilterRadius?: (r: number) => void;
 }
 
 export function CameraPanel({
   onClose,
   controlsRef,
+  placement = "rail",
   sceneRotation,
   setSceneRotation,
   flipX,
@@ -65,6 +77,11 @@ export function CameraPanel({
   is3DDataset = false,
   canExportBox = false,
   exportBox,
+  onResetCamera,
+  targetFilterEnabled,
+  setTargetFilterEnabled,
+  targetFilterRadius,
+  setTargetFilterRadius,
 }: CameraPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [alignOpen, setAlignOpen] = useState(false);
@@ -85,10 +102,15 @@ export function CameraPanel({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose, controlsRef]);
 
+  const posClass =
+    placement === "top-right"
+      ? "top-14 right-0 max-h-[calc(100vh-6rem)] overflow-y-auto"
+      : "top-0 left-16";
+
   return (
     <div
       ref={panelRef}
-      className={`absolute top-0 left-16 z-[var(--z-panel)] w-[300px] ${glassPanel()}`}
+      className={`absolute ${posClass} z-[var(--z-panel)] w-[300px] ${glassPanel()}`}
     >
       <div className="p-4 space-y-4">
         {/* Header */}
@@ -105,6 +127,80 @@ export function CameraPanel({
             </svg>
           </Button>
         </div>
+
+        {/* Reset View — restores the camera lookAt to the initial framing. */}
+        {onResetCamera && (
+          <div>
+            <Button
+              className="w-full text-xs"
+              size="sm"
+              variant="flat"
+              onPress={onResetCamera}
+            >
+              Reset View (R)
+            </Button>
+            <p className="text-[10px] text-default-400 mt-1">
+              Cmd/Ctrl+click a cell to center on it
+            </p>
+          </div>
+        )}
+
+        {/* Distance filter — 3D only. Fades points beyond the radius from the
+            current orbit target (cmd+click recenter point). */}
+        {viewMode === "3D" &&
+          setTargetFilterEnabled &&
+          setTargetFilterRadius &&
+          targetFilterRadius !== undefined && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-default-500">
+                  Distance filter
+                </span>
+                <Switch
+                  isSelected={!!targetFilterEnabled}
+                  size="sm"
+                  onValueChange={setTargetFilterEnabled}
+                />
+              </div>
+              {targetFilterEnabled && (
+                <>
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <span className="text-default-500">Radius</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        aria-label="Distance filter radius value"
+                        className="w-16 px-1 py-0.5 text-xs rounded bg-default-100/60 border border-default-300/40 text-right text-default-700 outline-none focus:border-primary"
+                        step={10}
+                        type="number"
+                        value={Math.round(targetFilterRadius)}
+                        onChange={(e) => {
+                          const n = parseFloat(e.target.value);
+
+                          if (!Number.isNaN(n)) {
+                            setTargetFilterRadius(Math.max(0, n));
+                          }
+                        }}
+                      />
+                      <span className="text-default-400">µm</span>
+                    </div>
+                  </div>
+                  <Slider
+                    aria-label="Distance filter radius"
+                    className="w-full"
+                    maxValue={30000}
+                    minValue={10}
+                    size="sm"
+                    step={10}
+                    value={Math.min(30000, Math.max(10, targetFilterRadius))}
+                    onChange={(v) => setTargetFilterRadius(v as number)}
+                  />
+                  <p className="text-[10px] text-default-400 mt-1">
+                    Radius from cmd+click target. 10% feather at the edge.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
         {/* Rotation */}
         <div>
@@ -156,8 +252,8 @@ export function CameraPanel({
           </div>
         </div>
 
-        {/* 2D/3D Toggle */}
-        {is3DDataset && setViewMode && viewMode && (
+        {/* 2D/3D Toggle — always available; 2D datasets render as a flat plane in 3D. */}
+        {setViewMode && viewMode && (
           <div>
             <span className="text-xs text-default-500 mb-2 block">View Mode</span>
             <div className="flex gap-2">

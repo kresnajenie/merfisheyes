@@ -46,6 +46,13 @@ interface VisualizationState {
   sizeScale: number; // multiplier
   clusterVersion: number;
   deStatsVersion: number;
+  cameraResetSignal: number;
+  orbitSpeed: number;
+  orbitYBob: number;
+  targetFilterEnabled: boolean;
+  targetFilterRadius: number;
+  // Master show/hide for the whole single-cell point cloud layer.
+  scLayerVisible: boolean;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -98,6 +105,10 @@ interface VisualizationState {
   setGeneSearchTerm: (value: string) => void;
   incrementClusterVersion: () => void;
   incrementDeStatsVersion: () => void;
+  resetCamera: () => void;
+  setTargetFilterEnabled: (enabled: boolean) => void;
+  setScLayerVisible: (visible: boolean) => void;
+  setTargetFilterRadius: (r: number) => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
   setDegTargetAuto: (auto: boolean) => void;
@@ -202,6 +213,12 @@ const initialState = {
   sizeScale: 1.0,
   clusterVersion: 0,
   deStatsVersion: 0,
+  cameraResetSignal: 0,
+  orbitSpeed: 1.0,
+  orbitYBob: 0.3,
+  targetFilterEnabled: false,
+  scLayerVisible: true,
+  targetFilterRadius: 5000,
   degTarget: null as string | null,
   degReference: null as string | null,
   degTargetAuto: true,
@@ -459,6 +476,15 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
   incrementDeStatsVersion: () => {
     set((state) => ({ deStatsVersion: state.deStatsVersion + 1 }));
   },
+
+  resetCamera: () => {
+    set((state) => ({ cameraResetSignal: state.cameraResetSignal + 1 }));
+  },
+
+  setTargetFilterEnabled: (enabled) => set({ targetFilterEnabled: enabled }),
+
+  setScLayerVisible: (visible) => set({ scLayerVisible: visible }),
+  setTargetFilterRadius: (r) => set({ targetFilterRadius: r }),
 
   setDegTarget: (target) => set({ degTarget: target }),
   setDegReference: (reference) => set({ degReference: reference }),

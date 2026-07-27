@@ -25,16 +25,26 @@ import {
   canTreatAsNumerical,
 } from "@/lib/utils/column-type-utils";
 
+import {
+  ScSmModeToggle,
+  type ScSmMode,
+} from "@/components/sc-sm-mode-toggle";
+import { SingleMoleculeGenePicker } from "@/components/single-molecule-gene-picker";
+
 interface VisualizationPanelProps {
   mode: VisualizationMode; // This is panelMode, not the visualization mode array
   onClose: () => void;
   controlsRef?: React.RefObject<HTMLDivElement>;
+  scSmMode?: ScSmMode;
+  setScSmMode?: (next: ScSmMode) => void;
 }
 
 export function VisualizationPanel({
   mode,
   onClose,
   controlsRef,
+  scSmMode,
+  setScSmMode,
 }: VisualizationPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -330,6 +340,23 @@ export function VisualizationPanel({
     >
       {/* Content */}
       <div className="p-4 space-y-3">
+        {/* SC/SM mode tabs — gene mode only. Shared state with the rail slider toggle. */}
+        {mode === "gene" && scSmMode !== undefined && setScSmMode && (
+          <div className="flex justify-center">
+            <ScSmModeToggle
+              mode={scSmMode}
+              variant="wide"
+              onChange={setScSmMode}
+            />
+          </div>
+        )}
+
+        {/* SM gene picker — replaces the SC content when SM tab is active. */}
+        {mode === "gene" && scSmMode === "sm" && <SingleMoleculeGenePicker />}
+
+        {/* SC content below — hidden when SM tab is active. */}
+        {!(mode === "gene" && scSmMode === "sm") && (
+          <>
         {/* Select celltypes - only show for celltype mode */}
         {mode === "celltype" && (
           <>
@@ -926,6 +953,8 @@ export function VisualizationPanel({
                 </Button>
               </div>
             )}
+          </>
+        )}
           </>
         )}
       </div>

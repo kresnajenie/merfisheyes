@@ -151,7 +151,9 @@ export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: Spatial
 
   const positionStyle: React.CSSProperties = pos
     ? { top: `${pos.y}px`, left: `${pos.x}px` }
-    : { bottom: "1.5rem", left: "1.5rem" };
+    : // Sit above the cmd/ctrl+click coordinate chip (bottom-4 in the viewer)
+      // so the two don't collide in the bottom-left corner.
+      { bottom: "4rem", left: "1.5rem" };
 
   return (
     <div

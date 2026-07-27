@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X } from "lucide-react";
-import { Checkbox } from "@heroui/checkbox";
+import { X, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@heroui/switch";
 import { Tooltip } from "@heroui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@heroui/popover";
@@ -23,13 +22,22 @@ import {
   ColorPickerSelection,
 } from "@/components/ui/shadcn-io/color-picker";
 
-export const SingleMoleculeLegends: React.FC = () => {
+interface SingleMoleculeLegendsProps {
+  // When true, render without the outer absolute positioning so the parent
+  // can stack this with other legends in a single container.
+  embedded?: boolean;
+}
+
+export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
+  embedded = false,
+}) => {
   const {
     selectedGenes,
     selectedGenesLegend,
     geneDataCache,
     removeGene,
     toggleGeneVisibility,
+    soloGene,
     setGeneColor,
     setGeneLocalScale,
     setGeneShowAssigned,
@@ -141,7 +149,9 @@ export const SingleMoleculeLegends: React.FC = () => {
   };
 
   return (
-    <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
+    <div
+      className={`flex flex-col items-end gap-4 max-w-xs ${embedded ? "" : "absolute right-6 top-24 z-10"}`}
+    >
       {/* Selected Genes Badges */}
       <div className="flex flex-col items-end gap-2">
         <div
@@ -156,7 +166,7 @@ export const SingleMoleculeLegends: React.FC = () => {
         >
           Selected Genes ({selectedGenesLegend.size}) - Clear All
         </div>
-        <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto">
+        <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto px-3 py-1">
           {legendGenesArray.map(({ gene, geneViz, isVisible }) => {
             if (!geneViz) return null;
 
@@ -185,7 +195,7 @@ export const SingleMoleculeLegends: React.FC = () => {
                 >
                   <PopoverTrigger>
                     <div
-                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer"
+                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer hover:scale-105 hover:ring-2 hover:ring-white/60"
                       style={{
                         backgroundColor: isVisible
                           ? geneViz.color
@@ -193,41 +203,49 @@ export const SingleMoleculeLegends: React.FC = () => {
                       }}
                       onClick={() => setOpenPopoverGene(gene)}
                     >
-                      {/* Checkbox for visibility toggle */}
-                      <Checkbox
-                        classNames={{
-                          wrapper: "bg-white/20",
+                      {/* Eye toggle for visibility — ⌘/Ctrl/Alt-click to solo */}
+                      <button
+                        className="flex items-center justify-center rounded-full p-1 text-black/60 hover:text-black hover:bg-black/15 cursor-pointer transition-colors"
+                        title={
+                          isVisible
+                            ? "Visible — click to hide, ⌘-click to solo"
+                            : "Hidden — click to show, ⌘-click to solo"
+                        }
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (e.metaKey || e.ctrlKey || e.altKey) {
+                            soloGene(gene);
+                          } else {
+                            toggleGeneVisibility(gene);
+                          }
                         }}
-                        isSelected={isVisible}
-                        size="sm"
-                        onValueChange={() => {
-                          console.log(
-                            "[SingleMoleculeLegends] Toggling visibility for gene:",
-                            gene,
-                          );
-                          toggleGeneVisibility(gene);
-                        }}
-                      />
+                      >
+                        {isVisible ? (
+                          <Eye className="w-3 h-3" />
+                        ) : (
+                          <EyeOff className="w-3 h-3" />
+                        )}
+                      </button>
 
                       {/* Gene name with strikethrough when hidden */}
                       <span
-                        className={`text-xs font-medium text-black ${!isVisible ? "line-through" : ""}`}
+                        className={`text-xs font-medium text-black cursor-pointer hover:underline ${!isVisible ? "line-through" : ""}`}
                       >
                         {gene}
                       </span>
 
                       {/* X button to remove from legend */}
-                      <X
-                        className="w-3 h-3 text-black/70 group-hover:text-black cursor-pointer transition-colors"
+                      <button
+                        className="flex items-center justify-center rounded-full p-1 text-black/70 hover:text-black hover:bg-black/15 cursor-pointer transition-colors"
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log(
-                            "[SingleMoleculeLegends] Removing gene from legend:",
-                            gene,
-                          );
                           removeGene(gene);
                         }}
-                      />
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </div>
                   </PopoverTrigger>
                 </Tooltip>

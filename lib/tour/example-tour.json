@@ -1,0 +1,33 @@
+{
+  "defaults": {
+    "flyInMs": 3000,
+    "orbitMs": 5000,
+    "orbitRevolutions": 1,
+    "zoomOutMs": 2000,
+    "zoomRadius": 130,
+    "zoomOutRadius": 500,
+    "filterRadius": 70,
+    "waitMs": 300,
+    "waitAfterMs": 300
+  },
+  "alwaysOnGenes": [
+    { "name": "total_cell_RNA", "color": "#ff0000" },
+    { "name": "somatic", "color": "#ffff00" }
+  ],
+  "stops": [
+    {
+      "name": "STRd D2 Matrix",
+      "z": 0.00,
+      "x": 3141.93,
+      "y": -1300.44,
+      "genes": []
+    },
+    {
+      "name": "STR SST CHODL",
+      "z": 5,
+      "x": 3442.11,
+      "y": -943.67,
+      "genes": []
+    }
+  ]
+}

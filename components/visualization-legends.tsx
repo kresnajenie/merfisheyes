@@ -22,7 +22,15 @@ import {
   ColorPickerSelection,
 } from "@/components/ui/shadcn-io/color-picker";
 
-export const VisualizationLegends: React.FC = () => {
+interface VisualizationLegendsProps {
+  // When true, render without the outer absolute positioning so the parent
+  // can stack this with other legends in a single container.
+  embedded?: boolean;
+}
+
+export const VisualizationLegends: React.FC<VisualizationLegendsProps> = ({
+  embedded = false,
+}) => {
   const {
     selectedGene,
     setSelectedGene,
@@ -200,7 +208,7 @@ export const VisualizationLegends: React.FC = () => {
 
   return (
     <div
-      className="absolute right-6 top-24 z-[var(--z-legends)] flex flex-col items-end gap-4 max-w-xs"
+      className={`flex flex-col items-end gap-4 max-w-xs ${embedded ? "" : "absolute right-6 top-24 z-[var(--z-legends)]"}`}
       data-ui-overlay
     >
       {/* Selected Gene Badge */}
@@ -333,7 +341,7 @@ export const VisualizationLegends: React.FC = () => {
             {selectedColumn || "Celltypes"} ({selectedCelltypes.size}) - Clear
             All
           </div>
-          <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto">
+          <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto px-3 py-1">
             {Array.from(selectedCelltypes).map((celltype) => {
               const color = storeColorPalette[celltype] || "#888888";
               const hidden = hiddenCelltypes.has(celltype);
@@ -348,7 +356,7 @@ export const VisualizationLegends: React.FC = () => {
                 >
                   <PopoverTrigger>
                     <div
-                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer"
+                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer hover:scale-105 hover:ring-2 hover:ring-white/60"
                       style={{
                         backgroundColor: color,
                         opacity: hidden ? 0.4 : 1,
@@ -372,7 +380,7 @@ export const VisualizationLegends: React.FC = () => {
                       }}
                     >
                       <button
-                        className="text-black/60 hover:text-black"
+                        className="flex items-center justify-center rounded-full p-1 text-black/60 hover:text-black hover:bg-black/15 cursor-pointer transition-colors"
                         title={
                           hidden
                             ? "Hidden — click to show, ⌘-click to solo"
@@ -394,16 +402,19 @@ export const VisualizationLegends: React.FC = () => {
                           <Eye className="w-3 h-3" />
                         )}
                       </button>
-                      <span className="text-xs font-medium text-black">
+                      <span className="text-xs font-medium text-black cursor-pointer hover:underline">
                         {celltype}
                       </span>
-                      <X
-                        className="w-3.5 h-3.5 text-black/70 group-hover:text-black"
+                      <button
+                        className="flex items-center justify-center rounded-full p-1 text-black/70 hover:text-black hover:bg-black/15 cursor-pointer transition-colors"
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleCelltype(celltype);
                         }}
-                      />
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
                     </div>
                   </PopoverTrigger>
                   <PopoverContent className="glass-panel p-3 w-64">
