@@ -28,6 +28,9 @@ const RAD_TO_DEG = 180 / Math.PI;
 interface CameraPanelProps {
   onClose: () => void;
   controlsRef?: React.RefObject<HTMLDivElement>;
+  // Where the flyout anchors: "rail" opens to the right of the left rail;
+  // "top-right" drops below the top-right control cluster.
+  placement?: "rail" | "top-right";
   sceneRotation: number;
   setSceneRotation: (degrees: number) => void;
   flipX: boolean;
@@ -62,6 +65,7 @@ interface CameraPanelProps {
 export function CameraPanel({
   onClose,
   controlsRef,
+  placement = "rail",
   sceneRotation,
   setSceneRotation,
   flipX,
@@ -98,10 +102,15 @@ export function CameraPanel({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose, controlsRef]);
 
+  const posClass =
+    placement === "top-right"
+      ? "top-14 right-0 max-h-[calc(100vh-6rem)] overflow-y-auto"
+      : "top-0 left-16";
+
   return (
     <div
       ref={panelRef}
-      className={`absolute top-0 left-16 z-[var(--z-panel)] w-[300px] ${glassPanel()}`}
+      className={`absolute ${posClass} z-[var(--z-panel)] w-[300px] ${glassPanel()}`}
     >
       <div className="p-4 space-y-4">
         {/* Header */}

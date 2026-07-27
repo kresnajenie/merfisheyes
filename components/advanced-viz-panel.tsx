@@ -14,11 +14,15 @@ import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 interface AdvancedVizPanelProps {
   onClose: () => void;
   controlsRef?: React.RefObject<HTMLDivElement>;
+  // "rail" opens to the right of the left rail; "top-right" drops below the
+  // top-right control cluster.
+  placement?: "rail" | "top-right";
 }
 
 export function AdvancedVizPanel({
   onClose,
   controlsRef,
+  placement = "rail",
 }: AdvancedVizPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const R = VISUALIZATION_CONFIG.ADVANCED_SLIDER_RANGES;
@@ -145,10 +149,15 @@ export function AdvancedVizPanel({
     />
   );
 
+  const posClass =
+    placement === "top-right"
+      ? "top-14 right-0 max-h-[calc(100vh-6rem)] overflow-y-auto"
+      : "top-0 left-16";
+
   return (
     <div
       ref={panelRef}
-      className={`absolute top-0 left-16 z-[var(--z-panel)] w-[280px] ${glassPanel()}`}
+      className={`absolute ${posClass} z-[var(--z-panel)] w-[280px] ${glassPanel()}`}
     >
       <div className="p-4 space-y-4">
         {/* Header */}

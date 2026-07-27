@@ -169,6 +169,18 @@ export function VisualizationControls() {
   const setIsDegOpen = usePanelVisualizationStore((s) => s.setDegPanelOpen);
   const setHideUi = useSplitScreenStore((s) => s.setHideUi);
   const controlsRef = useRef<HTMLDivElement>(null);
+  // Top-right cluster (Camera / Hide UI / Settings / Share). Its own ref so the
+  // Camera and Advanced flyouts anchor here and their click-outside ignores it.
+  const topRightRef = useRef<HTMLDivElement>(null);
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy link");
+    }
+  };
 
   const hasDeStats =
     !!dataset?.deStats || (dataset?.availableDeStatsColumns?.length ?? 0) > 0;
@@ -380,6 +392,7 @@ export function VisualizationControls() {
   }
 
   return (
+    <>
     <div
       ref={controlsRef}
       data-ui-overlay
@@ -521,32 +534,39 @@ export function VisualizationControls() {
         </>
       )}
 
-      {/* Hide UI Button — strips overlays for screenshotting (H key) */}
-      <Tooltip content="Hide UI for screenshot (H)" placement="right">
-        <Button
-          className={`${buttonBaseClass} ${glassButton()}`}
-          color="default"
-          variant="light"
-          onPress={() => setHideUi(true)}
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            viewBox="0 0 24 24"
-          >
-            <path
-              d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </Button>
-      </Tooltip>
+      {/* Visualization Panel */}
+      {isPanelOpen && (
+        <VisualizationPanel
+          controlsRef={controlsRef}
+          mode={panelMode}
+          scSmMode={hasSmOverlay ? scSmMode : undefined}
+          setScSmMode={hasSmOverlay ? setScSmMode : undefined}
+          onClose={() => setIsPanelOpen(false)}
+        />
+      )}
 
+      {/* Plot Panel (floating, draggable, resizable) */}
+      {plotPanelOpen && <PlotPanel />}
+
+      {/* DEG Panel */}
+      {isDegOpen && (
+        <DegPanel
+          controlsRef={controlsRef}
+          onClose={() => setIsDegOpen(false)}
+        />
+      )}
+    </div>
+
+    {/* Top-right cluster — view & session controls (Camera / Hide UI /
+        Settings / Share). Icon-only row; the Camera and Advanced flyouts open
+        below-right, anchored to this container. */}
+    <div
+      ref={topRightRef}
+      data-ui-overlay
+      className="absolute top-4 right-4 z-[var(--z-rail)] flex flex-row gap-2"
+    >
       {/* Camera Button */}
-      <Tooltip content="Camera controls" placement="right">
+      <Tooltip content="Camera controls" placement="bottom">
         <Button
           className={`${buttonBaseClass} ${isCameraOpen ? "" : glassButton()}`}
           color={isCameraOpen ? "primary" : "default"}
@@ -584,8 +604,32 @@ export function VisualizationControls() {
         </Button>
       </Tooltip>
 
+      {/* Hide UI Button — strips overlays for screenshotting (H key) */}
+      <Tooltip content="Hide UI for screenshot (H)" placement="bottom">
+        <Button
+          className={`${buttonBaseClass} ${glassButton()}`}
+          color="default"
+          variant="light"
+          onPress={() => setHideUi(true)}
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Button>
+      </Tooltip>
+
       {/* Advanced Settings Button */}
-      <Tooltip content="Advanced settings" placement="right">
+      <Tooltip content="Advanced settings" placement="bottom">
         <Button
           className={`${buttonBaseClass} ${isAdvancedOpen ? "" : glassButton()}`}
           color={isAdvancedOpen ? "primary" : "default"}
@@ -618,21 +662,35 @@ export function VisualizationControls() {
         </Button>
       </Tooltip>
 
-      {/* Visualization Panel */}
-      {isPanelOpen && (
-        <VisualizationPanel
-          controlsRef={controlsRef}
-          mode={panelMode}
-          scSmMode={hasSmOverlay ? scSmMode : undefined}
-          setScSmMode={hasSmOverlay ? setScSmMode : undefined}
-          onClose={() => setIsPanelOpen(false)}
-        />
-      )}
+      {/* Share Button — copies the current view URL to the clipboard */}
+      <Tooltip content="Copy link to this view" placement="bottom">
+        <Button
+          className={`${buttonBaseClass} ${glassButton()}`}
+          color="default"
+          variant="light"
+          onPress={handleShare}
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            viewBox="0 0 24 24"
+          >
+            <path
+              d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Button>
+      </Tooltip>
 
       {/* Advanced Visualization Panel */}
       {isAdvancedOpen && (
         <AdvancedVizPanel
-          controlsRef={controlsRef}
+          controlsRef={topRightRef}
+          placement="top-right"
           onClose={() => setIsAdvancedOpen(false)}
         />
       )}
@@ -641,7 +699,7 @@ export function VisualizationControls() {
       {isCameraOpen && (
         <CameraPanel
           canExportBox={!!dataset && !dataset.metadata?.wasNormalized}
-          controlsRef={controlsRef}
+          controlsRef={topRightRef}
           exportBox={{
             enabled: exportBoxEnabled,
             widthMm: exportBoxWidthMm,
@@ -654,6 +712,7 @@ export function VisualizationControls() {
           flipX={flipX}
           flipY={flipY}
           is3DDataset={dataset?.spatial?.dimensions === 3}
+          placement="top-right"
           sceneRotation={sceneRotation}
           setFlipX={setFlipX}
           setFlipY={setFlipY}
@@ -668,18 +727,8 @@ export function VisualizationControls() {
           onResetCamera={resetCamera}
         />
       )}
-
-      {/* Plot Panel (floating, draggable, resizable) */}
-      {plotPanelOpen && <PlotPanel />}
-
-      {/* DEG Panel */}
-      {isDegOpen && (
-        <DegPanel
-          controlsRef={controlsRef}
-          onClose={() => setIsDegOpen(false)}
-        />
-      )}
     </div>
+    </>
   );
 }
 
