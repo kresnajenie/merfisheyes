@@ -30,6 +30,9 @@ import {
 
 const DEG_TO_RAD = Math.PI / 180;
 const RAD_TO_DEG = 180 / Math.PI;
+// Per-sample translations are stored in raw coordinate units (microns); the UI
+// shows them in millimetres. display_mm = microns * MICRONS_TO_MM.
+const MICRONS_TO_MM = 1 / 1000;
 
 interface CameraPanelProps {
   onClose: () => void;
@@ -510,6 +513,71 @@ function SMOwnerDefaultsSection() {
   );
 }
 
+/** Trim float noise for display (e.g. 1.4999999 -> 1.5). */
+function fmtNum(n: number): string {
+  if (!Number.isFinite(n)) return "";
+
+  return String(Math.round(n * 1e6) / 1e6);
+}
+
+/**
+ * Numeric field that keeps a local text buffer so partial input ("-", "1.",
+ * empty) doesn't get parsed-and-reset mid-typing. Commits only finite numbers.
+ * `displayFactor` converts the stored (canonical) value to the shown value:
+ * display = value * displayFactor; value = shown / displayFactor.
+ */
+function AlignNumberInput({
+  label,
+  endContent,
+  value,
+  displayFactor,
+  disabled,
+  onCommit,
+}: {
+  label: string;
+  endContent?: React.ReactNode;
+  value: number;
+  displayFactor: number;
+  disabled?: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const toDisplay = (v: number) => fmtNum(v * displayFactor);
+  const [str, setStr] = useState(() => toDisplay(value));
+  const [focused, setFocused] = useState(false);
+
+  // Sync from the store when the field isn't being edited (e.g. sample switch).
+  useEffect(() => {
+    if (!focused) setStr(toDisplay(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, displayFactor, focused]);
+
+  return (
+    <Input
+      endContent={endContent}
+      inputMode="decimal"
+      isDisabled={disabled}
+      label={label}
+      labelPlacement="outside"
+      size="sm"
+      type="text"
+      value={str}
+      onBlur={() => {
+        setFocused(false);
+        const n = parseFloat(str);
+
+        setStr(Number.isFinite(n) ? toDisplay(n / displayFactor) : toDisplay(value));
+      }}
+      onFocus={() => setFocused(true)}
+      onValueChange={(v) => {
+        setStr(v);
+        const n = parseFloat(v);
+
+        if (Number.isFinite(n)) onCommit(n / displayFactor);
+      }}
+    />
+  );
+}
+
 function SampleAlignSection() {
   const { getCurrentDataset } = usePanelDatasetStore();
   const {
@@ -655,8 +723,7 @@ function SampleAlignSection() {
   return (
     <div className="space-y-2 pt-1">
       <p className="text-[10px] text-default-400">
-        Translate + rotate per sample (pivot = centroid). Values in raw coord
-        units.
+        Translate (mm) + rotate per sample (pivot = centroid).
       </p>
 
       <Select
@@ -698,42 +765,29 @@ function SampleAlignSection() {
       </Select>
 
       <div className="grid grid-cols-3 gap-1">
-        <Input
-          isDisabled={!activeSampleId}
+        <AlignNumberInput
+          disabled={!activeSampleId}
+          displayFactor={MICRONS_TO_MM}
+          endContent={<span className="text-[10px] text-default-400">mm</span>}
           label="dx"
-          labelPlacement="outside"
-          size="sm"
-          step="any"
-          type="number"
-          value={String(currentTransform.dx)}
-          onValueChange={(v) =>
-            onChangeTransform({ dx: parseFloatOr(v, 0) })
-          }
+          value={currentTransform.dx}
+          onCommit={(dx) => onChangeTransform({ dx })}
         />
-        <Input
-          isDisabled={!activeSampleId}
+        <AlignNumberInput
+          disabled={!activeSampleId}
+          displayFactor={MICRONS_TO_MM}
+          endContent={<span className="text-[10px] text-default-400">mm</span>}
           label="dy"
-          labelPlacement="outside"
-          size="sm"
-          step="any"
-          type="number"
-          value={String(currentTransform.dy)}
-          onValueChange={(v) =>
-            onChangeTransform({ dy: parseFloatOr(v, 0) })
-          }
+          value={currentTransform.dy}
+          onCommit={(dy) => onChangeTransform({ dy })}
         />
-        <Input
+        <AlignNumberInput
+          disabled={!activeSampleId}
+          displayFactor={RAD_TO_DEG}
           endContent={<span className="text-[10px] text-default-400">°</span>}
-          isDisabled={!activeSampleId}
           label="rot"
-          labelPlacement="outside"
-          size="sm"
-          step="any"
-          type="number"
-          value={String(currentTransform.theta * RAD_TO_DEG)}
-          onValueChange={(v) =>
-            onChangeTransform({ theta: parseFloatOr(v, 0) * DEG_TO_RAD })
-          }
+          value={currentTransform.theta}
+          onCommit={(theta) => onChangeTransform({ theta })}
         />
       </div>
 
@@ -775,12 +829,6 @@ function SampleAlignSection() {
       </Button>
     </div>
   );
-}
-
-function parseFloatOr(s: string, fallback: number): number {
-  if (s === "" || s === "-" || s === "." || s === "-.") return fallback;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : fallback;
 }
 
 interface ExportBoxSectionProps {
