@@ -35,7 +35,7 @@ from pathlib import Path
 
 logger = logging.getLogger("count_xenium")
 
-DEFAULT_DATASETS = "scripts/bil-scripts/all_datasets.csv"
+DEFAULT_DATASETS = "scripts/bil-scripts/analysis-scripts/all_datasets.csv"
 DEFAULT_OUT = "/bil/data/meyes/_cells_inventory"
 
 # How deep to descend looking for the transcripts CSV. Xenium folders

@@ -36,7 +36,7 @@ echo ""
 
 # ── Run ──────────────────────────────────────────────────────
 # Script reads --datasets-csv relative to CWD; cd to repo root so the
-# default `scripts/bil-scripts/all_datasets.csv` resolves correctly.
+# default `scripts/bil-scripts/analysis-scripts/all_datasets.csv` resolves correctly.
 cd ~/merfisheyes
 
 START_TIME=$SECONDS

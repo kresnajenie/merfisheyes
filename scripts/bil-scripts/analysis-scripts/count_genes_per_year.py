@@ -59,7 +59,7 @@ from pathlib import Path
 
 logger = logging.getLogger("count_genes")
 
-DEFAULT_DATASETS = "scripts/bil-scripts/all_datasets.csv"
+DEFAULT_DATASETS = "scripts/bil-scripts/analysis-scripts/all_datasets.csv"
 DEFAULT_MEYES_BASE = "/bil/data/meyes"
 DEFAULT_OUT = "/bil/data/meyes/_genes_inventory"
 

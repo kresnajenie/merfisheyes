@@ -36,7 +36,7 @@ from pathlib import Path
 
 logger = logging.getLogger("count_cells")
 
-DEFAULT_DATASETS = "scripts/bil-scripts/all_datasets.csv"
+DEFAULT_DATASETS = "scripts/bil-scripts/analysis-scripts/all_datasets.csv"
 DEFAULT_MEYES_BASE = "/bil/data/meyes"
 DEFAULT_OUT = "/bil/data/meyes/_cells_inventory"
 
