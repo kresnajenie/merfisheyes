@@ -250,6 +250,18 @@ RAW_MOLECULE_TABLES = (
 )
 
 
+def is_xenium_transcripts(name: str) -> bool:
+    """Match output-XETG*selected_transcripts.csv (.gz optional) -- BIL's
+    actual Xenium export filename, same matcher as
+    count_xenium_cells_per_year.py. Exact-match RAW_MOLECULE_TABLES never
+    hits Xenium datasets since they don't use a bare `transcripts.csv` name."""
+    low = name.lower()
+    if not low.startswith("output-xetg"):
+        return False
+    return low.endswith("selected_transcripts.csv") or \
+        low.endswith("selected_transcripts.csv.gz")
+
+
 def count_csv_data_rows(path: Path) -> int:
     """Stream a molecule CSV and count data rows (one row = one molecule)."""
     opener = gzip.open if path.suffix == ".gz" else open
@@ -302,7 +314,7 @@ def molecules_from_raw_tables(root: Path, max_depth: int,
     parquet_hit: Path | None = None
     for f in walk_files(root, max_depth, budget):
         low = f.name.lower()
-        if csv_hit is None and low in RAW_MOLECULE_TABLES:
+        if csv_hit is None and (low in RAW_MOLECULE_TABLES or is_xenium_transcripts(low)):
             csv_hit = f
             break
         if parquet_hit is None and low in ("detected_transcripts.parquet",
