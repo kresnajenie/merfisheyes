@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=count_genes_per_year
-#SBATCH --output=/bil/users/ijenie/meyes_process_logs/count_genes_per_year_%j.log
+#SBATCH --job-name=count_xenium_cells_per_year
+#SBATCH --output=/bil/users/ijenie/meyes_process_logs/count_xenium_cells_per_year_%j.log
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=32G
@@ -10,14 +10,14 @@
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
 
 # ── Arguments ────────────────────────────────────────────────
-# Usage: sbatch count_genes_per_year.sbatch [extra args passed to the python script]
-#   e.g. sbatch count_genes_per_year.sbatch \
-#            --out-dir /bil/data/meyes/_genes_inventory \
+# Usage: sbatch count_xenium_cells_per_year.sbatch [extra args passed to the python script]
+#   e.g. sbatch count_xenium_cells_per_year.sbatch \
+#            --out-dir /bil/data/meyes/_cells_inventory \
 #            --walk-timeout 120
 
 # ── Logging ──────────────────────────────────────────────────
 echo "========================================"
-echo "  count_genes_per_year — SLURM Job $SLURM_JOB_ID"
+echo "  count_xenium_cells_per_year — SLURM Job $SLURM_JOB_ID"
 echo "========================================"
 echo "Node:    $(hostname)"
 echo "CPUs:    $SLURM_CPUS_PER_TASK"
@@ -41,7 +41,7 @@ cd ~/merfisheyes
 
 START_TIME=$SECONDS
 
-python scripts/bil-scripts/analysis-scripts/count_genes_per_year.py "$@"
+python scripts/bil-scripts/analysis-scripts/count_xenium_cells_per_year.py "$@"
 EXIT_CODE=$?
 
 ELAPSED=$(( SECONDS - START_TIME ))
