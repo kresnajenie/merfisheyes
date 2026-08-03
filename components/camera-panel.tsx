@@ -11,14 +11,22 @@ import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 
 import { glassPanel } from "@/components/primitives";
+import { ThumbnailCaptureModal } from "@/components/thumbnail-capture-modal";
+import { GeneMultiSelect } from "@/components/gene-multiselect";
 import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
+  usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
   usePanelId,
 } from "@/lib/hooks/usePanelStores";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
-import { extractViewerConfig } from "@/lib/utils/viewer-config";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import {
+  extractViewerConfig,
+  type ViewerConfig,
+} from "@/lib/utils/viewer-config";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 import {
@@ -367,6 +375,36 @@ export function CameraPanel({
 }
 
 /**
+ * Merge a partial into the dataset's saved viewerConfig and PATCH it, so a
+ * single-field owner control (priority column, default genes) doesn't clobber
+ * other saved fields. Updates the registration store on success.
+ */
+async function patchViewerConfig(
+  dbId: string,
+  patch: Partial<ViewerConfig>,
+): Promise<boolean> {
+  const current = (useViewerRegistrationStore.getState().viewerConfig ?? {
+    version: 1,
+  }) as ViewerConfig;
+  const merged: ViewerConfig = { ...current, ...patch, version: 1 };
+
+  try {
+    const res = await fetch(`/api/ingest/mine/${dbId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ viewerConfig: merged }),
+    });
+
+    if (!res.ok) return false;
+    useViewerRegistrationStore.getState().set({ viewerConfig: merged });
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Owner-only "Save current view as default" control. Persists the current
  * rotation, flips, priority cluster column, per-sample transforms, and custom
  * colors to the dataset's viewerConfig (applied on future loads). Only shown to
@@ -379,8 +417,55 @@ function OwnerDefaultsSection() {
   const { getCurrentDataset } = usePanelDatasetStore();
   const store = usePanelVisualizationStore();
   const [saving, setSaving] = useState(false);
+  const [thumbOpen, setThumbOpen] = useState(false);
+  const [overlayGenes, setOverlayGenes] = useState<string[]>([]);
+  const [savingOverlay, setSavingOverlay] = useState(false);
 
   const dataset = getCurrentDataset() as StandardizedDataset | null;
+
+  // SM overlay (combined SC+SM viewer) — from the GLOBAL SM stores, matching
+  // how three-scene renders the overlay. Present only when a mapping.json
+  // "__all__" overlay has loaded.
+  const smOverlay = useSingleMoleculeStore((s) =>
+    s.currentDatasetId ? s.datasets.get(s.currentDatasetId) ?? null : null,
+  );
+  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+    (s) => s.selectedGenes,
+  );
+  const overlayUniqueGenes = smOverlay?.uniqueGenes ?? [];
+
+  // Seed the overlay picker from this SC dataset's saved overlay genes, else
+  // the overlay's current selection, when the overlay loads.
+  useEffect(() => {
+    if (!smOverlay) return;
+    const saved = (
+      useViewerRegistrationStore.getState().viewerConfig as ViewerConfig | null
+    )?.defaultGenes;
+
+    setOverlayGenes(
+      saved && saved.length > 0
+        ? saved.filter((g) => overlayUniqueGenes.includes(g))
+        : Array.from(smSelectedGenes.keys()),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smOverlay?.id]);
+
+  // Categorical columns selectable as the default (priority) cell-type column.
+  const priorityCandidates = useMemo(() => {
+    if (!dataset) return [] as string[];
+    const all =
+      dataset.allClusterColumnNames?.length > 0
+        ? dataset.allClusterColumnNames
+        : (dataset.clusters ?? []).map((c) => c.column);
+
+    return all.filter(
+      (name) =>
+        getEffectiveColumnType(name, dataset, store.columnTypeOverrides) ===
+        "categorical",
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset, store.columnTypeOverrides, store.clusterVersion]);
+
   const userId = session?.user?.id ?? null;
   const isAdmin =
     session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
@@ -419,7 +504,31 @@ function OwnerDefaultsSection() {
   };
 
   return (
-    <div className="border-t border-white/10 pt-3">
+    <div className="border-t border-white/10 pt-3 space-y-2">
+      {priorityCandidates.length > 0 && (
+        <Select
+          label="Default cell-type column"
+          labelPlacement="outside"
+          selectedKeys={store.selectedColumn ? [store.selectedColumn] : []}
+          size="sm"
+          onChange={(e) => {
+            const col = e.target.value;
+
+            if (!col || !dbId) return;
+            store.setSelectedColumn(col, false);
+            patchViewerConfig(dbId, { priorityColumn: col }).then((ok) =>
+              ok
+                ? toast.success("Default column saved.")
+                : toast.error("Couldn't save default column."),
+            );
+          }}
+        >
+          {priorityCandidates.map((name) => (
+            <SelectItem key={name}>{name}</SelectItem>
+          ))}
+        </Select>
+      )}
+
       <Button
         className="w-full text-xs"
         color="primary"
@@ -437,6 +546,56 @@ function OwnerDefaultsSection() {
         </span>{" "}
         column as this dataset&apos;s defaults on load.
       </p>
+
+      {smOverlay && overlayUniqueGenes.length > 0 && (
+        <div className="pt-1 space-y-1">
+          <GeneMultiSelect
+            genes={overlayUniqueGenes}
+            label="Default overlay genes"
+            value={overlayGenes}
+            onChange={setOverlayGenes}
+          />
+          <Button
+            className="w-full text-xs"
+            color="primary"
+            isDisabled={overlayGenes.length === 0}
+            isLoading={savingOverlay}
+            size="sm"
+            variant="flat"
+            onPress={async () => {
+              if (!dbId) return;
+              setSavingOverlay(true);
+              const ok = await patchViewerConfig(dbId, {
+                defaultGenes: overlayGenes,
+              });
+
+              setSavingOverlay(false);
+              if (ok) toast.success("Overlay genes saved.");
+              else toast.error("Couldn't save overlay genes.");
+            }}
+          >
+            Save overlay genes
+          </Button>
+        </div>
+      )}
+
+      <Button
+        className="w-full text-xs"
+        size="sm"
+        variant="flat"
+        onPress={() => setThumbOpen(true)}
+      >
+        Set thumbnail from screenshot
+      </Button>
+
+      {dbId && (
+        <ThumbnailCaptureModal
+          dbId={dbId}
+          isOpen={thumbOpen}
+          viewerKind="sc"
+          onClose={() => setThumbOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -450,7 +609,26 @@ function SMOwnerDefaultsSection() {
   const panelId = usePanelId();
   const { dbId, ownerId, adminOwned } = useViewerRegistrationStore();
   const store = usePanelSingleMoleculeVisualizationStore();
+  const { getCurrentDataset } = usePanelSingleMoleculeStore();
   const [saving, setSaving] = useState(false);
+  const [savingGenes, setSavingGenes] = useState(false);
+  const [thumbOpen, setThumbOpen] = useState(false);
+  const [defaultGenes, setDefaultGenes] = useState<string[]>([]);
+
+  const smDataset = getCurrentDataset();
+  const uniqueGenes = smDataset?.uniqueGenes ?? [];
+
+  // Seed the picker from the saved defaults, else the current selection.
+  useEffect(() => {
+    const saved = (
+      useViewerRegistrationStore.getState().viewerConfig as ViewerConfig | null
+    )?.defaultGenes;
+
+    setDefaultGenes(
+      saved && saved.length > 0 ? saved : Array.from(store.selectedGenes.keys()),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const userId = session?.user?.id ?? null;
   const isAdmin =
@@ -465,36 +643,33 @@ function SMOwnerDefaultsSection() {
   const save = async () => {
     if (!dbId) return;
     setSaving(true);
-    try {
-      const viewerConfig = {
-        version: 1 as const,
-        sceneRotation: store.sceneRotation,
-        flipX: store.flipX,
-        flipY: store.flipY,
-        viewMode: store.viewMode,
-      };
-      const res = await fetch(`/api/ingest/mine/${dbId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ viewerConfig }),
-      });
+    // Merge so a camera save doesn't wipe saved default genes.
+    const ok = await patchViewerConfig(dbId, {
+      sceneRotation: store.sceneRotation,
+      flipX: store.flipX,
+      flipY: store.flipY,
+      viewMode: store.viewMode,
+    });
 
-      if (!res.ok) {
-        toast.error("Couldn't save defaults.");
+    setSaving(false);
+    if (ok) toast.success("Saved as this dataset's defaults.");
+    else toast.error("Couldn't save defaults.");
+  };
 
-        return;
-      }
-      useViewerRegistrationStore.getState().set({ viewerConfig });
-      toast.success("Saved as this dataset's defaults.");
-    } catch {
-      toast.error("Couldn't save defaults.");
-    } finally {
-      setSaving(false);
-    }
+  const saveGenes = async () => {
+    if (!dbId) return;
+    setSavingGenes(true);
+    const ok = await patchViewerConfig(dbId, {
+      defaultGenes: defaultGenes.slice(0, 20),
+    });
+
+    setSavingGenes(false);
+    if (ok) toast.success("Default genes saved.");
+    else toast.error("Couldn't save default genes.");
   };
 
   return (
-    <div className="border-t border-white/10 pt-3">
+    <div className="border-t border-white/10 pt-3 space-y-2">
       <Button
         className="w-full text-xs"
         color="primary"
@@ -509,6 +684,46 @@ function SMOwnerDefaultsSection() {
         Saves rotation, flips, and 2D/3D view as this dataset&apos;s defaults on
         load.
       </p>
+
+      {uniqueGenes.length > 0 && (
+        <div className="pt-1 space-y-1">
+          <GeneMultiSelect
+            genes={uniqueGenes}
+            label="Default genes shown on load"
+            value={defaultGenes}
+            onChange={setDefaultGenes}
+          />
+          <Button
+            className="w-full text-xs"
+            color="primary"
+            isDisabled={defaultGenes.length === 0}
+            isLoading={savingGenes}
+            size="sm"
+            variant="flat"
+            onPress={saveGenes}
+          >
+            Save default genes
+          </Button>
+        </div>
+      )}
+
+      <Button
+        className="w-full text-xs"
+        size="sm"
+        variant="flat"
+        onPress={() => setThumbOpen(true)}
+      >
+        Set thumbnail from screenshot
+      </Button>
+
+      {dbId && (
+        <ThumbnailCaptureModal
+          dbId={dbId}
+          isOpen={thumbOpen}
+          viewerKind="sm"
+          onClose={() => setThumbOpen(false)}
+        />
+      )}
     </div>
   );
 }

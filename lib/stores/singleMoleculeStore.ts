@@ -7,12 +7,16 @@ interface SingleMoleculeState {
   currentDatasetId: string | null;
   isLoading: boolean;
   error: string | null;
+  // S3 URL the current SM-overlay dataset was loaded from (combined SC+SM
+  // viewer). Used to fetch the overlay dataset's saved default genes.
+  overlaySourceUrl: string | null;
 
   // Actions
   addDataset: (dataset: SingleMoleculeDataset) => void;
   removeDataset: (id: string) => void;
   setCurrentDataset: (id: string | null) => void;
   getCurrentDataset: () => SingleMoleculeDataset | null;
+  setOverlaySourceUrl: (url: string | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -25,6 +29,9 @@ export const useSingleMoleculeStore = create<SingleMoleculeState>(
     currentDatasetId: null,
     isLoading: false,
     error: null,
+    overlaySourceUrl: null,
+
+    setOverlaySourceUrl: (url: string | null) => set({ overlaySourceUrl: url }),
 
     addDataset: (dataset: SingleMoleculeDataset) => {
       set((state) => {
@@ -93,6 +100,7 @@ export const useSingleMoleculeStore = create<SingleMoleculeState>(
         currentDatasetId: null,
         isLoading: false,
         error: null,
+        overlaySourceUrl: null,
       });
     },
   }),

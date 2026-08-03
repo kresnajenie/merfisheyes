@@ -146,6 +146,41 @@ export function getPublicUrl(key: string): string {
   return `https://${ensureBucket()}.s3.${AWS_REGION}.amazonaws.com/${key}`;
 }
 
+/** Upload a buffer to S3 server-side (e.g. a generated thumbnail). */
+export async function uploadBufferToS3(
+  key: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: ensureBucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
+/**
+ * Fetch an S3 object's bytes server-side. Returns null if the object is
+ * missing (or any fetch error) so callers can 404 cleanly.
+ */
+export async function getObjectBytes(
+  key: string,
+): Promise<{ body: Buffer; contentType?: string } | null> {
+  try {
+    const res = await s3Client.send(
+      new GetObjectCommand({ Bucket: ensureBucket(), Key: key }),
+    );
+    const bytes = await res.Body!.transformToByteArray();
+
+    return { body: Buffer.from(bytes), contentType: res.ContentType };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Generate presigned URL for manifest.json.gz
  * @param datasetId - The dataset ID

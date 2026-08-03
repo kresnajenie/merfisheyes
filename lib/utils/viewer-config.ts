@@ -19,6 +19,7 @@ export interface ViewerConfig {
   flipY?: boolean;
   viewMode?: "2D" | "3D"; // camera view mode (used by the single-molecule viewer)
   priorityColumn?: string | null; // default cluster column on load
+  defaultGenes?: string[]; // single-molecule: genes auto-shown on load
   transformColumn?: string | null; // sample column for per-sample align
   sampleTransforms?: Record<string, SampleTransform>; // keyed by sample VALUE
   colorOverrides?: Record<string, Record<string, string>>; // column -> (value -> hex)
@@ -44,6 +45,18 @@ export function validateViewerConfig(input: unknown): ViewerConfig | null {
   if (src.viewMode === "2D" || src.viewMode === "3D") out.viewMode = src.viewMode;
   if (src.priorityColumn === null || typeof src.priorityColumn === "string") {
     out.priorityColumn = src.priorityColumn as string | null;
+  }
+
+  if (Array.isArray(src.defaultGenes)) {
+    const genes = Array.from(
+      new Set(
+        (src.defaultGenes as unknown[]).filter(
+          (g): g is string => typeof g === "string" && g.length > 0,
+        ),
+      ),
+    ).slice(0, 20);
+
+    if (genes.length > 0) out.defaultGenes = genes;
   }
   if (src.transformColumn === null || typeof src.transformColumn === "string") {
     out.transformColumn = src.transformColumn as string | null;

@@ -359,6 +359,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             );
 
             useSingleMoleculeStore.getState().addDataset(smDs);
+            // Record the overlay's source URL so the combined viewer can fetch
+            // its saved default genes (the SM-settings fallback).
+            useSingleMoleculeStore.getState().setOverlaySourceUrl(smUrl);
           } catch (error) {
             console.warn("Failed to load SM overlay dataset:", error);
           } finally {
