@@ -9,6 +9,7 @@ import type {
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Tabs, Tab } from "@heroui/tabs";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 import { FeaturedDatasets } from "./featured-datasets";
 import { ExploreSearchBar } from "./explore-search-bar";
@@ -23,9 +24,7 @@ interface ExplorePageClientProps {
   initialTotal: number;
   initialFeatured: CatalogDatasetItem[];
   initialBil: CatalogDatasetItem[];
-  initialInternal: CatalogDatasetItem[];
   initialFilters: ExploreFilters;
-  isAdmin: boolean;
   /**
    * When provided, intercepts dataset card clicks instead of letting the
    * card link/navigate. Used by the in-viewer explore modal to switch into
@@ -40,6 +39,13 @@ interface ExplorePageClientProps {
    * read leftover params from it.
    */
   disableUrlSync?: boolean;
+  /**
+   * Set by the server page when its initial DB load failed (e.g. a transient
+   * DB blip during ISR regeneration), so the initial* props are empty. When
+   * true, the client hydrates the full public payload from /api/explore
+   * instead of trusting the empty SSR snapshot.
+   */
+  ssrFailed?: boolean;
 }
 
 export function ExplorePageClient({
@@ -47,14 +53,21 @@ export function ExplorePageClient({
   initialTotal,
   initialFeatured,
   initialBil,
-  initialInternal,
   initialFilters,
-  isAdmin,
   onCardClick,
   disableUrlSync = false,
+  ssrFailed = false,
 }: ExplorePageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Admin status is read client-side (not passed as a prop) so the page itself
+  // can be statically cached — calling auth() during render would force
+  // per-request rendering. Gates the Internal tab; the API enforces admin
+  // access independently.
+  const { data: session } = useSession();
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
 
   // Initialize state from URL params (skip when URL sync is disabled —
   // otherwise the viewer's own params would bleed into the modal).
@@ -89,8 +102,10 @@ export function ExplorePageClient({
   const [featuredTotal, setFeaturedTotal] = useState(initialFeatured.length);
   const [bilItems, setBilItems] = useState(initialBil);
   const [bilTotal, setBilTotal] = useState(initialBil.length);
-  const [internalItems, setInternalItems] = useState(initialInternal);
-  const [internalTotal, setInternalTotal] = useState(initialInternal.length);
+  // Internal datasets are admin-only and lazy-fetched when the Internal tab
+  // opens (see the activeTab effect), so there's no SSR seed.
+  const [internalItems, setInternalItems] = useState<CatalogDatasetItem[]>([]);
+  const [internalTotal, setInternalTotal] = useState(0);
 
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(false);
@@ -196,6 +211,26 @@ export function ExplorePageClient({
     activeTab,
   ]);
 
+  // Recovery path when SSR failed: fetch the full public payload (All tab +
+  // featured + BIL + filters) in one request so an empty shell fills in.
+  const hydrateAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/explore?limit=${PAGE_LIMIT}`);
+      const data: ExploreApiResponse = await res.json();
+
+      setAllItems(data.items);
+      setAllTotal(data.total);
+      setFeaturedItems(data.featured ?? []);
+      setFeaturedTotal((data.featured ?? []).length);
+      setBilItems(data.bil ?? []);
+      setBilTotal((data.bil ?? []).length);
+      setFilters(data.filters);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Refetch when filters/page/tab change
   useEffect(() => {
     if (hasActiveFilters || page > 1 || hasFetched) {
@@ -208,9 +243,14 @@ export function ExplorePageClient({
     if (activeTab !== "all") {
       fetchData();
     } else if (!hasActiveFilters && page === 1) {
-      setAllItems(initialItems);
-      setAllTotal(initialTotal);
-      setHasFetched(false);
+      if (ssrFailed) {
+        // No valid SSR snapshot to restore to — pull the real data instead.
+        hydrateAll();
+      } else {
+        setAllItems(initialItems);
+        setAllTotal(initialTotal);
+        setHasFetched(false);
+      }
     }
   }, [activeTab]);
 
