@@ -533,13 +533,19 @@ export function useSMOverlayUrlSync(
   datasetReady: boolean,
   dataset: SingleMoleculeDataset | null,
   store: SingleMoleculeVisualizationState,
+  // Owner-configured default overlay genes resolver (combined viewer). Returns
+  // the genes to auto-show, or null to fall back to the pickDefaultGenes
+  // heuristic. Awaited so the apply is race-free.
+  resolveDefaultGenes?: (
+    dataset: SingleMoleculeDataset,
+  ) => Promise<string[] | null>,
 ): { hasUrlState: boolean; hasUrlStateRef: React.RefObject<boolean> } {
   const [hasUrlState, setHasUrlState] = useState(false);
   const hasUrlStateRef = useRef(false);
   const appliedRef = useRef(false);
 
   // Reading: apply URL state once after dataset is ready. If no ov= slot,
-  // fall back to auto-selecting default genes.
+  // fall back to owner default genes (else the pickDefaultGenes heuristic).
   useEffect(() => {
     if (!datasetReady || !dataset || appliedRef.current) return;
     appliedRef.current = true;
@@ -550,11 +556,28 @@ export function useSMOverlayUrlSync(
       applySMVizState(decoded, store, dataset);
       hasUrlStateRef.current = true;
       setHasUrlState(true);
-    } else {
-      pickDefaultGenes(dataset.uniqueGenes).forEach((gene) =>
-        store.addGene(gene),
-      );
+
+      return;
     }
+
+    let cancelled = false;
+
+    (async () => {
+      const owner = resolveDefaultGenes
+        ? await resolveDefaultGenes(dataset)
+        : null;
+
+      if (cancelled) return;
+      const genes =
+        owner && owner.length > 0 ? owner : pickDefaultGenes(dataset.uniqueGenes);
+
+      genes.forEach((gene) => store.addGene(gene));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetReady, dataset, store]);
 
   // Writing: encode state changes to URL (debounced) using the overlay slot.

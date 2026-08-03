@@ -198,8 +198,15 @@ function SingleMoleculeViewerByIdContent() {
       console.log("Applying visualization state from URL");
       applySMVizState(urlVizState, smVizStore, smDataset);
     } else {
-      // No URL state — auto-select default genes
-      const genesToSelect = pickDefaultGenes(smDataset.uniqueGenes);
+      // No URL state — use the owner's saved default genes if any exist in this
+      // dataset, otherwise fall back to the heuristic auto-select.
+      const ownerGenes = (cfg?.defaultGenes ?? []).filter((g) =>
+        smDataset.uniqueGenes.includes(g),
+      );
+      const genesToSelect =
+        ownerGenes.length > 0
+          ? ownerGenes
+          : pickDefaultGenes(smDataset.uniqueGenes);
 
       genesToSelect.forEach((gene) => {
         addGene(gene);

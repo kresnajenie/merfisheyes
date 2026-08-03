@@ -9,7 +9,6 @@ import type {
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Spinner } from "@heroui/react";
-import { useSession } from "next-auth/react";
 
 import { ExplorePageClient } from "./explore-page-client";
 import { DatasetDetailPage } from "./dataset-detail-page";
@@ -29,7 +28,6 @@ interface InitialData {
   total: number;
   featured: CatalogDatasetItem[];
   bil: CatalogDatasetItem[];
-  internal: CatalogDatasetItem[];
   filters: ExploreFilters;
 }
 
@@ -45,10 +43,6 @@ export function ExploreModal({
   onClose,
   onSelectEntry,
 }: ExploreModalProps) {
-  const { data: session, status: sessionStatus } = useSession();
-  const isAdmin =
-    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
-
   const [data, setData] = useState<InitialData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,10 +58,11 @@ export function ExploreModal({
   // bails in its finally block — leaving `loading` stuck true forever.
   const hasFetchedRef = useRef(false);
 
-  // Fetch initial data once when the modal first opens. Waits for session
-  // to resolve so admin users actually get internal datasets.
+  // Fetch initial data once when the modal first opens. Internal (admin-only)
+  // datasets are lazy-loaded by ExplorePageClient when the Internal tab opens,
+  // so there's nothing admin-specific to fetch here.
   useEffect(() => {
-    if (!isOpen || sessionStatus === "loading" || hasFetchedRef.current) {
+    if (!isOpen || hasFetchedRef.current) {
       return;
     }
     hasFetchedRef.current = true;
@@ -77,19 +72,10 @@ export function ExploreModal({
       setLoading(true);
       setError(null);
       try {
-        const [resAll, resInternal] = await Promise.all([
-          fetch("/api/explore?limit=50"),
-          isAdmin
-            ? fetch("/api/explore?tab=internal&limit=50")
-            : Promise.resolve(null),
-        ]);
+        const resAll = await fetch("/api/explore?limit=50");
 
         if (!resAll.ok) throw new Error("Failed to load catalog");
         const all = await resAll.json();
-        const internal =
-          resInternal && resInternal.ok
-            ? ((await resInternal.json()).items ?? [])
-            : [];
 
         if (cancelled) return;
         setData({
@@ -97,7 +83,6 @@ export function ExploreModal({
           total: all.total ?? 0,
           featured: all.featured ?? [],
           bil: all.bil ?? [],
-          internal,
           filters: all.filters ?? { species: [], tissues: [], platforms: [] },
         });
       } catch (e) {
@@ -110,7 +95,7 @@ export function ExploreModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, sessionStatus, isAdmin]);
+  }, [isOpen]);
 
   // Reset detail view + fetch guard when the modal closes so the next open
   // refetches.
@@ -240,10 +225,8 @@ export function ExploreModal({
               initialBil={data.bil}
               initialFeatured={data.featured}
               initialFilters={data.filters}
-              initialInternal={data.internal}
               initialItems={data.items}
               initialTotal={data.total}
-              isAdmin={isAdmin}
               onCardClick={handleCardClick}
             />
           )

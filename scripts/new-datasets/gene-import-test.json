@@ -1,0 +1,47 @@
+[
+  {
+    "title": "TEST — AllenWMB single-cell (delete me)",
+    "description": "Gene auto-derivation test. Expect ~550 genes populated from expr/index.json.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERSCOPE",
+    "isPublished": true,
+    "entries": [
+      {
+        "label": "Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/AllenWMB_MERFISH_stripped_separated_flipped_meyes"
+      }
+    ]
+  },
+  {
+    "title": "TEST — single-molecule section (delete me)",
+    "description": "Expect ~300 genes populated from manifest.json.gz (gz fallback).",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "isPublished": true,
+    "entries": [
+      {
+        "label": "Single Molecule",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dip-vat/sm_output/1231122834"
+      }
+    ]
+  },
+  {
+    "title": "TEST — should FAIL: bad link",
+    "isPublished": false,
+    "entries": [
+      {
+        "label": "Broken",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/this-path-does-not-exist"
+      }
+    ]
+  },
+  {
+    "title": "TEST — should FAIL: no S3 entry",
+    "isPublished": false,
+    "entries": []
+  }
+]

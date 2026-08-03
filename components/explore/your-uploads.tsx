@@ -16,6 +16,7 @@ interface Upload {
   createdAt: string;
   completedAt: string | null;
   viewerUrl: string | null;
+  thumbnailUrl: string | null;
 }
 
 const IN_PROGRESS = new Set(["UPLOADING", "QUEUED", "PROCESSING"]);
@@ -89,6 +90,14 @@ function UploadCard({ upload: u }: { upload: Upload }) {
           : "border-default-200 bg-default-100/40 hover:border-primary/40"
       }`}
     >
+      {u.thumbnailUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          alt=""
+          className="mb-3 h-24 w-full rounded-lg object-cover border border-default-200"
+          src={u.thumbnailUrl}
+        />
+      )}
       <div className="flex items-start gap-2">
         {u.status === "COMPLETE" ? (
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />

@@ -189,6 +189,9 @@ model Dataset {
   // Owner-saved viewer defaults (rotation, flips, priority column, per-sample
   // transforms, color overrides). See lib/utils/viewer-config.ts.
   viewerConfig   Json?           @map("viewer_config")
+  // Owner-set thumbnail (a screenshot of the scene). Served via the app's
+  // /api/datasets/[id]/thumbnail proxy route.
+  thumbnailUrl   String?         @map("thumbnail_url") @db.VarChar(1000)
   // Denormalized cache of the deduped view count (source of truth: dataset_views).
   viewCount      Int             @default(0) @map("view_count")
   // Owned by "admin" collectively: any admin can edit, and it's not tied to a

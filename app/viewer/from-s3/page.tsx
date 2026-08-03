@@ -78,7 +78,48 @@ function ViewerFromS3Content() {
   });
   const smVizStore = useSingleMoleculeVisualizationStore();
 
-  useSMOverlayUrlSync(!!smDataset, smDataset, smVizStore);
+  // Resolve the overlay's default genes (Model 3): this SC dataset's saved
+  // overlay defaults first, else the SM overlay dataset's own saved defaults,
+  // else null (the hook falls back to the pickDefaultGenes heuristic).
+  const resolveOverlayDefaultGenes = async (smDs: {
+    uniqueGenes: string[];
+  }): Promise<string[] | null> => {
+    const sc = (registration?.viewerConfig?.defaultGenes ?? []).filter((g) =>
+      smDs.uniqueGenes.includes(g),
+    );
+
+    if (sc.length > 0) return sc;
+
+    const url = useSingleMoleculeStore.getState().overlaySourceUrl;
+
+    if (url) {
+      try {
+        const res = await fetch(
+          `/api/datasets/by-url?url=${encodeURIComponent(url)}`,
+        );
+
+        if (res.ok) {
+          const j = await res.json();
+          const sm = (
+            (j?.viewerConfig?.defaultGenes as string[] | undefined) ?? []
+          ).filter((g) => smDs.uniqueGenes.includes(g));
+
+          if (sm.length > 0) return sm;
+        }
+      } catch {
+        // ignore — fall through to the heuristic
+      }
+    }
+
+    return null;
+  };
+
+  useSMOverlayUrlSync(
+    !!smDataset,
+    smDataset,
+    smVizStore,
+    resolveOverlayDefaultGenes,
+  );
 
 
   // Read split params from URL on mount
