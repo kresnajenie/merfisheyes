@@ -3,7 +3,7 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Progress, Spinner } from "@heroui/react";
 
@@ -11,11 +11,19 @@ import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import UMAPPanel from "@/components/umap-panel";
 import { SplitScreenContainer } from "@/components/split-screen-container";
+import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+import { applyViewerConfig, type ViewerConfig } from "@/lib/utils/viewer-config";
+import {
+  useCellVizUrlSync,
+  useSMOverlayUrlSync,
+} from "@/lib/hooks/useUrlVizSync";
 
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
@@ -42,11 +50,76 @@ function ViewerFromS3Content() {
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
+  // DB registration for this S3 URL (null until the by-url lookup resolves).
+  const [registration, setRegistration] = useState<{
+    id: string;
+    ownerId: string | null;
+    adminOwned: boolean;
+    viewerConfig: ViewerConfig | null;
+  } | null>(null);
+  const setViewerRegistration = useViewerRegistrationStore((s) => s.set);
+  const resetViewerRegistration = useViewerRegistrationStore((s) => s.reset);
+  const defaultsAppliedRef = useRef(false);
+  const viewCountedRef = useRef(false);
 
   const s3Url = searchParams.get("url");
 
-  // URL visualization state sync
+  // URL visualization state sync (SC viz writes to v=)
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+
+  // SM overlay URL state sync — uses a dedicated ov= slot so it doesn't
+  // collide with the SC viz. The SM dataset is loaded asynchronously by
+  // three-scene.tsx when mapping.json has linkColumn "__all__" and pushed
+  // into the global SM store, so we read it from there.
+  const smDataset = useSingleMoleculeStore((s) => {
+    const id = s.currentDatasetId;
+
+    return id ? s.datasets.get(id) ?? null : null;
+  });
+  const smVizStore = useSingleMoleculeVisualizationStore();
+
+  // Resolve the overlay's default genes (Model 3): this SC dataset's saved
+  // overlay defaults first, else the SM overlay dataset's own saved defaults,
+  // else null (the hook falls back to the pickDefaultGenes heuristic).
+  const resolveOverlayDefaultGenes = async (smDs: {
+    uniqueGenes: string[];
+  }): Promise<string[] | null> => {
+    const sc = (registration?.viewerConfig?.defaultGenes ?? []).filter((g) =>
+      smDs.uniqueGenes.includes(g),
+    );
+
+    if (sc.length > 0) return sc;
+
+    const url = useSingleMoleculeStore.getState().overlaySourceUrl;
+
+    if (url) {
+      try {
+        const res = await fetch(
+          `/api/datasets/by-url?url=${encodeURIComponent(url)}`,
+        );
+
+        if (res.ok) {
+          const j = await res.json();
+          const sm = (
+            (j?.viewerConfig?.defaultGenes as string[] | undefined) ?? []
+          ).filter((g) => smDs.uniqueGenes.includes(g));
+
+          if (sm.length > 0) return sm;
+        }
+      } catch {
+        // ignore — fall through to the heuristic
+      }
+    }
+
+    return null;
+  };
+
+  useSMOverlayUrlSync(
+    !!smDataset,
+    smDataset,
+    smVizStore,
+    resolveOverlayDefaultGenes,
+  );
 
 
   // Read split params from URL on mount
@@ -125,6 +198,8 @@ function ViewerFromS3Content() {
       setError(null);
       setLoadingProgress(0);
       setLoadingMessage("Initializing...");
+      defaultsAppliedRef.current = false;
+      viewCountedRef.current = false;
 
       console.log("Loading dataset from custom S3:", baseUrl);
 
@@ -134,9 +209,50 @@ function ViewerFromS3Content() {
         "@/lib/hooks/useUrlVizSync"
       );
 
-      // Read URL state to get priority column hint (bypass auto-detection)
+      // Look up the DB registration for this URL (owner-saved defaults,
+      // ownership, and the id to count views against). 404 = unregistered.
+      let reg: {
+        id: string;
+        ownerId: string | null;
+        adminOwned: boolean;
+        viewerConfig: ViewerConfig | null;
+      } | null = null;
+
+      try {
+        const r = await fetch(
+          `/api/datasets/by-url?url=${encodeURIComponent(baseUrl)}`,
+        );
+
+        if (r.ok) {
+          const j = await r.json();
+
+          if (j.registered) {
+            reg = {
+              id: j.id,
+              ownerId: j.ownerId ?? null,
+              adminOwned: !!j.adminOwned,
+              viewerConfig: (j.viewerConfig as ViewerConfig | null) ?? null,
+            };
+          }
+        }
+      } catch {
+        // by-url lookup is best-effort; viewer still loads unregistered.
+      }
+      setRegistration(reg);
+      setViewerRegistration({
+        dbId: reg?.id ?? null,
+        ownerId: reg?.ownerId ?? null,
+        adminOwned: reg?.adminOwned ?? false,
+        registered: !!reg,
+        viewerConfig: reg?.viewerConfig ?? null,
+        s3Url: baseUrl,
+      });
+
+      // Read URL state to get priority column hint (bypass auto-detection).
+      // Precedence: URL state > owner-saved priority column > heuristic.
       const urlState = tryReadCellVizFromUrl("left");
-      const priorityColumnHint = urlState?.c || undefined;
+      const priorityColumnHint =
+        urlState?.c || reg?.viewerConfig?.priorityColumn || undefined;
 
       // Load dataset using fromCustomS3 method
       const standardizedDataset = await StandardizedDataset.fromCustomS3(
@@ -171,15 +287,31 @@ function ViewerFromS3Content() {
     }
   };
 
-  // Auto-select best cluster column when dataset changes (skip if URL state was applied)
+  // Apply defaults when the dataset changes, unless a shared-link URL state
+  // already set the view. Precedence: URL state > owner-saved config > heuristic.
   useEffect(() => {
-    if (dataset && !hasUrlStateRef.current) {
-      const bestColumn = selectBestClusterColumn(dataset);
+    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
 
-      vizStore.setSelectedColumn(bestColumn);
-      console.log("Auto-selected column:", bestColumn);
+    if (registration?.viewerConfig) {
+      applyViewerConfig(registration.viewerConfig, vizStore, dataset);
+    } else {
+      vizStore.setSelectedColumn(selectBestClusterColumn(dataset));
     }
-  }, [dataset]);
+  }, [dataset, registration]);
+
+  // Count one view per load for registered datasets (server dedups per
+  // session/day; the ref guards React strict-mode double-invoke).
+  useEffect(() => {
+    if (!dataset || !registration?.id || viewCountedRef.current) return;
+    viewCountedRef.current = true;
+    fetch(`/api/datasets/${registration.id}/view`, { method: "POST" }).catch(
+      () => {},
+    );
+  }, [dataset, registration]);
+
+  // Clear the shared registration when leaving the viewer.
+  useEffect(() => () => resetViewerRegistration(), []);
 
   // Loading state
   if (isLoading) {
@@ -275,6 +407,7 @@ function ViewerFromS3Content() {
 
   return (
     <SplitScreenContainer>
+      <ClaimDatasetBanner />
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
       <UMAPPanel />

@@ -3,7 +3,7 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button, Progress, Spinner } from "@heroui/react";
 
@@ -14,7 +14,9 @@ import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+import { applyViewerConfig, type ViewerConfig } from "@/lib/utils/viewer-config";
 import {
   useCellVizUrlSync,
   tryReadCellVizFromUrl,
@@ -46,6 +48,11 @@ function ViewerByIdContent() {
   const [error, setError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState("Initializing...");
+  const [viewerConfig, setViewerConfig] = useState<ViewerConfig | null>(null);
+  const setViewerRegistration = useViewerRegistrationStore((s) => s.set);
+  const resetViewerRegistration = useViewerRegistrationStore((s) => s.reset);
+  const defaultsAppliedRef = useRef(false);
+  const viewCountedRef = useRef(false);
 
   const datasetId = params.id as string;
 
@@ -150,9 +157,10 @@ function ViewerByIdContent() {
 
       const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
 
-      // Read URL column hint so the worker loads it as priority
+      defaultsAppliedRef.current = false;
+      viewCountedRef.current = false;
+
       const urlState = tryReadCellVizFromUrl("left");
-      const priorityColumn = urlState?.c || undefined;
 
       // One pre-flight call so we can route based on storage format.
       // 202 = "still uploading/processing" — surface clearly.
@@ -171,6 +179,20 @@ function ViewerByIdContent() {
         throw new Error(body.message || `Dataset fetch failed: ${metaRes.status}`);
       }
       const meta = await metaRes.json();
+      const config = (meta.viewerConfig as ViewerConfig | null) ?? null;
+
+      setViewerConfig(config);
+      setViewerRegistration({
+        dbId: id,
+        ownerId: meta.ownerId ?? null,
+        adminOwned: !!meta.adminOwned,
+        registered: true,
+        viewerConfig: config,
+        s3Url: null,
+      });
+
+      // Priority column precedence: URL state > owner-saved config > heuristic.
+      const priorityColumn = urlState?.c || config?.priorityColumn || undefined;
       const onProg = (progress: number, message: string) => {
         console.log(`${progress}%: ${message}`);
         setLoadingProgress(progress);
@@ -196,15 +218,28 @@ function ViewerByIdContent() {
     }
   };
 
-  // Auto-select best cluster column when dataset changes (skip if URL state was applied)
+  // Apply defaults when the dataset changes, unless a shared-link URL state
+  // already set the view. Precedence: URL state > owner-saved config > heuristic.
   useEffect(() => {
-    if (dataset && !hasUrlStateRef.current) {
-      const bestColumn = selectBestClusterColumn(dataset);
+    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
 
-      vizStore.setSelectedColumn(bestColumn);
-      console.log("Auto-selected column:", bestColumn);
+    if (viewerConfig) {
+      applyViewerConfig(viewerConfig, vizStore, dataset);
+    } else {
+      vizStore.setSelectedColumn(selectBestClusterColumn(dataset));
     }
+  }, [dataset, viewerConfig]);
+
+  // Count one view per load (server dedups per session/day).
+  useEffect(() => {
+    if (!dataset || viewCountedRef.current) return;
+    viewCountedRef.current = true;
+    fetch(`/api/datasets/${datasetId}/view`, { method: "POST" }).catch(() => {});
   }, [dataset]);
+
+  // Clear the shared registration when leaving the viewer.
+  useEffect(() => () => resetViewerRegistration(), []);
 
   // Loading state
   if (isLoading) {

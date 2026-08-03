@@ -1,0 +1,54 @@
+%% Server-side ingestion — sequence diagram (temporal view)
+%% Render: https://mermaid.live  or any Mermaid-aware Markdown viewer
+sequenceDiagram
+    actor U as User / Browser
+    participant API as Next.js API (Vercel)
+    participant S3 as AWS S3
+    participant B as AWS Batch
+    participant W as Fargate Worker
+    participant DB as Supabase Postgres
+    participant RT as Supabase Realtime
+    participant SES as AWS SES
+
+    Note over U: Extract columns (CSV header / Parquet footer) + confirm mapping
+
+    U->>API: POST /api/ingest/initiate (metadata, file list)
+    API->>DB: create Dataset=UPLOADING + UploadSession + UploadFile[]
+    API-->>U: presigned upload URLs
+
+    rect rgb(240, 247, 255)
+    Note over U,S3: Upload phase — full-screen overlay, close guards active
+    loop each raw file (multipart if >100 MB)
+        U->>S3: direct upload to raw/{id}/  (bytes bypass Vercel)
+        Note over U: overlay updates MB/MB + ETA
+        U->>API: POST files/{key}/complete
+    end
+    end
+
+    U->>API: POST /api/ingest/{id}/complete
+    API->>DB: status = QUEUED
+    API->>B: SubmitJob (tier-sized vCPU/RAM)
+    API-->>U: uploaded — safe to close tab / navigate
+
+    B->>W: run container
+    W->>API: callback status=PROCESSING
+    API->>DB: status=PROCESSING
+    W->>S3: download raw/{id}/
+    W->>W: run process_*.py
+
+    rect rgb(255, 247, 230)
+    Note over W,RT: Live processing progress (GitHub-Actions style)
+    loop each stage
+        W->>API: callback progress (stage, %)
+        API->>DB: write processingProgress
+        DB->>RT: row change
+        RT-->>U: live update (dashboard)
+    end
+    end
+
+    W->>S3: upload datasets/{id}/ (chunked output)
+    W->>S3: delete raw/{id}/
+    W->>API: callback status=COMPLETE (stats, fingerprint)
+    API->>DB: status=COMPLETE, completedAt
+    API->>SES: send email
+    SES-->>U: "Your dataset is ready" + viewer link

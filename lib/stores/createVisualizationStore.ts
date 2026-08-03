@@ -33,6 +33,21 @@ export interface VisualizationState {
   sizeScale: number;
   clusterVersion: number;
   deStatsVersion: number;
+  // Bumped when the user requests a camera reset (button or shortcut).
+  // ThreeScene watches this and snaps controls.target back to the initial lookAt.
+  cameraResetSignal: number;
+  // 3D orbit (O key). orbitSpeed is a multiplier on the base azimuth period
+  // (1.0 = 4.5s/rev); orbitYBob is the vertical bob amplitude as a fraction
+  // of the camera→target XZ radius (0 = flat ring, 0.3 = current default).
+  orbitSpeed: number;
+  orbitYBob: number;
+  // Distance-from-target filter. When enabled, points fade out smoothly
+  // beyond `targetFilterRadius * (dataset extent)` from the camera's orbit
+  // target (cmd+click recenter point). The feather band is 10% of that.
+  targetFilterEnabled: boolean;
+  targetFilterRadius: number;
+  // Master show/hide for the whole single-cell point cloud layer.
+  scLayerVisible: boolean;
   degTarget: string | null;
   degReference: string | null; // null = vs Rest
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
@@ -84,6 +99,10 @@ export interface VisualizationState {
   setGeneSearchTerm: (value: string) => void;
   incrementClusterVersion: () => void;
   incrementDeStatsVersion: () => void;
+  resetCamera: () => void;
+  setTargetFilterEnabled: (enabled: boolean) => void;
+  setScLayerVisible: (visible: boolean) => void;
+  setTargetFilterRadius: (r: number) => void;
   setDegTarget: (target: string | null) => void;
   setDegReference: (reference: string | null) => void;
   setDegTargetAuto: (auto: boolean) => void;
@@ -189,6 +208,14 @@ const initialState = {
   alphaScale: VISUALIZATION_CONFIG.POINT_BASE_ALPHA,
   sizeScale: 1.0,
   clusterVersion: 0,
+  cameraResetSignal: 0,
+  orbitSpeed: 1.0,
+  orbitYBob: 0.3,
+  targetFilterEnabled: false,
+  scLayerVisible: true,
+  // Distance filter radius is now absolute world units (microns for raw-coord
+  // datasets), measured from controls.target.
+  targetFilterRadius: 5000,
   deStatsVersion: 0,
   degTarget: null as string | null,
   degReference: null as string | null,
@@ -442,6 +469,15 @@ export function createVisualizationStoreInstance() {
     incrementDeStatsVersion: () => {
       set((state) => ({ deStatsVersion: state.deStatsVersion + 1 }));
     },
+
+    resetCamera: () => {
+      set((state) => ({ cameraResetSignal: state.cameraResetSignal + 1 }));
+    },
+
+    setTargetFilterEnabled: (enabled) => set({ targetFilterEnabled: enabled }),
+
+    setScLayerVisible: (visible) => set({ scLayerVisible: visible }),
+    setTargetFilterRadius: (r) => set({ targetFilterRadius: r }),
 
     setDegTarget: (target) => set({ degTarget: target }),
     setDegReference: (reference) => set({ degReference: reference }),

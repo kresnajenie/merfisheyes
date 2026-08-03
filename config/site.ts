@@ -5,10 +5,6 @@ export const siteConfig = {
   description: "Explore MERFISH data with ease.",
   navItems: [
     {
-      label: "Home",
-      href: "/",
-    },
-    {
       label: "Explore",
       href: "/explore",
     },
@@ -18,10 +14,6 @@ export const siteConfig = {
     },
   ],
   navMenuItems: [
-    {
-      label: "Home",
-      href: "/",
-    },
     {
       label: "Explore",
       href: "/explore",

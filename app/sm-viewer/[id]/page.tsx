@@ -3,7 +3,7 @@
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button, Spinner } from "@heroui/react";
 
@@ -15,6 +15,8 @@ import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
+import { type ViewerConfig } from "@/lib/utils/viewer-config";
 import {
   useSMVizUrlSync,
   tryReadSMVizFromUrl,
@@ -45,6 +47,9 @@ function SingleMoleculeViewerByIdContent() {
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const setViewerRegistration = useViewerRegistrationStore((s) => s.set);
+  const resetViewerRegistration = useViewerRegistrationStore((s) => s.reset);
+  const viewCountedRef = useRef(false);
   const datasetId = params.id as string;
 
   // URL visualization state sync
@@ -119,35 +124,89 @@ function SingleMoleculeViewerByIdContent() {
     resolveDataset(datasetId);
   }, [datasetId]);
 
+  // Count one view per load (server dedups per session/day).
+  useEffect(() => {
+    if (!dataset || viewCountedRef.current) return;
+    viewCountedRef.current = true;
+    fetch(`/api/datasets/${datasetId}/view`, { method: "POST" }).catch(() => {});
+  }, [dataset]);
+
+  // Clear the shared registration when leaving the viewer.
+  useEffect(() => () => resetViewerRegistration(), []);
+
   const resolveDataset = async (id: string) => {
+    viewCountedRef.current = false;
+
+    // Preflight: DB registration for this dataset (owner + admin-owned + the
+    // saved camera preset) — drives the owner Save button and view counting.
+    let cfg: ViewerConfig | null = null;
+
+    try {
+      const r = await fetch(`/api/single-molecule/${id}`);
+
+      if (r.ok) {
+        const j = await r.json();
+
+        cfg = (j.viewerConfig as ViewerConfig | null) ?? null;
+        setViewerRegistration({
+          dbId: id,
+          ownerId: j.ownerId ?? null,
+          adminOwned: !!j.adminOwned,
+          registered: true,
+          viewerConfig: cfg,
+          s3Url: null,
+        });
+      }
+    } catch {
+      // best-effort; the viewer still loads.
+    }
+
     // Step 1: Check Zustand store first
     const storeDataset = useSingleMoleculeStore.getState().datasets.get(id);
 
     if (storeDataset && "uniqueGenes" in storeDataset) {
       console.log("SM dataset found in store:", id);
       setDataset(storeDataset as SingleMoleculeDataset);
-      applyVizStateForDataset(storeDataset as SingleMoleculeDataset, id);
+      applyVizStateForDataset(storeDataset as SingleMoleculeDataset, id, cfg);
       setIsLoading(false);
 
       return;
     }
 
     // Step 2: Load from S3
-    loadDatasetFromS3(id);
+    loadDatasetFromS3(id, cfg);
   };
 
   const applyVizStateForDataset = async (
     smDataset: SingleMoleculeDataset,
     id: string,
+    cfg: ViewerConfig | null,
   ) => {
+    // Owner camera preset first, so a shared-link URL state below still wins.
+    if (cfg) {
+      if (cfg.sceneRotation !== undefined) {
+        smVizStore.setSceneRotation(cfg.sceneRotation);
+      }
+      if (cfg.flipX !== undefined) smVizStore.setFlipX(cfg.flipX);
+      if (cfg.flipY !== undefined) smVizStore.setFlipY(cfg.flipY);
+      if (cfg.viewMode) smVizStore.setViewMode(cfg.viewMode);
+    }
+
     const urlVizState = tryReadSMVizFromUrl("left");
 
     if (urlVizState) {
       console.log("Applying visualization state from URL");
       applySMVizState(urlVizState, smVizStore, smDataset);
     } else {
-      // No URL state — auto-select default genes
-      const genesToSelect = pickDefaultGenes(smDataset.uniqueGenes);
+      // No URL state — use the owner's saved default genes if any exist in this
+      // dataset, otherwise fall back to the heuristic auto-select.
+      const ownerGenes = (cfg?.defaultGenes ?? []).filter((g) =>
+        smDataset.uniqueGenes.includes(g),
+      );
+      const genesToSelect =
+        ownerGenes.length > 0
+          ? ownerGenes
+          : pickDefaultGenes(smDataset.uniqueGenes);
 
       genesToSelect.forEach((gene) => {
         addGene(gene);
@@ -155,7 +214,7 @@ function SingleMoleculeViewerByIdContent() {
     }
   };
 
-  const loadDatasetFromS3 = async (id: string) => {
+  const loadDatasetFromS3 = async (id: string, cfg: ViewerConfig | null) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -182,7 +241,7 @@ function SingleMoleculeViewerByIdContent() {
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
 
-      await applyVizStateForDataset(smDataset, id);
+      await applyVizStateForDataset(smDataset, id, cfg);
 
       setIsLoading(false);
     } catch (err) {

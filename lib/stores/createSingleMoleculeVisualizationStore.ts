@@ -31,6 +31,8 @@ export interface SingleMoleculeVisualizationState {
   viewMode: ViewMode;
   showAssigned: boolean;
   showUnassigned: boolean;
+  // Master show/hide for the whole single-molecule layer (all gene clouds).
+  smLayerVisible: boolean;
   sceneRotation: number;
   flipX: boolean;
   flipY: boolean;
@@ -48,12 +50,14 @@ export interface SingleMoleculeVisualizationState {
   addGene: (gene: string, color?: string, localScale?: number) => void;
   removeGene: (gene: string) => void;
   toggleGeneVisibility: (gene: string) => void;
+  soloGene: (gene: string) => void;
   setGeneColor: (gene: string, color: string) => void;
   setGeneLocalScale: (gene: string, scale: number) => void;
   setGlobalScale: (scale: number) => void;
   setViewMode: (mode: ViewMode) => void;
   setShowAssigned: (show: boolean) => void;
   setShowUnassigned: (show: boolean) => void;
+  setSmLayerVisible: (visible: boolean) => void;
   setGeneShowAssigned: (gene: string, show: boolean) => void;
   setGeneShowUnassigned: (gene: string, show: boolean) => void;
   setGeneAssignedShape: (gene: string, shape: MoleculeShape) => void;
@@ -77,6 +81,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
     viewMode: "2D",
     showAssigned: true,
     showUnassigned: true,
+    smLayerVisible: true,
     sceneRotation: 0,
     flipX: false,
     flipY: false,
@@ -186,6 +191,30 @@ export function createSingleMoleculeVisualizationStoreInstance() {
         return { selectedGenes: newSelectedGenes };
       }),
 
+    // Isolate a single gene: hide every other legend gene (⌘-click on the
+    // eye toggle). Re-solo'ing the already-solo'd gene restores everything.
+    soloGene: (gene: string) =>
+      set((state) => {
+        const others = [...state.selectedGenesLegend].filter((g) => g !== gene);
+        const alreadySolo =
+          others.length > 0 &&
+          state.selectedGenes.has(gene) &&
+          others.every((g) => !state.selectedGenes.has(g));
+
+        const newSelectedGenes = new Map<string, GeneVisualization>();
+        const visibleGenes = alreadySolo
+          ? state.selectedGenesLegend
+          : new Set([gene]);
+
+        for (const g of visibleGenes) {
+          const cachedData = state.geneDataCache.get(g);
+
+          if (cachedData) newSelectedGenes.set(g, cachedData);
+        }
+
+        return { selectedGenes: newSelectedGenes };
+      }),
+
     setGeneColor: (gene: string, color: string) =>
       set((state) => {
         const newSelectedGenes = new Map(state.selectedGenes);
@@ -233,6 +262,8 @@ export function createSingleMoleculeVisualizationStoreInstance() {
       }),
 
     setGlobalScale: (scale: number) => set({ globalScale: scale }),
+
+    setSmLayerVisible: (visible: boolean) => set({ smLayerVisible: visible }),
 
     setViewMode: (mode: ViewMode) => set({ viewMode: mode }),
 

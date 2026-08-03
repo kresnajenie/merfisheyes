@@ -1,0 +1,822 @@
+[
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400356",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-wit",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-wit",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wit/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400353",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-yes",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-yes",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yes/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400350",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-yet",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-yet",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-yet/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400343",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-zoo",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-zoo",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-zoo/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400334",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-ace",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ace",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ace/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400330",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-act",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-act",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-act/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400327",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-add",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-add",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-add/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400324",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-age",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-age",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-age/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400318",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-aim",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-aim",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-aim/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400315",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-air",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-air",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-air/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400312",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-and",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-and",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-and/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400309",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-ant",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ant",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ant/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400306",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-ape",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ape",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ape/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400303",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-arm",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-arm",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-arm/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400300",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-art",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-art",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-art/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400297",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-ash",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ash",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ash/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400291",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-ask",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ask",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ask/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400287",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-bad",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bad",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bad/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400284",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-bag",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-bag",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-bag/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400281",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-low-ban",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-low-ban",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-low-ban/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  }
+]

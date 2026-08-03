@@ -1,0 +1,1673 @@
+[
+  {
+    "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.20",
+    "description": "This dataset is part of a whole-brain atlas effort for human and non-human primate. The data collected for this submission represent spatial transcriptomics data from core human basal ganglia regions collected using a gene panel designed to identify all known cell types identified in the snRNAseq dataset from human generated from similar regions. When mapped based on these key genes to determine cell type locations, these data should provide a cluster-level cellular map of human basal ganglia.",
+    "species": "Human",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-say/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-irk-say",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-say",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-say/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-say/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.CX.21",
+    "description": "This dataset is part of a whole-brain atlas effort for human and non-human primate. The data collected for this submission represent spatial transcriptomics data from core human basal ganglia regions collected using a gene panel designed to identify all known cell types identified in the snRNAseq dataset from human generated from similar regions. When mapped based on these key genes to determine cell type locations, these data should provide a cluster-level cellular map of human basal ganglia.",
+    "species": "Human",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-set/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-irk-set",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-set",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-set/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-set/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001.BS.3",
+    "description": "This dataset is part of a whole-brain atlas effort for human and non-human primate. The data collected for this submission represent spatial transcriptomics data from core human basal ganglia regions collected using a gene panel designed to identify all known cell types identified in the snRNAseq dataset from human generated from similar regions. When mapped based on these key genes to determine cell type locations, these data should provide a cluster-level cellular map of human basal ganglia.",
+    "species": "Human",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-shy/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-irk-shy",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-irk-shy",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui",
+        "Close, Jennie"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "50.0 Years",
+      "sex": "Female",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-shy/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-irk-shy/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P0). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 14 \u00b5m section which were acquired at an interval of 100 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~5.4 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-law/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-let-law",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-let-law",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "0.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-law/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-law/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.46",
+    "description": "MERSCOPE imaging of 10\u00b5m sections of core basal ganglia regions (i.e., caudate nucleus, putamen, substantia nigra, and nucleus accumbens) of fresh-frozen macaca mulatta brain slabs. Individual sections are spaced at 1mm intervals through five consecutive tissue slabs covering ~24mm of anterior to posterior extent. Regions of interest present in the sections include the core basal ganglia structures as well as thalamus and portions of the hippocampal formation.",
+    "species": "Rhesus Macaque",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-dud-was",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-dud-was",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "QM23.50.001.CX.46.04.13",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.13",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.13/thumbnail.jpg",
+        "sortOrder": 1
+      },
+      {
+        "label": "QM23.50.001.CX.46.04.11",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.11",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.11/thumbnail.jpg",
+        "sortOrder": 2
+      },
+      {
+        "label": "QM23.50.001.CX.46.04.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.09/thumbnail.jpg",
+        "sortOrder": 3
+      },
+      {
+        "label": "QM23.50.001.CX.46.04.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.07/thumbnail.jpg",
+        "sortOrder": 4
+      },
+      {
+        "label": "QM23.50.001.CX.46.04.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.05/thumbnail.jpg",
+        "sortOrder": 5
+      },
+      {
+        "label": "QM23.50.001.CX.46.04.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.03/thumbnail.jpg",
+        "sortOrder": 6
+      },
+      {
+        "label": "QM23.50.001.CX.46.04.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.04.01/thumbnail.jpg",
+        "sortOrder": 7
+      },
+      {
+        "label": "QM23.50.001.CX.46.03.11",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.11",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.11/thumbnail.jpg",
+        "sortOrder": 8
+      },
+      {
+        "label": "QM23.50.001.CX.46.03.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.09/thumbnail.jpg",
+        "sortOrder": 9
+      },
+      {
+        "label": "QM23.50.001.CX.46.03.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.07/thumbnail.jpg",
+        "sortOrder": 10
+      },
+      {
+        "label": "QM23.50.001.CX.46.03.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.05/thumbnail.jpg",
+        "sortOrder": 11
+      },
+      {
+        "label": "QM23.50.001.CX.46.03.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.03/thumbnail.jpg",
+        "sortOrder": 12
+      },
+      {
+        "label": "QM23.50.001.CX.46.03.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.03.01/thumbnail.jpg",
+        "sortOrder": 13
+      },
+      {
+        "label": "QM23.50.001.CX.46.02.11",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.11",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.11/thumbnail.jpg",
+        "sortOrder": 14
+      },
+      {
+        "label": "QM23.50.001.CX.46.02.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.09/thumbnail.jpg",
+        "sortOrder": 15
+      },
+      {
+        "label": "QM23.50.001.CX.46.02.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.05/thumbnail.jpg",
+        "sortOrder": 16
+      },
+      {
+        "label": "QM23.50.001.CX.46.02.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.03/thumbnail.jpg",
+        "sortOrder": 17
+      },
+      {
+        "label": "QM23.50.001.CX.46.02.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.02.01/thumbnail.jpg",
+        "sortOrder": 18
+      },
+      {
+        "label": "QM23.50.001.CX.46.01.11",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.11",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.11/thumbnail.jpg",
+        "sortOrder": 19
+      },
+      {
+        "label": "QM23.50.001.CX.46.01.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.09/thumbnail.jpg",
+        "sortOrder": 20
+      },
+      {
+        "label": "QM23.50.001.CX.46.01.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.07/thumbnail.jpg",
+        "sortOrder": 21
+      },
+      {
+        "label": "QM23.50.001.CX.46.01.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.05/thumbnail.jpg",
+        "sortOrder": 22
+      },
+      {
+        "label": "QM23.50.001.CX.46.01.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.03/thumbnail.jpg",
+        "sortOrder": 23
+      },
+      {
+        "label": "QM23.50.001.CX.46.01.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-was/sm_output/QM23.50.001.CX.46.01.01/thumbnail.jpg",
+        "sortOrder": 24
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 741564",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P4). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 14 \u00b5m section which were acquired at an interval of 100 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~8.5 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-met-war/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-met-war",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-met-war",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "4.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-met-war/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-met-war/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 609889",
+    "description": "Spatial transcriptomics atlas of the entire brain of an adult male mouse (P56). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 100 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~5 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-den-fog",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-den-fog",
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 1-U19-MH114830-01",
+      "age": "56.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "609889HK08",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK08",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK08/thumbnail.jpg",
+        "sortOrder": 1
+      },
+      {
+        "label": "609889HK07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK07/thumbnail.jpg",
+        "sortOrder": 2
+      },
+      {
+        "label": "609889HK06",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK06",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK06/thumbnail.jpg",
+        "sortOrder": 3
+      },
+      {
+        "label": "609889HK05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK05/thumbnail.jpg",
+        "sortOrder": 4
+      },
+      {
+        "label": "609889HK04",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK04",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK04/thumbnail.jpg",
+        "sortOrder": 5
+      },
+      {
+        "label": "609889HK03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK03/thumbnail.jpg",
+        "sortOrder": 6
+      },
+      {
+        "label": "609889HK02",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK02",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK02/thumbnail.jpg",
+        "sortOrder": 7
+      },
+      {
+        "label": "609889HK01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/609889HK01/thumbnail.jpg",
+        "sortOrder": 8
+      },
+      {
+        "label": "1198980590",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980590",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980590/thumbnail.jpg",
+        "sortOrder": 9
+      },
+      {
+        "label": "1198980587",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980587",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980587/thumbnail.jpg",
+        "sortOrder": 10
+      },
+      {
+        "label": "1198980584",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980584",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980584/thumbnail.jpg",
+        "sortOrder": 11
+      },
+      {
+        "label": "1198980581",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980581",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980581/thumbnail.jpg",
+        "sortOrder": 12
+      },
+      {
+        "label": "1198980578",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980578",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980578/thumbnail.jpg",
+        "sortOrder": 13
+      },
+      {
+        "label": "1198980575",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980575",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980575/thumbnail.jpg",
+        "sortOrder": 14
+      },
+      {
+        "label": "1198980572",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980572",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980572/thumbnail.jpg",
+        "sortOrder": 15
+      },
+      {
+        "label": "1198980569",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980569",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980569/thumbnail.jpg",
+        "sortOrder": 16
+      },
+      {
+        "label": "1198980566",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980566",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980566/thumbnail.jpg",
+        "sortOrder": 17
+      },
+      {
+        "label": "1198980563",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980563",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980563/thumbnail.jpg",
+        "sortOrder": 18
+      },
+      {
+        "label": "1198980560",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980560",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980560/thumbnail.jpg",
+        "sortOrder": 19
+      },
+      {
+        "label": "1198980557",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980557",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980557/thumbnail.jpg",
+        "sortOrder": 20
+      },
+      {
+        "label": "1198980554",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980554",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980554/thumbnail.jpg",
+        "sortOrder": 21
+      },
+      {
+        "label": "1198980551",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980551",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980551/thumbnail.jpg",
+        "sortOrder": 22
+      },
+      {
+        "label": "1198980548",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980548",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980548/thumbnail.jpg",
+        "sortOrder": 23
+      },
+      {
+        "label": "1198980544",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980544",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980544/thumbnail.jpg",
+        "sortOrder": 24
+      },
+      {
+        "label": "1198980541",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980541",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980541/thumbnail.jpg",
+        "sortOrder": 25
+      },
+      {
+        "label": "1198980538",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980538",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980538/thumbnail.jpg",
+        "sortOrder": 26
+      },
+      {
+        "label": "1198980532",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980532",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980532/thumbnail.jpg",
+        "sortOrder": 27
+      },
+      {
+        "label": "1198980529",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980529",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980529/thumbnail.jpg",
+        "sortOrder": 28
+      },
+      {
+        "label": "1198980523",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980523",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980523/thumbnail.jpg",
+        "sortOrder": 29
+      },
+      {
+        "label": "1198980520",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980520",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980520/thumbnail.jpg",
+        "sortOrder": 30
+      },
+      {
+        "label": "1198980517",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980517",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980517/thumbnail.jpg",
+        "sortOrder": 31
+      },
+      {
+        "label": "1198980514",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980514",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980514/thumbnail.jpg",
+        "sortOrder": 32
+      },
+      {
+        "label": "1198980511",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980511",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980511/thumbnail.jpg",
+        "sortOrder": 33
+      },
+      {
+        "label": "1198980508",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980508",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980508/thumbnail.jpg",
+        "sortOrder": 34
+      },
+      {
+        "label": "1198980505",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980505",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980505/thumbnail.jpg",
+        "sortOrder": 35
+      },
+      {
+        "label": "1198980502",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980502",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980502/thumbnail.jpg",
+        "sortOrder": 36
+      },
+      {
+        "label": "1198980499",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980499",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980499/thumbnail.jpg",
+        "sortOrder": 37
+      },
+      {
+        "label": "1198980496",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980496",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980496/thumbnail.jpg",
+        "sortOrder": 38
+      },
+      {
+        "label": "1198980493",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980493",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980493/thumbnail.jpg",
+        "sortOrder": 39
+      },
+      {
+        "label": "1198980487",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980487",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980487/thumbnail.jpg",
+        "sortOrder": 40
+      },
+      {
+        "label": "1198980484",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980484",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980484/thumbnail.jpg",
+        "sortOrder": 41
+      },
+      {
+        "label": "1198980481",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980481",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980481/thumbnail.jpg",
+        "sortOrder": 42
+      },
+      {
+        "label": "1198980478",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980478",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980478/thumbnail.jpg",
+        "sortOrder": 43
+      },
+      {
+        "label": "1198980472",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980472",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980472/thumbnail.jpg",
+        "sortOrder": 44
+      },
+      {
+        "label": "1198980469",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980469",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980469/thumbnail.jpg",
+        "sortOrder": 45
+      },
+      {
+        "label": "1198980466",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980466",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980466/thumbnail.jpg",
+        "sortOrder": 46
+      },
+      {
+        "label": "1198980463",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980463",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980463/thumbnail.jpg",
+        "sortOrder": 47
+      },
+      {
+        "label": "1198980460",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980460",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980460/thumbnail.jpg",
+        "sortOrder": 48
+      },
+      {
+        "label": "1198980457",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980457",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980457/thumbnail.jpg",
+        "sortOrder": 49
+      },
+      {
+        "label": "1198980451",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980451",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980451/thumbnail.jpg",
+        "sortOrder": 50
+      },
+      {
+        "label": "1198980445",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980445",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980445/thumbnail.jpg",
+        "sortOrder": 51
+      },
+      {
+        "label": "1198980441",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980441",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980441/thumbnail.jpg",
+        "sortOrder": 52
+      },
+      {
+        "label": "1198980437",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980437",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980437/thumbnail.jpg",
+        "sortOrder": 53
+      },
+      {
+        "label": "1198980434",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980434",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980434/thumbnail.jpg",
+        "sortOrder": 54
+      },
+      {
+        "label": "1198980431",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980431",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980431/thumbnail.jpg",
+        "sortOrder": 55
+      },
+      {
+        "label": "1198980428",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980428",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980428/thumbnail.jpg",
+        "sortOrder": 56
+      },
+      {
+        "label": "1198980425",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980425",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980425/thumbnail.jpg",
+        "sortOrder": 57
+      },
+      {
+        "label": "1198980422",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980422",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980422/thumbnail.jpg",
+        "sortOrder": 58
+      },
+      {
+        "label": "1198980416",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980416",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-fog/sm_output/1198980416/thumbnail.jpg",
+        "sortOrder": 59
+      }
+    ]
+  },
+  {
+    "title": "P20 Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1 o - 669324",
+    "description": "MERFISH imaging of 10 \u00b5m sections of C57BL/6J mouse brain that covers the entire brain. Individual sections are taken at 200 \u00b5m interval.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-hen/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-den-hen",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-den-hen",
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Arlotta, Paola",
+      "institution": "Harvard Stem Cell Institute",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-U01-MH130962-01",
+      "age": "20.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-hen/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-den-hen/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
+    "description": "Spatial transcriptomics atlas of the entire brain of an adult female mouse (P56). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~4 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dim-nut/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-dim-nut",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-dim-nut",
+    "metadata": {
+      "publicationYear": "2023",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 1-U19-MH114830-01",
+      "age": "56.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dim-nut/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dim-nut/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.42",
+    "description": "MERSCOPE imaging of 10\u00b5m sections of core basal ganglia regions (i.e., caudate nucleus, putamen, substantia nigra, and nucleus accumbens) of fresh-frozen macaca mulatta brain slabs. Individual sections are spaced at 1mm intervals through five consecutive tissue slabs covering ~24mm of anterior to posterior extent. Regions of interest present in the sections include the core basal ganglia structures as well as thalamus and portions of the hippocampal formation.",
+    "species": "Rhesus Macaque",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-dud-vex",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-dud-vex",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "QM23.50.001.CX.42.02.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.07/thumbnail.jpg",
+        "sortOrder": 1
+      },
+      {
+        "label": "QM23.50.001.CX.42.02.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.05/thumbnail.jpg",
+        "sortOrder": 2
+      },
+      {
+        "label": "QM23.50.001.CX.42.02.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.03/thumbnail.jpg",
+        "sortOrder": 3
+      },
+      {
+        "label": "QM23.50.001.CX.42.02.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.02.01/thumbnail.jpg",
+        "sortOrder": 4
+      },
+      {
+        "label": "QM23.50.001.CX.42.01.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.07/thumbnail.jpg",
+        "sortOrder": 5
+      },
+      {
+        "label": "QM23.50.001.CX.42.01.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.05/thumbnail.jpg",
+        "sortOrder": 6
+      },
+      {
+        "label": "QM23.50.001.CX.42.01.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.03/thumbnail.jpg",
+        "sortOrder": 7
+      },
+      {
+        "label": "QM23.50.001.CX.42.01.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vex/sm_output/QM23.50.001.CX.42.01.01/thumbnail.jpg",
+        "sortOrder": 8
+      }
+    ]
+  },
+  {
+    "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.43",
+    "description": "MERSCOPE imaging of 10\u00b5m sections of core basal ganglia regions (i.e., caudate nucleus, putamen, substantia nigra, and nucleus accumbens) of fresh-frozen macaca mulatta brain slabs. Individual sections are spaced at 1mm intervals through five consecutive tissue slabs covering ~24mm of anterior to posterior extent. Regions of interest present in the sections include the core basal ganglia structures as well as thalamus and portions of the hippocampal formation.",
+    "species": "Rhesus Macaque",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-dud-vow",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-dud-vow",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "QM23.50.001.CX.43.03.13",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.13",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.13/thumbnail.jpg",
+        "sortOrder": 1
+      },
+      {
+        "label": "QM23.50.001.CX.43.03.11",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.11",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.11/thumbnail.jpg",
+        "sortOrder": 2
+      },
+      {
+        "label": "QM23.50.001.CX.43.03.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.09/thumbnail.jpg",
+        "sortOrder": 3
+      },
+      {
+        "label": "QM23.50.001.CX.43.03.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.07/thumbnail.jpg",
+        "sortOrder": 4
+      },
+      {
+        "label": "QM23.50.001.CX.43.03.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.05/thumbnail.jpg",
+        "sortOrder": 5
+      },
+      {
+        "label": "QM23.50.001.CX.43.03.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.03/thumbnail.jpg",
+        "sortOrder": 6
+      },
+      {
+        "label": "QM23.50.001.CX.43.03.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.03.01/thumbnail.jpg",
+        "sortOrder": 7
+      },
+      {
+        "label": "QM23.50.001.CX.43.02.11",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.11",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.11/thumbnail.jpg",
+        "sortOrder": 8
+      },
+      {
+        "label": "QM23.50.001.CX.43.02.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.09/thumbnail.jpg",
+        "sortOrder": 9
+      },
+      {
+        "label": "QM23.50.001.CX.43.02.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.07/thumbnail.jpg",
+        "sortOrder": 10
+      },
+      {
+        "label": "QM23.50.001.CX.43.02.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.05/thumbnail.jpg",
+        "sortOrder": 11
+      },
+      {
+        "label": "QM23.50.001.CX.43.02.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.03/thumbnail.jpg",
+        "sortOrder": 12
+      },
+      {
+        "label": "QM23.50.001.CX.43.02.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.02.01/thumbnail.jpg",
+        "sortOrder": 13
+      },
+      {
+        "label": "QM23.50.001.CX.43.01.13",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.13",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.13/thumbnail.jpg",
+        "sortOrder": 14
+      },
+      {
+        "label": "QM23.50.001.CX.43.01.11",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.11",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.11/thumbnail.jpg",
+        "sortOrder": 15
+      },
+      {
+        "label": "QM23.50.001.CX.43.01.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.09/thumbnail.jpg",
+        "sortOrder": 16
+      },
+      {
+        "label": "QM23.50.001.CX.43.01.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.07/thumbnail.jpg",
+        "sortOrder": 17
+      },
+      {
+        "label": "QM23.50.001.CX.43.01.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.05/thumbnail.jpg",
+        "sortOrder": 18
+      },
+      {
+        "label": "QM23.50.001.CX.43.01.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.03/thumbnail.jpg",
+        "sortOrder": 19
+      },
+      {
+        "label": "QM23.50.001.CX.43.01.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-vow/sm_output/QM23.50.001.CX.43.01.01/thumbnail.jpg",
+        "sortOrder": 20
+      }
+    ]
+  },
+  {
+    "title": "Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque: QM23.50.001.CX.44",
+    "description": "MERSCOPE imaging of 10\u00b5m sections of core basal ganglia regions (i.e., caudate nucleus, putamen, substantia nigra, and nucleus accumbens) of fresh-frozen macaca mulatta brain slabs. Individual sections are spaced at 1mm intervals through five consecutive tissue slabs covering ~24mm of anterior to posterior extent. Regions of interest present in the sections include the core basal ganglia structures as well as thalamus and portions of the hippocampal formation.",
+    "species": "Rhesus Macaque",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-dud-wag",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-dud-wag",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Lein, Ed",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Zeng, Hongkui"
+      ],
+      "funding": "National Institutes of Health \u2014 1-UM1-MH130981-01",
+      "age": "10.0 Years",
+      "sex": "Male",
+      "license": "CC-BY-NC-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "QM23.50.001.CX.44.04.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.09/thumbnail.jpg",
+        "sortOrder": 1
+      },
+      {
+        "label": "QM23.50.001.CX.44.04.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.07/thumbnail.jpg",
+        "sortOrder": 2
+      },
+      {
+        "label": "QM23.50.001.CX.44.04.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.05/thumbnail.jpg",
+        "sortOrder": 3
+      },
+      {
+        "label": "QM23.50.001.CX.44.04.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.03/thumbnail.jpg",
+        "sortOrder": 4
+      },
+      {
+        "label": "QM23.50.001.CX.44.04.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.04.01/thumbnail.jpg",
+        "sortOrder": 5
+      },
+      {
+        "label": "QM23.50.001.CX.44.03.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.09/thumbnail.jpg",
+        "sortOrder": 6
+      },
+      {
+        "label": "QM23.50.001.CX.44.03.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.07/thumbnail.jpg",
+        "sortOrder": 7
+      },
+      {
+        "label": "QM23.50.001.CX.44.03.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.05/thumbnail.jpg",
+        "sortOrder": 8
+      },
+      {
+        "label": "QM23.50.001.CX.44.03.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.03/thumbnail.jpg",
+        "sortOrder": 9
+      },
+      {
+        "label": "QM23.50.001.CX.44.03.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.03.01/thumbnail.jpg",
+        "sortOrder": 10
+      },
+      {
+        "label": "QM23.50.001.CX.44.02.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.09/thumbnail.jpg",
+        "sortOrder": 11
+      },
+      {
+        "label": "QM23.50.001.CX.44.02.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.07/thumbnail.jpg",
+        "sortOrder": 12
+      },
+      {
+        "label": "QM23.50.001.CX.44.02.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.05/thumbnail.jpg",
+        "sortOrder": 13
+      },
+      {
+        "label": "QM23.50.001.CX.44.02.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.03/thumbnail.jpg",
+        "sortOrder": 14
+      },
+      {
+        "label": "QM23.50.001.CX.44.02.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.02.01/thumbnail.jpg",
+        "sortOrder": 15
+      },
+      {
+        "label": "QM23.50.001.CX.44.01.09",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.09",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.09/thumbnail.jpg",
+        "sortOrder": 16
+      },
+      {
+        "label": "QM23.50.001.CX.44.01.07",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.07",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.07/thumbnail.jpg",
+        "sortOrder": 17
+      },
+      {
+        "label": "QM23.50.001.CX.44.01.05",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.05",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.05/thumbnail.jpg",
+        "sortOrder": 18
+      },
+      {
+        "label": "QM23.50.001.CX.44.01.03",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.03",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.03/thumbnail.jpg",
+        "sortOrder": 19
+      },
+      {
+        "label": "QM23.50.001.CX.44.01.01",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.01",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-dud-wag/sm_output/QM23.50.001.CX.44.01.01/thumbnail.jpg",
+        "sortOrder": 20
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P4). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 14 \u00b5m section which were acquired at an interval of 100 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~9.2 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lax/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-let-lax",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-let-lax",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "4.0 Days",
+      "sex": "Female",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lax/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lax/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P0). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 14 \u00b5m section which were acquired at an interval of 100 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~5.4 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lay/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-let-lay",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-let-lay",
+    "metadata": {
+      "publicationYear": "2024",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "coInvestigators": [
+        "Arlotta, Paola"
+      ],
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "0.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lay/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-let-lay/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400340",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-all",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-all",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-all/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400371",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-web",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-web",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-web/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400368",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-wet",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-wet",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wet/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400365",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-who",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-who",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-who/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400362",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-wig",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-wig",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-wig/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  },
+  {
+    "title": "Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 1296400359",
+    "description": "Spatial transcriptomics atlas of the entire brain of a developing mouse (P28). We profiled 500 genes which were selected to maximize our ability to relate each cell to one of the 5200 cell types defined in our RNAseq-based taxonomy. We image 10 \u00b5m section which were acquired at an interval of 200 \u00b5m. Individual cell were identified using cell segmentation algorithms to a total of ~6 million cells. The MERFISH datasets not only provide the possibility for accurate spatial annotation of major cell types at subclass level, but also reveal very fine resolution spatial distinctions or gradients for cell types within each subclass.",
+    "species": "Mouse",
+    "tissue": "Brain",
+    "platform": "MERFISH",
+    "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/meyes_output/thumbnail.jpg",
+    "bilCode": "ace-lot-win",
+    "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-lot-win",
+    "metadata": {
+      "publicationYear": "2025",
+      "investigator": "Zeng, Hongkui",
+      "institution": "Allen Institute for Brain Science",
+      "funding": "National Institutes of Health \u2014 5-U01-MH130962-02",
+      "age": "28.0 Days",
+      "sex": "Male",
+      "genotype": "Strain_Name='C57BL6'",
+      "license": "CC-BY-4.0",
+      "technique": "MERFISH"
+    },
+    "isBil": true,
+    "isPublished": true,
+    "isFeatured": false,
+    "isInternal": false,
+    "entries": [
+      {
+        "label": "All Single Cell",
+        "datasetType": "single_cell",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/meyes_output/",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/meyes_output/thumbnail.jpg",
+        "sortOrder": 0
+      },
+      {
+        "label": "genes",
+        "datasetType": "single_molecule",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output",
+        "thumbnailUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-data2/ace-lot-win/sm_output/genes/thumbnail.jpg",
+        "sortOrder": 1
+      }
+    ]
+  }
+]

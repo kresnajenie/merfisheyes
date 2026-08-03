@@ -1,0 +1,7 @@
+# Minimal build context: exclude everything, then re-include only what the
+# worker image COPYs. Keeps node_modules/.next/.git out of the daemon context.
+*
+!worker/requirements.txt
+!worker/entrypoint.py
+!scripts/process_spatial_data.py
+!scripts/process_single_molecule.py

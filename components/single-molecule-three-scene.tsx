@@ -7,6 +7,13 @@ import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
+  createSmPointCloud,
+  updateDotSize,
+  updatePointCloudColor,
+  updatePointCloudShape,
+  SM_DOT_SIZE_FACTOR,
+} from "@/lib/webgl/point-cloud";
+import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
@@ -20,54 +27,6 @@ import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizati
 import { ExportBoxOverlay } from "@/components/export-box-overlay";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 
-
-// Create solid circular sprite texture for points
-function createCircleTexture(): THREE.Texture {
-  const canvas = document.createElement("canvas");
-  const size = 64;
-
-  canvas.width = size;
-  canvas.height = size;
-
-  const context = canvas.getContext("2d");
-
-  if (!context) throw new Error("Could not get 2D context");
-
-  // Draw a solid white circle with sharp edges
-  context.fillStyle = "white";
-  context.beginPath();
-  context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-  context.fill();
-
-  const texture = new THREE.CanvasTexture(canvas);
-
-  texture.needsUpdate = true;
-
-  return texture;
-}
-
-// Create solid square sprite texture for unassigned points
-function createSquareTexture(): THREE.Texture {
-  const canvas = document.createElement("canvas");
-  const size = 64;
-
-  canvas.width = size;
-  canvas.height = size;
-
-  const context = canvas.getContext("2d");
-
-  if (!context) throw new Error("Could not get 2D context");
-
-  // Draw a solid white square
-  context.fillStyle = "white";
-  context.fillRect(4, 4, size - 8, size - 8);
-
-  const texture = new THREE.CanvasTexture(canvas);
-
-  texture.needsUpdate = true;
-
-  return texture;
-}
 
 // Point cloud key helpers for assigned/unassigned separation
 const ASSIGNED_KEY_SUFFIX = ":assigned";
@@ -99,8 +58,6 @@ export function SingleMoleculeThreeScene() {
   const cameraRef = useRef<THREE.Camera | null>(null);
   const controlsRef = useRef<any>(null);
   const pointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
-  const circleTextureRef = useRef<THREE.Texture | null>(null);
-  const squareTextureRef = useRef<THREE.Texture | null>(null);
   const lastDatasetIdRef = useRef<string | null>(null);
   const lastViewModeRef = useRef<string | null>(null);
   const baselineCameraDistanceRef = useRef<number | null>(null);
@@ -226,14 +183,6 @@ export function SingleMoleculeThreeScene() {
     sceneGroupRef.current = outerGroup;
     innerGroupRef.current = innerGroup;
 
-    // Create textures for points (reuse across all point clouds)
-    if (!circleTextureRef.current) {
-      circleTextureRef.current = createCircleTexture();
-    }
-    if (!squareTextureRef.current) {
-      squareTextureRef.current = createSquareTexture();
-    }
-
     // Set baseline camera distance (initial zoomed-out distance)
     if (baselineCameraDistanceRef.current === null) {
       baselineCameraDistanceRef.current = camera.position.distanceTo(
@@ -247,7 +196,9 @@ export function SingleMoleculeThreeScene() {
 
       controls.update();
 
-      // Update point sizes (sizeAttenuation handles zoom scaling automatically)
+      // Update point sizes via the shader's dotSize uniform. The shader does
+      // perspective division itself (dotSize * proj11 / -z), so zoom scaling
+      // happens automatically without per-frame work beyond uniform writes.
       const s0 = VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
 
       pointCloudsRef.current.forEach((pointCloud, key) => {
@@ -255,13 +206,15 @@ export function SingleMoleculeThreeScene() {
         const geneViz = selectedGenesRef.current.get(gene);
 
         if (geneViz) {
-          const material = pointCloud.material as THREE.PointsMaterial;
           const isUnassigned = key.endsWith(UNASSIGNED_KEY_SUFFIX);
           const scale = isUnassigned
             ? geneViz.unassignedLocalScale
             : geneViz.localScale;
 
-          material.size = scale * globalScaleRef.current * s0;
+          updateDotSize(
+            pointCloud,
+            scale * globalScaleRef.current * s0 * SM_DOT_SIZE_FACTOR,
+          );
         }
       });
 
@@ -374,76 +327,45 @@ export function SingleMoleculeThreeScene() {
       }
     }
 
-    // Helper: create a point cloud from coordinates (Float32Array passed directly)
+    // Helper: create a point cloud from coordinates (Float32Array passed directly).
+    // Uses the shared shader (sub-pixel cull + distance-from-target fade) via
+    // createSmPointCloud so SM molecules render the same way as single-cell points.
     const createPointCloud = (
       coords: Float32Array,
       geneViz: { color: string; localScale: number },
-      texture: THREE.Texture | null,
+      shape: MoleculeShape,
       renderOrder: number = 0,
     ): THREE.Points => {
       const moleculeCount = coords.length / 3;
-
-      const geometry = new THREE.BufferGeometry();
-
-      // Pass Float32Array directly — no copy needed
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(coords, 3),
+      const userSize =
+        geneViz.localScale *
+        globalScale *
+        VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
+      const pointCloud = createSmPointCloud(
+        coords,
+        moleculeCount,
+        geneViz.color,
+        userSize * SM_DOT_SIZE_FACTOR,
+        shape,
       );
-
-      const color = new THREE.Color(geneViz.color);
-      const colors = new Float32Array(moleculeCount * 3);
-
-      for (let i = 0; i < moleculeCount; i++) {
-        colors[i * 3] = color.r;
-        colors[i * 3 + 1] = color.g;
-        colors[i * 3 + 2] = color.b;
-      }
-      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-      const material = new THREE.PointsMaterial({
-        size:
-          geneViz.localScale *
-          globalScale *
-          VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE,
-        vertexColors: true,
-        transparent: true,
-        opacity: 1.0,
-        sizeAttenuation: true,
-        map: texture,
-        alphaTest: 0.5,
-      });
-
-      const pointCloud = new THREE.Points(geometry, material);
 
       pointCloud.renderOrder = renderOrder;
 
       return pointCloud;
     };
 
-    // Helper: update an existing point cloud's color and size
+    // Helper: update an existing point cloud's color and size in place.
     const updatePointCloudAppearance = (
       pointCloud: THREE.Points,
       geneViz: { color: string; localScale: number },
     ) => {
-      const material = pointCloud.material as THREE.PointsMaterial;
-
-      material.size =
+      const userSize =
         geneViz.localScale *
         globalScale *
         VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
 
-      const color = new THREE.Color(geneViz.color);
-      const colorAttr = pointCloud.geometry.getAttribute("color");
-      const colors = colorAttr.array as Float32Array;
-      const moleculeCount = colors.length / 3;
-
-      for (let i = 0; i < moleculeCount; i++) {
-        colors[i * 3] = color.r;
-        colors[i * 3 + 1] = color.g;
-        colors[i * 3 + 2] = color.b;
-      }
-      colorAttr.needsUpdate = true;
+      updateDotSize(pointCloud, userSize * SM_DOT_SIZE_FACTOR);
+      updatePointCloudColor(pointCloud, geneViz.color);
     };
 
     // Helper: remove and dispose a point cloud by key
@@ -503,12 +425,6 @@ export function SingleMoleculeThreeScene() {
           console.log(`  Assigned molecules: ${moleculeCount.toLocaleString()}`);
           console.log(`  Color: ${geneViz.color}`);
 
-          // Helper to get texture for a shape
-          const getTexture = (shape: MoleculeShape) =>
-            shape === "square"
-              ? squareTextureRef.current
-              : circleTextureRef.current;
-
           // --- Assigned point cloud ---
           if (geneViz.showAssigned) {
             let pointCloud = currentPointClouds.get(aKey);
@@ -517,7 +433,7 @@ export function SingleMoleculeThreeScene() {
             pointCloud = createPointCloud(
               coords,
               geneViz,
-              getTexture(geneViz.assignedShape),
+              geneViz.assignedShape,
               0,
             );
 
@@ -534,7 +450,7 @@ export function SingleMoleculeThreeScene() {
               if (!innerGroupRef.current) {
                 console.warn(`[SM] innerGroupRef is null when adding ${aKey}, skipping`);
                 pointCloud.geometry.dispose();
-                (pointCloud.material as THREE.PointsMaterial).dispose();
+                (pointCloud.material as THREE.ShaderMaterial).dispose();
                 return;
               }
               innerGroupRef.current.add(pointCloud);
@@ -545,11 +461,7 @@ export function SingleMoleculeThreeScene() {
               );
             } else {
               updatePointCloudAppearance(pointCloud, geneViz);
-              // Update texture if shape changed
-              const mat = pointCloud.material as THREE.PointsMaterial;
-
-              mat.map = getTexture(geneViz.assignedShape);
-              mat.needsUpdate = true;
+              updatePointCloudShape(pointCloud, geneViz.assignedShape);
               console.log(`  ✅ Assigned point cloud updated`);
             }
           } else {
@@ -586,7 +498,7 @@ export function SingleMoleculeThreeScene() {
                 const uPointCloud = createPointCloud(
                   uCoords,
                   uViz,
-                  getTexture(geneViz.unassignedShape),
+                  geneViz.unassignedShape,
                   -1, // Render behind assigned
                 );
 
@@ -603,7 +515,7 @@ export function SingleMoleculeThreeScene() {
                 if (!innerGroupRef.current) {
                   console.warn(`[SM] innerGroupRef is null when adding unassigned ${uKey}, skipping`);
                   uPointCloud.geometry.dispose();
-                  (uPointCloud.material as THREE.PointsMaterial).dispose();
+                  (uPointCloud.material as THREE.ShaderMaterial).dispose();
                   return;
                 }
                 innerGroupRef.current.add(uPointCloud);
@@ -616,14 +528,11 @@ export function SingleMoleculeThreeScene() {
                 );
               }
             } else {
-              // Update existing unassigned cloud color/size/texture
+              // Update existing unassigned cloud color/size/shape in place.
               const uPC = currentPointClouds.get(uKey)!;
 
               updatePointCloudAppearance(uPC, uViz);
-              const uMat = uPC.material as THREE.PointsMaterial;
-
-              uMat.map = getTexture(geneViz.unassignedShape);
-              uMat.needsUpdate = true;
+              updatePointCloudShape(uPC, geneViz.unassignedShape);
             }
           } else {
             // Remove unassigned cloud if toggle is off or dataset has none

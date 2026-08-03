@@ -512,3 +512,106 @@ export function useSMVizUrlSync(
 
   return { hasUrlState, hasUrlStateRef };
 }
+
+/**
+ * Read the SM overlay URL slot (ov=) for the SC viewer page.
+ */
+export function tryReadSMOverlayFromUrl(): SMVizUrlState | null {
+  const urlState = readUrlVizState();
+
+  if (!urlState.overlay) return null;
+
+  return decodeSMVizState(urlState.overlay);
+}
+
+/**
+ * Syncs SM overlay state on the SC viewer to/from the ov= URL param.
+ * Uses a dedicated URL slot so it doesn't collide with the SC viz (v=) on
+ * the same page. When ov= is missing, auto-selects 3 default genes.
+ */
+export function useSMOverlayUrlSync(
+  datasetReady: boolean,
+  dataset: SingleMoleculeDataset | null,
+  store: SingleMoleculeVisualizationState,
+  // Owner-configured default overlay genes resolver (combined viewer). Returns
+  // the genes to auto-show, or null to fall back to the pickDefaultGenes
+  // heuristic. Awaited so the apply is race-free.
+  resolveDefaultGenes?: (
+    dataset: SingleMoleculeDataset,
+  ) => Promise<string[] | null>,
+): { hasUrlState: boolean; hasUrlStateRef: React.RefObject<boolean> } {
+  const [hasUrlState, setHasUrlState] = useState(false);
+  const hasUrlStateRef = useRef(false);
+  const appliedRef = useRef(false);
+
+  // Reading: apply URL state once after dataset is ready. If no ov= slot,
+  // fall back to owner default genes (else the pickDefaultGenes heuristic).
+  useEffect(() => {
+    if (!datasetReady || !dataset || appliedRef.current) return;
+    appliedRef.current = true;
+
+    const decoded = tryReadSMOverlayFromUrl();
+
+    if (decoded) {
+      applySMVizState(decoded, store, dataset);
+      hasUrlStateRef.current = true;
+      setHasUrlState(true);
+
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      const owner = resolveDefaultGenes
+        ? await resolveDefaultGenes(dataset)
+        : null;
+
+      if (cancelled) return;
+      const genes =
+        owner && owner.length > 0 ? owner : pickDefaultGenes(dataset.uniqueGenes);
+
+      genes.forEach((gene) => store.addGene(gene));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasetReady, dataset, store]);
+
+  // Writing: encode state changes to URL (debounced) using the overlay slot.
+  const {
+    selectedGenes,
+    geneDataCache,
+    globalScale,
+    viewMode,
+    showAssigned,
+    showUnassigned,
+  } = store;
+
+  useEffect(() => {
+    if (!datasetReady) return;
+
+    const encoded = encodeSMVizState({
+      selectedGenes,
+      geneDataCache,
+      globalScale,
+      viewMode,
+      showAssigned,
+      showUnassigned,
+    });
+
+    scheduleUrlUpdate("overlay", encoded);
+  }, [
+    datasetReady,
+    selectedGenes,
+    geneDataCache,
+    globalScale,
+    viewMode,
+    showAssigned,
+    showUnassigned,
+  ]);
+
+  return { hasUrlState, hasUrlStateRef };
+}

@@ -1,14 +1,13 @@
 [
   {
     "title": "Mouse Whole-Brain MERFISH Atlas (sample)",
-    "description": "Reference example showing every field accepted by the catalog importer. Drop a file with this shape into Admin → Datasets → Import JSON.",
+    "description": "Reference example showing every field accepted by the catalog importer. Drop a file with this shape into Admin → Datasets → Import JSON. Note: `genes` (and `numGenes`) are NOT provided here — the importer derives them automatically from each entry's dataset manifest in S3.",
     "species": "Mouse",
     "disease": null,
     "institute": "Allen Institute",
     "tissue": "Brain",
     "platform": "MERSCOPE",
     "tags": ["atlas", "reference", "cortex"],
-    "genes": ["Gad1", "Slc17a7", "Pvalb"],
     "thumbnailUrl": "https://example.com/thumb.jpg",
     "bilCode": null,
     "metadata": {
@@ -25,7 +24,6 @@
     "isInternal": false,
     "sortOrder": 0,
     "numCells": 250000,
-    "numGenes": 500,
     "entries": [
       {
         "label": "Single Cell — whole brain (paste viewer URL)",

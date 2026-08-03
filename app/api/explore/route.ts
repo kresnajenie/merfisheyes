@@ -73,12 +73,15 @@ export async function GET(req: NextRequest) {
   if (platform) conditions.push({ platform: { equals: platform, mode: "insensitive" } });
   if (datasetType) conditions.push({ entries: { some: { datasetType } } });
 
-  // Gene search: case-insensitive substring match (ILIKE %term%) — live as-you-type
+  // Gene search: case-insensitive substring match (ILIKE %term%) — live as-you-type.
+  // Matches against the genes joined into one string so the pg_trgm GIN index on
+  // catalog_genes_text(genes) is used (equivalent to "some gene contains term"
+  // for single-token gene symbols, which never contain spaces).
   if (genesParam) {
-    const term = genesParam.trim();
+    const term = genesParam.trim().replace(/\s+/g, "");
     if (term) {
       const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
-        `SELECT id FROM catalog_datasets WHERE EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $1)`,
+        `SELECT id FROM catalog_datasets WHERE catalog_genes_text(genes) ILIKE $1`,
         `%${term}%`,
       );
       const ids = matchingIds.map((r) => r.id);
