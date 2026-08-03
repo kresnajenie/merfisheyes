@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
             datasetType: kind,
             status: "UPLOADING",
             ownerId: session.user.id,
+            adminOwned: false,
             ingestSource: "server",
             processingParams: processingParams as object,
           },

@@ -234,6 +234,7 @@ export class SingleMoleculeProcessor {
     fingerprint: string,
     onProgress?: (progress: number, message: string) => void,
     onUploadProgress?: (progress: number, message: string) => void,
+    asAdmin: boolean = false,
   ): Promise<{ datasetId: string; uploadId: string }> {
     // Step 1: Create manifest (5%) - use temporary ID, will be replaced by API
     await onProgress?.(5, "Creating manifest...");
@@ -299,6 +300,7 @@ export class SingleMoleculeProcessor {
           size: f.size,
           contentType: f.contentType,
         })),
+        asAdmin,
       }),
     });
 

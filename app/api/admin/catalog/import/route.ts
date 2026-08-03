@@ -4,6 +4,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/admin-auth";
+import { deriveGenesForEntry } from "@/lib/catalog/derive-genes";
+import { ensureDatasetForS3Url } from "@/lib/datasets/register-or-claim";
+import { resolveDatasetOwner } from "@/lib/datasets/owner";
 
 interface EntryPayload {
   label?: string;
@@ -24,7 +27,6 @@ interface ItemPayload {
   tissue?: string | null;
   platform?: string | null;
   tags?: string[];
-  genes?: string[];
   thumbnailUrl?: string | null;
   bilCode?: string | null;
   metadata?: Record<string, unknown> | null;
@@ -36,13 +38,18 @@ interface ItemPayload {
   isInternal?: boolean;
   sortOrder?: number;
   numCells?: number | null;
-  numGenes?: number | null;
   entries?: EntryPayload[];
 }
 
 interface ImportBody {
   mode?: "add" | "overwrite" | "replace_all";
   items?: ItemPayload | ItemPayload[];
+  /**
+   * Owner for the underlying datasets this import registers/claims:
+   * "me" → the importing admin personally; "admin" → collective admin.
+   * Defaults to "me".
+   */
+  owner?: "me" | "admin";
 }
 
 /**
@@ -139,7 +146,6 @@ const buildCreateData = (item: ItemPayload, createdBy: string) => ({
   tissue: item.tissue ?? null,
   platform: item.platform ?? null,
   tags: item.tags ?? [],
-  genes: item.genes ?? [],
   thumbnailUrl: item.thumbnailUrl ?? null,
   bilCode: item.bilCode ?? null,
   metadata: (item.metadata as Prisma.InputJsonValue) ?? {},
@@ -151,7 +157,6 @@ const buildCreateData = (item: ItemPayload, createdBy: string) => ({
   isInternal: item.isInternal ?? false,
   sortOrder: item.sortOrder ?? 0,
   numCells: item.numCells ?? null,
-  numGenes: item.numGenes ?? null,
   createdBy,
   entries: {
     create: (item.entries ?? []).map(normalizeEntry),
@@ -169,7 +174,6 @@ const buildUpdateData = (item: ItemPayload) => {
   if ("tissue" in item) data.tissue = item.tissue ?? null;
   if ("platform" in item) data.platform = item.platform ?? null;
   if ("tags" in item) data.tags = item.tags ?? [];
-  if ("genes" in item) data.genes = item.genes ?? [];
   if ("thumbnailUrl" in item) data.thumbnailUrl = item.thumbnailUrl ?? null;
   if ("bilCode" in item) data.bilCode = item.bilCode ?? null;
   if ("metadata" in item)
@@ -183,10 +187,93 @@ const buildUpdateData = (item: ItemPayload) => {
   if ("isInternal" in item) data.isInternal = item.isInternal ?? false;
   if ("sortOrder" in item) data.sortOrder = item.sortOrder ?? 0;
   if ("numCells" in item) data.numCells = item.numCells ?? null;
-  if ("numGenes" in item) data.numGenes = item.numGenes ?? null;
 
   return data;
 };
+
+/**
+ * Derive the full gene list for an item from its entries' S3 manifests.
+ * Genes are the union across all entries (deduped, sorted). Throws — so the
+ * caller fails the item — when any S3-backed entry can't be resolved/fetched,
+ * or when the item has no S3-backed entry at all.
+ */
+async function resolveItemGenes(item: ItemPayload): Promise<string[]> {
+  const entries = (item.entries ?? []).map(normalizeEntry);
+  const s3Backed = entries.filter((e) => e.s3BaseUrl || e.datasetId);
+
+  if (s3Backed.length === 0) {
+    throw new Error("no S3-backed entry to derive genes from");
+  }
+
+  const lists = await Promise.all(
+    s3Backed.map(async (e) => {
+      let base = e.s3BaseUrl;
+
+      // Entry references a registered dataset by id — look up its S3 base.
+      if (!base && e.datasetId) {
+        const ds = await prisma.dataset.findUnique({
+          where: { id: e.datasetId },
+          select: { s3BaseUrl: true },
+        });
+
+        base = ds?.s3BaseUrl ?? null;
+      }
+      if (!base) {
+        throw new Error(
+          `entry "${e.label}" (datasetId ${e.datasetId}) has no resolvable S3 base`,
+        );
+      }
+
+      return deriveGenesForEntry({ s3BaseUrl: base, datasetType: e.datasetType });
+    }),
+  );
+
+  const union = Array.from(new Set(lists.flat())).sort();
+
+  if (union.length === 0) {
+    throw new Error("resolved manifests contained no genes");
+  }
+
+  return union;
+}
+
+/**
+ * Ensure every underlying dataset an item's entries point at is owned (never
+ * unowned), so the "owner uploads a thumbnail" flow has a real owner. For raw
+ * S3 entries this registers-or-claims a Dataset row; for datasetId entries it
+ * claims the existing row only if it's currently unowned (never reassigns one
+ * already owned by someone). Throws to fail the item on error.
+ */
+async function ensureItemDatasetsOwned(
+  item: ItemPayload,
+  { userId, asAdmin }: { userId: string; asAdmin: boolean },
+): Promise<void> {
+  const entries = (item.entries ?? []).map(normalizeEntry);
+
+  for (const e of entries) {
+    if (e.s3BaseUrl) {
+      await ensureDatasetForS3Url(e.s3BaseUrl, {
+        userId,
+        isAdmin: true,
+        asAdmin,
+      });
+    } else if (e.datasetId) {
+      const ds = await prisma.dataset.findUnique({
+        where: { id: e.datasetId },
+        select: { id: true, ownerId: true, adminOwned: true },
+      });
+
+      if (ds && ds.ownerId === null && !ds.adminOwned) {
+        const owner = resolveDatasetOwner({ isAdmin: true, asAdmin, userId });
+
+        await prisma.dataset.update({
+          where: { id: ds.id },
+          data: { ownerId: owner.ownerId, adminOwned: owner.adminOwned },
+        });
+      }
+    }
+  }
+}
 
 /**
  * POST /api/admin/catalog/import
@@ -220,6 +307,9 @@ export async function POST(req: NextRequest) {
       : body.mode === "replace_all"
         ? "replace_all"
         : "add";
+
+  // Owner for the datasets this import registers/claims (default personal).
+  const asAdmin = body.owner === "admin";
 
   // replace_all is destructive at catalog scope (can delete rows) — gate
   // it to SUPER_ADMIN regardless of who can reach the rest of the endpoint.
@@ -289,6 +379,16 @@ export async function POST(req: NextRequest) {
           });
           continue;
         }
+        // Derive genes from S3 before touching the row so a fetch failure
+        // fails the item without leaving a half-updated row.
+        const genes = await resolveItemGenes(item);
+
+        // Register/claim the underlying datasets so they're never unowned.
+        await ensureItemDatasetsOwned(item, {
+          userId: session!.user.id,
+          asAdmin,
+        });
+
         // overwrite / replace_all: entries are delete-and-recreated in a
         // transaction so a failure doesn't leave the row half-updated.
         await prisma.$transaction(async (tx) => {
@@ -297,6 +397,9 @@ export async function POST(req: NextRequest) {
           });
 
           const updateData = buildUpdateData(item);
+
+          updateData.genes = genes;
+          updateData.numGenes = genes.length;
 
           if ("entries" in item) {
             updateData.entries = {
@@ -313,8 +416,19 @@ export async function POST(req: NextRequest) {
         updated.push({ index: i, id: existing.id, title: item.title });
         touchedIds.add(existing.id);
       } else {
+        const genes = await resolveItemGenes(item);
+
+        await ensureItemDatasetsOwned(item, {
+          userId: session!.user.id,
+          asAdmin,
+        });
+
         const row = await prisma.catalogDataset.create({
-          data: buildCreateData(item, session!.user.id),
+          data: {
+            ...buildCreateData(item, session!.user.id),
+            genes,
+            numGenes: genes.length,
+          },
         });
 
         created.push({ index: i, id: row.id, title: item.title });

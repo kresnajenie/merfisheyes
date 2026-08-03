@@ -13,10 +13,12 @@ import {
   SelectItem,
 } from "@heroui/react";
 import { toast } from "react-toastify";
+import { useSession, signIn } from "next-auth/react";
 
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneChunkProcessor } from "@/lib/utils/GeneChunkProcessor";
 import { generateDatasetFingerprint } from "@/lib/utils/fingerprint";
+import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
 
 interface UploadSettingsModalProps {
   isOpen: boolean;
@@ -29,11 +31,15 @@ export function UploadSettingsModal({
   onClose,
   dataset,
 }: UploadSettingsModalProps) {
+  const { data: session } = useSession();
+  const isSignedIn = !!session?.user;
+
   const [chunkSize, setChunkSize] = useState<string>("auto");
   const [customChunkSize, setCustomChunkSize] = useState<string>("100");
   const [datasetName, setDatasetName] = useState<string>(
     dataset?.name || "dataset",
   );
+  const [owner, setOwner] = useState<OwnerValue>("me");
   const [email, setEmail] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -47,6 +53,7 @@ export function UploadSettingsModal({
     setChunkSize("auto");
     setCustomChunkSize("100");
     setDatasetName(targetDataset?.name || "dataset");
+    setOwner("me");
     setEmail("");
     setIsProcessing(false);
     setProgress(0);
@@ -194,6 +201,7 @@ export function UploadSettingsModal({
             setProgress(5 + prog * 0.95);
             setProgressMessage(msg);
           },
+          asAdmin: owner === "admin",
         });
 
         setProgress(100);
@@ -420,6 +428,7 @@ export function UploadSettingsModal({
         datasetName,
         dataset,
         filesToUpload,
+        owner === "admin",
       );
 
       // Upload files to S3
@@ -528,6 +537,24 @@ export function UploadSettingsModal({
                 value={email}
                 onValueChange={setEmail}
               />
+
+              <OwnerChoice value={owner} onChange={setOwner} />
+
+              {!isSignedIn && (
+                <div className="bg-warning-50 border border-warning-200 p-3 rounded-lg flex items-center justify-between gap-3">
+                  <p className="text-xs text-warning-700">
+                    Sign in to upload — the dataset is saved to your account.
+                  </p>
+                  <Button
+                    color="warning"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => signIn()}
+                  >
+                    Sign in
+                  </Button>
+                </div>
+              )}
 
               {!isPreChunked && !isZarr && (
                 <>
@@ -683,7 +710,7 @@ export function UploadSettingsModal({
               </Button>
               <Button
                 color="primary"
-                isDisabled={!dataset || !email || !isEmailValid}
+                isDisabled={!dataset || !email || !isEmailValid || !isSignedIn}
                 isLoading={isProcessing}
                 onPress={handleUpload}
               >
@@ -971,6 +998,7 @@ async function initiateUpload(
   title: string,
   dataset: any,
   files: { key: string; size: number; contentType: string }[],
+  asAdmin: boolean,
 ): Promise<{
   uploadId: string;
   datasetId: string;
@@ -993,6 +1021,7 @@ async function initiateUpload(
         size: f.size,
         contentType: f.contentType,
       })),
+      asAdmin,
     }),
   });
 

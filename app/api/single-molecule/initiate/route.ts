@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { generatePresignedUploadUrl } from "@/lib/s3";
+import { resolveDatasetOwner } from "@/lib/datasets/owner";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -30,6 +31,8 @@ interface InitiateSingleMoleculeUploadRequest {
     size: number;
     contentType?: string;
   }>;
+  /** Admins only: true → collective "admin" ownership instead of personal. */
+  asAdmin?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -72,9 +75,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Attribute the upload to the signed-in user, if any.
+    // Uploads require sign-in so the dataset is always owned. Admins may opt
+    // into collective "admin" ownership via asAdmin.
     const session = await auth();
-    const ownerId = session?.user?.id ?? null;
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Sign in to upload" },
+        { status: 401, headers: corsHeaders },
+      );
+    }
+    const isAdmin =
+      session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
+    const { ownerId, adminOwned } = resolveDatasetOwner({
+      isAdmin,
+      asAdmin: !!body.asAdmin,
+      userId: session.user.id,
+    });
 
     // Generate IDs
     const datasetId = `sm_${nanoid(10)}`;
@@ -96,6 +113,7 @@ export async function POST(request: NextRequest) {
             manifestJson: manifest,
             status: "UPLOADING",
             ownerId,
+            adminOwned,
           },
         });
 

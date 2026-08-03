@@ -43,6 +43,8 @@ export interface ZarrUploadOptions {
    */
   buildManifest: (datasetId: string) => Record<string, any>;
   onProgress?: (progress: number, message: string) => void;
+  /** Admins only: true → collective "admin" ownership instead of personal. */
+  asAdmin?: boolean;
 }
 
 export interface ZarrUploadResult {
@@ -59,8 +61,15 @@ export interface ZarrUploadResult {
 export async function uploadZarrToS3(
   opts: ZarrUploadOptions,
 ): Promise<ZarrUploadResult> {
-  const { fileMap, fingerprint, metadata, email, datasetName, onProgress } =
-    opts;
+  const {
+    fileMap,
+    fingerprint,
+    metadata,
+    email,
+    datasetName,
+    onProgress,
+    asAdmin = false,
+  } = opts;
 
   if (fileMap.size === 0) {
     throw new Error("Zarr fileMap is empty");
@@ -77,6 +86,7 @@ export async function uploadZarrToS3(
       metadata,
       // +1 for manifest.json at the dataset root (alongside data.zarr/).
       totalFiles: fileMap.size + 1,
+      asAdmin,
     }),
   });
 

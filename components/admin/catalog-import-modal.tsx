@@ -13,6 +13,8 @@ import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { useSession } from "next-auth/react";
 
+import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
+
 type Mode = "add" | "overwrite" | "replace_all";
 
 interface ImportResult {
@@ -100,7 +102,9 @@ export function CatalogImportModal({
   const [file, setFile] = useState<File | null>(null);
   const [parsedItemCount, setParsedItemCount] = useState<number | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [mode, setMode] = useState<Mode>("add");
+  const [owner, setOwner] = useState<OwnerValue>("me");
 
   // Confirmation state. `words` is the (frozen-per-mode) list of words the
   // user must type, and `step` is how many they've already cleared (0..N).
@@ -134,7 +138,9 @@ export function CatalogImportModal({
     setFile(null);
     setParsedItemCount(null);
     setParseError(null);
+    setDragOver(false);
     setMode("add");
+    setOwner("me");
     setWords([]);
     setStep(0);
     setTyped("");
@@ -198,7 +204,7 @@ export function CatalogImportModal({
       const res = await fetch("/api/admin/catalog/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, items: parsed }),
+        body: JSON.stringify({ mode, owner, items: parsed }),
       });
 
       if (!res.ok) {
@@ -222,14 +228,50 @@ export function CatalogImportModal({
       <ModalContent>
         <ModalHeader>Import Catalog JSON</ModalHeader>
         <ModalBody className="flex flex-col gap-5">
-          {/* File picker */}
+          {/* File picker — click to browse or drag-and-drop a .json file */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium" htmlFor="catalog-json-file">
-              JSON file
+            <span className="text-sm font-medium">JSON file</span>
+            <label
+              className={`flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center cursor-pointer transition-colors ${
+                dragOver
+                  ? "border-primary bg-primary-50 dark:bg-primary-100/10"
+                  : "border-default-300 hover:border-default-400"
+              }`}
+              htmlFor="catalog-json-file"
+              onDragLeave={() => setDragOver(false)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                handleFile(e.dataTransfer.files?.[0] ?? null);
+              }}
+            >
+              <svg
+                className="w-6 h-6 text-default-400"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M12 16.5V6m0 0-3.5 3.5M12 6l3.5 3.5M4.5 15.75v1.5A2.25 2.25 0 0 0 6.75 19.5h10.5a2.25 2.25 0 0 0 2.25-2.25v-1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="text-sm font-medium">
+                {file ? file.name : "Drop a JSON file here, or click to browse"}
+              </span>
+              <span className="text-[11px] text-default-400">
+                .json — a single object or an array
+              </span>
             </label>
             <input
               accept="application/json"
-              className="text-sm"
+              className="hidden"
               id="catalog-json-file"
               type="file"
               onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
@@ -294,6 +336,9 @@ export function CatalogImportModal({
               />
             )}
           </div>
+
+          {/* Owner choice (admins only) — owns the datasets this import registers */}
+          <OwnerChoice value={owner} onChange={setOwner} />
 
           {/* Submit error */}
           {submitError && (
