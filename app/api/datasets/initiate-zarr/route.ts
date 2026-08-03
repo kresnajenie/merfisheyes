@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { S3_BUCKET, s3Client } from "@/lib/s3";
 
 const corsHeaders = {
@@ -81,6 +82,10 @@ export async function POST(request: NextRequest) {
       Expires: 3600,
     });
 
+    // Attribute the upload to the signed-in user, if any.
+    const session = await auth();
+    const ownerId = session?.user?.id ?? null;
+
     // Create dataset row + upload session in a single transaction.
     // No per-file UploadFile rows for zarr — we only track aggregate progress.
     await prisma.$transaction(async (tx) => {
@@ -94,6 +99,7 @@ export async function POST(request: NextRequest) {
           datasetType: metadata.platform || "single_cell",
           formatVersion: "zarr",
           status: "UPLOADING",
+          ownerId,
         },
       });
 

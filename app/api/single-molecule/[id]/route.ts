@@ -40,6 +40,9 @@ export async function GET(
         datasetType: true,
         manifestJson: true,
         status: true,
+        ownerId: true,
+        adminOwned: true,
+        viewerConfig: true,
         createdAt: true,
         completedAt: true,
       },
@@ -96,6 +99,9 @@ export async function GET(
         numGenes: dataset.numGenes,
         status: dataset.status,
         datasetType: dataset.datasetType,
+        ownerId: dataset.ownerId,
+        adminOwned: dataset.adminOwned,
+        viewerConfig: dataset.viewerConfig,
         manifest: dataset.manifestJson, // Include manifest JSON from database
         manifestUrl, // Presigned URL to download manifest.json.gz from S3
         createdAt: dataset.createdAt,

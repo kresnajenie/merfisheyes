@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +20,10 @@ const select = {
   datasetType: true,
   numCells: true,
   numGenes: true,
+  viewCount: true,
+  s3BaseUrl: true,
+  ingestSource: true,
+  adminOwned: true,
   processingProgress: true,
   errorMessage: true,
   batchJobId: true,
@@ -27,10 +31,20 @@ const select = {
   completedAt: true,
 } as const;
 
-export async function GET() {
+const SORT_FIELDS: Record<string, "createdAt" | "numCells" | "title"> = {
+  date: "createdAt",
+  molecules: "numCells",
+  name: "title",
+};
+
+export async function GET(request: NextRequest) {
   const { error, session } = await requireUser();
 
   if (error) return error;
+
+  const sortParam = request.nextUrl.searchParams.get("sort") ?? "date";
+  const dirParam = request.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const orderBy = { [SORT_FIELDS[sortParam] ?? "createdAt"]: dirParam } as const;
 
   try {
     // Exclude UPLOADING entirely. The dataset currently transferring is shown
@@ -39,16 +53,21 @@ export async function GET() {
     // attempt (tab closed / interrupted before it finished) that would read as
     // a stuck "Uploading…" spinner. A dataset appears here once it reaches
     // QUEUED — i.e. as soon as the bytes are up and the job is submitted.
+    // Personal datasets, plus admin-owned (shared) ones for admins.
+    const isAdmin =
+      session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
     const where = {
-      ownerId: session.user.id,
       status: { not: "UPLOADING" as const },
+      ...(isAdmin
+        ? { OR: [{ ownerId: session.user.id }, { adminOwned: true }] }
+        : { ownerId: session.user.id }),
     };
 
     let datasets = await prisma.dataset.findMany({
       where,
       select,
-      orderBy: { createdAt: "desc" },
-      take: 30,
+      orderBy,
+      take: 200,
     });
 
     const stale = datasets.filter((d) => isStale(d));
@@ -64,8 +83,8 @@ export async function GET() {
       datasets = await prisma.dataset.findMany({
         where,
         select,
-        orderBy: { createdAt: "desc" },
-        take: 30,
+        orderBy,
+        take: 200,
       });
     }
 
@@ -73,6 +92,13 @@ export async function GET() {
       datasets: datasets.map((d) => {
         const viewerPath =
           d.datasetType === "single_molecule" ? "sm-viewer" : "viewer";
+        // S3-registered rows load via the from-s3 URL flow, not by id.
+        const viewerUrl =
+          d.status !== "COMPLETE"
+            ? null
+            : d.ingestSource === "s3_registered" && d.s3BaseUrl
+              ? `/${viewerPath}/from-s3?url=${encodeURIComponent(d.s3BaseUrl)}`
+              : `/${viewerPath}/${d.id}`;
 
         return {
           id: d.id,
@@ -83,9 +109,12 @@ export async function GET() {
           errorMessage: d.errorMessage,
           numCells: d.numCells,
           numGenes: d.numGenes,
+          viewCount: d.viewCount,
+          ingestSource: d.ingestSource,
+          adminOwned: d.adminOwned,
           createdAt: d.createdAt,
           completedAt: d.completedAt,
-          viewerUrl: d.status === "COMPLETE" ? `/${viewerPath}/${d.id}` : null,
+          viewerUrl,
         };
       }),
     });

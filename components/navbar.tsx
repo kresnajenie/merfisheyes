@@ -26,6 +26,7 @@ import {
   HeartFilledIcon,
   SearchIcon,
 } from "@/components/icons";
+import { UserMenu } from "@/components/auth/user-menu";
 
 interface NavbarProps {
   onUploadClick?: () => void;
@@ -57,6 +58,7 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
   return (
     <HeroUINavbar
       className="w-3/4 mx-auto my-4 rounded-full glass"
+      classNames={{ wrapper: "px-8" }}
       maxWidth="xl"
       position="sticky"
     >
@@ -123,6 +125,9 @@ export const Navbar = ({ onUploadClick }: NavbarProps) => {
           >
             Sponsor
           </Button>
+        </NavbarItem>
+        <NavbarItem>
+          <UserMenu />
         </NavbarItem>
       </NavbarContent>
 

@@ -7,12 +7,18 @@ import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/react";
 import { Slider, Switch } from "@heroui/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import { toast } from "react-toastify";
 
 import { glassPanel } from "@/components/primitives";
 import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
+  usePanelSingleMoleculeVisualizationStore,
+  usePanelId,
 } from "@/lib/hooks/usePanelStores";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
+import { extractViewerConfig } from "@/lib/utils/viewer-config";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 import {
@@ -24,6 +30,9 @@ import {
 
 const DEG_TO_RAD = Math.PI / 180;
 const RAD_TO_DEG = 180 / Math.PI;
+// Per-sample translations are stored in raw coordinate units (microns); the UI
+// shows them in millimetres. display_mm = microns * MICRONS_TO_MM.
+const MICRONS_TO_MM = 1 / 1000;
 
 interface CameraPanelProps {
   onClose: () => void;
@@ -31,6 +40,10 @@ interface CameraPanelProps {
   // Where the flyout anchors: "rail" opens to the right of the left rail;
   // "top-right" drops below the top-right control cluster.
   placement?: "rail" | "top-right";
+  // Which viewer this panel serves. "sc" (default) uses the single-cell stores
+  // for per-sample align + owner defaults; "sm" uses the single-molecule store
+  // for a camera-only owner preset and hides the SC-only align section.
+  viewerKind?: "sc" | "sm";
   sceneRotation: number;
   setSceneRotation: (degrees: number) => void;
   flipX: boolean;
@@ -66,6 +79,7 @@ export function CameraPanel({
   onClose,
   controlsRef,
   placement = "rail",
+  viewerKind = "sc",
   sceneRotation,
   setSceneRotation,
   flipX,
@@ -323,20 +337,244 @@ export function CameraPanel({
           </>
         )}
 
-        {/* Per-sample align (advanced, collapsed by default) */}
-        <button
-          aria-expanded={alignOpen}
-          className="w-full flex items-center justify-between text-xs text-default-400 hover:text-default-200 pt-1"
-          onClick={() => setAlignOpen(!alignOpen)}
-        >
-          <span>Per-sample align</span>
-          <span className={`transition-transform ${alignOpen ? "rotate-90" : ""}`}>
-            ▸
-          </span>
-        </button>
-        {alignOpen && <SampleAlignSection />}
+        {/* Per-sample align (advanced, collapsed by default) — single-cell only. */}
+        {viewerKind === "sc" && (
+          <>
+            <button
+              aria-expanded={alignOpen}
+              className="w-full flex items-center justify-between text-xs text-default-400 hover:text-default-200 pt-1"
+              onClick={() => setAlignOpen(!alignOpen)}
+            >
+              <span>Per-sample align</span>
+              <span
+                className={`transition-transform ${alignOpen ? "rotate-90" : ""}`}
+              >
+                ▸
+              </span>
+            </button>
+            {alignOpen && <SampleAlignSection />}
+          </>
+        )}
+
+        {viewerKind === "sm" ? (
+          <SMOwnerDefaultsSection />
+        ) : (
+          <OwnerDefaultsSection />
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Owner-only "Save current view as default" control. Persists the current
+ * rotation, flips, priority cluster column, per-sample transforms, and custom
+ * colors to the dataset's viewerConfig (applied on future loads). Only shown to
+ * the dataset owner (or an admin) on the primary panel.
+ */
+function OwnerDefaultsSection() {
+  const { data: session } = useSession();
+  const panelId = usePanelId();
+  const { dbId, ownerId, adminOwned } = useViewerRegistrationStore();
+  const { getCurrentDataset } = usePanelDatasetStore();
+  const store = usePanelVisualizationStore();
+  const [saving, setSaving] = useState(false);
+
+  const dataset = getCurrentDataset() as StandardizedDataset | null;
+  const userId = session?.user?.id ?? null;
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  // Personal owner edits their own; any admin edits admin-owned (shared).
+  const canSave =
+    !panelId &&
+    !!dbId &&
+    !!dataset &&
+    ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
+
+  if (!canSave) return null;
+
+  const save = async () => {
+    if (!dataset || !dbId) return;
+    setSaving(true);
+    try {
+      const viewerConfig = extractViewerConfig(store as any, dataset);
+      const res = await fetch(`/api/ingest/mine/${dbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewerConfig }),
+      });
+
+      if (!res.ok) {
+        toast.error("Couldn't save defaults.");
+
+        return;
+      }
+      useViewerRegistrationStore.getState().set({ viewerConfig });
+      toast.success("Saved as this dataset's defaults.");
+    } catch {
+      toast.error("Couldn't save defaults.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-white/10 pt-3">
+      <Button
+        className="w-full text-xs"
+        color="primary"
+        isLoading={saving}
+        size="sm"
+        variant="flat"
+        onPress={save}
+      >
+        Save current view as default
+      </Button>
+      <p className="text-[10px] text-default-400 mt-1">
+        Saves rotation, colors, alignment, and the{" "}
+        <span className="text-default-300">
+          {store.selectedColumn ?? "current"}
+        </span>{" "}
+        column as this dataset&apos;s defaults on load.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Single-molecule owner preset: saves the camera (rotation, flips, 2D/3D) to
+ * the dataset's viewerConfig, applied on load. Owner/admin only, primary panel.
+ */
+function SMOwnerDefaultsSection() {
+  const { data: session } = useSession();
+  const panelId = usePanelId();
+  const { dbId, ownerId, adminOwned } = useViewerRegistrationStore();
+  const store = usePanelSingleMoleculeVisualizationStore();
+  const [saving, setSaving] = useState(false);
+
+  const userId = session?.user?.id ?? null;
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  const canSave =
+    !panelId &&
+    !!dbId &&
+    ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
+
+  if (!canSave) return null;
+
+  const save = async () => {
+    if (!dbId) return;
+    setSaving(true);
+    try {
+      const viewerConfig = {
+        version: 1 as const,
+        sceneRotation: store.sceneRotation,
+        flipX: store.flipX,
+        flipY: store.flipY,
+        viewMode: store.viewMode,
+      };
+      const res = await fetch(`/api/ingest/mine/${dbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewerConfig }),
+      });
+
+      if (!res.ok) {
+        toast.error("Couldn't save defaults.");
+
+        return;
+      }
+      useViewerRegistrationStore.getState().set({ viewerConfig });
+      toast.success("Saved as this dataset's defaults.");
+    } catch {
+      toast.error("Couldn't save defaults.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-white/10 pt-3">
+      <Button
+        className="w-full text-xs"
+        color="primary"
+        isLoading={saving}
+        size="sm"
+        variant="flat"
+        onPress={save}
+      >
+        Save current view as default
+      </Button>
+      <p className="text-[10px] text-default-400 mt-1">
+        Saves rotation, flips, and 2D/3D view as this dataset&apos;s defaults on
+        load.
+      </p>
+    </div>
+  );
+}
+
+/** Trim float noise for display (e.g. 1.4999999 -> 1.5). */
+function fmtNum(n: number): string {
+  if (!Number.isFinite(n)) return "";
+
+  return String(Math.round(n * 1e6) / 1e6);
+}
+
+/**
+ * Numeric field that keeps a local text buffer so partial input ("-", "1.",
+ * empty) doesn't get parsed-and-reset mid-typing. Commits only finite numbers.
+ * `displayFactor` converts the stored (canonical) value to the shown value:
+ * display = value * displayFactor; value = shown / displayFactor.
+ */
+function AlignNumberInput({
+  label,
+  endContent,
+  value,
+  displayFactor,
+  disabled,
+  onCommit,
+}: {
+  label: string;
+  endContent?: React.ReactNode;
+  value: number;
+  displayFactor: number;
+  disabled?: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const toDisplay = (v: number) => fmtNum(v * displayFactor);
+  const [str, setStr] = useState(() => toDisplay(value));
+  const [focused, setFocused] = useState(false);
+
+  // Sync from the store when the field isn't being edited (e.g. sample switch).
+  useEffect(() => {
+    if (!focused) setStr(toDisplay(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, displayFactor, focused]);
+
+  return (
+    <Input
+      endContent={endContent}
+      inputMode="decimal"
+      isDisabled={disabled}
+      label={label}
+      labelPlacement="outside"
+      size="sm"
+      type="text"
+      value={str}
+      onBlur={() => {
+        setFocused(false);
+        const n = parseFloat(str);
+
+        setStr(Number.isFinite(n) ? toDisplay(n / displayFactor) : toDisplay(value));
+      }}
+      onFocus={() => setFocused(true)}
+      onValueChange={(v) => {
+        setStr(v);
+        const n = parseFloat(v);
+
+        if (Number.isFinite(n)) onCommit(n / displayFactor);
+      }}
+    />
   );
 }
 
@@ -485,8 +723,7 @@ function SampleAlignSection() {
   return (
     <div className="space-y-2 pt-1">
       <p className="text-[10px] text-default-400">
-        Translate + rotate per sample (pivot = centroid). Values in raw coord
-        units.
+        Translate (mm) + rotate per sample (pivot = centroid).
       </p>
 
       <Select
@@ -528,42 +765,29 @@ function SampleAlignSection() {
       </Select>
 
       <div className="grid grid-cols-3 gap-1">
-        <Input
-          isDisabled={!activeSampleId}
+        <AlignNumberInput
+          disabled={!activeSampleId}
+          displayFactor={MICRONS_TO_MM}
+          endContent={<span className="text-[10px] text-default-400">mm</span>}
           label="dx"
-          labelPlacement="outside"
-          size="sm"
-          step="any"
-          type="number"
-          value={String(currentTransform.dx)}
-          onValueChange={(v) =>
-            onChangeTransform({ dx: parseFloatOr(v, 0) })
-          }
+          value={currentTransform.dx}
+          onCommit={(dx) => onChangeTransform({ dx })}
         />
-        <Input
-          isDisabled={!activeSampleId}
+        <AlignNumberInput
+          disabled={!activeSampleId}
+          displayFactor={MICRONS_TO_MM}
+          endContent={<span className="text-[10px] text-default-400">mm</span>}
           label="dy"
-          labelPlacement="outside"
-          size="sm"
-          step="any"
-          type="number"
-          value={String(currentTransform.dy)}
-          onValueChange={(v) =>
-            onChangeTransform({ dy: parseFloatOr(v, 0) })
-          }
+          value={currentTransform.dy}
+          onCommit={(dy) => onChangeTransform({ dy })}
         />
-        <Input
+        <AlignNumberInput
+          disabled={!activeSampleId}
+          displayFactor={RAD_TO_DEG}
           endContent={<span className="text-[10px] text-default-400">°</span>}
-          isDisabled={!activeSampleId}
           label="rot"
-          labelPlacement="outside"
-          size="sm"
-          step="any"
-          type="number"
-          value={String(currentTransform.theta * RAD_TO_DEG)}
-          onValueChange={(v) =>
-            onChangeTransform({ theta: parseFloatOr(v, 0) * DEG_TO_RAD })
-          }
+          value={currentTransform.theta}
+          onCommit={(theta) => onChangeTransform({ theta })}
         />
       </div>
 
@@ -605,12 +829,6 @@ function SampleAlignSection() {
       </Button>
     </div>
   );
-}
-
-function parseFloatOr(s: string, fallback: number): number {
-  if (s === "" || s === "-" || s === "." || s === "-.") return fallback;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : fallback;
 }
 
 interface ExportBoxSectionProps {

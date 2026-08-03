@@ -15,6 +15,7 @@ import {
   HeartFilledIcon,
 } from "@/components/icons";
 import { glassButton } from "@/components/primitives";
+import { UserMenu } from "@/components/auth/user-menu";
 
 interface ViewerNavbarProps {
   onUploadClick?: () => void;
@@ -49,10 +50,12 @@ export const ViewerNavbar = ({ onUploadClick }: ViewerNavbarProps) => {
           MERFISHEYES
         </NextLink>
 
-        {/* Everything else — collapses to zero width until the pill is hovered */}
+        {/* Everything else — collapses to zero width until the pill is hovered.
+            pr-3 keeps the trailing avatar (with its focus ring) clear of the
+            overflow-hidden clip and the pill's rounded end. */}
         <div className="grid grid-cols-[0fr] group-hover:grid-cols-[1fr] transition-[grid-template-columns] duration-300 ease-out">
           <div className="overflow-hidden">
-            <div className="flex items-center gap-4 pl-4 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="flex items-center gap-4 pl-4 pr-3 py-1.5 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               {siteConfig.navItems.map((item) => (
                 <NextLink
                   key={item.href}
@@ -99,6 +102,8 @@ export const ViewerNavbar = ({ onUploadClick }: ViewerNavbarProps) => {
               >
                 Sponsor
               </Button>
+
+              <UserMenu />
             </div>
           </div>
         </div>

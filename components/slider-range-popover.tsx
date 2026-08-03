@@ -58,6 +58,46 @@ export function useSliderRange(
   return { min, max, onContextMenu, popover };
 }
 
+/**
+ * Store-free variant of useSliderRange: keeps the min/max override in local
+ * state. Same right-click UX, but not persisted — fine for viewers (like the
+ * single-molecule one) whose viz store has no sliderRanges slot. A restored
+ * out-of-default value still fits because max expands to the current value.
+ */
+export function useSliderRangeLocal(
+  defaultMin: number,
+  defaultMax: number,
+  currentValue: number,
+) {
+  const [override, setOverride] = useState<RangeOverride | null>(null);
+  const [popoverPos, setPopoverPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+
+  const min = override ? override.min : Math.min(defaultMin, currentValue);
+  const max = override ? override.max : Math.max(defaultMax, currentValue);
+
+  const onContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPopoverPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const popover =
+    popoverPos !== null ? (
+      <RangePopover
+        max={max}
+        min={min}
+        x={popoverPos.x}
+        y={popoverPos.y}
+        onChange={(newMin, newMax) => setOverride({ min: newMin, max: newMax })}
+        onClose={() => setPopoverPos(null)}
+      />
+    ) : null;
+
+  return { min, max, onContextMenu, popover };
+}
+
 interface RangePopoverProps {
   x: number;
   y: number;

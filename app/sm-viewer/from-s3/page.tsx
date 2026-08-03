@@ -3,7 +3,7 @@
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Spinner } from "@heroui/react";
 
@@ -11,7 +11,10 @@ import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-sce
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SplitScreenContainer } from "@/components/split-screen-container";
+import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
+import { type ViewerConfig } from "@/lib/utils/viewer-config";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
@@ -44,6 +47,10 @@ function SingleMoleculeViewerFromS3Content() {
   const [dataset, setDataset] = useState<SingleMoleculeDataset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [registeredId, setRegisteredId] = useState<string | null>(null);
+  const setViewerRegistration = useViewerRegistrationStore((s) => s.set);
+  const resetViewerRegistration = useViewerRegistrationStore((s) => s.reset);
+  const viewCountedRef = useRef(false);
 
   const s3Url = searchParams.get("url");
 
@@ -124,8 +131,48 @@ function SingleMoleculeViewerFromS3Content() {
     try {
       setIsLoading(true);
       setError(null);
+      viewCountedRef.current = false;
 
       console.log("Loading single molecule dataset from custom S3:", baseUrl);
+
+      // Look up the DB registration for this URL (ownership + the id to count
+      // views against). 404 = unregistered → the claim banner offers to add it.
+      let reg: {
+        id: string;
+        ownerId: string | null;
+        adminOwned: boolean;
+        viewerConfig: ViewerConfig | null;
+      } | null = null;
+
+      try {
+        const r = await fetch(
+          `/api/datasets/by-url?url=${encodeURIComponent(baseUrl)}`,
+        );
+
+        if (r.ok) {
+          const j = await r.json();
+
+          if (j.registered) {
+            reg = {
+              id: j.id,
+              ownerId: j.ownerId ?? null,
+              adminOwned: !!j.adminOwned,
+              viewerConfig: (j.viewerConfig as ViewerConfig | null) ?? null,
+            };
+          }
+        }
+      } catch {
+        // best-effort; the viewer still loads unregistered.
+      }
+      setRegisteredId(reg?.id ?? null);
+      setViewerRegistration({
+        dbId: reg?.id ?? null,
+        ownerId: reg?.ownerId ?? null,
+        adminOwned: reg?.adminOwned ?? false,
+        registered: !!reg,
+        viewerConfig: reg?.viewerConfig ?? null,
+        s3Url: baseUrl,
+      });
 
       // Import SingleMoleculeDataset
       const { SingleMoleculeDataset } = await import(
@@ -149,6 +196,19 @@ function SingleMoleculeViewerFromS3Content() {
       setDataset(smDataset);
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
+
+      // Apply the owner-saved camera preset (rotation/flips/2D-3D) first, so a
+      // shared-link URL state below still overrides where they overlap.
+      const cfg = reg?.viewerConfig;
+
+      if (cfg) {
+        if (cfg.sceneRotation !== undefined) {
+          smVizStore.setSceneRotation(cfg.sceneRotation);
+        }
+        if (cfg.flipX !== undefined) smVizStore.setFlipX(cfg.flipX);
+        if (cfg.flipY !== undefined) smVizStore.setFlipY(cfg.flipY);
+        if (cfg.viewMode) smVizStore.setViewMode(cfg.viewMode);
+      }
 
       // Check if URL has viz state
       const urlVizState = tryReadSMVizFromUrl("left");
@@ -178,6 +238,19 @@ function SingleMoleculeViewerFromS3Content() {
       setIsLoading(false);
     }
   };
+
+  // Count one view per load for registered datasets (server dedups per
+  // session/day; the ref guards React strict-mode double-invoke).
+  useEffect(() => {
+    if (!dataset || !registeredId || viewCountedRef.current) return;
+    viewCountedRef.current = true;
+    fetch(`/api/datasets/${registeredId}/view`, { method: "POST" }).catch(
+      () => {},
+    );
+  }, [dataset, registeredId]);
+
+  // Clear the shared registration when leaving the viewer.
+  useEffect(() => () => resetViewerRegistration(), []);
 
   // Loading state
   if (isLoading) {
@@ -268,6 +341,7 @@ function SingleMoleculeViewerFromS3Content() {
 
   return (
     <SplitScreenContainer>
+      <ClaimDatasetBanner />
       <SingleMoleculeControls />
       <SingleMoleculeLegends />
       <SingleMoleculeThreeScene />
