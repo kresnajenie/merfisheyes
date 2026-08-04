@@ -154,6 +154,13 @@ export async function submitIngestJob({
           value: `${base}/api/ingest/${datasetId}/callback`,
         },
         { name: "CALLBACK_SECRET", value: process.env.CALLBACK_SECRET },
+        // Use the SAME bucket the app uploaded the raw dataset to, so the worker
+        // never reads from a different bucket than the one raw/{id}/ landed in.
+        // Overrides the Batch job definition's AWS_S3_BUCKET (which is otherwise
+        // fixed to one environment). The Batch task role must be able to read it.
+        ...(process.env.AWS_S3_BUCKET
+          ? [{ name: "AWS_S3_BUCKET", value: process.env.AWS_S3_BUCKET }]
+          : []),
         // Delete raw/{id}/ after a successful chunking. On by default; set the
         // DELETE_RAW env to "false" to keep the raw upload around. Overrides
         // whatever the Batch job definition specifies.
