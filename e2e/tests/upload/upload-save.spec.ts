@@ -9,6 +9,7 @@ import {
   uploadAndSave,
   openSavedDataset,
 } from "../../fixtures/merfish-fixtures";
+import { signInDev } from "../../helpers/auth";
 
 /**
  * Upload → save → reload tests. Tagged @upload; these need a reachable Postgres
@@ -29,6 +30,11 @@ test.describe("@upload upload + save + reload", () => {
 
     test(`upload/save/reload: ${ds.id} (${ds.format})`, async ({ page }, testInfo) => {
       annotate(testInfo, ds.id, ds.format);
+
+      // Uploads require a signed-in owner — authenticate before driving the modal.
+      await test.step("sign in", async () => {
+        await signInDev(page);
+      });
 
       await test.step("load dataset locally", async () => {
         await loadLocalDataset(page, ds);

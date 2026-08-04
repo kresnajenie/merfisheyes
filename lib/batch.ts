@@ -154,6 +154,10 @@ export async function submitIngestJob({
           value: `${base}/api/ingest/${datasetId}/callback`,
         },
         { name: "CALLBACK_SECRET", value: process.env.CALLBACK_SECRET },
+        // Delete raw/{id}/ after a successful chunking. On by default; set the
+        // DELETE_RAW env to "false" to keep the raw upload around. Overrides
+        // whatever the Batch job definition specifies.
+        { name: "DELETE_RAW", value: process.env.DELETE_RAW || "true" },
         // Lets the worker through Vercel Deployment Protection. Vercel injects
         // VERCEL_AUTOMATION_BYPASS_SECRET once a bypass secret is configured;
         // absent it, the callback would 401 on a protected deployment.
