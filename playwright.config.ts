@@ -91,6 +91,10 @@ export default defineConfig({
           NEXT_PUBLIC_E2E: "1",
           // Separate build dir so we don't fight a dev server on .next.
           NEXT_DIST_DIR: process.env.NEXT_DIST_DIR || ".next-e2e",
+          // Enable the no-verification dev-email provider so the upload suite
+          // can sign in (uploads now require auth). Safe: VERCEL_ENV is unset in
+          // CI/local, so it can never turn on in production.
+          ALLOW_DEV_EMAIL_LOGIN: "true",
         },
       },
 });
