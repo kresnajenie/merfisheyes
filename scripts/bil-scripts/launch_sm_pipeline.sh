@@ -219,13 +219,30 @@ while IFS=',' read -r sample_name input_path; do
             --mail-type=BEGIN,END,FAIL --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu \
             --wrap="
 module load aws-cli
-aws configure set default.s3.max_concurrent_requests 50
-aws configure set default.s3.multipart_chunksize 16MB
+# Private per-job config file instead of 'aws configure set' -- that
+# mutates the shared ~/.aws/config, and concurrent sync jobs across
+# samples race on read-modify-write of that one file (intermittent
+# 'Unable to parse config file' + a sync that silently no-ops).
+export AWS_MAX_CONCURRENT_REQUESTS=50
+AWS_CONFIG_FILE=\"\$(mktemp)\"
+export AWS_CONFIG_FILE
+trap 'rm -f \"\$AWS_CONFIG_FILE\"' EXIT
+cat > \"\$AWS_CONFIG_FILE\" <<'EOC'
+[default]
+s3 =
+    max_concurrent_requests = 50
+    multipart_chunksize = 16MB
+EOC
 echo '=== SM S3 sync: ${sample_name} ==='
 echo 'Source: ${sm_output}/'
 echo 'Dest:   ${s3_dest}'
 echo 'Started at \$(date)'
 aws s3 sync '${sm_output}/' '${s3_dest}' --size-only
+SYNC_EXIT=\$?
+if [ \"\$SYNC_EXIT\" -ne 0 ]; then
+    echo \"ERROR: aws s3 sync failed with exit code \$SYNC_EXIT\"
+    exit \"\$SYNC_EXIT\"
+fi
 echo 'Sync complete at \$(date)'
 ")
         echo "  [3/3] s3_sync_sm      -> Job ${sync_job} (after ${copy_job})"
