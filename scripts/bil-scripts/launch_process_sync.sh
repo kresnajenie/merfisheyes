@@ -14,8 +14,14 @@
 #
 # Usage:
 #   ./launch_process_sync.sh ace-dip-use          # single sample (combined_output)
-#   ./launch_process_sync.sh samples.csv          # from file (sample_name,input_path[,species])
+#   ./launch_process_sync.sh samples.csv          # from file (sample_name,input_path[,species[,percentile]])
 #   ./launch_process_sync.sh                      # uses samples.csv in same dir
+#
+# percentile column is optional and defaults to 25 when absent (artifact_mask_p<N>.csv).
+# Only applies to combined_output (CSV/MERSCOPE) samples; ignored for h5ad (no mask).
+# The mask CSV for that percentile must already exist -- generate it first with
+# combine_slices.sbatch --mask-only <combined_output_dir> <percentile> if it's
+# outside the standard 5-75 sweep (e.g. 80).
 # ═══════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -51,9 +57,11 @@ echo ""
 count=0
 errors=0
 
-while IFS=',' read -r sample_name input_path _species; do
+while IFS=',' read -r sample_name input_path _species percentile; do
     sample_name="$(echo "$sample_name" | xargs)"
     input_path="$(echo "${input_path:-}" | xargs)"
+    percentile="$(echo "${percentile:-}" | xargs)"
+    percentile="${percentile:-25}"
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
 
@@ -62,6 +70,7 @@ while IFS=',' read -r sample_name input_path _species; do
     combined_output="${output_base}/combined_output"
     mmc_output="${output_base}/mmc_output"
     meyes_output="${output_base}/meyes_output"
+    mask_csv="${combined_output}/artifact_mask_p${percentile}.csv"
 
     echo "── Sample ${count}: ${sample_name} ──"
 
@@ -69,8 +78,14 @@ while IFS=',' read -r sample_name input_path _species; do
         # ── CSV/MERSCOPE: process_spatial with mask ──────────────
         echo "  Kind:     combined_output (CSV/MERSCOPE)"
         echo "  MMC:      ${mmc_output}/mapping_output.csv"
-        echo "  Mask:     ${combined_output}/artifact_mask_p25.csv"
+        echo "  Mask:     ${mask_csv} (p${percentile})"
         echo "  Output:   ${meyes_output}"
+
+        if [ ! -f "$mask_csv" ]; then
+            echo "  ERROR: mask not found: $mask_csv"
+            echo "         Generate it first: sbatch combine_slices.sbatch --mask-only '${combined_output}' ${percentile}"
+            errors=$((errors + 1)); echo ""; continue
+        fi
 
         process_job=$(sbatch --parsable \
             --job-name="process_${sample_name}" \
@@ -78,7 +93,7 @@ while IFS=',' read -r sample_name input_path _species; do
             "$combined_output" \
             "$meyes_output" \
             "${mmc_output}/mapping_output.csv" \
-            "${combined_output}/artifact_mask_p25.csv")
+            "$mask_csv")
         echo "  [1/2] process_spatial -> Job ${process_job}"
 
         sync_job=$(sbatch --parsable \

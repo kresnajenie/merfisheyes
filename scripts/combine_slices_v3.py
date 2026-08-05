@@ -254,6 +254,9 @@ parser.add_argument("--mask-only", action="store_true",
                     help="Skip combining. target_folder should point to an existing "
                          "combined_output/ directory with cell_metadata.csv and "
                          "cell_by_gene.csv already present. Runs only step 6b onward.")
+parser.add_argument("--percentiles", type=str, default=None,
+                    help="Comma-separated extra percentiles (e.g. '80') to add to the "
+                         "standard 5-75 sweep when writing artifact mask CSVs.")
 
 
 args = parser.parse_args()
@@ -668,6 +671,9 @@ del meta_all
 
 # Determine percentile thresholds to compare (5th–75th in 5% increments)
 compare_percentiles = list(range(5, 76, 5))
+if args.percentiles:
+    extra_percentiles = [int(p.strip()) for p in args.percentiles.split(",") if p.strip()]
+    compare_percentiles = sorted(set(compare_percentiles + extra_percentiles))
 compare_thresholds = [(p, np.percentile(cell_sums, p)) for p in compare_percentiles]
 
 # Generate threshold comparison grid
