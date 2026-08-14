@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { useUploadStore } from "@/lib/stores/uploadStore";
@@ -57,10 +58,18 @@ export function UploadBar() {
   const submitWarning = useUploadStore((s) => s.submitWarning);
   const rateBps = useUploadStore((s) => s.rateBps);
   const etaSeconds = useUploadStore((s) => s.etaSeconds);
+  const stage = useUploadStore((s) => s.stage);
+  const percent = useUploadStore((s) => s.percent);
+  const viewerUrl = useUploadStore((s) => s.viewerUrl);
   const cancel = useUploadStore((s) => s.cancel);
   const dismiss = useUploadStore((s) => s.dismiss);
 
   const uploading = status === "preparing" || status === "uploading";
+  // Server-side processing phase: bytes are up, the worker is running.
+  const processingPhase = status === "queued" || status === "processing";
+  const complete = status === "complete";
+  // Anything with a spinning indicator (bytes moving or the server working).
+  const busy = uploading || processingPhase;
 
   // The bar is `fixed` (stays visible through the whole page scroll), so an
   // in-flow spacer of the same height reserves its space and pushes the page
@@ -103,27 +112,38 @@ export function UploadBar() {
   const remainingPct = Math.max(0, 100 - pct);
   const doneWarning = status === "done" && Boolean(submitWarning);
   const preparing = status === "preparing";
+  // The processing bar is indeterminate unless the worker reports a percent.
+  const hasPercent = processingPhase && percent != null;
 
   const bg =
     status === "error"
       ? "bg-danger"
       : doneWarning
         ? "bg-amber-600"
-        : "bg-[#0b6bcb]";
+        : complete
+          ? // Fixed Tailwind green, not the HeroUI `success-*` scale — that scale
+            // inverts in dark mode (higher number → lighter), which made the bar
+            // paler instead of darker.
+            "bg-emerald-700"
+          : "bg-[#0b6bcb]";
 
   const heading =
     status === "error"
       ? "Upload failed"
-      : status === "done"
-        ? doneWarning
-          ? "Uploaded"
-          : "Uploaded"
-        : preparing
-          ? "Preparing upload"
-          : "Uploading";
+      : complete
+        ? "Ready to view"
+        : status === "queued"
+          ? "Queued"
+          : status === "processing"
+            ? "Processing"
+            : status === "done"
+              ? "Uploaded"
+              : preparing
+                ? "Preparing upload"
+                : "Uploading";
 
   const Icon = () => {
-    if (uploading) return <Loader2 className="h-5 w-5 animate-spin" />;
+    if (busy) return <Loader2 className="h-5 w-5 animate-spin" />;
     if (status === "error") return <XCircle className="h-5 w-5" />;
     if (doneWarning) return <AlertTriangle className="h-5 w-5" />;
 
@@ -150,9 +170,10 @@ export function UploadBar() {
             <Icon />
             <span className="shrink-0 text-lg font-semibold">{heading}</span>
 
-            {/* Progress bar (indeterminate until bytes start flowing). */}
+            {/* Progress bar. Indeterminate while preparing or while the server
+                works without a reported percent; determinate otherwise. */}
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/25">
-              {preparing ? (
+              {preparing || (processingPhase && !hasPercent) ? (
                 <div
                   className="h-full w-1/4 rounded-full bg-white"
                   style={{
@@ -162,17 +183,42 @@ export function UploadBar() {
               ) : (
                 <div
                   className="h-full rounded-full bg-white transition-all duration-300"
-                  data-progress={pct.toFixed(1)}
+                  data-progress={(complete
+                    ? 100
+                    : hasPercent
+                      ? (percent ?? 0)
+                      : pct
+                  ).toFixed(1)}
                   data-testid="upload-bar-progress"
-                  style={{ width: `${status === "error" ? 100 : pct}%` }}
+                  style={{
+                    width: `${
+                      status === "error" || complete
+                        ? 100
+                        : hasPercent
+                          ? (percent ?? 0)
+                          : pct
+                    }%`,
+                  }}
                 />
               )}
             </div>
 
-            {!preparing && status !== "error" && (
+            {(status === "uploading" || complete || hasPercent) && (
               <span className="w-12 shrink-0 text-right text-sm tabular-nums">
-                {pct.toFixed(0)}%
+                {(complete ? 100 : hasPercent ? (percent ?? 0) : pct).toFixed(
+                  0,
+                )}
+                %
               </span>
+            )}
+
+            {complete && viewerUrl && (
+              <Link
+                className="shrink-0 rounded-md bg-white px-4 py-1.5 text-sm font-semibold text-emerald-700 transition-colors hover:bg-white/90"
+                href={viewerUrl}
+              >
+                View dataset
+              </Link>
             )}
 
             <button
@@ -193,6 +239,9 @@ export function UploadBar() {
               </div>
               <div>Estimated time remaining: {formatEta(etaSeconds)}</div>
               <div>Transfer rate: {formatRate(rateBps)}</div>
+              <div className="font-bold">
+                Do not close this tab — closing cancels the upload.
+              </div>
             </div>
           )}
 
@@ -203,15 +252,47 @@ export function UploadBar() {
           )}
 
           {status === "done" && (
-            <div className="mt-2 pl-9 text-sm text-white/90">
+            <div
+              className={`mt-2 pl-9 text-sm text-white/90 ${doneWarning ? "font-bold" : ""}`}
+            >
               {doneWarning
                 ? `Your files uploaded, but processing didn't start: ${submitWarning}`
-                : `${title} uploaded — now processing on the server. We'll email you a link when it's ready.`}
+                : `${title} uploaded — now processing on the server.`}
+            </div>
+          )}
+
+          {status === "queued" && (
+            <div className="mt-2 space-y-0.5 pl-9 text-sm text-white/90">
+              <div>{title} uploaded — queued for processing…</div>
+              <div className="font-bold">
+                You can close this tab — we&rsquo;ll email you a link when
+                it&rsquo;s ready.
+              </div>
+            </div>
+          )}
+
+          {status === "processing" && (
+            <div className="mt-2 space-y-0.5 pl-9 text-sm text-white/90">
+              <div>
+                Processing {title}
+                {stage ? ` — ${stage}` : "…"}
+              </div>
+              <div className="font-bold">
+                You can close this tab — we&rsquo;ll email you a link when
+                it&rsquo;s ready.
+              </div>
+            </div>
+          )}
+
+          {complete && (
+            <div className="mt-2 pl-9 text-sm text-white/90">
+              {title} is ready. Open it with “View dataset”. We’ve also emailed
+              you the link.
             </div>
           )}
 
           {status === "error" && (
-            <div className="mt-2 pl-9 text-sm text-white/90">
+            <div className="mt-2 pl-9 text-sm font-bold text-white/90">
               {error || "Something went wrong during the upload."}
             </div>
           )}
