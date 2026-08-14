@@ -16,12 +16,15 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import { applyViewerConfig, type ViewerConfig } from "@/lib/utils/viewer-config";
+import {
+  applyViewerConfig,
+  type ViewerConfig,
+} from "@/lib/utils/viewer-config";
+import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 import {
   useCellVizUrlSync,
   tryReadCellVizFromUrl,
 } from "@/lib/hooks/useUrlVizSync";
-
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -58,7 +61,6 @@ function ViewerByIdContent() {
 
   // URL visualization state sync
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
-
 
   // Read split params from URL on mount
   useEffect(() => {
@@ -176,7 +178,9 @@ function ViewerByIdContent() {
       if (!metaRes.ok) {
         const body = await metaRes.json().catch(() => ({}));
 
-        throw new Error(body.message || `Dataset fetch failed: ${metaRes.status}`);
+        throw new Error(
+          body.message || `Dataset fetch failed: ${metaRes.status}`,
+        );
       }
       const meta = await metaRes.json();
       const config = (meta.viewerConfig as ViewerConfig | null) ?? null;
@@ -221,11 +225,26 @@ function ViewerByIdContent() {
   // Apply defaults when the dataset changes, unless a shared-link URL state
   // already set the view. Precedence: URL state > owner-saved config > heuristic.
   useEffect(() => {
-    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current) return;
+    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current)
+      return;
     defaultsAppliedRef.current = true;
 
     if (viewerConfig) {
       applyViewerConfig(viewerConfig, vizStore, dataset);
+
+      // Per-sample align keys off the transform column's per-cell values, which
+      // are lazy-loaded on S3 datasets. applyViewerConfig only sets the column
+      // name, so fetch its data (if absent) and bump clusterVersion — the
+      // scene's transform effect then re-applies the saved sample transforms.
+      const tc = viewerConfig.transformColumn;
+
+      if (tc) {
+        loadClusterColumn(dataset, tc)
+          .then((fetched) => {
+            if (fetched) vizStore.incrementClusterVersion();
+          })
+          .catch(() => {});
+      }
     } else {
       vizStore.setSelectedColumn(selectBestClusterColumn(dataset));
     }
@@ -235,7 +254,9 @@ function ViewerByIdContent() {
   useEffect(() => {
     if (!dataset || viewCountedRef.current) return;
     viewCountedRef.current = true;
-    fetch(`/api/datasets/${datasetId}/view`, { method: "POST" }).catch(() => {});
+    fetch(`/api/datasets/${datasetId}/view`, { method: "POST" }).catch(
+      () => {},
+    );
   }, [dataset]);
 
   // Clear the shared registration when leaving the viewer.
