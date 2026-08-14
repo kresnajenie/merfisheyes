@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import type { Data, Layout, Config } from "plotly.js";
-
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type {
+  DetectedExpressionKind,
+  ExpressionScaleMode,
+} from "@/lib/utils/expression-scale";
+
+import { useMemo } from "react";
+
+import { Plot } from "./plot-loader";
+
 import { colormapRgb } from "@/lib/utils/colormaps";
 import { getColorFromPalette } from "@/lib/utils/color-palette";
 import { getOrderedSecondaryValues } from "@/lib/utils/secondary-order";
-
-import { Plot } from "./plot-loader";
+import { useDisplayGeneExpression } from "@/lib/hooks/useDisplayGeneExpression";
 
 interface GeneHistogramProps {
   dataset: StandardizedDataset;
@@ -28,6 +34,9 @@ interface GeneHistogramProps {
   // probability-density (matplotlib-style density=True) so groups of
   // different sizes are visually comparable.
   density?: boolean;
+  // Raw-counts vs log1p display space (mirrors the scene's scale-bar toggle).
+  geneScaleMode?: ExpressionScaleMode;
+  detectedGeneKind?: DetectedExpressionKind | null;
 }
 
 export function GeneHistogram({
@@ -41,31 +50,16 @@ export function GeneHistogram({
   secondaryPaletteOverrides,
   secondaryValueOrder,
   density,
+  geneScaleMode = "raw",
+  detectedGeneKind = null,
 }: GeneHistogramProps) {
-  const [expression, setExpression] = useState<number[] | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    dataset
-      .getGeneExpression(gene)
-      .then((vals) => {
-        if (!cancelled) {
-          setExpression(vals);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setExpression(null);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [dataset, gene]);
+  const { expression, loading } = useDisplayGeneExpression(
+    dataset,
+    gene,
+    geneScaleMode,
+    detectedGeneKind,
+  );
+  const scaleLabel = geneScaleMode === "log" ? "log1p" : "counts";
 
   const secondaryActive =
     !!secondaryColumn &&
@@ -78,6 +72,7 @@ export function GeneHistogram({
 
   const baseColor = useMemo(() => {
     const [r, g, b] = colormapRgb(colormap, 0.7);
+
     return `rgb(${Math.round(r * 255)},${Math.round(g * 255)},${Math.round(b * 255)})`;
   }, [colormap]);
 
@@ -90,6 +85,7 @@ export function GeneHistogram({
     const secondaryCluster = dataset.clusters?.find(
       (c) => c.column === secondaryColumn,
     );
+
     if (!primaryCluster || !secondaryCluster) return null;
 
     const cellCount = primaryCluster.valueIndices
@@ -114,27 +110,34 @@ export function GeneHistogram({
 
     // Two passes: count then fill, so we can size Float32Arrays exactly.
     const sizes = new Map<string, number>();
+
     for (const v of secondaryOrder) sizes.set(v, 0);
     for (let i = 0; i < cellCount; i++) {
       const p = primaryAt(i);
+
       if (!selectedCelltypes!.has(p)) continue;
       const s = secondaryAt(i);
+
       if (!sizes.has(s)) continue;
       sizes.set(s, sizes.get(s)! + 1);
     }
     const arrays = new Map<string, Float32Array>();
     const cursors = new Map<string, number>();
+
     for (const v of secondaryOrder) {
       arrays.set(v, new Float32Array(sizes.get(v) ?? 0));
       cursors.set(v, 0);
     }
     for (let i = 0; i < cellCount; i++) {
       const p = primaryAt(i);
+
       if (!selectedCelltypes!.has(p)) continue;
       const s = secondaryAt(i);
       const arr = arrays.get(s);
+
       if (!arr) continue;
       const c = cursors.get(s)!;
+
       arr[c] = expression[i] ?? 0;
       cursors.set(s, c + 1);
     }
@@ -168,6 +171,7 @@ export function GeneHistogram({
       return buckets.secondaryOrder.map((secondary, i) => {
         const color = buckets.colorFor(secondary, i);
         const arr = buckets.arrays.get(secondary)!;
+
         return {
           type: "histogram",
           name: secondary,
@@ -187,6 +191,7 @@ export function GeneHistogram({
         };
       });
     }
+
     return [
       {
         type: "histogram",
@@ -206,7 +211,7 @@ export function GeneHistogram({
       plot_bgcolor: "rgba(0,0,0,0)",
       font: { color: "#ddd", size: 11 },
       xaxis: {
-        title: { text: gene, standoff: 4 },
+        title: { text: `${gene} (${scaleLabel})`, standoff: 4 },
         gridcolor: "rgba(255,255,255,0.08)",
         zerolinecolor: "rgba(255,255,255,0.2)",
         automargin: true,
@@ -242,7 +247,7 @@ export function GeneHistogram({
         align: "left",
       },
     }),
-    [gene, buckets, density],
+    [gene, buckets, density, scaleLabel],
   );
 
   const config = useMemo<Partial<Config>>(
@@ -277,11 +282,11 @@ export function GeneHistogram({
 
   return (
     <Plot
+      useResizeHandler
       config={config}
       data={data}
       layout={layout}
       style={{ width: "100%", height: "100%" }}
-      useResizeHandler
     />
   );
 }

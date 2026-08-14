@@ -1,9 +1,7 @@
 import type { StandardizedDataset } from "../StandardizedDataset";
 
 import { getClusterValue } from "../StandardizedDataset";
-import {
-  VISUALIZATION_CONFIG,
-} from "../config/visualization.config";
+import { VISUALIZATION_CONFIG } from "../config/visualization.config";
 import { colormapRgb } from "../utils/colormaps";
 
 export interface AdvancedVizSettings {
@@ -17,18 +15,29 @@ export interface AdvancedVizSettings {
 }
 
 const defaultAdvanced: AdvancedVizSettings = {
-  selectedSizeMultiplier: VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
-  greyedOutSizeMultiplier: VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+  selectedSizeMultiplier:
+    VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+  greyedOutSizeMultiplier:
+    VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
   greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
   expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
   expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
-  pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
-  pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+  pointSizeMultiplierMin:
+    VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+  pointSizeMultiplierMax:
+    VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
 };
 
-function calcSizeMultiplier(normalizedValue: number, adv: AdvancedVizSettings): number {
+function calcSizeMultiplier(
+  normalizedValue: number,
+  adv: AdvancedVizSettings,
+): number {
   if (isNaN(normalizedValue)) return 1.0;
-  return adv.pointSizeMultiplierMin + normalizedValue * (adv.pointSizeMultiplierMax - adv.pointSizeMultiplierMin);
+
+  return (
+    adv.pointSizeMultiplierMin +
+    normalizedValue * (adv.pointSizeMultiplierMax - adv.pointSizeMultiplierMin)
+  );
 }
 
 /**
@@ -146,6 +155,10 @@ export async function updateGeneVisualization(
   setScaleMax?: (max: number) => void,
   adv: AdvancedVizSettings = defaultAdvanced,
   colormap: string = "bwr",
+  // Pre-fetched (and already raw/log-transformed) values. When provided we skip
+  // the fetch so coloring, the scale bar, and the hover tooltip all share the
+  // exact same numbers. Falls back to fetching raw values when omitted.
+  precomputedExpression?: number[] | null,
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -159,8 +172,9 @@ export async function updateGeneVisualization(
     return null;
   }
 
-  // Fetch gene expression data
-  const expression = await dataset.getGeneExpression(selectedGene);
+  // Fetch gene expression data (unless the caller already has it in display space)
+  const expression =
+    precomputedExpression ?? (await dataset.getGeneExpression(selectedGene));
 
   if (!expression) {
     console.warn(`Gene expression data not found for: ${selectedGene}`);
@@ -215,6 +229,7 @@ export async function updateGeneVisualization(
     const normalizedValue = normalizedExpression[i];
 
     const [r, g, b] = colormapRgb(colormap, normalizedValue);
+
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
@@ -223,7 +238,9 @@ export async function updateGeneVisualization(
 
     const expressionAlpha = isNaN(normalizedValue)
       ? adv.expressionAlphaMin
-      : adv.expressionAlphaMin + (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+      : adv.expressionAlphaMin +
+        (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+
     alphas[i] = expressionAlpha * alphaScale;
   }
 
@@ -328,6 +345,7 @@ export function updateNumericalCelltypeVisualization(
     const normalizedValue = normalizedValues[i];
 
     const [r, g, b] = colormapRgb(colormap, normalizedValue);
+
     colors[i * 3] = r;
     colors[i * 3 + 1] = g;
     colors[i * 3 + 2] = b;
@@ -336,7 +354,9 @@ export function updateNumericalCelltypeVisualization(
 
     const valueAlpha = isNaN(normalizedValue)
       ? adv.expressionAlphaMin
-      : adv.expressionAlphaMin + (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+      : adv.expressionAlphaMin +
+        (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+
     alphas[i] = valueAlpha * alphaScale;
   }
 
@@ -435,6 +455,8 @@ export async function updateCombinedVisualization(
   setScaleMax?: (max: number) => void,
   adv: AdvancedVizSettings = defaultAdvanced,
   colormap: string = "bwr",
+  // See updateGeneVisualization: display-space values shared with the tooltip.
+  precomputedExpression?: number[] | null,
 ): Promise<{
   colors: Float32Array;
   sizes: Float32Array;
@@ -456,8 +478,9 @@ export async function updateCombinedVisualization(
     return null;
   }
 
-  // Fetch gene expression data
-  const expression = await dataset.getGeneExpression(selectedGene);
+  // Fetch gene expression data (unless the caller already has it in display space)
+  const expression =
+    precomputedExpression ?? (await dataset.getGeneExpression(selectedGene));
 
   if (!expression) {
     console.warn(`Gene expression data not found for: ${selectedGene}`);
@@ -537,7 +560,9 @@ export async function updateCombinedVisualization(
       // Alpha based on expression level
       const expressionAlpha = isNaN(normalizedValue)
         ? adv.expressionAlphaMin
-        : adv.expressionAlphaMin + (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+        : adv.expressionAlphaMin +
+          (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
+
       alphas[i] = expressionAlpha * alphaScale;
     } else {
       // Non-selected celltypes: show grey with reduced alpha
@@ -591,14 +616,17 @@ export async function updateCoexpressionVisualization(
   alphas: Float32Array;
 } | null> {
   const count = dataset.getPointCount();
+
   if (!geneA || !geneB) return null;
 
   const [expA, expB] = await Promise.all([
     dataset.getGeneExpression(geneA),
     dataset.getGeneExpression(geneB),
   ]);
+
   if (!expA || !expB) {
     console.warn(`Coexpression: missing expression for ${geneA} or ${geneB}`);
+
     return null;
   }
 
@@ -609,6 +637,7 @@ export async function updateCoexpressionVisualization(
       expA,
       VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE,
     );
+
     setScaleMinA(0);
     setScaleMaxA(p95A);
     scaleMinA = 0;
@@ -619,6 +648,7 @@ export async function updateCoexpressionVisualization(
       expB,
       VISUALIZATION_CONFIG.GENE_EXPRESSION_PERCENTILE,
     );
+
     setScaleMinB(0);
     setScaleMaxB(p95B);
     scaleMinB = 0;
@@ -627,7 +657,7 @@ export async function updateCoexpressionVisualization(
 
   const cluster =
     clusterColumn && greyOutNonSelected && selectedCelltypes.size > 0
-      ? dataset.clusters?.find((c) => c.column === clusterColumn) ?? null
+      ? (dataset.clusters?.find((c) => c.column === clusterColumn) ?? null)
       : null;
   const applyCelltypeFilter = !!cluster;
 
@@ -643,6 +673,7 @@ export async function updateCoexpressionVisualization(
   for (let i = 0; i < count; i++) {
     if (applyCelltypeFilter) {
       const category = getClusterValue(cluster!, i);
+
       if (!selectedCelltypes.has(category)) {
         colors[i * 3] = gr;
         colors[i * 3 + 1] = gg;
@@ -673,10 +704,12 @@ export async function updateCoexpressionVisualization(
     colors[i * 3 + 2] = magentaIntensity; // B
 
     const drive = Math.max(nA, nB);
+
     sizes[i] = baseSize * calcSizeMultiplier(drive, adv);
     const alpha =
       adv.expressionAlphaMin +
       (adv.expressionAlphaMax - adv.expressionAlphaMin) * drive;
+
     alphas[i] = alpha * alphaScale;
   }
 

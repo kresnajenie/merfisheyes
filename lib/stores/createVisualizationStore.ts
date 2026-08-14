@@ -1,7 +1,12 @@
+import type { SampleTransform } from "../utils/sample-transforms";
+import type {
+  DetectedExpressionKind,
+  ExpressionScaleMode,
+} from "../utils/expression-scale";
+
 import { createStore } from "zustand";
 
 import { VISUALIZATION_CONFIG } from "../config/visualization.config";
-import type { SampleTransform } from "../utils/sample-transforms";
 
 export type VisualizationMode = "celltype" | "gene";
 export type CellViewMode = "2D" | "3D";
@@ -13,6 +18,12 @@ export interface VisualizationState {
   selectedGene: string | null;
   geneScaleMin: number;
   geneScaleMax: number;
+  /** Display space for gene expression: raw counts vs log1p. */
+  geneScaleMode: ExpressionScaleMode;
+  /** True once the user picks a mode, so we stop auto-defaulting to native. */
+  geneScaleModeUserSet: boolean;
+  /** Sniffed kind of the current gene's values (label + native default). */
+  detectedGeneKind: DetectedExpressionKind | null;
   selectedClusterColumn: string | null;
   selectedColumn: string | null;
   selectedCelltypes: Set<string>;
@@ -85,6 +96,11 @@ export interface VisualizationState {
   soloCelltype: (celltype: string) => void;
   setGeneScaleMin: (min: number) => void;
   setGeneScaleMax: (max: number) => void;
+  /** User-driven mode switch (sticks across genes). */
+  setGeneScaleMode: (mode: ExpressionScaleMode) => void;
+  /** Sync the mode to the detected native default without marking it user-set. */
+  setGeneScaleModeAuto: (mode: ExpressionScaleMode) => void;
+  setDetectedGeneKind: (kind: DetectedExpressionKind | null) => void;
   setNumericalScaleMin: (min: number) => void;
   setNumericalScaleMax: (max: number) => void;
   toggleCelltype: (celltype: string) => void;
@@ -196,6 +212,9 @@ const initialState = {
   hiddenCelltypes: new Set<string>(),
   geneScaleMin: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN,
   geneScaleMax: VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX,
+  geneScaleMode: "raw" as ExpressionScaleMode,
+  geneScaleModeUserSet: false,
+  detectedGeneKind: null as DetectedExpressionKind | null,
   selectedClusterColumn: null,
   selectedColumn: null,
   selectedCelltypes: new Set<string>(),
@@ -232,13 +251,17 @@ const initialState = {
   sceneRotation: 0,
   flipX: false,
   flipY: false,
-  selectedSizeMultiplier: VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
-  greyedOutSizeMultiplier: VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+  selectedSizeMultiplier:
+    VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+  greyedOutSizeMultiplier:
+    VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
   greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
   expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
   expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
-  pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
-  pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+  pointSizeMultiplierMin:
+    VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+  pointSizeMultiplierMax:
+    VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
   targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
   pinnedTooltipColumns: new Set<string>(),
   sliderRanges: {} as Record<string, { min: number; max: number }>,
@@ -328,6 +351,18 @@ export function createVisualizationStoreInstance() {
 
     setGeneScaleMax: (max) => {
       set({ geneScaleMax: max });
+    },
+
+    setGeneScaleMode: (mode) => {
+      set({ geneScaleMode: mode, geneScaleModeUserSet: true });
+    },
+
+    setGeneScaleModeAuto: (mode) => {
+      set({ geneScaleMode: mode });
+    },
+
+    setDetectedGeneKind: (kind) => {
+      set({ detectedGeneKind: kind });
     },
 
     setNumericalScaleMin: (min) => {
@@ -574,11 +609,13 @@ export function createVisualizationStoreInstance() {
     togglePinnedTooltipColumn: (column) => {
       set((state) => {
         const next = new Set(state.pinnedTooltipColumns);
+
         if (next.has(column)) {
           next.delete(column);
         } else {
           next.add(column);
         }
+
         return { pinnedTooltipColumns: next };
       });
     },
@@ -593,7 +630,9 @@ export function createVisualizationStoreInstance() {
     clearSliderRanges: (keys) => {
       set((state) => {
         const next = { ...state.sliderRanges };
+
         for (const k of keys) delete next[k];
+
         return { sliderRanges: next };
       });
     },
@@ -610,7 +649,9 @@ export function createVisualizationStoreInstance() {
       set((state) => {
         // No-op when picking the primary column as secondary (UI also blocks
         // this, but defend against direct calls).
-        if (column && column === state.selectedColumn) return {} as Partial<VisualizationState>;
+        if (column && column === state.selectedColumn)
+          return {} as Partial<VisualizationState>;
+
         return {
           secondaryColumn: column,
           selectedSecondaryValues: new Set<string>(),
@@ -627,8 +668,10 @@ export function createVisualizationStoreInstance() {
     toggleSecondaryValue: (value) => {
       set((state) => {
         const next = new Set(state.selectedSecondaryValues);
+
         if (next.has(value)) next.delete(value);
         else next.add(value);
+
         return { selectedSecondaryValues: next };
       });
     },
@@ -647,8 +690,7 @@ export function createVisualizationStoreInstance() {
     },
 
     setExportBoxEnabled: (enabled) => set({ exportBoxEnabled: enabled }),
-    setExportBoxWidthMm: (mm) =>
-      set({ exportBoxWidthMm: Math.max(0.01, mm) }),
+    setExportBoxWidthMm: (mm) => set({ exportBoxWidthMm: Math.max(0.01, mm) }),
     setExportBoxHeightMm: (mm) =>
       set({ exportBoxHeightMm: Math.max(0.01, mm) }),
     setExportBoxCenterPx: (pos) => set({ exportBoxCenterPx: pos }),
@@ -682,7 +724,9 @@ export function createVisualizationStoreInstance() {
     setSampleTransform: (sampleId, transform) => {
       set((state) => {
         const next = new Map(state.sampleTransforms);
+
         next.set(sampleId, transform);
+
         return {
           sampleTransforms: next,
           transformVersion: state.transformVersion + 1,
@@ -692,9 +736,12 @@ export function createVisualizationStoreInstance() {
 
     clearSampleTransform: (sampleId) => {
       set((state) => {
-        if (!state.sampleTransforms.has(sampleId)) return {} as Partial<VisualizationState>;
+        if (!state.sampleTransforms.has(sampleId))
+          return {} as Partial<VisualizationState>;
         const next = new Map(state.sampleTransforms);
+
         next.delete(sampleId);
+
         return {
           sampleTransforms: next,
           transformVersion: state.transformVersion + 1,
