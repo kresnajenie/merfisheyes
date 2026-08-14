@@ -19,12 +19,15 @@ import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMolecule
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import { applyViewerConfig, type ViewerConfig } from "@/lib/utils/viewer-config";
+import {
+  applyViewerConfig,
+  type ViewerConfig,
+} from "@/lib/utils/viewer-config";
+import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 import {
   useCellVizUrlSync,
   useSMOverlayUrlSync,
 } from "@/lib/hooks/useUrlVizSync";
-
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -74,7 +77,7 @@ function ViewerFromS3Content() {
   const smDataset = useSingleMoleculeStore((s) => {
     const id = s.currentDatasetId;
 
-    return id ? s.datasets.get(id) ?? null : null;
+    return id ? (s.datasets.get(id) ?? null) : null;
   });
   const smVizStore = useSingleMoleculeVisualizationStore();
 
@@ -120,7 +123,6 @@ function ViewerFromS3Content() {
     smVizStore,
     resolveOverlayDefaultGenes,
   );
-
 
   // Read split params from URL on mount
   useEffect(() => {
@@ -290,11 +292,26 @@ function ViewerFromS3Content() {
   // Apply defaults when the dataset changes, unless a shared-link URL state
   // already set the view. Precedence: URL state > owner-saved config > heuristic.
   useEffect(() => {
-    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current) return;
+    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current)
+      return;
     defaultsAppliedRef.current = true;
 
     if (registration?.viewerConfig) {
       applyViewerConfig(registration.viewerConfig, vizStore, dataset);
+
+      // Per-sample align keys off the transform column's per-cell values, which
+      // are lazy-loaded on S3 datasets. applyViewerConfig only sets the column
+      // name, so fetch its data (if absent) and bump clusterVersion — the
+      // scene's transform effect then re-applies the saved sample transforms.
+      const tc = registration.viewerConfig.transformColumn;
+
+      if (tc) {
+        loadClusterColumn(dataset, tc)
+          .then((fetched) => {
+            if (fetched) vizStore.incrementClusterVersion();
+          })
+          .catch(() => {});
+      }
     } else {
       vizStore.setSelectedColumn(selectBestClusterColumn(dataset));
     }
