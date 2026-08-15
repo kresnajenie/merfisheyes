@@ -7,6 +7,15 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import * as Comlink from "comlink";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/modal";
+import { Input } from "@heroui/input";
+import { Button } from "@heroui/button";
 
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
@@ -18,6 +27,13 @@ import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
 import { classifyFolder } from "@/lib/ingest/classify-folder";
 import { useUploadStore } from "@/lib/stores/uploadStore";
 import { AuthModal } from "@/components/auth-modal";
+
+/** A server upload prepared and waiting for the user to name it. */
+interface PendingServerUpload {
+  kind: "single_cell" | "single_molecule";
+  files: { key: string; file: File; contentType: string }[];
+  processingParams: Record<string, unknown>;
+}
 
 /**
  * Reserved raw key for the user-supplied cell-type CSV.
@@ -102,6 +118,13 @@ export function FileUpload({
   // sign-in modal, then resume the upload on success (no sign-in wall first).
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const pendingFilesRef = useRef<File[] | null>(null);
+
+  // A prepared server upload awaiting a title. Auto-derived names collide (every
+  // "transcripts.csv" would share one title), so the user confirms/renames here
+  // before the transfer starts.
+  const [pendingUpload, setPendingUpload] =
+    useState<PendingServerUpload | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -360,23 +383,36 @@ export function FileUpload({
     //
     // v1 pipeline: chunk only. chunkSize 1 = one file per gene, so a gene
     // selection in the viewer fetches only that gene instead of a whole chunk.
-    startUpload({
+    const processingParams = {
       kind,
-      title,
-      files: rawFiles,
-      processingParams: {
-        kind,
-        stages: {
-          chunk: {
-            chunkSize: 1,
-            ...(annotationCsv && kind === "single_cell"
-              ? { mmcCsv: ANNOTATION_CSV_KEY }
-              : {}),
-          },
+      stages: {
+        chunk: {
+          chunkSize: 1,
+          ...(annotationCsv && kind === "single_cell"
+            ? { mmcCsv: ANNOTATION_CSV_KEY }
+            : {}),
         },
       },
-    });
+    };
 
+    // Stage the upload and let the user confirm/rename the title before the
+    // transfer begins (see startPreparedUpload). Navigation to /explore happens
+    // on confirm, once the transfer is actually kicked off.
+    setPendingUpload({ kind, files: rawFiles, processingParams });
+    setTitleDraft(title);
+  };
+
+  // Kick off the staged upload with the (possibly edited) title, then go to
+  // /explore where the top bar tracks byte + processing progress.
+  const startPreparedUpload = () => {
+    if (!pendingUpload) return;
+    startUpload({
+      kind: pendingUpload.kind,
+      title: titleDraft.trim() || "Untitled Dataset",
+      files: pendingUpload.files,
+      processingParams: pendingUpload.processingParams,
+    });
+    setPendingUpload(null);
     router.push("/explore");
   };
 
@@ -734,6 +770,7 @@ export function FileUpload({
   return (
     <div className="w-full">
       <div
+        aria-label={`${title} — ${description}. Click or drop files to upload.`}
         className={`
           relative border-2 border-dashed rounded-lg p-3 text-center cursor-pointer
           transition-all duration-200 ease-in-out flex items-center justify-center
@@ -745,7 +782,6 @@ export function FileUpload({
           }
           ${isLoading ? "pointer-events-none opacity-60" : ""}
         `}
-        aria-label={`${title} — ${description}. Click or drop files to upload.`}
         role="button"
         tabIndex={isLoading ? -1 : 0}
         onClick={handleClick}
@@ -811,6 +847,52 @@ export function FileUpload({
           }}
         />
       )}
+
+      {/* Name-your-dataset step for the server upload — pre-filled from the
+          file/folder name, editable so multiple same-named files don't collide. */}
+      <Modal
+        isOpen={pendingUpload !== null}
+        size="md"
+        onClose={() => setPendingUpload(null)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            <span>Name your dataset</span>
+            <span className="text-xs font-normal text-default-400">
+              {pendingUpload?.files.length ?? 0}{" "}
+              {(pendingUpload?.files.length ?? 0) === 1 ? "file" : "files"} ·{" "}
+              {pendingUpload?.kind === "single_molecule"
+                ? "single molecule"
+                : "single cell"}
+            </span>
+          </ModalHeader>
+          <ModalBody>
+            <Input
+              description="You can reuse a name — this is just how it's labeled."
+              label="Dataset name"
+              value={titleDraft}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && titleDraft.trim()) {
+                  startPreparedUpload();
+                }
+              }}
+              onValueChange={setTitleDraft}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={() => setPendingUpload(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="primary"
+              isDisabled={!titleDraft.trim()}
+              onPress={startPreparedUpload}
+            >
+              Start upload
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }
