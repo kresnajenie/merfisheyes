@@ -37,6 +37,8 @@ interface StartOpts {
   title: string;
   files: RawUploadFile[];
   processingParams: Record<string, unknown>;
+  /** Called with the dataset id as soon as the upload is initiated. */
+  onInitiated?: (datasetId: string) => void;
 }
 
 interface UploadStore {
@@ -89,7 +91,7 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
   _uploadStartAt: null,
   _stopPoll: null,
 
-  async start({ kind, title, files, processingParams }) {
+  async start({ kind, title, files, processingParams, onInitiated }) {
     const controller = new AbortController();
 
     // A previous job's poll must not outlive the bar being reused.
@@ -123,6 +125,11 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
         processingParams,
         files,
         signal: controller.signal,
+        // Surface the id early (before bytes finish) and record it in the store.
+        onInitiated: (id) => {
+          set({ datasetId: id });
+          onInitiated?.(id);
+        },
         // Stamp the clock when bytes actually start flowing, so the rate isn't
         // skewed by the initiate round-trip that precedes it.
         onPhase: (phase) =>
