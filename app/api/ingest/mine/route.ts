@@ -30,6 +30,16 @@ const select = {
   batchJobId: true,
   createdAt: true,
   completedAt: true,
+  // Catalog-style metadata (owner-editable, carried into a submission).
+  description: true,
+  species: true,
+  disease: true,
+  tissue: true,
+  platform: true,
+  institute: true,
+  tags: true,
+  externalLink: true,
+  publicationLink: true,
 } as const;
 
 const SORT_FIELDS: Record<string, "createdAt" | "numCells" | "title"> = {
@@ -89,6 +99,25 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Attach the community-submission status (if any) for each dataset, so the
+    // account cards can show "Pending review" / "Published" / "Rejected".
+    const submissions = await prisma.catalogDataset.findMany({
+      where: {
+        isCommunity: true,
+        sourceDatasetId: { in: datasets.map((d) => d.id) },
+      },
+      select: {
+        id: true,
+        sourceDatasetId: true,
+        reviewStatus: true,
+        isPublished: true,
+        reviewNote: true,
+      },
+    });
+    const submissionByDataset = new Map(
+      submissions.map((s) => [s.sourceDatasetId, s]),
+    );
+
     return NextResponse.json({
       datasets: datasets.map((d) => {
         const viewerPath =
@@ -100,6 +129,7 @@ export async function GET(request: NextRequest) {
             : d.ingestSource === "s3_registered" && d.s3BaseUrl
               ? `/${viewerPath}/from-s3?url=${encodeURIComponent(d.s3BaseUrl)}`
               : `/${viewerPath}/${d.id}`;
+        const sub = submissionByDataset.get(d.id);
 
         return {
           id: d.id,
@@ -117,6 +147,24 @@ export async function GET(request: NextRequest) {
           createdAt: d.createdAt,
           completedAt: d.completedAt,
           viewerUrl,
+          // Owner-editable metadata.
+          description: d.description,
+          species: d.species,
+          disease: d.disease,
+          tissue: d.tissue,
+          platform: d.platform,
+          institute: d.institute,
+          tags: d.tags,
+          externalLink: d.externalLink,
+          publicationLink: d.publicationLink,
+          submission: sub
+            ? {
+                catalogId: sub.id,
+                reviewStatus: sub.reviewStatus,
+                isPublished: sub.isPublished,
+                reviewNote: sub.reviewNote,
+              }
+            : null,
         };
       }),
     });

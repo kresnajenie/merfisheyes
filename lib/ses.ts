@@ -36,7 +36,10 @@ export async function sendDatasetReadyEmail({
   metadata,
 }: DatasetReadyEmailParams): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const link = `${baseUrl}/viewer/${datasetId}`;
+  // Single-molecule datasets (sm_ prefix) open in the SM viewer; single-cell in
+  // the standard viewer. Same convention used elsewhere in this file.
+  const viewerPath = datasetId.startsWith("sm_") ? "sm-viewer" : "viewer";
+  const link = `${baseUrl}/${viewerPath}/${datasetId}`;
 
   const subject = datasetName
     ? `${datasetName} - Dataset Ready - MERFISHEYES`
@@ -82,11 +85,15 @@ export async function sendDatasetReadyEmail({
         <tr>
           <td style="padding: 4px 0; color: #888;">Platform</td>
           <td style="padding: 4px 0; color: #333; text-align: right; text-transform: uppercase;">${metadata?.platform || "N/A"}</td>
-        </tr>${metadata?.clusterCount ? `
+        </tr>${
+          metadata?.clusterCount
+            ? `
         <tr>
           <td style="padding: 4px 0; color: #888;">Clusters</td>
           <td style="padding: 4px 0; color: #333; text-align: right;">${metadata.clusterCount}</td>
-        </tr>` : ""}
+        </tr>`
+            : ""
+        }
       </table>
     </div>
     <div style="margin-top: 24px; font-size: 12px; color: #999; word-break: break-all;">${link}</div>

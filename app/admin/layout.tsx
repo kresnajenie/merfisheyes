@@ -34,6 +34,12 @@ export default async function AdminLayout({
           >
             Datasets
           </NextLink>
+          <NextLink
+            className="text-sm px-3 py-2 rounded-lg hover:bg-default-100 transition-colors"
+            href="/admin/community"
+          >
+            Community review
+          </NextLink>
           {role === "SUPER_ADMIN" && (
             <NextLink
               className="text-sm px-3 py-2 rounded-lg hover:bg-default-100 transition-colors"
