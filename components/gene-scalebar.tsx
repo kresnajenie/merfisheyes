@@ -2,11 +2,12 @@
 
 import React, { useState } from "react";
 
+import { ColormapPicker } from "./colormap-picker";
+
 import { NumberScrubber } from "@/components/ui/number-scrubber";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { colormapCss } from "@/lib/utils/colormaps";
 import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
-import { ColormapPicker } from "./colormap-picker";
 
 interface GeneScalebarProps {
   minValue?: number;
@@ -29,6 +30,16 @@ export const GeneScalebar: React.FC<GeneScalebarProps> = ({
 
   const colormap = usePanelVisualizationStore((s) => s.colormap);
   const setColormap = usePanelVisualizationStore((s) => s.setColormap);
+  // Raw-counts ⇄ log toggle — only meaningful when a gene is being viewed
+  // (numerical cluster columns reuse this bar but aren't counts/log).
+  const selectedGene = usePanelVisualizationStore((s) => s.selectedGene);
+  const geneScaleMode = usePanelVisualizationStore((s) => s.geneScaleMode);
+  const detectedGeneKind = usePanelVisualizationStore(
+    (s) => s.detectedGeneKind,
+  );
+  const setGeneScaleMode = usePanelVisualizationStore(
+    (s) => s.setGeneScaleMode,
+  );
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -81,6 +92,38 @@ export const GeneScalebar: React.FC<GeneScalebarProps> = ({
         value={minValue}
         onChange={onMinChange}
       />
+
+      {/* Raw ⇄ Log display toggle (gene expression only). */}
+      {selectedGene && (
+        <div className="mt-1 flex flex-col items-center gap-1">
+          <div className="flex overflow-hidden rounded-md border border-white/25 text-[10px] font-semibold">
+            {(["raw", "log"] as const).map((m) => (
+              <button
+                key={m}
+                className={`px-2 py-0.5 transition-colors ${
+                  geneScaleMode === m
+                    ? "bg-white text-black"
+                    : "text-white/80 hover:bg-white/15"
+                }`}
+                title={
+                  m === "raw"
+                    ? "Show raw counts (linear)"
+                    : "Show log1p-transformed expression"
+                }
+                type="button"
+                onClick={() => setGeneScaleMode(m)}
+              >
+                {m === "raw" ? "Raw" : "Log"}
+              </button>
+            ))}
+          </div>
+          {detectedGeneKind && (
+            <span className="text-[9px] text-white/60 drop-shadow">
+              data: {detectedGeneKind === "normalized" ? "log-norm" : "counts"}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

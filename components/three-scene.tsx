@@ -41,6 +41,11 @@ import {
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
+import {
+  detectExpressionKind,
+  nativeModeFor,
+  transformExpression,
+} from "@/lib/utils/expression-scale";
 import { ExportBoxOverlay } from "@/components/export-box-overlay";
 import {
   markSceneReady,
@@ -102,6 +107,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
   // Store current visualization data for tooltips
   const geneExpressionRef = useRef<number[] | null>(null);
+  // Tracks the last applied raw/log display mode so a toggle re-auto-scales the
+  // gene range (like a gene change), since counts and log1p have different spans.
+  const previousModeRef = useRef<string | null>(null);
   const colorPaletteRef = useRef<Record<string, string>>({});
   const clusterRef = useRef<any>(null);
   const isNumericalClusterRef = useRef<boolean>(false);
@@ -191,6 +199,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     geneScaleMax,
     setGeneScaleMin,
     setGeneScaleMax,
+    geneScaleMode,
+    geneScaleModeUserSet,
+    setGeneScaleModeAuto,
+    setDetectedGeneKind,
     numericalScaleMin,
     numericalScaleMax,
     setNumericalScaleMin,
@@ -1328,6 +1340,34 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         previousGeneRef.current = selectedGene;
       }
 
+      // Sniff raw-counts vs log, apply the chosen display space, and report
+      // whether the range should be re-auto-scaled (gene OR display-mode change).
+      // Used by both the gene-only and combined paths so coloring, the scale
+      // bar, and the hover tooltip share identical numbers.
+      const toDisplayExpression = (expression: number[]) => {
+        const kind = detectExpressionKind(expression);
+
+        setDetectedGeneKind(kind);
+
+        const effectiveMode = geneScaleModeUserSet
+          ? geneScaleMode
+          : nativeModeFor(kind);
+
+        // Keep the toggle UI in sync with the auto-detected native default.
+        if (!geneScaleModeUserSet && geneScaleMode !== effectiveMode) {
+          setGeneScaleModeAuto(effectiveMode);
+        }
+
+        const modeChanged = previousModeRef.current !== effectiveMode;
+
+        previousModeRef.current = effectiveMode;
+
+        return {
+          display: transformExpression(expression, kind, effectiveMode),
+          autoScale: geneChanged || modeChanged,
+        };
+      };
+
       // Check if 2nd gene has changed (for coexpression auto-scaling).
       const gene2Changed = previousGene2Ref.current !== selectedGene2;
 
@@ -1409,10 +1449,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             );
           }
 
-          // Fetch gene expression data for tooltip
-          const expression = await dataset.getGeneExpression(selectedGene);
+          // Fetch gene expression, then apply the raw/log display transform.
+          const raw = await dataset.getGeneExpression(selectedGene);
+          const { display, autoScale } = raw
+            ? toDisplayExpression(raw)
+            : { display: raw, autoScale: geneChanged };
 
-          geneExpressionRef.current = expression;
+          geneExpressionRef.current = display;
 
           result = await updateCombinedVisualization(
             dataset,
@@ -1423,10 +1466,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             sizeScale,
             geneScaleMin,
             geneScaleMax,
-            geneChanged ? setGeneScaleMin : undefined,
-            geneChanged ? setGeneScaleMax : undefined,
+            autoScale ? setGeneScaleMin : undefined,
+            autoScale ? setGeneScaleMax : undefined,
             adv,
             colormap,
+            display,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -1443,10 +1487,13 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             );
           }
 
-          // Fetch gene expression data for tooltip
-          const expression = await dataset.getGeneExpression(selectedGene);
+          // Fetch gene expression, then apply the raw/log display transform.
+          const raw = await dataset.getGeneExpression(selectedGene);
+          const { display, autoScale } = raw
+            ? toDisplayExpression(raw)
+            : { display: raw, autoScale: geneChanged };
 
-          geneExpressionRef.current = expression;
+          geneExpressionRef.current = display;
 
           result = await updateGeneVisualization(
             dataset,
@@ -1455,10 +1502,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
             sizeScale,
             geneScaleMin,
             geneScaleMax,
-            geneChanged ? setGeneScaleMin : undefined,
-            geneChanged ? setGeneScaleMax : undefined,
+            autoScale ? setGeneScaleMin : undefined,
+            autoScale ? setGeneScaleMax : undefined,
             adv,
             colormap,
+            display,
           );
         } finally {
           if (geneToastIdRef.current != null) {
@@ -1534,6 +1582,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     alphaScale,
     geneScaleMin,
     geneScaleMax,
+    geneScaleMode,
     numericalScaleMin,
     numericalScaleMax,
     mode,

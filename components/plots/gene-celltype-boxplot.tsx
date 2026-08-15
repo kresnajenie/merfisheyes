@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import type { Data, Layout, Config } from "plotly.js";
-
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import { getColorFromPalette } from "@/lib/utils/color-palette";
-import { getOrderedSecondaryValues } from "@/lib/utils/secondary-order";
+import type {
+  DetectedExpressionKind,
+  ExpressionScaleMode,
+} from "@/lib/utils/expression-scale";
+
+import { useMemo, useRef } from "react";
 
 import { Plot } from "./plot-loader";
+
+import { getColorFromPalette } from "@/lib/utils/color-palette";
+import { getOrderedSecondaryValues } from "@/lib/utils/secondary-order";
+import { useDisplayGeneExpression } from "@/lib/hooks/useDisplayGeneExpression";
 
 interface GeneCelltypeBoxplotProps {
   dataset: StandardizedDataset;
@@ -29,17 +35,23 @@ interface GeneCelltypeBoxplotProps {
   // When true, render `boxpoints: "outliers"` (Plotly's tukey outlier
   // markers) instead of suppressing points entirely.
   showOutliers?: boolean;
+  // Raw-counts vs log1p display space (mirrors the scene's scale-bar toggle).
+  geneScaleMode?: ExpressionScaleMode;
+  detectedGeneKind?: DetectedExpressionKind | null;
 }
 
 const DOUBLE_CLICK_MS = 350;
 
 function quantile(sorted: Float32Array, q: number): number {
   const n = sorted.length;
+
   if (n === 0) return 0;
   const pos = (n - 1) * q;
   const lo = Math.floor(pos);
   const hi = Math.ceil(pos);
+
   if (lo === hi) return sorted[lo];
+
   return sorted[lo] + (pos - lo) * (sorted[hi] - sorted[lo]);
 }
 
@@ -55,6 +67,7 @@ interface BoxStats {
 function computeStats(values: Float32Array): BoxStats {
   const sorted = values.slice().sort();
   const n = sorted.length;
+
   return {
     values,
     count: n,
@@ -82,32 +95,17 @@ export function GeneCelltypeBoxplot({
   secondaryValueOrder,
   yMax,
   showOutliers,
+  geneScaleMode = "raw",
+  detectedGeneKind = null,
 }: GeneCelltypeBoxplotProps) {
   const lastClickRef = useRef<{ name: string; time: number } | null>(null);
-  const [expression, setExpression] = useState<number[] | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    dataset
-      .getGeneExpression(gene)
-      .then((vals) => {
-        if (!cancelled) {
-          setExpression(vals);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setExpression(null);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [dataset, gene]);
+  const { expression, loading } = useDisplayGeneExpression(
+    dataset,
+    gene,
+    geneScaleMode,
+    detectedGeneKind,
+  );
+  const scaleLabel = geneScaleMode === "log" ? "log1p" : "counts";
 
   const secondaryActive =
     !!secondaryColumn &&
@@ -120,12 +118,15 @@ export function GeneCelltypeBoxplot({
   const groups = useMemo(() => {
     if (!expression || secondaryActive) return null;
     const cluster = dataset.clusters?.find((c) => c.column === column);
+
     if (!cluster) return null;
 
     const buckets = new Map<string, number[]>();
+
     if (cluster.valueIndices && cluster.uniqueValues) {
       const indices = cluster.valueIndices;
       const unique = cluster.uniqueValues;
+
       for (let i = 0; i < unique.length; i++) buckets.set(unique[i], []);
       for (let i = 0; i < indices.length; i++) {
         buckets.get(unique[indices[i]])!.push(i);
@@ -134,16 +135,20 @@ export function GeneCelltypeBoxplot({
       for (let i = 0; i < cluster.values.length; i++) {
         const k = String(cluster.values[i]);
         const arr = buckets.get(k);
+
         if (arr) arr.push(i);
         else buckets.set(k, [i]);
       }
     }
 
     const palette = cluster.palette ?? {};
+
     return Array.from(buckets.entries()).map(([name, idxs], i) => {
       const vals = new Float32Array(idxs.length);
+
       for (let k = 0; k < idxs.length; k++) vals[k] = expression[idxs[k]] ?? 0;
       const stats = computeStats(vals);
+
       return {
         name,
         ...stats,
@@ -151,7 +156,14 @@ export function GeneCelltypeBoxplot({
         isSelected: selectedCelltypes.has(name),
       };
     });
-  }, [expression, dataset, column, selectedCelltypes, clusterVersion, secondaryActive]);
+  }, [
+    expression,
+    dataset,
+    column,
+    selectedCelltypes,
+    clusterVersion,
+    secondaryActive,
+  ]);
 
   const visible = useMemo(() => {
     if (!groups) return [];
@@ -162,6 +174,7 @@ export function GeneCelltypeBoxplot({
       .filter((r) => !r.isSelected)
       .sort((a, b) => b.median - a.median)
       .slice(0, Math.max(0, topN));
+
     return [...selected, ...nonSelected];
   }, [groups, topN]);
 
@@ -172,6 +185,7 @@ export function GeneCelltypeBoxplot({
     const secondaryCluster = dataset.clusters?.find(
       (c) => c.column === secondaryColumn,
     );
+
     if (!primaryCluster || !secondaryCluster) return null;
 
     const cellCount = primaryCluster.valueIndices
@@ -190,17 +204,22 @@ export function GeneCelltypeBoxplot({
 
     // Bucket cell indices per (primary, secondary) for starred + selected.
     const bucket = new Map<string, Map<string, number[]>>();
+
     for (let i = 0; i < cellCount; i++) {
       const p = primaryAt(i);
+
       if (!selectedCelltypes.has(p)) continue;
       const s = secondaryAt(i);
+
       if (!selectedSecondaryValues!.has(s)) continue;
       let inner = bucket.get(p);
+
       if (!inner) {
         inner = new Map();
         bucket.set(p, inner);
       }
       let arr = inner.get(s);
+
       if (!arr) {
         arr = [];
         inner.set(s, arr);
@@ -210,9 +229,11 @@ export function GeneCelltypeBoxplot({
 
     // Stats per pair.
     const pairs: Array<{ primary: string; secondary: string } & BoxStats> = [];
+
     for (const [primary, inner] of bucket) {
       for (const [secondary, idxs] of inner) {
         const vals = new Float32Array(idxs.length);
+
         for (let k = 0; k < idxs.length; k++)
           vals[k] = expression[idxs[k]] ?? 0;
         pairs.push({ primary, secondary, ...computeStats(vals) });
@@ -221,6 +242,7 @@ export function GeneCelltypeBoxplot({
 
     // Sort primaries by mean of medians across selected secondaries.
     const aggMedian = new Map<string, number[]>();
+
     for (const p of pairs) {
       if (!aggMedian.has(p.primary)) aggMedian.set(p.primary, []);
       aggMedian.get(p.primary)!.push(p.median);
@@ -232,6 +254,7 @@ export function GeneCelltypeBoxplot({
         const mb = aggMedian.get(b)!;
         const avgA = ma.reduce((s, v) => s + v, 0) / ma.length;
         const avgB = mb.reduce((s, v) => s + v, 0) / mb.length;
+
         return avgB - avgA;
       });
 
@@ -248,12 +271,15 @@ export function GeneCelltypeBoxplot({
     // Fill missing pairs with empty placeholders so the grid stays aligned
     // (per Q14).
     const lookup = new Map<string, BoxStats>();
+
     for (const p of pairs) lookup.set(`${p.primary} ${p.secondary}`, p);
     const allPairs: Array<{ primary: string; secondary: string } & BoxStats> =
       [];
+
     for (const primary of primaryOrder) {
       for (const secondary of secondaryOrder) {
         const found = lookup.get(`${primary} ${secondary}`);
+
         if (found) {
           allPairs.push({ primary, secondary, ...found });
         } else {
@@ -301,6 +327,7 @@ export function GeneCelltypeBoxplot({
     // Grouped data
     if (grouped) {
       const traces: Data[] = [];
+
       grouped.secondaryOrder.forEach((secondary, i) => {
         const color = grouped.colorFor(secondary, i);
         const secPairs = grouped.pairs.filter((p) => p.secondary === secondary);
@@ -308,6 +335,7 @@ export function GeneCelltypeBoxplot({
         // Visual box trace: all cells for this secondary, x = primary per cell.
         const xs: string[] = [];
         const ys: number[] = [];
+
         for (const p of secPairs) {
           for (const v of p.values) {
             xs.push(p.primary);
@@ -327,6 +355,7 @@ export function GeneCelltypeBoxplot({
           legendgroup: secondary,
           showlegend: true,
         };
+
         if (showOutliers) {
           boxTrace.marker = {
             color,
@@ -371,6 +400,7 @@ export function GeneCelltypeBoxplot({
           ),
         } as unknown as Data);
       });
+
       return traces;
     }
 
@@ -389,6 +419,7 @@ export function GeneCelltypeBoxplot({
         opacity: !hasSelection || r.isSelected ? 1.0 : 0.25,
         showlegend: false,
       };
+
       if (showOutliers) {
         trace.marker = {
           color: r.color,
@@ -397,6 +428,7 @@ export function GeneCelltypeBoxplot({
           line: { width: 0 },
         };
       }
+
       return trace as unknown as Data;
     });
 
@@ -429,6 +461,7 @@ export function GeneCelltypeBoxplot({
     const xCategoryArray = grouped
       ? grouped.primaryOrder
       : visible.map((r) => r.name);
+
     return {
       autosize: true,
       margin: { l: 56, r: 16, t: grouped ? 24 : 8, b: 80 },
@@ -445,7 +478,7 @@ export function GeneCelltypeBoxplot({
         fixedrange: true,
       },
       yaxis: {
-        title: { text: gene, standoff: 4 },
+        title: { text: `${gene} (${scaleLabel})`, standoff: 4 },
         gridcolor: "rgba(255,255,255,0.08)",
         zerolinecolor: "rgba(255,255,255,0.2)",
         automargin: true,
@@ -475,7 +508,7 @@ export function GeneCelltypeBoxplot({
         align: "left",
       },
     };
-  }, [gene, visible, grouped, yMax]);
+  }, [gene, visible, grouped, yMax, scaleLabel]);
 
   const config = useMemo<Partial<Config>>(
     () => ({
@@ -517,22 +550,25 @@ export function GeneCelltypeBoxplot({
 
   return (
     <Plot
+      useResizeHandler
       config={config}
       data={data}
       layout={layout}
       style={{ width: "100%", height: "100%" }}
-      useResizeHandler
       onClick={(ev) => {
         const pt = ev.points?.[0];
+
         if (!pt) return;
         const fromScatter = typeof pt.x === "string" ? pt.x : null;
         const fromBox = (pt as { data?: { name?: string } }).data?.name ?? null;
         // In grouped mode, both are set, but we want the primary celltype name
         // (the x category), not the secondary trace name. fromScatter wins.
         const name = fromScatter ?? fromBox;
+
         if (!name) return;
         const now = performance.now();
         const last = lastClickRef.current;
+
         if (last && last.name === name && now - last.time < DOUBLE_CLICK_MS) {
           onBarDoubleClick(name);
           lastClickRef.current = null;
