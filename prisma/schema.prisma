@@ -31,6 +31,7 @@ model User {
   sessions        Session[]
   catalogDatasets CatalogDataset[]
   datasets        Dataset[]
+  projects        Project[]
 
   @@map("users")
 }
@@ -129,6 +130,19 @@ model CatalogDataset {
   isInternal   Boolean @default(false) @map("is_internal")
   sortOrder    Int     @default(0) @map("sort_order")
 
+  // Community submissions: user-submitted catalog rows that go through admin
+  // review. Curated (admin-authored) rows keep isCommunity=false and the
+  // default APPROVED status, so existing behavior is unchanged. Community rows
+  // only surface on Explore's Community tab, and only once APPROVED + published.
+  isCommunity     Boolean             @default(false) @map("is_community")
+  reviewStatus    CatalogReviewStatus @default(APPROVED) @map("review_status")
+  reviewNote      String?             @map("review_note") @db.Text
+  submittedById   String?             @map("submitted_by")
+  // Soft links back to the owned source the submission was generated from, so a
+  // re-submit updates this same row and the owner can track its review status.
+  sourceDatasetId String?             @map("source_dataset_id") @db.VarChar(50)
+  sourceProjectId String?             @map("source_project_id")
+
   // Stats (manually entered)
   numCells     Int?    @map("num_cells")
   numGenes     Int?    @map("num_genes")
@@ -145,6 +159,11 @@ model CatalogDataset {
   @@index([isInternal])
   @@index([sortOrder])
   @@index([bilCode])
+  @@index([isCommunity])
+  @@index([reviewStatus])
+  @@index([submittedById])
+  @@index([sourceDatasetId])
+  @@index([sourceProjectId])
   @@map("catalog_datasets")
 }
 
@@ -162,6 +181,56 @@ model CatalogDatasetEntry {
 
   @@index([catalogId])
   @@map("catalog_dataset_entries")
+}
+
+enum CatalogReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── Projects (user-owned folders of datasets) ─────────────────────
+
+// A named folder grouping several of a user's datasets, with its own
+// catalog-style metadata. Can be submitted to Explore as one Community card
+// (its member datasets become the catalog entries).
+model Project {
+  id              String   @id @default(cuid())
+  title           String   @db.VarChar(500)
+  description     String?  @db.Text
+  species         String?  @db.VarChar(200)
+  disease         String?  @db.VarChar(200)
+  tissue          String?  @db.VarChar(200)
+  platform        String?  @db.VarChar(200)
+  institute       String?  @db.VarChar(500)
+  tags            String[] @default([])
+  thumbnailUrl    String?  @map("thumbnail_url") @db.VarChar(1000)
+  externalLink    String?  @map("external_link") @db.VarChar(1000)
+  publicationLink String?  @map("publication_link") @db.VarChar(1000)
+
+  ownerId   String   @map("owner_id")
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  datasets  ProjectDataset[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@map("projects")
+}
+
+// Join table: a dataset can belong to many projects (flexible membership).
+model ProjectDataset {
+  projectId String   @map("project_id")
+  datasetId String   @map("dataset_id") @db.VarChar(50)
+  sortOrder Int      @default(0) @map("sort_order")
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  dataset Dataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, datasetId])
+  @@index([datasetId])
+  @@map("project_datasets")
 }
 
 // ─── Dataset Upload (existing) ──────────────────────────────────
@@ -192,6 +261,18 @@ model Dataset {
   // Owner-set thumbnail (a screenshot of the scene). Served via the app's
   // /api/datasets/[id]/thumbnail proxy route.
   thumbnailUrl   String?         @map("thumbnail_url") @db.VarChar(1000)
+  // Owner-editable catalog-style metadata. Independent of publishing — the
+  // owner can fill these in any time; they're carried into a CatalogDataset
+  // when the dataset is submitted to Explore. Mirrors CatalogDataset fields.
+  description    String?         @db.Text
+  species        String?         @db.VarChar(200)
+  disease        String?         @db.VarChar(200)
+  tissue         String?         @db.VarChar(200)
+  platform       String?         @db.VarChar(200)
+  institute      String?         @db.VarChar(500)
+  tags           String[]        @default([])
+  externalLink   String?         @map("external_link") @db.VarChar(1000)
+  publicationLink String?        @map("publication_link") @db.VarChar(1000)
   // Denormalized cache of the deduped view count (source of truth: dataset_views).
   viewCount      Int             @default(0) @map("view_count")
   // Owned by "admin" collectively: any admin can edit, and it's not tied to a
@@ -204,6 +285,7 @@ model Dataset {
   uploadSessions UploadSession[]
   views          DatasetView[]
   viewDaily      DatasetViewDaily[]
+  projects       ProjectDataset[]
 
   @@index([fingerprint])
   @@index([status])

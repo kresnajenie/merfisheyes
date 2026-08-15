@@ -17,7 +17,7 @@ import { ExploreDatasetGrid } from "./explore-dataset-grid";
 
 const PAGE_LIMIT = 50;
 
-type ExploreTab = "all" | "featured" | "bil" | "internal";
+type ExploreTab = "all" | "featured" | "bil" | "community" | "internal";
 
 interface ExplorePageClientProps {
   initialItems: CatalogDatasetItem[];
@@ -106,6 +106,12 @@ export function ExplorePageClient({
   // opens (see the activeTab effect), so there's no SSR seed.
   const [internalItems, setInternalItems] = useState<CatalogDatasetItem[]>([]);
   const [internalTotal, setInternalTotal] = useState(0);
+  // Community datasets (user-submitted, admin-approved) are lazy-fetched when
+  // the Community tab opens, so there's no SSR seed either.
+  const [communityItems, setCommunityItems] = useState<CatalogDatasetItem[]>(
+    [],
+  );
+  const [communityTotal, setCommunityTotal] = useState(0);
 
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(false);
@@ -190,6 +196,10 @@ export function ExplorePageClient({
       case "bil":
         setBilItems(data.items);
         setBilTotal(data.total);
+        break;
+      case "community":
+        setCommunityItems(data.items);
+        setCommunityTotal(data.total);
         break;
       case "internal":
         setInternalItems(data.items);
@@ -325,6 +335,9 @@ export function ExplorePageClient({
         </Tab>
         <Tab key="bil" title="BIL">
           {renderSearchAndGrid(bilItems, bilTotal)}
+        </Tab>
+        <Tab key="community" title="Community">
+          {renderSearchAndGrid(communityItems, communityTotal)}
         </Tab>
         {isAdmin && (
           <Tab key="internal" title="Internal">
