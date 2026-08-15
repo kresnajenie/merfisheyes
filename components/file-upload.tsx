@@ -19,7 +19,6 @@ import { Button } from "@heroui/button";
 import { Checkbox } from "@heroui/checkbox";
 
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
-import { uploadRawToS3 } from "@/lib/upload/uploadRawToS3";
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
@@ -459,47 +458,38 @@ export function FileUpload({
     const pending = pendingUpload;
     const base = titleDraft.trim() || "Untitled Dataset";
 
-    // Combined SC + SM upload: two separate datasets + an auto-created project.
-    // The SC upload carries linkedSmDatasetId so the server writes a mapping.json
-    // (overlay) when it finishes processing.
+    // Combined SC + SM upload: two separate datasets (each tracked as its own
+    // bar) + an auto-created project. The SC upload carries linkedSmDatasetId so
+    // the server writes a mapping.json (overlay) when it finishes processing.
     if (pending.sm && includeSm) {
       setPendingUpload(null);
-      try {
-        // 1. Start the SM upload; grab its id as soon as it's initiated. The
-        //    byte transfer continues in the background.
-        const smId = await new Promise<string>((resolve, reject) => {
-          uploadRawToS3({
-            kind: "single_molecule",
-            title: `${base} (molecules)`,
-            files: pending.sm!.files,
-            processingParams: {
-              kind: "single_molecule",
-              stages: { chunk: { chunkSize: 1 } },
-            },
-            onInitiated: resolve,
-          }).catch(reject);
-        });
 
-        // 2. Start the SC upload (tracked in the top bar), linking the SM id.
-        //    Create the project once the SC upload is initiated too.
-        startUpload({
-          kind: pending.kind,
-          title: `${base} (cells)`,
-          files: pending.files,
-          processingParams: {
-            ...pending.processingParams,
-            linkedSmDatasetId: smId,
-          },
-          onInitiated: (scId) => {
-            void createCombinedProject(base, scId, smId);
-          },
-        });
-        router.push("/explore");
-      } catch (e) {
-        toast.error(
-          `Couldn't start the single-molecule upload: ${(e as Error).message}`,
-        );
-      }
+      // Start the SM upload; once it's initiated (id known), start the SC upload
+      // linked to it, and once the SC is initiated too, group both in a project.
+      void startUpload({
+        kind: "single_molecule",
+        title: `${base} (molecules)`,
+        files: pending.sm.files,
+        processingParams: {
+          kind: "single_molecule",
+          stages: { chunk: { chunkSize: 1 } },
+        },
+        onInitiated: (smId) => {
+          void startUpload({
+            kind: pending.kind,
+            title: `${base} (cells)`,
+            files: pending.files,
+            processingParams: {
+              ...pending.processingParams,
+              linkedSmDatasetId: smId,
+            },
+            onInitiated: (scId) => {
+              void createCombinedProject(base, scId, smId);
+            },
+          });
+        },
+      });
+      router.push("/explore");
 
       return;
     }
