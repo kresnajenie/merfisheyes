@@ -37,6 +37,7 @@ import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import {
   getDatasetLinkConfig,
   fetchMappingConfig,
+  type DatasetLinkConfig,
 } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
@@ -327,6 +328,43 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       );
     };
 
+    // Load the single shared SM dataset for an "__all__" mapping and push it
+    // into the overlay + global SM store. `source` decides how it's loaded:
+    //   - "s3": smRef is a PUBLIC S3 base URL → fromCustomS3()
+    //   - "app": smRef is an app dataset id (sm_…) → fromS3() (presigned API),
+    //            which is how app-uploaded overlays (no public bucket) load.
+    const loadAllOverlay = async (smRef: string, source: "app" | "s3") => {
+      if (!smRef) return;
+      setSmLoading(true);
+      try {
+        const { SingleMoleculeDataset: SMDataset } = await import(
+          "@/lib/SingleMoleculeDataset"
+        );
+        const smDs =
+          source === "app"
+            ? await SMDataset.fromS3(smRef)
+            : await SMDataset.fromCustomS3(smRef);
+
+        smDatasetRef.current = smDs;
+        setSmDataset(smDs);
+
+        const { useSingleMoleculeStore } = await import(
+          "@/lib/stores/singleMoleculeStore"
+        );
+
+        useSingleMoleculeStore.getState().addDataset(smDs);
+        // The saved-default-genes fallback keys off a public URL, so it's only
+        // meaningful for the "s3" source.
+        if (source === "s3") {
+          useSingleMoleculeStore.getState().setOverlaySourceUrl(smRef);
+        }
+      } catch (error) {
+        console.warn("Failed to load SM overlay dataset:", error);
+      } finally {
+        setSmLoading(false);
+      }
+    };
+
     clearSmOverlay();
 
     if (!dataset) {
@@ -349,36 +387,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
 
         // "__all__" means every cell links to the same SM dataset — load overlay
         if (mappingConfig.linkColumn === "__all__") {
-          const smUrl = mappingConfig.links["__all__"];
-
-          if (!smUrl) return;
-
-          // Load SM dataset for overlay
-          setSmLoading(true);
-          try {
-            const { SingleMoleculeDataset: SMDataset } = await import(
-              "@/lib/SingleMoleculeDataset"
-            );
-            const smDs = await SMDataset.fromCustomS3(smUrl);
-
-            smDatasetRef.current = smDs;
-            setSmDataset(smDs);
-
-            // Push into the (global) SM dataset store so the SM gene picker
-            // and legends see this dataset on the SC overlay page.
-            const { useSingleMoleculeStore } = await import(
-              "@/lib/stores/singleMoleculeStore"
-            );
-
-            useSingleMoleculeStore.getState().addDataset(smDs);
-            // Record the overlay's source URL so the combined viewer can fetch
-            // its saved default genes (the SM-settings fallback).
-            useSingleMoleculeStore.getState().setOverlaySourceUrl(smUrl);
-          } catch (error) {
-            console.warn("Failed to load SM overlay dataset:", error);
-          } finally {
-            setSmLoading(false);
-          }
+          await loadAllOverlay(
+            mappingConfig.links["__all__"],
+            mappingConfig.source ?? "s3",
+          );
 
           return;
         }
@@ -426,6 +438,21 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
           );
         }
       });
+    }
+
+    // App-uploaded datasets open by id (no public custom S3 URL), so the fetch
+    // above skips them. Try our own mapping.json proxy instead — currently only
+    // the "__all__" overlay is produced this way (the combined SC+SM upload).
+    if (!registryConfig && !dataset.metadata?.customS3BaseUrl && dataset.id) {
+      fetch(`/api/datasets/${dataset.id}/mapping`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((mc: DatasetLinkConfig | null) => {
+          if (mc && mc.linkColumn === "__all__" && mc.links) {
+            linkConfigRef.current = mc;
+            void loadAllOverlay(mc.links["__all__"], mc.source ?? "s3");
+          }
+        })
+        .catch(() => {});
     }
   }, [dataset, incrementClusterVersion]);
 
