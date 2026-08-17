@@ -94,17 +94,38 @@ export function ExplorePageClient({
   const [geneChips, setGeneChips] = useState<string[]>(
     sp.get("geneExact")?.split(",").filter(Boolean) || [],
   );
-  const [page, setPage] = useState(Number(sp.get("page")) || 1);
+  const initialPage = Number(sp.get("page")) || 1;
+  const [page, setPage] = useState(initialPage);
 
-  const [items, setItems] = useState(initialItems);
-  const [total, setTotal] = useState(initialTotal);
+  // Whether the very first render is the clean default view. The SSR seed is
+  // always page 1 of "All", so when the URL asks for a different page/category/
+  // filter we must NOT paint that seed (it would flash page 1 before the real
+  // data loads) — start empty + loading and let the mount fetch fill in.
+  const initialIsDefault =
+    !sp.get("tab") &&
+    initialPage === 1 &&
+    !(
+      sp.get("q") ||
+      sp.get("species") ||
+      sp.get("tissue") ||
+      sp.get("platform") ||
+      sp.get("gene") ||
+      sp.get("geneExact")
+    );
+
+  const [items, setItems] = useState(initialIsDefault ? initialItems : []);
+  const [total, setTotal] = useState(initialIsDefault ? initialTotal : 0);
   // Featured carousel (shown only on the default "All" view).
   const [featuredItems, setFeaturedItems] = useState(initialFeatured);
 
   const [filters, setFilters] = useState(initialFilters);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!initialIsDefault);
 
   const isInitialMount = useRef(true);
+  // Snapshot of the filter/category values, so the page-reset effect fires only
+  // on a real change — never on mount or a React Strict Mode remount (which
+  // would clobber a deep-linked ?page=N back to 1).
+  const prevFilterKey = useRef<string | null>(null);
 
   const hasActiveFilters = Boolean(
     debouncedSearch ||
@@ -222,9 +243,29 @@ export function ExplorePageClient({
     fetchData();
   }, [fetchData, isDefaultView, ssrFailed]);
 
-  // Reset page when filters or category change
+  // Reset page to 1 when filters or category change — but only on a *real*
+  // change. Comparing against a snapshot (not a run-count) means mount and
+  // Strict Mode remounts don't reset a deep-linked ?page=N.
   useEffect(() => {
-    setPage(1);
+    const key = JSON.stringify([
+      debouncedSearch,
+      species,
+      tissue,
+      platform,
+      geneSearch,
+      geneChips,
+      category,
+    ]);
+
+    if (prevFilterKey.current === null) {
+      prevFilterKey.current = key;
+
+      return;
+    }
+    if (prevFilterKey.current !== key) {
+      prevFilterKey.current = key;
+      setPage(1);
+    }
   }, [
     debouncedSearch,
     species,
