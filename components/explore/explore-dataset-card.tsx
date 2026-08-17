@@ -64,6 +64,14 @@ interface ExploreDatasetCardProps {
   onCardClick?: (dataset: CatalogDatasetItem) => void;
   /** Highlight matching genes from search */
   geneHighlight?: string;
+  /**
+   * Owner controls rendered in the top-right corner (e.g. a ⋯ menu). When
+   * present, the built-in entry-count badge is suppressed so the two don't
+   * overlap. Used by the account cards.
+   */
+  ownerOverlay?: React.ReactNode;
+  /** Badges overlaid on the header's bottom-left (e.g. project membership). */
+  headerBadges?: React.ReactNode;
 }
 
 function navigateToEntry(
@@ -139,6 +147,8 @@ export function ExploreDatasetCard({
   onSelect,
   onCardClick,
   geneHighlight,
+  ownerOverlay,
+  headerBadges,
 }: ExploreDatasetCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -150,6 +160,9 @@ export function ExploreDatasetCard({
   const entries = dataset.entries ?? [];
   const hasMultipleEntries = entries.length > 1;
   const uniqueTypes = [...new Set(entries.map((e) => e.datasetType))];
+  // The card is a fixed size everywhere (Explore + account): a header area is
+  // always shown (a placeholder when there's no thumbnail) so grids stay
+  // uniform regardless of how much metadata each item has.
 
   // Recompute dropdown position from current card rect
   const updatePosition = useCallback(() => {
@@ -303,239 +316,177 @@ export function ExploreDatasetCard({
   const cardElement = (
     <Card
       isBlurred
-      className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer"
+      className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer h-[320px]"
       isPressable={!linkified && (!!hasSomeEntry || !!onCardClick)}
       shadow="sm"
       onPress={linkified ? undefined : handlePress}
     >
-      <CardBody className="p-0 overflow-hidden">
-        {/* Thumbnail — only shown when image exists */}
-        {dataset.thumbnailUrl && (
-          <div className="relative h-40 w-full bg-default-200/30">
+      <CardBody className="p-0 overflow-hidden flex h-full flex-col">
+        {/* Header — thumbnail, or a gradient placeholder when there's none. */}
+        <div className="relative h-40 w-full shrink-0 bg-default-200/30">
+          {dataset.thumbnailUrl ? (
             <img
               alt={dataset.title}
               className="w-full h-full object-cover"
               src={dataset.thumbnailUrl}
             />
-            {/* Type badge overlay */}
-            <div className="absolute top-2 left-2 flex gap-1">
-              {uniqueTypes.map((type) => (
-                <Chip
-                  key={type}
-                  color={type === "single_cell" ? "primary" : "secondary"}
-                  size="sm"
-                  variant="solid"
-                >
-                  {type === "single_cell" ? "SC" : "SM"}
-                </Chip>
-              ))}
-            </div>
-            {/* Entry count badge */}
-            {hasMultipleEntries && (
-              <div className="absolute top-2 right-2">
-                <Chip
-                  className="bg-default-800/70 text-white"
-                  size="sm"
-                  variant="solid"
-                >
-                  {entries.length} entries
-                </Chip>
-              </div>
-            )}
-            {/* Link icons */}
-            {(dataset.externalLink || dataset.publicationLink) && (
-              <div className="absolute bottom-2 right-2 flex gap-1.5">
-                {dataset.publicationLink && (
-                  <div
-                    className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
-                    role="link"
-                    title="Open publication"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.open(
-                        dataset.publicationLink!,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }}
-                  >
-                    <svg
-                      className="w-3.5 h-3.5 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                )}
-                {dataset.externalLink && (
-                  <div
-                    className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
-                    role="link"
-                    title="Open source page"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.open(
-                        dataset.externalLink!,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }}
-                  >
-                    <svg
-                      className="w-3.5 h-3.5 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                )}
-              </div>
-            )}
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-default-100 to-default-200/40" />
+          )}
+          {/* Type badge overlay */}
+          <div className="absolute top-2 left-2 flex gap-1">
+            {uniqueTypes.map((type) => (
+              <Chip
+                key={type}
+                color={type === "single_cell" ? "primary" : "secondary"}
+                size="sm"
+                variant="solid"
+              >
+                {type === "single_cell" ? "SC" : "SM"}
+              </Chip>
+            ))}
           </div>
-        )}
-
-        {/* Content */}
-        <div className="p-4 flex flex-col gap-2">
-          {/* Inline badges when no thumbnail */}
-          {!dataset.thumbnailUrl && (
-            <div className="flex items-center gap-1 flex-wrap">
-              {uniqueTypes.map((type) => (
-                <Chip
-                  key={type}
-                  color={type === "single_cell" ? "primary" : "secondary"}
-                  size="sm"
-                  variant="solid"
+          {/* Entry count badge */}
+          {hasMultipleEntries && !ownerOverlay && (
+            <div className="absolute top-2 right-2">
+              <Chip
+                className="bg-default-800/70 text-white"
+                size="sm"
+                variant="solid"
+              >
+                {entries.length} entries
+              </Chip>
+            </div>
+          )}
+          {/* Link icons */}
+          {(dataset.externalLink || dataset.publicationLink) && (
+            <div className="absolute bottom-2 right-2 flex gap-1.5">
+              {dataset.publicationLink && (
+                <div
+                  className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+                  role="link"
+                  title="Open publication"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(
+                      dataset.publicationLink!,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
                 >
-                  {type === "single_cell" ? "SC" : "SM"}
-                </Chip>
-              ))}
-              {hasMultipleEntries && (
-                <Chip className="text-default-500" size="sm" variant="flat">
-                  {entries.length} entries
-                </Chip>
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
               )}
-              {(dataset.externalLink || dataset.publicationLink) && (
-                <div className="ml-auto flex gap-1">
-                  {dataset.publicationLink && (
-                    <div
-                      className="w-6 h-6 rounded-full bg-default-200/60 flex items-center justify-center hover:bg-default-300/80 transition-colors cursor-pointer"
-                      role="link"
-                      title="Open publication"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(
-                          dataset.publicationLink!,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
-                      }}
-                    >
-                      <svg
-                        className="w-3 h-3 text-default-600"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
-                  )}
-                  {dataset.externalLink && (
-                    <div
-                      className="w-6 h-6 rounded-full bg-default-200/60 flex items-center justify-center hover:bg-default-300/80 transition-colors cursor-pointer"
-                      role="link"
-                      title="Open source page"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.open(
-                          dataset.externalLink!,
-                          "_blank",
-                          "noopener,noreferrer",
-                        );
-                      }}
-                    >
-                      <svg
-                        className="w-3 h-3 text-default-600"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </div>
-                  )}
+              {dataset.externalLink && (
+                <div
+                  className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+                  role="link"
+                  title="Open source page"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(
+                      dataset.externalLink!,
+                      "_blank",
+                      "noopener,noreferrer",
+                    );
+                  }}
+                >
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                 </div>
               )}
             </div>
           )}
+          {/* Header badges (e.g. project membership) — bottom-left */}
+          {headerBadges && (
+            <div className="absolute bottom-2 left-2 z-10 flex max-w-[70%] flex-wrap gap-1">
+              {headerBadges}
+            </div>
+          )}
+        </div>
 
-          <h3 className="font-semibold text-foreground text-sm line-clamp-2">
+        {/* Content */}
+        <div className="p-4 flex flex-col gap-2 min-h-0 flex-1 overflow-hidden">
+          <h3
+            className="font-semibold text-foreground text-sm line-clamp-2"
+            title={dataset.title}
+          >
             {dataset.title}
           </h3>
 
           {/* Investigator */}
           {dataset.metadata &&
           (dataset.metadata as Record<string, unknown>).investigator ? (
-            <p className="text-xs text-default-400">
+            <p className="text-xs text-default-400 truncate">
               {String(
                 (dataset.metadata as Record<string, unknown>).investigator,
               )}
             </p>
           ) : null}
 
-          {/* Description — show more lines when no thumbnail */}
+          {/* Description */}
           {dataset.description && (
-            <p
-              className={`text-xs text-default-500 ${dataset.thumbnailUrl ? "line-clamp-2" : "line-clamp-3"}`}
-            >
+            <p className="text-xs text-default-500 line-clamp-2">
               {dataset.description}
             </p>
           )}
 
           {/* Metadata row */}
-          <div className="flex flex-wrap gap-1">
-            {dataset.species && (
-              <Chip size="sm" variant="flat">
-                {dataset.species}
-              </Chip>
-            )}
-            {dataset.tissue && (
-              <Chip size="sm" variant="flat">
-                {dataset.tissue}
-              </Chip>
-            )}
-          </div>
+          {(dataset.species || dataset.tissue) && (
+            <div className="flex flex-wrap gap-1">
+              {dataset.species && (
+                <Chip
+                  className="max-w-full"
+                  classNames={{ content: "truncate" }}
+                  size="sm"
+                  title={dataset.species}
+                  variant="flat"
+                >
+                  {dataset.species}
+                </Chip>
+              )}
+              {dataset.tissue && (
+                <Chip
+                  className="max-w-full"
+                  classNames={{ content: "truncate" }}
+                  size="sm"
+                  title={dataset.tissue}
+                  variant="flat"
+                >
+                  {dataset.tissue}
+                </Chip>
+              )}
+            </div>
+          )}
 
-          {/* Platform & stats */}
-          <div className="flex flex-col gap-0.5 text-xs text-default-500">
+          {/* Platform & stats — pinned to the bottom of the fixed-height card */}
+          <div className="flex flex-col gap-0.5 text-xs text-default-500 mt-auto">
             {dataset.platform && <span>Platform: {dataset.platform}</span>}
             <div className="flex gap-3">
               {dataset.numCells != null && (
@@ -549,9 +500,15 @@ export function ExploreDatasetCard({
 
           {/* Tags */}
           {dataset.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-1 min-w-0">
               {dataset.tags.slice(0, 3).map((tag) => (
-                <Chip key={tag} className="text-[10px]" size="sm" variant="dot">
+                <Chip
+                  key={tag}
+                  className="text-[10px] max-w-full"
+                  classNames={{ content: "truncate" }}
+                  size="sm"
+                  variant="dot"
+                >
                   {tag}
                 </Chip>
               ))}
@@ -619,6 +576,14 @@ export function ExploreDatasetCard({
   return (
     <div ref={cardRef} className="relative">
       {wrappedCard}
+
+      {/* Owner controls (top-right) — sibling of the card so clicks here don't
+          trigger the card's navigation. */}
+      {ownerOverlay && (
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
+          {ownerOverlay}
+        </div>
+      )}
 
       {/* Expanded entry list — inline (grid cards) */}
       {!usePopover && (

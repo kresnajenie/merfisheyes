@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
@@ -24,7 +25,9 @@ export default async function AccountPage() {
           projects, and submit them to Explore.
         </p>
       </div>
-      <AccountWorkspace />
+      <Suspense>
+        <AccountWorkspace />
+      </Suspense>
     </div>
   );
 }
