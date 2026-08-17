@@ -17,6 +17,7 @@ import gc
 import gzip
 import json
 import os
+import re
 import shutil
 import struct
 import sys
@@ -277,6 +278,91 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
     unique_ratio = unique_count / len(valid_series)
 
     return unique_ratio < 0.8
+
+
+MAX_COORDINATE_DIMS = 3  # Viewer renders 2D/3D only
+
+
+def sanitize_coordinate_name(name: str) -> str:
+    """Lowercase an obsm key into a filename-safe embedding name."""
+    return re.sub(r'[^a-z0-9_-]+', '_', name.lower()).strip('_')
+
+
+def coerce_coordinate_array(
+    value: Any,
+    context: str,
+    expected_rows: Optional[int] = None,
+    max_dims: int = MAX_COORDINATE_DIMS,
+) -> np.ndarray:
+    """
+    Coerce an .obsm entry into a dense, contiguous 2D float32 array with at most
+    `max_dims` columns.
+
+    Handles the shapes .obsm can legally hold: numpy arrays, pandas DataFrames and
+    scipy sparse matrices. Raises ValueError with a message naming `context`
+    (e.g. "obsm['X_umap']") when the value can't be used as coordinates.
+    """
+    # Columns are truncated *before* densifying so a wide sparse/DataFrame entry
+    # (e.g. 50-component PCA on millions of cells) doesn't blow up memory.
+    if isinstance(value, pd.DataFrame):
+        non_numeric = [
+            str(col) for col, dtype in value.dtypes.items()
+            if not pd.api.types.is_numeric_dtype(dtype)
+        ]
+        if non_numeric:
+            raise ValueError(
+                f"{context} has non-numeric column(s) "
+                f"[{', '.join(non_numeric[:5])}] — coordinates must be numeric"
+            )
+        total_dims = value.shape[1]
+        arr = value.iloc[:, :max_dims].to_numpy()
+    elif sparse.issparse(value):
+        print(f"  ℹ {context}: densifying sparse matrix")
+        total_dims = value.shape[1]
+        # tocsr() first: coo/dia matrices don't support column slicing
+        arr = value.tocsr()[:, :max_dims].toarray()
+    else:
+        arr = np.asarray(value)
+        if arr.ndim != 2:
+            raise ValueError(
+                f"{context} has {arr.ndim} dimension(s) (shape {arr.shape}) — "
+                f"expected a 2D array of coordinates (cells x dimensions)"
+            )
+        total_dims = arr.shape[1]
+        arr = arr[:, :max_dims]
+
+    if not (np.issubdtype(arr.dtype, np.floating) or np.issubdtype(arr.dtype, np.integer)):
+        raise ValueError(
+            f"{context} has non-numeric dtype '{arr.dtype}' — coordinates must be "
+            f"integer or floating point"
+        )
+
+    if total_dims > max_dims:
+        print(f"  ℹ {context}: limiting to first {max_dims} dimensions (from {total_dims})")
+
+    if arr.shape[1] < 2:
+        raise ValueError(
+            f"{context} has {arr.shape[1]} column(s) — need at least 2 (x, y)"
+        )
+
+    if expected_rows is not None and arr.shape[0] != expected_rows:
+        raise ValueError(
+            f"{context} has {arr.shape[0]:,} rows but the dataset has "
+            f"{expected_rows:,} cells — must match"
+        )
+
+    arr = np.ascontiguousarray(arr, dtype=np.float32)
+
+    num_invalid = int(np.count_nonzero(~np.isfinite(arr)))
+    if num_invalid:
+        if num_invalid == arr.size:
+            raise ValueError(f"{context} contains only NaN/Inf values")
+        print(
+            f"  ⚠ {context}: {num_invalid:,} of {arr.size:,} values are NaN/Inf — "
+            f"those points will render at undefined positions"
+        )
+
+    return arr
 
 
 def round_coordinates(coords: np.ndarray) -> np.ndarray:
@@ -613,8 +699,15 @@ def load_h5ad_data(input_path: Path):
     # Try obsm first
     for key in ['X_spatial', 'spatial']:
         if key in adata.obsm:
-            spatial_coords = adata.obsm[key]
-            print(f"  ✓ Found spatial coordinates in obsm['{key}']")
+            try:
+                spatial_coords = coerce_coordinate_array(
+                    adata.obsm[key], f"obsm['{key}']", expected_rows=adata.n_obs
+                )
+            except (ValueError, TypeError) as e:
+                # Fall through to the next candidate / the obs column fallback
+                print(f"  ⚠ obsm['{key}'] is unusable as spatial coordinates: {e}")
+                continue
+            print(f"  ✓ Found spatial coordinates in obsm['{key}'] ({spatial_coords.shape[1]}D)")
             break
 
     # Fallback to obs columns (matching TypeScript H5adAdapter logic)
@@ -642,23 +735,23 @@ def load_h5ad_data(input_path: Path):
         if x_col and y_col:
             print(f"  ✓ Found coordinates in obs: {x_col}, {y_col}")
             z_col = next((col for col in z_candidates if col in adata.obs.columns), None)
+            coord_cols = [x_col, y_col]
             if z_col:
                 print(f"  ✓ Found z coordinate: {z_col}")
-                spatial_coords = np.column_stack([
-                    adata.obs[x_col].values,
-                    adata.obs[y_col].values,
-                    adata.obs[z_col].values
-                ])
-            else:
-                spatial_coords = np.column_stack([
-                    adata.obs[x_col].values,
-                    adata.obs[y_col].values
-                ])
+                coord_cols.append(z_col)
+
+            # DataFrame (not column_stack) so non-numeric columns are named in the error
+            spatial_coords = coerce_coordinate_array(
+                adata.obs[coord_cols],
+                f"obs columns [{', '.join(coord_cols)}]",
+                expected_rows=adata.n_obs,
+            )
 
     if spatial_coords is None:
         raise ValueError(
             "No spatial coordinates found! Checked: obsm['X_spatial'], obsm['spatial'], "
-            "and obs columns (center_x/y/z, x/y/z, etc.)"
+            "and obs columns (center_x/y/z, x/y/z, etc.). "
+            "If an obsm entry was rejected, see the warnings above."
         )
 
     # Extract expression matrix
@@ -982,18 +1075,28 @@ def process_dataset(
 
         # Process embeddings (UMAP, etc.)
         embeddings = {}
-        MAX_EMBEDDING_DIMS = 3  # Maximum dimensions to save for embeddings
         for key in adata.obsm.keys():
-            if key not in ['X_spatial', 'spatial'] and key.startswith('X_'):
-                embedding_name = key[2:].lower()  # Remove 'X_' prefix
-                embedding_coords = adata.obsm[key]
+            # Case-insensitive spatial check: 'spatial' is reserved for spatial.bin.gz
+            if not key.startswith('X_') or key.lower() in ('x_spatial', 'spatial'):
+                continue
 
-                # Limit to first 3 dimensions
-                if embedding_coords.shape[1] > MAX_EMBEDDING_DIMS:
-                    embedding_coords = embedding_coords[:, :MAX_EMBEDDING_DIMS]
-                    print(f"  ℹ {embedding_name}: Limiting to first {MAX_EMBEDDING_DIMS} dimensions (from {adata.obsm[key].shape[1]})")
+            embedding_name = sanitize_coordinate_name(key[2:])  # Remove 'X_' prefix
+            if not embedding_name:
+                print(f"  ⚠ Skipping obsm['{key}']: no usable name after the 'X_' prefix")
+                continue
+            if embedding_name == 'spatial':
+                print(f"  ⚠ Skipping obsm['{key}']: '{embedding_name}' is reserved for the spatial coordinates")
+                continue
+            if embedding_name in embeddings:
+                print(f"  ⚠ Skipping obsm['{key}']: name '{embedding_name}' collides with an embedding already loaded")
+                continue
 
-                embeddings[embedding_name] = embedding_coords
+            try:
+                embeddings[embedding_name] = coerce_coordinate_array(
+                    adata.obsm[key], f"obsm['{key}']", expected_rows=adata.n_obs
+                )
+            except (ValueError, TypeError) as e:
+                print(f"  ⚠ Skipping embedding obsm['{key}']: {e}")
 
     elif data_format == 'xenium':
         cells_df, expr_matrix, gene_names = load_xenium_data(input_path)
