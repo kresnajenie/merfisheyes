@@ -149,7 +149,6 @@ export function AccountDatasetCard({
 
   return (
     <ExploreDatasetCard
-      alwaysShowHeader
       dataset={toItem(dataset)}
       headerBadges={projectBadges}
       ownerOverlay={overlay}
