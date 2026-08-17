@@ -3,7 +3,7 @@
 import type { MetadataDraft } from "./metadata-edit-modal";
 import type { SubmissionStatus } from "./types";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Button } from "@heroui/button";
@@ -81,6 +81,9 @@ export function ProjectDetailClient({
   const [project, setProject] = useState(initialProject);
   const [editOpen, setEditOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [thumbOpen, setThumbOpen] = useState(false);
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Keep local state in sync when router.refresh() re-runs the server page.
   useEffect(() => setProject(initialProject), [initialProject]);
@@ -91,6 +94,52 @@ export function ProjectDetailClient({
   );
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const addable = ownDatasets.filter((d) => !memberIds.has(d.id));
+  // Thumbnail-reuse options: the project's own member datasets that have one.
+  const datasetsWithThumb = members.filter((d) => d.thumbnailUrl);
+
+  // ---- Thumbnail: upload a file, reuse a dataset's, or clear ----
+  const MAX_THUMB = 6 * 1024 * 1024;
+
+  const uploadThumbnail = async (file: File) => {
+    if (file.size > MAX_THUMB) {
+      toast.error("Image must be 6 MB or smaller.");
+
+      return;
+    }
+    setUploadingThumb(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/thumbnail`, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "image/jpeg" },
+        body: file,
+      });
+
+      if (res.ok) {
+        toast.success("Thumbnail updated.");
+        setThumbOpen(false);
+        router.refresh();
+      } else {
+        toast.error("Couldn't upload the image.");
+      }
+    } finally {
+      setUploadingThumb(false);
+    }
+  };
+
+  const setThumbnailUrl = async (url: string | null) => {
+    const res = await fetch(`/api/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thumbnailUrl: url }),
+    });
+
+    if (res.ok) {
+      setThumbOpen(false);
+      router.refresh();
+    } else {
+      toast.error("Couldn't update the thumbnail.");
+    }
+  };
 
   const saveMetadata = async (draft: MetadataDraft): Promise<boolean> => {
     const res = await fetch(`/api/projects/${project.id}`, {
@@ -178,14 +227,28 @@ export function ProjectDetailClient({
       </NextLink>
 
       <div className="flex flex-col sm:flex-row sm:items-start gap-4 mt-4 mb-8">
-        {project.thumbnailUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt={project.title}
-            className="w-full sm:w-56 h-40 object-cover rounded-xl"
-            src={project.thumbnailUrl}
-          />
-        )}
+        <div className="w-full sm:w-56 shrink-0">
+          {project.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt={project.title}
+              className="w-full h-40 object-cover rounded-xl"
+              src={project.thumbnailUrl}
+            />
+          ) : (
+            <div className="flex h-40 w-full items-center justify-center rounded-xl bg-default-100 text-sm text-default-400">
+              No thumbnail
+            </div>
+          )}
+          <Button
+            className="mt-2 w-full"
+            size="sm"
+            variant="flat"
+            onPress={() => setThumbOpen(true)}
+          >
+            {project.thumbnailUrl ? "Change thumbnail" : "Add thumbnail"}
+          </Button>
+        </div>
         <div className="flex-1 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -407,6 +470,94 @@ export function ProjectDetailClient({
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={() => setPickerOpen(false)}>
+              Done
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        isOpen={thumbOpen}
+        scrollBehavior="inside"
+        size="lg"
+        onClose={() => setThumbOpen(false)}
+      >
+        <ModalContent>
+          <ModalHeader>Project thumbnail</ModalHeader>
+          <ModalBody className="flex flex-col gap-5">
+            {/* Upload a file */}
+            <div>
+              <p className="mb-1 text-sm font-medium">Upload an image</p>
+              <input
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                type="file"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+
+                  if (f) uploadThumbnail(f);
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                isLoading={uploadingThumb}
+                size="sm"
+                variant="flat"
+                onPress={() => fileInputRef.current?.click()}
+              >
+                Choose image…
+              </Button>
+              <p className="mt-1 text-xs text-default-400">
+                JPG or PNG, up to 6 MB.
+              </p>
+            </div>
+
+            {/* Reuse one of your datasets' thumbnails */}
+            <div className="border-t border-default-200 pt-4">
+              <p className="mb-2 text-sm font-medium">
+                Use a thumbnail from a dataset in this project
+              </p>
+              {datasetsWithThumb.length === 0 ? (
+                <p className="text-xs text-default-400">
+                  None of the datasets in this project have a thumbnail yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {datasetsWithThumb.map((d) => (
+                    <button
+                      key={d.id}
+                      className="overflow-hidden rounded-lg border border-default-200 text-left transition-colors hover:border-primary"
+                      type="button"
+                      onClick={() => setThumbnailUrl(d.thumbnailUrl!)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        alt={d.title ?? "dataset thumbnail"}
+                        className="h-20 w-full object-cover"
+                        src={d.thumbnailUrl!}
+                      />
+                      <span className="block truncate px-1 py-0.5 text-[10px] text-default-500">
+                        {d.title || "Untitled"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            {project.thumbnailUrl && (
+              <Button
+                color="danger"
+                size="sm"
+                variant="light"
+                onPress={() => setThumbnailUrl(null)}
+              >
+                Remove
+              </Button>
+            )}
+            <Button variant="light" onPress={() => setThumbOpen(false)}>
               Done
             </Button>
           </ModalFooter>
