@@ -138,9 +138,19 @@ interface Props {
   onSelectEntry?: (entry: CatalogDatasetEntry) => void;
   /** When provided, the back button calls this instead of router.push("/explore"). */
   onBack?: () => void;
+  /** Overrides the back-button label (default "← Back to Explore"). */
+  backLabel?: string;
+  /** Owner controls (Edit / Submit / …) rendered top-right of the header. */
+  headerActions?: React.ReactNode;
 }
 
-export function DatasetDetailPage({ dataset, onSelectEntry, onBack }: Props) {
+export function DatasetDetailPage({
+  dataset,
+  onSelectEntry,
+  onBack,
+  backLabel = "← Back to Explore",
+  headerActions,
+}: Props) {
   const router = useRouter();
   const [showAllGenes, setShowAllGenes] = useState(false);
 
@@ -164,11 +174,14 @@ export function DatasetDetailPage({ dataset, onSelectEntry, onBack }: Props) {
         variant="light"
         onPress={() => (onBack ? onBack() : router.push("/explore"))}
       >
-        ← Back to Explore
+        {backLabel}
       </Button>
 
       {/* Header */}
       <div className="space-y-2">
+        {headerActions && (
+          <div className="flex flex-wrap justify-end gap-2">{headerActions}</div>
+        )}
         <div className="flex items-start gap-2 flex-wrap">
           {dataset.bilCode && (
             <Chip color="secondary" size="sm" variant="flat">

@@ -14,6 +14,10 @@ interface FilterPillProps {
   onChange: (next: string) => void;
   /** Optional placeholder for the in-popover search input. Defaults to "Search". */
   searchPlaceholder?: string;
+  /** Hide the in-popover search box (for short, fixed option lists). */
+  hideSearch?: boolean;
+  /** Map a raw option value to a display label (defaults to the value). */
+  renderOption?: (value: string) => string;
 }
 
 const POPOVER_WIDTH = 240;
@@ -35,7 +39,10 @@ export function FilterPill({
   value,
   onChange,
   searchPlaceholder,
+  hideSearch = false,
+  renderOption,
 }: FilterPillProps) {
+  const display = (v: string) => (renderOption ? renderOption(v) : v);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -119,7 +126,7 @@ export function FilterPill({
         <span className="whitespace-nowrap">
           {isActive ? (
             <>
-              <span className="opacity-70">{label}:</span> {value}
+              <span className="opacity-70">{label}:</span> {display(value)}
             </>
           ) : (
             label
@@ -188,18 +195,20 @@ export function FilterPill({
                 maxHeight: POPOVER_MAX_HEIGHT,
               }}
             >
-              <div className="p-2 border-b border-default-200">
-                <input
-                  ref={searchRef}
-                  className="w-full bg-default-100 rounded-md px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
-                  placeholder={
-                    searchPlaceholder ?? `Search ${label.toLowerCase()}`
-                  }
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </div>
+              {!hideSearch && (
+                <div className="p-2 border-b border-default-200">
+                  <input
+                    ref={searchRef}
+                    className="w-full bg-default-100 rounded-md px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary/50"
+                    placeholder={
+                      searchPlaceholder ?? `Search ${label.toLowerCase()}`
+                    }
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                  />
+                </div>
+              )}
               <div className="overflow-y-auto py-1">
                 {filtered.length === 0 ? (
                   <p className="text-xs text-default-400 text-center py-4">
@@ -221,7 +230,7 @@ export function FilterPill({
                           setIsOpen(false);
                         }}
                       >
-                        {opt}
+                        {display(opt)}
                       </button>
                     );
                   })
