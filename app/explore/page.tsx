@@ -14,9 +14,8 @@ export const revalidate = 60;
 
 const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
 
-// Base filter: published + not internal + not community + at least one
-// viewable entry. Community submissions are curated separately and only appear
-// on the Explore "Community" tab (fetched client-side), never the main grid.
+// Curated base: published + not internal + not community + a viewable entry.
+// Used for the Featured / BIL carousels, which stay curated-only.
 const hasViewableEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
 const publicBase = {
   isPublished: true,
@@ -25,17 +24,35 @@ const publicBase = {
   ...hasViewableEntry,
 };
 
+// The main "All" grid: curated content PLUS approved community submissions.
+// Community datasets are viewable by datasetId (no public s3BaseUrl), so the
+// viewable-entry check accepts either.
+const hasViewableEntryAny = {
+  entries: {
+    some: { OR: [{ s3BaseUrl: { not: null } }, { datasetId: { not: null } }] },
+  },
+};
+const allBase = {
+  isPublished: true,
+  isInternal: false,
+  OR: [
+    { isCommunity: false },
+    { AND: [{ isCommunity: true }, { reviewStatus: "APPROVED" as const }] },
+  ],
+  ...hasViewableEntryAny,
+};
+
 // Fetch all initial public data in a single DB round-trip.
 async function loadPublicData() {
   const [items, total, featured, bil, speciesRaw, tissueRaw, platformRaw] =
     await Promise.all([
       prisma.catalogDataset.findMany({
-        where: publicBase,
+        where: allBase,
         include: includeEntries,
         orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
         take: 50,
       }),
-      prisma.catalogDataset.count({ where: publicBase }),
+      prisma.catalogDataset.count({ where: allBase }),
       prisma.catalogDataset.findMany({
         where: { ...publicBase, isFeatured: true },
         include: includeEntries,
@@ -47,19 +64,19 @@ async function loadPublicData() {
         orderBy: { sortOrder: "asc" },
       }),
       prisma.catalogDataset.findMany({
-        where: { ...publicBase, species: { not: null } },
+        where: { ...allBase, species: { not: null } },
         select: { species: true },
         distinct: ["species"],
         orderBy: { species: "asc" },
       }),
       prisma.catalogDataset.findMany({
-        where: { ...publicBase, tissue: { not: null } },
+        where: { ...allBase, tissue: { not: null } },
         select: { tissue: true },
         distinct: ["tissue"],
         orderBy: { tissue: "asc" },
       }),
       prisma.catalogDataset.findMany({
-        where: { ...publicBase, platform: { not: null } },
+        where: { ...allBase, platform: { not: null } },
         select: { platform: true },
         distinct: ["platform"],
         orderBy: { platform: "asc" },

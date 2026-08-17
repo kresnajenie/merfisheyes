@@ -7,7 +7,6 @@ import type {
 } from "./types";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Tabs, Tab } from "@heroui/tabs";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -17,7 +16,8 @@ import { ExploreDatasetGrid } from "./explore-dataset-grid";
 
 const PAGE_LIMIT = 50;
 
-type ExploreTab = "all" | "featured" | "bil" | "community" | "internal";
+// Category filter values (empty string = "All"). Replaces the old tab bar.
+const CATEGORY_OPTIONS = ["featured", "bil", "community"];
 
 interface ExplorePageClientProps {
   initialItems: CatalogDatasetItem[];
@@ -52,7 +52,6 @@ export function ExplorePageClient({
   initialItems,
   initialTotal,
   initialFeatured,
-  initialBil,
   initialFilters,
   onCardClick,
   disableUrlSync = false,
@@ -63,18 +62,20 @@ export function ExplorePageClient({
 
   // Admin status is read client-side (not passed as a prop) so the page itself
   // can be statically cached — calling auth() during render would force
-  // per-request rendering. Gates the Internal tab; the API enforces admin
+  // per-request rendering. Gates the Internal category; the API enforces admin
   // access independently.
   const { data: session } = useSession();
   const isAdmin =
     session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  const categoryOptions = isAdmin
+    ? [...CATEGORY_OPTIONS, "internal"]
+    : CATEGORY_OPTIONS;
 
   // Initialize state from URL params (skip when URL sync is disabled —
   // otherwise the viewer's own params would bleed into the modal).
   const sp = disableUrlSync ? new URLSearchParams() : searchParams;
-  const [activeTab, setActiveTab] = useState<ExploreTab>(
-    (sp.get("tab") as ExploreTab) || "all",
-  );
+  // "" = All; otherwise featured/bil/community/internal.
+  const [category, setCategory] = useState((sp.get("tab") || "").toLowerCase());
   const [search, setSearch] = useState(sp.get("q") || "");
   // Debounced mirror of `search`: the input stays bound to `search` for
   // instant typing feedback, but URL sync + fetch use the debounced value so
@@ -95,37 +96,28 @@ export function ExplorePageClient({
   );
   const [page, setPage] = useState(Number(sp.get("page")) || 1);
 
-  // Per-tab data
-  const [allItems, setAllItems] = useState(initialItems);
-  const [allTotal, setAllTotal] = useState(initialTotal);
+  const [items, setItems] = useState(initialItems);
+  const [total, setTotal] = useState(initialTotal);
+  // Featured carousel (shown only on the default "All" view).
   const [featuredItems, setFeaturedItems] = useState(initialFeatured);
-  const [featuredTotal, setFeaturedTotal] = useState(initialFeatured.length);
-  const [bilItems, setBilItems] = useState(initialBil);
-  const [bilTotal, setBilTotal] = useState(initialBil.length);
-  // Internal datasets are admin-only and lazy-fetched when the Internal tab
-  // opens (see the activeTab effect), so there's no SSR seed.
-  const [internalItems, setInternalItems] = useState<CatalogDatasetItem[]>([]);
-  const [internalTotal, setInternalTotal] = useState(0);
-  // Community datasets (user-submitted, admin-approved) are lazy-fetched when
-  // the Community tab opens, so there's no SSR seed either.
-  const [communityItems, setCommunityItems] = useState<CatalogDatasetItem[]>(
-    [],
-  );
-  const [communityTotal, setCommunityTotal] = useState(0);
 
   const [filters, setFilters] = useState(initialFilters);
   const [loading, setLoading] = useState(false);
 
-  const [hasFetched, setHasFetched] = useState(false);
   const isInitialMount = useRef(true);
 
-  const hasActiveFilters =
+  const hasActiveFilters = Boolean(
     debouncedSearch ||
-    species ||
-    tissue ||
-    platform ||
-    geneSearch ||
-    geneChips.length > 0;
+      species ||
+      tissue ||
+      platform ||
+      geneSearch ||
+      geneChips.length > 0,
+  );
+
+  // The clean default view (All, no filters, first page) is served straight
+  // from the SSR seed — no fetch needed.
+  const isDefaultView = category === "" && !hasActiveFilters && page === 1;
 
   // Sync state to URL (replace, not push, to avoid polluting history)
   useEffect(() => {
@@ -139,7 +131,7 @@ export function ExplorePageClient({
 
     const params = new URLSearchParams();
 
-    if (activeTab !== "all") params.set("tab", activeTab);
+    if (category) params.set("tab", category);
     if (debouncedSearch) params.set("q", debouncedSearch);
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
@@ -152,7 +144,7 @@ export function ExplorePageClient({
 
     router.replace(`/explore${qs ? `?${qs}` : ""}`, { scroll: false });
   }, [
-    activeTab,
+    category,
     debouncedSearch,
     species,
     tissue,
@@ -176,40 +168,15 @@ export function ExplorePageClient({
     if (geneChips.length > 0) params.set("genesExact", geneChips.join(","));
     params.set("page", String(page));
     params.set("limit", String(PAGE_LIMIT));
-
-    if (activeTab !== "all") {
-      params.set("tab", activeTab);
-    }
+    if (category) params.set("tab", category);
 
     const res = await fetch(`/api/explore?${params}`);
     const data: ExploreApiResponse = await res.json();
 
-    switch (activeTab) {
-      case "all":
-        setAllItems(data.items);
-        setAllTotal(data.total);
-        break;
-      case "featured":
-        setFeaturedItems(data.items);
-        setFeaturedTotal(data.total);
-        break;
-      case "bil":
-        setBilItems(data.items);
-        setBilTotal(data.total);
-        break;
-      case "community":
-        setCommunityItems(data.items);
-        setCommunityTotal(data.total);
-        break;
-      case "internal":
-        setInternalItems(data.items);
-        setInternalTotal(data.total);
-        break;
-    }
-
+    setItems(data.items);
+    setTotal(data.total);
     setFilters(data.filters);
     setLoading(false);
-    setHasFetched(true);
   }, [
     debouncedSearch,
     species,
@@ -218,53 +185,44 @@ export function ExplorePageClient({
     geneSearch,
     geneChips,
     page,
-    activeTab,
+    category,
   ]);
 
-  // Recovery path when SSR failed: fetch the full public payload (All tab +
-  // featured + BIL + filters) in one request so an empty shell fills in.
+  // Recovery path when SSR failed: fetch the full public payload (All grid +
+  // featured + filters) in one request so an empty shell fills in.
   const hydrateAll = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/explore?limit=${PAGE_LIMIT}`);
       const data: ExploreApiResponse = await res.json();
 
-      setAllItems(data.items);
-      setAllTotal(data.total);
+      setItems(data.items);
+      setTotal(data.total);
       setFeaturedItems(data.featured ?? []);
-      setFeaturedTotal((data.featured ?? []).length);
-      setBilItems(data.bil ?? []);
-      setBilTotal((data.bil ?? []).length);
       setFilters(data.filters);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Refetch when filters/page/tab change
+  // Load data when filters / category / page change. The clean default view is
+  // restored instantly from the SSR seed instead of refetching.
   useEffect(() => {
-    if (hasActiveFilters || page > 1 || hasFetched) {
-      fetchData();
-    }
-  }, [fetchData, hasActiveFilters, page]);
-
-  // Fetch when switching to a non-all tab for the first time
-  useEffect(() => {
-    if (activeTab !== "all") {
-      fetchData();
-    } else if (!hasActiveFilters && page === 1) {
+    if (isDefaultView) {
       if (ssrFailed) {
-        // No valid SSR snapshot to restore to — pull the real data instead.
         hydrateAll();
       } else {
-        setAllItems(initialItems);
-        setAllTotal(initialTotal);
-        setHasFetched(false);
+        setItems(initialItems);
+        setTotal(initialTotal);
+        setLoading(false);
       }
-    }
-  }, [activeTab]);
 
-  // Reset page when filters or tab change
+      return;
+    }
+    fetchData();
+  }, [fetchData, isDefaultView, ssrFailed]);
+
+  // Reset page when filters or category change
   useEffect(() => {
     setPage(1);
   }, [
@@ -274,15 +232,25 @@ export function ExplorePageClient({
     platform,
     geneSearch,
     geneChips,
-    activeTab,
+    category,
   ]);
 
-  const renderSearchAndGrid = (
-    datasetItems: CatalogDatasetItem[],
-    datasetTotal: number,
-  ) => (
+  return (
     <>
+      {/* Featured carousel — only on the default "All" view. */}
+      {isDefaultView && featuredItems.length > 0 && (
+        <div className="mb-8">
+          <FeaturedDatasets
+            datasets={featuredItems}
+            onCardClick={onCardClick}
+            onViewAll={() => setCategory("featured")}
+          />
+        </div>
+      )}
+
       <ExploreSearchBar
+        category={category}
+        categoryOptions={categoryOptions}
         filters={filters}
         geneChips={geneChips}
         geneSearch={geneSearch}
@@ -290,6 +258,7 @@ export function ExplorePageClient({
         search={search}
         species={species}
         tissue={tissue}
+        onCategoryChange={setCategory}
         onGeneChipsChange={setGeneChips}
         onGeneSearchChange={setGeneSearch}
         onPlatformChange={setPlatform}
@@ -299,52 +268,15 @@ export function ExplorePageClient({
       />
 
       <ExploreDatasetGrid
-        datasets={datasetItems}
+        datasets={items}
         geneHighlight={geneSearch}
         limit={PAGE_LIMIT}
         loading={loading}
         page={page}
-        total={datasetTotal}
+        total={total}
         onCardClick={onCardClick}
         onPageChange={setPage}
       />
-    </>
-  );
-
-  return (
-    <>
-      <Tabs
-        aria-label="Explore tabs"
-        className="mb-6"
-        selectedKey={activeTab}
-        variant="underlined"
-        onSelectionChange={(key) => setActiveTab(key as ExploreTab)}
-      >
-        <Tab key="all" title="All">
-          <div className="mb-8">
-            <FeaturedDatasets
-              datasets={featuredItems}
-              onCardClick={onCardClick}
-              onViewAll={() => setActiveTab("featured")}
-            />
-          </div>
-          {renderSearchAndGrid(allItems, allTotal)}
-        </Tab>
-        <Tab key="featured" title="Featured">
-          {renderSearchAndGrid(featuredItems, featuredTotal)}
-        </Tab>
-        <Tab key="bil" title="BIL">
-          {renderSearchAndGrid(bilItems, bilTotal)}
-        </Tab>
-        <Tab key="community" title="Community">
-          {renderSearchAndGrid(communityItems, communityTotal)}
-        </Tab>
-        {isAdmin && (
-          <Tab key="internal" title="Internal">
-            {renderSearchAndGrid(internalItems, internalTotal)}
-          </Tab>
-        )}
-      </Tabs>
     </>
   );
 }

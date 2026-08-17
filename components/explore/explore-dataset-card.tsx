@@ -23,6 +23,10 @@ function getCardHref(
   if (dataset.bilCode) {
     return { href: `/explore/bil/${dataset.bilCode}` };
   }
+  // Community "projects" (multiple datasets) open a detail page, like BIL.
+  if (dataset.isCommunity && entries.length > 1) {
+    return { href: `/explore/${dataset.id}` };
+  }
   if (entries.length === 0) {
     return dataset.externalLink
       ? { href: dataset.externalLink, external: true }

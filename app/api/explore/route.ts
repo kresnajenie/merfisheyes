@@ -24,11 +24,16 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "50")));
   const skip = (page - 1) * limit;
 
-  const isCommunityTab = tab === "community";
+  // Category filter (was tabs): "all" | "featured" | "bil" | "community" |
+  // "internal". "all" now includes approved community submissions alongside
+  // curated content.
+  const category = tab || "all";
+  const includeCommunity = category === "all" || category === "community";
 
-  // App-uploaded datasets are viewable by datasetId (no public s3BaseUrl), so
-  // the Community tab accepts either; curated tabs still require s3BaseUrl.
-  const hasViewableEntry: Prisma.CatalogDatasetWhereInput = isCommunityTab
+  // App-uploaded (community) datasets are viewable by datasetId (no public
+  // s3BaseUrl); curated content requires s3BaseUrl. When community is in scope,
+  // accept either.
+  const hasViewableEntry: Prisma.CatalogDatasetWhereInput = includeCommunity
     ? {
         entries: {
           some: {
@@ -44,25 +49,31 @@ export async function GET(req: NextRequest) {
     hasViewableEntry,
   ];
 
-  if (isCommunityTab) {
-    // User submissions, only once an admin has approved them.
-    conditions.push(
-      { isCommunity: true },
-      { reviewStatus: "APPROVED" },
-      { isInternal: false },
-    );
+  if (category === "internal" && isAdmin) {
+    conditions.push({ isInternal: true }, { isCommunity: false });
   } else {
-    // Curated content only — community submissions live on their own tab.
-    conditions.push({ isCommunity: false });
-    if (tab === "internal" && isAdmin) {
-      conditions.push({ isInternal: true });
-    } else {
-      // Non-internal tabs: always exclude internal datasets
-      conditions.push({ isInternal: false });
-    }
-    if (tab === "featured") conditions.push({ isFeatured: true });
-    if (tab === "bil") conditions.push({ isBil: true });
+    // Every non-internal category excludes internal datasets.
+    conditions.push({ isInternal: false });
   }
+
+  if (category === "community") {
+    // User submissions, only once an admin has approved them.
+    conditions.push({ isCommunity: true }, { reviewStatus: "APPROVED" });
+  } else if (category === "all") {
+    // Curated content plus approved community submissions.
+    conditions.push({
+      OR: [
+        { isCommunity: false },
+        { AND: [{ isCommunity: true }, { reviewStatus: "APPROVED" }] },
+      ],
+    });
+  } else if (category !== "internal") {
+    // featured / bil — curated only (internal already excluded community).
+    conditions.push({ isCommunity: false });
+  }
+
+  if (category === "featured") conditions.push({ isFeatured: true });
+  if (category === "bil") conditions.push({ isBil: true });
 
   if (search) {
     // Tokenize on whitespace: each token must match SOME searched field
@@ -164,9 +175,17 @@ export async function GET(req: NextRequest) {
 }
 
 async function getDistinctFilters(isAdmin: boolean) {
+  // Filter options reflect everything shown in "All": curated content plus
+  // approved community submissions (internal excluded for non-admins).
+  const communityOr: Prisma.CatalogDatasetWhereInput = {
+    OR: [
+      { isCommunity: false },
+      { AND: [{ isCommunity: true }, { reviewStatus: "APPROVED" }] },
+    ],
+  };
   const published: Prisma.CatalogDatasetWhereInput = isAdmin
-    ? { isPublished: true, isCommunity: false }
-    : { isPublished: true, isCommunity: false, isInternal: false };
+    ? { isPublished: true, ...communityOr }
+    : { isPublished: true, isInternal: false, ...communityOr };
 
   const [speciesRaw, tissueRaw, platformRaw] = await Promise.all([
     prisma.catalogDataset.findMany({
