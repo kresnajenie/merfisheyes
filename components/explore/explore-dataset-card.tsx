@@ -64,6 +64,12 @@ interface ExploreDatasetCardProps {
   onCardClick?: (dataset: CatalogDatasetItem) => void;
   /** Highlight matching genes from search */
   geneHighlight?: string;
+  /**
+   * Owner controls rendered in the top-right corner (e.g. a ⋯ menu). When
+   * present, the built-in entry-count badge is suppressed so the two don't
+   * overlap. Used by the account cards.
+   */
+  ownerOverlay?: React.ReactNode;
 }
 
 function navigateToEntry(
@@ -139,6 +145,7 @@ export function ExploreDatasetCard({
   onSelect,
   onCardClick,
   geneHighlight,
+  ownerOverlay,
 }: ExploreDatasetCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -331,7 +338,7 @@ export function ExploreDatasetCard({
               ))}
             </div>
             {/* Entry count badge */}
-            {hasMultipleEntries && (
+            {hasMultipleEntries && !ownerOverlay && (
               <div className="absolute top-2 right-2">
                 <Chip
                   className="bg-default-800/70 text-white"
@@ -425,7 +432,7 @@ export function ExploreDatasetCard({
                   {type === "single_cell" ? "SC" : "SM"}
                 </Chip>
               ))}
-              {hasMultipleEntries && (
+              {hasMultipleEntries && !ownerOverlay && (
                 <Chip className="text-default-500" size="sm" variant="flat">
                   {entries.length} entries
                 </Chip>
@@ -619,6 +626,14 @@ export function ExploreDatasetCard({
   return (
     <div ref={cardRef} className="relative">
       {wrappedCard}
+
+      {/* Owner controls (top-right) — sibling of the card so clicks here don't
+          trigger the card's navigation. */}
+      {ownerOverlay && (
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
+          {ownerOverlay}
+        </div>
+      )}
 
       {/* Expanded entry list — inline (grid cards) */}
       {!usePopover && (

@@ -172,6 +172,23 @@ export async function GET(request: NextRequest) {
       submissions.map((s) => [s.sourceDatasetId, s]),
     );
 
+    // Project memberships (the caller's own projects) for the card badge.
+    const memberships = await prisma.projectDataset.findMany({
+      where: {
+        datasetId: { in: datasets.map((d) => d.id) },
+        project: { ownerId: session.user.id },
+      },
+      select: { datasetId: true, project: { select: { title: true } } },
+    });
+    const projectNamesByDataset = new Map<string, string[]>();
+
+    for (const m of memberships) {
+      const list = projectNamesByDataset.get(m.datasetId) ?? [];
+
+      list.push(m.project.title);
+      projectNamesByDataset.set(m.datasetId, list);
+    }
+
     return NextResponse.json({
       total,
       page,
@@ -216,6 +233,7 @@ export async function GET(request: NextRequest) {
           externalLink: d.externalLink,
           publicationLink: d.publicationLink,
           metadata: d.metadata,
+          projectNames: projectNamesByDataset.get(d.id) ?? [],
           submission: sub
             ? {
                 catalogId: sub.id,

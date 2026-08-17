@@ -35,6 +35,7 @@ export interface DatasetRow extends EditableMetadata {
   metadata: MetadataBag | null;
   createdAt: string;
   viewerUrl: string | null;
+  projectNames: string[];
   submission: SubmissionStatus | null;
 }
 
