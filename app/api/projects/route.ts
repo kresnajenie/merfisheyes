@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { sanitizeMetadataPatch } from "@/lib/datasets/metadata";
+import {
+  sanitizeMetadataPatch,
+  sanitizeMetadataBag,
+} from "@/lib/datasets/metadata";
 
 // GET /api/projects — the caller's own projects, with member datasets and any
 // community-submission status.
@@ -66,6 +69,7 @@ export async function GET() {
         thumbnailUrl: p.thumbnailUrl,
         externalLink: p.externalLink,
         publicationLink: p.publicationLink,
+        metadata: p.metadata,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
         datasetCount: p.datasets.length,
@@ -114,6 +118,9 @@ export async function POST(request: NextRequest) {
       ownerId: session.user.id,
       ...sanitizeMetadataPatch(body),
       ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}),
+      ...("metadata" in body
+        ? { metadata: sanitizeMetadataBag(body.metadata) }
+        : {}),
     },
   });
 

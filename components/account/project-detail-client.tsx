@@ -46,6 +46,7 @@ interface ProjectData {
   thumbnailUrl: string | null;
   externalLink: string | null;
   publicationLink: string | null;
+  metadata: Record<string, string> | null;
   datasets: { sortOrder: number; dataset: MemberDataset }[];
 }
 
@@ -351,7 +352,7 @@ export function ProjectDetailClient({
       <MetadataEditModal
         showThumbnail
         heading="Edit project"
-        initial={project}
+        initial={{ ...project, metadata: project.metadata ?? {} }}
         isOpen={editOpen}
         onClose={() => setEditOpen(false)}
         onSave={saveMetadata}

@@ -24,6 +24,7 @@ export interface SubmitDataset {
   tags: string[];
   externalLink: string | null;
   publicationLink: string | null;
+  metadata: unknown;
   numCells: number | null;
   numGenes: number | null;
 }
@@ -41,6 +42,7 @@ export interface SubmitProject {
   tags: string[];
   externalLink: string | null;
   publicationLink: string | null;
+  metadata: unknown;
   // Ordered member datasets (by ProjectDataset.sortOrder).
   datasets: SubmitDataset[];
 }
@@ -97,7 +99,8 @@ export async function upsertCommunitySubmission({
 
   const src = source.kind === "dataset" ? source.dataset : source.project;
 
-  const metadata = {
+  // Column fields on CatalogDataset (distinct from the `metadata` Json bag).
+  const fields = {
     title: src.title || "Dataset",
     description: src.description ?? null,
     species: src.species ?? null,
@@ -109,6 +112,9 @@ export async function upsertCommunitySubmission({
     externalLink: src.externalLink ?? null,
     publicationLink: src.publicationLink ?? null,
     thumbnailUrl: src.thumbnailUrl ?? null,
+    // Flexible display-metadata bag (investigator, authors, citation, …),
+    // rendered by the Explore detail page.
+    metadata: (src.metadata ?? {}) as object,
     numCells: source.kind === "dataset" ? source.dataset.numCells : null,
     numGenes: source.kind === "dataset" ? source.dataset.numGenes : null,
   };
@@ -138,7 +144,7 @@ export async function upsertCommunitySubmission({
   if (!existing) {
     return prisma.catalogDataset.create({
       data: {
-        ...metadata,
+        ...fields,
         isCommunity: true,
         reviewStatus: "PENDING",
         isPublished: false,
@@ -164,7 +170,7 @@ export async function upsertCommunitySubmission({
   return prisma.catalogDataset.update({
     where: { id: existing.id },
     data: {
-      ...metadata,
+      ...fields,
       submittedById: userId,
       ...(keepApproved
         ? {}

@@ -76,3 +76,53 @@ export function sanitizeMetadataPatch(
 
   return out;
 }
+
+/**
+ * Flexible display-metadata bag: the dynamic fields the Explore detail page
+ * renders (mirrors CatalogDataset.metadata). These are stored in the `metadata`
+ * Json column on Project / Dataset / CatalogDataset, keyed exactly like this so
+ * DatasetDetailPage's METADATA_LABELS pick up the human labels. Single source of
+ * truth for the editor form + the sanitizer.
+ */
+export const METADATA_BAG_FIELDS: {
+  key: string;
+  label: string;
+  max: number;
+  /** Render as a multi-line textarea (e.g. citation). */
+  multiline?: boolean;
+}[] = [
+  { key: "authors", label: "Authors", max: 2000 },
+  { key: "investigator", label: "Investigator (PI)", max: 300 },
+  { key: "coInvestigators", label: "Co-investigators", max: 1000 },
+  { key: "institution", label: "Institution", max: 500 },
+  { key: "age", label: "Age", max: 200 },
+  { key: "sex", label: "Sex", max: 100 },
+  { key: "genotype", label: "Genotype", max: 300 },
+  { key: "technique", label: "Technique", max: 300 },
+  { key: "funding", label: "Funding", max: 1000 },
+  { key: "publicationYear", label: "Publication year", max: 20 },
+  { key: "license", label: "License", max: 200 },
+  { key: "citation", label: "Citation", max: 3000, multiline: true },
+];
+
+const BAG_KEYS = new Set(METADATA_BAG_FIELDS.map((f) => f.key));
+const BAG_MAX = new Map(METADATA_BAG_FIELDS.map((f) => [f.key, f.max]));
+
+/**
+ * Clean a metadata-bag object: keep only known keys, trim, drop empties, cap
+ * length. Returns a plain object suitable for the `metadata` Json column.
+ */
+export function sanitizeMetadataBag(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+
+  if (!raw || typeof raw !== "object") return out;
+
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!BAG_KEYS.has(key) || typeof value !== "string") continue;
+    const trimmed = value.trim().slice(0, BAG_MAX.get(key) ?? 500);
+
+    if (trimmed) out[key] = trimmed;
+  }
+
+  return out;
+}
