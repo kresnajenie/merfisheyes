@@ -24,21 +24,45 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "50")));
   const skip = (page - 1) * limit;
 
+  const isCommunityTab = tab === "community";
+
+  // App-uploaded datasets are viewable by datasetId (no public s3BaseUrl), so
+  // the Community tab accepts either; curated tabs still require s3BaseUrl.
+  const hasViewableEntry: Prisma.CatalogDatasetWhereInput = isCommunityTab
+    ? {
+        entries: {
+          some: {
+            OR: [{ s3BaseUrl: { not: null } }, { datasetId: { not: null } }],
+          },
+        },
+      }
+    : { entries: { some: { s3BaseUrl: { not: null } } } };
+
   // Build where clause — only datasets with at least one viewable entry
   const conditions: Prisma.CatalogDatasetWhereInput[] = [
     { isPublished: true },
-    { entries: { some: { s3BaseUrl: { not: null } } } },
+    hasViewableEntry,
   ];
 
-  // Tab-specific filters
-  if (tab === "internal" && isAdmin) {
-    conditions.push({ isInternal: true });
+  if (isCommunityTab) {
+    // User submissions, only once an admin has approved them.
+    conditions.push(
+      { isCommunity: true },
+      { reviewStatus: "APPROVED" },
+      { isInternal: false },
+    );
   } else {
-    // Non-internal tabs: always exclude internal datasets
-    conditions.push({ isInternal: false });
+    // Curated content only — community submissions live on their own tab.
+    conditions.push({ isCommunity: false });
+    if (tab === "internal" && isAdmin) {
+      conditions.push({ isInternal: true });
+    } else {
+      // Non-internal tabs: always exclude internal datasets
+      conditions.push({ isInternal: false });
+    }
+    if (tab === "featured") conditions.push({ isFeatured: true });
+    if (tab === "bil") conditions.push({ isBil: true });
   }
-  if (tab === "featured") conditions.push({ isFeatured: true });
-  if (tab === "bil") conditions.push({ isBil: true });
 
   if (search) {
     // Tokenize on whitespace: each token must match SOME searched field
@@ -109,8 +133,8 @@ export async function GET(req: NextRequest) {
   // Base filter for featured/bil: exclude internal for non-admins, require viewable entries
   const hasEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
   const publicBase: Prisma.CatalogDatasetWhereInput = isAdmin
-    ? { isPublished: true, ...hasEntry }
-    : { isPublished: true, isInternal: false, ...hasEntry };
+    ? { isPublished: true, isCommunity: false, ...hasEntry }
+    : { isPublished: true, isCommunity: false, isInternal: false, ...hasEntry };
 
   // Fetch results, featured separately
   const [items, total, featured, bil, filters] = await Promise.all([
@@ -141,8 +165,8 @@ export async function GET(req: NextRequest) {
 
 async function getDistinctFilters(isAdmin: boolean) {
   const published: Prisma.CatalogDatasetWhereInput = isAdmin
-    ? { isPublished: true }
-    : { isPublished: true, isInternal: false };
+    ? { isPublished: true, isCommunity: false }
+    : { isPublished: true, isCommunity: false, isInternal: false };
 
   const [speciesRaw, tissueRaw, platformRaw] = await Promise.all([
     prisma.catalogDataset.findMany({

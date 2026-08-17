@@ -14,9 +14,16 @@ export const revalidate = 60;
 
 const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
 
-// Base filter: published + not internal + has at least one viewable entry
+// Base filter: published + not internal + not community + at least one
+// viewable entry. Community submissions are curated separately and only appear
+// on the Explore "Community" tab (fetched client-side), never the main grid.
 const hasViewableEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
-const publicBase = { isPublished: true, isInternal: false, ...hasViewableEntry };
+const publicBase = {
+  isPublished: true,
+  isInternal: false,
+  isCommunity: false,
+  ...hasViewableEntry,
+};
 
 // Fetch all initial public data in a single DB round-trip.
 async function loadPublicData() {

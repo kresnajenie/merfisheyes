@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, ownerOrAdminError } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { validateViewerConfig } from "@/lib/utils/viewer-config";
+import { sanitizeMetadataPatch } from "@/lib/datasets/metadata";
 
 /**
  * Owner (or admin) edit of a dataset's metadata and viewer defaults. Single
@@ -36,7 +37,7 @@ export async function PATCH(
 
   if (forbidden) return forbidden;
 
-  let body: { title?: unknown; viewerConfig?: unknown };
+  let body: Record<string, unknown>;
 
   try {
     body = await request.json();
@@ -44,10 +45,17 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const data: { title?: string; viewerConfig?: any } = {};
+  const data: Record<string, unknown> = {};
 
   if (typeof body.title === "string") {
     data.title = body.title.trim().slice(0, 500);
+  }
+
+  if (typeof body.thumbnailUrl === "string" || body.thumbnailUrl === null) {
+    data.thumbnailUrl =
+      typeof body.thumbnailUrl === "string"
+        ? body.thumbnailUrl.trim().slice(0, 1000) || null
+        : null;
   }
 
   if (body.viewerConfig !== undefined) {
@@ -57,6 +65,9 @@ export async function PATCH(
         ? null
         : (validateViewerConfig(body.viewerConfig) ?? undefined);
   }
+
+  // Catalog-style metadata (species, tissue, description, tags, links, …).
+  Object.assign(data, sanitizeMetadataPatch(body));
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

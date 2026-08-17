@@ -39,6 +39,12 @@ export interface UploadRawParams {
    * flowing. Lets the UI avoid a stalled-looking 0 MB during initiate.
    */
   onPhase?: (phase: RawUploadPhase) => void;
+  /**
+   * Called with the new dataset id as soon as `initiate` returns it — before
+   * any bytes are uploaded. Lets a caller wire up a linked upload / project
+   * without waiting for the whole transfer to finish.
+   */
+  onInitiated?: (datasetId: string) => void;
 }
 
 type UploadTarget =
@@ -114,7 +120,9 @@ async function markFileComplete(
   datasetId: string,
   uploadId: string,
   key: string,
-  multipart: { s3UploadId: string; parts: Array<{ partNumber: number; etag: string }> } | undefined,
+  multipart:
+    | { s3UploadId: string; parts: Array<{ partNumber: number; etag: string }> }
+    | undefined,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch(
@@ -124,7 +132,11 @@ async function markFileComplete(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
         multipart
-          ? { uploadId, s3UploadId: multipart.s3UploadId, parts: multipart.parts }
+          ? {
+              uploadId,
+              s3UploadId: multipart.s3UploadId,
+              parts: multipart.parts,
+            }
           : { uploadId },
       ),
       signal,
@@ -155,8 +167,16 @@ export interface RawUploadResult {
 export async function uploadRawToS3(
   params: UploadRawParams,
 ): Promise<RawUploadResult> {
-  const { kind, title, processingParams, files, signal, onProgress, onPhase } =
-    params;
+  const {
+    kind,
+    title,
+    processingParams,
+    files,
+    signal,
+    onProgress,
+    onPhase,
+    onInitiated,
+  } = params;
 
   if (files.length === 0) throw new Error("No files to upload");
 
@@ -195,6 +215,8 @@ export async function uploadRawToS3(
 
   const { datasetId, uploadId, uploadUrls } = await initRes.json();
 
+  onInitiated?.(datasetId);
+
   onPhase?.("uploading");
   report(0, 0);
 
@@ -207,7 +229,13 @@ export async function uploadRawToS3(
     if (!target) throw new Error(`Server returned no upload URL for ${key}`);
 
     if (target.mode === "single") {
-      await xhrPut(target.url, file, contentType, (loaded) => report(loaded, i), signal);
+      await xhrPut(
+        target.url,
+        file,
+        contentType,
+        (loaded) => report(loaded, i),
+        signal,
+      );
       completedBytes += file.size;
       await markFileComplete(datasetId, uploadId, key, undefined, signal);
     } else {

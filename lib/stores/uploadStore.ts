@@ -37,16 +37,25 @@ interface StartOpts {
   title: string;
   files: RawUploadFile[];
   processingParams: Record<string, unknown>;
+  /** Called with the dataset id as soon as the upload is initiated. */
+  onInitiated?: (datasetId: string) => void;
 }
 
-interface UploadStore {
-  active: boolean;
+/**
+ * One tracked upload. Several can run at once — e.g. a combined single-cell +
+ * single-molecule folder starts two, each rendered as its own bar. Every job
+ * owns its own abort controller and status poll so they're fully independent.
+ */
+export interface UploadJob {
+  /** Local id used to key + target this job (not the dataset id). */
+  id: string;
+  kind: RawUploadKind;
+  title: string;
   status: UploadStatus;
   loaded: number;
   total: number;
   fileIndex: number;
   fileCount: number;
-  title: string;
   datasetId: string | null;
   error: string;
   submitWarning: string;
@@ -64,57 +73,57 @@ interface UploadStore {
   _uploadStartAt: number | null;
   /** Stops the in-flight status poll; set while a job is being tracked. */
   _stopPoll: (() => void) | null;
-  start: (opts: StartOpts) => Promise<void>;
-  cancel: () => void;
-  dismiss: () => void;
 }
 
-export const useUploadStore = create<UploadStore>((set, get) => ({
-  active: false,
-  status: "idle",
-  loaded: 0,
-  total: 0,
-  fileIndex: 0,
-  fileCount: 0,
-  title: "",
-  datasetId: null,
-  error: "",
-  submitWarning: "",
-  rateBps: 0,
-  etaSeconds: null,
-  stage: "",
-  percent: null,
-  viewerUrl: null,
-  _abort: null,
-  _uploadStartAt: null,
-  _stopPoll: null,
+interface UploadStore {
+  jobs: UploadJob[];
+  start: (opts: StartOpts) => Promise<void>;
+  cancel: (id: string) => void;
+  dismiss: (id: string) => void;
+}
 
-  async start({ kind, title, files, processingParams }) {
+let jobSeq = 0;
+
+export const useUploadStore = create<UploadStore>((set, get) => ({
+  jobs: [],
+
+  async start({ kind, title, files, processingParams, onInitiated }) {
+    const id = `up_local_${++jobSeq}`;
     const controller = new AbortController();
 
-    // A previous job's poll must not outlive the bar being reused.
-    get()._stopPoll?.();
+    // Update just this job, leaving any other in-flight jobs untouched.
+    const patch = (partial: Partial<UploadJob>) =>
+      set((s) => ({
+        jobs: s.jobs.map((j) => (j.id === id ? { ...j, ...partial } : j)),
+      }));
+    const getJob = () => get().jobs.find((j) => j.id === id);
 
-    set({
-      active: true,
-      status: "preparing",
-      loaded: 0,
-      total: files.reduce((s, f) => s + f.file.size, 0),
-      fileIndex: 0,
-      fileCount: files.length,
-      title,
-      datasetId: null,
-      error: "",
-      submitWarning: "",
-      rateBps: 0,
-      etaSeconds: null,
-      stage: "",
-      percent: null,
-      viewerUrl: null,
-      _abort: controller,
-      _uploadStartAt: null,
-      _stopPoll: null,
-    });
+    set((s) => ({
+      jobs: [
+        ...s.jobs,
+        {
+          id,
+          kind,
+          title,
+          status: "preparing",
+          loaded: 0,
+          total: files.reduce((a, f) => a + f.file.size, 0),
+          fileIndex: 0,
+          fileCount: files.length,
+          datasetId: null,
+          error: "",
+          submitWarning: "",
+          rateBps: 0,
+          etaSeconds: null,
+          stage: "",
+          percent: null,
+          viewerUrl: null,
+          _abort: controller,
+          _uploadStartAt: null,
+          _stopPoll: null,
+        },
+      ],
+    }));
 
     try {
       const { datasetId, submitError } = await uploadRawToS3({
@@ -123,110 +132,115 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
         processingParams,
         files,
         signal: controller.signal,
+        // Surface the id early (before bytes finish) and record it on the job.
+        onInitiated: (dsId) => {
+          patch({ datasetId: dsId });
+          onInitiated?.(dsId);
+        },
         // Stamp the clock when bytes actually start flowing, so the rate isn't
         // skewed by the initiate round-trip that precedes it.
-        onPhase: (phase) =>
-          set((s) =>
-            phase === "uploading" && s._uploadStartAt == null
-              ? { status: phase, _uploadStartAt: Date.now() }
-              : { status: phase },
-          ),
-        onProgress: (p) =>
-          set((s) => {
-            let { rateBps, etaSeconds } = s;
+        onPhase: (phase) => {
+          const j = getJob();
 
-            if (s._uploadStartAt != null && p.loaded > 0) {
-              const elapsed = (Date.now() - s._uploadStartAt) / 1000;
+          if (phase === "uploading" && j && j._uploadStartAt == null) {
+            patch({ status: phase, _uploadStartAt: Date.now() });
+          } else {
+            patch({ status: phase });
+          }
+        },
+        onProgress: (p) => {
+          const j = getJob();
+          let rateBps = j?.rateBps ?? 0;
+          let etaSeconds = j?.etaSeconds ?? null;
 
-              if (elapsed > 0.4) {
-                rateBps = p.loaded / elapsed;
-                etaSeconds =
-                  rateBps > 0 ? (p.total - p.loaded) / rateBps : null;
-              }
+          if (j?._uploadStartAt != null && p.loaded > 0) {
+            const elapsed = (Date.now() - j._uploadStartAt) / 1000;
+
+            if (elapsed > 0.4) {
+              rateBps = p.loaded / elapsed;
+              etaSeconds = rateBps > 0 ? (p.total - p.loaded) / rateBps : null;
             }
+          }
 
-            return {
-              loaded: p.loaded,
-              total: p.total,
-              fileIndex: p.fileIndex,
-              fileCount: p.fileCount,
-              rateBps,
-              etaSeconds,
-            };
-          }),
+          patch({
+            loaded: p.loaded,
+            total: p.total,
+            fileIndex: p.fileIndex,
+            fileCount: p.fileCount,
+            rateBps,
+            etaSeconds,
+          });
+        },
       });
 
-      set({ datasetId, status: "done", submitWarning: submitError ?? "" });
+      patch({ datasetId, status: "done", submitWarning: submitError ?? "" });
 
       // The job never made it to the queue — leave the bar up (amber) so the
       // failure is noticed; there's nothing to poll.
       if (submitError) return;
 
-      // Bytes are up and the job is queued. Track it to completion in-place so
-      // the bar shows Processing → Ready instead of vanishing. The store is a
-      // singleton, so this keeps polling as the user navigates to /explore.
-      set({ status: "queued", stage: "", percent: null, viewerUrl: null });
+      // Bytes are up and the job is queued. Track it to completion so the bar
+      // shows Processing → Ready instead of vanishing. Lives in the store, so
+      // polling continues as the user navigates to /explore.
+      patch({ status: "queued", stage: "", percent: null, viewerUrl: null });
 
       const stop = pollIngestStatus(datasetId, (s) => {
-        // Ignore stale updates if the bar has moved on to another upload.
-        if (get().datasetId !== datasetId) return;
+        // Job was cancelled/dismissed — stop touching it.
+        if (!getJob()) return;
 
         if (s.status === "PROCESSING") {
-          set({
+          patch({
             status: "processing",
             stage: s.progress?.stage ?? "",
             percent: s.progress?.percent ?? null,
           });
         } else if (s.status === "COMPLETE") {
-          set({
+          patch({
             status: "complete",
             stage: "",
             percent: 100,
             viewerUrl: s.viewerUrl ?? null,
           });
         } else if (s.status === "FAILED") {
-          set({
+          patch({
             status: "error",
             error: s.errorMessage || "Processing failed on the server.",
           });
         } else if (s.status === "QUEUED") {
-          set({ status: "queued" });
+          patch({ status: "queued" });
         }
       });
 
-      set({ _stopPoll: stop });
+      patch({ _stopPoll: stop });
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        set({ active: false, status: "idle" });
+        set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
 
         return;
       }
-      set({
+      patch({
         status: "error",
         error: err instanceof Error ? err.message : "Upload failed",
       });
     } finally {
-      set({ _abort: null });
+      patch({ _abort: null });
     }
   },
 
-  cancel() {
-    const { _abort, _stopPoll, datasetId } = get();
+  cancel(id) {
+    const job = get().jobs.find((j) => j.id === id);
 
-    _stopPoll?.();
-    _abort?.abort();
-    if (datasetId) abortRawUpload(datasetId);
-    set({
-      active: false,
-      status: "idle",
-      _abort: null,
-      _stopPoll: null,
-      datasetId: null,
-    });
+    if (!job) return;
+    job._stopPoll?.();
+    job._abort?.abort();
+    if (job.datasetId) abortRawUpload(job.datasetId);
+    set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
   },
 
-  dismiss() {
-    get()._stopPoll?.();
-    set({ active: false, status: "idle", _stopPoll: null });
+  dismiss(id) {
+    get()
+      .jobs.find((j) => j.id === id)
+      ?._stopPoll?.();
+    set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
   },
 }));
