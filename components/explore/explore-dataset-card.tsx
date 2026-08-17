@@ -70,6 +70,14 @@ interface ExploreDatasetCardProps {
    * overlap. Used by the account cards.
    */
   ownerOverlay?: React.ReactNode;
+  /**
+   * Always render the fixed-height header image area, showing a placeholder
+   * when there is no thumbnail. Keeps a grid of mostly-thumbnail-less cards
+   * (the account page) uniform instead of ragged.
+   */
+  alwaysShowHeader?: boolean;
+  /** Badges overlaid on the header's bottom-left (e.g. project membership). */
+  headerBadges?: React.ReactNode;
 }
 
 function navigateToEntry(
@@ -146,6 +154,8 @@ export function ExploreDatasetCard({
   onCardClick,
   geneHighlight,
   ownerOverlay,
+  alwaysShowHeader = false,
+  headerBadges,
 }: ExploreDatasetCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -157,6 +167,9 @@ export function ExploreDatasetCard({
   const entries = dataset.entries ?? [];
   const hasMultipleEntries = entries.length > 1;
   const uniqueTypes = [...new Set(entries.map((e) => e.datasetType))];
+  // Whether the fixed-height header area is shown (real thumbnail or, when
+  // alwaysShowHeader is set, a placeholder).
+  const showHeader = !!dataset.thumbnailUrl || alwaysShowHeader;
 
   // Recompute dropdown position from current card rect
   const updatePosition = useCallback(() => {
@@ -316,14 +329,18 @@ export function ExploreDatasetCard({
       onPress={linkified ? undefined : handlePress}
     >
       <CardBody className="p-0 overflow-hidden">
-        {/* Thumbnail — only shown when image exists */}
-        {dataset.thumbnailUrl && (
+        {/* Header — thumbnail, or a placeholder when alwaysShowHeader is set. */}
+        {showHeader && (
           <div className="relative h-40 w-full bg-default-200/30">
-            <img
-              alt={dataset.title}
-              className="w-full h-full object-cover"
-              src={dataset.thumbnailUrl}
-            />
+            {dataset.thumbnailUrl ? (
+              <img
+                alt={dataset.title}
+                className="w-full h-full object-cover"
+                src={dataset.thumbnailUrl}
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-default-100 to-default-200/40" />
+            )}
             {/* Type badge overlay */}
             <div className="absolute top-2 left-2 flex gap-1">
               {uniqueTypes.map((type) => (
@@ -414,13 +431,19 @@ export function ExploreDatasetCard({
                 )}
               </div>
             )}
+            {/* Header badges (e.g. project membership) — bottom-left */}
+            {headerBadges && (
+              <div className="absolute bottom-2 left-2 z-10 flex max-w-[70%] flex-wrap gap-1">
+                {headerBadges}
+              </div>
+            )}
           </div>
         )}
 
         {/* Content */}
         <div className="p-4 flex flex-col gap-2">
-          {/* Inline badges when no thumbnail */}
-          {!dataset.thumbnailUrl && (
+          {/* Inline badges when no header is shown */}
+          {!showHeader && (
             <div className="flex items-center gap-1 flex-wrap">
               {uniqueTypes.map((type) => (
                 <Chip
@@ -556,9 +579,15 @@ export function ExploreDatasetCard({
 
           {/* Tags */}
           {dataset.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap gap-1 mt-1 min-w-0">
               {dataset.tags.slice(0, 3).map((tag) => (
-                <Chip key={tag} className="text-[10px]" size="sm" variant="dot">
+                <Chip
+                  key={tag}
+                  className="text-[10px] max-w-full"
+                  classNames={{ content: "truncate" }}
+                  size="sm"
+                  variant="dot"
+                >
                   {tag}
                 </Chip>
               ))}

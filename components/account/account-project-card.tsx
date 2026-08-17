@@ -129,6 +129,7 @@ export function AccountProjectCard({
 
   return (
     <ExploreDatasetCard
+      alwaysShowHeader
       dataset={toItem(project)}
       ownerOverlay={overlay}
       onCardClick={() => router.push(`/account/projects/${project.id}`)}

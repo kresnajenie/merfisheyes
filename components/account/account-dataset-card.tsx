@@ -119,38 +119,41 @@ export function AccountDatasetCard({
     </>
   );
 
-  return (
-    <div className="relative">
-      <ExploreDatasetCard
-        dataset={toItem(dataset)}
-        ownerOverlay={overlay}
-        onCardClick={() => router.push(`/account/datasets/${dataset.id}`)}
-      />
+  // Project-membership badges, overlaid on the header (bottom-left) so they
+  // never collide with the card's stats text.
+  const projectBadges =
+    projectNames.length > 0 ? (
+      <>
+        {projectNames.slice(0, 2).map((name) => (
+          <Chip
+            key={name}
+            className="max-w-[130px] bg-default-800/70 text-white backdrop-blur"
+            classNames={{ content: "truncate" }}
+            size="sm"
+            variant="flat"
+          >
+            {name}
+          </Chip>
+        ))}
+        {projectNames.length > 2 && (
+          <Chip
+            className="bg-default-800/70 text-white backdrop-blur"
+            size="sm"
+            variant="flat"
+          >
+            +{projectNames.length - 2}
+          </Chip>
+        )}
+      </>
+    ) : null;
 
-      {/* Project membership — subtle overlay bottom-left. */}
-      {projectNames.length > 0 && (
-        <div className="absolute bottom-2 left-2 z-20 flex max-w-[70%] flex-wrap gap-1">
-          {projectNames.slice(0, 2).map((name) => (
-            <Chip
-              key={name}
-              className="bg-default-800/70 text-white backdrop-blur"
-              size="sm"
-              variant="flat"
-            >
-              {name}
-            </Chip>
-          ))}
-          {projectNames.length > 2 && (
-            <Chip
-              className="bg-default-800/70 text-white backdrop-blur"
-              size="sm"
-              variant="flat"
-            >
-              +{projectNames.length - 2}
-            </Chip>
-          )}
-        </div>
-      )}
-    </div>
+  return (
+    <ExploreDatasetCard
+      alwaysShowHeader
+      dataset={toItem(dataset)}
+      headerBadges={projectBadges}
+      ownerOverlay={overlay}
+      onCardClick={() => router.push(`/account/datasets/${dataset.id}`)}
+    />
   );
 }
