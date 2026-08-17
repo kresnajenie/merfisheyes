@@ -23,7 +23,19 @@ interface ExploreSearchBarProps {
   geneChips: string[];
   onGeneChipsChange: (genes: string[]) => void;
   filters: ExploreFilters;
+  /** Category filter (was tabs): "" = All, else featured/bil/community/internal. */
+  category: string;
+  onCategoryChange: (value: string) => void;
+  /** Available category values (excludes "All"); Internal only for admins. */
+  categoryOptions: string[];
 }
+
+const CATEGORY_LABELS: Record<string, string> = {
+  featured: "Featured",
+  bil: "BIL",
+  community: "Community",
+  internal: "Internal",
+};
 
 export function ExploreSearchBar({
   search,
@@ -39,12 +51,10 @@ export function ExploreSearchBar({
   geneChips,
   onGeneChipsChange,
   filters,
+  category,
+  onCategoryChange,
+  categoryOptions,
 }: ExploreSearchBarProps) {
-  const hasAnyPill =
-    filters.species.length > 0 ||
-    filters.tissues.length > 0 ||
-    filters.platforms.length > 0;
-
   return (
     <div className="flex flex-col gap-3 mb-6">
       <div className="flex flex-col sm:flex-row gap-3">
@@ -83,34 +93,40 @@ export function ExploreSearchBar({
       </div>
 
       {/* LinkedIn-style filter pill bar — wraps when it runs out of room. */}
-      {hasAnyPill && (
-        <div className="flex flex-wrap gap-2">
-          {filters.species.length > 0 && (
-            <FilterPill
-              label="Species"
-              options={filters.species}
-              value={species}
-              onChange={onSpeciesChange}
-            />
-          )}
-          {filters.tissues.length > 0 && (
-            <FilterPill
-              label="Tissue"
-              options={filters.tissues}
-              value={tissue}
-              onChange={onTissueChange}
-            />
-          )}
-          {filters.platforms.length > 0 && (
-            <FilterPill
-              label="Platform"
-              options={filters.platforms}
-              value={platform}
-              onChange={onPlatformChange}
-            />
-          )}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-2">
+        <FilterPill
+          hideSearch
+          label="Category"
+          options={categoryOptions}
+          renderOption={(v) => CATEGORY_LABELS[v] ?? v}
+          value={category}
+          onChange={onCategoryChange}
+        />
+        {filters.species.length > 0 && (
+          <FilterPill
+            label="Species"
+            options={filters.species}
+            value={species}
+            onChange={onSpeciesChange}
+          />
+        )}
+        {filters.tissues.length > 0 && (
+          <FilterPill
+            label="Tissue"
+            options={filters.tissues}
+            value={tissue}
+            onChange={onTissueChange}
+          />
+        )}
+        {filters.platforms.length > 0 && (
+          <FilterPill
+            label="Platform"
+            options={filters.platforms}
+            value={platform}
+            onChange={onPlatformChange}
+          />
+        )}
+      </div>
 
       {/* Gene exact-match chips */}
       {geneChips.length > 0 && (

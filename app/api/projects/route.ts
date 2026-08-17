@@ -8,32 +8,61 @@ import {
 } from "@/lib/datasets/metadata";
 
 // GET /api/projects — the caller's own projects, with member datasets and any
-// community-submission status.
-export async function GET() {
+// community-submission status. Supports optional search + pagination (opt-in:
+// callers with no page/limit get the full list, unchanged).
+export async function GET(request: NextRequest) {
   const { error, session } = await requireUser();
 
   if (error) return error;
 
-  const projects = await prisma.project.findMany({
-    where: { ownerId: session.user.id },
-    orderBy: { updatedAt: "desc" },
-    include: {
-      datasets: {
-        orderBy: { sortOrder: "asc" },
-        include: {
-          dataset: {
-            select: {
-              id: true,
-              title: true,
-              datasetType: true,
-              thumbnailUrl: true,
-              status: true,
+  const params = request.nextUrl.searchParams;
+  const search = params.get("search")?.trim() ?? "";
+  const paginate = params.has("page") || params.has("limit");
+  const page = Math.max(1, Number(params.get("page") ?? "1"));
+  const limit = paginate
+    ? Math.min(100, Math.max(1, Number(params.get("limit") ?? "20")))
+    : undefined;
+  const skip = limit ? (page - 1) * limit : undefined;
+
+  const insensitive = "insensitive" as const;
+  const where = {
+    ownerId: session.user.id,
+    ...(search
+      ? {
+          OR: [
+            { title: { contains: search, mode: insensitive } },
+            { description: { contains: search, mode: insensitive } },
+            { tags: { has: search } },
+          ],
+        }
+      : {}),
+  };
+
+  const [projects, total] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        datasets: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            dataset: {
+              select: {
+                id: true,
+                title: true,
+                datasetType: true,
+                thumbnailUrl: true,
+                status: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.project.count({ where }),
+  ]);
 
   const submissions = await prisma.catalogDataset.findMany({
     where: {
@@ -53,6 +82,9 @@ export async function GET() {
   );
 
   return NextResponse.json({
+    total,
+    page,
+    limit: limit ?? total,
     projects: projects.map((p) => {
       const sub = submissionByProject.get(p.id);
 
