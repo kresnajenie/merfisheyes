@@ -6,6 +6,8 @@ import { hyparquetService } from "./services/hyparquetService";
 import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
+  MoleculeColumnMapping,
+  isUnassignedCellId,
 } from "./config/moleculeColumnMappings";
 import { shouldFilterGene } from "./utils/gene-filters";
 
@@ -366,6 +368,7 @@ export class SingleMoleculeDataset {
     file: File,
     datasetType: MoleculeDatasetType = "xenium",
     onProgress?: (progress: number, message: string) => Promise<void> | void,
+    mappingOverride?: MoleculeColumnMapping,
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
 
@@ -373,8 +376,9 @@ export class SingleMoleculeDataset {
       `[SingleMoleculeDataset] Starting parquet parsing: ${file.name}`,
     );
 
-    // Get column mapping for this dataset type
-    const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
+    // Column mapping: an explicit user-confirmed override wins; otherwise the
+    // dataset-type preset.
+    const columnMapping = mappingOverride ?? MOLECULE_COLUMN_MAPPINGS[datasetType];
     const cellIdCol = columnMapping.cellId;
 
     // Determine which columns to read
@@ -450,7 +454,8 @@ export class SingleMoleculeDataset {
 
       if (shouldFilterGene(gene)) continue;
 
-      const isUnassigned = hasCellIdColumn && Number(cellIdData![i]) === -1;
+      const isUnassigned =
+        hasCellIdColumn && isUnassignedCellId(cellIdData![i]);
 
       if (isUnassigned) {
         unassignedCounts.set(gene, (unassignedCounts.get(gene) || 0) + 1);
@@ -482,7 +487,8 @@ export class SingleMoleculeDataset {
     // Pass 2: Fill Float32Arrays with rounded coordinates
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
-      const isUnassigned = hasCellIdColumn && Number(cellIdData![i]) === -1;
+      const isUnassigned =
+        hasCellIdColumn && isUnassignedCellId(cellIdData![i]);
 
       const targetIndex = isUnassigned ? unassignedGeneIndex : geneIndex;
       const targetOffsets = isUnassigned ? unassignedOffsets : geneOffsets;
@@ -591,6 +597,7 @@ export class SingleMoleculeDataset {
     file: File,
     datasetType: MoleculeDatasetType = "xenium",
     onProgress?: (progress: number, message: string) => Promise<void> | void,
+    mappingOverride?: MoleculeColumnMapping,
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
 
@@ -598,8 +605,9 @@ export class SingleMoleculeDataset {
 
     await onProgress?.(10, "Preparing to stream CSV...");
 
-    // Get column mapping for this dataset type
-    const columnMapping = MOLECULE_COLUMN_MAPPINGS[datasetType];
+    // Column mapping: an explicit user-confirmed override wins; otherwise the
+    // dataset-type preset.
+    const columnMapping = mappingOverride ?? MOLECULE_COLUMN_MAPPINGS[datasetType];
     const cellIdCol = columnMapping.cellId;
 
     // Build gene index while streaming — accumulate as number[], convert to Float32Array at end
@@ -681,8 +689,10 @@ export class SingleMoleculeDataset {
 
             uniqueGenesSet.add(gene);
 
-            // Determine if this molecule is unassigned (cell_id == -1)
-            const isUnassigned = hasCellIdColumn && Number(row[cellIdCol!]) === -1;
+            // Determine if this molecule is unassigned (see isUnassignedCellId:
+            // handles numeric -1, string "UNASSIGNED", empty, etc.)
+            const isUnassigned =
+              hasCellIdColumn && isUnassignedCellId(row[cellIdCol!]);
 
             if (isUnassigned) {
               if (!tempUnassignedGeneIndex.has(gene)) {

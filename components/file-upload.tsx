@@ -10,7 +10,13 @@ import * as Comlink from "comlink";
 
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
-import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
+import {
+  MoleculeDatasetType,
+  MoleculeColumnMapping,
+  MOLECULE_COLUMN_MAPPINGS,
+} from "@/lib/config/moleculeColumnMappings";
+import { readMoleculePreview } from "@/lib/services/molecule-preview";
+import { SingleMoleculeHeaderModal } from "@/components/single-molecule-header-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
@@ -102,6 +108,45 @@ export function FileUpload({
   // sign-in modal, then resume the upload on success (no sign-in wall first).
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const pendingFilesRef = useRef<File[] | null>(null);
+
+  // Single-molecule "confirm your columns" step. When a raw parquet/CSV is
+  // dropped we read a preview and pause here until the user confirms/remaps the
+  // gene / x / y / z / cell-id columns.
+  const [headerModal, setHeaderModal] = useState<{
+    fileName: string;
+    columns: string[];
+    rows: Record<string, unknown>[];
+    autoMapping: MoleculeColumnMapping;
+  } | null>(null);
+  const mappingResolverRef = useRef<
+    ((m: MoleculeColumnMapping | null) => void) | null
+  >(null);
+
+  // Read a preview, open the confirm modal, and resolve with the user's chosen
+  // mapping (or null if they cancel).
+  const awaitColumnMapping = useCallback(
+    async (file: File): Promise<MoleculeColumnMapping | null> => {
+      const preview = await readMoleculePreview(file);
+      const autoMapping = MOLECULE_COLUMN_MAPPINGS[preview.autoType];
+
+      return new Promise<MoleculeColumnMapping | null>((resolve) => {
+        mappingResolverRef.current = resolve;
+        setHeaderModal({
+          fileName: file.name,
+          columns: preview.columns,
+          rows: preview.rows,
+          autoMapping,
+        });
+      });
+    },
+    [],
+  );
+
+  const resolveMapping = (mapping: MoleculeColumnMapping | null) => {
+    setHeaderModal(null);
+    mappingResolverRef.current?.(mapping);
+    mappingResolverRef.current = null;
+  };
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -456,24 +501,25 @@ export function FileUpload({
           // type="xenium" / type="merscope" cards, keep the explicit choice.
           let parquetDatasetType: MoleculeDatasetType =
             UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+          let mappingOverride: MoleculeColumnMapping | undefined;
 
           if (type === "file") {
-            const { detectMoleculeFileType } = await import(
-              "@/lib/services/molecule-file-sniffer"
-            );
-
+            // Show the "confirm your columns" step: preview the file and let the
+            // user check/remap gene / x / y / z / cell-id before processing.
             onProgress(2, "Inspecting file schema...");
-            const sniff = await detectMoleculeFileType(file);
+            const mapping = await awaitColumnMapping(file);
 
-            console.log(
-              `[FileUpload] Sniffed columns: [${sniff.columns.slice(0, 8).join(", ")}${sniff.columns.length > 8 ? ", …" : ""}] → ${sniff.type}`,
-            );
-            parquetDatasetType = sniff.type;
-            toast.info(
-              sniff.type === "custom"
-                ? "Using custom column mapping (xenium/merscope schema not detected)"
-                : `Detected ${sniff.type.toUpperCase()} schema`,
-            );
+            if (!mapping) {
+              // User cancelled — abort cleanly (no error toast).
+              setLoading(false);
+              setProgress(0);
+              setProgressMessage("");
+
+              return;
+            }
+            mappingOverride = mapping;
+            parquetDatasetType = "custom";
+            console.log("[FileUpload] Confirmed column mapping:", mapping);
           } else {
             console.log("Dataset type:", type, "→", parquetDatasetType);
           }
@@ -492,12 +538,14 @@ export function FileUpload({
               file,
               parquetDatasetType,
               proxiedProgress,
+              mappingOverride,
             );
           } else if (fileExtension === "csv") {
             serializedData = await workerApi.parseCSV(
               file,
               parquetDatasetType,
               proxiedProgress,
+              mappingOverride,
             );
           } else {
             throw new Error(
@@ -734,6 +782,7 @@ export function FileUpload({
   return (
     <div className="w-full">
       <div
+        aria-label={`${title} — ${description}. Click or drop files to upload.`}
         className={`
           relative border-2 border-dashed rounded-lg p-3 text-center cursor-pointer
           transition-all duration-200 ease-in-out flex items-center justify-center
@@ -745,7 +794,6 @@ export function FileUpload({
           }
           ${isLoading ? "pointer-events-none opacity-60" : ""}
         `}
-        aria-label={`${title} — ${description}. Click or drop files to upload.`}
         role="button"
         tabIndex={isLoading ? -1 : 0}
         onClick={handleClick}
@@ -794,6 +842,18 @@ export function FileUpload({
           )}
         </div>
       </div>
+
+      {headerModal && (
+        <SingleMoleculeHeaderModal
+          autoMapping={headerModal.autoMapping}
+          columns={headerModal.columns}
+          fileName={headerModal.fileName}
+          isOpen={true}
+          rows={headerModal.rows}
+          onCancel={() => resolveMapping(null)}
+          onConfirm={(m) => resolveMapping(m)}
+        />
+      )}
 
       {serverUpload && (
         <AuthModal
