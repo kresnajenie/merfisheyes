@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, ownerOrAdminError } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { validateViewerConfig } from "@/lib/utils/viewer-config";
-import { sanitizeMetadataPatch } from "@/lib/datasets/metadata";
+import {
+  sanitizeMetadataPatch,
+  sanitizeMetadataBag,
+} from "@/lib/datasets/metadata";
 
 /**
  * Owner (or admin) edit of a dataset's metadata and viewer defaults. Single
@@ -68,6 +71,11 @@ export async function PATCH(
 
   // Catalog-style metadata (species, tissue, description, tags, links, …).
   Object.assign(data, sanitizeMetadataPatch(body));
+
+  // Flexible display-metadata bag (investigator, authors, citation, …).
+  if ("metadata" in body) {
+    data.metadata = sanitizeMetadataBag(body.metadata);
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });

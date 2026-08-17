@@ -112,6 +112,7 @@ export function AccountWorkspace() {
             tags: draft.tags,
             externalLink: draft.externalLink,
             publicationLink: draft.publicationLink,
+            metadata: draft.metadata,
           }),
         });
 
@@ -315,9 +316,11 @@ export function AccountWorkspace() {
 
   const editInitial: Partial<MetadataDraft> =
     editTarget && editTarget.kind !== "new-project"
-      ? editTarget.kind === "dataset"
-        ? { ...editTarget.data, title: editTarget.data.title ?? "" }
-        : { ...editTarget.data }
+      ? {
+          ...editTarget.data,
+          title: editTarget.data.title ?? "",
+          metadata: editTarget.data.metadata ?? {},
+        }
       : {};
 
   return (

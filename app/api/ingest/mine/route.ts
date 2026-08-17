@@ -40,6 +40,7 @@ const select = {
   tags: true,
   externalLink: true,
   publicationLink: true,
+  metadata: true,
 } as const;
 
 const SORT_FIELDS: Record<string, "createdAt" | "numCells" | "title"> = {
@@ -54,8 +55,11 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const sortParam = request.nextUrl.searchParams.get("sort") ?? "date";
-  const dirParam = request.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
-  const orderBy = { [SORT_FIELDS[sortParam] ?? "createdAt"]: dirParam } as const;
+  const dirParam =
+    request.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
+  const orderBy = {
+    [SORT_FIELDS[sortParam] ?? "createdAt"]: dirParam,
+  } as const;
 
   try {
     // Exclude UPLOADING entirely. The dataset currently transferring is shown
@@ -157,6 +161,7 @@ export async function GET(request: NextRequest) {
           tags: d.tags,
           externalLink: d.externalLink,
           publicationLink: d.publicationLink,
+          metadata: d.metadata,
           submission: sub
             ? {
                 catalogId: sub.id,

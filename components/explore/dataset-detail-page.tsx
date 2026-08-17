@@ -10,6 +10,7 @@ import { useState } from "react";
 
 // Metadata keys to display with human-readable labels
 const METADATA_LABELS: Record<string, string> = {
+  authors: "Authors",
   investigator: "Investigator",
   institution: "Institution",
   coInvestigators: "Co-Investigators",
@@ -20,6 +21,7 @@ const METADATA_LABELS: Record<string, string> = {
   sex: "Sex",
   genotype: "Genotype",
   technique: "Technique",
+  citation: "Citation",
 };
 
 const COLOR_STYLES = {
