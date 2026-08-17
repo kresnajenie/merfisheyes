@@ -50,7 +50,7 @@ async function loadPublicData() {
         where: allBase,
         include: includeEntries,
         orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-        take: 50,
+        take: 20,
       }),
       prisma.catalogDataset.count({ where: allBase }),
       prisma.catalogDataset.findMany({

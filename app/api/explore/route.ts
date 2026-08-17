@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const datasetType = url.searchParams.get("datasetType") ?? "";
   const tab = url.searchParams.get("tab") ?? "";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
-  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "50")));
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "20")));
   const skip = (page - 1) * limit;
 
   // Category filter (was tabs): "all" | "featured" | "bil" | "community" |

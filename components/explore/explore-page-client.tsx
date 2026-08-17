@@ -14,7 +14,7 @@ import { FeaturedDatasets } from "./featured-datasets";
 import { ExploreSearchBar } from "./explore-search-bar";
 import { ExploreDatasetGrid } from "./explore-dataset-grid";
 
-const PAGE_LIMIT = 50;
+const PAGE_LIMIT = 20;
 
 // Category filter values (empty string = "All"). Replaces the old tab bar.
 const CATEGORY_OPTIONS = ["featured", "bil", "community"];
