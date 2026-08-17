@@ -1,9 +1,9 @@
 import { DescribeJobsCommand } from "@aws-sdk/client-batch";
 
 import { batchClient } from "@/lib/batch";
-import { prisma } from "@/lib/prisma";
 import { getObjectJson } from "@/lib/s3";
 import { finalizeCompletedDataset } from "@/lib/ingest/finalize";
+import { markDatasetFailed } from "@/lib/ingest/mark-failed";
 
 /**
  * Recover a dataset whose worker callback never arrived.
@@ -148,8 +148,7 @@ export async function reconcileWithBatch(
 }
 
 async function markFailed(datasetId: string, message: string): Promise<void> {
-  await prisma.dataset.update({
-    where: { id: datasetId },
-    data: { status: "FAILED", errorMessage: message, completedAt: new Date() },
-  });
+  // Routes through the shared helper so a reconcile-detected failure classifies
+  // the fault and emails the owner, exactly like a worker-reported one.
+  await markDatasetFailed(datasetId, message);
 }

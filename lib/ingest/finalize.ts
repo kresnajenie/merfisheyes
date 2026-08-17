@@ -69,6 +69,7 @@ export async function finalizeCompletedDataset(
         data: {
           status: "FAILED",
           completedAt: new Date(),
+          faultCategory: "USER",
           errorMessage:
             `Duplicate of already-ingested dataset ${existing.id}` +
             (existing.title ? ` ("${existing.title}")` : "") +

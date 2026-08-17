@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { finalizeCompletedDataset } from "@/lib/ingest/finalize";
+import { markDatasetFailed } from "@/lib/ingest/mark-failed";
 
 // Worker → app callback. This is the ONLY writer of ingestion status, so DB and
 // SES credentials never leave the app (design §5.4). Authenticated with an HMAC
@@ -97,17 +98,13 @@ export async function POST(
 
     // ── FAILED ─────────────────────────────────────────────────────────
     if (body.status === "FAILED") {
-      await prisma.dataset.update({
-        where: { id: datasetId },
-        data: {
-          status: "FAILED",
-          errorMessage: body.error?.slice(0, 2000) || "Processing failed",
-          processingProgress: {
-            ...(body.progress ?? {}),
-            failedAt: new Date().toISOString(),
-          },
-        },
-      });
+      // Classify the fault + email the owner, via the shared helper the
+      // reconcile path also uses.
+      await markDatasetFailed(
+        datasetId,
+        body.error?.slice(0, 2000) || "Processing failed",
+        { progress: body.progress },
+      );
 
       return NextResponse.json({ success: true, status: "FAILED" });
     }
