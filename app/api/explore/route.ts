@@ -141,11 +141,28 @@ export async function GET(req: NextRequest) {
 
   const where: Prisma.CatalogDatasetWhereInput = { AND: conditions };
 
-  // Base filter for featured/bil: exclude internal for non-admins, require viewable entries
+  // Base filter for bil: curated only, exclude internal for non-admins.
   const hasEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
   const publicBase: Prisma.CatalogDatasetWhereInput = isAdmin
     ? { isPublished: true, isCommunity: false, ...hasEntry }
     : { isPublished: true, isCommunity: false, isInternal: false, ...hasEntry };
+
+  // Featured carousel: curated PLUS approved community submissions (a community
+  // dataset can be flagged featured). Viewable by s3BaseUrl or datasetId.
+  const hasEntryAny = {
+    entries: {
+      some: { OR: [{ s3BaseUrl: { not: null } }, { datasetId: { not: null } }] },
+    },
+  };
+  const communityOr: Prisma.CatalogDatasetWhereInput = {
+    OR: [
+      { isCommunity: false },
+      { AND: [{ isCommunity: true }, { reviewStatus: "APPROVED" }] },
+    ],
+  };
+  const featuredBase: Prisma.CatalogDatasetWhereInput = isAdmin
+    ? { isPublished: true, ...communityOr, ...hasEntryAny }
+    : { isPublished: true, isInternal: false, ...communityOr, ...hasEntryAny };
 
   // Fetch results, featured separately
   const [items, total, featured, bil, filters] = await Promise.all([
@@ -158,7 +175,7 @@ export async function GET(req: NextRequest) {
     }),
     prisma.catalogDataset.count({ where }),
     prisma.catalogDataset.findMany({
-      where: { ...publicBase, isFeatured: true },
+      where: { ...featuredBase, isFeatured: true },
       include: includeEntries,
       orderBy: { sortOrder: "asc" },
     }),

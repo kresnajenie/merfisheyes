@@ -54,7 +54,7 @@ async function loadPublicData() {
       }),
       prisma.catalogDataset.count({ where: allBase }),
       prisma.catalogDataset.findMany({
-        where: { ...publicBase, isFeatured: true },
+        where: { ...allBase, isFeatured: true },
         include: includeEntries,
         orderBy: { sortOrder: "asc" },
       }),
