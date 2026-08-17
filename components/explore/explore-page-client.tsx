@@ -237,8 +237,9 @@ export function ExplorePageClient({
 
   return (
     <>
-      {/* Featured carousel — only on the default "All" view. */}
-      {isDefaultView && featuredItems.length > 0 && (
+      {/* Featured carousel — persistently on top of the "All" view (any
+          filters/page), hidden once a specific category is selected. */}
+      {category === "" && featuredItems.length > 0 && (
         <div className="mb-8">
           <FeaturedDatasets
             datasets={featuredItems}
