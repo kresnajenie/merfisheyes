@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma, DatasetStatus } from "@prisma/client";
 
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +41,7 @@ const select = {
   tags: true,
   externalLink: true,
   publicationLink: true,
+  metadata: true,
 } as const;
 
 const SORT_FIELDS: Record<string, "createdAt" | "numCells" | "title"> = {
@@ -53,9 +55,30 @@ export async function GET(request: NextRequest) {
 
   if (error) return error;
 
-  const sortParam = request.nextUrl.searchParams.get("sort") ?? "date";
-  const dirParam = request.nextUrl.searchParams.get("dir") === "asc" ? "asc" : "desc";
-  const orderBy = { [SORT_FIELDS[sortParam] ?? "createdAt"]: dirParam } as const;
+  const params = request.nextUrl.searchParams;
+  const sortParam = params.get("sort") ?? "date";
+  const dirParam = params.get("dir") === "asc" ? "asc" : "desc";
+  const orderBy = {
+    [SORT_FIELDS[sortParam] ?? "createdAt"]: dirParam,
+  } as const;
+
+  // Filters (all optional). Mirrors the Explore pill filters plus owner-only
+  // Type / Status.
+  const search = params.get("search")?.trim() ?? "";
+  const species = params.get("species") ?? "";
+  const tissue = params.get("tissue") ?? "";
+  const platform = params.get("platform") ?? "";
+  const type = params.get("type") ?? ""; // single_cell | single_molecule
+  const statusFilter = params.get("status") ?? "";
+
+  // Pagination is opt-in: only when a page/limit is supplied (the Explore
+  // "Your uploads" strip calls with no params and expects the full list).
+  const paginate = params.has("page") || params.has("limit");
+  const page = Math.max(1, Number(params.get("page") ?? "1"));
+  const limit = paginate
+    ? Math.min(100, Math.max(1, Number(params.get("limit") ?? "20")))
+    : 200;
+  const skip = (page - 1) * limit;
 
   try {
     // Exclude UPLOADING entirely. The dataset currently transferring is shown
@@ -67,19 +90,49 @@ export async function GET(request: NextRequest) {
     // Personal datasets, plus admin-owned (shared) ones for admins.
     const isAdmin =
       session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
-    const where = {
+    // Ownership scope, reused for the where clause and the facet queries.
+    const ownerScope: Prisma.DatasetWhereInput = {
       status: { not: "UPLOADING" as const },
       ...(isAdmin
         ? { OR: [{ ownerId: session.user.id }, { adminOwned: true }] }
         : { ownerId: session.user.id }),
     };
 
-    let datasets = await prisma.dataset.findMany({
-      where,
-      select,
-      orderBy,
-      take: 200,
-    });
+    const insensitive = Prisma.QueryMode.insensitive;
+    const filterAnd: Prisma.DatasetWhereInput[] = [];
+
+    if (type) filterAnd.push({ datasetType: type });
+    if (statusFilter && statusFilter in DatasetStatus)
+      filterAnd.push({ status: statusFilter as DatasetStatus });
+    if (species)
+      filterAnd.push({ species: { equals: species, mode: insensitive } });
+    if (tissue)
+      filterAnd.push({ tissue: { equals: tissue, mode: insensitive } });
+    if (platform)
+      filterAnd.push({ platform: { equals: platform, mode: insensitive } });
+    if (search) {
+      filterAnd.push({
+        OR: [
+          { title: { contains: search, mode: insensitive } },
+          { description: { contains: search, mode: insensitive } },
+          { species: { contains: search, mode: insensitive } },
+          { tissue: { contains: search, mode: insensitive } },
+          { platform: { contains: search, mode: insensitive } },
+          { institute: { contains: search, mode: insensitive } },
+          { tags: { has: search } },
+        ],
+      });
+    }
+
+    const where: Prisma.DatasetWhereInput = filterAnd.length
+      ? { ...ownerScope, AND: filterAnd }
+      : ownerScope;
+
+    let [datasets, total, facets] = await Promise.all([
+      prisma.dataset.findMany({ where, select, orderBy, skip, take: limit }),
+      prisma.dataset.count({ where }),
+      getFacets(ownerScope),
+    ]);
 
     const stale = datasets.filter((d) => isStale(d));
 
@@ -95,7 +148,8 @@ export async function GET(request: NextRequest) {
         where,
         select,
         orderBy,
-        take: 200,
+        skip,
+        take: limit,
       });
     }
 
@@ -118,7 +172,28 @@ export async function GET(request: NextRequest) {
       submissions.map((s) => [s.sourceDatasetId, s]),
     );
 
+    // Project memberships (the caller's own projects) for the card badge.
+    const memberships = await prisma.projectDataset.findMany({
+      where: {
+        datasetId: { in: datasets.map((d) => d.id) },
+        project: { ownerId: session.user.id },
+      },
+      select: { datasetId: true, project: { select: { title: true } } },
+    });
+    const projectNamesByDataset = new Map<string, string[]>();
+
+    for (const m of memberships) {
+      const list = projectNamesByDataset.get(m.datasetId) ?? [];
+
+      list.push(m.project.title);
+      projectNamesByDataset.set(m.datasetId, list);
+    }
+
     return NextResponse.json({
+      total,
+      page,
+      limit,
+      filters: facets,
       datasets: datasets.map((d) => {
         const viewerPath =
           d.datasetType === "single_molecule" ? "sm-viewer" : "viewer";
@@ -157,6 +232,8 @@ export async function GET(request: NextRequest) {
           tags: d.tags,
           externalLink: d.externalLink,
           publicationLink: d.publicationLink,
+          metadata: d.metadata,
+          projectNames: projectNamesByDataset.get(d.id) ?? [],
           submission: sub
             ? {
                 catalogId: sub.id,
@@ -176,4 +253,36 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+// Distinct species / tissue / platform across the owner's datasets (ignoring
+// the active filters, so the pills always offer every value). Mirrors the
+// Explore facets shape.
+async function getFacets(ownerScope: Prisma.DatasetWhereInput) {
+  const [speciesRaw, tissueRaw, platformRaw] = await Promise.all([
+    prisma.dataset.findMany({
+      where: { ...ownerScope, species: { not: null } },
+      select: { species: true },
+      distinct: ["species"],
+      orderBy: { species: "asc" },
+    }),
+    prisma.dataset.findMany({
+      where: { ...ownerScope, tissue: { not: null } },
+      select: { tissue: true },
+      distinct: ["tissue"],
+      orderBy: { tissue: "asc" },
+    }),
+    prisma.dataset.findMany({
+      where: { ...ownerScope, platform: { not: null } },
+      select: { platform: true },
+      distinct: ["platform"],
+      orderBy: { platform: "asc" },
+    }),
+  ]);
+
+  return {
+    species: speciesRaw.map((r) => r.species).filter(Boolean) as string[],
+    tissues: tissueRaw.map((r) => r.tissue).filter(Boolean) as string[],
+    platforms: platformRaw.map((r) => r.platform).filter(Boolean) as string[],
+  };
 }

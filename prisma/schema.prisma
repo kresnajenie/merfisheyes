@@ -207,6 +207,11 @@ model Project {
   thumbnailUrl    String?  @map("thumbnail_url") @db.VarChar(1000)
   externalLink    String?  @map("external_link") @db.VarChar(1000)
   publicationLink String?  @map("publication_link") @db.VarChar(1000)
+  // Flexible display metadata bag (investigator, institution, age, authors,
+  // citation, funding, sex, genotype, technique, publicationYear, license…),
+  // mirroring CatalogDataset.metadata. Carried into the catalog on submit and
+  // rendered on the Explore detail page.
+  metadata        Json?    @default("{}")
 
   ownerId   String   @map("owner_id")
   owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
@@ -273,6 +278,10 @@ model Dataset {
   tags           String[]        @default([])
   externalLink   String?         @map("external_link") @db.VarChar(1000)
   publicationLink String?        @map("publication_link") @db.VarChar(1000)
+  // Flexible display metadata bag (investigator, institution, age, authors,
+  // citation, …), mirroring CatalogDataset.metadata. Carried into the catalog
+  // on submit and rendered on the Explore detail page.
+  metadata       Json?           @default("{}")
   // Denormalized cache of the deduped view count (source of truth: dataset_views).
   viewCount      Int             @default(0) @map("view_count")
   // Owned by "admin" collectively: any admin can edit, and it's not tied to a

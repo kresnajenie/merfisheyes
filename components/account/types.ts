@@ -18,6 +18,9 @@ export interface EditableMetadata {
   publicationLink: string | null;
 }
 
+/** Flexible display-metadata bag (investigator, authors, citation, age, …). */
+export type MetadataBag = Record<string, string>;
+
 export interface DatasetRow extends EditableMetadata {
   id: string;
   title: string | null;
@@ -29,8 +32,10 @@ export interface DatasetRow extends EditableMetadata {
   ingestSource: string | null;
   adminOwned: boolean;
   thumbnailUrl: string | null;
+  metadata: MetadataBag | null;
   createdAt: string;
   viewerUrl: string | null;
+  projectNames: string[];
   submission: SubmissionStatus | null;
 }
 
@@ -46,6 +51,7 @@ export interface ProjectRow extends EditableMetadata {
   id: string;
   title: string;
   thumbnailUrl: string | null;
+  metadata: MetadataBag | null;
   datasetCount: number;
   datasets: ProjectDatasetSummary[];
   createdAt: string;

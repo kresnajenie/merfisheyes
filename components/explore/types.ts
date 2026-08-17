@@ -29,6 +29,7 @@ export interface CatalogDatasetItem {
   isFeatured: boolean;
   isBil: boolean;
   isInternal: boolean;
+  isCommunity: boolean;
   sortOrder: number;
   numCells: number | null;
   numGenes: number | null;

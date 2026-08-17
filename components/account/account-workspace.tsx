@@ -2,23 +2,22 @@
 
 import type { MetadataDraft } from "./metadata-edit-modal";
 import type { DatasetRow, ProjectRow } from "./types";
+import type { AccountFacets } from "./account-filter-bar";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Tabs, Tab } from "@heroui/tabs";
 import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
+import { Pagination } from "@heroui/pagination";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "react-toastify";
 
 import { AccountDatasetCard } from "./account-dataset-card";
 import { AccountProjectCard } from "./account-project-card";
 import { MetadataEditModal } from "./metadata-edit-modal";
 import { AddToProjectModal } from "./add-to-project-modal";
-import {
-  AccountFilterBar,
-  DEFAULT_FILTERS,
-  applyDatasetFilters,
-  type DatasetFilters,
-} from "./account-filter-bar";
+import { AccountFilterBar } from "./account-filter-bar";
 
 type EditTarget =
   | { kind: "dataset"; data: DatasetRow }
@@ -26,18 +25,123 @@ type EditTarget =
   | { kind: "new-project" }
   | null;
 
+const PAGE_LIMIT = 20;
+const EMPTY_FACETS: AccountFacets = { species: [], tissues: [], platforms: [] };
+
 export function AccountWorkspace() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // ---- URL-backed view / filter / page state ----
+  const view =
+    searchParams.get("view") === "projects" ? "projects" : "datasets";
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    searchParams.get("q") ?? "",
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 250);
+
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const [type, setType] = useState(searchParams.get("type") ?? "");
+  const [status, setStatus] = useState(searchParams.get("status") ?? "");
+  const [species, setSpecies] = useState(searchParams.get("species") ?? "");
+  const [tissue, setTissue] = useState(searchParams.get("tissue") ?? "");
+  const [platform, setPlatform] = useState(searchParams.get("platform") ?? "");
+  const [page, setPage] = useState(Number(searchParams.get("page")) || 1);
+
+  // ---- Data ----
   const [datasets, setDatasets] = useState<DatasetRow[]>([]);
+  const [datasetsTotal, setDatasetsTotal] = useState(0);
+  const [facets, setFacets] = useState<AccountFacets>(EMPTY_FACETS);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [projectsTotal, setProjectsTotal] = useState(0);
+  // Full (unpaginated) project list for the "Add to project" picker.
+  const [allProjects, setAllProjects] = useState<ProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [addToProjectFor, setAddToProjectFor] = useState<DatasetRow | null>(
     null,
   );
-  const [filters, setFilters] = useState<DatasetFilters>(DEFAULT_FILTERS);
 
+  // Reset page to 1 on a real filter/view change (snapshot compare, so mount
+  // and Strict Mode remounts don't clobber a deep-linked ?page=N).
+  const prevKey = useRef<string | null>(null);
+  const filterKey = JSON.stringify([
+    view,
+    debouncedSearch,
+    type,
+    status,
+    species,
+    tissue,
+    platform,
+  ]);
+
+  useEffect(() => {
+    if (prevKey.current === null) {
+      prevKey.current = filterKey;
+
+      return;
+    }
+    if (prevKey.current !== filterKey) {
+      prevKey.current = filterKey;
+      setPage(1);
+    }
+  }, [filterKey]);
+
+  // ---- URL sync (replace, not push) ----
+  const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+
+      return;
+    }
+    const params = new URLSearchParams();
+
+    if (view !== "datasets") params.set("view", view);
+    if (debouncedSearch) params.set("q", debouncedSearch);
+    if (type) params.set("type", type);
+    if (status) params.set("status", status);
+    if (species) params.set("species", species);
+    if (tissue) params.set("tissue", tissue);
+    if (platform) params.set("platform", platform);
+    if (page > 1) params.set("page", String(page));
+
+    const qs = params.toString();
+
+    router.replace(`/account${qs ? `?${qs}` : ""}`, { scroll: false });
+  }, [
+    view,
+    debouncedSearch,
+    type,
+    status,
+    species,
+    tissue,
+    platform,
+    page,
+    router,
+  ]);
+
+  // ---- Fetchers ----
   const loadDatasets = useCallback(async () => {
-    const res = await fetch("/api/ingest/mine?sort=date&dir=desc", {
+    const params = new URLSearchParams();
+
+    params.set("page", String(page));
+    params.set("limit", String(PAGE_LIMIT));
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (type) params.set("type", type);
+    if (status) params.set("status", status);
+    if (species) params.set("species", species);
+    if (tissue) params.set("tissue", tissue);
+    if (platform) params.set("platform", platform);
+
+    const res = await fetch(`/api/ingest/mine?${params}`, {
       cache: "no-store",
     });
 
@@ -45,52 +149,70 @@ export function AccountWorkspace() {
       const j = await res.json();
 
       setDatasets(j.datasets ?? []);
+      setDatasetsTotal(j.total ?? 0);
+      setFacets(j.filters ?? EMPTY_FACETS);
     }
-  }, []);
+  }, [page, debouncedSearch, type, status, species, tissue, platform]);
 
   const loadProjects = useCallback(async () => {
-    const res = await fetch("/api/projects", { cache: "no-store" });
+    const params = new URLSearchParams();
+
+    params.set("page", String(page));
+    params.set("limit", String(PAGE_LIMIT));
+    if (debouncedSearch) params.set("search", debouncedSearch);
+
+    const res = await fetch(`/api/projects?${params}`, { cache: "no-store" });
 
     if (res.ok) {
       const j = await res.json();
 
       setProjects(j.projects ?? []);
+      setProjectsTotal(j.total ?? 0);
+    }
+  }, [page, debouncedSearch]);
+
+  // The full project list (no pagination) feeds the Add-to-project picker.
+  const loadAllProjects = useCallback(async () => {
+    const res = await fetch("/api/projects", { cache: "no-store" });
+
+    if (res.ok) {
+      const j = await res.json();
+
+      setAllProjects(j.projects ?? []);
     }
   }, []);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      await Promise.all([loadDatasets(), loadProjects()]);
-    } finally {
-      setLoading(false);
-    }
-  }, [loadDatasets, loadProjects]);
-
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    loadAllProjects();
+  }, [loadAllProjects]);
 
-  // Map dataset id → project titles it belongs to (for the card subtitle).
-  const projectNamesByDataset = useMemo(() => {
-    const map = new Map<string, string[]>();
+  // Reload the active view whenever its inputs change.
+  useEffect(() => {
+    let active = true;
 
-    for (const p of projects) {
-      for (const d of p.datasets) {
-        const list = map.get(d.id) ?? [];
+    setLoading(true);
+    (view === "projects" ? loadProjects() : loadDatasets()).finally(() => {
+      if (active) setLoading(false);
+    });
 
-        list.push(p.title);
-        map.set(d.id, list);
-      }
-    }
+    return () => {
+      active = false;
+    };
+  }, [view, loadDatasets, loadProjects]);
 
-    return map;
-  }, [projects]);
+  const setView = (next: "datasets" | "projects") => {
+    const params = new URLSearchParams(searchParams.toString());
 
-  const filteredDatasets = useMemo(
-    () => applyDatasetFilters(datasets, filters),
-    [datasets, filters],
-  );
+    if (next === "datasets") params.delete("view");
+    else params.set("view", next);
+    params.delete("page");
+    router.replace(`/account${params.toString() ? `?${params}` : ""}`, {
+      scroll: false,
+    });
+  };
+
+  const datasetsPages = Math.max(1, Math.ceil(datasetsTotal / PAGE_LIMIT));
+  const projectsPages = Math.max(1, Math.ceil(projectsTotal / PAGE_LIMIT));
 
   // ---- Metadata save (edit dataset / edit project / create project) ----
   const handleSave = async (draft: MetadataDraft): Promise<boolean> => {
@@ -112,6 +234,7 @@ export function AccountWorkspace() {
             tags: draft.tags,
             externalLink: draft.externalLink,
             publicationLink: draft.publicationLink,
+            metadata: draft.metadata,
           }),
         });
 
@@ -132,7 +255,7 @@ export function AccountWorkspace() {
       });
 
       if (!res.ok) return false;
-      await loadProjects();
+      await Promise.all([loadProjects(), loadAllProjects()]);
 
       return true;
     } catch {
@@ -141,11 +264,11 @@ export function AccountWorkspace() {
   };
 
   // ---- Submit / withdraw ----
-  const submit = async (type: "dataset" | "project", id: string) => {
+  const submit = async (kind: "dataset" | "project", id: string) => {
     const res = await fetch("/api/community/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, id }),
+      body: JSON.stringify({ type: kind, id }),
     });
 
     if (res.ok) {
@@ -156,8 +279,7 @@ export function AccountWorkspace() {
           ? "Submission updated — live on Explore."
           : "Submitted for review. An admin will approve it soon.",
       );
-      // Only the affected list needs to refresh its submission status.
-      await (type === "project" ? loadProjects() : loadDatasets());
+      await (kind === "project" ? loadProjects() : loadDatasets());
     } else {
       const j = await res.json().catch(() => ({}));
 
@@ -165,69 +287,28 @@ export function AccountWorkspace() {
     }
   };
 
-  const withdraw = async (type: "dataset" | "project", id: string) => {
+  const withdraw = async (kind: "dataset" | "project", id: string) => {
     if (!confirm("Remove this from Explore / cancel the submission?")) return;
     const res = await fetch("/api/community/submit", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, id }),
+      body: JSON.stringify({ type: kind, id }),
     });
 
     if (res.ok) {
       toast.success("Withdrawn.");
-      await (type === "project" ? loadProjects() : loadDatasets());
+      await (kind === "project" ? loadProjects() : loadDatasets());
     } else {
       toast.error("Couldn't withdraw.");
     }
   };
 
   // ---- Project membership ----
-  // A lightweight member summary for optimistic updates (matches the shape the
-  // API returns for a project's `datasets`).
-  const summaryFor = (datasetId: string) => {
-    const d = datasets.find((x) => x.id === datasetId);
-
-    return d
-      ? {
-          id: d.id,
-          title: d.title,
-          datasetType: d.datasetType,
-          thumbnailUrl: d.thumbnailUrl,
-          status: d.status,
-        }
-      : null;
-  };
-
   const toggleMembership = async (
     projectId: string,
     datasetId: string,
     member: boolean,
   ): Promise<boolean> => {
-    const summary = summaryFor(datasetId);
-
-    // Optimistic: reflect the change locally right away — the card badge and
-    // the modal checkbox update instantly, no full refetch on the happy path.
-    setProjects((prev) =>
-      prev.map((p) => {
-        if (p.id !== projectId) return p;
-        if (member) {
-          if (p.datasets.some((d) => d.id === datasetId)) return p;
-
-          return {
-            ...p,
-            datasets: summary ? [...p.datasets, summary] : p.datasets,
-            datasetCount: p.datasetCount + 1,
-          };
-        }
-
-        return {
-          ...p,
-          datasets: p.datasets.filter((d) => d.id !== datasetId),
-          datasetCount: Math.max(0, p.datasetCount - 1),
-        };
-      }),
-    );
-
     const res = await fetch(
       member
         ? `/api/projects/${projectId}/datasets`
@@ -241,11 +322,11 @@ export function AccountWorkspace() {
 
     if (!res.ok) {
       toast.error("Couldn't update project.");
-      // Reconcile with server truth on failure.
-      await loadProjects();
 
       return false;
     }
+    // Refresh so membership badges + counts reflect the change.
+    await Promise.all([loadProjects(), loadDatasets(), loadAllProjects()]);
 
     return true;
   };
@@ -266,30 +347,13 @@ export function AccountWorkspace() {
       return false;
     }
     const project = await res.json();
-    const summary = summaryFor(datasetId);
 
-    // Optimistically insert the new project (with this dataset) — no refetch.
-    setProjects((prev) => [
-      {
-        ...project,
-        tags: project.tags ?? [],
-        datasetCount: summary ? 1 : 0,
-        datasets: summary ? [summary] : [],
-        submission: null,
-      },
-      ...prev,
-    ]);
-
-    const addRes = await fetch(`/api/projects/${project.id}/datasets`, {
+    await fetch(`/api/projects/${project.id}/datasets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ datasetId }),
     });
-
-    if (!addRes.ok) {
-      // Project was created but the dataset couldn't be attached — reconcile.
-      await loadProjects();
-    }
+    await Promise.all([loadProjects(), loadDatasets(), loadAllProjects()]);
 
     return true;
   };
@@ -307,7 +371,7 @@ export function AccountWorkspace() {
 
     if (res.ok) {
       toast.success("Project deleted.");
-      await loadProjects();
+      await Promise.all([loadProjects(), loadAllProjects()]);
     } else {
       toast.error("Couldn't delete project.");
     }
@@ -315,42 +379,72 @@ export function AccountWorkspace() {
 
   const editInitial: Partial<MetadataDraft> =
     editTarget && editTarget.kind !== "new-project"
-      ? editTarget.kind === "dataset"
-        ? { ...editTarget.data, title: editTarget.data.title ?? "" }
-        : { ...editTarget.data }
+      ? {
+          ...editTarget.data,
+          title: editTarget.data.title ?? "",
+          metadata: editTarget.data.metadata ?? {},
+        }
       : {};
+
+  const pager = (pages: number) =>
+    pages > 1 ? (
+      <div className="flex justify-center py-6">
+        <Pagination
+          showControls
+          page={page}
+          size="sm"
+          total={pages}
+          onChange={setPage}
+        />
+      </div>
+    ) : null;
 
   return (
     <>
-      <Tabs aria-label="Account tabs" variant="underlined">
-        <Tab key="datasets" title={`Datasets (${datasets.length})`}>
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <Spinner label="Loading…" />
-            </div>
-          ) : datasets.length === 0 ? (
-            <p className="text-default-500 py-12 text-center">
-              You don&apos;t own any datasets yet.
+      <Tabs
+        aria-label="Account tabs"
+        selectedKey={view}
+        variant="underlined"
+        onSelectionChange={(k) => setView(k as "datasets" | "projects")}
+      >
+        <Tab key="datasets" title="Datasets">
+          <div className="mt-2">
+            <AccountFilterBar
+              facets={facets}
+              platform={platform}
+              search={search}
+              species={species}
+              status={status}
+              tissue={tissue}
+              type={type}
+              onPlatformChange={setPlatform}
+              onSearchChange={setSearch}
+              onSpeciesChange={setSpecies}
+              onStatusChange={setStatus}
+              onTissueChange={setTissue}
+              onTypeChange={setType}
+            />
+
+            <p className="mb-4 text-sm text-default-500">
+              {datasetsTotal} dataset{datasetsTotal === 1 ? "" : "s"}
             </p>
-          ) : (
-            <div className="mt-2">
-              <AccountFilterBar
-                datasets={datasets}
-                filters={filters}
-                shown={filteredDatasets.length}
-                onChange={setFilters}
-              />
-              {filteredDatasets.length === 0 ? (
-                <p className="text-default-500 py-12 text-center">
-                  No datasets match your filters.
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredDatasets.map((d) => (
+
+            {loading ? (
+              <div className="flex justify-center py-16">
+                <Spinner label="Loading…" />
+              </div>
+            ) : datasets.length === 0 ? (
+              <p className="py-12 text-center text-default-500">
+                No datasets match your filters.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {datasets.map((d) => (
                     <AccountDatasetCard
                       key={d.id}
                       dataset={d}
-                      projectNames={projectNamesByDataset.get(d.id) ?? []}
+                      projectNames={d.projectNames ?? []}
                       onAddToProject={setAddToProjectFor}
                       onEdit={(data) =>
                         setEditTarget({ kind: "dataset", data })
@@ -360,44 +454,62 @@ export function AccountWorkspace() {
                     />
                   ))}
                 </div>
-              )}
-            </div>
-          )}
+                {pager(datasetsPages)}
+              </>
+            )}
+          </div>
         </Tab>
 
-        <Tab key="projects" title={`Projects (${projects.length})`}>
-          <div className="flex justify-end mt-2 mb-4">
-            <Button
-              color="primary"
-              size="sm"
-              onPress={() => setEditTarget({ kind: "new-project" })}
-            >
-              New Project
-            </Button>
-          </div>
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <Spinner label="Loading…" />
+        <Tab key="projects" title="Projects">
+          <div className="mt-2">
+            <div className="mb-4 flex items-center gap-2">
+              <Input
+                classNames={{ inputWrapper: "bg-default-100" }}
+                placeholder="Search your projects…"
+                value={search}
+                onValueChange={setSearch}
+              />
+              <Button
+                color="primary"
+                onPress={() => setEditTarget({ kind: "new-project" })}
+              >
+                New Project
+              </Button>
             </div>
-          ) : projects.length === 0 ? (
-            <p className="text-default-500 py-12 text-center">
-              No projects yet. Create one to group several datasets into a
-              single Explore card.
+
+            <p className="mb-4 text-sm text-default-500">
+              {projectsTotal} project{projectsTotal === 1 ? "" : "s"}
             </p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projects.map((p) => (
-                <AccountProjectCard
-                  key={p.id}
-                  project={p}
-                  onDelete={deleteProject}
-                  onEdit={(data) => setEditTarget({ kind: "project", data })}
-                  onSubmit={(data) => submit("project", data.id)}
-                  onWithdraw={(data) => withdraw("project", data.id)}
-                />
-              ))}
-            </div>
-          )}
+
+            {loading ? (
+              <div className="flex justify-center py-16">
+                <Spinner label="Loading…" />
+              </div>
+            ) : projects.length === 0 ? (
+              <p className="py-12 text-center text-default-500">
+                No projects yet. Create one to group several datasets into a
+                single Explore card.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {projects.map((p) => (
+                    <AccountProjectCard
+                      key={p.id}
+                      project={p}
+                      onDelete={deleteProject}
+                      onEdit={(data) =>
+                        setEditTarget({ kind: "project", data })
+                      }
+                      onSubmit={(data) => submit("project", data.id)}
+                      onWithdraw={(data) => withdraw("project", data.id)}
+                    />
+                  ))}
+                </div>
+                {pager(projectsPages)}
+              </>
+            )}
+          </div>
         </Tab>
       </Tabs>
 
@@ -419,7 +531,7 @@ export function AccountWorkspace() {
       <AddToProjectModal
         dataset={addToProjectFor}
         isOpen={addToProjectFor !== null}
-        projects={projects}
+        projects={allProjects}
         onClose={() => setAddToProjectFor(null)}
         onCreateAndAdd={createAndAdd}
         onToggle={toggleMembership}

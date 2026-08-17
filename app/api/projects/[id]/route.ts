@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { sanitizeMetadataPatch } from "@/lib/datasets/metadata";
+import {
+  sanitizeMetadataPatch,
+  sanitizeMetadataBag,
+} from "@/lib/datasets/metadata";
 
 function isAdmin(session: { user: { role?: string | null } }): boolean {
   return session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
@@ -124,6 +127,10 @@ export async function PATCH(
       typeof body.thumbnailUrl === "string"
         ? body.thumbnailUrl.trim().slice(0, 1000) || null
         : null;
+  }
+
+  if ("metadata" in body) {
+    data.metadata = sanitizeMetadataBag(body.metadata);
   }
 
   if (Object.keys(data).length === 0) {

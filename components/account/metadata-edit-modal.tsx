@@ -12,11 +12,22 @@ import {
 } from "@heroui/modal";
 import { Input, Textarea } from "@heroui/input";
 import { Button } from "@heroui/button";
+import { Autocomplete, AutocompleteItem } from "@heroui/autocomplete";
+
+import { METADATA_BAG_FIELDS } from "@/lib/datasets/metadata";
 
 export interface MetadataDraft extends EditableMetadata {
   title: string;
   /** Only editable for projects (datasets set their thumbnail in the viewer). */
   thumbnailUrl: string | null;
+  /** Flexible display-metadata bag (investigator, authors, citation, …). */
+  metadata: Record<string, string>;
+}
+
+interface Facets {
+  species: string[];
+  tissues: string[];
+  platforms: string[];
 }
 
 interface MetadataEditModalProps {
@@ -59,6 +70,14 @@ export function MetadataEditModal({
   onSave,
 }: MetadataEditModalProps) {
   const [form, setForm] = useState(() => toForm(initial));
+  const [bag, setBag] = useState<Record<string, string>>(
+    () => initial.metadata ?? {},
+  );
+  const [facets, setFacets] = useState<Facets>({
+    species: [],
+    tissues: [],
+    platforms: [],
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,12 +85,32 @@ export function MetadataEditModal({
   useEffect(() => {
     if (isOpen) {
       setForm(toForm(initial));
+      setBag(initial.metadata ?? {});
       setError(null);
     }
   }, [isOpen]);
 
+  // Existing catalog values, for the "pick before adding" autocompletes.
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+
+    fetch("/api/catalog/facets")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (active && j) setFacets(j);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
+
   const set = (key: keyof ReturnType<typeof toForm>) => (val: string) =>
     setForm((prev) => ({ ...prev, [key]: val }));
+  const setBagField = (key: string, val: string) =>
+    setBag((prev) => ({ ...prev, [key]: val }));
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -81,6 +120,14 @@ export function MetadataEditModal({
     }
     setSaving(true);
     setError(null);
+
+    const cleanedBag: Record<string, string> = {};
+
+    for (const [k, v] of Object.entries(bag)) {
+      const t = (v ?? "").trim();
+
+      if (t) cleanedBag[k] = t;
+    }
 
     const draft: MetadataDraft = {
       title: form.title.trim(),
@@ -97,6 +144,7 @@ export function MetadataEditModal({
         .filter(Boolean),
       externalLink: form.externalLink.trim() || null,
       publicationLink: form.publicationLink.trim() || null,
+      metadata: cleanedBag,
     };
 
     const ok = await onSave(draft);
@@ -105,6 +153,27 @@ export function MetadataEditModal({
     if (ok) onClose();
     else setError("Couldn't save. Please try again.");
   };
+
+  // Autocomplete that lets you pick an existing value or type a new one.
+  const facetField = (
+    label: string,
+    key: "species" | "tissue" | "platform",
+    options: string[],
+  ) => (
+    <Autocomplete
+      allowsCustomValue
+      aria-label={label}
+      defaultItems={options.map((v) => ({ value: v }))}
+      inputValue={form[key]}
+      label={label}
+      size="sm"
+      onInputChange={set(key)}
+    >
+      {(item: { value: string }) => (
+        <AutocompleteItem key={item.value}>{item.value}</AutocompleteItem>
+      )}
+    </Autocomplete>
+  );
 
   return (
     <Modal isOpen={isOpen} scrollBehavior="inside" size="2xl" onClose={onClose}>
@@ -141,25 +210,13 @@ export function MetadataEditModal({
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Species"
-              value={form.species}
-              onValueChange={set("species")}
-            />
+            {facetField("Species", "species", facets.species)}
+            {facetField("Tissue", "tissue", facets.tissues)}
+            {facetField("Platform", "platform", facets.platforms)}
             <Input
               label="Disease"
               value={form.disease}
               onValueChange={set("disease")}
-            />
-            <Input
-              label="Tissue"
-              value={form.tissue}
-              onValueChange={set("tissue")}
-            />
-            <Input
-              label="Platform"
-              value={form.platform}
-              onValueChange={set("platform")}
             />
             <Input
               label="Institute"
@@ -172,6 +229,35 @@ export function MetadataEditModal({
               value={form.tags}
               onValueChange={set("tags")}
             />
+          </div>
+
+          {/* Publication / provenance details — rendered on the Explore detail
+              page. Stored in the flexible metadata bag. */}
+          <div className="border-t border-default-200 pt-3">
+            <p className="mb-2 text-sm font-semibold text-default-500">
+              Details
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              {METADATA_BAG_FIELDS.map((f) =>
+                f.multiline ? (
+                  <div key={f.key} className="col-span-2">
+                    <Textarea
+                      label={f.label}
+                      minRows={2}
+                      value={bag[f.key] ?? ""}
+                      onValueChange={(v) => setBagField(f.key, v)}
+                    />
+                  </div>
+                ) : (
+                  <Input
+                    key={f.key}
+                    label={f.label}
+                    value={bag[f.key] ?? ""}
+                    onValueChange={(v) => setBagField(f.key, v)}
+                  />
+                ),
+              )}
+            </div>
           </div>
 
           <Input
