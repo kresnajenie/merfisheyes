@@ -42,6 +42,17 @@ Required environment variables in `.env` or `.env.local`:
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET` - S3 storage
 - `NEXT_PUBLIC_BASE_URL` - Base URL for the application
 
+## Releases & Versioning
+
+Releases follow **Semantic Versioning** (`vMAJOR.MINOR.PATCH`). A release is a
+promotion of `develop` → `main`; each one is a git tag on `main`, a GitHub
+Release, a `CHANGELOG.md` entry, and a matching `package.json` version — all kept
+in sync. Pre-`1.0`, new features bump MINOR and MAJOR stays `0`.
+
+**Full process (agents must follow it):** [docs/RELEASING.md](docs/RELEASING.md).
+Do NOT tag, push tags, create GitHub Releases, or open a `develop` → `main` PR
+unless explicitly asked — same as the "never commit or push unless asked" rule.
+
 ## Architecture
 
 ### Data Processing Pipeline
