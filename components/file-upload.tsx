@@ -20,7 +20,13 @@ import { Checkbox } from "@heroui/checkbox";
 
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
-import { MoleculeDatasetType } from "@/lib/config/moleculeColumnMappings";
+import {
+  MoleculeDatasetType,
+  MoleculeColumnMapping,
+  MOLECULE_COLUMN_MAPPINGS,
+} from "@/lib/config/moleculeColumnMappings";
+import { readMoleculePreview } from "@/lib/services/molecule-preview";
+import { SingleMoleculeHeaderModal } from "@/components/single-molecule-header-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
@@ -127,6 +133,45 @@ export function FileUpload({
   // sign-in modal, then resume the upload on success (no sign-in wall first).
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const pendingFilesRef = useRef<File[] | null>(null);
+
+  // Single-molecule "confirm your columns" step. When a raw parquet/CSV is
+  // dropped we read a preview and pause here until the user confirms/remaps the
+  // gene / x / y / z / cell-id columns.
+  const [headerModal, setHeaderModal] = useState<{
+    fileName: string;
+    columns: string[];
+    rows: Record<string, unknown>[];
+    autoMapping: MoleculeColumnMapping;
+  } | null>(null);
+  const mappingResolverRef = useRef<
+    ((m: MoleculeColumnMapping | null) => void) | null
+  >(null);
+
+  // Read a preview, open the confirm modal, and resolve with the user's chosen
+  // mapping (or null if they cancel).
+  const awaitColumnMapping = useCallback(
+    async (file: File): Promise<MoleculeColumnMapping | null> => {
+      const preview = await readMoleculePreview(file);
+      const autoMapping = MOLECULE_COLUMN_MAPPINGS[preview.autoType];
+
+      return new Promise<MoleculeColumnMapping | null>((resolve) => {
+        mappingResolverRef.current = resolve;
+        setHeaderModal({
+          fileName: file.name,
+          columns: preview.columns,
+          rows: preview.rows,
+          autoMapping,
+        });
+      });
+    },
+    [],
+  );
+
+  const resolveMapping = (mapping: MoleculeColumnMapping | null) => {
+    setHeaderModal(null);
+    mappingResolverRef.current?.(mapping);
+    mappingResolverRef.current = null;
+  };
 
   // A prepared server upload awaiting a title. Auto-derived names collide (every
   // "transcripts.csv" would share one title), so the user confirms/renames here
@@ -458,12 +503,43 @@ export function FileUpload({
     const pending = pendingUpload;
     const base = titleDraft.trim() || "Untitled Dataset";
 
+    // A single-molecule file is being uploaded for server processing — either a
+    // standalone SM upload, or the SM half of a combined SC+SM upload. Confirm
+    // its columns first so the worker gets an explicit gene/x/y/z/cell-id
+    // mapping instead of auto-detecting.
+    const smFile =
+      pending.kind === "single_molecule"
+        ? pending.files[0]?.file
+        : pending.sm && includeSm
+          ? pending.sm.files[0]?.file
+          : undefined;
+
+    // Close the name dialog first so only the column modal is shown.
+    setPendingUpload(null);
+
+    let smMapping: MoleculeColumnMapping | undefined;
+
+    if (smFile) {
+      try {
+        const mapping = await awaitColumnMapping(smFile);
+
+        if (!mapping) return; // user cancelled the column confirm — abort
+        smMapping = mapping;
+      } catch (err) {
+        // Reading the file's columns failed (unreadable parquet encoding, etc.).
+        // Don't strand the upload — fall back to server-side auto-detection and
+        // tell the user what happened instead of silently aborting.
+        console.error("[FileUpload] Column preview failed:", err);
+        toast.error(
+          `Couldn't read columns from ${smFile.name} — uploading with automatic column detection.`,
+        );
+      }
+    }
+
     // Combined SC + SM upload: two separate datasets (each tracked as its own
     // bar) + an auto-created project. The SC upload carries linkedSmDatasetId so
     // the server writes a mapping.json (overlay) when it finishes processing.
     if (pending.sm && includeSm) {
-      setPendingUpload(null);
-
       // Start the SM upload; once it's initiated (id known), start the SC upload
       // linked to it, and once the SC is initiated too, group both in a project.
       void startUpload({
@@ -472,6 +548,7 @@ export function FileUpload({
         files: pending.sm.files,
         processingParams: {
           kind: "single_molecule",
+          ...(smMapping ? { columnMapping: smMapping } : {}),
           stages: { chunk: { chunkSize: 1 } },
         },
         onInitiated: (smId) => {
@@ -494,14 +571,15 @@ export function FileUpload({
       return;
     }
 
-    // Single dataset (single-cell only, or a single-molecule upload).
+    // Single dataset (single-cell only, or a standalone single-molecule upload).
     startUpload({
       kind: pending.kind,
       title: base,
       files: pending.files,
-      processingParams: pending.processingParams,
+      processingParams: smMapping
+        ? { ...pending.processingParams, columnMapping: smMapping }
+        : pending.processingParams,
     });
-    setPendingUpload(null);
     router.push("/explore");
   };
 
@@ -581,24 +659,25 @@ export function FileUpload({
           // type="xenium" / type="merscope" cards, keep the explicit choice.
           let parquetDatasetType: MoleculeDatasetType =
             UPLOAD_TYPE_TO_PARQUET_TYPE[type];
+          let mappingOverride: MoleculeColumnMapping | undefined;
 
           if (type === "file") {
-            const { detectMoleculeFileType } = await import(
-              "@/lib/services/molecule-file-sniffer"
-            );
-
+            // Show the "confirm your columns" step: preview the file and let the
+            // user check/remap gene / x / y / z / cell-id before processing.
             onProgress(2, "Inspecting file schema...");
-            const sniff = await detectMoleculeFileType(file);
+            const mapping = await awaitColumnMapping(file);
 
-            console.log(
-              `[FileUpload] Sniffed columns: [${sniff.columns.slice(0, 8).join(", ")}${sniff.columns.length > 8 ? ", …" : ""}] → ${sniff.type}`,
-            );
-            parquetDatasetType = sniff.type;
-            toast.info(
-              sniff.type === "custom"
-                ? "Using custom column mapping (xenium/merscope schema not detected)"
-                : `Detected ${sniff.type.toUpperCase()} schema`,
-            );
+            if (!mapping) {
+              // User cancelled — abort cleanly (no error toast).
+              setLoading(false);
+              setProgress(0);
+              setProgressMessage("");
+
+              return;
+            }
+            mappingOverride = mapping;
+            parquetDatasetType = "custom";
+            console.log("[FileUpload] Confirmed column mapping:", mapping);
           } else {
             console.log("Dataset type:", type, "→", parquetDatasetType);
           }
@@ -617,12 +696,14 @@ export function FileUpload({
               file,
               parquetDatasetType,
               proxiedProgress,
+              mappingOverride,
             );
           } else if (fileExtension === "csv") {
             serializedData = await workerApi.parseCSV(
               file,
               parquetDatasetType,
               proxiedProgress,
+              mappingOverride,
             );
           } else {
             throw new Error(
@@ -920,6 +1001,18 @@ export function FileUpload({
         </div>
       </div>
 
+      {headerModal && (
+        <SingleMoleculeHeaderModal
+          autoMapping={headerModal.autoMapping}
+          columns={headerModal.columns}
+          fileName={headerModal.fileName}
+          isOpen={true}
+          rows={headerModal.rows}
+          onCancel={() => resolveMapping(null)}
+          onConfirm={(m) => resolveMapping(m)}
+        />
+      )}
+
       {serverUpload && (
         <AuthModal
           isOpen={authModalOpen}
@@ -940,6 +1033,7 @@ export function FileUpload({
       {/* Name-your-dataset step for the server upload — pre-filled from the
           file/folder name, editable so multiple same-named files don't collide. */}
       <Modal
+        disableAnimation
         isOpen={pendingUpload !== null}
         size="md"
         onClose={() => setPendingUpload(null)}

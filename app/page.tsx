@@ -336,7 +336,9 @@ function HomeContent() {
                   : "Parsed in your browser and opens instantly. Nothing leaves your computer."}
               </p>
 
-              {serverMode ? (
+              {/* MapMyCells cell-type CSV is single-cell only — there are no
+                  cells to annotate in single-molecule data. */}
+              {serverMode && !isSingleMolecule ? (
                 <div className="mt-2 flex flex-col items-center gap-2">
                   <span className="text-sm font-semibold text-default-600">
                     <a

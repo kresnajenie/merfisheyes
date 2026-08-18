@@ -551,14 +551,36 @@ def main():
         # SM writes a GZIPPED manifest and no genes-per-chunk concept — it's a
         # different processor and stats shape from single-cell.
         input_path = find_single_molecule_input(raw_dir)
-        dataset_type = detect_molecule_type(input_path)
-        print(f"== Input: {input_path} (type={dataset_type}) ==", flush=True)
+
+        # An explicit, user-confirmed column mapping (from the upload UI) wins;
+        # otherwise fall back to auto-detecting the schema from the header.
+        mapping = params.get("columnMapping") or {}
 
         cmd = [
             sys.executable, "scripts/process_single_molecule.py",
             str(input_path), str(out_dir),
-            "--dataset-type", dataset_type,
         ]
+
+        if mapping.get("gene") and mapping.get("x") and mapping.get("y"):
+            cmd += [
+                "--dataset-type", "custom",
+                "--gene-col", str(mapping["gene"]),
+                "--x-col", str(mapping["x"]),
+                "--y-col", str(mapping["y"]),
+            ]
+            if mapping.get("z"):
+                cmd += ["--z-col", str(mapping["z"])]
+            if mapping.get("cellId"):
+                cmd += ["--cell-id-col", str(mapping["cellId"])]
+            print(f"== Input: {input_path} (mapping={mapping}) ==", flush=True)
+        else:
+            dataset_type = detect_molecule_type(input_path)
+            cmd += ["--dataset-type", dataset_type]
+            print(
+                f"== Input: {input_path} (type={dataset_type}, auto) ==",
+                flush=True,
+            )
+
         processor_name = "process_single_molecule.py"
         manifest_name = "manifest.json.gz"
         read_output_stats = read_sm_stats

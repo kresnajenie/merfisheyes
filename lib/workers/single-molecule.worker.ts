@@ -1,5 +1,8 @@
 // lib/workers/single-molecule.worker.ts
-import type { MoleculeDatasetType } from "../config/moleculeColumnMappings";
+import type {
+  MoleculeColumnMapping,
+  MoleculeDatasetType,
+} from "../config/moleculeColumnMappings";
 
 import * as Comlink from "comlink";
 
@@ -38,6 +41,7 @@ const workerApi = {
     file: File,
     datasetType: MoleculeDatasetType,
     onProgress?: ProgressCallback,
+    mappingOverride?: MoleculeColumnMapping,
   ): Promise<SerializableDatasetData> {
     console.log("[Worker] Starting parquet parsing:", file.name);
 
@@ -47,6 +51,7 @@ const workerApi = {
       file,
       datasetType,
       onProgress,
+      mappingOverride,
     );
 
     console.log("[Worker] Parsing complete, serializing data...");
@@ -80,6 +85,7 @@ const workerApi = {
     file: File,
     datasetType: MoleculeDatasetType,
     onProgress?: ProgressCallback,
+    mappingOverride?: MoleculeColumnMapping,
   ): Promise<SerializableDatasetData> {
     console.log("[Worker] Starting CSV parsing:", file.name);
 
@@ -88,6 +94,7 @@ const workerApi = {
       file,
       datasetType,
       onProgress,
+      mappingOverride,
     );
 
     console.log("[Worker] Parsing complete, serializing data...");
