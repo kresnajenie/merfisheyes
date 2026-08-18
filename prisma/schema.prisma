@@ -252,6 +252,10 @@ model Dataset {
   status         DatasetStatus   @default(UPLOADING)
   manifestUrl    String?         @map("manifest_url") @db.VarChar(1000)
   errorMessage   String?         @map("error_message")
+  // Whose fault a FAILED processing run was. Auto-set from the error text on
+  // failure (see lib/ingest/error-classification.ts); an admin can override it
+  // from the processing dashboard.
+  faultCategory  DatasetFaultCategory? @map("fault_category")
   ownerId            String? @map("owner_id")
   ingestSource       String? @map("ingest_source")
   batchJobId         String? @map("batch_job_id")
@@ -370,6 +374,15 @@ enum DatasetStatus {
   PROCESSING
   COMPLETE
   FAILED
+}
+
+// Whose fault a processing failure was. USER = something about the uploaded
+// data (bad format, missing columns, …); PLATFORM = our side (timeout, OOM,
+// lost/expired job, no output); UNKNOWN = couldn't be auto-classified.
+enum DatasetFaultCategory {
+  USER
+  PLATFORM
+  UNKNOWN
 }
 
 enum FileStatus {
