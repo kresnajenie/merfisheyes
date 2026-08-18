@@ -1,71 +1,162 @@
 # MERFISHEYES
 
-Web-based 3D visualization platform for spatial transcriptomics data. Supports both **single cell** and **single molecule** datasets.
+Web-based 3D visualization platform for spatial transcriptomics data. Supports both **single cell** and **single molecule** datasets, viewable directly in the browser or processed on the server for datasets too large for a browser to handle.
 
-## Features
+> Live at **[merfisheyes.com](https://www.merfisheyes.com)**.
 
-### Single Cell Visualization
-- Multiple format support: .h5ad (AnnData), MERSCOPE, and Xenium
-- 3D visualization of cell-level spatial data using Three.js
-- Color cells by gene expression or cell type annotations
-- **Combined gene + celltype visualization**: Show gene expression gradient on selected celltypes only
-- **Numerical metadata support**: Continuous metadata (e.g., QC metrics) visualized with gradient coloring
-- **Interactive legends panel** (top-right): Live display of active selections
-  - Gene badge with one-click removal
-  - Embedded gradient scale bar (compact w-8 h-32)
-  - Color-coded celltype badges with palette colors
-  - "Clear All" header to deselect all celltypes at once
-  - 70% opacity badges that become solid on hover
-- **Interactive gene expression scalebar**: Real-time visual scale with draggable min/max controls
-  - Auto-scales to 95th percentile when gene changes
-  - Manual override via vertical drag scrubbers
-  - Glassmorphism design with smooth debounced updates
-  - Works for both gene expression and numerical columns
-- **Glassmorphism UI**: Sidebar panels and controls with frosted glass effect
-  - Click-outside-to-close for selection panels
-  - Smooth rounded corners (rounded-3xl)
-- Interactive filtering and selection of cell populations
-- Automatic column type detection (categorical vs numerical)
-- **Mutual exclusivity**: Gene and numerical columns cannot be selected simultaneously
+---
 
-### Single Molecule Visualization
-- Parquet and CSV file support for molecule coordinates
-- 3D point cloud visualization with one cloud per gene
-- Lazy loading from S3 for efficient memory usage
-- Gene-based filtering and multi-gene overlay
-- **Automatic control gene filtering**: Removes negative controls, unassigned probes, and codewords
-- 2D/3D view mode toggle
+## What files can I bring? (input requirements)
 
-### General
-- **Web worker processing**: Non-blocking background processing for all data parsing
-- **Cloud storage** with AWS S3 integration and lazy loading
-- **Duplicate detection** via dataset fingerprinting
-- **Email notifications** with shareable links and dataset metadata (cell count, gene count, platform)
-- **Dark mode**
-- Works on desktop and tablet
+MERFISHEYES reads the **raw outputs** of the common spatial platforms — you don't need to pre-format anything. Below is exactly which files each type needs and what they should look like. Drop a whole folder or a single file on the homepage; the app figures out the format from the file names.
+
+### Single cell
+
+<table>
+<tr><th>Format</th><th>What to drop</th><th>Required</th><th>Also read if present</th></tr>
+<tr>
+<td><b>H5AD</b><br>(AnnData)</td>
+<td>A single <code>.h5ad</code> file</td>
+<td>Spatial coordinates in <code>obsm['X_spatial']</code></td>
+<td><code>obsm['X_umap']</code> / other embeddings, and any cell-type / metadata columns in <code>obs</code></td>
+</tr>
+<tr>
+<td><b>Xenium</b><br>(10x)</td>
+<td>The Xenium output <b>folder</b></td>
+<td><code>cells.csv</code> or <code>cells.csv.gz</code> (cell centroids)</td>
+<td>An expression matrix — <code>cell_feature_matrix.h5</code>, or <code>cell_feature_matrix/</code> (<code>matrix.mtx.gz</code> + <code>features.tsv.gz</code> + <code>barcodes.tsv.gz</code>), or <code>cell_by_gene.csv</code>. A <code>transcripts.parquet</code>/<code>.csv</code> is picked up as single-molecule data (see combined upload below)</td>
+</tr>
+<tr>
+<td><b>MERSCOPE</b><br>(Vizgen)</td>
+<td>The MERSCOPE output <b>folder</b></td>
+<td><code>cell_metadata.csv</code> (per-cell coordinates)</td>
+<td><code>cell_by_gene.csv</code> (expression matrix)</td>
+</tr>
+<tr>
+<td><b>Pre-chunked</b></td>
+<td>A folder produced by <a href="scripts/README.md">the Python scripts</a></td>
+<td><code>manifest.json</code> + <code>coords/</code>, <code>expr/</code>, <code>obs/</code>, <code>palettes/</code></td>
+<td>—</td>
+</tr>
+</table>
+
+**Cell-type annotations (optional).** Cell types don't have to live in the file. Run [MapMyCells](https://knowledge.brain-map.org/mapmycells/process) (or any tool) yourself and drop the resulting **one-row-per-cell CSV** alongside the dataset; it's merged in as another cluster column, with its own palette and differential-expression stats. There is no server-side cell-typing — you stay in control of the labels.
+
+### Single molecule
+
+<table>
+<tr><th>Format</th><th>What to drop</th><th>Required columns</th></tr>
+<tr>
+<td><b>Parquet</b> (preferred for large data)<br>or <b>CSV</b></td>
+<td>One <code>.parquet</code> / <code>.csv</code> of per-molecule rows</td>
+<td>A <b>gene</b> column, an <b>x</b> and <b>y</b> column, and optionally a <b>z</b> column (omit for 2D data). A <b>cell-id</b> column is optional.</td>
+</tr>
+</table>
+
+Default column names are auto-detected per platform, and you can remap them at upload time:
+
+| | Gene | X | Y | Z | Cell ID |
+|---|---|---|---|---|---|
+| **Xenium** | `feature_name` | `x_location` | `y_location` | `z_location` | `cell_id` (string, `UNASSIGNED` = no cell) |
+| **MERSCOPE** | `gene` | `global_x` | `global_y` | `global_z` | `cell_id` (`-1` = no cell) |
+| **Custom** | *(you pick each column from a dropdown)* | | | | |
+
+Parquet is strongly preferred for millions of molecules (columnar, far less memory than CSV).
+
+### Combined single-cell + single-molecule
+
+Drop a **single-cell folder that also contains a transcripts file** (a typical Xenium export) and MERFISHEYES offers to upload **both** at once: the cells and the molecules become two datasets grouped into one project, with the molecules overlaid on the cells.
+
+---
+
+## Two ways to load a dataset
+
+On the homepage, pick **Single Cell** or **Single Molecule**, then choose one of:
+
+### 1. Preview in browser
+The file is parsed **entirely in your browser** (h5wasm / hyparquet in web workers) and opens instantly — nothing leaves your computer. Best for quick looks and datasets that fit in browser memory (roughly < 500K cells / tens of millions of molecules).
+
+### 2. Upload & process on server
+For large datasets, upload the **raw bytes** and let a background worker do the processing. Requires signing in (so we know where to email you). The flow:
+
+1. Drop your file/folder → confirm the dataset name.
+2. **Single-molecule uploads add a "Confirm columns" step** — a preview of the first rows with dropdowns to map gene / x / y / z / cell-id (auto-filled from the detected platform). This is what guarantees the server reads your columns correctly.
+3. A full-screen progress bar tracks the upload; you can leave once it says "Uploaded — we'll email you."
+4. An AWS worker runs the same Python processors used for pre-chunking, writes the result to S3, and **emails you a link** to the viewer when it's done.
+
+This path has no browser memory limits and produces the exact same chunked format as everything else. See **[docs/server-side-ingestion/](docs/server-side-ingestion/README.md)** for the full architecture.
+
+---
+
+## Accounts, projects & community
+
+Signing in (**Google**, via NextAuth) unlocks:
+
+- **Your datasets** (`/account`) — everything you've uploaded, with the same cards as Explore, plus edit controls for titles, descriptions, thumbnails, and visibility.
+- **Projects** (`/account/projects/[id]`) — group related datasets (e.g. the cells + molecules from one experiment) into a folder with its own page and thumbnail.
+- **Community** — submit a dataset or project for review; once an admin approves it, it appears in the **Community** view on **[Explore](https://www.merfisheyes.com/explore)** for everyone.
+
+Explore (`/explore`) lists curated and community datasets with a persistent **Featured** row on top; community projects open a detail page (`/explore/[id]`).
+
+---
+
+## Viewer
+
+Datasets open at `/viewer/[id]` (single cell) or `/sm-viewer/[id]` (single molecule). You can also open local or S3 data directly via `/viewer/from-local`, `/viewer/from-s3`, and the `sm-viewer` equivalents.
+
+### Single cell viewer
+
+- **Loading progress**: real-time bar while the dataset streams from S3.
+- **Navigate**: rotate (left-drag), pan (right/middle-drag), zoom (wheel).
+- **Hover** a point for a tooltip (cluster + gene value, keeps original palette colors even when filtered); **double-click** a point to toggle that cluster's selection.
+- **Color by gene** (coolwarm gradient, auto-scaled to the 95th percentile) or by a **cluster column**:
+  - *Categorical* (≤100 unique values): discrete palette + checkbox filtering.
+  - *Numerical* (>100 unique values): coolwarm gradient, no filtering.
+- **Combined mode**: select a gene **and** toggle celltypes to show the gene gradient only on those populations (others greyed).
+- **Gene / numerical scalebar**: draggable min/max scrubbers, auto-scaled per selection.
+- **Legends panel** (top-right): active gene + celltype badges, embedded scalebar, one-click removal, "Clear All".
+- **Plot panel**: a floating, draggable, resizable panel with quantification plots — boxplots and histograms of gene expression per celltype, celltype bar charts, and numerical histograms, with an optional secondary "group by" column, Top-N / axis caps, outlier and density toggles, and CSV export.
+
+### Single molecule viewer
+
+- **Auto-selection**: the first few genes are shown on load.
+- **Select genes**: search + check; each gene is an independently colored point cloud, lazy-loaded from S3 and cached.
+- **2D / 3D toggle**: top-down orthographic view vs. full 3D rotation.
+- **Scale**: global and per-gene point sizes.
+
+### Split screen
+
+Compare two datasets side by side (single-cell or single-molecule, in any combination), with camera and selection kept in sync between the panels.
+
+---
+
+## Feature summary
+
+- Single cell: H5AD / Xenium / MERSCOPE, gene + celltype + numerical coloring, combined mode, interactive legends & scalebar, quantification plots.
+- Single molecule: parquet/CSV, one point cloud per gene, S3 lazy loading, 2D/3D, automatic control-probe/unassigned filtering.
+- Two ingestion paths: **in-browser** (web workers) and **server-side** (AWS Batch worker) with email delivery.
+- Column remap step for single-molecule server uploads.
+- Accounts, projects, and an admin-reviewed community catalog.
+- Split-screen comparison, duplicate detection via fingerprinting, dark mode, desktop + tablet.
+
+---
 
 ## Tech Stack
 
-- [Next.js 15](https://nextjs.org/) - React framework with Turbopack
-- [HeroUI v2](https://heroui.com/) - UI components
-- [Three.js](https://threejs.org/) - 3D visualization
-- [TypeScript](https://www.typescriptlang.org/) - Type safety
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
-- [Zustand](https://zustand-demo.pmnd.rs/) - State management
-- [Prisma](https://www.prisma.io/) - Database ORM (PostgreSQL)
-- [AWS S3](https://aws.amazon.com/s3/) - Cloud file storage
-- [h5wasm](https://github.com/usnistgov/h5wasm) - HDF5/H5AD file reading
-- [Hyparquet](https://github.com/hyparam/hyparquet) - Pure JavaScript parquet parsing
-- [Comlink](https://github.com/GoogleChromeLabs/comlink) - Web worker communication
-- [Pako](https://github.com/nodeca/pako) - Gzip compression/decompression
-- [PapaParse](https://www.papaparse.com/) - CSV parsing
-- [SendGrid](https://sendgrid.com/) - Email notifications
+- [Next.js 15](https://nextjs.org/) (App Router, Turbopack) + [TypeScript](https://www.typescriptlang.org/)
+- [HeroUI v2](https://heroui.com/) + [Tailwind CSS](https://tailwindcss.com/) — UI
+- [Three.js](https://threejs.org/) with custom WebGL shaders — 3D rendering
+- [Zustand](https://zustand-demo.pmnd.rs/) — state; [Plotly](https://plotly.com/javascript/) + [react-rnd](https://github.com/bokuweb/react-rnd) — plot panel
+- [Prisma](https://www.prisma.io/) + PostgreSQL (Supabase) — database
+- [NextAuth v5](https://authjs.dev/) — Google sign-in
+- [AWS S3](https://aws.amazon.com/s3/) — file storage; [AWS Batch](https://aws.amazon.com/batch/) on Fargate — server-side processing worker; [AWS SES](https://aws.amazon.com/ses/) — email
+- [h5wasm](https://github.com/usnistgov/h5wasm) — H5AD; [hyparquet](https://github.com/hyparam/hyparquet) — parquet; [PapaParse](https://www.papaparse.com/) — CSV; [Comlink](https://github.com/GoogleChromeLabs/comlink) — web workers; [pako](https://github.com/nodeca/pako) — gzip
 
-## Getting Started
+---
 
-Requires Node.js 18+
+## Getting Started (development)
 
-### Installation
+Requires Node.js 18+.
 
 ```bash
 git clone <repository-url>
@@ -73,75 +164,48 @@ cd merfisheyes-heroui
 npm install
 ```
 
-### Environment Setup
+### Environment
 
-Copy `.env.example` to `.env.local` and configure:
+Copy `.env.example` to `.env.local` and fill in:
 
-```bash
-cp .env.example .env.local
-```
+- `DATABASE_URL` — PostgreSQL connection string
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET` — S3 storage
+- `NEXT_PUBLIC_BASE_URL` — base URL of the app
+- Google OAuth (`AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`) + `AUTH_SECRET` — sign-in
+- SES sender config — email notifications
+- Server-side ingestion (optional, for the Upload-&-process-on-server path): AWS Batch job queue / definition, `CALLBACK_SECRET`. See [docs/server-side-ingestion/](docs/server-side-ingestion/README.md).
 
-Required environment variables:
-- `DATABASE_URL` - PostgreSQL connection string
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET` - S3 storage
-- `NEXT_PUBLIC_BASE_URL` - Base URL for the application
-- `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL` - Email notifications
-
-See `.env.example` for full list and examples.
-
-### Database Setup
+### Database
 
 ```bash
-npx prisma generate    # Generate Prisma client
-npx prisma migrate dev # Run database migrations
+npx prisma generate     # generate the Prisma client
+npx prisma migrate dev  # apply migrations
 ```
 
-### Development
+### Run
 
 ```bash
-npm run dev            # Start dev server (http://localhost:3000)
+npm run dev             # dev server at http://localhost:3000
 ```
 
-### Production Build
+### Production build
 
 ```bash
-npm run build          # Build for production (requires 4GB RAM)
-npm start              # Start production server
+npm run build           # production build (needs ~4GB RAM)
+npm start               # start the production server
 ```
 
-**Low memory servers:** If you encounter SIGBUS errors on servers with limited RAM:
+Low-memory servers (avoids SIGBUS on limited RAM):
+
 ```bash
-npm run build:low-memory  # Build with 2GB memory limit
+npm run build:low-memory   # 2GB memory limit
 ```
 
-Or manually set memory limit:
-```bash
-NODE_OPTIONS='--max-old-space-size=2048' npm run build
-```
-
-### Deployment
-
-For deploying to remote servers:
-
-1. **Build locally** on a high-memory machine
-2. **Deploy** using the included script:
-   ```bash
-   ./deploy.sh
-   ```
-
-The deploy script:
-- Builds the project locally
-- Transfers `.next`, `public`, `package.json`, and `prisma` to remote server
-- Runs `npx prisma generate` on production
-- Restarts the application with PM2
-
-**Note**: The script does NOT transfer `.env.local` - production server should have its own environment variables configured.
+---
 
 ## Testing
 
-This project has unit tests (Vitest), end-to-end browser tests (Playwright), and
-a performance regression pipeline. See **[TESTING.md](TESTING.md)** for the full
-guide.
+Unit tests (Vitest), end-to-end browser tests (Playwright), and a performance regression suite. See **[TESTING.md](TESTING.md)** for the full guide.
 
 ```bash
 npm test                 # unit tests
@@ -150,203 +214,61 @@ npm run test:e2e:quick   # fast E2E smoke suite over the tiny test datasets
 npm run test:perf        # performance suite (compares against perf/baselines/)
 ```
 
-## Usage
+---
 
-### Uploading Data
+## Processing large datasets outside the browser
 
-#### Single Cell Data
-Navigate to `/viewer` and upload:
-- **H5AD**: Single `.h5ad` file
-- **Xenium**: Folder with `cells.csv` and related files
-- **MERSCOPE**: Folder with `cell_metadata.csv` and related files
+Two options for datasets too big to parse in a browser:
 
-#### Single Molecule Data
-Navigate to `/sm-viewer` and upload:
-- **Parquet**: `.parquet` file with columns for gene names and x/y/z coordinates
-- **CSV**: `.csv` file with same column structure
-- Supports Xenium and MERSCOPE column naming conventions
+1. **Upload & process on server** (in-app) — described above; a background worker does it for you.
+2. **Pre-process locally** with the Python scripts and upload the ready-made chunks:
 
-Drag and drop or click to upload. After processing, you'll receive an email with a shareable link to view your dataset.
+   ```bash
+   python scripts/process_spatial_data.py    data.h5ad   output/   # single cell
+   python scripts/process_single_molecule.py data.parquet output/  # single molecule
+   ```
 
-### Viewer Controls
+   See **[scripts/README.md](scripts/README.md)** for formats, flags, and the output layout. (BIL HPC / SLURM pipelines live in [scripts/bil-scripts/](scripts/bil-scripts/README.md).)
 
-#### Single Cell Viewer (`/viewer/[id]`)
-- **Loading Progress**: Real-time progress bar showing dataset loading from S3 (0-100% with status messages)
-- **Rotate**: Left click + drag
-- **Pan**: Right click + drag or middle click + drag
-- **Zoom**: Mouse wheel
-- **Hover**: Mouse over points to see tooltip with cluster and gene information (shows original palette colors even when filtered)
-- **Double-click**: Double-click points to toggle cluster selection and switch to celltype mode
-- **Panel Navigation**: Click Celltype/Gene buttons to open panels without changing visualization
-- **Filter**: Use side panel to filter by cell type (categorical columns only)
-- **Color**: Select gene from dropdown to color by expression, or choose cluster column:
-  - **Categorical columns** (≤100 unique values): Discrete colors with checkbox filtering
-  - **Numerical columns** (>100 unique values): Coolwarm gradient, no filtering UI
-- **Gene Expression Scalebar**: Appears when gene or numerical column is active
-  - **Gradient Bar**: Blue (low) → White (mid) → Red (high)
-  - **Number Scrubbers**: Drag vertically to adjust min/max scale values
-  - Auto-scales to 0 and 95th percentile on gene/column change
-  - Manual adjustments persist until gene/column changes
-- **Combined Mode**: Select a gene + toggle celltypes to see gene expression only on those cell populations
-  - Automatically activates when both gene and celltypes are selected
-  - Non-selected celltypes appear grey
-  - Selected celltypes show gene expression gradient (coolwarm)
-- **Automatic Mode Switching**:
-  - Selecting a numerical column clears gene selection (mutual exclusivity)
-  - Selecting a gene while numerical column is active switches back to categorical column
-- **Visualization updates** only when actively selecting a gene or toggling a celltype
+---
 
-#### Single Molecule Viewer (`/sm-viewer/[id]`)
-- **Auto-selection**: First 3 genes are automatically selected and displayed when loading from S3 link
-- **Rotate**: Left click + drag (disabled in 2D mode, enabled with TrackballControls in 3D mode)
-- **Pan**: Right click + drag
-- **Zoom**: Mouse wheel
-- **Select Genes**: Search and check genes to display
-  - Toast notifications only appear when loading new genes, not when adjusting colors/sizes
-- **2D/3D Toggle**: Switch between top-down and perspective views
-  - Scene automatically reinitializes with appropriate controls (OrbitControls for 2D, TrackballControls for 3D)
-- **Scale**: Adjust point size with global and per-gene local scales
-
-## Data Format Requirements
-
-### Single Cell Formats
-
-#### H5AD
-- Standard AnnData format
-- Requires `obsm['X_spatial']` for coordinates
-- Optional: `obsm['X_umap']`, cell type annotations in `obs`
-
-#### Xenium (Cell-level)
-- Required: `cells.csv` with centroids
-- Optional: `transcripts.csv`, `features.tsv`
-- Detects cell type columns automatically
-
-#### MERSCOPE (Cell-level)
-- Required: `cell_metadata.csv` with coordinates
-- Optional: `cell_categories.csv`, `cell_numeric_categories.csv`, `cell_by_gene.csv`
-
-### Single Molecule Formats
-
-#### Parquet
-- Columnar binary format (most efficient for large datasets)
-- Required columns (configurable):
-  - Gene name: `feature_name` (Xenium) or `gene` (MERSCOPE)
-  - X coordinate: `x_location` (Xenium) or `global_x` (MERSCOPE)
-  - Y coordinate: `y_location` (Xenium) or `global_y` (MERSCOPE)
-  - Z coordinate: `z_location` (Xenium) or `global_z` (MERSCOPE) - optional for 2D data
-
-#### CSV
-- Text format with same column requirements as parquet
-- Automatically infers 2D vs 3D based on z column presence
-- Less memory-efficient than parquet for large datasets (millions of molecules)
-
-## API Routes
-
-The application provides RESTful API endpoints for dataset upload and management:
-
-### Single Cell Endpoints
-
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/datasets/check-duplicate/{fingerprint}` | GET | Check if dataset already exists |
-| `/api/datasets/initiate` | POST | Start upload, get presigned S3 URLs |
-| `/api/datasets/{datasetId}/complete` | POST | Mark upload as complete |
-| `/api/datasets/{datasetId}` | GET | Get dataset info + download URLs |
-
-### Single Molecule Endpoints
-
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/single-molecule/check-duplicate/{fingerprint}` | GET | Check if single molecule dataset exists |
-| `/api/single-molecule/initiate` | POST | Start upload, get presigned S3 URLs |
-| `/api/single-molecule/{id}/files/{key}/complete` | POST | Mark individual file as uploaded |
-| `/api/single-molecule/{id}/complete` | POST | Finalize upload, send email |
-| `/api/single-molecule/{id}` | GET | Get dataset metadata and manifest URL |
-| `/api/single-molecule/{id}/gene/{geneName}` | GET | Get presigned URL for specific gene file |
-
-### Upload Flow
-
-#### Single Cell Upload
-1. **Check for duplicates** - `GET /api/datasets/check-duplicate/{fingerprint}`
-2. **Initiate upload** - `POST /api/datasets/initiate` with metadata and file list
-   - Creates database records (Dataset, UploadSession, UploadFile)
-   - Returns presigned S3 URLs for file upload
-3. **Upload files** - Use presigned URLs to upload directly to S3
-4. **Complete upload** - `POST /api/datasets/{datasetId}/complete`
-   - Finalizes the upload session, sends email notification
-
-#### Single Molecule Upload
-1. **Process locally** - Client processes dataset into manifest + gene files
-2. **Check for duplicates** - `GET /api/single-molecule/check-duplicate/{fingerprint}`
-3. **Initiate upload** - `POST /api/single-molecule/initiate`
-   - Returns presigned S3 URLs for manifest and all gene files
-4. **Upload files** - Upload `manifest.json.gz` and `genes/{gene}.bin.gz` files to S3
-5. **Mark files complete** - `POST /api/single-molecule/{id}/files/{key}/complete` for each file
-6. **Complete upload** - `POST /api/single-molecule/{id}/complete`
-   - Sends email with link to `/sm-viewer/{id}`
-
-## Project Structure
+## Project structure
 
 ```
-├── app/                           # Next.js app directory
-│   ├── api/                      # API routes
-│   │   ├── datasets/             # Single cell endpoints
-│   │   ├── single-molecule/      # Single molecule endpoints
-│   │   └── send-email*/          # Email notification services
-│   ├── viewer/                   # Single cell viewer
-│   │   └── [id]/                 # Dynamic dataset routes
-│   ├── sm-viewer/                # Single molecule viewer
-│   │   └── [id]/                 # Dynamic dataset routes with S3 lazy loading
-│   ├── explore/                  # Example datasets page
-│   └── about/                    # About page
-├── components/                   # React components
-│   ├── three-scene.tsx           # Single cell Three.js scene
-│   ├── single-molecule-three-scene.tsx  # Single molecule Three.js scene
-│   ├── visualization-controls.tsx       # Single cell controls
-│   ├── single-molecule-controls.tsx     # Single molecule controls
-│   ├── gene-scalebar.tsx         # Interactive gene expression scalebar
-│   ├── ui/
-│   │   └── number-scrubber.tsx   # Draggable number input component
-│   └── file-upload.tsx           # Unified upload component
-├── lib/                          # Core logic
-│   ├── adapters/                # Single cell format adapters
-│   │   ├── H5adAdapter.ts
-│   │   ├── XeniumAdapter.ts
-│   │   ├── MerscopeAdapter.ts
-│   │   └── ChunkedDataAdapter.ts  # S3 loading adapter
-│   ├── config/                  # Configuration files
-│   │   ├── visualization.config.ts  # Centralized visualization parameters
-│   │   └── moleculeColumnMappings.ts  # Column naming conventions
-│   ├── workers/                 # Web workers for background processing
-│   │   ├── standardized-dataset.worker.ts  # Single cell parsing worker (H5AD/Xenium/MERSCOPE)
-│   │   ├── standardizedDatasetWorkerManager.ts  # Single cell worker manager
-│   │   ├── single-molecule.worker.ts  # Parquet/CSV parsing worker
-│   │   └── singleMoleculeWorkerManager.ts  # Single molecule worker manager
-│   ├── stores/                  # Zustand state stores
-│   │   ├── datasetStore.ts      # Single cell datasets
-│   │   ├── singleMoleculeStore.ts  # Single molecule datasets
-│   │   ├── visualizationStore.ts   # Single cell viz state
-│   │   └── singleMoleculeVisualizationStore.ts  # Single molecule viz state
-│   ├── services/                # Data processing services
-│   │   └── hyparquetService.ts  # Hyparquet parquet reader
-│   ├── utils/
-│   │   ├── SingleMoleculeProcessor.ts  # S3 upload processing
-│   │   ├── fingerprint.ts       # Dataset fingerprinting
-│   │   ├── gene-filters.ts      # Shared gene filtering (control probes, etc.)
-│   │   └── color-palette.ts     # Centralized color palette (40+ colors)
-│   ├── webgl/                   # WebGL/Three.js utilities (single cell)
-│   ├── s3.ts                    # S3 client utilities
-│   ├── prisma.ts                # Database client
-│   ├── StandardizedDataset.ts   # Single cell dataset class
-│   └── SingleMoleculeDataset.ts # Single molecule dataset class (lazy loading)
-├── prisma/                      # Database schema
-│   └── schema.prisma            # Supports both dataset types
-└── public/                      # Static assets
+├── app/                       # Next.js App Router
+│   ├── api/                   # API routes
+│   │   ├── datasets/          #   single-cell browser upload
+│   │   ├── single-molecule/   #   single-molecule browser upload
+│   │   ├── ingest/            #   server-side ingestion (initiate/complete/callback/status)
+│   │   ├── projects/          #   projects (grouping)
+│   │   └── admin/             #   admin: processing dashboard, community review, users
+│   ├── viewer/ , sm-viewer/   # viewers (+ [id], from-local, from-s3)
+│   ├── explore/               # curated + community catalog (+ [id], bil/[bilCode])
+│   ├── account/               # your datasets & projects (+ edit)
+│   ├── admin/                 # admin dashboard & catalog
+│   └── auth/signin/
+├── components/                # React components (viewers, controls, plots, upload, cards)
+├── lib/
+│   ├── adapters/              # H5ad / Xenium / Merscope / ChunkedData adapters
+│   ├── ingest/                # server-ingestion helpers (classify-folder, error classification, …)
+│   ├── stores/                # Zustand stores (+ per-panel factories for split screen)
+│   ├── workers/               # web workers for parsing
+│   ├── webgl/                 # Three.js / shader utilities
+│   ├── config/                # visualization + column-mapping config
+│   ├── ses.ts                 # email
+│   ├── StandardizedDataset.ts # single-cell dataset class
+│   └── SingleMoleculeDataset.ts
+├── worker/                    # server-side ingestion worker (Dockerfile + entrypoint.py)
+├── scripts/                   # Python preprocessing (+ bil-scripts/ HPC pipelines)
+├── prisma/                    # schema + migrations
+└── docs/                      # design & ops docs (server-side-ingestion/, …)
 ```
+
+---
 
 ## Contributing
 
-Pull requests welcome.
+Pull requests welcome. PRs target the `develop` branch.
 
 ## Acknowledgments
 

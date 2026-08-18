@@ -1,418 +1,345 @@
-# Server-Side Dataset Ingestion — Design Doc
+# Server-Side Dataset Ingestion
 
-> Status: **DRAFT for review**. No code written yet. This describes a new,
-> *complementary* drag-and-drop path where the user uploads **raw** data, a
-> background AWS worker runs the existing Python processors, uploads the
-> processed output to S3, records it in the DB, and emails the user a link.
+> Status: **✅ Shipped — live in production.** This is the "Upload & process on
+> server" path on the homepage: the user uploads **raw** files, a background AWS
+> Batch worker runs the Python processors, uploads the chunked output to S3,
+> records it in Postgres, and emails the user a link.
 >
-> **Diagrams:** [`flow.mermaid`](flow.mermaid) (data flow) ·
-> [`sequence.mermaid`](sequence.mermaid) (temporal sequence).
+> This document describes the system **as built**. It replaces the original
+> design doc; the per-phase build docs below are kept as historical detail and
+> the AWS setup checklist is still the source of truth for provisioning.
 >
-> **Phase docs:** [Phase 0 — Schema](phase-0-schema.md) ·
+> **Diagrams:** [`flow.mermaid`](flow.mermaid) · [`sequence.mermaid`](sequence.mermaid)
+> **Phase/build docs:** [Phase 0 — Schema](phase-0-schema.md) ·
 > [Phase 1 — Raw upload](phase-1-raw-upload.md) ·
 > [Phase 2 — Worker container](phase-2-worker-container.md) ·
 > [Phase 3 — Trigger + callback + progress](phase-3-trigger-callback-progress.md) ·
-> [Phase 4 — Polish](phase-4-polish.md) ·
-> [Later — Optional stages](phase-later-optional-stages.md)
+> [Phase 3 — AWS setup checklist](phase-3-aws-setup.md) ·
+> [Phase 4 — Polish](phase-4-polish.md) · [Later — optional stages](phase-later-optional-stages.md)
+> **Benchmarks:** [benchmarks/](benchmarks/README.md)
 
 ---
 
-## 1. Goal
+## 1. What it is
 
-Today, drag-and-drop in the browser parses data **client-side** (h5wasm, hyparquet,
-web workers). This is limited by browser RAM and CPU — large datasets (500K+ cells,
-20M+ molecules, multi-GB files) either fail or degrade badly.
+The default drag-and-drop path parses data **in the browser** (h5wasm, hyparquet,
+web workers), which is bounded by browser RAM/CPU. Server-side ingestion is a
+**complementary** path for large datasets: the browser uploads the **raw bytes**
+and a server-side worker runs
+[`scripts/process_spatial_data.py`](../../scripts/process_spatial_data.py) or
+[`scripts/process_single_molecule.py`](../../scripts/process_single_molecule.py)
+to produce the canonical chunked format — the same format the viewer already reads
+for pre-chunked datasets.
 
-We want a second path: the user drops raw files, we **upload the raw bytes**, and a
-**server-side worker** runs [`scripts/process_spatial_data.py`](../scripts/process_spatial_data.py)
-or [`scripts/process_single_molecule.py`](../scripts/process_single_molecule.py) to
-produce the canonical chunked format, then stores + serves it exactly like today's
-pre-chunked datasets.
+**Why:** no browser limits, and a single code path (the Python) for the chunked
+format instead of parallel TS + Python implementations that can drift.
 
-**Wins:** no browser limits, and full control/standardization over how the chunked
-format is produced (one code path — the Python — instead of parallel TS + Python
-implementations that can drift).
-
----
-
-## 2. Decisions locked in
-
-| Decision | Choice |
-|---|---|
-| Compute for the Python worker | **ECS Fargate via AWS Batch** |
-| Existing AWS | Only S3 + SES today; worker infra is **greenfield** |
-| Database | **Supabase Postgres** (public over TLS; reachable from Fargate) |
-| Who can upload | **Logged-in users only** (Google OAuth, NextAuth v5) |
-| Dataset ownership | Add `ownerId` → future per-user dashboard |
-| Per-user compute | Add `User.computeTier` → job vCPU/RAM sized per uploader |
-| Raw files after processing | **Deleted** on success + S3 lifecycle rule as backstop |
-| Progress feedback | **Fine-grained, live** — worker → Supabase Realtime (GitHub-Actions style) |
-| Processing pipeline | **v1 = `process_spatial_data.py` only**; architected as extensible stages (§5.8) |
-| Cell type annotation | **User-supplied CSV** merged during chunking — no server-side MapMyCells |
-| QC | **Future opt-in stage**, within the default `computeTier` — not built in v1 |
-| Delivery of this pass | This design doc first |
+The Python **cannot** run inside the Next.js app (Vercel functions cap at
+60–300s with an ephemeral filesystem). The app's role is: accept the upload →
+record it → **trigger** the external worker → serve the results. AWS Batch
+provides the queue, retries, and job tracking.
 
 ---
 
-## 3. Constraints that shaped the design
-
-- **App runs on Vercel serverless** — functions cap at 60–300s and limited RAM with
-  an ephemeral filesystem. The Python **cannot run inside the Next.js app**. The app's
-  role is: accept upload → record → **trigger** the external worker → serve results.
-- **Raw uploads are multi-file and large.** Xenium/MERSCOPE are *folders* (many CSVs);
-  h5ad/parquet/csv are single files that can be multi-GB. The current upload helper
-  (`lib/s3.ts`) only does **single-PUT** presigned uploads (S3 single-PUT practical
-  limit ~5 GB). Large raw files need **multipart upload** — a new addition.
-- **No background-job infra exists** — no SQS/Redis/BullMQ/queue. AWS Batch provides
-  the queue, retries, and job tracking, so we don't add our own for v1.
-
----
-
-## 4. High-level architecture
+## 2. Architecture
 
 ```mermaid
 flowchart TD
-    U[User: drops raw files in browser] -->|logged in| C[New RawUpload UI]
-    C -->|POST /api/ingest/initiate| API1[Next.js: create Dataset+session, presigned URLs]
-    API1 -->|presigned PUT / multipart| S3RAW[(S3: raw/&lcub;datasetId&rcub;/...)]
-    C -->|per-file complete| API2[Next.js: mark file complete]
-    C -->|POST /api/ingest/&lcub;id&rcub;/complete| API3[Next.js: verify + Batch SubmitJob]
+    U[User: drops raw files, signed in] -->|POST /api/ingest/initiate| API1[Next.js: create Dataset+session, presigned URLs]
+    API1 -->|presigned PUT / multipart| S3RAW[(S3: raw/&lcub;id&rcub;/...)]
+    U -->|per-file complete| API2[Next.js: mark file complete]
+    U -->|POST /api/ingest/&lcub;id&rcub;/complete| API3[Next.js: verify -> Batch SubmitJob, status QUEUED]
     API3 -->|SubmitJob| BATCH[AWS Batch queue]
-    BATCH --> FARGATE[Fargate task: Docker w/ Python]
+    BATCH --> FARGATE[Fargate task: Docker + Python]
     FARGATE -->|download raw| S3RAW
     FARGATE -->|run process_*.py| FARGATE
-    FARGATE -->|upload chunked output| S3OUT[(S3: datasets/&lcub;datasetId&rcub;/...)]
-    FARGATE -->|delete raw| S3RAW
-    FARGATE -->|POST callback + shared secret| API4[Next.js: /api/ingest/&lcub;id&rcub;/callback]
-    API4 -->|update status COMPLETE/FAILED| DB[(Postgres)]
-    API4 -->|SES email| MAIL[User email w/ /viewer link]
+    FARGATE -->|upload chunked output| S3OUT[(S3: datasets/&lcub;id&rcub;/...)]
+    FARGATE -->|POST progress/status, HMAC-signed| API4[Next.js: /api/ingest/&lcub;id&rcub;/callback]
+    API4 -->|COMPLETE/FAILED + stats| DB[(Postgres)]
+    API4 -->|SES email| MAIL[User email w/ viewer link]
+    U -.->|poll while open| API5[Next.js: /api/ingest/&lcub;id&rcub;/status]
 ```
 
-Status lifecycle: `UPLOADING` → `QUEUED` → `PROCESSING` → `COMPLETE` | `FAILED`.
+**Status lifecycle:** `UPLOADING` → `QUEUED` → `PROCESSING` → `COMPLETE` | `FAILED`.
+The app sets `QUEUED` when it submits the Batch job; the worker posts `PROCESSING`,
+then `COMPLETE` or `FAILED` via the callback.
 
 ---
 
-## 5. Component breakdown
+## 3. Client — the "Upload & process on server" path
 
-### 5.1 Client — new "process on server" drop zone
+- A toggle on the homepage drop zone switches between **Preview in browser** and
+  **Upload & process on server**. Server mode does **no parsing** in the browser —
+  it reads the file list and uploads bytes.
+- **Gated behind sign-in** (Google / NextAuth). The notification email comes from
+  the session, not a form.
+- A picked folder is **filtered to the files the processor actually reads**
+  ([`lib/ingest/classify-folder.ts`](../../lib/ingest/classify-folder.ts)) — a
+  Xenium export is mostly images and QC artifacts, so uploading it whole would
+  send gigabytes nothing opens. The classifier also detects whether the folder is
+  single-cell, single-molecule, or **both** (a single-cell folder containing a
+  transcripts file offers a combined upload → two datasets + an auto-created
+  project).
+- **Single-molecule uploads add a mandatory "Confirm columns" step** (§6).
+- **Upload overlay**: a full-screen blocking overlay with an aggregate byte
+  counter and a leave-guard (`beforeunload` + in-app navigation intercept). Once
+  the bytes are up the dataset is `QUEUED` and the user is free to leave;
+  processing continues server-side.
 
-- A **separate, simpler** path from the existing local-processing drag-drop. The
-  browser does **no parsing** — it only reads the file list and uploads bytes.
-- Gated behind auth; the notify email comes from the **session** (no email form).
-- Collects the file tree (single file, or a folder for Xenium/MERSCOPE, preserving
-  relative paths).
-- **Processing parameters** (see §7) collected here when needed (dataset type /
-  column mapping for single-molecule).
-- UX: either a toggle on the existing drop zone ("Process in browser" vs "Upload &
-  process on server") or a distinct upload button. TBD in build.
-
-### 5.2 Raw upload path
+### Raw upload
 
 - Raw objects land at `raw/{datasetId}/{relativePath}`.
-- Small files: reuse presigned single-PUT.
-- **Large files (> ~100 MB): multipart upload** — new helpers in `lib/s3.ts`:
-  `CreateMultipartUpload` → presigned `UploadPart` URLs → `CompleteMultipartUpload`.
-  Client uploads parts in parallel and reports completion.
-- `UploadFile` rows track each raw object (reuse existing model).
+- Small files use presigned single-PUT; **files above ~100 MB use S3 multipart**
+  (`CreateMultipartUpload` → presigned `UploadPart` → `CompleteMultipartUpload`,
+  helpers in [`lib/s3.ts`](../../lib/s3.ts)), uploaded with limited concurrency and
+  per-part retry. `upload.onprogress` (via `XMLHttpRequest`) drives the byte
+  counter; `fetch()` exposes no upload progress.
+- `UploadFile` rows track each raw object.
 
-### 5.3 API routes (new, mirror existing `datasets/*` shape)
+---
+
+## 4. API routes
+
+All under `/api/ingest`. They mirror the existing `datasets/*` shape.
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/ingest/initiate` | POST | Create `Dataset` (status `UPLOADING`, `ownerId` from session), `UploadSession`, `UploadFile[]`; return presigned upload URLs (single or multipart). |
-| `/api/ingest/[id]/files/[key]/complete` | POST | Mark a raw file `COMPLETE`, increment `completedFiles`. |
-| `/api/ingest/[id]/complete` | POST | Verify all raw files uploaded → set `QUEUED` → **`SubmitJob`** to AWS Batch, **sizing vCPU/RAM from the uploader's `computeTier`** (§5.6), with dataset id + processing params. |
-| `/api/ingest/[id]/callback` | POST | **Worker → app** callback (shared-secret/HMAC auth). Sets `PROCESSING`/`COMPLETE`/`FAILED`, writes progress (§5.5), stores stats + manifest URL, triggers SES email. |
-| `/api/ingest/[id]/status` | GET | Status fallback for non-Realtime clients / the dashboard. |
-| `/api/ingest/[id]/abort` | POST | Cancel an in-flight upload: `AbortMultipartUpload`, delete uploaded `raw/{id}/` objects, mark `Dataset` aborted/deleted (§10). |
+| `/api/ingest/initiate` | POST | Create `Dataset` (`UPLOADING`, `ownerId` from session), `UploadSession`, `UploadFile[]`; return presigned upload URLs (single or multipart). |
+| `/api/ingest/[id]/files/[key]/complete` | POST | Mark a raw file complete. |
+| `/api/ingest/[id]/complete` | POST | Verify all raw files uploaded → set `QUEUED` → **`SubmitJob`** to AWS Batch with the dataset id, kind, and processing params. |
+| `/api/ingest/[id]/callback` | POST | **Worker → app**, HMAC-authed (§7). Sets `PROCESSING`/`COMPLETE`/`FAILED`, writes progress, stores stats + manifest key + fingerprint, sends the SES email, registers the produced output file. |
+| `/api/ingest/[id]/status` | GET | Status + progress for the client to poll while the tab is open, and for the admin dashboard. |
+| `/api/ingest/[id]/abort` | POST | Cancel an in-flight upload: `AbortMultipartUpload`, delete uploaded `raw/{id}/` objects, mark the dataset aborted. |
+| `/api/ingest/mine`, `/api/ingest/mine/[id]` | GET | The signed-in user's in-flight / recent server uploads. |
 
-The app authenticates to AWS Batch with the existing IAM creds (new
-`@aws-sdk/client-batch` dependency).
+The app authenticates to AWS Batch with the `merfisheyes-staging-vercel` IAM user
+(`batch:SubmitJob/DescribeJobs/TerminateJob`), via `@aws-sdk/client-batch`.
 
-### 5.4 The worker (Docker image on Fargate)
+---
 
-Container includes Python + deps (`anndata`, `numpy`, `pandas`, `scipy`, `pyarrow`)
-and the two `scripts/process_*.py` files. Entrypoint (a thin Python/shell wrapper):
+## 5. The worker
+
+Source: [`worker/Dockerfile`](../../worker/Dockerfile) +
+[`worker/entrypoint.py`](../../worker/entrypoint.py). The image is
+`python:3.12-slim` + `anndata, numpy, pandas, scipy, pyarrow` + the two
+`scripts/process_*.py` files **copied in verbatim** + the entrypoint. It runs on
+**AWS Batch (Fargate)**.
+
+`entrypoint.py` does:
 
 1. Read job env: `DATASET_ID`, `DATASET_KIND` (`single_cell` | `single_molecule`),
-   processing params, `CALLBACK_URL`, `CALLBACK_SECRET`.
+   `PROCESSING_PARAMS` (JSON), `AWS_S3_BUCKET`, `AWS_REGION`, `CALLBACK_URL`,
+   `CALLBACK_SECRET`, `VERCEL_BYPASS_SECRET`, `DELETE_RAW`, `UPLOAD_CONCURRENCY`.
 2. `POST callback status=PROCESSING`.
-3. Download `raw/{datasetId}/` from S3 to local scratch (Fargate ephemeral storage,
-   sized for raw + output — configurable up to 200 GB).
-4. Run the enabled processing stages (§5.8) — **v1 is a single stage**:
-   - single-cell → `process_spatial_data.py raw/ out/` (auto-detects h5ad/xenium/merscope)
-   - single-molecule → `process_single_molecule.py raw_file out/ [--dataset-type ...]`
-5. Upload `out/` to `datasets/{datasetId}/` in S3 (same layout the viewer already
-   reads via `ChunkedDataAdapter` / `SingleMoleculeDataset.fromS3()`).
-6. Delete `raw/{datasetId}/` from S3.
-7. `POST callback status=COMPLETE` with stats (cells, genes, dims, manifest key).
-8. On any error: `POST callback status=FAILED` with the error message. Batch retries
-   per the job definition; final failure surfaces to the DB + (optionally) an email.
+3. Download `raw/{id}/` from S3 into Fargate ephemeral scratch.
+4. **Compute a raw-content fingerprint** — SHA-256 streamed over the raw bytes
+   (path + size folded in), before anything mutates the input (§8).
+5. Run the processor for the kind:
+   - **single-cell** → move the annotation CSV out of the input tree if one was
+     supplied (§5.1), then `process_spatial_data.py <input> out/` (auto-detects
+     h5ad/Xenium/MERSCOPE), with `--chunk-size` and optional `--mmc-csv`.
+   - **single-molecule** → `process_single_molecule.py <input> out/` with an
+     explicit column mapping when the UI provided one, else auto-detection (§6).
+   While the processor runs, its `STEP`/`[n/total]` log lines are parsed into
+   staged progress and posted to the callback (throttled).
+6. Clear any stale `datasets/{id}/` objects, then upload `out/` there
+   (concurrent; per-gene output is thousands of tiny objects).
+7. If `DELETE_RAW=true`, delete `raw/{id}/`. **In production `DELETE_RAW=false`**,
+   so raw is kept and expires via the S3 lifecycle rule (§9) — a failed job can be
+   retried without re-uploading.
+8. `POST callback status=COMPLETE` with `manifestKey`, `uploadedFiles`,
+   `fingerprint`, and `stats` (cells/genes or molecules/genes, dims). On any error:
+   `POST callback status=FAILED` with the processor's own error message.
 
-**Why a callback instead of the worker writing Postgres directly:** keeps DB
-credentials and the SES send in the app (reuse existing email routes), so the worker
-only needs S3 + outbound HTTPS + a shared secret. (Direct DB write is a viable
-alternative if we'd rather not expose a callback endpoint — noted in §9.)
+### 5.1 Cell-type annotation is the user's CSV, not a server step
 
-### 5.5 Live progress (GitHub-Actions style)
+There is **no server-side MapMyCells**. The user runs MapMyCells (or anything)
+themselves and uploads a one-row-per-cell CSV under a reserved key.
+`stages.chunk.mmcCsv` names it; the worker moves it **out of the raw input tree**
+before processing (a MERSCOPE input dir is scanned for metadata / cell-by-gene
+CSVs, so a stray CSV there invites a misdetection) and passes it as `--mmc-csv`.
+The merge happens before the expensive steps, so the annotation column gets a
+palette and DE stats like any other cluster column. If the row count doesn't match
+the cell count, the processor fails with a specific message ("CSV has N rows but
+dataset has M cells") that propagates to the dataset's error and the overlay.
 
-Processing is modeled as **discrete stages**, each with a status and (for long stages)
-a coarse `%`:
+---
 
-```
-Queued → Reading file → Coordinates → Expression chunks → DE stats → Uploading → Done
-```
+## 6. Processing parameters & the column-confirm step
 
-- The Python scripts already log staged progress (`STEP 4.5`, `chunk 3/10`, …). The
-  worker entrypoint maps those to stage transitions and POSTs them to the callback.
-- The callback writes a `processingProgress` JSON onto the `Dataset`.
-- **Supabase Realtime**: the browser subscribes to the `datasets` row (or a dedicated
-  progress table) and receives live updates — no polling. `/api/ingest/[id]/status`
-  remains as a fallback.
-- Full raw logs stay in **CloudWatch**, surfaced as an expandable "view log" like a
-  GitHub Actions step.
+`Dataset.processingParams` is a JSON blob carrying the processor intent:
 
-### 5.6 Per-user compute tier
-
-`SubmitJob` **overrides vCPU/RAM per job** from the uploader's `User.computeTier`
-(e.g. `standard` = 4 vCPU/16 GB, `large` = 8/32, `xlarge` = 16/64). Fargate has fixed
-valid CPU↔RAM pairs (4 vCPU → 8–30 GB, up to 16 vCPU/120 GB), so tiers snap to allowed
-combos. Optionally route tiers to separate Batch **job queues** with different priority.
-
-### 5.7 Email
-
-Reuse the existing SES routes (`/api/send-email`, `/api/send-email-single-molecule`).
-The callback handler calls them (or the same SES helper) once status flips to
-`COMPLETE`, sending the `/viewer/{id}` or `/sm-viewer/{id}` link.
-
-### 5.8 Extensible processing pipeline (v1 = chunk only)
-
-**v1 runs a single stage** — `process_spatial_data.py` (chunking). But the worker is
-structured as an ordered **stage pipeline** so QC slots in later with **no rework**.
-This mirrors the BIL SLURM chain (`combine → map_my_cell → process_spatial → sync`)
-but parameterized and *not* a 1:1 copy — note that cell type mapping is deliberately
-**not** one of our stages; see below. Stages are declared in
-`Dataset.processingParams`:
-
-```json
+```jsonc
 {
   "kind": "single_cell",
   "stages": {
     "chunk": {
-      "chunkSize": 1,                        // v1: the only enabled stage
-      // chunkSize = GENES PER CHUNK (process_spatial_data.py --chunk-size).
-      // 1 => one file per gene, so the viewer fetches only the selected gene
-      // (fast gene switching) instead of a whole multi-gene chunk. Omit it to
-      // let the script auto-determine (~200 genes/chunk) if you'd rather have
-      // fewer, larger objects.
-      "mmcCsv": "__annotations__/mapping.csv" // optional; see below
+      "chunkSize": 1,                          // genes per chunk; 1 = one file per gene
+      "mmcCsv": "__annotations__/mapping.csv"  // optional annotation CSV key
     }
-    // future, opt-in:
-    // "qc": { "metrics": ["n_genes","total_counts","pct_mito"], "mask": "p65" }
-  }
+  },
+  "linkedSmDatasetId": "sm_..."                // combined upload: link cells -> molecules
 }
 ```
 
-**Cell type annotation is the user's job, not ours.** Users run the hosted MapMyCells
-themselves and upload the resulting CSV with their dataset; there is no server-side
-mapping stage. `stages.chunk.mmcCsv` names the uploaded CSV by its reserved raw key.
-The worker moves that file out of the raw input tree — a MERSCOPE input directory is
-scanned for metadata / cell-by-gene CSVs, so a stray CSV there invites a
-misdetection — and passes it as `--mmc-csv`. Because the merge happens before the
-expensive steps, those columns get palettes and DE stats exactly like any other
-cluster column.
+For **single-molecule**, the params instead carry a `columnMapping`:
 
-The processor requires exactly one CSV row per cell. In server mode the browser never
-parses the dataset, so a mismatch cannot be caught client-side; it fails in the worker
-and the processor's own message ("CSV has N rows but dataset has M cells") is
-propagated to `errorMessage` and shown in the upload overlay.
-
-**Stage contract** (same way the BIL launcher threads scripts): each stage reads the
-shared scratch dir, writes its output, and hands artifacts to the next stage via the
-processor's existing flags — `qc` → mask CSV → `chunk --mask`. Each stage posts its
-own progress step (§5.5).
-
-**Execution:** v1 = **one Batch job** (chunk). When multi-stage is enabled later, submit
-**chained Batch jobs** with `dependsOn` (the cloud equivalent of SLURM `afterok`), each
-stage sized within our normal **`computeTier`** envelope.
-
-**Future — `qc`:** emits QC obs columns (n_genes, total_counts, pct_mito, doublet score)
-that flow into the chunked output as numerical columns, a QC report artifact (PNG/HTML)
-to S3 for the dashboard, and optionally a filter mask via the existing `--mask` path
-(the BIL artifact-mask mechanism is the template).
-
----
-
-## 6. Database changes
-
-```prisma
-model Dataset {
-  // ... existing fields ...
-  ownerId          String? @map("owner_id")            // NEW: FK to User
-  owner            User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  ingestSource     String? @map("ingest_source")       // NEW: "browser" | "server" (optional)
-  batchJobId       String? @map("batch_job_id")        // NEW: AWS Batch job id for tracing
-  processingParams Json?   @map("processing_params")   // NEW: dataset type / column mappings
-  processingProgress Json? @map("processing_progress") // NEW: live stage/% for Realtime
-  @@index([ownerId])                                   // NEW: for the user dashboard
-}
-
-model User {
-  // ... existing fields ...
-  computeTier String   @default("standard") @map("compute_tier") // NEW: job vCPU/RAM tier
-  datasets    Dataset[]                                          // NEW: inverse relation
-}
-
-enum DatasetStatus {
-  UPLOADING
-  QUEUED       // NEW: raw uploaded, Batch job submitted, not yet running
-  PROCESSING
-  COMPLETE
-  FAILED
-}
+```jsonc
+{ "kind": "single_molecule",
+  "columnMapping": { "gene": "feature_name", "x": "x_location",
+                     "y": "y_location", "z": "z_location", "cellId": "cell_id" } }
 ```
 
-- Migration via the existing `safe-migrate.js` build step.
-- **Dedup / fingerprint** (independent of Supabase — the DB just stores the hash
-  string): the current fingerprint is computed client-side from *processed* data, which
-  we no longer have at upload time. **Resolved → the worker computes the canonical
-  fingerprint post-processing and dedups then** — it matches today's format exactly.
-  Tradeoff accepted: a duplicate is detected *after* the compute, not before.
+**The column-confirm step** is the main net-new UX surface. On a single-molecule
+server upload the browser reads just enough of the file to preview it —
+`hyparquet` reads only the parquet **footer** (schema) and first rows; CSV reads
+the header + a few rows via PapaParse — then shows a modal with the columns, a
+few sample rows, and dropdowns pre-filled from the detected platform. The user
+confirms or remaps gene / x / y / z / cell-id before the job is submitted.
+
+In the worker: if `columnMapping` has gene+x+y, it runs
+`process_single_molecule.py --dataset-type custom --gene-col … --x-col … --y-col …`
+(plus `--z-col` / `--cell-id-col` when present). Otherwise it auto-detects the
+schema from the header (`global_x` → MERSCOPE, `x_location` → Xenium). Unassigned
+molecules are recognized across platforms — MERSCOPE `-1`, Xenium `UNASSIGNED`,
+CosMx `0` — see [scripts/README.md](../../scripts/README.md).
 
 ---
 
-## 7. Processing parameters — the "map your columns" step
+## 7. Progress, status & the callback
 
-The browser currently auto-detects format/columns. Server-side we pass that intent to
-the Python explicitly, via a **mandatory column-mapping step** in the RawUpload UI.
+- The worker **posts progress and terminal status to
+  `/api/ingest/[id]/callback`**, signed with `x-ingest-signature: sha256=<HMAC>`
+  of the raw body using `CALLBACK_SECRET`. When the target deployment has Vercel
+  Deployment Protection, the worker also sends `x-vercel-protection-bypass`.
+- Progress posts are **best-effort**: one attempt, no backoff, and the worker
+  **stops sending them after 3 consecutive failures** (an unreachable callback URL
+  would otherwise stretch a 2-minute job past 10 minutes). Terminal `COMPLETE` /
+  `FAILED` posts are retried, because losing one strands the dataset.
+- The callback writes progress onto the `Dataset`; **the client polls
+  `/api/ingest/[id]/status`** while the tab is open (this is a callback + polling
+  model — Supabase Realtime was considered in the original design but is not used).
+- Full logs stay in **CloudWatch**.
 
-- **Single-cell** (`process_spatial_data.py`): auto-detects h5ad/Xenium/MERSCOPE and
-  coordinate/cluster columns already — likely **zero config** for most inputs.
-- **Single-molecule** (`process_single_molecule.py`): needs `--dataset-type`
-  (xenium/merscope/custom), the gene/x/y/z columns, and optional `--cell-id-col`.
-
-**Column names are extracted client-side without uploading or fully parsing the file:**
-
-- **CSV** — read the first chunk (`File.slice(0, ~64KB)`), parse the header row + a few
-  sample rows for preview.
-- **Parquet** — read only the **footer** (schema) via `hyparquet` (already a
-  dependency) by slicing the **tail bytes**; gives column names ("keys") without
-  touching the millions of data rows.
-
-The UI shows detected columns, pre-fills sensible defaults (Xenium/MERSCOPE mappings),
-and **requires an explicit "Continue" even when defaults already match** — that
-confirmation is what enforces standardization before a job is submitted. This
-column-confirm screen is the main net-new UX surface.
+**Why a callback, not a direct DB write:** it keeps Postgres credentials and the
+SES send inside the app. The worker only needs S3 + outbound HTTPS + the shared
+secret; it never touches Postgres.
 
 ---
 
-## 8. Infrastructure to provision (all greenfield)
+## 8. Email, failures & the admin dashboard
 
-One-time AWS setup (candidate for Terraform/CDK if we go "everything incl. worker"):
-
-1. **ECR** repository for the worker image; CI builds & pushes it.
-2. **Docker image** — Python 3.11 + `anndata, numpy, pandas, scipy, pyarrow` +
-   `scripts/process_*.py` + entrypoint wrapper.
-3. **AWS Batch on Fargate** — compute environment, job queue, job definition
-   (vCPU/RAM configurable per job; ephemeral storage sized for large data).
-4. **IAM roles:**
-   - App role (Vercel creds): `batch:SubmitJob`, `batch:DescribeJobs`.
-   - Job execution + task role: read/write the S3 bucket (raw + datasets prefixes),
-     `logs:*` to CloudWatch. (SES stays in the app via the callback, so the worker
-     needs no SES perms.)
-5. **Networking** — VPC/subnets/security group for Fargate tasks with outbound
-   internet (S3 + HTTPS callback). NAT or VPC endpoints for S3.
-6. **S3 lifecycle rule** on `raw/` — expire objects after N days (backstop to the
-   worker's explicit delete).
-7. **Secrets** — `CALLBACK_SECRET` shared between app and worker.
+- On `COMPLETE`, the callback sends the "your dataset is ready" email via **AWS
+  SES** ([`lib/ses.ts`](../../lib/ses.ts)) with the `/viewer/{id}` or
+  `/sm-viewer/{id}` link.
+- On `FAILED`, [`lib/ingest/mark-failed.ts`](../../lib/ingest/mark-failed.ts) sets
+  the status, stores `errorMessage`, classifies the failure
+  ([`lib/ingest/error-classification.ts`](../../lib/ingest/error-classification.ts):
+  USER / PLATFORM / UNKNOWN, e.g. OOM, timeout, lost job, missing column) into
+  `faultCategory`, and emails the owner the raw error plus a hint. A reconcile path
+  also marks jobs that die without ever calling back.
+- The **admin processing dashboard** (`/admin/dashboard`, backed by
+  `/api/admin/processing`) shows dataset/upload stats, recent activity, and
+  failures with their auto-classified fault label (admins can re-tag).
 
 ---
 
-## 9. Decisions
+## 9. Deduplication
 
-**Resolved:**
+The pre-server fingerprint was computed **client-side from processed data**, which
+we no longer have at upload time. As shipped, **the worker computes a raw-content
+fingerprint** (§5 step 4) and returns it in the `COMPLETE` callback; the app dedups
+on the `Dataset.fingerprint` `@unique` column. Re-uploading identical file(s)
+reproduces the same digest.
 
-- **Dedup timing** → worker computes the canonical fingerprint **after** processing (§6).
-- **Progress** → fine-grained staged progress, pushed live via **Supabase Realtime** (§5.5).
-- **Per-user compute** → job vCPU/RAM sized from `User.computeTier`; `SubmitJob`
-  overrides per job (§5.6).
-- **IaC** → hand-provision for the v1 spike (documenting each step), convert to CDK
-  once it works.
-
-- **Worker → DB** → **callback API** (`/api/ingest/[id]/callback`, secret-authed).
-  Keeps DB + SES logic in the app; worker never touches Postgres directly. Realtime
-  progress works via the callback writing the row.
-- **Multipart** → **enabled above 100 MB** (raw path only; existing small-chunk upload
-  stays single-PUT). Part size 16–64 MB. Requires an S3 lifecycle rule to abort
-  orphaned incomplete multipart uploads.
-- **`computeTier`** → ship a **single default tier**, tune/add tiers from there.
-- **Upload UX** → full §10 (all resolved).
-- **Pipeline shape** → v1 runs **chunking only** (`process_spatial_data.py`), built as an
-  extensible stage pipeline (§5.8). **Cell type annotation** is a **user-supplied CSV**
-  merged by that same stage, not a server-side mapping run; **QC** = future stage.
+> **Known gap:** this raw fingerprint is *not* the same value the browser path
+> computes from processed data, so a dataset uploaded both ways won't be detected
+> as a duplicate across paths. Reconciling the two is deferred.
 
 ---
 
-## 10. First-time upload UX (raw upload phase)
+## 10. Database fields
 
-Covers **only the browser → S3 upload**. Once it completes the user is free to leave;
-server-side processing progress is separate (§5.5 / dashboard).
+Added to support ingestion (see [`prisma/schema.prisma`](../../prisma/schema.prisma)):
 
-**Layout — full-screen blocking overlay**
-- A full-screen overlay covers the app during upload; the user stays on the page and
-  can't interact with anything behind it except **Cancel**.
-- **Big blue progress bar** pinned at the top. Copy: *"Uploading your dataset — please
-  don't close this tab."*
-- **Aggregate byte counter** `xx MB / yy MB` summed across all files in the dataset
-  (total known at initiate), plus **ETA** from a rolling average of bytes/sec (≈5 s
-  window); shows *"Calculating…"* until enough samples. Optional current speed (MB/s).
+- `Dataset.ownerId` (FK to `User`), `processingParams` (Json), `processingProgress`
+  (Json, live stage/%), `batchJobId`, `errorMessage`, `faultCategory`
+  (`USER|PLATFORM|UNKNOWN`), and `completedAt`.
+- `DatasetStatus` gained **`QUEUED`** (raw uploaded, Batch job submitted, not yet
+  running).
+- `numCells` doubles as the molecule count for single-molecule datasets.
 
-**Progress source (technical)**
-- `fetch()` exposes **no upload progress** → use **`XMLHttpRequest`** per presigned PUT
-  for `upload.onprogress` byte events.
-- **Multipart** (>100 MB files): aggregate = Σ(completed part bytes) + in-flight part's
-  XHR progress; parts uploaded with limited concurrency (~3–4) and per-part retry.
-
-**Close / leave guard** (registered only while an upload is in flight)
-- **Real tab-close / refresh** → `beforeunload` fires the browser's **generic** native
-  prompt (custom wording not possible — browser limitation).
-- **In-app navigation** (router/link clicks) → intercepted → **custom modal**:
-  *"Upload in progress. Leaving will cancel it. Leave anyway?"* (Stay / Leave).
-
-**Completion**
-- Overlay switches to *"✅ Uploaded — we'll email you when processing finishes"*; guards
-  removed; user free to close/navigate. `Dataset` is `QUEUED`; processing runs server-side.
-
-**Cancel + cleanup** (also the path the S3 lifecycle rule backstops on hard-close)
-- Cancel aborts in-flight XHR(s) (`AbortController`), calls an abort endpoint →
-  `AbortMultipartUpload` for any multipart, deletes uploaded objects under `raw/{id}/`,
-  marks the `Dataset` aborted/deleted, and removes the guards.
-
-**Failure**
-- A part failing after retries surfaces an error state with **Retry / Cancel**; giving
-  up runs the same cleanup.
+Migrations run via the existing `safe-migrate` build step.
 
 ---
 
-## 11. Phased implementation plan
+## 11. AWS infrastructure (as provisioned)
 
-Each phase is its own doc (goal · tasks · files touched · verification · provisioning):
+Account **533267148861**, region **us-west-2** (must match the S3 bucket to avoid
+cross-region transfer). Step-by-step provisioning is in
+[phase-3-aws-setup.md](phase-3-aws-setup.md).
 
-| Phase | Doc | One-liner | AWS/Supabase work? |
-|---|---|---|---|
-| 0 | [Schema & scaffolding](phase-0-schema.md) | Prisma fields + migration | No |
-| 1 | [Raw upload](phase-1-raw-upload.md) | Ingest routes, multipart, drop-zone + overlay | No |
-| 2 | [Worker container](phase-2-worker-container.md) | Dockerfile + entrypoint, run manually | Local Docker |
-| 3 | [Trigger + callback + progress](phase-3-trigger-callback-progress.md) | SubmitJob, callback, Realtime, stand up Batch | **Yes** — step-by-step: [AWS setup checklist](phase-3-aws-setup.md) |
-| 4 | [Polish](phase-4-polish.md) | Retries, logs, dashboard, tiers | Minor |
-| — | [Later — optional stages](phase-later-optional-stages.md) | QC as a chained job (the MapMyCells stage there is superseded: annotation is now a user-supplied CSV) | Later |
+| Resource | Value |
+|---|---|
+| ECR repo | `…/merfisheyes-worker:latest` (linux/amd64, ~214 MB) |
+| Batch compute env | `merfisheyes-fargate` (FARGATE, maxvCpus 64) |
+| Batch job queue | `merfisheyes-ingest` |
+| Batch job definition | `merfisheyes-ingest` — 4 vCPU / 16384 MB, 100 GiB ephemeral, `assignPublicIp: ENABLED`, retry 2 |
+| Execution role | `merfisheyes-batch-execution` (ECS task execution) |
+| Task role | `merfisheyes-batch-task` — S3 RW on the dataset bucket |
+| Dataset bucket | `merfisheyes-staging` — `raw/{id}/`, `datasets/{id}/` |
+| S3 lifecycle | `expire-raw-ingest` — `raw/` expires after 7 days; aborts incomplete multipart after 1 day |
+| Networking | default VPC, public subnets + `assignPublicIp` (no NAT gateway) |
 
-Build order is strict 0 → 1 → 2 → 3; Phase 2 can be developed in parallel with Phase 1.
+**Job env:** static values on the job definition (`AWS_S3_BUCKET`, `AWS_REGION`,
+`UPLOAD_CONCURRENCY=16`, `DELETE_RAW=false`); per-job values come from `SubmitJob`
+overrides (`DATASET_ID`, `DATASET_KIND`, `PROCESSING_PARAMS`, `CALLBACK_URL`,
+`CALLBACK_SECRET`, `VERCEL_BYPASS_SECRET`). **No static AWS keys in the job** — the
+task role provides credentials and boto3 picks them up.
+
+The job definition's 16 GB comfortably clears the worst measured peak (~4.3 GB, a
+1.2 GB MERSCOPE input — MERSCOPE sets the memory ceiling, not the largest h5ad).
+See [benchmarks/](benchmarks/README.md).
 
 ---
 
-## 12. Cost recap (approximate, on-demand, us-east-1, early 2026)
+## 12. Deploying a worker code change
 
-Fargate scales to zero; you pay per job. Typical job (4 vCPU/16 GB, ~5 min) ≈ **$0.02**;
-large job (8 vCPU/32 GB, ~20 min) ≈ **$0.16**. ~500 jobs/month ≈ **~$10** compute, plus
-a few dollars of ECR storage, CloudWatch logs, and data transfer. S3/SES as today.
+`worker/Dockerfile` copies `scripts/process_*.py` and `entrypoint.py` **into the
+image**, so an edit to those files reaches Fargate **only via an ECR rebuild +
+push** — nothing reads them from the repo at runtime. There is a single shared
+`:latest` tag; the Batch job definition points at it.
+
+```bash
+REPO=<acct>.dkr.ecr.us-west-2.amazonaws.com
+aws ecr get-login-password --profile merfisheyes-admin --region us-west-2 \
+  | docker login --username AWS --password-stdin "$REPO"
+docker build --platform linux/amd64 -f worker/Dockerfile -t "$REPO/merfisheyes-worker:latest" .
+docker push "$REPO/merfisheyes-worker:latest"
+```
+
+Fargate pulls `:latest` at task start, so the next job runs the new code. Admin
+work (ECR/Batch/IAM) uses the `merfisheyes-admin` CLI profile — the app's S3-only
+profiles can't touch it.
+
+---
+
+## 13. Cost
+
+Fargate scales to zero — you pay per job. A typical small job (4 vCPU/16 GB,
+~2 min including ~40 s Fargate startup) is ≈ **$0.01–0.02**. Roughly 500 jobs/month
+is on the order of **~$10** of compute, plus small ECR/CloudWatch/transfer costs.
+**Upload is the bottleneck, not processing** (see benchmarks).
+
+---
+
+## 14. Not built / future
+
+- **QC stage** — the pipeline is structured for ordered, chained stages (the
+  `stages` shape in §6); a QC stage (n_genes, total_counts, pct_mito, doublet
+  score → numerical obs columns + a report artifact, optionally a filter mask)
+  can slot in as a chained Batch job with no rework. Not built.
+- **Per-user compute tiers** — the schema and SubmitJob path can size vCPU/RAM per
+  uploader; today a single fixed job definition (4 vCPU/16 GB) is used for all.
+- **Cross-path dedup** — reconciling the raw fingerprint with the browser's
+  processed fingerprint (§9).

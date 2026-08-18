@@ -17,6 +17,14 @@ The `process_spatial_data.py` script converts **H5AD**, **Xenium**, and **MERSCO
 
 The `process_single_molecule.py` script converts **parquet** and **CSV** single molecule datasets into the same binary format used by the S3 storage. This allows processing large molecule datasets (millions of molecules) in Python and uploading directly to S3, bypassing browser memory limits.
 
+> **These same two scripts run the "Upload & process on server" path.** The
+> server-side ingestion worker ([`worker/entrypoint.py`](../worker/entrypoint.py))
+> copies them into its Docker image and invokes them exactly as documented here —
+> single-cell with `--chunk-size`/`--mmc-csv`, single-molecule with the
+> user-confirmed `--dataset-type custom --gene-col …` mapping. So the flags below
+> are also the contract the server uses. See
+> [docs/server-side-ingestion/](../docs/server-side-ingestion/README.md).
+
 ## Why Use This Script?
 
 ### Problems with Large Datasets in Browser:
@@ -135,6 +143,32 @@ python scripts/process_single_molecule.py data.parquet output_folder/ \
   --x-col "x_pos" \
   --y-col "y_pos"
 ```
+
+#### Splitting molecules by cell assignment (`--cell-id-col`):
+
+Off by default — every molecule for a gene goes into one `GENE.bin.gz`. Opt in
+with `--cell-id-col` to split each gene's **unassigned** (not-in-a-cell) molecules
+into a separate `GENE_uuuuuuuuuu.bin.gz` sibling, so the viewer can show
+assigned vs. unassigned separately:
+
+```bash
+python scripts/process_single_molecule.py transcripts.parquet output_folder/ \
+  --dataset-type xenium \
+  --cell-id-col cell_id
+```
+
+**"Unassigned" is detected across platforms**, not just a single sentinel value:
+
+| Platform | Unassigned cell-id | 
+|----------|--------------------|
+| MERSCOPE (Vizgen) | integer `-1` |
+| Xenium (10x) | string `UNASSIGNED` |
+| CosMx (NanoString) | integer `0` (assigned IDs are ≥ 1) |
+
+The rule: any numeric value `≤ 0` (covers `-1` and `0`), plus `NaN`/blank and the
+common string tokens (`unassigned`, `none`, `nan`, `na`, `null`). Any other
+non-numeric string (e.g. a real Xenium cell id like `aaabbbcc-1`) counts as
+**assigned**.
 
 #### Dataset Types:
 
@@ -472,7 +506,7 @@ Both modes use identical binary parsing logic, ensuring consistency.
 ```bash
 for file in *.h5ad; do
     output_dir="${file%.h5ad}_processed"
-    python scripts/process_h5ad.py "$file" "$output_dir/"
+    python scripts/process_spatial_data.py "$file" "$output_dir/"
 done
 ```
 
@@ -493,7 +527,7 @@ else:
     chunk_size = 500
 
 # Run with custom chunk size
-# python scripts/process_h5ad.py data.h5ad output/ --chunk-size {chunk_size}
+# python scripts/process_spatial_data.py data.h5ad output/ --chunk-size {chunk_size}
 ```
 
 ## Future Enhancements
