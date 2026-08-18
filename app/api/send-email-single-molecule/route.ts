@@ -46,7 +46,11 @@ export async function POST(request: NextRequest) {
         ToAddresses: [email],
       },
       Message: {
-        Subject: { Data: "Your Single Molecule Dataset is Ready - MERFISHEYES" },
+        Subject: {
+          Data: dataset.title
+            ? `${dataset.title} - Dataset Ready - MERFISHEYES`
+            : "Your Single Molecule Dataset is Ready - MERFISHEYES",
+        },
         Body: {
           Html: {
             Data: `<!DOCTYPE html>

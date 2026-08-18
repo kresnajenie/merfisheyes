@@ -175,6 +175,7 @@ function HomeContent() {
   // themselves). Uploaded with the dataset; the chunk stage merges its columns
   // into obs, with palettes and DE stats like any other cluster column.
   const [annotationCsv, setAnnotationCsv] = useState<File | null>(null);
+  const [annotationDragOver, setAnnotationDragOver] = useState(false);
 
   const targetRaysColor = useMemo(
     () => (isSingleMolecule ? "#FF1CF7" : "#5EA2EF"),
@@ -360,13 +361,62 @@ function HomeContent() {
                       </span>
                     </span>
                   </span>
-                  <div className="flex items-center gap-3">
-                    <label
-                      className="cursor-pointer rounded-full border border-default-300 px-4 py-1.5 text-sm text-default-700 hover:border-primary/50 hover:bg-default-100/50"
-                      htmlFor="annotation-csv"
+                  <label
+                    className={clsx(
+                      "flex w-full max-w-md cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors",
+                      annotationDragOver
+                        ? "border-primary bg-primary-50 dark:bg-primary-100/10"
+                        : "border-default-300 hover:border-primary/50 hover:bg-default-100/50",
+                    )}
+                    htmlFor="annotation-csv"
+                    onDragLeave={() => setAnnotationDragOver(false)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setAnnotationDragOver(true);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setAnnotationDragOver(false);
+                      setAnnotationCsv(e.dataTransfer.files?.[0] ?? null);
+                    }}
+                  >
+                    <svg
+                      className="h-6 w-6 text-default-400"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                      viewBox="0 0 24 24"
                     >
-                      {annotationCsv ? "Change file" : "Choose file"}
-                    </label>
+                      <path
+                        d="M12 16.5V6m0 0-3.5 3.5M12 6l3.5 3.5M4.5 15.75v1.5A2.25 2.25 0 0 0 6.75 19.5h10.5a2.25 2.25 0 0 0 2.25-2.25v-1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {annotationCsv ? (
+                      <span className="text-sm text-default-600">
+                        {annotationCsv.name}
+                        <button
+                          className="ml-2 underline hover:text-foreground"
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setAnnotationCsv(null);
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium text-default-700">
+                          Drop a .csv here, or click to browse
+                        </span>
+                        <span className="text-[11px] text-default-400">
+                          One row per cell with a label column
+                        </span>
+                      </>
+                    )}
                     <input
                       accept=".csv"
                       className="hidden"
@@ -376,19 +426,7 @@ function HomeContent() {
                         setAnnotationCsv(e.target.files?.[0] ?? null)
                       }
                     />
-                    {annotationCsv ? (
-                      <span className="text-sm text-default-500">
-                        {annotationCsv.name}{" "}
-                        <button
-                          className="underline hover:text-foreground"
-                          type="button"
-                          onClick={() => setAnnotationCsv(null)}
-                        >
-                          Remove
-                        </button>
-                      </span>
-                    ) : null}
-                  </div>
+                  </label>
                 </div>
               ) : null}
             </div>

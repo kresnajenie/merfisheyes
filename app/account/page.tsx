@@ -1,7 +1,8 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
-import { AccountDatasets } from "@/components/account/account-datasets";
+import { AccountWorkspace } from "@/components/account/account-workspace";
 import { title, subtitle } from "@/components/primitives";
 
 export const metadata = {
@@ -20,11 +21,13 @@ export default async function AccountPage() {
       <div className="mb-6">
         <h1 className={title({ size: "md" })}>Your datasets</h1>
         <p className={subtitle({ class: "mt-2" })}>
-          Manage the datasets you own — rename them, track views, and open them
-          in the viewer.
+          Manage the datasets you own — edit their details, group them into
+          projects, and submit them to Explore.
         </p>
       </div>
-      <AccountDatasets />
+      <Suspense>
+        <AccountWorkspace />
+      </Suspense>
     </div>
   );
 }

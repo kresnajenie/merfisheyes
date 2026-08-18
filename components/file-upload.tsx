@@ -7,6 +7,16 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 import * as Comlink from "comlink";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@heroui/modal";
+import { Input } from "@heroui/input";
+import { Button } from "@heroui/button";
+import { Checkbox } from "@heroui/checkbox";
 
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
@@ -24,6 +34,21 @@ import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
 import { classifyFolder } from "@/lib/ingest/classify-folder";
 import { useUploadStore } from "@/lib/stores/uploadStore";
 import { AuthModal } from "@/components/auth-modal";
+
+type RawFile = { key: string; file: File; contentType: string };
+
+/** A server upload prepared and waiting for the user to name it. */
+interface PendingServerUpload {
+  kind: "single_cell" | "single_molecule";
+  files: RawFile[];
+  processingParams: Record<string, unknown>;
+  /**
+   * Set when a single-cell folder also contained single-molecule data. Offers
+   * to upload it as a separate SM dataset and auto-create a project linking the
+   * two (with a mapping.json overlay).
+   */
+  sm?: { files: RawFile[]; fileName: string };
+}
 
 /**
  * Reserved raw key for the user-supplied cell-type CSV.
@@ -147,6 +172,15 @@ export function FileUpload({
     mappingResolverRef.current?.(mapping);
     mappingResolverRef.current = null;
   };
+
+  // A prepared server upload awaiting a title. Auto-derived names collide (every
+  // "transcripts.csv" would share one title), so the user confirms/renames here
+  // before the transfer starts.
+  const [pendingUpload, setPendingUpload] =
+    useState<PendingServerUpload | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  // Whether to also upload the detected single-molecule data (combined flow).
+  const [includeSm, setIncludeSm] = useState(true);
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -362,15 +396,6 @@ export function FileUpload({
       return;
     }
 
-    // Single-molecule alongside single-cell is a separate dataset with its own
-    // processing run. Detected and reported here; wiring the second run is the
-    // next step, so say so rather than dropping it silently.
-    if (kind === "single_cell" && classification.singleMolecule) {
-      toast(
-        `Found single-molecule data too (${classification.singleMolecule.files[0].key}). Uploading the single-cell dataset only for now.`,
-      );
-    }
-
     if (classification.ignored.length > 0) {
       const skippedBytes = classification.ignored.reduce(
         (sum, f) => sum + f.file.size,
@@ -405,23 +430,123 @@ export function FileUpload({
     //
     // v1 pipeline: chunk only. chunkSize 1 = one file per gene, so a gene
     // selection in the viewer fetches only that gene instead of a whole chunk.
-    startUpload({
+    const processingParams = {
       kind,
-      title,
-      files: rawFiles,
-      processingParams: {
-        kind,
-        stages: {
-          chunk: {
-            chunkSize: 1,
-            ...(annotationCsv && kind === "single_cell"
-              ? { mmcCsv: ANNOTATION_CSV_KEY }
-              : {}),
-          },
+      stages: {
+        chunk: {
+          chunkSize: 1,
+          ...(annotationCsv && kind === "single_cell"
+            ? { mmcCsv: ANNOTATION_CSV_KEY }
+            : {}),
         },
       },
-    });
+    };
 
+    // A single-cell folder that also contains single-molecule data (a
+    // transcripts file) offers a combined upload: a separate SM dataset + an
+    // auto-created project linking the two.
+    const sm =
+      kind === "single_cell" && classification.singleMolecule
+        ? {
+            files: classification.singleMolecule.files.map(({ key, file }) => ({
+              key,
+              file,
+              contentType: "application/octet-stream",
+            })),
+            fileName: classification.singleMolecule.files[0].key,
+          }
+        : undefined;
+
+    // Stage the upload and let the user confirm/rename the title before the
+    // transfer begins (see startPreparedUpload). Navigation to /explore happens
+    // on confirm, once the transfer is actually kicked off.
+    setPendingUpload({ kind, files: rawFiles, processingParams, sm });
+    setTitleDraft(title);
+    setIncludeSm(true);
+  };
+
+  // Best-effort: create a project grouping the SC + SM datasets from a combined
+  // upload. Runs once both uploads are initiated (their rows exist).
+  const createCombinedProject = async (
+    title: string,
+    scId: string,
+    smId: string,
+  ) => {
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!res.ok) return;
+      const project = await res.json();
+
+      await Promise.all(
+        [scId, smId].map((datasetId) =>
+          fetch(`/api/projects/${project.id}/datasets`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ datasetId }),
+          }),
+        ),
+      );
+    } catch {
+      // Non-fatal — the datasets still upload; only the auto-grouping is missed.
+    }
+  };
+
+  // Kick off the staged upload with the (possibly edited) title, then go to
+  // /explore where the top bar tracks byte + processing progress.
+  const startPreparedUpload = async () => {
+    if (!pendingUpload) return;
+    const pending = pendingUpload;
+    const base = titleDraft.trim() || "Untitled Dataset";
+
+    // Combined SC + SM upload: two separate datasets (each tracked as its own
+    // bar) + an auto-created project. The SC upload carries linkedSmDatasetId so
+    // the server writes a mapping.json (overlay) when it finishes processing.
+    if (pending.sm && includeSm) {
+      setPendingUpload(null);
+
+      // Start the SM upload; once it's initiated (id known), start the SC upload
+      // linked to it, and once the SC is initiated too, group both in a project.
+      void startUpload({
+        kind: "single_molecule",
+        title: `${base} (molecules)`,
+        files: pending.sm.files,
+        processingParams: {
+          kind: "single_molecule",
+          stages: { chunk: { chunkSize: 1 } },
+        },
+        onInitiated: (smId) => {
+          void startUpload({
+            kind: pending.kind,
+            title: `${base} (cells)`,
+            files: pending.files,
+            processingParams: {
+              ...pending.processingParams,
+              linkedSmDatasetId: smId,
+            },
+            onInitiated: (scId) => {
+              void createCombinedProject(base, scId, smId);
+            },
+          });
+        },
+      });
+      router.push("/explore");
+
+      return;
+    }
+
+    // Single dataset (single-cell only, or a single-molecule upload).
+    startUpload({
+      kind: pending.kind,
+      title: base,
+      files: pending.files,
+      processingParams: pending.processingParams,
+    });
+    setPendingUpload(null);
     router.push("/explore");
   };
 
@@ -871,6 +996,81 @@ export function FileUpload({
           }}
         />
       )}
+
+      {/* Name-your-dataset step for the server upload — pre-filled from the
+          file/folder name, editable so multiple same-named files don't collide. */}
+      <Modal
+        isOpen={pendingUpload !== null}
+        size="md"
+        onClose={() => setPendingUpload(null)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            <span>Name your dataset</span>
+            <span className="text-xs font-normal text-default-400">
+              {pendingUpload?.files.length ?? 0}{" "}
+              {(pendingUpload?.files.length ?? 0) === 1 ? "file" : "files"} ·{" "}
+              {pendingUpload?.kind === "single_molecule"
+                ? "single molecule"
+                : "single cell"}
+            </span>
+          </ModalHeader>
+          <ModalBody className="gap-4">
+            <Input
+              description={
+                pendingUpload?.sm && includeSm
+                  ? "Used for the project. Datasets become “… (cells)” and “… (molecules)”."
+                  : "You can reuse a name — this is just how it's labeled."
+              }
+              label={
+                pendingUpload?.sm && includeSm ? "Project name" : "Dataset name"
+              }
+              value={titleDraft}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && titleDraft.trim()) {
+                  startPreparedUpload();
+                }
+              }}
+              onValueChange={setTitleDraft}
+            />
+
+            {pendingUpload?.sm && (
+              <div className="rounded-xl border border-default-200 bg-default-100/50 p-3">
+                <Checkbox
+                  isSelected={includeSm}
+                  size="sm"
+                  onValueChange={setIncludeSm}
+                >
+                  <span className="text-sm">
+                    Also upload the single-molecule data
+                  </span>
+                </Checkbox>
+                <p className="mt-1 ml-7 text-xs text-default-500">
+                  We detected single-molecule data in{" "}
+                  <span className="font-medium text-default-600">
+                    {pendingUpload.sm.fileName}
+                  </span>
+                  . It&apos;ll upload as a separate dataset, and we&apos;ll
+                  group both into one project and overlay the molecules on the
+                  cells.
+                </p>
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={() => setPendingUpload(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="primary"
+              isDisabled={!titleDraft.trim()}
+              onPress={startPreparedUpload}
+            >
+              {pendingUpload?.sm && includeSm ? "Upload both" : "Start upload"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

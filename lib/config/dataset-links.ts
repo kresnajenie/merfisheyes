@@ -1,6 +1,15 @@
 export interface DatasetLinkConfig {
   linkColumn: string; // Cluster column to read (e.g., "batch")
-  links: Record<string, string>; // Column value → SM S3 base URL
+  links: Record<string, string>; // Column value → SM S3 base URL (source "s3") or SM dataset id (source "app")
+  /**
+   * How the `links` values should be loaded:
+   *   - "s3" (default): each value is a PUBLIC S3 base URL, loaded via
+   *     SingleMoleculeDataset.fromCustomS3(). This is the original behavior.
+   *   - "app": each value is an app dataset id (sm_…), loaded via
+   *     SingleMoleculeDataset.fromS3() using our own presigned API — no public
+   *     bucket required. Written for datasets uploaded through the app.
+   */
+  source?: "s3" | "app";
 }
 
 // Keyed by the dataset's customS3BaseUrl (from dataset.metadata.customS3BaseUrl)

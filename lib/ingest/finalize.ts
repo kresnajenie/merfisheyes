@@ -1,11 +1,8 @@
 import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
-import { listObjectKeys } from "@/lib/s3";
-import {
-  sendDatasetReadyEmail,
-  sendDuplicateDatasetEmail,
-} from "@/lib/ses";
+import { listObjectKeys, uploadBufferToS3 } from "@/lib/s3";
+import { sendDatasetReadyEmail, sendDuplicateDatasetEmail } from "@/lib/ses";
 
 /**
  * Mark a dataset COMPLETE and register the worker's output.
@@ -72,6 +69,7 @@ export async function finalizeCompletedDataset(
         data: {
           status: "FAILED",
           completedAt: new Date(),
+          faultCategory: "USER",
           errorMessage:
             `Duplicate of already-ingested dataset ${existing.id}` +
             (existing.title ? ` ("${existing.title}")` : "") +
@@ -96,10 +94,7 @@ export async function finalizeCompletedDataset(
           });
           emailed = true;
         } catch (e: any) {
-          console.error(
-            "Ingest finalize: duplicate email failed:",
-            e?.message,
-          );
+          console.error("Ingest finalize: duplicate email failed:", e?.message);
         }
       }
 
@@ -162,6 +157,35 @@ export async function finalizeCompletedDataset(
     },
     { timeout: 60000 },
   );
+
+  // If this SC dataset was uploaded alongside a single-molecule dataset (the
+  // combined SC+SM upload flow), write a mapping.json so the SC viewer overlays
+  // the molecules. Written post-processing so the worker's output can't clobber it.
+  const linkedSmId = (
+    dataset.processingParams as { linkedSmDatasetId?: unknown } | null
+  )?.linkedSmDatasetId;
+
+  if (typeof linkedSmId === "string" && linkedSmId) {
+    try {
+      const mapping = {
+        linkColumn: "__all__",
+        links: { __all__: linkedSmId },
+        source: "app",
+      };
+
+      await uploadBufferToS3(
+        `datasets/${datasetId}/mapping.json`,
+        Buffer.from(JSON.stringify(mapping)),
+        "application/json",
+      );
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(
+        "Ingest finalize: mapping.json write failed:",
+        (e as Error).message,
+      );
+    }
+  }
 
   // The canonical fingerprint replaces the raw_ placeholder. It is @unique, so
   // a collision means an identical dataset already exists — keep the
