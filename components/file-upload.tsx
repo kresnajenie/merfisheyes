@@ -503,12 +503,33 @@ export function FileUpload({
     const pending = pendingUpload;
     const base = titleDraft.trim() || "Untitled Dataset";
 
+    // A single-molecule file is being uploaded for server processing — either a
+    // standalone SM upload, or the SM half of a combined SC+SM upload. Confirm
+    // its columns first so the worker gets an explicit gene/x/y/z/cell-id
+    // mapping instead of auto-detecting.
+    const smFile =
+      pending.kind === "single_molecule"
+        ? pending.files[0]?.file
+        : pending.sm && includeSm
+          ? pending.sm.files[0]?.file
+          : undefined;
+
+    // Close the name dialog first so only the column modal is shown.
+    setPendingUpload(null);
+
+    let smMapping: MoleculeColumnMapping | undefined;
+
+    if (smFile) {
+      const mapping = await awaitColumnMapping(smFile);
+
+      if (!mapping) return; // user cancelled the column confirm — abort
+      smMapping = mapping;
+    }
+
     // Combined SC + SM upload: two separate datasets (each tracked as its own
     // bar) + an auto-created project. The SC upload carries linkedSmDatasetId so
     // the server writes a mapping.json (overlay) when it finishes processing.
     if (pending.sm && includeSm) {
-      setPendingUpload(null);
-
       // Start the SM upload; once it's initiated (id known), start the SC upload
       // linked to it, and once the SC is initiated too, group both in a project.
       void startUpload({
@@ -517,6 +538,7 @@ export function FileUpload({
         files: pending.sm.files,
         processingParams: {
           kind: "single_molecule",
+          ...(smMapping ? { columnMapping: smMapping } : {}),
           stages: { chunk: { chunkSize: 1 } },
         },
         onInitiated: (smId) => {
@@ -539,14 +561,15 @@ export function FileUpload({
       return;
     }
 
-    // Single dataset (single-cell only, or a single-molecule upload).
+    // Single dataset (single-cell only, or a standalone single-molecule upload).
     startUpload({
       kind: pending.kind,
       title: base,
       files: pending.files,
-      processingParams: pending.processingParams,
+      processingParams: smMapping
+        ? { ...pending.processingParams, columnMapping: smMapping }
+        : pending.processingParams,
     });
-    setPendingUpload(null);
     router.push("/explore");
   };
 

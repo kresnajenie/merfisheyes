@@ -38,11 +38,14 @@ export const MOLECULE_COLUMN_MAPPINGS: Record<
   },
 };
 
-// Cell-id values that mean "this molecule wasn't assigned to a cell". Different
-// platforms encode it differently: MERSCOPE uses numeric -1, Xenium uses the
-// STRING "UNASSIGNED", and various exports use 0 / "" / "None". The old code
-// only caught numeric -1, so Xenium's unassigned transcripts were silently
-// counted as assigned.
+// Cell-id values that mean "this molecule wasn't assigned to a cell". Each
+// platform encodes it differently:
+//   MERSCOPE (Vizgen)  → integer  -1
+//   Xenium   (10x)     → string   "UNASSIGNED"
+//   CosMx    (NanoString) → integer 0  (assigned cell_ID is >= 1, per FOV)
+// So any numeric <= 0 is unassigned (covers -1 and 0), plus NaN/blank and the
+// common string tokens. A non-token, non-numeric string (e.g. a Xenium cell id
+// like "aaabbbcc-1") is an ASSIGNED cell.
 const UNASSIGNED_TOKENS = new Set([
   "unassigned",
   "none",
@@ -50,13 +53,18 @@ const UNASSIGNED_TOKENS = new Set([
   "na",
   "null",
   "",
-  "-1",
 ]);
 
 /** Whether a cell-id value denotes an unassigned molecule. */
 export function isUnassignedCellId(value: unknown): boolean {
   if (value === null || value === undefined) return true;
-  if (typeof value === "number") return value === -1 || Number.isNaN(value);
+  if (typeof value === "number") return Number.isNaN(value) || value <= 0;
 
-  return UNASSIGNED_TOKENS.has(String(value).trim().toLowerCase());
+  const s = String(value).trim().toLowerCase();
+
+  if (UNASSIGNED_TOKENS.has(s)) return true;
+  // Numeric-looking string (e.g. CosMx "0", MERSCOPE "-1"): unassigned if <= 0.
+  const n = Number(s);
+
+  return !Number.isNaN(n) && n <= 0;
 }
