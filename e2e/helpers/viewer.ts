@@ -55,6 +55,19 @@ function viewerUrlGlob(ds: DatasetEntry): string {
 }
 
 /**
+ * Raw single-molecule uploads now show a "Confirm columns" step before parsing.
+ * The tiny fixture is a standard Xenium parquet, so the auto-detected mapping is
+ * valid — just confirm it. No-op for other formats.
+ */
+async function confirmSmColumns(page: Page, ds: DatasetEntry): Promise<void> {
+  if (ds.dataType !== "single_molecule") return;
+  const confirm = page.getByRole("button", { name: /Looks good/i });
+
+  await confirm.waitFor({ state: "visible", timeout: HOOK_TIMEOUT });
+  await confirm.click();
+}
+
+/**
  * Load a local dataset through the homepage upload entry, then wait for the
  * viewer to finish its initial render. Returns timing relative to the moment
  * the file was handed to the app (page monotonic clock).
@@ -73,6 +86,7 @@ export async function loadLocalDataset(
   const start = await page.evaluate(() => performance.now());
   await input.setInputFiles(absPath(ds)); // directory path for folder formats
 
+  await confirmSmColumns(page, ds);
   await page.waitForURL(viewerUrlGlob(ds), { timeout: HOOK_TIMEOUT });
   await waitForRender(page, ds);
 
@@ -288,6 +302,7 @@ export async function dragDropFile(page: Page, ds: DatasetEntry): Promise<number
     { sel: selector, data: b64, name: fileName },
   );
 
+  await confirmSmColumns(page, ds);
   await page.waitForURL(viewerUrlGlob(ds), { timeout: HOOK_TIMEOUT });
   await waitForRender(page, ds);
   const end = await page.evaluate(

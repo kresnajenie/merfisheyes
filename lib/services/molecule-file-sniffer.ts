@@ -42,9 +42,7 @@ async function readCsvHeader(file: File): Promise<string[]> {
 
   // Tab- or comma-separated; we don't try to parse quoted commas because
   // headers rarely have them.
-  const sep = firstLine.includes("\t") && !firstLine.includes(",")
-    ? "\t"
-    : ",";
+  const sep = firstLine.includes("\t") && !firstLine.includes(",") ? "\t" : ",";
 
   return firstLine.split(sep).map((s) => s.trim().replace(/^"|"$/g, ""));
 }
@@ -56,7 +54,7 @@ async function readCsvHeader(file: File): Promise<string[]> {
  * first schema whose pair is fully present. Falls back to "custom" so the
  * existing default mapping kicks in (and the user can adjust later).
  */
-function pickSchema(columnNames: string[]): MoleculeDatasetType {
+export function pickSchema(columnNames: string[]): MoleculeDatasetType {
   const cols = new Set(columnNames);
 
   for (const schema of ["xenium", "merscope"] as const) {
