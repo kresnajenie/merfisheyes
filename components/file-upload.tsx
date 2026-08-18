@@ -520,10 +520,20 @@ export function FileUpload({
     let smMapping: MoleculeColumnMapping | undefined;
 
     if (smFile) {
-      const mapping = await awaitColumnMapping(smFile);
+      try {
+        const mapping = await awaitColumnMapping(smFile);
 
-      if (!mapping) return; // user cancelled the column confirm — abort
-      smMapping = mapping;
+        if (!mapping) return; // user cancelled the column confirm — abort
+        smMapping = mapping;
+      } catch (err) {
+        // Reading the file's columns failed (unreadable parquet encoding, etc.).
+        // Don't strand the upload — fall back to server-side auto-detection and
+        // tell the user what happened instead of silently aborting.
+        console.error("[FileUpload] Column preview failed:", err);
+        toast.error(
+          `Couldn't read columns from ${smFile.name} — uploading with automatic column detection.`,
+        );
+      }
     }
 
     // Combined SC + SM upload: two separate datasets (each tracked as its own
@@ -1023,6 +1033,7 @@ export function FileUpload({
       {/* Name-your-dataset step for the server upload — pre-filled from the
           file/folder name, editable so multiple same-named files don't collide. */}
       <Modal
+        disableAnimation
         isOpen={pendingUpload !== null}
         size="md"
         onClose={() => setPendingUpload(null)}
