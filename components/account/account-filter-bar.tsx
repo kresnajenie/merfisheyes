@@ -26,6 +26,8 @@ const STATUS_LABELS: Record<string, string> = {
 interface AccountFilterBarProps {
   search: string;
   onSearchChange: (v: string) => void;
+  geneSearch: string;
+  onGeneSearchChange: (v: string) => void;
   type: string;
   onTypeChange: (v: string) => void;
   status: string;
@@ -47,6 +49,8 @@ interface AccountFilterBarProps {
 export function AccountFilterBar({
   search,
   onSearchChange,
+  geneSearch,
+  onGeneSearchChange,
   type,
   onTypeChange,
   status,
@@ -61,12 +65,20 @@ export function AccountFilterBar({
 }: AccountFilterBarProps) {
   return (
     <div className="mb-6 flex flex-col gap-3">
-      <Input
-        classNames={{ inputWrapper: "bg-default-100" }}
-        placeholder="Search your datasets…"
-        value={search}
-        onValueChange={onSearchChange}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Input
+          classNames={{ inputWrapper: "bg-default-100" }}
+          placeholder="Search your datasets…"
+          value={search}
+          onValueChange={onSearchChange}
+        />
+        <Input
+          classNames={{ inputWrapper: "bg-default-100" }}
+          placeholder="Search by gene (e.g. ntrk, bdnf)"
+          value={geneSearch}
+          onValueChange={onGeneSearchChange}
+        />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <FilterPill

@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { prisma } from "@/lib/prisma";
 import { listObjectKeys, uploadBufferToS3 } from "@/lib/s3";
 import { sendDatasetReadyEmail, sendDuplicateDatasetEmail } from "@/lib/ses";
+import { updateDatasetGenes } from "@/lib/datasets/read-genes";
 
 /**
  * Mark a dataset COMPLETE and register the worker's output.
@@ -206,6 +207,15 @@ export async function finalizeCompletedDataset(
       }
     }
   }
+
+  // Index the dataset's genes for gene search (best-effort — reads the
+  // processed output from S3; a failure never blocks the finalize).
+  void updateDatasetGenes(prisma, {
+    id: datasetId,
+    datasetType: dataset.datasetType,
+    formatVersion: dataset.formatVersion,
+    manifestJson: dataset.manifestJson,
+  });
 
   // Never fail a finalize because SES failed — the dataset is complete and
   // viewable either way.

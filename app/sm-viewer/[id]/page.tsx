@@ -12,7 +12,7 @@ import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
+import { applySMOpenState } from "@/lib/viewer/open-dataset";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
@@ -31,7 +31,6 @@ function SingleMoleculeViewerByIdContent() {
   const searchParams = useSearchParams();
   const { addDataset } = useSingleMoleculeStore();
   const smVizStore = useSingleMoleculeVisualizationStore();
-  const { addGene } = smVizStore;
   const {
     isSplitMode,
     rightPanelDatasetId,
@@ -128,7 +127,9 @@ function SingleMoleculeViewerByIdContent() {
   useEffect(() => {
     if (!dataset || viewCountedRef.current) return;
     viewCountedRef.current = true;
-    fetch(`/api/datasets/${datasetId}/view`, { method: "POST" }).catch(() => {});
+    fetch(`/api/datasets/${datasetId}/view`, { method: "POST" }).catch(
+      () => {},
+    );
   }, [dataset]);
 
   // Clear the shared registration when leaving the viewer.
@@ -182,35 +183,21 @@ function SingleMoleculeViewerByIdContent() {
     id: string,
     cfg: ViewerConfig | null,
   ) => {
-    // Owner camera preset first, so a shared-link URL state below still wins.
-    if (cfg) {
-      if (cfg.sceneRotation !== undefined) {
-        smVizStore.setSceneRotation(cfg.sceneRotation);
-      }
-      if (cfg.flipX !== undefined) smVizStore.setFlipX(cfg.flipX);
-      if (cfg.flipY !== undefined) smVizStore.setFlipY(cfg.flipY);
-      if (cfg.viewMode) smVizStore.setViewMode(cfg.viewMode);
-    }
+    // Shared open pipeline (reset → owner camera preset → owner/heuristic
+    // default genes when no URL state), then a shared-link URL state overlays
+    // on top for the fields it carries.
+    applySMOpenState({
+      dataset: smDataset,
+      config: cfg,
+      store: smVizStore,
+      panel: "left",
+    });
 
     const urlVizState = tryReadSMVizFromUrl("left");
 
     if (urlVizState) {
       console.log("Applying visualization state from URL");
       applySMVizState(urlVizState, smVizStore, smDataset);
-    } else {
-      // No URL state — use the owner's saved default genes if any exist in this
-      // dataset, otherwise fall back to the heuristic auto-select.
-      const ownerGenes = (cfg?.defaultGenes ?? []).filter((g) =>
-        smDataset.uniqueGenes.includes(g),
-      );
-      const genesToSelect =
-        ownerGenes.length > 0
-          ? ownerGenes
-          : pickDefaultGenes(smDataset.uniqueGenes);
-
-      genesToSelect.forEach((gene) => {
-        addGene(gene);
-      });
     }
   };
 

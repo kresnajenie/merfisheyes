@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Spinner } from "@heroui/react";
 
-import { ExplorePageClient } from "./explore-page-client";
+import { ExplorePageClient, PAGE_LIMIT } from "./explore-page-client";
 import { DatasetDetailPage } from "./dataset-detail-page";
 
 interface ExploreModalProps {
@@ -27,7 +27,6 @@ interface InitialData {
   items: CatalogDatasetItem[];
   total: number;
   featured: CatalogDatasetItem[];
-  bil: CatalogDatasetItem[];
   filters: ExploreFilters;
 }
 
@@ -72,7 +71,9 @@ export function ExploreModal({
       setLoading(true);
       setError(null);
       try {
-        const resAll = await fetch("/api/explore?limit=50");
+        const resAll = await fetch(
+          `/api/explore?limit=${PAGE_LIMIT}&include=meta`,
+        );
 
         if (!resAll.ok) throw new Error("Failed to load catalog");
         const all = await resAll.json();
@@ -82,7 +83,6 @@ export function ExploreModal({
           items: all.items ?? [],
           total: all.total ?? 0,
           featured: all.featured ?? [],
-          bil: all.bil ?? [],
           filters: all.filters ?? { species: [], tissues: [], platforms: [] },
         });
       } catch (e) {
@@ -124,6 +124,23 @@ export function ExploreModal({
   if (!isOpen) return null;
   if (typeof document === "undefined") return null;
 
+  // Detail views need the FULL row (list items are card-slim and omit the
+  // genes array): show the slim item immediately, then patch in the full
+  // payload when it arrives.
+  const openDetail = (dataset: CatalogDatasetItem) => {
+    setDetailDataset(dataset);
+    fetch(`/api/explore/${dataset.id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((full: CatalogDatasetItem | null) => {
+        if (!full) return;
+        // Only patch if the user is still looking at this dataset.
+        setDetailDataset((cur) => (cur?.id === full.id ? full : cur));
+      })
+      .catch(() => {
+        // Slim data is already on screen — losing the genes list is fine.
+      });
+  };
+
   // List view → switch to detail for multi-entry / BIL; load directly when
   // exactly one viewable entry exists.
   const handleCardClick = (dataset: CatalogDatasetItem) => {
@@ -133,7 +150,7 @@ export function ExploreModal({
     const isMulti = entries.length > 1 || !!dataset.bilCode;
 
     if (isMulti) {
-      setDetailDataset(dataset);
+      openDetail(dataset);
 
       return;
     }
@@ -145,7 +162,7 @@ export function ExploreModal({
     }
     // No viewable entries — fall back to opening detail (where the user can
     // at least see metadata + any external links).
-    setDetailDataset(dataset);
+    openDetail(dataset);
   };
 
   const handleDetailEntrySelect = (entry: CatalogDatasetEntry) => {
@@ -194,43 +211,42 @@ export function ExploreModal({
         </button>
 
         <div className="container mx-auto max-w-7xl px-6 py-8">
-        {loading && !data ? (
-          <div className="flex items-center justify-center py-24">
-            <Spinner size="lg" />
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center gap-3 py-24">
-            <p className="text-danger">{error}</p>
-            <Button
-              size="sm"
-              variant="bordered"
-              onPress={() => {
-                setData(null);
-                setError(null);
-              }}
-            >
-              Retry
-            </Button>
-          </div>
-        ) : data ? (
-          detailDataset ? (
-            <DatasetDetailPage
-              dataset={detailDataset}
-              onBack={() => setDetailDataset(null)}
-              onSelectEntry={handleDetailEntrySelect}
-            />
-          ) : (
-            <ExplorePageClient
-              disableUrlSync
-              initialBil={data.bil}
-              initialFeatured={data.featured}
-              initialFilters={data.filters}
-              initialItems={data.items}
-              initialTotal={data.total}
-              onCardClick={handleCardClick}
-            />
-          )
-        ) : null}
+          {loading && !data ? (
+            <div className="flex items-center justify-center py-24">
+              <Spinner size="lg" />
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center gap-3 py-24">
+              <p className="text-danger">{error}</p>
+              <Button
+                size="sm"
+                variant="bordered"
+                onPress={() => {
+                  setData(null);
+                  setError(null);
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : data ? (
+            detailDataset ? (
+              <DatasetDetailPage
+                dataset={detailDataset}
+                onBack={() => setDetailDataset(null)}
+                onSelectEntry={handleDetailEntrySelect}
+              />
+            ) : (
+              <ExplorePageClient
+                disableUrlSync
+                initialFeatured={data.featured}
+                initialFilters={data.filters}
+                initialItems={data.items}
+                initialTotal={data.total}
+                onCardClick={handleCardClick}
+              />
+            )
+          ) : null}
         </div>
       </div>
     </div>,

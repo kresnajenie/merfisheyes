@@ -4,6 +4,11 @@ import { Prisma, DatasetStatus } from "@prisma/client";
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { isStale, reconcileWithBatch } from "@/lib/ingest/reconcile";
+import {
+  findGeneMatchIds,
+  findMatchedGenes,
+  parseGeneTokens,
+} from "@/lib/explore/query";
 
 /**
  * List the signed-in user's own datasets for the "Your uploads" strip on
@@ -68,6 +73,7 @@ export async function GET(request: NextRequest) {
   const species = params.get("species") ?? "";
   const tissue = params.get("tissue") ?? "";
   const platform = params.get("platform") ?? "";
+  const genesParam = params.get("genes")?.trim() ?? "";
   const type = params.get("type") ?? ""; // single_cell | single_molecule
   const statusFilter = params.get("status") ?? "";
 
@@ -124,6 +130,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Gene search: same semantics as Explore — tokens split on commas or
+    // whitespace, each must substring-match some gene (AND). Ownership is
+    // enforced by the surrounding where clause; the raw query only produces
+    // candidate ids.
+    const geneTokens = parseGeneTokens(genesParam);
+
+    if (geneTokens.length > 0) {
+      const ids = await findGeneMatchIds(geneTokens, "datasets");
+
+      filterAnd.push({ id: { in: ids } });
+    }
+
     const where: Prisma.DatasetWhereInput = filterAnd.length
       ? { ...ownerScope, AND: filterAnd }
       : ownerScope;
@@ -171,6 +189,17 @@ export async function GET(request: NextRequest) {
     const submissionByDataset = new Map(
       submissions.map((s) => [s.sourceDatasetId, s]),
     );
+
+    // Which genes matched the active gene search, per dataset, for card chips.
+    const matchedByDataset =
+      geneTokens.length > 0
+        ? await findMatchedGenes(
+            datasets.map((d) => d.id),
+            geneTokens,
+            12,
+            "datasets",
+          )
+        : {};
 
     // Project memberships (the caller's own projects) for the card badge.
     const memberships = await prisma.projectDataset.findMany({
@@ -233,6 +262,7 @@ export async function GET(request: NextRequest) {
           externalLink: d.externalLink,
           publicationLink: d.publicationLink,
           metadata: d.metadata,
+          matchedGenes: matchedByDataset[d.id] ?? undefined,
           projectNames: projectNamesByDataset.get(d.id) ?? [],
           submission: sub
             ? {

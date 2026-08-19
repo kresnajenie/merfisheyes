@@ -37,6 +37,8 @@ export interface DatasetRow extends EditableMetadata {
   viewerUrl: string | null;
   projectNames: string[];
   submission: SubmissionStatus | null;
+  /** Genes matching the active gene search (set by /api/ingest/mine). */
+  matchedGenes?: string[];
 }
 
 export interface ProjectDatasetSummary {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { updateDatasetGenes } from "@/lib/datasets/read-genes";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -60,6 +61,14 @@ export async function POST(
         status: "COMPLETE",
         completedAt: new Date(),
       },
+    });
+
+    // Index the dataset's genes for gene search (best-effort — reads
+    // uniqueGenes from the stored manifest; a failure never blocks completion).
+    void updateDatasetGenes(prisma, {
+      id: datasetId,
+      datasetType: "single_molecule",
+      manifestJson: uploadSession.dataset?.manifestJson,
     });
 
     // Email notification is sent from the client side to avoid

@@ -15,12 +15,8 @@ import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
-import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import {
-  applyViewerConfig,
-  type ViewerConfig,
-} from "@/lib/utils/viewer-config";
-import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
+import { type ViewerConfig } from "@/lib/utils/viewer-config";
+import { applyCellOpenState } from "@/lib/viewer/open-dataset";
 import {
   useCellVizUrlSync,
   tryReadCellVizFromUrl,
@@ -54,13 +50,12 @@ function ViewerByIdContent() {
   const [viewerConfig, setViewerConfig] = useState<ViewerConfig | null>(null);
   const setViewerRegistration = useViewerRegistrationStore((s) => s.set);
   const resetViewerRegistration = useViewerRegistrationStore((s) => s.reset);
-  const defaultsAppliedRef = useRef(false);
   const viewCountedRef = useRef(false);
 
   const datasetId = params.id as string;
 
   // URL visualization state sync
-  const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+  useCellVizUrlSync(!!dataset, dataset, vizStore);
 
   // Read split params from URL on mount
   useEffect(() => {
@@ -159,7 +154,6 @@ function ViewerByIdContent() {
 
       const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
 
-      defaultsAppliedRef.current = false;
       viewCountedRef.current = false;
 
       const urlState = tryReadCellVizFromUrl("left");
@@ -210,6 +204,18 @@ function ViewerByIdContent() {
 
       console.log("StandardizedDataset created:", standardizedDataset);
 
+      // Shared open pipeline (reset → owner config incl. per-sample align →
+      // heuristic). Runs BEFORE setDataset so the URL sync hook overlays any
+      // v= state on top afterwards — same ordering as the split panels.
+      // Awaited so the loading screen only clears once the first frame can
+      // paint already-aligned coordinates.
+      setLoadingMessage("Applying alignment...");
+      await applyCellOpenState({
+        dataset: standardizedDataset,
+        config,
+        store: vizStore,
+      });
+
       setDataset(standardizedDataset);
       addDataset(standardizedDataset);
       console.log("Dataset added to datasetStore");
@@ -221,34 +227,6 @@ function ViewerByIdContent() {
       setIsLoading(false);
     }
   };
-
-  // Apply defaults when the dataset changes, unless a shared-link URL state
-  // already set the view. Precedence: URL state > owner-saved config > heuristic.
-  useEffect(() => {
-    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current)
-      return;
-    defaultsAppliedRef.current = true;
-
-    if (viewerConfig) {
-      applyViewerConfig(viewerConfig, vizStore, dataset);
-
-      // Per-sample align keys off the transform column's per-cell values, which
-      // are lazy-loaded on S3 datasets. applyViewerConfig only sets the column
-      // name, so fetch its data (if absent) and bump clusterVersion — the
-      // scene's transform effect then re-applies the saved sample transforms.
-      const tc = viewerConfig.transformColumn;
-
-      if (tc) {
-        loadClusterColumn(dataset, tc)
-          .then((fetched) => {
-            if (fetched) vizStore.incrementClusterVersion();
-          })
-          .catch(() => {});
-      }
-    } else {
-      vizStore.setSelectedColumn(selectBestClusterColumn(dataset));
-    }
-  }, [dataset, viewerConfig]);
 
   // Count one view per load (server dedups per session/day).
   useEffect(() => {
