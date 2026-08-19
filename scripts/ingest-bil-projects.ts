@@ -211,6 +211,15 @@ async function main() {
       attached++;
     }
 
+    // Link the curated Explore catalog row for this BIL item back to the
+    // project. Inert to existing behavior (every sourceProjectId consumer
+    // filters isCommunity: true) — it just records the association so the
+    // catalog card and the account project are connected at the data level.
+    await prisma.catalogDataset.updateMany({
+      where: { bilCode: item.bilCode, isCommunity: false },
+      data: { sourceProjectId: project.id },
+    });
+
     console.log(
       `  ✓ ${item.bilCode}  "${item.title.slice(0, 60)}" — ${datasetIds.length} dataset(s)`,
     );
