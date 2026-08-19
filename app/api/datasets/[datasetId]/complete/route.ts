@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { generateManifestUrl } from "@/lib/s3";
+import { updateDatasetGenes } from "@/lib/datasets/read-genes";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -111,6 +112,15 @@ export async function POST(
         completedAt: new Date(),
         manifestUrl: manifestUrl,
       },
+    });
+
+    // Index the dataset's genes for gene search (best-effort — reads the
+    // uploaded expr index from S3; a failure never blocks completion).
+    void updateDatasetGenes(prisma, {
+      id: updatedDataset.id,
+      datasetType: updatedDataset.datasetType,
+      formatVersion: updatedDataset.formatVersion,
+      manifestJson: updatedDataset.manifestJson,
     });
 
     // Get the base URL for the dataset

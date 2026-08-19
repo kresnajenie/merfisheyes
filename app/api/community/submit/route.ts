@@ -27,6 +27,7 @@ const datasetSelect = {
   metadata: true,
   numCells: true,
   numGenes: true,
+  genes: true,
   status: true,
   ownerId: true,
   adminOwned: true,
