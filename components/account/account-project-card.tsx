@@ -4,6 +4,7 @@ import type { ProjectRow } from "./types";
 import type { CatalogDatasetItem } from "@/components/explore/types";
 
 import { Button } from "@heroui/button";
+import { Chip } from "@heroui/chip";
 import {
   Dropdown,
   DropdownTrigger,
@@ -50,7 +51,10 @@ function toItem(p: ProjectRow): CatalogDatasetItem {
     entries: p.datasets.map((d, i) => ({
       id: d.id,
       label: d.title ?? "Dataset",
-      datasetType: d.datasetType ?? "single_cell",
+      // Legacy rows store raw formats ("h5ad", "merscope") here; anything
+      // not single_molecule renders as single cell.
+      datasetType:
+        d.datasetType === "single_molecule" ? "single_molecule" : "single_cell",
       s3BaseUrl: null,
       datasetId: d.id,
       thumbnailUrl: d.thumbnailUrl,
@@ -127,9 +131,22 @@ export function AccountProjectCard({
     </>
   );
 
+  // The owner overlay suppresses the card's built-in entry-count badge, so
+  // surface the dataset count on the header's bottom-left instead.
+  const countBadge = (
+    <Chip
+      className="bg-default-800/70 text-white backdrop-blur"
+      size="sm"
+      variant="flat"
+    >
+      {project.datasetCount} dataset{project.datasetCount === 1 ? "" : "s"}
+    </Chip>
+  );
+
   return (
     <ExploreDatasetCard
       dataset={toItem(project)}
+      headerBadges={countBadge}
       ownerOverlay={overlay}
       onCardClick={() => router.push(`/account/projects/${project.id}`)}
     />

@@ -37,6 +37,7 @@ export default async function ProjectPage({ params }: Props) {
               numGenes: true,
               ingestSource: true,
               s3BaseUrl: true,
+              genes: true,
             },
           },
         },
