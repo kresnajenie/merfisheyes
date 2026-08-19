@@ -155,6 +155,30 @@ function isXeniumExpression(key: string): boolean {
   );
 }
 
+/**
+ * Fallback for an EXPLICIT single-molecule upload whose file matches no
+ * transcripts-style name (e.g. "spots_set4.parquet"). The worker's
+ * find_single_molecule_input() accepts any lone .csv/.parquet under the raw
+ * dir regardless of its name — the keyword scoring only exists to pick one
+ * file out of many. So when the user already said "this is single-molecule
+ * data" and there is exactly one candidate, take it. Multiple unnamed
+ * candidates stay ambiguous (null) so we never guess which file to upload.
+ *
+ * Only for the single-molecule upload mode — never for the combined-upload
+ * detection inside single-cell folders, where a loose match would misread
+ * arbitrary CSVs as transcripts.
+ */
+export function fallbackSingleMoleculeFile(
+  files: File[],
+): { files: ClassifiedFile[] } | null {
+  const candidates = files
+    .map((file) => ({ key: datasetRelativeKey(file), file }))
+    .filter((e) => !isJunk(e.key))
+    .filter((e) => /\.(csv|parquet)$/i.test(baseName(e.key)));
+
+  return candidates.length === 1 ? { files: candidates } : null;
+}
+
 export function classifyFolder(files: File[]): FolderClassification {
   const entries: ClassifiedFile[] = files.map((file) => ({
     key: datasetRelativeKey(file),
