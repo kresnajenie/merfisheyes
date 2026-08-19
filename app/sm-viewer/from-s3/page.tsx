@@ -15,7 +15,7 @@ import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { type ViewerConfig } from "@/lib/utils/viewer-config";
-import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
+import { applySMOpenState } from "@/lib/viewer/open-dataset";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import {
@@ -31,7 +31,6 @@ function SingleMoleculeViewerFromS3Content() {
   const router = useRouter();
   const { addDataset } = useSingleMoleculeStore();
   const smVizStore = useSingleMoleculeVisualizationStore();
-  const { addGene } = smVizStore;
   const {
     isSplitMode,
     rightPanelDatasetId,
@@ -197,31 +196,21 @@ function SingleMoleculeViewerFromS3Content() {
       addDataset(smDataset);
       console.log("Dataset added to singleMoleculeStore");
 
-      // Apply the owner-saved camera preset (rotation/flips/2D-3D) first, so a
-      // shared-link URL state below still overrides where they overlap.
-      const cfg = reg?.viewerConfig;
+      // Shared open pipeline (reset → owner camera preset → owner/heuristic
+      // default genes when no URL state), then a shared-link URL state
+      // overlays on top for the fields it carries.
+      applySMOpenState({
+        dataset: smDataset,
+        config: reg?.viewerConfig ?? null,
+        store: smVizStore,
+        panel: "left",
+      });
 
-      if (cfg) {
-        if (cfg.sceneRotation !== undefined) {
-          smVizStore.setSceneRotation(cfg.sceneRotation);
-        }
-        if (cfg.flipX !== undefined) smVizStore.setFlipX(cfg.flipX);
-        if (cfg.flipY !== undefined) smVizStore.setFlipY(cfg.flipY);
-        if (cfg.viewMode) smVizStore.setViewMode(cfg.viewMode);
-      }
-
-      // Check if URL has viz state
       const urlVizState = tryReadSMVizFromUrl("left");
 
       if (urlVizState) {
         console.log("Applying visualization state from URL");
         applySMVizState(urlVizState, smVizStore, smDataset);
-      } else {
-        const genesToSelect = pickDefaultGenes(smDataset.uniqueGenes);
-
-        genesToSelect.forEach((gene) => {
-          addGene(gene);
-        });
       }
 
       setIsLoading(false);

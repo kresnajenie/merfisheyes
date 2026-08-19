@@ -83,6 +83,8 @@ interface SingleMoleculeVisualizationState {
   setFlipX: (flip: boolean) => void;
   setFlipY: (flip: boolean) => void;
   clearGenes: () => void;
+  /** Fresh-open state for a newly opened dataset (lib/viewer/open-dataset.ts). */
+  reset: () => void;
 }
 
 export const useSingleMoleculeVisualizationStore =
@@ -340,7 +342,10 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updated);
         }
 
-        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+        return {
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
       }),
 
     setGeneShowUnassigned: (gene: string, show: boolean) =>
@@ -357,7 +362,10 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updated);
         }
 
-        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+        return {
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
       }),
 
     setGeneAssignedShape: (gene: string, shape: MoleculeShape) =>
@@ -374,7 +382,10 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updated);
         }
 
-        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+        return {
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
       }),
 
     setGeneUnassignedShape: (gene: string, shape: MoleculeShape) =>
@@ -391,7 +402,10 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updated);
         }
 
-        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+        return {
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
       }),
 
     setGeneUnassignedColor: (gene: string, color: string) =>
@@ -402,13 +416,20 @@ export const useSingleMoleculeVisualizationStore =
           newSelectedGenes.get(gene) || newGeneDataCache.get(gene);
 
         if (geneViz) {
-          const updated = { ...geneViz, unassignedColor: color, colorSynced: false };
+          const updated = {
+            ...geneViz,
+            unassignedColor: color,
+            colorSynced: false,
+          };
 
           if (newSelectedGenes.has(gene)) newSelectedGenes.set(gene, updated);
           newGeneDataCache.set(gene, updated);
         }
 
-        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+        return {
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
       }),
 
     setGeneUnassignedLocalScale: (gene: string, scale: number) =>
@@ -425,7 +446,10 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updated);
         }
 
-        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+        return {
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
       }),
 
     setGeneColorSynced: (gene: string, synced: boolean) =>
@@ -444,7 +468,10 @@ export const useSingleMoleculeVisualizationStore =
           newGeneDataCache.set(gene, updated);
         }
 
-        return { selectedGenes: newSelectedGenes, geneDataCache: newGeneDataCache };
+        return {
+          selectedGenes: newSelectedGenes,
+          geneDataCache: newGeneDataCache,
+        };
       }),
 
     setSceneRotation: (degrees: number) => set({ sceneRotation: degrees }),
@@ -459,4 +486,25 @@ export const useSingleMoleculeVisualizationStore =
         geneColorSlots: new Map(),
       }),
 
+    // Back to a fresh-open state — called when a new dataset opens into this
+    // store (see lib/viewer/open-dataset.ts) so nothing bleeds across.
+    reset: () =>
+      set({
+        selectedGenes: new Map(),
+        selectedGenesLegend: new Set(),
+        geneDataCache: new Map(),
+        geneColorSlots: new Map(),
+        globalScale: 1.0,
+        viewMode: "2D",
+        showAssigned: true,
+        showUnassigned: true,
+        smLayerVisible: true,
+        sceneRotation: 0,
+        flipX: false,
+        flipY: false,
+        exportBoxEnabled: false,
+        exportBoxWidthMm: 1,
+        exportBoxHeightMm: 1,
+        exportBoxCenterPx: null,
+      }),
   }));
