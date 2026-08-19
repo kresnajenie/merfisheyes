@@ -46,6 +46,9 @@ export const CARD_SELECT = {
   isBil: true,
   isInternal: true,
   isCommunity: true,
+  // Cards need to know a community row is project-backed: those always open
+  // the detail page, even with a single entry.
+  sourceProjectId: true,
   sortOrder: true,
   numCells: true,
   numGenes: true,

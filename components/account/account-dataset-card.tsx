@@ -50,7 +50,12 @@ function toItem(d: DatasetRow): CatalogDatasetItem {
       {
         id: d.id,
         label: d.title ?? "Dataset",
-        datasetType: d.datasetType ?? "single_cell",
+        // Legacy rows store raw formats ("h5ad", "merscope") here; anything
+        // not single_molecule renders as single cell (badge + viewer route).
+        datasetType:
+          d.datasetType === "single_molecule"
+            ? "single_molecule"
+            : "single_cell",
         s3BaseUrl: null,
         datasetId: d.id,
         thumbnailUrl: d.thumbnailUrl,

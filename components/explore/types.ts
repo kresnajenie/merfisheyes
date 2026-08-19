@@ -37,6 +37,10 @@ export interface CatalogDatasetItem {
   isBil: boolean;
   isInternal: boolean;
   isCommunity: boolean;
+  /** Set when a community row was submitted from a Project — such rows open
+   *  the detail page even with a single entry. Optional: not every payload
+   *  (e.g. account-card adapters) carries it. */
+  sourceProjectId?: string | null;
   sortOrder: number;
   numCells: number | null;
   numGenes: number | null;

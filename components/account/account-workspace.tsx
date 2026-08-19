@@ -328,12 +328,63 @@ export function AccountWorkspace() {
     }
   };
 
-  // ---- Project membership ----
+  // ---- Project membership (optimistic) ----
+  // Patch the local caches (both project lists + the dataset's badge names)
+  // so the UI flips instantly; the API call settles in the background and a
+  // failure applies the inverse patch. No refetches.
+  const applyMembership = useCallback(
+    (projectId: string, datasetId: string, member: boolean) => {
+      const ds = datasets.find((d) => d.id === datasetId);
+      const patchProject = (p: ProjectRow): ProjectRow => {
+        if (p.id !== projectId) return p;
+        const next = member
+          ? p.datasets.some((d) => d.id === datasetId)
+            ? p.datasets
+            : [
+                ...p.datasets,
+                {
+                  id: datasetId,
+                  title: ds?.title ?? null,
+                  datasetType: ds?.datasetType ?? null,
+                  thumbnailUrl: ds?.thumbnailUrl ?? null,
+                  status: ds?.status ?? "COMPLETE",
+                },
+              ]
+          : p.datasets.filter((d) => d.id !== datasetId);
+
+        return { ...p, datasets: next, datasetCount: next.length };
+      };
+
+      setProjects((ps) => ps.map(patchProject));
+      setAllProjects((ps) => ps.map(patchProject));
+
+      const projectTitle = allProjects.find((p) => p.id === projectId)?.title;
+
+      if (projectTitle) {
+        setDatasets((rows) =>
+          rows.map((d) => {
+            if (d.id !== datasetId) return d;
+            const names = member
+              ? d.projectNames.includes(projectTitle)
+                ? d.projectNames
+                : [...d.projectNames, projectTitle]
+              : d.projectNames.filter((n) => n !== projectTitle);
+
+            return { ...d, projectNames: names };
+          }),
+        );
+      }
+    },
+    [datasets, allProjects],
+  );
+
   const toggleMembership = async (
     projectId: string,
     datasetId: string,
     member: boolean,
   ): Promise<boolean> => {
+    applyMembership(projectId, datasetId, member);
+
     const res = await fetch(
       member
         ? `/api/projects/${projectId}/datasets`
@@ -343,15 +394,21 @@ export function AccountWorkspace() {
         headers: { "Content-Type": "application/json" },
         body: member ? JSON.stringify({ datasetId }) : undefined,
       },
-    );
+    ).catch(() => null);
 
-    if (!res.ok) {
+    if (!res?.ok) {
+      applyMembership(projectId, datasetId, !member);
       toast.error("Couldn't update project.");
 
       return false;
     }
-    // Refresh so membership badges + counts reflect the change.
-    await Promise.all([loadProjects(), loadDatasets(), loadAllProjects()]);
+
+    // After ADDING a dataset, jump straight to the project page (the API has
+    // settled, so the server-rendered page includes the new member).
+    if (member) {
+      setAddToProjectFor(null);
+      router.push(`/account/projects/${projectId}`);
+    }
 
     return true;
   };
@@ -378,7 +435,10 @@ export function AccountWorkspace() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ datasetId }),
     });
-    await Promise.all([loadProjects(), loadDatasets(), loadAllProjects()]);
+    // Go straight to the new project's page — no list refetches needed, we're
+    // leaving this view.
+    setAddToProjectFor(null);
+    router.push(`/account/projects/${project.id}`);
 
     return true;
   };

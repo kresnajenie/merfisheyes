@@ -23,8 +23,10 @@ function getCardHref(
   if (dataset.bilCode) {
     return { href: `/explore/bil/${dataset.bilCode}` };
   }
-  // Community "projects" (multiple datasets) open a detail page, like BIL.
-  if (dataset.isCommunity && entries.length > 1) {
+  // Community projects open a detail page, like BIL — always when the row is
+  // project-backed (sourceProjectId), even with a single dataset, and as a
+  // fallback for multi-entry rows from payloads without that field.
+  if (dataset.isCommunity && (dataset.sourceProjectId || entries.length > 1)) {
     return { href: `/explore/${dataset.id}` };
   }
   if (entries.length === 0) {
@@ -242,6 +244,14 @@ export function ExploreDatasetCard({
       return;
     }
 
+    // Project-backed community rows open their detail page, even with a
+    // single entry (mirrors getCardHref). onSelect hosts keep their own flow.
+    if (dataset.isCommunity && dataset.sourceProjectId && !onSelect) {
+      router.push(`/explore/${dataset.id}`);
+
+      return;
+    }
+
     // Non-BIL datasets: keep existing behavior
     // Zero entries: open external link or do nothing
     if (entries.length === 0) {
@@ -316,7 +326,7 @@ export function ExploreDatasetCard({
   const cardElement = (
     <Card
       isBlurred
-      className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer h-[400px]"
+      className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer h-[400px] w-full"
       isPressable={!linkified && (!!hasSomeEntry || !!onCardClick)}
       shadow="sm"
       onPress={linkified ? undefined : handlePress}
@@ -325,8 +335,11 @@ export function ExploreDatasetCard({
         {/* Header — thumbnail, or a gradient placeholder when there's none.
             The gradient always renders underneath; a broken thumbnail hides
             itself (otherwise the browser paints its alt text across the
-            header). */}
-        <div className="relative h-36 w-full shrink-0 bg-default-200/30">
+            header). FIXED tall height (~half the card) so every card's text
+            starts at the same y — rows stay aligned regardless of how much
+            metadata each card has. Sized so a full card (3-line title, byline,
+            2-line description, chips, stats) keeps its stats visible. */}
+        <div className="relative h-48 w-full shrink-0 bg-default-200/30">
           <div className="h-full w-full bg-gradient-to-br from-default-100 to-default-200/40" />
           {dataset.thumbnailUrl && (
             <img
@@ -442,7 +455,7 @@ export function ExploreDatasetCard({
             height and any overflow crops whole rows at the bottom instead. */}
         <div className="p-4 flex flex-col gap-2 min-h-0 flex-1 overflow-hidden">
           <h3
-            className="font-semibold text-foreground text-sm line-clamp-2 shrink-0"
+            className="font-semibold text-foreground text-sm line-clamp-3 min-w-0 [overflow-wrap:anywhere] shrink-0"
             title={dataset.title}
           >
             {dataset.title}
@@ -472,7 +485,7 @@ export function ExploreDatasetCard({
           {/* Description */}
           {dataset.description && (
             <p
-              className="text-xs text-default-500 line-clamp-2 shrink-0"
+              className="text-xs text-default-500 line-clamp-2 min-w-0 [overflow-wrap:anywhere] shrink-0"
               title={dataset.description}
             >
               {dataset.description}
@@ -552,8 +565,11 @@ export function ExploreDatasetCard({
               );
             })()}
 
-          {/* Platform & stats — pinned to the bottom of the fixed-height card */}
-          <div className="flex flex-col gap-0.5 text-xs text-default-500 mt-auto shrink-0">
+          {/* Platform & stats. Flows right after the metadata above (no
+              mt-auto bottom-pinning) so sparse cards — title + stats only —
+              don't open a blank gap in the middle; unused space collects at
+              the bottom of the fixed-height card instead. */}
+          <div className="flex flex-col gap-0.5 text-xs text-default-500 shrink-0">
             {dataset.platform && <span>Platform: {dataset.platform}</span>}
             <div className="flex gap-3">
               {dataset.numCells != null && (

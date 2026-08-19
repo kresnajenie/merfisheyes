@@ -64,8 +64,10 @@ export async function POST(
     });
 
     // Index the dataset's genes for gene search (best-effort — reads
-    // uniqueGenes from the stored manifest; a failure never blocks completion).
-    void updateDatasetGenes(prisma, {
+    // uniqueGenes from the stored manifest; it never throws, so awaiting
+    // can't fail completion). Must be awaited: a fire-and-forget promise is
+    // killed when the serverless route returns, leaving the row without genes.
+    await updateDatasetGenes(prisma, {
       id: datasetId,
       datasetType: "single_molecule",
       manifestJson: uploadSession.dataset?.manifestJson,

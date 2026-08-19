@@ -209,8 +209,10 @@ export async function finalizeCompletedDataset(
   }
 
   // Index the dataset's genes for gene search (best-effort — reads the
-  // processed output from S3; a failure never blocks the finalize).
-  void updateDatasetGenes(prisma, {
+  // processed output from S3; it never throws, so awaiting can't fail the
+  // finalize). Must be awaited: a fire-and-forget promise is killed when the
+  // serverless route returns, leaving the row without genes.
+  await updateDatasetGenes(prisma, {
     id: datasetId,
     datasetType: dataset.datasetType,
     formatVersion: dataset.formatVersion,
