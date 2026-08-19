@@ -14,14 +14,14 @@ import { SingleMoleculeThreeScene } from "./single-molecule-three-scene";
 import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 
-import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
+import { useCellVizUrlSync, useSMVizUrlSync } from "@/lib/hooks/useUrlVizSync";
 import {
-  tryReadCellVizFromUrl,
-  tryReadSMVizFromUrl,
-  useCellVizUrlSync,
-  useSMVizUrlSync,
-} from "@/lib/hooks/useUrlVizSync";
-import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+  applyCellOpenState,
+  applySMOpenState,
+  fetchViewerConfig,
+} from "@/lib/viewer/open-dataset";
+import { tryReadCellVizFromUrl } from "@/lib/hooks/useUrlVizSync";
+import { normalizeS3Url } from "@/lib/utils/viewer-config";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import {
@@ -30,7 +30,6 @@ import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
-
 
 interface SplitPanelViewerProps {
   datasetId: string | null;
@@ -75,8 +74,19 @@ function CellViewer({
   useEffect(() => {
     if (!sourceKey) return;
     let cancelled = false;
+    // Registered URLs are stored normalized; a picker/share link may carry a
+    // trailing slash that would otherwise miss the config lookup.
+    const cleanS3Url = s3Url ? normalizeS3Url(s3Url) : null;
 
     async function resolveDataset() {
+      // Owner-saved viewer defaults (rotation, per-sample align, priority
+      // column) — fetched up front so the priority column can steer loading.
+      const cfg = await fetchViewerConfig({
+        s3Url: cleanS3Url,
+        datasetId,
+        kind: "cell",
+      });
+
       // If no S3 URL, check store first
       if (!s3Url && datasetId) {
         const storeDataset = useDatasetStore.getState().datasets.get(datasetId);
@@ -86,13 +96,14 @@ function CellViewer({
 
           setDataset(ds);
           addDataset(ds);
-
-          const urlState = tryReadCellVizFromUrl("right");
-
-          if (!urlState) {
-            vizStore.setSelectedColumn(selectBestClusterColumn(ds));
-          }
-
+          // Shared open pipeline (reset → config → heuristic); awaited so the
+          // loader only clears once per-sample transforms are in place. The
+          // URL sync hook overlays any rv= state after datasetReady flips.
+          await applyCellOpenState({
+            dataset: ds,
+            config: cfg,
+            store: vizStore,
+          });
           setDatasetReady(true);
           setIsLoading(false);
 
@@ -110,15 +121,15 @@ function CellViewer({
           "@/lib/StandardizedDataset"
         );
 
-        // Read URL column hint so the loader uses it as priority
+        // Priority column precedence: URL state > owner config > loader default
         const urlColumnHint =
-          tryReadCellVizFromUrl("right")?.c || undefined;
+          tryReadCellVizFromUrl("right")?.c || cfg?.priorityColumn || undefined;
 
         let ds: StandardizedDataset;
 
-        if (s3Url) {
+        if (cleanS3Url) {
           ds = await StandardizedDataset.fromCustomS3(
-            s3Url,
+            cleanS3Url,
             (p, msg) => {
               if (!cancelled) {
                 setProgress(p);
@@ -143,13 +154,15 @@ function CellViewer({
         if (!cancelled) {
           setDataset(ds);
           addDataset(ds);
-
-          const urlState = tryReadCellVizFromUrl("right");
-
-          if (!urlState) {
-            vizStore.setSelectedColumn(selectBestClusterColumn(ds));
-          }
-
+          // Shared open pipeline (reset → config → heuristic); awaited so the
+          // loader only clears once per-sample transforms are in place. The
+          // URL sync hook overlays any rv= state after datasetReady flips.
+          setMessage("Applying alignment...");
+          await applyCellOpenState({
+            dataset: ds,
+            config: cfg,
+            store: vizStore,
+          });
           setDatasetReady(true);
           setIsLoading(false);
         }
@@ -233,23 +246,18 @@ function SingleMoleculeViewer({
 
   const sourceKey = s3Url || datasetId;
 
-  const autoSelectGenes = (ds: SingleMoleculeDataset) => {
-    const urlState = tryReadSMVizFromUrl("right");
-
-    if (!urlState) {
-      const genesToSelect = pickDefaultGenes(ds.uniqueGenes);
-
-      genesToSelect.forEach((gene) => {
-        smVizStore.addGene(gene);
-      });
-    }
-  };
-
   useEffect(() => {
     if (!sourceKey) return;
     let cancelled = false;
+    const cleanS3Url = s3Url ? normalizeS3Url(s3Url) : null;
 
     async function resolveDataset() {
+      const cfg = await fetchViewerConfig({
+        s3Url: cleanS3Url,
+        datasetId,
+        kind: "sm",
+      });
+
       // If no S3 URL, check store first
       if (!s3Url && datasetId) {
         const storeDataset = useSingleMoleculeStore
@@ -261,7 +269,12 @@ function SingleMoleculeViewer({
 
           addDataset(ds);
           setSmDataset(ds);
-          autoSelectGenes(ds);
+          applySMOpenState({
+            dataset: ds,
+            config: cfg,
+            store: smVizStore,
+            panel: "right",
+          });
           setDatasetReady(true);
           setIsLoading(false);
 
@@ -281,13 +294,16 @@ function SingleMoleculeViewer({
 
         let ds;
 
-        if (s3Url) {
-          ds = await SingleMoleculeDataset.fromCustomS3(s3Url, (p, msg) => {
-            if (!cancelled) {
-              setProgress(p);
-              setMessage(msg);
-            }
-          });
+        if (cleanS3Url) {
+          ds = await SingleMoleculeDataset.fromCustomS3(
+            cleanS3Url,
+            (p, msg) => {
+              if (!cancelled) {
+                setProgress(p);
+                setMessage(msg);
+              }
+            },
+          );
         } else {
           ds = await SingleMoleculeDataset.fromS3(datasetId!, (p, msg) => {
             if (!cancelled) {
@@ -300,7 +316,12 @@ function SingleMoleculeViewer({
         if (!cancelled) {
           addDataset(ds);
           setSmDataset(ds);
-          autoSelectGenes(ds);
+          applySMOpenState({
+            dataset: ds,
+            config: cfg,
+            store: smVizStore,
+            panel: "right",
+          });
           setDatasetReady(true);
           setIsLoading(false);
         }

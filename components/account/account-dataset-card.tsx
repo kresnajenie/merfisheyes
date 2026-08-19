@@ -20,6 +20,8 @@ import { ExploreDatasetCard } from "@/components/explore/explore-dataset-card";
 interface AccountDatasetCardProps {
   dataset: DatasetRow;
   projectNames: string[];
+  /** Active gene search text — makes the card show its matched-gene chips. */
+  geneHighlight?: string;
   onEdit: (dataset: DatasetRow) => void;
   onSubmit: (dataset: DatasetRow) => void;
   onWithdraw: (dataset: DatasetRow) => void;
@@ -38,7 +40,7 @@ function toItem(d: DatasetRow): CatalogDatasetItem {
     tissue: d.tissue,
     platform: d.platform,
     tags: d.tags ?? [],
-    genes: [],
+    matchedGenes: d.matchedGenes,
     thumbnailUrl: d.thumbnailUrl,
     bilCode: null,
     metadata: (d.metadata ?? {}) as Record<string, unknown>,
@@ -69,6 +71,7 @@ function toItem(d: DatasetRow): CatalogDatasetItem {
 export function AccountDatasetCard({
   dataset,
   projectNames,
+  geneHighlight,
   onEdit,
   onSubmit,
   onWithdraw,
@@ -150,6 +153,7 @@ export function AccountDatasetCard({
   return (
     <ExploreDatasetCard
       dataset={toItem(dataset)}
+      geneHighlight={geneHighlight}
       headerBadges={projectBadges}
       ownerOverlay={overlay}
       onCardClick={() => router.push(`/account/datasets/${dataset.id}`)}

@@ -179,7 +179,8 @@ export function SplitPanelPicker() {
     if (featuredLoaded) return;
     (async () => {
       try {
-        const res = await fetch("/api/explore?limit=1");
+        // limit=1 because only `featured` (an include=meta extra) is wanted.
+        const res = await fetch("/api/explore?limit=1&include=meta");
 
         if (!res.ok) return;
         const data = await res.json();

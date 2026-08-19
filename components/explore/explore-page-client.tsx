@@ -14,7 +14,10 @@ import { FeaturedDatasets } from "./featured-datasets";
 import { ExploreSearchBar } from "./explore-search-bar";
 import { ExploreDatasetGrid } from "./explore-dataset-grid";
 
-const PAGE_LIMIT = 20;
+// One page of the explore grid. Exported so other entry points that seed
+// ExplorePageClient (e.g. the in-viewer explore modal) fetch exactly one
+// page — a mismatched limit renders more cards than the counter claims.
+export const PAGE_LIMIT = 20;
 
 // Category filter values (empty string = "All"). Replaces the old tab bar.
 const CATEGORY_OPTIONS = ["featured", "bil", "community"];
@@ -23,7 +26,6 @@ interface ExplorePageClientProps {
   initialItems: CatalogDatasetItem[];
   initialTotal: number;
   initialFeatured: CatalogDatasetItem[];
-  initialBil: CatalogDatasetItem[];
   initialFilters: ExploreFilters;
   /**
    * When provided, intercepts dataset card clicks instead of letting the
@@ -91,6 +93,17 @@ export function ExplorePageClient({
   const [tissue, setTissue] = useState(sp.get("tissue") || "");
   const [platform, setPlatform] = useState(sp.get("platform") || "");
   const [geneSearch, setGeneSearch] = useState(sp.get("gene") || "");
+  // Debounced mirror of `geneSearch` — same contract as `debouncedSearch`:
+  // the input stays live, but URL sync + fetches wait out the typing burst.
+  const [debouncedGeneSearch, setDebouncedGeneSearch] = useState(
+    sp.get("gene") || "",
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedGeneSearch(geneSearch), 250);
+
+    return () => clearTimeout(t);
+  }, [geneSearch]);
   const [geneChips, setGeneChips] = useState<string[]>(
     sp.get("geneExact")?.split(",").filter(Boolean) || [],
   );
@@ -132,7 +145,7 @@ export function ExplorePageClient({
       species ||
       tissue ||
       platform ||
-      geneSearch ||
+      debouncedGeneSearch ||
       geneChips.length > 0,
   );
 
@@ -157,7 +170,7 @@ export function ExplorePageClient({
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
     if (platform) params.set("platform", platform);
-    if (geneSearch) params.set("gene", geneSearch);
+    if (debouncedGeneSearch) params.set("gene", debouncedGeneSearch);
     if (geneChips.length > 0) params.set("geneExact", geneChips.join(","));
     if (page > 1) params.set("page", String(page));
 
@@ -170,14 +183,24 @@ export function ExplorePageClient({
     species,
     tissue,
     platform,
-    geneSearch,
+    debouncedGeneSearch,
     geneChips,
     page,
     router,
     disableUrlSync,
   ]);
 
+  // In-flight list request — aborted when a newer one starts, so a slow stale
+  // response can never overwrite fresher results (type "nt" → "ntrk" fast and
+  // the "nt" query may finish last).
+  const fetchAbortRef = useRef<AbortController | null>(null);
+
   const fetchData = useCallback(async () => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+
+    fetchAbortRef.current = controller;
+
     setLoading(true);
     const params = new URLSearchParams();
 
@@ -185,25 +208,31 @@ export function ExplorePageClient({
     if (species) params.set("species", species);
     if (tissue) params.set("tissue", tissue);
     if (platform) params.set("platform", platform);
-    if (geneSearch) params.set("genes", geneSearch);
+    if (debouncedGeneSearch) params.set("genes", debouncedGeneSearch);
     if (geneChips.length > 0) params.set("genesExact", geneChips.join(","));
     params.set("page", String(page));
     params.set("limit", String(PAGE_LIMIT));
     if (category) params.set("tab", category);
 
-    const res = await fetch(`/api/explore?${params}`);
-    const data: ExploreApiResponse = await res.json();
+    try {
+      const res = await fetch(`/api/explore?${params}`, {
+        signal: controller.signal,
+      });
+      const data: ExploreApiResponse = await res.json();
 
-    setItems(data.items);
-    setTotal(data.total);
-    setFilters(data.filters);
-    setLoading(false);
+      setItems(data.items);
+      setTotal(data.total);
+      setLoading(false);
+    } catch (err) {
+      // Superseded by a newer request — leave state to that request.
+      if ((err as Error).name !== "AbortError") setLoading(false);
+    }
   }, [
     debouncedSearch,
     species,
     tissue,
     platform,
-    geneSearch,
+    debouncedGeneSearch,
     geneChips,
     page,
     category,
@@ -214,13 +243,13 @@ export function ExplorePageClient({
   const hydrateAll = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/explore?limit=${PAGE_LIMIT}`);
+      const res = await fetch(`/api/explore?limit=${PAGE_LIMIT}&include=meta`);
       const data: ExploreApiResponse = await res.json();
 
       setItems(data.items);
       setTotal(data.total);
       setFeaturedItems(data.featured ?? []);
-      setFilters(data.filters);
+      if (data.filters) setFilters(data.filters);
     } finally {
       setLoading(false);
     }
@@ -252,7 +281,7 @@ export function ExplorePageClient({
       species,
       tissue,
       platform,
-      geneSearch,
+      debouncedGeneSearch,
       geneChips,
       category,
     ]);
@@ -271,7 +300,7 @@ export function ExplorePageClient({
     species,
     tissue,
     platform,
-    geneSearch,
+    debouncedGeneSearch,
     geneChips,
     category,
   ]);

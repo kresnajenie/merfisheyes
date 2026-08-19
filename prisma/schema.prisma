@@ -246,6 +246,13 @@ model Dataset {
   title          String?         @db.VarChar(500)
   numCells       Int             @map("num_cells")
   numGenes       Int             @map("num_genes")
+  // Gene symbols in this dataset, for gene search over a user's uploads (and,
+  // via community submission, over Explore). Filled server-side when
+  // processing completes — from the S3 expr index (single cell) or the
+  // manifest (single molecule) — and backfillable for older rows via
+  // scripts/backfill-dataset-genes.ts. Searched through the same trgm index
+  // pattern as CatalogDataset.genes.
+  genes          String[]        @default([])
   datasetType    String?         @map("dataset_type") @db.VarChar(50)
   formatVersion  String          @default("chunked") @map("format_version") @db.VarChar(20)
   manifestJson   Json?           @map("manifest_json")

@@ -27,6 +27,9 @@ export interface SubmitDataset {
   metadata: unknown;
   numCells: number | null;
   numGenes: number | null;
+  /** Gene symbols (filled at processing time) — carried into the catalog row
+   * so the submission is gene-searchable on Explore. */
+  genes?: string[];
 }
 
 export interface SubmitProject {
@@ -117,6 +120,14 @@ export async function upsertCommunitySubmission({
     metadata: (src.metadata ?? {}) as object,
     numCells: source.kind === "dataset" ? source.dataset.numCells : null,
     numGenes: source.kind === "dataset" ? source.dataset.numGenes : null,
+    // Union of member genes for a project; makes the catalog row
+    // gene-searchable on Explore.
+    genes:
+      source.kind === "dataset"
+        ? (source.dataset.genes ?? [])
+        : Array.from(
+            new Set(source.project.datasets.flatMap((d) => d.genes ?? [])),
+          ),
   };
 
   const entries: EntryInput[] =

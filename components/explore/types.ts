@@ -18,7 +18,14 @@ export interface CatalogDatasetItem {
   tissue: string | null;
   platform: string | null;
   tags: string[];
-  genes: string[];
+  /**
+   * Full gene list. Only present on single-dataset payloads (the detail
+   * page); list/card payloads omit it for size and carry `matchedGenes`
+   * instead.
+   */
+  genes?: string[];
+  /** Genes that matched the active gene search, capped, for card chips. */
+  matchedGenes?: string[];
   thumbnailUrl: string | null;
   bilCode: string | null;
   metadata: Record<string, unknown> | null;
@@ -46,7 +53,7 @@ export interface ExploreApiResponse {
   total: number;
   page: number;
   limit: number;
-  featured: CatalogDatasetItem[];
-  bil: CatalogDatasetItem[];
-  filters: ExploreFilters;
+  /** Present only when the request asked for `include=meta`. */
+  featured?: CatalogDatasetItem[];
+  filters?: ExploreFilters;
 }

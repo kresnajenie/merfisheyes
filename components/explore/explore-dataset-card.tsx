@@ -316,22 +316,27 @@ export function ExploreDatasetCard({
   const cardElement = (
     <Card
       isBlurred
-      className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer h-[320px]"
+      className="border-none bg-background/60 dark:bg-default-100/50 hover:bg-default-200/50 hover:scale-[1.02] transition-all duration-200 cursor-pointer h-[400px]"
       isPressable={!linkified && (!!hasSomeEntry || !!onCardClick)}
       shadow="sm"
       onPress={linkified ? undefined : handlePress}
     >
       <CardBody className="p-0 overflow-hidden flex h-full flex-col">
-        {/* Header — thumbnail, or a gradient placeholder when there's none. */}
-        <div className="relative h-40 w-full shrink-0 bg-default-200/30">
-          {dataset.thumbnailUrl ? (
+        {/* Header — thumbnail, or a gradient placeholder when there's none.
+            The gradient always renders underneath; a broken thumbnail hides
+            itself (otherwise the browser paints its alt text across the
+            header). */}
+        <div className="relative h-36 w-full shrink-0 bg-default-200/30">
+          <div className="h-full w-full bg-gradient-to-br from-default-100 to-default-200/40" />
+          {dataset.thumbnailUrl && (
             <img
               alt={dataset.title}
-              className="w-full h-full object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
               src={dataset.thumbnailUrl}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
             />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-default-100 to-default-200/40" />
           )}
           {/* Type badge overlay */}
           <div className="absolute top-2 left-2 flex gap-1">
@@ -431,35 +436,52 @@ export function ExploreDatasetCard({
           )}
         </div>
 
-        {/* Content */}
+        {/* Content. Every row that shows text is shrink-0: the column has
+            overflow-hidden, and without it flexbox compresses the rows to fit,
+            slicing lines mid-glyph. With shrink-0 each row keeps its full
+            height and any overflow crops whole rows at the bottom instead. */}
         <div className="p-4 flex flex-col gap-2 min-h-0 flex-1 overflow-hidden">
           <h3
-            className="font-semibold text-foreground text-sm line-clamp-2"
+            className="font-semibold text-foreground text-sm line-clamp-2 shrink-0"
             title={dataset.title}
           >
             {dataset.title}
           </h3>
 
-          {/* Investigator */}
-          {dataset.metadata &&
-          (dataset.metadata as Record<string, unknown>).investigator ? (
-            <p className="text-xs text-default-400 truncate">
-              {String(
-                (dataset.metadata as Record<string, unknown>).investigator,
-              )}
-            </p>
-          ) : null}
+          {/* Byline: investigator · age · publication year — the metadata a
+              first-time browser needs to judge a dataset at a glance. */}
+          {(() => {
+            const meta = (dataset.metadata ?? {}) as Record<string, unknown>;
+            const parts = [meta.investigator, meta.age, meta.publicationYear]
+              .filter(Boolean)
+              .map(String);
+
+            if (parts.length === 0) return null;
+            const byline = parts.join(" · ");
+
+            return (
+              <p
+                className="text-xs text-default-400 truncate shrink-0"
+                title={byline}
+              >
+                {byline}
+              </p>
+            );
+          })()}
 
           {/* Description */}
           {dataset.description && (
-            <p className="text-xs text-default-500 line-clamp-2">
+            <p
+              className="text-xs text-default-500 line-clamp-2 shrink-0"
+              title={dataset.description}
+            >
               {dataset.description}
             </p>
           )}
 
           {/* Metadata row */}
           {(dataset.species || dataset.tissue) && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 shrink-0">
               {dataset.species && (
                 <Chip
                   className="max-w-full"
@@ -485,8 +507,53 @@ export function ExploreDatasetCard({
             </div>
           )}
 
+          {/* Matching genes — the API computes these per card when a gene
+              search is active (list payloads no longer carry the full genes
+              array). Falls back to client-side filtering when `genes` is
+              present (e.g. the detail page's full payload). Rendered above the
+              bottom-pinned stats so it survives cropping before tags do. */}
+          {geneHighlight &&
+            (dataset.matchedGenes || dataset.genes) &&
+            (() => {
+              const matches =
+                dataset.matchedGenes ??
+                (() => {
+                  const terms = geneHighlight
+                    .toLowerCase()
+                    .split(/[,\s]+/)
+                    .filter(Boolean);
+
+                  return (dataset.genes ?? []).filter((g) =>
+                    terms.some((t) => g.toLowerCase().includes(t)),
+                  );
+                })();
+
+              if (matches.length === 0) return null;
+
+              return (
+                <div className="flex flex-wrap gap-1 shrink-0">
+                  {matches.slice(0, 8).map((gene) => (
+                    <Chip
+                      key={gene}
+                      className="text-[10px]"
+                      color="secondary"
+                      size="sm"
+                      variant="flat"
+                    >
+                      {gene}
+                    </Chip>
+                  ))}
+                  {matches.length > 8 && (
+                    <span className="text-[10px] text-default-400 self-center">
+                      +{matches.length - 8} more
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
+
           {/* Platform & stats — pinned to the bottom of the fixed-height card */}
-          <div className="flex flex-col gap-0.5 text-xs text-default-500 mt-auto">
+          <div className="flex flex-col gap-0.5 text-xs text-default-500 mt-auto shrink-0">
             {dataset.platform && <span>Platform: {dataset.platform}</span>}
             <div className="flex gap-3">
               {dataset.numCells != null && (
@@ -514,39 +581,6 @@ export function ExploreDatasetCard({
               ))}
             </div>
           )}
-
-          {/* Matching genes */}
-          {geneHighlight &&
-            dataset.genes &&
-            (() => {
-              const term = geneHighlight.toLowerCase();
-              const matches = dataset.genes.filter((g) =>
-                g.toLowerCase().includes(term),
-              );
-
-              if (matches.length === 0) return null;
-
-              return (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {matches.slice(0, 8).map((gene) => (
-                    <Chip
-                      key={gene}
-                      className="text-[10px]"
-                      color="secondary"
-                      size="sm"
-                      variant="flat"
-                    >
-                      {gene}
-                    </Chip>
-                  ))}
-                  {matches.length > 8 && (
-                    <span className="text-[10px] text-default-400 self-center">
-                      +{matches.length - 8} more
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
         </div>
       </CardBody>
     </Card>

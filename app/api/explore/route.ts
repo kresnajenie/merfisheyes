@@ -3,13 +3,23 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import {
+  CARD_SELECT,
+  findGeneMatchIds,
+  findMatchedGenes,
+  parseGeneTokens,
+} from "@/lib/explore/query";
 
-const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
-
-// GET /api/explore — public endpoint for browsing published datasets
+// GET /api/explore — public endpoint for browsing published datasets.
+//
+// Response shape: { items, total, page, limit } — items are card-slim rows
+// (no genes array; see lib/explore/query.ts). Pass `include=meta` to also get
+// { featured, filters }; that payload changes rarely, so consumers fetch it
+// once (first load / modal open), not on every keystroke.
 export async function GET(req: NextRequest) {
   const session = await auth();
-  const isAdmin = session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
+  const isAdmin =
+    session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
 
   const url = new URL(req.url);
   const search = url.searchParams.get("search")?.trim() ?? "";
@@ -20,8 +30,12 @@ export async function GET(req: NextRequest) {
   const genesExactParam = url.searchParams.get("genesExact")?.trim() ?? "";
   const datasetType = url.searchParams.get("datasetType") ?? "";
   const tab = url.searchParams.get("tab") ?? "";
+  const includeMeta = url.searchParams.get("include") === "meta";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1"));
-  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") ?? "20")));
+  const limit = Math.min(
+    100,
+    Math.max(1, Number(url.searchParams.get("limit") ?? "20")),
+  );
   const skip = (page - 1) * limit;
 
   // Category filter (was tabs): "all" | "featured" | "bil" | "community" |
@@ -81,12 +95,14 @@ export async function GET(req: NextRequest) {
     // tokens AND'd together. Lets "mouse brain" match a row where one field
     // contains "mouse" and another contains "brain".
     const tokens = search.split(/\s+/).filter(Boolean).slice(0, 10);
+
     if (tokens.length > 0) {
       const escapeIlike = (s: string) => s.replace(/[\\%_]/g, (m) => `\\${m}`);
       const args = tokens.map((t) => `%${escapeIlike(t)}%`);
       const perTokenSql = tokens
         .map((_, i) => {
           const p = `$${i + 1}`;
+
           return `(
             title ILIKE ${p} ESCAPE '\\' OR
             description ILIKE ${p} ESCAPE '\\' OR
@@ -100,58 +116,101 @@ export async function GET(req: NextRequest) {
         `SELECT id FROM catalog_datasets WHERE ${perTokenSql}`,
         ...args,
       );
+
       conditions.push({ id: { in: matchingIds.map((r) => r.id) } });
     }
   }
-  if (species) conditions.push({ species: { equals: species, mode: "insensitive" } });
-  if (tissue) conditions.push({ tissue: { equals: tissue, mode: "insensitive" } });
-  if (platform) conditions.push({ platform: { equals: platform, mode: "insensitive" } });
+  if (species)
+    conditions.push({ species: { equals: species, mode: "insensitive" } });
+  if (tissue)
+    conditions.push({ tissue: { equals: tissue, mode: "insensitive" } });
+  if (platform)
+    conditions.push({ platform: { equals: platform, mode: "insensitive" } });
   if (datasetType) conditions.push({ entries: { some: { datasetType } } });
 
-  // Gene search: case-insensitive substring match (ILIKE %term%) — live as-you-type.
-  // Matches against the genes joined into one string so the pg_trgm GIN index on
-  // catalog_genes_text(genes) is used (equivalent to "some gene contains term"
-  // for single-token gene symbols, which never contain spaces).
-  if (genesParam) {
-    const term = genesParam.trim().replace(/\s+/g, "");
-    if (term) {
-      const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
-        `SELECT id FROM catalog_datasets WHERE catalog_genes_text(genes) ILIKE $1`,
-        `%${term}%`,
-      );
-      const ids = matchingIds.map((r) => r.id);
-      conditions.push({ id: { in: ids } });
-    }
+  // Gene search: live as-you-type, case-insensitive substring per token.
+  // "ntrk, bdnf" (or "ntrk bdnf") = datasets whose gene list matches BOTH
+  // "ntrk" and "bdnf" somewhere. Each token's ILIKE hits the pg_trgm GIN
+  // index on catalog_genes_text(genes).
+  const geneTokens = parseGeneTokens(genesParam);
+
+  if (geneTokens.length > 0) {
+    const ids = await findGeneMatchIds(geneTokens);
+
+    conditions.push({ id: { in: ids } });
   }
 
   // Gene exact match: case-insensitive, each chip must match a gene exactly
   if (genesExactParam) {
-    const geneList = genesExactParam.split(",").map((g) => g.trim()).filter(Boolean);
+    const geneList = genesExactParam
+      .split(",")
+      .map((g) => g.trim())
+      .filter(Boolean);
+
     if (geneList.length > 0) {
       const matchingIds = await prisma.$queryRawUnsafe<{ id: string }[]>(
         `SELECT id FROM catalog_datasets WHERE ${geneList
-          .map((_, i) => `EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $${i + 1})`)
+          .map(
+            (_, i) =>
+              `EXISTS (SELECT 1 FROM unnest(genes) g WHERE g ILIKE $${i + 1})`,
+          )
           .join(" AND ")}`,
         ...geneList,
       );
       const ids = matchingIds.map((r) => r.id);
+
       conditions.push({ id: { in: ids } });
     }
   }
 
   const where: Prisma.CatalogDatasetWhereInput = { AND: conditions };
 
-  // Base filter for bil: curated only, exclude internal for non-admins.
-  const hasEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
-  const publicBase: Prisma.CatalogDatasetWhereInput = isAdmin
-    ? { isPublished: true, isCommunity: false, ...hasEntry }
-    : { isPublished: true, isCommunity: false, isInternal: false, ...hasEntry };
+  const [items, total] = await Promise.all([
+    prisma.catalogDataset.findMany({
+      where,
+      select: CARD_SELECT,
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      skip,
+      take: limit,
+    }),
+    prisma.catalogDataset.count({ where }),
+  ]);
+
+  // Which genes actually matched, per card, for the current page only. The
+  // exact chips are included so their hits show up too.
+  const highlightTokens = genesExactParam
+    ? [
+        ...geneTokens,
+        ...genesExactParam
+          .split(",")
+          .map((g) => g.trim())
+          .filter(Boolean),
+      ]
+    : geneTokens;
+  const matchedByItem =
+    highlightTokens.length > 0
+      ? await findMatchedGenes(
+          items.map((i) => i.id),
+          highlightTokens,
+        )
+      : {};
+  const itemsOut = items.map((i) =>
+    highlightTokens.length > 0
+      ? { ...i, matchedGenes: matchedByItem[i.id] ?? [] }
+      : i,
+  );
+
+  if (!includeMeta) {
+    return NextResponse.json({ items: itemsOut, total, page, limit });
+  }
 
   // Featured carousel: curated PLUS approved community submissions (a community
   // dataset can be flagged featured). Viewable by s3BaseUrl or datasetId.
   const hasEntryAny = {
     entries: {
-      some: { OR: [{ s3BaseUrl: { not: null } }, { datasetId: { not: null } }] },
+      some: {
+        OR: [{ s3BaseUrl: { not: null } }, { datasetId: { not: null } }],
+      },
     },
   };
   const communityOr: Prisma.CatalogDatasetWhereInput = {
@@ -164,31 +223,23 @@ export async function GET(req: NextRequest) {
     ? { isPublished: true, ...communityOr, ...hasEntryAny }
     : { isPublished: true, isInternal: false, ...communityOr, ...hasEntryAny };
 
-  // Fetch results, featured separately
-  const [items, total, featured, bil, filters] = await Promise.all([
-    prisma.catalogDataset.findMany({
-      where,
-      include: includeEntries,
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-      skip,
-      take: limit,
-    }),
-    prisma.catalogDataset.count({ where }),
+  const [featured, filters] = await Promise.all([
     prisma.catalogDataset.findMany({
       where: { ...featuredBase, isFeatured: true },
-      include: includeEntries,
+      select: CARD_SELECT,
       orderBy: { sortOrder: "asc" },
     }),
-    prisma.catalogDataset.findMany({
-      where: { ...publicBase, isBil: true },
-      include: includeEntries,
-      orderBy: { sortOrder: "asc" },
-    }),
-    // Get distinct filter values
     getDistinctFilters(isAdmin),
   ]);
 
-  return NextResponse.json({ items, total, page, limit, featured, bil, filters });
+  return NextResponse.json({
+    items: itemsOut,
+    total,
+    page,
+    limit,
+    featured,
+    filters,
+  });
 }
 
 async function getDistinctFilters(isAdmin: boolean) {

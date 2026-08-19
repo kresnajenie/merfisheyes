@@ -46,6 +46,18 @@ export function AccountWorkspace() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Gene search — debounced like the text search, same contract as Explore.
+  const [geneSearch, setGeneSearch] = useState(searchParams.get("gene") ?? "");
+  const [debouncedGeneSearch, setDebouncedGeneSearch] = useState(
+    searchParams.get("gene") ?? "",
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedGeneSearch(geneSearch), 250);
+
+    return () => clearTimeout(t);
+  }, [geneSearch]);
+
   const [type, setType] = useState(searchParams.get("type") ?? "");
   const [status, setStatus] = useState(searchParams.get("status") ?? "");
   const [species, setSpecies] = useState(searchParams.get("species") ?? "");
@@ -74,6 +86,7 @@ export function AccountWorkspace() {
   const filterKey = JSON.stringify([
     view,
     debouncedSearch,
+    debouncedGeneSearch,
     type,
     status,
     species,
@@ -106,6 +119,7 @@ export function AccountWorkspace() {
 
     if (view !== "datasets") params.set("view", view);
     if (debouncedSearch) params.set("q", debouncedSearch);
+    if (debouncedGeneSearch) params.set("gene", debouncedGeneSearch);
     if (type) params.set("type", type);
     if (status) params.set("status", status);
     if (species) params.set("species", species);
@@ -119,6 +133,7 @@ export function AccountWorkspace() {
   }, [
     view,
     debouncedSearch,
+    debouncedGeneSearch,
     type,
     status,
     species,
@@ -135,6 +150,7 @@ export function AccountWorkspace() {
     params.set("page", String(page));
     params.set("limit", String(PAGE_LIMIT));
     if (debouncedSearch) params.set("search", debouncedSearch);
+    if (debouncedGeneSearch) params.set("genes", debouncedGeneSearch);
     if (type) params.set("type", type);
     if (status) params.set("status", status);
     if (species) params.set("species", species);
@@ -152,7 +168,16 @@ export function AccountWorkspace() {
       setDatasetsTotal(j.total ?? 0);
       setFacets(j.filters ?? EMPTY_FACETS);
     }
-  }, [page, debouncedSearch, type, status, species, tissue, platform]);
+  }, [
+    page,
+    debouncedSearch,
+    debouncedGeneSearch,
+    type,
+    status,
+    species,
+    tissue,
+    platform,
+  ]);
 
   const loadProjects = useCallback(async () => {
     const params = new URLSearchParams();
@@ -411,12 +436,14 @@ export function AccountWorkspace() {
           <div className="mt-2">
             <AccountFilterBar
               facets={facets}
+              geneSearch={geneSearch}
               platform={platform}
               search={search}
               species={species}
               status={status}
               tissue={tissue}
               type={type}
+              onGeneSearchChange={setGeneSearch}
               onPlatformChange={setPlatform}
               onSearchChange={setSearch}
               onSpeciesChange={setSpecies}
@@ -444,6 +471,7 @@ export function AccountWorkspace() {
                     <AccountDatasetCard
                       key={d.id}
                       dataset={d}
+                      geneHighlight={debouncedGeneSearch || undefined}
                       projectNames={d.projectNames ?? []}
                       onAddToProject={setAddToProjectFor}
                       onEdit={(data) =>

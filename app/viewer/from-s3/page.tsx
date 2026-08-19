@@ -18,12 +18,8 @@ import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
-import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import {
-  applyViewerConfig,
-  type ViewerConfig,
-} from "@/lib/utils/viewer-config";
-import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
+import { type ViewerConfig } from "@/lib/utils/viewer-config";
+import { applyCellOpenState } from "@/lib/viewer/open-dataset";
 import {
   useCellVizUrlSync,
   useSMOverlayUrlSync,
@@ -62,13 +58,12 @@ function ViewerFromS3Content() {
   } | null>(null);
   const setViewerRegistration = useViewerRegistrationStore((s) => s.set);
   const resetViewerRegistration = useViewerRegistrationStore((s) => s.reset);
-  const defaultsAppliedRef = useRef(false);
   const viewCountedRef = useRef(false);
 
   const s3Url = searchParams.get("url");
 
   // URL visualization state sync (SC viz writes to v=)
-  const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+  useCellVizUrlSync(!!dataset, dataset, vizStore);
 
   // SM overlay URL state sync — uses a dedicated ov= slot so it doesn't
   // collide with the SC viz. The SM dataset is loaded asynchronously by
@@ -200,7 +195,6 @@ function ViewerFromS3Content() {
       setError(null);
       setLoadingProgress(0);
       setLoadingMessage("Initializing...");
-      defaultsAppliedRef.current = false;
       viewCountedRef.current = false;
 
       console.log("Loading dataset from custom S3:", baseUrl);
@@ -272,6 +266,18 @@ function ViewerFromS3Content() {
         standardizedDataset,
       );
 
+      // Shared open pipeline (reset → owner config incl. per-sample align →
+      // heuristic). Runs BEFORE setDataset so the URL sync hook overlays any
+      // v= state on top afterwards — same ordering as the split panels.
+      // Awaited so the loading screen only clears once the first frame can
+      // paint already-aligned coordinates.
+      setLoadingMessage("Applying alignment...");
+      await applyCellOpenState({
+        dataset: standardizedDataset,
+        config: reg?.viewerConfig ?? null,
+        store: vizStore,
+      });
+
       // Store dataset in both local state and global store
       setDataset(standardizedDataset);
       addDataset(standardizedDataset);
@@ -288,34 +294,6 @@ function ViewerFromS3Content() {
       setIsLoading(false);
     }
   };
-
-  // Apply defaults when the dataset changes, unless a shared-link URL state
-  // already set the view. Precedence: URL state > owner-saved config > heuristic.
-  useEffect(() => {
-    if (!dataset || hasUrlStateRef.current || defaultsAppliedRef.current)
-      return;
-    defaultsAppliedRef.current = true;
-
-    if (registration?.viewerConfig) {
-      applyViewerConfig(registration.viewerConfig, vizStore, dataset);
-
-      // Per-sample align keys off the transform column's per-cell values, which
-      // are lazy-loaded on S3 datasets. applyViewerConfig only sets the column
-      // name, so fetch its data (if absent) and bump clusterVersion — the
-      // scene's transform effect then re-applies the saved sample transforms.
-      const tc = registration.viewerConfig.transformColumn;
-
-      if (tc) {
-        loadClusterColumn(dataset, tc)
-          .then((fetched) => {
-            if (fetched) vizStore.incrementClusterVersion();
-          })
-          .catch(() => {});
-      }
-    } else {
-      vizStore.setSelectedColumn(selectBestClusterColumn(dataset));
-    }
-  }, [dataset, registration]);
 
   // Count one view per load for registered datasets (server dedups per
   // session/day; the ref guards React strict-mode double-invoke).
