@@ -55,6 +55,7 @@ interface EntryInput {
   datasetType: string;
   s3BaseUrl: string | null;
   datasetId: string | null;
+  thumbnailUrl: string | null;
   sortOrder: number;
 }
 
@@ -63,13 +64,7 @@ interface EntryInput {
  * resolves a dataset's URL: S3-registered rows load from their base URL, all
  * others load by id.
  */
-export function entryForDataset(d: SubmitDataset): {
-  label: string;
-  datasetType: string;
-  s3BaseUrl: string | null;
-  datasetId: string | null;
-  sortOrder: number;
-} {
+export function entryForDataset(d: SubmitDataset): EntryInput {
   const isS3Registered =
     d.ingestSource === "s3_registered" && Boolean(d.s3BaseUrl);
 
@@ -78,6 +73,10 @@ export function entryForDataset(d: SubmitDataset): {
     datasetType: d.datasetType || "single_cell",
     s3BaseUrl: isS3Registered ? d.s3BaseUrl!.replace(/\/+$/, "") : null,
     datasetId: isS3Registered ? null : d.id,
+    // The Explore detail page renders per-entry thumbnails when present —
+    // carry each member dataset's own thumbnail (the catalog row's
+    // thumbnailUrl only covers the grid card).
+    thumbnailUrl: d.thumbnailUrl ?? null,
     sortOrder: 0,
   };
 }

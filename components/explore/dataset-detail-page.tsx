@@ -57,6 +57,19 @@ function getEntryHref(entry: CatalogDatasetEntry): string {
   return "#";
 }
 
+/**
+ * Thumbnail for an entry. App datasets resolve LIVE through the thumbnail
+ * proxy — `/api/datasets/{id}/thumbnail` always serves the dataset's current
+ * image — so an owner changing their thumbnail is reflected here without
+ * re-submitting. The entry's stored thumbnailUrl remains the source for
+ * BIL/S3 entries (static images, no datasetId) and as a fallback.
+ */
+function entryThumbnailSrc(entry: CatalogDatasetEntry): string | null {
+  if (entry.datasetId) return `/api/datasets/${entry.datasetId}/thumbnail`;
+
+  return entry.thumbnailUrl;
+}
+
 function EntryCard({
   entry,
   color,
@@ -70,16 +83,22 @@ function EntryCard({
 }) {
   const s = COLOR_STYLES[color];
   const className = `group rounded-xl border ${s.border} ${s.bg} overflow-hidden transition-all block w-full text-left`;
+  const thumbSrc = entryThumbnailSrc(entry);
   const body = (
     <>
-      {entry.thumbnailUrl ? (
+      {thumbSrc ? (
         <div
           className={`relative w-full ${large ? "aspect-[4/3]" : "aspect-[16/10]"} bg-default-100`}
         >
           <img
             alt={entry.label}
             className="w-full h-full object-cover"
-            src={entry.thumbnailUrl}
+            src={thumbSrc}
+            onError={(e) => {
+              // Dataset has no thumbnail (proxy 404s) — collapse to the
+              // accent strip instead of a broken-image icon.
+              e.currentTarget.parentElement!.style.display = "none";
+            }}
           />
           <div
             className={`absolute top-2 left-2 w-2 h-2 rounded-full ${s.accent}`}
@@ -180,7 +199,9 @@ export function DatasetDetailPage({
       {/* Header */}
       <div className="space-y-2">
         {headerActions && (
-          <div className="flex flex-wrap justify-end gap-2">{headerActions}</div>
+          <div className="flex flex-wrap justify-end gap-2">
+            {headerActions}
+          </div>
         )}
         <div className="flex items-start gap-2 flex-wrap">
           {dataset.bilCode && (
