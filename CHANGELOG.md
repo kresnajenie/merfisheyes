@@ -10,6 +10,46 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.2.0] - 2026-08-19
+
+Explore overhaul: the catalog is fast to search, gene search actually works
+(and covers uploads), and datasets open identically everywhere.
+
+### Added
+
+- **Multi-gene search** on Explore: comma/space-separated terms are AND-matched
+  with fuzzy per-term matching; cards show which genes matched; Enter creates
+  one exact chip per term.
+- **Gene search over uploaded datasets**: new `Dataset.genes` column filled
+  automatically when processing completes (all three upload paths), a gene
+  search box on "Your datasets", and gene copy-through on community
+  submission. Backfill script for pre-existing rows
+  (`scripts/backfill-dataset-genes.ts` — must be run once against production).
+- **BIL → Projects organizer** (`scripts/ingest-bil-projects.ts`): groups the
+  auto-registered BIL datasets into properly titled Projects and renames the
+  "combined_output"-style rows (must be run once against production).
+
+### Changed
+
+- **Explore API is card-slim**: list payloads dropped from ~700 KB to
+  ~17–41 KB (gene arrays never leave the database; featured/filters fetched
+  once, not per keystroke). Search inputs are debounced with stale-response
+  cancellation.
+- **Dataset cards**: no more clipped titles/descriptions (fixed flexbox
+  slicing), taller layout with investigator · age · publication-year byline,
+  tooltips for full text, gradient fallback for broken thumbnails.
+
+### Fixed
+
+- **Split screen loads datasets like the full viewer**: one shared
+  open-dataset pipeline (reset → owner config → URL-state overlay) for all
+  viewer pages and both split panels — per-sample alignment, rotation, and
+  saved colors now apply in the right panel, stores reset between datasets,
+  and the loading screen clears only after coordinates are aligned (no more
+  plot-then-jump). Same dataset in both panels renders identically.
+- In-viewer catalog modal fetched 50 items under a "Showing 1–20" counter;
+  now fetches exactly one page.
+
 ## [0.1.0] - 2026-08-18
 
 First tracked release — a baseline snapshot of the production platform. Earlier
@@ -38,5 +78,6 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kresnajenie/merfisheyes/releases/tag/v0.1.0
