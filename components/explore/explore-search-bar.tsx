@@ -72,18 +72,27 @@ export function ExploreSearchBar({
         <Input
           className="flex-1 sm:max-w-xs"
           classNames={{ inputWrapper: "bg-default-100" }}
-          placeholder="Search by gene (Enter for exact)"
+          placeholder="Genes: ntrk, bdnf (Enter = exact)"
           value={geneSearch}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              const gene = geneSearch.trim();
+              // Each comma/space-separated term becomes its own exact chip
+              // ("ntrk2, bdnf" ⏎ → [Ntrk2] [Bdnf]) — chips are AND'd.
+              const terms = geneSearch
+                .split(/[,\s]+/)
+                .map((t) => t.trim())
+                .filter(Boolean);
+              const fresh = terms.filter(
+                (t, i) =>
+                  terms.findIndex(
+                    (x) => x.toLowerCase() === t.toLowerCase(),
+                  ) === i &&
+                  !geneChips.some((g) => g.toLowerCase() === t.toLowerCase()),
+              );
 
-              if (
-                gene &&
-                !geneChips.some((g) => g.toLowerCase() === gene.toLowerCase())
-              ) {
-                onGeneChipsChange([...geneChips, gene]);
+              if (fresh.length > 0) {
+                onGeneChipsChange([...geneChips, ...fresh]);
               }
               onGeneSearchChange("");
             }

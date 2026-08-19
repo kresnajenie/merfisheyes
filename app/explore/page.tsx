@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
+import { CARD_SELECT } from "@/lib/explore/query";
 import { title } from "@/components/primitives";
 import { ExplorePageClient } from "@/components/explore/explore-page-client";
 import { ExploreBackground } from "@/components/explore/explore-background";
@@ -11,18 +12,6 @@ import { ExploreBackground } from "@/components/explore/explore-background";
 // Admin-only internal datasets are loaded client-side via /api/auth/role +
 // /api/explore?tab=internal, so they don't break the cache.
 export const revalidate = 60;
-
-const includeEntries = { entries: { orderBy: { sortOrder: "asc" as const } } };
-
-// Curated base: published + not internal + not community + a viewable entry.
-// Used for the Featured / BIL carousels, which stay curated-only.
-const hasViewableEntry = { entries: { some: { s3BaseUrl: { not: null } } } };
-const publicBase = {
-  isPublished: true,
-  isInternal: false,
-  isCommunity: false,
-  ...hasViewableEntry,
-};
 
 // The main "All" grid: curated content PLUS approved community submissions.
 // Community datasets are viewable by datasetId (no public s3BaseUrl), so the
@@ -42,25 +31,22 @@ const allBase = {
   ...hasViewableEntryAny,
 };
 
-// Fetch all initial public data in a single DB round-trip.
+// Fetch all initial public data in a single DB round-trip. Card-slim rows
+// only (CARD_SELECT — no genes arrays): this payload is embedded in the
+// cached HTML, so its size directly gates first paint.
 async function loadPublicData() {
-  const [items, total, featured, bil, speciesRaw, tissueRaw, platformRaw] =
+  const [items, total, featured, speciesRaw, tissueRaw, platformRaw] =
     await Promise.all([
       prisma.catalogDataset.findMany({
         where: allBase,
-        include: includeEntries,
+        select: CARD_SELECT,
         orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
         take: 20,
       }),
       prisma.catalogDataset.count({ where: allBase }),
       prisma.catalogDataset.findMany({
         where: { ...allBase, isFeatured: true },
-        include: includeEntries,
-        orderBy: { sortOrder: "asc" },
-      }),
-      prisma.catalogDataset.findMany({
-        where: { ...publicBase, isBil: true },
-        include: includeEntries,
+        select: CARD_SELECT,
         orderBy: { sortOrder: "asc" },
       }),
       prisma.catalogDataset.findMany({
@@ -87,7 +73,6 @@ async function loadPublicData() {
     items,
     total,
     featured,
-    bil,
     filters: {
       species: speciesRaw.map((r) => r.species).filter(Boolean) as string[],
       tissues: tissueRaw.map((r) => r.tissue).filter(Boolean) as string[],
@@ -107,14 +92,16 @@ export default async function ExplorePage() {
     data = await loadPublicData();
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error("[explore] initial data load failed; serving empty shell", err);
+    console.error(
+      "[explore] initial data load failed; serving empty shell",
+      err,
+    );
   }
 
   const ssrFailed = data === null;
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const featured = data?.featured ?? [];
-  const bil = data?.bil ?? [];
   const filters = data?.filters ?? { species: [], tissues: [], platforms: [] };
 
   // Serialize dates for client
@@ -139,7 +126,6 @@ export default async function ExplorePage() {
 
         <Suspense>
           <ExplorePageClient
-            initialBil={serialize(bil)}
             initialFeatured={serialize(featured)}
             initialFilters={filters}
             initialItems={serialize(items)}
