@@ -60,6 +60,42 @@ export type ReconcileOutcome =
   | { changed: false; jobStatus?: string }
   | { changed: true; status: "COMPLETE" | "FAILED"; reason?: string };
 
+interface FailedJobShape {
+  statusReason?: string;
+  attempts?: {
+    statusReason?: string;
+    container?: { reason?: string; exitCode?: number };
+  }[];
+}
+
+/**
+ * The most specific failure reason a Batch job record offers.
+ *
+ * Order matters: the container-level reason (e.g. "OutOfMemoryError:
+ * container killed due to memory usage") is what actually happened, while the
+ * task-level statusReason is usually the generic "Essential container in task
+ * exited" — storing that hid every OOM from the fault classifier, the admin
+ * failures table, and the owner's failure email. A bare exit code is kept as
+ * a fallback signal (the classifier recognises "exit code 137" as OOM).
+ */
+export function failureDetail(job: FailedJobShape): string {
+  const attempt = job.attempts?.[(job.attempts?.length ?? 0) - 1];
+  const container = attempt?.container;
+
+  if (container?.reason) return container.reason;
+  if (container?.exitCode != null) {
+    const generic = job.statusReason || attempt?.statusReason;
+
+    return `container exited with exit code ${container.exitCode}${
+      generic ? ` (${generic})` : ""
+    }`;
+  }
+
+  return (
+    job.statusReason || attempt?.statusReason || "no reason reported"
+  );
+}
+
 /**
  * Ask Batch what actually happened, and write the answer through if the job
  * has finished. Returns whether the dataset row changed.
@@ -94,12 +130,7 @@ export async function reconcileWithBatch(
     }
 
     if (job.status === "FAILED") {
-      const attempt = job.attempts?.[job.attempts.length - 1];
-      const detail =
-        job.statusReason ||
-        attempt?.container?.reason ||
-        attempt?.statusReason ||
-        "no reason reported";
+      const detail = failureDetail(job);
 
       await markFailed(dataset.id, `Processing failed: ${detail}`);
 
