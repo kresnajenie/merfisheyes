@@ -22,6 +22,7 @@ import shutil
 import struct
 import sys
 import time
+from collections import deque
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Tuple, Any, Optional, Union
@@ -36,6 +37,16 @@ from scipy.io import mmread
 # LOGGING
 # ─────────────────────────────────────────────
 _t_start = None
+
+def peak_rss_gb() -> float:
+    """Peak resident set size of this process in GB (Linux: KB, macOS: bytes)."""
+    try:
+        import resource
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return rss / (1024 ** 2) if sys.platform != "darwin" else rss / (1024 ** 3)
+    except Exception:
+        return float("nan")
+
 
 def fmt_elapsed(seconds):
     """Format elapsed time as human-readable string."""
@@ -468,72 +479,60 @@ def _write_chunk_worker(args):
     return chunk_id
 
 
-def compute_de_stats(
-    all_gene_sparse: List[Optional[Tuple[np.ndarray, np.ndarray]]],
-    num_genes: int,
-    col_values: Any,
-) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
+class DeAccumulator:
     """
-    Compute per-celltype mean expression and pct-expressing for every gene.
+    Per-celltype mean expression and pct-expressing for every gene, built one
+    gene at a time.
 
-    Reads from the already-built per-gene sparse representation so the same
-    code path works for H5AD, Xenium, and MERSCOPE without re-touching the
-    original matrix.
-
-    Returns:
-        celltypes:      Sorted unique string values
-        cell_counts:    uint32 shape (C,)
-        means:          float32 shape (G, C) — per-celltype mean expression
-        pct_expressing: float32 shape (G, C) — fraction of cells with nonzero
-                        expression, per celltype
+    Step 4 streams genes chunk by chunk and drops each gene's sparse data once
+    its chunk is written, so the DE statistics are accumulated on the fly
+    instead of from a retained copy of the whole matrix (which used to cost as
+    much memory as the matrix itself). Produces exactly what compute_de_stats
+    used to: the same normalisation (string + NaN → ""), the same sorted
+    celltypes, float64 mean sums over float32 values.
     """
-    # Normalize values the same way the obs JSON does (string + NaN → ""), so
-    # the celltype labels here match exactly what the browser will see.
-    col_str = pd.Series(col_values).astype("string").fillna("").to_numpy()
-    celltypes = sorted(set(col_str.tolist()))
-    C = len(celltypes)
 
-    if C == 0:
-        return (
-            [],
-            np.zeros(0, dtype=np.uint32),
-            np.zeros((num_genes, 0), dtype=np.float32),
-            np.zeros((num_genes, 0), dtype=np.float32),
-        )
+    def __init__(self, col: str, col_values: Any, num_genes: int):
+        self.col = col
+        # Normalize values the same way the obs JSON does (string + NaN → ""),
+        # so the celltype labels here match exactly what the browser will see.
+        col_str = pd.Series(col_values).astype("string").fillna("").to_numpy()
+        self.celltypes = sorted(set(col_str.tolist()))
+        self.num_celltypes = len(self.celltypes)
+        if self.num_celltypes == 0:
+            return
+        # Vectorised label → index (identical mapping to a dict lookup over the
+        # sorted celltypes, without a Python loop over every cell).
+        self.cell_to_ct = pd.Categorical(
+            col_str, categories=self.celltypes
+        ).codes.astype(np.int32)
+        self.cell_counts = np.bincount(
+            self.cell_to_ct, minlength=self.num_celltypes
+        ).astype(np.uint32)
+        # Float64 accumulators to keep precision over millions of cells.
+        self.mean_sum = np.zeros((num_genes, self.num_celltypes), dtype=np.float64)
+        # A gene's nonzero count per celltype never exceeds the cell count.
+        self.nonzero_counts = np.zeros((num_genes, self.num_celltypes), dtype=np.uint32)
 
-    ct_idx = {ct: i for i, ct in enumerate(celltypes)}
-    cell_to_ct = np.fromiter(
-        (ct_idx[v] for v in col_str), dtype=np.int32, count=len(col_str)
-    )
-
-    cell_counts = np.bincount(cell_to_ct, minlength=C).astype(np.uint32)
-
-    # Float64 accumulators to keep precision over millions of cells.
-    mean_sum = np.zeros((num_genes, C), dtype=np.float64)
-    nonzero_counts = np.zeros((num_genes, C), dtype=np.uint64)
-
-    for g in range(num_genes):
-        entry = all_gene_sparse[g]
-        if entry is None:
-            continue
-        indices, values = entry
+    def add_gene(self, gene_idx: int, indices: np.ndarray, values: np.ndarray) -> None:
         if len(indices) == 0:
-            continue
-        cts = cell_to_ct[indices]
-        mean_sum[g] = np.bincount(cts, weights=values, minlength=C)
-        nonzero_counts[g] = np.bincount(cts, minlength=C)
+            return
+        cts = self.cell_to_ct[indices]
+        self.mean_sum[gene_idx] = np.bincount(cts, weights=values, minlength=self.num_celltypes)
+        self.nonzero_counts[gene_idx] = np.bincount(cts, minlength=self.num_celltypes)
 
-    safe_counts = np.maximum(cell_counts, 1).astype(np.float64)
-    means = (mean_sum / safe_counts).astype(np.float32)
-    pct_expressing = (nonzero_counts / safe_counts).astype(np.float32)
+    def finalize(self) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
+        safe_counts = np.maximum(self.cell_counts, 1).astype(np.float64)
+        means = (self.mean_sum / safe_counts).astype(np.float32)
+        pct_expressing = (self.nonzero_counts / safe_counts).astype(np.float32)
 
-    # Columns with zero cells stay at 0.
-    zero_mask = cell_counts == 0
-    if zero_mask.any():
-        means[:, zero_mask] = 0
-        pct_expressing[:, zero_mask] = 0
+        # Columns with zero cells stay at 0.
+        zero_mask = self.cell_counts == 0
+        if zero_mask.any():
+            means[:, zero_mask] = 0
+            pct_expressing[:, zero_mask] = 0
 
-    return celltypes, cell_counts, means, pct_expressing
+        return self.celltypes, self.cell_counts, means, pct_expressing
 
 
 def write_de_stats_binary(
@@ -681,27 +680,123 @@ def detect_input_format(input_path: Path) -> str:
         raise ValueError(f"Input path does not exist: {input_path}")
 
 
+def _as_float32(matrix):
+    """Down-cast an expression matrix to float32 (dense or scipy sparse).
+
+    Every value is written out as float32 anyway, so this changes nothing in
+    the output while halving a float64 matrix's footprint — the difference
+    between a 3M-cell dataset fitting the 16 GB tier or not.
+    """
+    if matrix is None:
+        return None
+    if sparse.issparse(matrix):
+        if matrix.dtype != np.float32:
+            matrix = matrix.astype(np.float32)
+        return matrix
+    arr = np.asarray(matrix)
+    if arr.dtype != np.float32:
+        arr = arr.astype(np.float32)
+    return arr
+
+
+def _read_x_float32(x_obj, read_elem):
+    """Read the h5ad `X` element directly into float32.
+
+    `read_elem` materialises the matrix in its stored dtype and the float32
+    cast then briefly holds both copies — for a float64 X that is 3× the final
+    footprint at the worst moment (the load peak decides whether a dataset
+    fits its tier). Dense X is read row-block by row-block into a preallocated
+    float32 array; CSR/CSC X reads `data` the same way. Anything else falls back
+    to read_elem + cast. Values are identical to astype(float32) (numpy casts).
+    """
+    import h5py
+
+    block_bytes = 256 * 1024 ** 2  # per-block read size in the stored dtype
+
+    if isinstance(x_obj, h5py.Dataset):
+        if x_obj.dtype == np.float32 or x_obj.ndim != 2:
+            return _as_float32(x_obj[...])
+        rows, cols = x_obj.shape
+        out = np.empty((rows, cols), dtype=np.float32)
+        row_bytes = max(1, np.dtype(x_obj.dtype).itemsize * max(1, cols))
+        block = max(1, block_bytes // row_bytes)
+        for r0 in range(0, rows, block):
+            r1 = min(rows, r0 + block)
+            out[r0:r1] = x_obj[r0:r1]  # numpy casts the block into float32
+        return out
+
+    enc = x_obj.attrs.get("encoding-type", "")
+    enc = enc.decode() if isinstance(enc, bytes) else enc
+    if enc in ("csr_matrix", "csc_matrix") and all(k in x_obj for k in ("data", "indices", "indptr")):
+        shape = tuple(int(v) for v in x_obj.attrs["shape"])
+        d = x_obj["data"]
+        data = np.empty(d.shape, dtype=np.float32)
+        block = max(1, block_bytes // max(1, np.dtype(d.dtype).itemsize))
+        for i0 in range(0, d.shape[0], block):
+            i1 = min(d.shape[0], i0 + block)
+            data[i0:i1] = d[i0:i1]
+        indices = x_obj["indices"][...]
+        indptr = x_obj["indptr"][...]
+        cls = sparse.csr_matrix if enc == "csr_matrix" else sparse.csc_matrix
+        return cls((data, indices, indptr), shape=shape)
+
+    return _as_float32(read_elem(x_obj))
+
+
 def load_h5ad_data(input_path: Path):
-    """Load H5AD file using anndata and extract spatial coordinates"""
+    """Load an H5AD file, reading ONLY the elements this script uses.
+
+    `anndata.read_h5ad` materialises everything — `.raw.X`, every `layers`
+    matrix, `obsp` neighbour graphs, `uns` — which routinely costs several
+    times the memory of the one matrix we need (a scanpy-produced file carries
+    raw + a couple of layers as full extra copies of X). Here X, obs, obsm and
+    the var index are read element-wise with h5py and the rest is never
+    touched.
+
+    Returns (spatial_coords, expr_matrix, gene_names, obs_columns, obsm, n_obs)
+    where `obsm` is a plain dict of the file's obsm entries (for embeddings).
+    """
     try:
-        import anndata as ad
+        import h5py
+        try:
+            from anndata.io import read_elem
+        except ImportError:  # anndata < 0.11
+            from anndata.experimental import read_elem
     except ImportError:
         raise ImportError("anndata is required for H5AD files. Install with: pip install anndata")
 
     log(f"Loading H5AD file: {input_path.name}", _t_start)
     t_load = time.perf_counter()
-    adata = ad.read_h5ad(input_path)
-    log(f"  Loaded: {adata.n_obs} cells x {adata.n_vars} genes (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
+
+    with h5py.File(input_path, "r") as h:
+        obs_df = read_elem(h["obs"])
+        var_df = read_elem(h["var"])
+        obsm = {}
+        if "obsm" in h:
+            for key in h["obsm"].keys():
+                try:
+                    obsm[key] = read_elem(h["obsm"][key])
+                except Exception as e:  # unreadable entry: skip, don't fail the dataset
+                    print(f"  ⚠ Skipping obsm['{key}']: could not read ({e})")
+        skipped = [g for g in ("raw", "layers", "obsp", "varp", "uns") if g in h]
+        expr_matrix = _read_x_float32(h["X"], read_elem)
+
+    n_obs = len(obs_df)
+    gene_names = list(var_df.index)
+    log(f"  Loaded: {n_obs} cells x {len(gene_names)} genes (read in {fmt_elapsed(time.perf_counter() - t_load)})", _t_start)
+    if skipped:
+        log(f"  Skipped unused h5ad elements: {', '.join(skipped)} (not loaded into memory)", _t_start)
+    log(f"  Expression matrix: {'sparse' if sparse.issparse(expr_matrix) else 'dense'} {expr_matrix.dtype}; peak RSS {peak_rss_gb():.1f} GB", _t_start)
 
     # Extract spatial coordinates
     spatial_coords = None
 
     # Try obsm first
     for key in ['X_spatial', 'spatial']:
-        if key in adata.obsm:
+        if key in obsm:
             try:
                 spatial_coords = coerce_coordinate_array(
-                    adata.obsm[key], f"obsm['{key}']", expected_rows=adata.n_obs
+                    obsm[key], f"obsm['{key}']", expected_rows=n_obs
                 )
             except (ValueError, TypeError) as e:
                 # Fall through to the next candidate / the obs column fallback
@@ -729,12 +824,12 @@ def load_h5ad_data(input_path: Path):
             'center_Z', 'spatial_z', 'spatial_Z'
         ]
 
-        x_col = next((col for col in x_candidates if col in adata.obs.columns), None)
-        y_col = next((col for col in y_candidates if col in adata.obs.columns), None)
+        x_col = next((col for col in x_candidates if col in obs_df.columns), None)
+        y_col = next((col for col in y_candidates if col in obs_df.columns), None)
 
         if x_col and y_col:
             print(f"  ✓ Found coordinates in obs: {x_col}, {y_col}")
-            z_col = next((col for col in z_candidates if col in adata.obs.columns), None)
+            z_col = next((col for col in z_candidates if col in obs_df.columns), None)
             coord_cols = [x_col, y_col]
             if z_col:
                 print(f"  ✓ Found z coordinate: {z_col}")
@@ -742,9 +837,9 @@ def load_h5ad_data(input_path: Path):
 
             # DataFrame (not column_stack) so non-numeric columns are named in the error
             spatial_coords = coerce_coordinate_array(
-                adata.obs[coord_cols],
+                obs_df[coord_cols],
                 f"obs columns [{', '.join(coord_cols)}]",
-                expected_rows=adata.n_obs,
+                expected_rows=n_obs,
             )
 
     if spatial_coords is None:
@@ -754,10 +849,6 @@ def load_h5ad_data(input_path: Path):
             "If an obsm entry was rejected, see the warnings above."
         )
 
-    # Extract expression matrix
-    expr_matrix = adata.X
-    gene_names = list(adata.var_names)
-
     # Extract observation columns (clusters, metadata)
     obs_columns = {}
     # Exclude coordinate columns from obs
@@ -765,14 +856,14 @@ def load_h5ad_data(input_path: Path):
                   'x', 'y', 'z', 'X', 'Y', 'Z',
                   'x_centroid', 'y_centroid', 'z_centroid',
                   'centroid_x', 'centroid_y', 'centroid_z']
-    for col in adata.obs.columns:
+    for col in obs_df.columns:
         if col not in coord_cols:
-            series = adata.obs[col]
+            series = obs_df[col]
             if series.isna().all() or (series.astype(str).str.strip() == '').all():
                 continue
             obs_columns[col] = series.values
 
-    return spatial_coords, expr_matrix, gene_names, obs_columns, adata
+    return spatial_coords, expr_matrix, gene_names, obs_columns, obsm, n_obs
 
 
 def load_xenium_data(input_path: Path):
@@ -1069,13 +1160,13 @@ def process_dataset(
 
     # Load data based on format
     if data_format == 'h5ad':
-        spatial_coords, expr_matrix, gene_names, obs_columns, adata = load_h5ad_data(input_path)
+        spatial_coords, expr_matrix, gene_names, obs_columns, h5ad_obsm, h5ad_n_obs = load_h5ad_data(input_path)
         dataset_name = input_path.stem
         dataset_type = 'h5ad'
 
         # Process embeddings (UMAP, etc.)
         embeddings = {}
-        for key in adata.obsm.keys():
+        for key in h5ad_obsm.keys():
             # Case-insensitive spatial check: 'spatial' is reserved for spatial.bin.gz
             if not key.startswith('X_') or key.lower() in ('x_spatial', 'spatial'):
                 continue
@@ -1093,10 +1184,12 @@ def process_dataset(
 
             try:
                 embeddings[embedding_name] = coerce_coordinate_array(
-                    adata.obsm[key], f"obsm['{key}']", expected_rows=adata.n_obs
+                    h5ad_obsm[key], f"obsm['{key}']", expected_rows=h5ad_n_obs
                 )
             except (ValueError, TypeError) as e:
                 print(f"  ⚠ Skipping embedding obsm['{key}']: {e}")
+        # The obsm entries are no longer needed once embeddings are coerced.
+        del h5ad_obsm
 
     elif data_format == 'xenium':
         cells_df, expr_matrix, gene_names = load_xenium_data(input_path)
@@ -1331,6 +1424,10 @@ def process_dataset(
     else:
         raise ValueError(f"Unknown format: {data_format}")
 
+    # Expression values are written as float32; keep them that way in memory too.
+    if expr_matrix is not None and data_format != 'merscope':
+        expr_matrix = _as_float32(expr_matrix)
+
     # ── Apply cell mask (optional) ──────────────────────────────
     if mask_path is not None:
         log(f"=== Applying cell mask from {mask_path.name} ===", _t_start)
@@ -1368,10 +1465,6 @@ def process_dataset(
         # Filter embeddings
         for emb_name in embeddings:
             embeddings[emb_name] = embeddings[emb_name][keep_indices]
-
-        # Filter adata if it exists (h5ad path)
-        if data_format == 'h5ad' and 'adata' in dir():
-            adata = adata[keep_indices]
 
         removed = total_before - len(keep_indices)
         log(f"  Kept {len(keep_indices):,} / {total_before:,} cells "
@@ -1514,12 +1607,45 @@ def process_dataset(
     expr_dir = output_dir / 'expr'
     expr_dir.mkdir(parents=True, exist_ok=True)
 
-    # --- Extract sparse data for ALL genes ---
-    # all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
-    all_gene_sparse = [None] * num_genes
+    # --- Prepare DE accumulators (step 4.5 is folded into the streaming pass
+    # below, so nothing per-gene has to be retained after its chunk is written) ---
+    de_dir = output_dir / 'de'
+    de_columns: List[str] = []
+    categorical_cols = [
+        col for col, meta in obs_metadata.items() if meta['type'] == 'categorical'
+    ]
+    log(f"  {len(categorical_cols)} categorical column(s) for DE stats "
+        f"(skip threshold: {de_max_celltypes:,} celltypes)", _t_start)
+    de_accs: List[DeAccumulator] = []
+    for col in categorical_cols:
+        col_values = obs_columns.get(col)
+        if col_values is None:
+            log(f"    {col}: values missing, skipping DE", _t_start)
+            continue
+        # High-cardinality columns (e.g. string IDs misclassified as categorical)
+        # produce a giant gene x celltype matrix that thrashes memory without
+        # yielding a meaningful DE grouping. Skip them.
+        n_unique = obs_metadata[col]['unique_values']
+        if n_unique > de_max_celltypes:
+            log(f"    {col}: {n_unique:,} unique > {de_max_celltypes:,}, skipping DE", _t_start)
+            continue
+        acc = DeAccumulator(col, col_values, num_genes)
+        if acc.num_celltypes == 0:
+            log(f"    {col}: 0 celltypes, skipping DE", _t_start)
+            continue
+        de_accs.append(acc)
+        log(f"    {col}: {acc.num_celltypes:,} celltypes", _t_start)
 
+    # The accumulators keep a compact int32 code per cell; the raw obs column
+    # arrays (strings, objects, …) are no longer needed and step 4 is the
+    # memory peak — let them go.
+    obs_columns.clear()
+    gc.collect()
+
+    # --- Per-gene column access for the three sources ---
+    expr_df = None
     if merscope_expr_file is not None:
-        # MERSCOPE: read entire CSV into memory, then extract sparse data per gene
+        # MERSCOPE: read the CSV into memory once; columns are sliced per gene.
         log(f"  Loading entire CSV into memory...", _t_start)
         t_read = time.perf_counter()
         expr_df = pd.read_csv(merscope_expr_file, index_col=merscope_index_col)
@@ -1530,43 +1656,57 @@ def process_dataset(
             expr_df = expr_df.iloc[keep_indices].reset_index(drop=True)
             log(f"  Applied mask to expression: {len(expr_df):,} rows after filtering", _t_start)
 
-        # Extract sparse data for each gene (same approach as original per-gene code)
-        log(f"  Extracting sparse data for {num_genes} genes...", _t_start)
-        t_extract = time.perf_counter()
-        for gene_idx, gene_name in enumerate(gene_names):
-            gene_col = expr_df[gene_name].values
-            non_zero_mask = gene_col != 0
-            non_zero_indices = np.where(non_zero_mask)[0]
-            non_zero_values = gene_col[non_zero_mask].astype(np.float32)
-            all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
-
-            if (gene_idx + 1) % 100 == 0 or gene_idx == num_genes - 1:
-                log(f"    {gene_idx + 1}/{num_genes} genes extracted ({fmt_elapsed(time.perf_counter() - t_extract)})", _t_start)
-
-        del expr_df
-        gc.collect()
-        log(f"  Sparse extraction done ({fmt_elapsed(time.perf_counter() - t_extract)})", _t_start)
-
+        def gene_column(gene_idx: int) -> np.ndarray:
+            return expr_df[gene_names[gene_idx]].values
     else:
-        # H5AD / Xenium: expression matrix already in memory
+        # H5AD / Xenium: expression matrix already in memory.
         # Per-column slicing is O(nnz) per gene on CSR; convert to CSC once so
-        # each column slice is cheap.
+        # each column slice is cheap. (Transiently holds both layouts.)
         if sparse.issparse(expr_matrix) and not sparse.isspmatrix_csc(expr_matrix):
             log(f"  Converting expression matrix to CSC for column extraction...", _t_start)
             t_csc = time.perf_counter()
             expr_matrix = expr_matrix.tocsc()
+            gc.collect()
             log(f"  CSC conversion done ({fmt_elapsed(time.perf_counter() - t_csc)})", _t_start)
 
-        for gene_idx in range(num_genes):
-            if sparse.issparse(expr_matrix):
-                gene_col = expr_matrix[:, gene_idx].toarray().flatten()
-            else:
-                gene_col = expr_matrix[:, gene_idx]
+        if sparse.issparse(expr_matrix):
+            def gene_column(gene_idx: int) -> np.ndarray:
+                return expr_matrix[:, gene_idx].toarray().ravel()
+        else:
+            # A dense cells×genes array is row-major, so one gene's column is a
+            # strided walk over the whole matrix — per gene, that is hundreds of
+            # full passes over gigabytes. Copy a block of columns to
+            # column-major order once (≤ ~512 MB) and serve genes from it.
+            n_rows = expr_matrix.shape[0]
+            matrix_bytes = expr_matrix.size * expr_matrix.dtype.itemsize
+            # Block budget: ≤512 MB, but never more than ~1/8 of the matrix —
+            # on a small matrix a big block is just a pointless extra copy.
+            block_budget = int(min(512 * 1024 ** 2, max(64 * 1024 ** 2, matrix_bytes // 8)))
+            cols_per_block = max(1, block_budget // max(1, n_rows * expr_matrix.dtype.itemsize))
+            block_state = {"start": -1, "data": None}
 
-            non_zero_mask = gene_col != 0
-            non_zero_indices = np.where(non_zero_mask)[0]
-            non_zero_values = gene_col[non_zero_mask].astype(np.float32)
-            all_gene_sparse[gene_idx] = (non_zero_indices, non_zero_values)
+            def gene_column(gene_idx: int) -> np.ndarray:
+                start = block_state["start"]
+                if start < 0 or not (start <= gene_idx < start + cols_per_block):
+                    start = (gene_idx // cols_per_block) * cols_per_block
+                    block_state["data"] = None  # drop the previous block first
+                    block_state["data"] = np.asfortranarray(
+                        expr_matrix[:, start:start + cols_per_block]
+                    )
+                    block_state["start"] = start
+                return block_state["data"][:, gene_idx - start]
+
+    def extract_gene(gene_idx: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Sparse (indices, values) for one gene + fold it into the DE stats."""
+        gene_col = gene_column(gene_idx)
+        non_zero_mask = gene_col != 0
+        # uint32 cell indices: that is what the chunk format stores, and half
+        # the footprint of np.where's int64 while the chunk is being assembled.
+        non_zero_indices = np.flatnonzero(non_zero_mask).astype(np.uint32)
+        non_zero_values = gene_col[non_zero_mask].astype(np.float32)
+        for acc in de_accs:
+            acc.add_gene(gene_idx, non_zero_indices, non_zero_values)
+        return non_zero_indices, non_zero_values
 
     # --- Build expression index (must be ordered) ---
     for chunk_id in range(num_chunks):
@@ -1579,98 +1719,78 @@ def process_dataset(
                 'position_in_chunk': local_idx
             })
 
-    # --- Write chunks (parallel or serial) ---
-    log(f"  Writing {num_chunks} chunk files...", _t_start)
+    # --- Stream: extract one chunk's genes, write it, drop it ---
+    log(f"  Writing {num_chunks} chunk files (streaming, workers={num_workers})...", _t_start)
     t_write = time.perf_counter()
 
-    if num_workers > 1 and num_chunks > 1:
-        # Parallel chunk writing
-        effective_workers = min(num_workers, num_chunks)
-        log(f"  Launching {effective_workers} workers for {num_chunks} chunks...", _t_start)
+    def chunk_args(chunk_id: int):
+        start_gene = chunk_id * chunk_size
+        end_gene = min(start_gene + chunk_size, num_genes)
+        gene_indices = list(range(start_gene, end_gene))
+        gene_data_list = [extract_gene(gi) for gi in gene_indices]
+        chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
+        return gene_indices, gene_data_list, chunk_file
 
-        worker_args = []
-        for chunk_id in range(num_chunks):
-            start_gene = chunk_id * chunk_size
-            end_gene = min(start_gene + chunk_size, num_genes)
-            gene_indices = list(range(start_gene, end_gene))
-            gene_data_list = [all_gene_sparse[gi] for gi in gene_indices]
-            chunk_file = str(expr_dir / f'chunk_{chunk_id:05d}.bin.gz')
-            worker_args.append((chunk_id, gene_indices, gene_data_list, num_cells, chunk_file))
+    if num_workers > 1 and num_chunks > 1:
+        # Parallel chunk writing with a bounded number of chunks in flight, so
+        # the pool's pickled copies never amount to a second full matrix.
+        effective_workers = min(num_workers, num_chunks)
+        max_in_flight = effective_workers * 2
+        log(f"  Launching {effective_workers} workers for {num_chunks} chunks...", _t_start)
+        done_count = [0]
+
+        def reap(in_flight: deque, drain: bool = False) -> None:
+            while in_flight and (drain or len(in_flight) >= max_in_flight):
+                in_flight.popleft().result()
+                done_count[0] += 1
+                if done_count[0] % max(1, num_chunks // 10) == 0 or done_count[0] == num_chunks:
+                    log(f"    {done_count[0]}/{num_chunks} chunks written ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
 
         with ProcessPoolExecutor(max_workers=effective_workers) as pool:
-            futures = {pool.submit(_write_chunk_worker, a): a[0] for a in worker_args}
-            done_count = 0
-            for future in as_completed(futures):
-                cid = future.result()
-                done_count += 1
-                if done_count % max(1, num_chunks // 10) == 0 or done_count == num_chunks:
-                    log(f"    {done_count}/{num_chunks} chunks written ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
+            in_flight: deque = deque()
+            for chunk_id in range(num_chunks):
+                gene_indices, gene_data_list, chunk_file = chunk_args(chunk_id)
+                in_flight.append(pool.submit(
+                    _write_chunk_worker,
+                    (chunk_id, gene_indices, gene_data_list, num_cells, str(chunk_file)),
+                ))
+                del gene_data_list  # the pool holds its own pickled copy
+                reap(in_flight)
+            reap(in_flight, drain=True)
     else:
         # Serial chunk writing
         for chunk_id in range(num_chunks):
             t_chunk = time.perf_counter()
-            start_gene = chunk_id * chunk_size
-            end_gene = min(start_gene + chunk_size, num_genes)
-            gene_indices = list(range(start_gene, end_gene))
-            gene_data_list = [all_gene_sparse[gi] for gi in gene_indices]
-            chunk_file = expr_dir / f'chunk_{chunk_id:05d}.bin.gz'
+            gene_indices, gene_data_list, chunk_file = chunk_args(chunk_id)
             write_expression_chunk(chunk_id, gene_indices, gene_data_list, num_cells, chunk_file)
+            del gene_data_list
 
             pct = (chunk_id + 1) / num_chunks * 100
-            log(f"  [{chunk_id + 1}/{num_chunks}] chunk_{chunk_id:05d} ({end_gene - start_gene} genes, {pct:.0f}%, {fmt_elapsed(time.perf_counter() - t_chunk)})", _t_start)
+            log(f"  [{chunk_id + 1}/{num_chunks}] chunk_{chunk_id:05d} ({len(gene_indices)} genes, {pct:.0f}%, {fmt_elapsed(time.perf_counter() - t_chunk)})", _t_start)
 
-    log(f"  Chunk writing done ({fmt_elapsed(time.perf_counter() - t_write)})", _t_start)
+    log(f"  Chunk writing done ({fmt_elapsed(time.perf_counter() - t_write)}); peak RSS {peak_rss_gb():.1f} GB", _t_start)
 
-    # Step 4.5: Per-celltype DE stats for every categorical obs column.
-    # Computed from all_gene_sparse (same data already in expr/) so the
-    # per-gene loop is a single pass over the nonzeros.
-    log(f"=== STEP 4.5: Computing DE stats for categorical columns ===", _t_start)
+    if expr_df is not None:
+        del expr_df
+        gc.collect()
+
+    # Step 4.5: write the per-celltype DE stats accumulated during the pass.
+    log(f"=== STEP 4.5: Writing DE stats for {len(de_accs)} categorical column(s) ===", _t_start)
     t_destats = time.perf_counter()
-    de_dir = output_dir / 'de'
-    de_columns: List[str] = []
-
-    categorical_cols = [
-        col for col, meta in obs_metadata.items() if meta['type'] == 'categorical'
-    ]
-    log(f"  {len(categorical_cols)} categorical column(s) to process "
-        f"(skip threshold: {de_max_celltypes:,} celltypes)", _t_start)
-    for col in categorical_cols:
-        log(f"    {col}: {obs_metadata[col]['unique_values']:,} unique", _t_start)
-
-    for col_idx, col in enumerate(categorical_cols, 1):
+    for col_idx, acc in enumerate(de_accs, 1):
         t_col = time.perf_counter()
-        col_values = obs_columns.get(col)
-        if col_values is None:
-            log(f"  [{col_idx}/{len(categorical_cols)}] {col}: values missing, skipping", _t_start)
-            continue
-
-        # High-cardinality columns (e.g. string IDs misclassified as categorical)
-        # produce a giant gene x celltype matrix that thrashes memory without
-        # yielding a meaningful DE grouping. Skip them.
-        n_unique = obs_metadata[col]['unique_values']
-        if n_unique > de_max_celltypes:
-            log(f"  [{col_idx}/{len(categorical_cols)}] {col}: {n_unique:,} unique "
-                f"> {de_max_celltypes:,}, skipping DE", _t_start)
-            continue
-
-        celltypes, cell_counts, means, pct = compute_de_stats(
-            all_gene_sparse, num_genes, col_values
-        )
-        if len(celltypes) == 0:
-            log(f"  [{col_idx}/{len(categorical_cols)}] {col}: 0 celltypes, skipping", _t_start)
-            continue
-
-        write_de_stats_binary(celltypes, cell_counts, means, pct, de_dir / f'{col}.bin.gz')
-        de_columns.append(col)
+        celltypes, cell_counts, means, pct = acc.finalize()
+        write_de_stats_binary(celltypes, cell_counts, means, pct, de_dir / f'{acc.col}.bin.gz')
+        de_columns.append(acc.col)
         log(
-            f"  [{col_idx}/{len(categorical_cols)}] {col}: "
+            f"  [{col_idx}/{len(de_accs)}] {acc.col}: "
             f"{len(celltypes)} celltypes ({fmt_elapsed(time.perf_counter() - t_col)})",
             _t_start,
         )
 
     log(f"  DE stats done ({fmt_elapsed(time.perf_counter() - t_destats)})", _t_start)
 
-    del all_gene_sparse
+    del de_accs
     gc.collect()
 
     # Write expression index
@@ -1723,6 +1843,7 @@ def process_dataset(
     log(f"  DE stats columns: {len(de_columns)}", _t_start)
     log(f"  Output: {output_dir}", _t_start)
     log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}", _t_start)
+    log(f"  Peak RSS: {peak_rss_gb():.2f} GB", _t_start)
     log(f"{'='*60}", _t_start)
 
 

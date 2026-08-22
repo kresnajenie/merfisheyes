@@ -161,6 +161,53 @@ def fail(msg):
     sys.exit(1)
 
 
+def cgroup_oom_kills() -> int:
+    """Number of OOM kills the task's cgroup has recorded (v2 memory.events or
+    v1 memory.oom_control). 0 when unknown / not in a cgroup."""
+    for path, key in (
+        ("/sys/fs/cgroup/memory.events", "oom_kill"),
+        ("/sys/fs/cgroup/memory/memory.oom_control", "oom_kill"),
+    ):
+        try:
+            with open(path) as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) == 2 and parts[0] == key:
+                        return int(parts[1])
+        except (OSError, ValueError):
+            continue
+    return 0
+
+
+def describe_oom(returncode, oom_before: int, reason):
+    """If the processor died of memory exhaustion, say so in words the fault
+    classifier recognises ("out of memory") — otherwise return `reason` as is.
+
+    The kernel OOM killer SIGKILLs the biggest process in the cgroup (the
+    processor subprocess), which prints nothing, so the only evidence is the
+    exit signal and the cgroup's oom_kill counter. Without this the failure is
+    reported as the last few log lines, the classifier can't tell it was an
+    OOM, and no automatic tier escalation happens.
+    """
+    oom_kills = cgroup_oom_kills() - oom_before
+    killed = returncode is not None and returncode < 0
+    if oom_kills > 0 or returncode in (-9, 137):
+        why = (
+            f"cgroup reported {oom_kills} OOM kill(s)"
+            if oom_kills > 0
+            else "processor was SIGKILLed (exit code 137)"
+        )
+        tail = f" Last output: {reason}" if reason else ""
+        return (
+            "Out of memory: the processing job exceeded the task's memory limit "
+            f"({why}).{tail}"
+        )
+    if killed:
+        tail = f" Last output: {reason}" if reason else ""
+        return f"Processor killed by signal {-returncode}.{tail}"
+    return reason
+
+
 def content_type_for(path: Path) -> str:
     name = path.name.lower()
     if name.endswith(".gz"):
@@ -606,8 +653,10 @@ def main():
         read_output_stats = read_stats
 
     print(f"== Running: {' '.join(cmd)} ==", flush=True)
+    oom_before = cgroup_oom_kills()
     returncode, reason = run_processor(cmd)
     if returncode != 0:
+        reason = describe_oom(returncode, oom_before, reason)
         fail(reason or f"{processor_name} exited {returncode}")
 
     if not (out_dir / manifest_name).exists():
