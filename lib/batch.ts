@@ -52,11 +52,47 @@ function sanitizeJobName(raw: string): string {
  * vCPU↔memory pairs (4 vCPU → 8–30 GB, 8 → 16–60 GB, 16 → 32–120 GB), so tiers
  * must snap to valid combos.
  */
-const COMPUTE_TIERS: Record<string, { vcpu: string; memoryMiB: string }> = {
+export const COMPUTE_TIERS: Record<
+  string,
+  { vcpu: string; memoryMiB: string }
+> = {
   standard: { vcpu: "4", memoryMiB: "16384" },
   large: { vcpu: "8", memoryMiB: "32768" },
   xlarge: { vcpu: "16", memoryMiB: "65536" },
 };
+
+/** Tiers from smallest to largest — the escalation ladder for OOM retries. */
+export const COMPUTE_TIER_ORDER = ["standard", "large", "xlarge"] as const;
+
+export type ComputeTier = (typeof COMPUTE_TIER_ORDER)[number];
+
+export function isComputeTier(value: unknown): value is ComputeTier {
+  return (
+    typeof value === "string" &&
+    (COMPUTE_TIER_ORDER as readonly string[]).includes(value)
+  );
+}
+
+/** Normalise an arbitrary stored value (null, legacy, typo) to a real tier. */
+export function normalizeComputeTier(value: unknown): ComputeTier {
+  return isComputeTier(value) ? value : "standard";
+}
+
+/** The next tier up, or null when already at the top. */
+export function nextComputeTier(tier: unknown): ComputeTier | null {
+  const idx = COMPUTE_TIER_ORDER.indexOf(normalizeComputeTier(tier));
+
+  return idx >= 0 && idx < COMPUTE_TIER_ORDER.length - 1
+    ? COMPUTE_TIER_ORDER[idx + 1]
+    : null;
+}
+
+/** Memory of a tier in whole GB, for human-facing messages ("16 GB"). */
+export function computeTierMemoryGb(tier: unknown): number {
+  return Math.round(
+    Number(COMPUTE_TIERS[normalizeComputeTier(tier)].memoryMiB) / 1024,
+  );
+}
 
 export interface SubmitIngestJobParams {
   datasetId: string;
