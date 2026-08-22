@@ -257,10 +257,7 @@ export async function sendDatasetFailedEmail({
 
 /** Minimal HTML-escape for embedding untrusted error text in the email body. */
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 export interface VerificationCodeEmailParams {
@@ -313,6 +310,78 @@ export async function sendVerificationCodeEmail({
     <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #999;">
       If you didn't try to sign in, you can ignore this email.
     </div>
+  </body>
+</html>`,
+        },
+      },
+    },
+  });
+
+  await ses.send(command);
+}
+
+export interface DatasetRetryingEmailParams {
+  email: string;
+  datasetId: string;
+  datasetName?: string;
+  /** Why the job is being re-run. */
+  reason: "out_of_memory" | "admin";
+  /** Memory (GB) of the tier that failed and of the tier being tried now. */
+  previousMemoryGb: number;
+  nextMemoryGb: number;
+}
+
+/**
+ * Tell the owner their dataset is being processed again — either because it
+ * ran out of memory and we're automatically retrying on a larger machine, or
+ * because an admin restarted it. No action needed from them; the usual
+ * ready/failed email follows when the new run finishes.
+ */
+export async function sendDatasetRetryingEmail({
+  email,
+  datasetId,
+  datasetName,
+  reason,
+  previousMemoryGb,
+  nextMemoryGb,
+}: DatasetRetryingEmailParams): Promise<void> {
+  const name = datasetName || "Untitled Dataset";
+  const what =
+    reason === "out_of_memory"
+      ? `Your dataset ran out of memory while processing on our ${previousMemoryGb} GB tier. We're automatically retrying it on a ${nextMemoryGb} GB machine.`
+      : previousMemoryGb === nextMemoryGb
+        ? `We've restarted processing for your dataset.`
+        : `We've restarted processing for your dataset on a larger ${nextMemoryGb} GB machine (it previously ran on ${previousMemoryGb} GB).`;
+  const followUp =
+    "No action is needed — you'll get another email when it's ready, or if it fails again.";
+
+  const command = new SendEmailCommand({
+    Source: FROM_EMAIL,
+    Destination: { ToAddresses: [email] },
+    Message: {
+      Subject: { Data: `${name} — retrying processing — MERFISHEYES` },
+      Body: {
+        Text: {
+          Data: `${what}\n\n${followUp}\n\nReference: ${datasetId}`,
+        },
+        Html: {
+          Data: `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 520px; margin: 0 auto; padding: 20px;">
+    <div style="padding: 24px 0 16px 0;">
+      <span style="font-size: 14px; font-weight: 600; color: #111; letter-spacing: 0.5px;">MERFISHEYES</span>
+    </div>
+    <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
+      <p style="margin: 0 0 4px 0; font-size: 14px; color: #b45309;">Retrying processing</p>
+      <h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #111;">${escapeHtml(name)}</h2>
+      <p style="margin: 0 0 12px 0; font-size: 14px; color: #555;">${escapeHtml(what)}</p>
+      <p style="margin: 0 0 20px 0; font-size: 14px; color: #555;">${followUp}</p>
+    </div>
+    <div style="margin-top: 24px; font-size: 12px; color: #999;">Reference: ${datasetId}</div>
   </body>
 </html>`,
         },

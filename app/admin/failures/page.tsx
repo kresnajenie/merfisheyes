@@ -4,6 +4,7 @@ import type { SortDescriptor } from "@heroui/table";
 
 import { useCallback, useEffect, useState } from "react";
 import { Chip } from "@heroui/chip";
+import { Button } from "@heroui/button";
 import { Spinner } from "@heroui/spinner";
 import { Pagination } from "@heroui/pagination";
 import {
@@ -28,7 +29,19 @@ interface Failure {
   createdAt: string;
   completedAt: string | null;
   owner: { name: string | null; email: string | null } | null;
+  /** Tier the failed run used, and the tier a retry defaults to. */
+  ranOnTier: Tier;
+  suggestedTier: Tier;
+  processingAttempts: number;
 }
+
+type Tier = "standard" | "large" | "xlarge";
+
+const TIERS: { key: Tier; label: string }[] = [
+  { key: "standard", label: "standard · 16 GB" },
+  { key: "large", label: "large · 32 GB" },
+  { key: "xlarge", label: "xlarge · 64 GB" },
+];
 
 const PAGE_LIMIT = 20;
 
@@ -65,6 +78,9 @@ export default function AdminFailuresPage() {
   });
   // Error cells render clamped; clicking one expands the full message.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Retry: per-row tier choice (defaults to the API's suggestion) + in-flight.
+  const [retryTier, setRetryTier] = useState<Record<string, Tier>>({});
+  const [retrying, setRetrying] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +142,37 @@ export default function AdminFailuresPage() {
     }
   };
 
+  const retry = async (f: Failure) => {
+    const computeTier = retryTier[f.id] ?? f.suggestedTier;
+
+    setRetrying((prev) => new Set(prev).add(f.id));
+    const res = await fetch(`/api/admin/failures/${f.id}/retry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ computeTier }),
+    }).catch(() => null);
+    const j = await res?.json().catch(() => ({}));
+
+    setRetrying((prev) => {
+      const next = new Set(prev);
+
+      next.delete(f.id);
+
+      return next;
+    });
+
+    if (res?.ok) {
+      toast.success(
+        `Retrying "${f.title || f.id}" on ${computeTier} (attempt ${j.attempt}). The owner has been emailed.`,
+      );
+      // It's QUEUED now, not FAILED — drop it from this list.
+      setFailures((rows) => rows.filter((r) => r.id !== f.id));
+      setTotal((t) => Math.max(0, t - 1));
+    } else {
+      toast.error(j?.error || "Couldn't retry.");
+    }
+  };
+
   const pages = Math.max(1, Math.ceil(total / PAGE_LIMIT));
 
   return (
@@ -170,6 +217,7 @@ export default function AdminFailuresPage() {
               <TableColumn key="failedAt" allowsSorting>
                 FAILED
               </TableColumn>
+              <TableColumn key="retry">RETRY</TableColumn>
             </TableHeader>
             <TableBody>
               {failures.map((f) => (
@@ -265,6 +313,37 @@ export default function AdminFailuresPage() {
                     <span className="whitespace-nowrap text-xs text-default-400">
                       {fmtDate(f.completedAt)}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <select
+                        aria-label="Compute tier for retry"
+                        className="rounded-md bg-default-100 px-1.5 py-1 text-xs"
+                        value={retryTier[f.id] ?? f.suggestedTier}
+                        onChange={(e) =>
+                          setRetryTier((prev) => ({
+                            ...prev,
+                            [f.id]: e.target.value as Tier,
+                          }))
+                        }
+                      >
+                        {TIERS.map((t) => (
+                          <option key={t.key} value={t.key}>
+                            {t.label}
+                            {t.key === f.ranOnTier ? " (ran on)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        color="primary"
+                        isLoading={retrying.has(f.id)}
+                        size="sm"
+                        variant="flat"
+                        onPress={() => retry(f)}
+                      >
+                        Retry
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireUser } from "@/lib/admin-auth";
-import { isBatchConfigured, submitIngestJob } from "@/lib/batch";
+import {
+  isBatchConfigured,
+  submitIngestJob,
+  normalizeComputeTier,
+} from "@/lib/batch";
 import { prisma } from "@/lib/prisma";
 
 interface CompleteIngestRequest {
@@ -68,6 +72,10 @@ export async function POST(
 
     if (isBatchConfigured()) {
       try {
+        const computeTier = normalizeComputeTier(
+          uploadSession.dataset.owner?.computeTier,
+        );
+
         batchJobId = await submitIngestJob({
           datasetId,
           kind:
@@ -75,11 +83,13 @@ export async function POST(
               ? "single_molecule"
               : "single_cell",
           processingParams: uploadSession.dataset.processingParams,
-          computeTier: uploadSession.dataset.owner?.computeTier,
+          computeTier,
         });
+        // Record which tier this run uses so a later retry/OOM escalation
+        // knows where to step up from.
         await prisma.dataset.update({
           where: { id: datasetId },
-          data: { batchJobId },
+          data: { batchJobId, computeTier, processingAttempts: 1 },
         });
       } catch (e: any) {
         // The upload itself succeeded; leave the dataset QUEUED so the job can
@@ -88,8 +98,11 @@ export async function POST(
         console.error(`Ingest complete: SubmitJob failed for ${datasetId}:`, e);
       }
     } else {
-      submitError = "Batch not configured (CALLBACK_SECRET / callback base URL)";
-      console.warn(`Ingest complete: ${submitError}; ${datasetId} stays QUEUED`);
+      submitError =
+        "Batch not configured (CALLBACK_SECRET / callback base URL)";
+      console.warn(
+        `Ingest complete: ${submitError}; ${datasetId} stays QUEUED`,
+      );
     }
 
     return NextResponse.json({

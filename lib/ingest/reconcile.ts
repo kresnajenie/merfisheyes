@@ -91,9 +91,7 @@ export function failureDetail(job: FailedJobShape): string {
     }`;
   }
 
-  return (
-    job.statusReason || attempt?.statusReason || "no reason reported"
-  );
+  return job.statusReason || attempt?.statusReason || "no reason reported";
 }
 
 /**

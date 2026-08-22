@@ -4,7 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { classifyFailure } from "@/lib/ingest/error-classification";
+import {
+  classifyFailure,
+  OUT_OF_MEMORY_LABEL,
+} from "@/lib/ingest/error-classification";
+import { nextComputeTier, normalizeComputeTier } from "@/lib/batch";
 
 /**
  * GET /api/admin/failures — paginated, sortable list of FAILED datasets for
@@ -69,7 +73,9 @@ export async function GET(request: NextRequest) {
         faultCategory: true,
         createdAt: true,
         completedAt: true,
-        owner: { select: { name: true, email: true } },
+        computeTier: true,
+        processingAttempts: true,
+        owner: { select: { name: true, email: true, computeTier: true } },
       },
     }),
     prisma.dataset.count({ where }),
@@ -79,9 +85,22 @@ export async function GET(request: NextRequest) {
     total,
     page,
     limit,
-    failures: rows.map((f) => ({
-      ...f,
-      autoLabel: classifyFailure(f.errorMessage).label,
-    })),
+    failures: rows.map((f) => {
+      const label = classifyFailure(f.errorMessage).label;
+      // Tier the failed run used (legacy rows: the owner's tier), and the
+      // tier a retry would default to (one step up after an OOM).
+      const ranOn = normalizeComputeTier(f.computeTier ?? f.owner?.computeTier);
+      const suggested =
+        label === OUT_OF_MEMORY_LABEL
+          ? (nextComputeTier(ranOn) ?? ranOn)
+          : ranOn;
+
+      return {
+        ...f,
+        autoLabel: label,
+        ranOnTier: ranOn,
+        suggestedTier: suggested,
+      };
+    }),
   });
 }
