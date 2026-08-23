@@ -17,7 +17,7 @@ consumption (flat `[x,y,z,…]` float32 in one gzip stream), so stream it.
   Deterministic, no RNG → byte-identical JS/Python; old files still stream in file order.
 - Branch stacked on `feat/pipeline-parity` (writers change); merge after parity.
 
-## 1. Writers: progressive molecule order — TODO
+## 1. Writers: progressive molecule order — DONE
 Permutation for a gene with `n` molecules: sort indices `0..n-1` by
 `bitrev(i, ceil(log2 n))`, skipping values ≥ n (the standard "bit-reversal permutation
 of the next power of two, dropping out-of-range"). Implemented once per language:
@@ -126,7 +126,37 @@ the gene simply loads the old way.
 - Genes under the threshold (TH 107 k, DRD1 1.1 M) still load whole.
 - Re-selecting a finished gene renders from cache with no re-download.
 
+## Implemented (writers), 2026-08-24
+
+- `lib/utils/progressive-order.ts` — `progressiveOrder(n)` (bit-reversal of
+  `0…2^k-1` with out-of-range values dropped) and `progressiveSlots(n)` (its
+  inverse). Python twin: `progressive_order()` in
+  `scripts/process_single_molecule.py`.
+- **The gather/scatter distinction matters**: Python reorders a gene by
+  gathering (`out[i] = src[order[i]]`), while the browser fills molecules as
+  it reads them and must scatter through the inverse
+  (`out[slots[j]] = src[j]`). They coincide only when the count is a power of
+  two, so getting it wrong passes casual testing — the parity harness caught
+  exactly this. Pinned by a golden file generated from the Python
+  implementation (`tests/fixtures/progressive-order.json`) plus
+  `tests/unit/progressive-order.test.ts`.
+- Applied to assigned and unassigned files in both pipelines;
+  `manifest.processing.molecule_order = "bitrev-v1"` records it.
+
+### Verified
+- `npm run parity`: **9/9 cases byte-identical** (both pipelines, h5ad dense /
+  CSR-3D / obs-coords, Xenium, MERSCOPE, SM parquet 2D+3D, SM CSV).
+- Coverage: on a spatially sorted 60 000-molecule gene, the first **1 %** of
+  the file already spans the full x range (0–995 of 0–1000); 5 % spans 0–999.
+- `linux/amd64` worker image (`merfisheyes-worker:progressive`): the same
+  inputs produce output identical to the host across **329 files**, with the
+  image's pinned deps (numpy 2.2.6 / pandas 2.3.3 / pyarrow 18.1 /
+  anndata 0.12.10).
+
 ## 5. Rollout
 1. ~~Viewer streaming (works on existing files, file order).~~ **Done.**
-2. Writer progressive order (both pipelines) + worker image rebuild — TODO.
+2. ~~Writer progressive order (both pipelines).~~ **Done** — image pushed as
+   `merfisheyes-worker:progressive`; promote it to `:latest` when this branch
+   merges (Fargate pulls `:latest` per job, no job-definition change needed).
+   Existing gene files keep working: they stream in file order.
 3. Optional later: LOD/tiles (spatial streaming) — separate design.
