@@ -2,6 +2,7 @@
 import Papa, { ParseResult } from "papaparse";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { buildObsColumnsFromRows } from "./table-obs-columns";
 
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 
@@ -437,6 +438,29 @@ export class MerscopeAdapter {
     }
 
     return { column: clusterColumn, values: [], valueIndices, palette, uniqueValues: uniq };
+  }
+
+  /**
+   * Every metadata column of cell_metadata.csv (not just the detected
+   * cluster column), same rules as the server pipeline. The detected cluster
+   * column comes first so the viewer's default pick is unchanged.
+   */
+  async loadAllClusters(): Promise<ClusterData[]> {
+    if (!this._rows.length) return [];
+    const keys = Object.keys(this._rows[0]);
+    const xKey = firstPresent(keys, ["center_x", "centroid_x", "centerX", "centerx", "x", "x_centroid", "x_px", "x_position"]);
+    const yKey = firstPresent(keys, ["center_y", "centroid_y", "centerY", "centery", "y", "y_centroid", "y_px", "y_position"]);
+    const columns = buildObsColumnsFromRows(this._rows, {
+      coordinateKeys: [xKey, yKey],
+      geneNames: this._genes,
+    });
+
+    if (columns.length === 0) return [await this.loadClusters()];
+    const first = this._clusterColumn;
+
+    return first
+      ? [...columns.filter((c) => c.column === first), ...columns.filter((c) => c.column !== first)]
+      : columns;
   }
 
   // ========= StandardizedDataset adapter surface =========

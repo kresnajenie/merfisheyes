@@ -1,7 +1,9 @@
+import type { Prisma } from "@prisma/client";
+
 import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
-import { listObjectKeys, uploadBufferToS3 } from "@/lib/s3";
+import { getObjectJson, listObjectKeys, uploadBufferToS3 } from "@/lib/s3";
 import { sendDatasetReadyEmail, sendDuplicateDatasetEmail } from "@/lib/ses";
 import { updateDatasetGenes } from "@/lib/datasets/read-genes";
 
@@ -111,6 +113,15 @@ export async function finalizeCompletedDataset(
 
   const uploadId = `up_out${nanoid(8)}`;
 
+  // Single-molecule: the worker's manifest (gene list, per-gene counts,
+  // statistics) lives in S3; mirror it onto the row like a browser upload.
+  const smManifest =
+    dataset.datasetType === "single_molecule"
+      ? await getObjectJson<Record<string, unknown>>(
+          `datasets/${datasetId}/manifest.json.gz`,
+        ).catch(() => null)
+      : null;
+
   await prisma.$transaction(
     async (tx) => {
       // Must be idempotent: the worker retries failed callbacks, Batch can
@@ -147,6 +158,12 @@ export async function finalizeCompletedDataset(
           completedAt: new Date(),
           numCells: opts.stats?.numCells ?? dataset.numCells,
           numGenes: opts.stats?.numGenes ?? dataset.numGenes,
+          // Browser uploads store the SM manifest at initiate; server
+          // processing writes it to S3, so copy it onto the row here — the
+          // SM API and gene indexing read it from the row.
+          ...(smManifest
+            ? { manifestJson: smManifest as Prisma.InputJsonValue }
+            : {}),
           errorMessage: null,
           processingProgress: {
             stage: "Done",

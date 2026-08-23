@@ -9,8 +9,6 @@ import {
   ModalFooter,
   Button,
   Input,
-  Select,
-  SelectItem,
 } from "@heroui/react";
 import { toast } from "react-toastify";
 import { useSession, signIn } from "next-auth/react";
@@ -34,8 +32,6 @@ export function UploadSettingsModal({
   const { data: session } = useSession();
   const isSignedIn = !!session?.user;
 
-  const [chunkSize, setChunkSize] = useState<string>("auto");
-  const [customChunkSize, setCustomChunkSize] = useState<string>("100");
   const [datasetName, setDatasetName] = useState<string>(
     dataset?.name || "dataset",
   );
@@ -50,8 +46,6 @@ export function UploadSettingsModal({
   const [uploadedDatasetId, setUploadedDatasetId] = useState<string>("");
 
   const resetState = (targetDataset: StandardizedDataset | null) => {
-    setChunkSize("auto");
-    setCustomChunkSize("100");
     setDatasetName(targetDataset?.name || "dataset");
     setOwner("me");
     setEmail("");
@@ -360,10 +354,8 @@ export function UploadSettingsModal({
           fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
         }
 
-        // Determine chunk size
-        const actualChunkSize =
-          chunkSize === "auto" ? null : parseInt(customChunkSize);
-        const processor = new GeneChunkProcessor(actualChunkSize);
+        // One gene per chunk — the shared spec for both pipelines.
+        const processor = new GeneChunkProcessor();
 
         // Process genes
         setProgressMessage("Processing genes into chunks...");
@@ -390,6 +382,15 @@ export function UploadSettingsModal({
         setProgress(47);
         const palettes = await processor.processPalettes(dataset);
 
+        // Per-celltype DE stats for every categorical column (de/*.bin.gz),
+        // like the server pipeline — without them the DEG panel is hidden.
+        setProgressMessage("Computing DE stats...");
+        setProgress(48);
+        const deStatsFiles = await processor.processDeStats(dataset, (prog, msg) => {
+          setProgress(48 + prog * 0.02);
+          setProgressMessage(msg);
+        });
+
         // Generate dataset ID
         datasetId = `${dataset.type}_${datasetName}_${Date.now()}_${fingerprint.substring(0, 9)}`;
 
@@ -404,6 +405,7 @@ export function UploadSettingsModal({
           index,
           coordinates,
           observations.metadata,
+          Object.keys(deStatsFiles),
         );
 
         // Prepare files for upload
@@ -416,6 +418,7 @@ export function UploadSettingsModal({
           observations.files,
           observations.metadata,
           palettes,
+          deStatsFiles,
           manifestJson,
         );
       }
@@ -557,39 +560,11 @@ export function UploadSettingsModal({
               )}
 
               {!isPreChunked && !isZarr && (
-                <>
-                  <Select
-                    description="Number of genes per chunk (auto-determines based on total genes)"
-                    isDisabled={isProcessing}
-                    label="Chunk Size"
-                    placeholder="Select chunk size"
-                    selectedKeys={[chunkSize]}
-                    onSelectionChange={(keys) => {
-                      const value = Array.from(keys)[0] as string;
-
-                      setChunkSize(value);
-                    }}
-                  >
-                    <SelectItem key="auto">Auto (Recommended)</SelectItem>
-                    <SelectItem key="50">50 genes/chunk</SelectItem>
-                    <SelectItem key="100">100 genes/chunk</SelectItem>
-                    <SelectItem key="150">150 genes/chunk</SelectItem>
-                    <SelectItem key="custom">Custom</SelectItem>
-                  </Select>
-
-                  {chunkSize === "custom" && (
-                    <Input
-                      isDisabled={isProcessing}
-                      label="Custom Chunk Size"
-                      max="500"
-                      min="10"
-                      placeholder="Enter chunk size"
-                      type="number"
-                      value={customChunkSize}
-                      onValueChange={setCustomChunkSize}
-                    />
-                  )}
-                </>
+                <p className="text-xs text-default-500">
+                  Expression is stored one gene per chunk (the viewer fetches
+                  exactly the gene it needs) — the same layout the server
+                  pipeline produces.
+                </p>
               )}
 
               {isPreChunked && (
@@ -626,15 +601,10 @@ export function UploadSettingsModal({
                     <p>
                       <span className="font-medium">Type:</span> {dataset.type}
                     </p>
-                    {!isPreChunked && !isZarr && chunkSize !== "custom" && (
+                    {!isPreChunked && !isZarr && (
                       <p>
-                        <span className="font-medium">Estimated chunks:</span>{" "}
-                        {Math.ceil(
-                          dataset.genes.length /
-                            new GeneChunkProcessor(
-                              chunkSize === "auto" ? null : parseInt(chunkSize),
-                            ).determineChunkSize(dataset.genes.length),
-                        )}
+                        <span className="font-medium">Expression chunks:</span>{" "}
+                        {dataset.genes.length.toLocaleString()} (one per gene)
                       </p>
                     )}
                     {isPreChunked && (
@@ -735,6 +705,7 @@ async function createManifest(
   index: any,
   coordinates: Record<string, Blob>,
   obsMetadata: Record<string, any>,
+  deStatsColumns: string[] = [],
 ): Promise<string> {
   // Determine spatial dimensions
   let spatialDimensions = 2;
@@ -781,8 +752,12 @@ async function createManifest(
         chunk_size: index.chunk_size,
         total_genes: dataset.genes.length,
       },
+      // Keys read by consumers (same names as the server pipeline writes).
+      expression_chunks: chunks.length,
+      observation_columns: Object.keys(obsMetadata),
       observations: Object.keys(obsMetadata),
       palettes: [], // TODO: Add palette support
+      de_stats: deStatsColumns,
     },
     processing: {
       chunk_strategy: "adaptive",
@@ -903,6 +878,7 @@ async function prepareFilesForUpload(
   observationFiles: Record<string, Blob>,
   observationMetadata: Record<string, any>,
   paletteFiles: Record<string, Blob>,
+  deStatsFiles: Record<string, Blob>,
   manifestJson: string,
 ): Promise<{ key: string; blob: Blob; size: number; contentType: string }[]> {
   const files: {
@@ -954,10 +930,10 @@ async function prepareFilesForUpload(
     });
   }
 
-  // Observations
+  // Observations (binary obs format, see lib/utils/obs-binary.ts)
   for (const [name, blob] of Object.entries(observationFiles)) {
     files.push({
-      key: `obs/${name}.json.gz`,
+      key: `obs/${name}.bin.gz`,
       blob: blob,
       size: blob.size,
       contentType: "application/gzip",
@@ -984,6 +960,16 @@ async function prepareFilesForUpload(
       blob: blob,
       size: blob.size,
       contentType: "application/json",
+    });
+  }
+
+  // DE stats
+  for (const [name, blob] of Object.entries(deStatsFiles)) {
+    files.push({
+      key: `de/${name}.bin.gz`,
+      blob: blob,
+      size: blob.size,
+      contentType: "application/gzip",
     });
   }
 

@@ -1,0 +1,21 @@
+{
+ "categorical": {
+  "labels": [
+   "A",
+   "B",
+   "C",
+   "A",
+   "B"
+  ]
+ },
+ "numerical": {
+  "column": "n_genes",
+  "values": [
+   150.0,
+   200.0,
+   180.0,
+   220.0,
+   160.0
+  ]
+ }
+}

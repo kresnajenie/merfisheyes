@@ -1,3 +1,5 @@
+import { decodeObsColumn } from "@/lib/utils/obs-binary";
+
 /**
  * Chunked Data Adapter
  * Reconstructs StandardizedDataset from chunked compressed files
@@ -437,6 +439,7 @@ export class ChunkedDataAdapter {
     column: string;
     type: string;
     values: any[];
+    valueIndices?: Uint16Array | Uint32Array;
     palette: Record<string, string> | null;
     uniqueValues: string[];
   }> | null> {
@@ -461,20 +464,98 @@ export class ChunkedDataAdapter {
       }
 
       // Load all cluster columns
-      const clusters = [];
+      const clusters: Array<{
+        column: string;
+        type: string;
+        values: any[];
+        valueIndices?: Uint16Array | Uint32Array;
+        palette: Record<string, string> | null;
+        uniqueValues: string[];
+      }> = [];
 
       for (const columnName of availableColumns) {
         try {
           console.log(`Loading cluster column: ${columnName}`);
 
-          // Load cluster values
-          const clusterValues = await this.fetchCompressedJSON(
-            `obs/${columnName}.json.gz`,
-          );
-
-          // Get column type from metadata
-          const columnType = this.obsMetadata[columnName].type || "categorical";
+          // Get column type + storage format from metadata
+          const meta = this.obsMetadata[columnName] ?? {};
+          const columnType = meta.type || "categorical";
           const isNumerical = columnType === "numerical";
+          const format = typeof meta.format === "string" ? meta.format : "json";
+
+          // Indexed representation: uniqueValues (sorted the viewer's way) +
+          // per-cell valueIndices. Numerical binary columns keep plain numbers.
+          let uniqueValues: string[] = [];
+          let valueIndices: Uint16Array | Uint32Array | undefined;
+          let numericValues: number[] | undefined;
+
+          if (format.startsWith("bin")) {
+            // Binary obs format (lib/utils/obs-binary.ts): dictionary + codes
+            // or float32 values — no per-cell JSON strings to parse.
+            const decoded = decodeObsColumn(
+              await this.fetchBinary(`obs/${columnName}.bin.gz`),
+            );
+
+            if (decoded.kind === "numerical") {
+              // float32 → shortest round-trip number for display ("0.1", not
+              // "0.10000000149011612").
+              numericValues = Array.from(decoded.values, (v) =>
+                Number.isFinite(v) ? Number(v.toPrecision(7)) : v,
+              );
+            } else {
+              const { dict, codes } = decoded;
+              const order = dict
+                .map((_, i) => i)
+                .sort((x, y) => dict[x].localeCompare(dict[y], undefined, { numeric: true }));
+
+              uniqueValues = order.map((i) => dict[i]);
+              const remap = new Uint32Array(dict.length);
+
+              order.forEach((orig, sortedIdx) => {
+                remap[orig] = sortedIdx;
+              });
+              const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
+
+              valueIndices = new IndexArray(codes.length);
+              for (let i = 0; i < codes.length; i++) {
+                valueIndices[i] = remap[codes[i]];
+              }
+            }
+          } else {
+            // Legacy JSON array of per-cell values (datasets uploaded before
+            // the binary format).
+            const clusterValues = await this.fetchCompressedJSON(
+              `obs/${columnName}.json.gz`,
+            );
+            const valueToIndex = new Map<string, number>();
+            const uniqueValuesList: string[] = [];
+
+            for (let i = 0; i < clusterValues.length; i++) {
+              const str = String(clusterValues[i]);
+
+              if (!valueToIndex.has(str)) {
+                valueToIndex.set(str, uniqueValuesList.length);
+                uniqueValuesList.push(str);
+              }
+            }
+
+            uniqueValues = uniqueValuesList.sort(
+              (x: string, y: string) => x.localeCompare(y, undefined, { numeric: true }),
+            );
+
+            const sortedIndexMap = new Map<string, number>();
+
+            for (let i = 0; i < uniqueValues.length; i++) {
+              sortedIndexMap.set(uniqueValues[i], i);
+            }
+
+            const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
+
+            valueIndices = new IndexArray(clusterValues.length);
+            for (let i = 0; i < clusterValues.length; i++) {
+              valueIndices[i] = sortedIndexMap.get(String(clusterValues[i]))!;
+            }
+          }
 
           // Only load/generate palette for categorical columns
           let palette: Record<string, string> | null = null;
@@ -488,52 +569,30 @@ export class ChunkedDataAdapter {
               console.log(
                 `Palette palettes/${columnName}.json not found, generating default colors`,
               );
-              palette = this.generateDefaultPalette(clusterValues);
+              palette = this.generateDefaultPalette(uniqueValues);
             }
           } else {
             console.log(`Skipping palette for numerical column: ${columnName}`);
           }
 
-          // Build indexed representation: uniqueValues + valueIndices
-          // This reduces memory from O(N) strings to O(N) uint16/32 + O(U) strings
-          const valueToIndex = new Map<string, number>();
-          const uniqueValuesList: string[] = [];
-
-          for (let i = 0; i < clusterValues.length; i++) {
-            const str = String(clusterValues[i]);
-
-            if (!valueToIndex.has(str)) {
-              valueToIndex.set(str, uniqueValuesList.length);
-              uniqueValuesList.push(str);
-            }
-          }
-
-          const uniqueValues = uniqueValuesList.sort(
-            (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true }),
+          clusters.push(
+            numericValues
+              ? {
+                  column: columnName,
+                  type: columnType,
+                  values: numericValues,
+                  palette: null,
+                  uniqueValues: [],
+                }
+              : {
+                  column: columnName,
+                  type: columnType,
+                  values: [],
+                  valueIndices: valueIndices,
+                  palette: palette,
+                  uniqueValues: uniqueValues,
+                },
           );
-
-          // Rebuild index map after sorting
-          const sortedIndexMap = new Map<string, number>();
-
-          for (let i = 0; i < uniqueValues.length; i++) {
-            sortedIndexMap.set(uniqueValues[i], i);
-          }
-
-          const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
-          const valueIndices = new IndexArray(clusterValues.length);
-
-          for (let i = 0; i < clusterValues.length; i++) {
-            valueIndices[i] = sortedIndexMap.get(String(clusterValues[i]))!;
-          }
-
-          clusters.push({
-            column: columnName,
-            type: columnType,
-            values: [],
-            valueIndices: valueIndices,
-            palette: palette,
-            uniqueValues: uniqueValues,
-          });
         } catch (error) {
           console.warn(`Failed to load cluster column ${columnName}:`, error);
           // Continue loading other columns even if one fails

@@ -204,28 +204,25 @@ const workerApi = {
 
     console.log("[Worker] Genes:", genes.length, "genes loaded");
     await onProgress?.(98, "Loading clusters...");
-    const clusterData = await adapter.loadClusters();
+    // Every metadata column (same as the server pipeline), typed per column.
+    const clusterList = await adapter.loadAllClusters();
 
-    console.log("[Worker] Clusters:", clusterData);
+    console.log("[Worker] Clusters:", clusterList.map((c) => c.column));
 
-    // Wrap single cluster object in array and add type field for StandardizedDataset format
-    // Use uniqueValues for type detection (values array may be empty with indexed representation)
-    const detectValues = clusterData?.uniqueValues ?? clusterData?.values ?? [];
-    const clusters = clusterData
-      ? [
-          {
+    const clusters = clusterList.length
+      ? clusterList.map((clusterData) => {
+          const detectValues = clusterData.uniqueValues ?? clusterData.values ?? [];
+          const categorical = isCategoricalData(detectValues, clusterData.column);
+
+          return {
             column: clusterData.column,
-            type: isCategoricalData(detectValues, clusterData.column)
-              ? "categorical"
-              : "numerical",
+            type: categorical ? "categorical" : "numerical",
             values: clusterData.values,
             valueIndices: clusterData.valueIndices,
-            palette: isCategoricalData(detectValues, clusterData.column)
-              ? clusterData.palette
-              : null,
+            palette: categorical ? clusterData.palette : null,
             uniqueValues: clusterData.uniqueValues,
-          },
-        ]
+          };
+        })
       : null;
 
     const dataInfo = adapter.getDatasetInfo();
@@ -336,27 +333,25 @@ const workerApi = {
 
     console.log("[Worker] Genes:", genes.length, "genes loaded");
     await onProgress?.(98, "Loading clusters...");
-    const clusterData = await adapter.loadClusters();
+    // Every metadata column (same as the server pipeline), typed per column.
+    const clusterList = await adapter.loadAllClusters();
 
-    console.log("[Worker] Clusters:", clusterData);
+    console.log("[Worker] Clusters:", clusterList.map((c) => c.column));
 
-    // Wrap single cluster object in array and add type field for StandardizedDataset format
-    const detectValues2 = clusterData?.uniqueValues ?? clusterData?.values ?? [];
-    const clusters = clusterData
-      ? [
-          {
+    const clusters = clusterList.length
+      ? clusterList.map((clusterData) => {
+          const detectValues = clusterData.uniqueValues ?? clusterData.values ?? [];
+          const categorical = isCategoricalData(detectValues, clusterData.column);
+
+          return {
             column: clusterData.column,
-            type: isCategoricalData(detectValues2, clusterData.column)
-              ? "categorical"
-              : "numerical",
+            type: categorical ? "categorical" : "numerical",
             values: clusterData.values,
             valueIndices: clusterData.valueIndices,
-            palette: isCategoricalData(detectValues2, clusterData.column)
-              ? clusterData.palette
-              : null,
+            palette: categorical ? clusterData.palette : null,
             uniqueValues: clusterData.uniqueValues,
-          },
-        ]
+          };
+        })
       : null;
 
     const dataInfo = adapter.getDatasetInfo();

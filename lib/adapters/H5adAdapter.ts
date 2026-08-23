@@ -98,7 +98,8 @@ export class H5adAdapter {
       );
       const codes = Array.from(field.get("codes").value) as number[];
 
-      return codes.map((i) => categories[i] ?? "Unknown");
+      // Missing category (code -1) → "" — the same label the server pipeline writes.
+      return codes.map((i) => categories[i] ?? "");
     }
 
     return Array.from(field.value, this.decodeBytes.bind(this));
@@ -546,43 +547,32 @@ export class H5adAdapter {
   }
 
   /**
-   * Load color palette for clusters
+   * Stored category order of a categorical obs column (null when the column
+   * isn't categorical). scanpy's `uns[col + "_colors"]` follows this order.
+   */
+  private fetchObsCategories(group: string): string[] | null {
+    const field = this.h5File.get("obs").get(group);
+    const keys = field?.keys?.();
+
+    if (keys?.includes("categories") && keys.includes("codes")) {
+      return Array.from(field.get("categories").value, this.decodeBytes.bind(this)) as string[];
+    }
+
+    return null;
+  }
+
+  /**
+   * Load color palette for clusters.
+   *
+   * Default colours are assigned in sorted label order (the same order the
+   * server pipeline uses, so both produce the same colours). When the file
+   * carries `uns[col + "_colors"]` with one colour per stored category —
+   * scanpy's convention is that colours follow the column's category order —
+   * those override the defaults, unless every colour is the same.
    */
   async loadClusterPalette(
     clusterColumn: string,
   ): Promise<Record<string, string>> {
-    try {
-      // Try to get colors from uns
-      const colors = this.fetchUns(clusterColumn + "_colors");
-      const clusters = await this.fetchObs(clusterColumn);
-      const uniqueClusters = Array.from(new Set(clusters)).sort();
-
-      if (colors && colors.length === uniqueClusters.length) {
-        // Check if palette has only 1 unique color (e.g., all gray)
-        const uniqueColors = new Set(
-          colors.map((c: any) => this.normalizeHexColor(c)),
-        );
-
-        if (uniqueColors.size === 1 && uniqueClusters.length > 1) {
-          // Multiple categories but only 1 color - fall back to default colors
-          console.log(
-            `Palette for ${clusterColumn} has only 1 unique color, using default colors`,
-          );
-        } else {
-          // Valid palette - use colors from uns
-          const palette: Record<string, string> = {};
-
-          uniqueClusters.forEach((cluster, index) => {
-            palette[cluster] = this.normalizeHexColor(colors[index]);
-          });
-
-          return palette;
-        }
-      }
-    } catch (error) {
-      console.log("No colors found in uns, using default colors");
-    }
-
     const clusters = await this.fetchObs(clusterColumn);
     const uniqueClusters = Array.from(new Set(clusters)).sort();
     const palette: Record<string, string> = {};
@@ -592,6 +582,30 @@ export class H5adAdapter {
         DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length],
       );
     });
+
+    try {
+      const colors = this.fetchUns(clusterColumn + "_colors");
+      // Non-categorical columns have no stored order: scanpy builds their
+      // categories sorted, so sorted unique is the right mapping there.
+      const stored = this.fetchObsCategories(clusterColumn) ?? uniqueClusters;
+
+      if (colors && colors.length === stored.length) {
+        const normalized = colors.map((c: any) => this.normalizeHexColor(c));
+        const uniqueColors = new Set(normalized);
+
+        if (uniqueColors.size === 1 && stored.length > 1) {
+          console.log(
+            `Palette for ${clusterColumn} has only 1 unique color, using default colors`,
+          );
+        } else {
+          stored.forEach((category, index) => {
+            palette[String(category)] = normalized[index];
+          });
+        }
+      }
+    } catch (error) {
+      console.log("No colors found in uns, using default colors");
+    }
 
     return palette;
   }

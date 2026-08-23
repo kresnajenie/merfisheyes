@@ -667,10 +667,26 @@ def process_single_molecule_data(
     else:
         raise ValueError(f"Unsupported file type: {file_ext} (expected .parquet or .csv)")
 
-    total_molecules = len(genes)
+    rows_read = len(genes)
 
-    # Step 2: Coordinates were rounded to 2dp (float32) while reading
+    # Step 2: Coordinates were rounded to 2dp (float32) while reading.
+    # Molecules with a non-finite coordinate (or no gene) are dropped — same
+    # rule as the browser pipeline; never written as NaN or at 0,0.
     log(f"=== STEP 2: Coordinates rounded to 2 decimal places ===")
+
+    finite = np.isfinite(coords[:, 0]) & np.isfinite(coords[:, 1])
+    if dimensions == 3:
+        finite &= np.isfinite(coords[:, 2])
+    gene_missing = pd.isna(genes) if not isinstance(genes, pd.Categorical) else (genes.codes < 0)
+    keep = finite & ~np.asarray(gene_missing)
+    dropped = int((~keep).sum())
+    if dropped:
+        keep_idx = np.flatnonzero(keep)
+        genes = genes[keep_idx]
+        coords = coords[keep_idx]
+        if cell_ids is not None:
+            cell_ids = cell_ids[keep_idx]
+        log(f"  Dropped {dropped:,} molecules with a missing gene or non-finite coordinates")
 
     rounded_coords = coords
 
@@ -679,9 +695,9 @@ def process_single_molecule_data(
     # Step 3: Build gene index using vectorized pandas groupby
     log(f"=== STEP 3: Building gene index (vectorized) ===")
 
-    has_unassigned = cell_ids is not None
+    has_cell_ids = cell_ids is not None
 
-    if has_unassigned:
+    if has_cell_ids:
         # Split into assigned vs unassigned using boolean mask
         unassigned_mask = compute_unassigned_mask(cell_ids)
         assigned_mask = ~unassigned_mask
@@ -698,12 +714,12 @@ def process_single_molecule_data(
         unassigned_index = {}
 
     log(f"  Gene index built. Unique genes: {len(gene_index):,}")
-    if has_unassigned:
+    if has_cell_ids:
         total_assigned = sum(len(v) for v in gene_index.values())
         total_unassigned = sum(len(v) for v in unassigned_index.values())
         log(f"  Assigned molecules: {total_assigned:,}")
         log(f"  Unassigned molecules: {total_unassigned:,}")
-        log(f"  Genes with unassigned molecules: {len(unassigned_index):,}")
+        log(f"  Genes with unassigned molecules: {sum(1 for v in unassigned_index.values() if len(v)):,}")
 
     # Step 4: Filter genes
     log(f"=== STEP 4: Filtering control probes and unassigned genes ===")
@@ -723,6 +739,24 @@ def process_single_molecule_data(
 
     unique_genes = sorted(filtered_genes)
     total_genes = len(unique_genes)
+
+    # has_unassigned (manifest flag + `_uuuuuuuuuu` files) means there ARE
+    # unassigned molecules among the KEPT genes — a cell-id column with every
+    # molecule assigned is the same as no cell-id column. Matches the browser
+    # pipeline, which indexes after filtering.
+    has_unassigned = has_cell_ids and any(
+        len(unassigned_index.get(g, ())) for g in unique_genes
+    )
+
+    # statistics.total_molecules counts the molecules that made it into the
+    # output (kept genes only) — the same number the browser pipeline reports
+    # and the number that becomes the dataset card's molecule count.
+    total_molecules = sum(
+        len(gene_index.get(g, ())) + len(unassigned_index.get(g, ()))
+        for g in unique_genes
+    )
+    if total_molecules != rows_read:
+        log(f"  Molecules in output: {total_molecules:,} of {rows_read:,} rows read")
 
     if not manifest_only:
         genes_folder = output_path / "genes"
@@ -746,9 +780,10 @@ def process_single_molecule_data(
             else:
                 assigned_bytes = b''
 
-            # Unassigned coordinates
-            if has_unassigned and gene in unassigned_index:
-                u_indices = unassigned_index[gene]
+            # Unassigned coordinates — only when this gene has some (no empty
+            # `_uuuuuuuuuu` files; the viewer treats a missing file as empty).
+            u_indices = unassigned_index.get(gene) if has_unassigned else None
+            if u_indices is not None and len(u_indices) > 0:
                 unassigned_bytes = rounded_coords[u_indices].flatten().astype(np.float32).tobytes()
             else:
                 unassigned_bytes = None
@@ -801,7 +836,7 @@ def process_single_molecule_data(
     for gene in unique_genes:
         assigned = len(gene_index.get(gene, []))
         entry = {"assigned": assigned}
-        if has_unassigned:
+        if has_cell_ids:
             unassigned = len(unassigned_index.get(gene, []))
             entry["unassigned"] = unassigned
         gene_molecule_counts[gene] = entry
@@ -860,7 +895,7 @@ def process_single_molecule_data(
     log(f"  Unique genes: {len(unique_genes):,}")
     log(f"  Dimensions: {dimensions}D")
     log(f"  Coordinates: raw, rounded to 2dp")
-    if has_unassigned:
+    if has_cell_ids:
         total_assigned = sum(len(v) for v in gene_index.values())
         total_unassigned = sum(len(v) for v in unassigned_index.values())
         log(f"  Assigned molecules: {total_assigned:,}")

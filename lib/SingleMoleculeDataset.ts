@@ -67,6 +67,46 @@ function formatElapsedTime(ms: number): string {
  * Standardized dataset format for single molecule data
  * Stores molecule coordinates with fast gene-based lookup
  */
+/**
+ * Per-gene molecule counts for the manifest. Mirrors the server pipeline:
+ * `assigned` for every gene, plus `unassigned` only when the input had a
+ * cell-id column (then present for every gene, possibly 0).
+ */
+function buildMoleculeCounts(
+  genes: string[],
+  geneIndex: Map<string, Float32Array>,
+  unassignedGeneIndex: Map<string, Float32Array>,
+  hasCellIdColumn: boolean,
+  totalMolecules: number,
+): Record<string, { assigned: number; unassigned?: number }> {
+  const counts: Record<string, { assigned: number; unassigned?: number }> = {};
+  let totalAssigned = 0;
+  let totalUnassigned = 0;
+
+  for (const gene of genes) {
+    const assigned = (geneIndex.get(gene)?.length ?? 0) / 3;
+
+    totalAssigned += assigned;
+    if (hasCellIdColumn) {
+      const unassigned = (unassignedGeneIndex.get(gene)?.length ?? 0) / 3;
+
+      totalUnassigned += unassigned;
+      counts[gene] = { assigned, unassigned };
+    } else {
+      counts[gene] = { assigned };
+    }
+  }
+
+  if (hasCellIdColumn && totalMolecules > 0) {
+    console.log(
+      `[SingleMoleculeDataset] Cell assignment: ${totalAssigned.toLocaleString()} assigned, ` +
+        `${totalUnassigned.toLocaleString()} unassigned (${((totalUnassigned / totalMolecules) * 100).toFixed(1)}%)`,
+    );
+  }
+
+  return counts;
+}
+
 export class SingleMoleculeDataset {
   id: string;
   name: string;
@@ -332,6 +372,11 @@ export class SingleMoleculeDataset {
    * Returns flat array: [x1,y1,z1, x2,y2,z2, ...]
    * Throws error if gene not found
    */
+  /** True when the gene has assigned molecules (an entry in the gene index). */
+  hasAssignedMolecules(geneName: string): boolean {
+    return this.geneIndex.has(geneName);
+  }
+
   getCoordinatesByGene(geneName: string): Float32Array {
     // Check if gene exists
     if (!this.geneIndex.has(geneName)) {
@@ -393,8 +438,13 @@ export class SingleMoleculeDataset {
       columnsToRead.push(columnMapping.z);
     }
 
-    // Read parquet file using hyparquet (cell_id is optional — won't throw if missing)
-    const optionalColumns = cellIdCol ? [cellIdCol] : [];
+    // z and cell_id are optional (same as the server pipeline): a missing z
+    // column means a 2D dataset, a missing cell_id means every molecule is
+    // assigned. Only gene/x/y are required.
+    const optionalColumns = [
+      ...(columnMapping.z ? [columnMapping.z] : []),
+      ...(cellIdCol ? [cellIdCol] : []),
+    ];
 
     const columnData = await hyparquetService.readParquetColumns(
       file,
@@ -449,9 +499,21 @@ export class SingleMoleculeDataset {
     const assignedCounts = new Map<string, number>();
     const unassignedCounts = new Map<string, number>();
 
+    // Molecules with a missing gene or a non-finite coordinate are dropped
+    // (same rule as the server pipeline) — never written at 0,0 or as NaN.
+    let droppedMolecules = 0;
+    const coordOk = (i: number) =>
+      Number.isFinite(xCoords[i]) &&
+      Number.isFinite(yCoords[i]) &&
+      (!zData || Number.isFinite(zCoords[i]));
+
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
 
+      if (gene == null || !coordOk(i)) {
+        droppedMolecules++;
+        continue;
+      }
       if (shouldFilterGene(gene)) continue;
 
       const isUnassigned =
@@ -487,6 +549,8 @@ export class SingleMoleculeDataset {
     // Pass 2: Fill Float32Arrays with rounded coordinates
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
+
+      if (gene == null || !coordOk(i)) continue;
       const isUnassigned =
         hasCellIdColumn && isUnassignedCellId(cellIdData![i]);
 
@@ -518,32 +582,27 @@ export class SingleMoleculeDataset {
 
     const hasUnassigned = hasCellIdColumn && unassignedGeneIndex.size > 0;
 
-    // Collect all gene names from both assigned and unassigned
-    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
-    const uniqueGenes = Array.from(allGeneKeys);
-
-    // Build molecule counts
-    let moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null = null;
-
-    if (hasCellIdColumn) {
-      moleculeCounts = {};
-      for (const gene of allGeneKeys) {
-        const assignedCoords = geneIndex.get(gene);
-        const unassignedCoords = unassignedGeneIndex.get(gene);
-        moleculeCounts[gene] = {
-          assigned: assignedCoords ? assignedCoords.length / 3 : 0,
-          unassigned: unassignedCoords ? unassignedCoords.length / 3 : 0,
-        };
-      }
-
-      const totalAssigned = Object.values(moleculeCounts).reduce((s, c) => s + c.assigned, 0);
-      const totalUnassigned = Object.values(moleculeCounts).reduce((s, c) => s + (c.unassigned ?? 0), 0);
-
-      console.log(
-        `[SingleMoleculeDataset] Cell assignment: ${totalAssigned.toLocaleString()} assigned, ` +
-          `${totalUnassigned.toLocaleString()} unassigned (${((totalUnassigned / totalMolecules) * 100).toFixed(1)}%)`,
+    if (droppedMolecules > 0) {
+      console.warn(
+        `[SingleMoleculeDataset] Dropped ${droppedMolecules.toLocaleString()} molecules with a missing gene or non-finite coordinates`,
       );
     }
+
+    // Collect all gene names from both assigned and unassigned — sorted, like
+    // the server pipeline's manifest.
+    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
+    const uniqueGenes = Array.from(allGeneKeys).sort();
+
+    // Per-gene molecule counts are ALWAYS built (the gene picker shows and
+    // sorts by them); the `unassigned` count is present only when the file
+    // has a cell-id column — same shape as the server pipeline's manifest.
+    const moleculeCounts = buildMoleculeCounts(
+      uniqueGenes,
+      geneIndex,
+      unassignedGeneIndex,
+      hasCellIdColumn,
+      totalMolecules,
+    );
 
     await onProgress?.(90, "Creating dataset...");
 
@@ -637,6 +696,8 @@ export class SingleMoleculeDataset {
 
     console.log(`[SingleMoleculeDataset] CSV chunk size: ${(chunkSize / MB).toFixed(0)}MB for ${(fileSize / MB).toFixed(0)}MB file`);
 
+    let droppedMolecules = 0;
+
     await onProgress?.(15, "Streaming CSV file...");
 
     // Stream-parse the CSV file in chunks using PapaParse chunk mode
@@ -671,18 +732,34 @@ export class SingleMoleculeDataset {
             }
 
             const gene = String(row[columnMapping.gene]);
-            const x = Math.round((Number(row[columnMapping.x]) || 0) * 100) / 100;
-            const y = Math.round((Number(row[columnMapping.y]) || 0) * 100) / 100;
-            let z = 0;
+            const xRaw = Number(row[columnMapping.x]);
+            const yRaw = Number(row[columnMapping.y]);
+            let zRaw: number | null = null;
 
             if (
               columnMapping.z &&
               row[columnMapping.z] !== undefined &&
-              row[columnMapping.z] !== null
+              row[columnMapping.z] !== null &&
+              row[columnMapping.z] !== ""
             ) {
-              z = Math.round((Number(row[columnMapping.z]) || 0) * 100) / 100;
+              zRaw = Number(row[columnMapping.z]);
               hasZ = true;
             }
+
+            // A molecule with a non-finite coordinate is dropped (same rule as
+            // the server pipeline) — never planted at 0,0.
+            if (
+              !Number.isFinite(xRaw) ||
+              !Number.isFinite(yRaw) ||
+              (zRaw !== null && !Number.isFinite(zRaw))
+            ) {
+              droppedMolecules++;
+              continue;
+            }
+
+            const x = Math.round(xRaw * 100) / 100;
+            const y = Math.round(yRaw * 100) / 100;
+            const z = zRaw === null ? 0 : Math.round(zRaw * 100) / 100;
 
             // Skip control genes immediately
             if (shouldFilterGene(gene)) continue;
@@ -757,34 +834,28 @@ export class SingleMoleculeDataset {
     }
     tempUnassignedGeneIndex.clear();
 
-    // Build molecule counts
-    let moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null = null;
-
-    if (hasCellIdColumn) {
-      moleculeCounts = {};
-      for (const gene of uniqueGenesSet) {
-        const assignedCoords = geneIndex.get(gene);
-        const unassignedCoords = unassignedGeneIndex.get(gene);
-        moleculeCounts[gene] = {
-          assigned: assignedCoords ? assignedCoords.length / 3 : 0,
-          unassigned: unassignedCoords ? unassignedCoords.length / 3 : 0,
-        };
-      }
-
-      const totalAssigned = Object.values(moleculeCounts).reduce((s, c) => s + c.assigned, 0);
-      const totalUnassigned = Object.values(moleculeCounts).reduce((s, c) => s + (c.unassigned ?? 0), 0);
-
-      console.log(
-        `[SingleMoleculeDataset] Cell assignment: ${totalAssigned.toLocaleString()} assigned, ` +
-          `${totalUnassigned.toLocaleString()} unassigned (${((totalUnassigned / totalRows) * 100).toFixed(1)}%)`,
+    if (droppedMolecules > 0) {
+      console.warn(
+        `[SingleMoleculeDataset] Dropped ${droppedMolecules.toLocaleString()} molecules with non-finite coordinates`,
       );
     }
 
     await onProgress?.(90, "Creating dataset...");
 
-    // Ensure uniqueGenes includes genes that only appear in assigned OR unassigned
+    // uniqueGenes includes genes that only appear in assigned OR unassigned —
+    // sorted, like the server pipeline's manifest.
     const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
-    const uniqueGenes = Array.from(allGeneKeys);
+    const uniqueGenes = Array.from(allGeneKeys).sort();
+
+    // Per-gene molecule counts are ALWAYS built; `unassigned` only when the
+    // file has a cell-id column (same shape as the server pipeline).
+    const moleculeCounts = buildMoleculeCounts(
+      uniqueGenes,
+      geneIndex,
+      unassignedGeneIndex,
+      hasCellIdColumn,
+      totalRows,
+    );
 
     console.log(
       `[SingleMoleculeDataset] Streamed ${totalRows.toLocaleString()} molecules, ${uniqueGenes.length} genes`,
@@ -893,7 +964,7 @@ export class SingleMoleculeDataset {
     // Create dataset with lazy-loading capability
     const dataset = new SingleMoleculeDataset({
       id: datasetId,
-      name: manifest.name || apiData.title,
+      name: apiData.title || manifest.name,
       type: manifest.type,
       uniqueGenes,
       geneIndex,
