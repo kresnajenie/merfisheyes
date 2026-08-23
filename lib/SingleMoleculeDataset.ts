@@ -17,6 +17,7 @@ import {
 } from "./config/moleculeColumnMappings";
 import { shouldFilterGene } from "./utils/gene-filters";
 import { round2 } from "./utils/coordinates";
+import { progressiveSlots } from "./utils/progressive-order";
 
 /**
  * Denormalize coordinates from [-1,1] range back to raw microns.
@@ -638,6 +639,20 @@ export class SingleMoleculeDataset {
       }
     }
 
+    // Gene files are written in progressive (bit-reversal) order so that a
+    // partially streamed gene covers the whole slide instead of one corner.
+    const assignedSlots = new Map<string, Uint32Array>();
+    const unassignedSlots = new Map<string, Uint32Array>();
+
+    for (const [gene, count] of assignedCounts) {
+      assignedSlots.set(gene, progressiveSlots(count));
+    }
+    if (hasCellIdColumn) {
+      for (const [gene, count] of unassignedCounts) {
+        unassignedSlots.set(gene, progressiveSlots(count));
+      }
+    }
+
     // Pass 2: Fill Float32Arrays with rounded coordinates
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
@@ -648,16 +663,19 @@ export class SingleMoleculeDataset {
 
       const targetIndex = isUnassigned ? unassignedGeneIndex : geneIndex;
       const targetOffsets = isUnassigned ? unassignedOffsets : geneOffsets;
+      const targetSlots = isUnassigned ? unassignedSlots : assignedSlots;
       const arr = targetIndex.get(gene);
 
       if (!arr) continue; // filtered gene
 
-      const offset = targetOffsets.get(gene)!;
+      const cursor = targetOffsets.get(gene)!;
+      // This gene's `cursor`-th molecule goes to its progressive slot.
+      const offset = targetSlots.get(gene)![cursor] * 3;
 
       arr[offset] = round2(xCoords[i]);
       arr[offset + 1] = round2(yCoords[i]);
       arr[offset + 2] = round2(zCoords[i]);
-      targetOffsets.set(gene, offset + 3);
+      targetOffsets.set(gene, cursor + 1);
 
       // Report progress every 5% and yield to browser
       if (i > 0 && i % progressInterval === 0) {
@@ -912,11 +930,29 @@ export class SingleMoleculeDataset {
 
     await onProgress?.(88, "Converting to typed arrays...");
 
-    // Convert number[] to Float32Array for each gene (50% memory savings)
+    // Convert number[] to Float32Array for each gene (50% memory savings),
+    // reordering into progressive (bit-reversal) order so a partially
+    // streamed gene covers the whole slide instead of one corner.
+    const toProgressive = (coords: number[]): Float32Array => {
+      const molecules = coords.length / 3;
+      const slots = progressiveSlots(molecules);
+      const out = new Float32Array(coords.length);
+
+      for (let i = 0; i < molecules; i++) {
+        const dst = slots[i] * 3;
+        const src = i * 3;
+
+        out[dst] = coords[src];
+        out[dst + 1] = coords[src + 1];
+        out[dst + 2] = coords[src + 2];
+      }
+
+      return out;
+    };
     const geneIndex = new Map<string, Float32Array>();
 
     for (const [gene, coords] of tempGeneIndex) {
-      geneIndex.set(gene, new Float32Array(coords));
+      geneIndex.set(gene, toProgressive(coords));
     }
     tempGeneIndex.clear(); // Free the number[] arrays
 
@@ -925,7 +961,7 @@ export class SingleMoleculeDataset {
 
     if (hasUnassigned) {
       for (const [gene, coords] of tempUnassignedGeneIndex) {
-        unassignedGeneIndex.set(gene, new Float32Array(coords));
+        unassignedGeneIndex.set(gene, toProgressive(coords));
       }
     }
     tempUnassignedGeneIndex.clear();
