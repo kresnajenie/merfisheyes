@@ -227,8 +227,11 @@ export function SingleMoleculeGenePicker() {
                 >
                   <span className="text-sm">
                     {gene}
+                    {/* Count is visual only: the checkbox's accessible name stays
+                        the gene (screen readers / e2e address it by name; the
+                        full counts are in the row's title). */}
                     {counts && (
-                      <span className="text-default-400 ml-1">
+                      <span aria-hidden="true" className="text-default-400 ml-1">
                         {formatCount(counts.assigned)}
                         {counts.unassigned != null &&
                           ` | ${formatCount(counts.unassigned)}`}

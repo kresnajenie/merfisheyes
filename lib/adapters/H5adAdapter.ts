@@ -62,7 +62,8 @@ export class H5adAdapter {
    */
   getDatasetInfo() {
     const xDataset = this.h5File.get("X");
-    const [numCells, numGenes] = xDataset.shape || [0, 0];
+    // A sparse X is a group: its shape lives in the attrs.
+    const [numCells, numGenes] = xDataset.shape || this.sparseShape(xDataset);
 
     return { numCells, numGenes };
   }
@@ -98,7 +99,16 @@ export class H5adAdapter {
       );
       const codes = Array.from(field.get("codes").value) as number[];
 
-      return codes.map((i) => categories[i] ?? "Unknown");
+      // Missing category (code -1) → "" — the same label the server pipeline writes.
+      return codes.map((i) => categories[i] ?? "");
+    }
+
+    // Booleans are stored as an HDF5 enum {FALSE, TRUE}; label them the way
+    // pandas stringifies booleans so both pipelines write the same dictionary.
+    const members = field.metadata?.enum_type?.members;
+
+    if (members && "FALSE" in members && "TRUE" in members) {
+      return Array.from(field.value as ArrayLike<number>, (v) => (v ? "True" : "False"));
     }
 
     return Array.from(field.value, this.decodeBytes.bind(this));
@@ -151,23 +161,19 @@ export class H5adAdapter {
 
     if (!flat || !flat.length) return null;
 
-    // Determine if we have 2D or 3D coordinates based on array length
+    // Keep at most 3 dimensions (the viewer renders 2D/3D; a 50-component PCA
+    // is truncated to its first 3, same as the server pipeline).
     const dimensions = dataset.metadata.shape[1];
+    const keep = Math.min(dimensions, 3);
     const rows = Math.floor(flat.length / dimensions);
 
-    coordinates = Array.from({ length: rows }, (_, i) => {
-      const coords = [flat[i * dimensions], flat[i * dimensions + 1]];
-
-      if (dimensions === 3) {
-        coords.push(flat[i * dimensions + 2]);
-      }
-
-      return coords;
-    });
+    coordinates = Array.from({ length: rows }, (_, i) =>
+      Array.from({ length: keep }, (_, k) => flat[i * dimensions + k]),
+    );
 
     return {
       coordinates: coordinates,
-      dimensions: dimensions,
+      dimensions: keep,
     };
   }
 
@@ -447,6 +453,12 @@ export class H5adAdapter {
     try {
       const values = await this.fetchObs(columnName);
 
+      // All-empty columns are not exported (same rule as the server pipeline).
+      const isMissing = (v: any) =>
+        v == null || (typeof v === "number" && Number.isNaN(v)) || String(v).trim() === "" || String(v) === "NaN";
+
+      if (values.every(isMissing)) return null;
+
       // Determine if categorical or numerical (pass columnName for special cases)
       const isCategorical = this.isCategoricalData(values, columnName);
 
@@ -514,9 +526,16 @@ export class H5adAdapter {
   async loadClusters(): Promise<any[]> {
     const allClusters: any[] = [];
 
-    // Get all non-index columns
+    // Get all non-index, non-coordinate columns (the same fixed list of
+    // coordinate names the server pipeline leaves out of obs/).
+    const COORDINATE_COLUMNS = new Set([
+      "center_x", "centerX", "center_y", "centerY", "center_z", "centerZ",
+      "x", "y", "z", "X", "Y", "Z",
+      "x_centroid", "y_centroid", "z_centroid",
+      "centroid_x", "centroid_y", "centroid_z",
+    ]);
     const nonIndexColumns = this.metadata.obsKeys.filter(
-      (key: string) => !key.startsWith("_"),
+      (key: string) => !key.startsWith("_") && !COORDINATE_COLUMNS.has(key),
     );
 
     // Parse all columns
@@ -546,43 +565,32 @@ export class H5adAdapter {
   }
 
   /**
-   * Load color palette for clusters
+   * Stored category order of a categorical obs column (null when the column
+   * isn't categorical). scanpy's `uns[col + "_colors"]` follows this order.
+   */
+  private fetchObsCategories(group: string): string[] | null {
+    const field = this.h5File.get("obs").get(group);
+    const keys = field?.keys?.();
+
+    if (keys?.includes("categories") && keys.includes("codes")) {
+      return Array.from(field.get("categories").value, this.decodeBytes.bind(this)) as string[];
+    }
+
+    return null;
+  }
+
+  /**
+   * Load color palette for clusters.
+   *
+   * Default colours are assigned in sorted label order (the same order the
+   * server pipeline uses, so both produce the same colours). When the file
+   * carries `uns[col + "_colors"]` with one colour per stored category —
+   * scanpy's convention is that colours follow the column's category order —
+   * those override the defaults, unless every colour is the same.
    */
   async loadClusterPalette(
     clusterColumn: string,
   ): Promise<Record<string, string>> {
-    try {
-      // Try to get colors from uns
-      const colors = this.fetchUns(clusterColumn + "_colors");
-      const clusters = await this.fetchObs(clusterColumn);
-      const uniqueClusters = Array.from(new Set(clusters)).sort();
-
-      if (colors && colors.length === uniqueClusters.length) {
-        // Check if palette has only 1 unique color (e.g., all gray)
-        const uniqueColors = new Set(
-          colors.map((c: any) => this.normalizeHexColor(c)),
-        );
-
-        if (uniqueColors.size === 1 && uniqueClusters.length > 1) {
-          // Multiple categories but only 1 color - fall back to default colors
-          console.log(
-            `Palette for ${clusterColumn} has only 1 unique color, using default colors`,
-          );
-        } else {
-          // Valid palette - use colors from uns
-          const palette: Record<string, string> = {};
-
-          uniqueClusters.forEach((cluster, index) => {
-            palette[cluster] = this.normalizeHexColor(colors[index]);
-          });
-
-          return palette;
-        }
-      }
-    } catch (error) {
-      console.log("No colors found in uns, using default colors");
-    }
-
     const clusters = await this.fetchObs(clusterColumn);
     const uniqueClusters = Array.from(new Set(clusters)).sort();
     const palette: Record<string, string> = {};
@@ -592,6 +600,30 @@ export class H5adAdapter {
         DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length],
       );
     });
+
+    try {
+      const colors = this.fetchUns(clusterColumn + "_colors");
+      // Non-categorical columns have no stored order: scanpy builds their
+      // categories sorted, so sorted unique is the right mapping there.
+      const stored = this.fetchObsCategories(clusterColumn) ?? uniqueClusters;
+
+      if (colors && colors.length === stored.length) {
+        const normalized = colors.map((c: any) => this.normalizeHexColor(c));
+        const uniqueColors = new Set(normalized);
+
+        if (uniqueColors.size === 1 && stored.length > 1) {
+          console.log(
+            `Palette for ${clusterColumn} has only 1 unique color, using default colors`,
+          );
+        } else {
+          stored.forEach((category, index) => {
+            palette[String(category)] = normalized[index];
+          });
+        }
+      }
+    } catch (error) {
+      console.log("No colors found in uns, using default colors");
+    }
 
     return palette;
   }
@@ -646,7 +678,56 @@ export class H5adAdapter {
   fetchFullMatrix(): any {
     const m = this.h5File.get("X");
 
-    return m.value;
+    // Sparse X (anndata csr_matrix / csc_matrix group): expand to the same
+    // row-major Float32Array a dense X yields, so gene extraction is uniform.
+    if (m && typeof m.keys === "function" && m.keys().includes("indptr")) {
+      return this.denseFromSparseGroup(m);
+    }
+
+    // Work in float32 like the server pipeline (X is read straight into
+    // float32 there): DE means then accumulate the same values on both sides,
+    // and a float64 X costs half the memory.
+    const value = m.value;
+
+    return value instanceof Float64Array ? new Float32Array(value) : value;
+  }
+
+  /** h5wasm exposes attributes as { value, shape, dtype } records. */
+  private attrValue(obj: any, name: string): any {
+    const a = obj?.attrs?.[name];
+
+    return a && typeof a === "object" && "value" in a ? a.value : a;
+  }
+
+  private sparseShape(group: any): [number, number] {
+    const shape = this.attrValue(group, "shape"); // BigInt64Array or number[]
+
+    return shape ? [Number(shape[0]), Number(shape[1])] : [0, 0];
+  }
+
+  private denseFromSparseGroup(group: any): Float32Array {
+    const [nObs, nGenes] = this.sparseShape(group);
+    const data = group.get("data").value as ArrayLike<number>;
+    const indices = group.get("indices").value as ArrayLike<number | bigint>;
+    const indptr = group.get("indptr").value as ArrayLike<number | bigint>;
+    const encoding = String(this.attrValue(group, "encoding-type") ?? "csr_matrix");
+    const dense = new Float32Array(nObs * nGenes);
+
+    if (encoding.startsWith("csc")) {
+      for (let j = 0; j < nGenes; j++) {
+        for (let p = Number(indptr[j]); p < Number(indptr[j + 1]); p++) {
+          dense[Number(indices[p]) * nGenes + j] = Number(data[p]);
+        }
+      }
+    } else {
+      for (let i = 0; i < nObs; i++) {
+        for (let p = Number(indptr[i]); p < Number(indptr[i + 1]); p++) {
+          dense[i * nGenes + Number(indices[p])] = Number(data[p]);
+        }
+      }
+    }
+
+    return dense;
   }
 
   /**
@@ -655,8 +736,7 @@ export class H5adAdapter {
   fetchColumn(matrix: any, column: number): number[] {
     if (Array.isArray(matrix[0])) return matrix.map((row: any) => row[column]);
 
-    const xDataset = this.h5File.get("X");
-    const [n_obs, n_genes] = xDataset.shape || [0, 0];
+    const { numCells: n_obs, numGenes: n_genes } = this.getDatasetInfo();
 
     if (ArrayBuffer.isView(matrix)) {
       if (column >= n_genes) throw new Error("Column index out of bounds");

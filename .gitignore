@@ -138,3 +138,7 @@ docs-private/
 __pycache__/
 *.pyc
 *.pyo
+
+# Pipeline parity harness work dir (scripts/parity/run.py)
+.parity/
+

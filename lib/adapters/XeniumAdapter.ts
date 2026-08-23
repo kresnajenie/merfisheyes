@@ -3,6 +3,7 @@ import Papa, { ParseResult } from "papaparse";
 import { ungzip } from "pako";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { buildObsColumnsFromRows } from "./table-obs-columns";
 
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 import { shouldFilterGene } from "@/lib/utils/gene-filters";
@@ -349,6 +350,27 @@ export class XeniumAdapter {
     }
 
     return { column: clusterColumn, values: [], valueIndices, palette, uniqueValues: uniq };
+  }
+
+  /**
+   * Every metadata column of cells.csv (not just the detected cluster
+   * column), same rules as the server pipeline. The detected cluster column
+   * comes first so the viewer's default pick is unchanged.
+   */
+  async loadAllClusters(): Promise<ClusterData[]> {
+    if (!this._rows.length) return [];
+    const { xKey, yKey } = detectCentroidKeys(this._rows[0]);
+    const columns = buildObsColumnsFromRows(this._rows, {
+      coordinateKeys: [xKey, yKey],
+      geneNames: this._genes,
+    });
+
+    if (columns.length === 0) return [await this.loadClusters()];
+    const first = this._clusterColumn;
+
+    return first
+      ? [...columns.filter((c) => c.column === first), ...columns.filter((c) => c.column !== first)]
+      : columns;
   }
 
   // ---- obs/var interface expected by StandardizedDataset ----
@@ -1106,9 +1128,17 @@ async function parseFeaturesFile(file: File): Promise<FeatureEntry[]> {
 
   const delim = lines[0].includes("\t") ? "\t" : ",";
   const firstParts = lines[0].split(delim).map((s) => s.trim());
-  const looksLikeHeader = firstParts.some((p) =>
-    /gene|feature|target|type|id/.test(p.toLowerCase()),
-  );
+  // The 10x features.tsv has no header: "<id>\t<name>\t<feature type>". Its
+  // first row would pass a naive header sniff ("Gene Expression" contains
+  // "gene"), dropping the first gene — the server reads it headerless. Only
+  // treat the first line as a header when it doesn't look like a data row.
+  const FEATURE_TYPES =
+    /^(gene expression|negative control (probe|codeword)|unassigned codeword|deprecated codeword|blank codeword|genomic control|antibody capture|peaks)$/i;
+  const looksLikeDataRow =
+    firstParts.some((p) => FEATURE_TYPES.test(p)) || /^ENS[A-Z]*G\d+/.test(firstParts[0]);
+  const looksLikeHeader =
+    !looksLikeDataRow &&
+    firstParts.some((p) => /gene|feature|target|type|id/.test(p.toLowerCase()));
 
   let startIdx = 0;
   let geneIdx = -1;

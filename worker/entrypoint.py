@@ -500,12 +500,17 @@ def find_single_molecule_input(raw_dir: Path) -> Path:
     return max(candidates, key=score)
 
 
-def detect_molecule_type(input_path: Path) -> str:
+def detect_molecule_type(input_path: Path):
     """Pick the process_single_molecule.py --dataset-type from the column names.
 
     MERSCOPE uses global_x/global_y; Xenium uses x_location/y_location. Peeking
     the header (a single line for CSV, the schema for parquet) keeps type
     detection server-side — no schema hint has to be threaded from the client.
+
+    Returns (dataset_type, cell_id_col). The cell-id column follows the same
+    preset the browser pipeline uses (MERSCOPE → "cell_id" when present, Xenium
+    → none), so an auto-detected upload gets the same assigned/unassigned
+    split as a browser upload of the same file.
     """
     if input_path.suffix.lower() == ".parquet":
         import pyarrow.parquet as pq
@@ -517,9 +522,9 @@ def detect_molecule_type(input_path: Path) -> str:
         columns = {c.strip().strip('"') for c in header.split(",")}
 
     if "global_x" in columns:
-        return "merscope"
+        return "merscope", ("cell_id" if "cell_id" in columns else None)
     if "x_location" in columns:
-        return "xenium"
+        return "xenium", None
     raise RuntimeError(
         "Could not detect molecule schema: expected 'global_x' (MERSCOPE) or "
         f"'x_location' (Xenium) in the header. Columns: {sorted(columns)[:12]}"
@@ -621,10 +626,12 @@ def main():
                 cmd += ["--cell-id-col", str(mapping["cellId"])]
             print(f"== Input: {input_path} (mapping={mapping}) ==", flush=True)
         else:
-            dataset_type = detect_molecule_type(input_path)
+            dataset_type, cell_id_col = detect_molecule_type(input_path)
             cmd += ["--dataset-type", dataset_type]
+            if cell_id_col:
+                cmd += ["--cell-id-col", cell_id_col]
             print(
-                f"== Input: {input_path} (type={dataset_type}, auto) ==",
+                f"== Input: {input_path} (type={dataset_type}, cell_id={cell_id_col}, auto) ==",
                 flush=True,
             )
 

@@ -157,20 +157,15 @@ def reorder_df_to_reference(df: pd.DataFrame, reference_ids: np.ndarray,
 
 
 def determine_chunk_size(num_genes: int, custom_chunk_size: Optional[int] = None) -> int:
-    """Determine chunk size based on number of genes (matches TS logic)"""
-    if custom_chunk_size is not None:
+    """
+    Genes per expression chunk. The spec for BOTH pipelines is ONE gene per
+    chunk: the viewer fetches exactly the gene it needs, whatever the cell
+    count (chunk bytes scale with cells x genes-per-chunk). `--chunk-size`
+    overrides it for local experiments only.
+    """
+    if custom_chunk_size and custom_chunk_size > 0:
         return custom_chunk_size
-
-    if num_genes < 100:
-        return 50
-    elif num_genes < 500:
-        return 100
-    elif num_genes < 2000:
-        return 200
-    elif num_genes < 10000:
-        return 500
-    else:
-        return 1000
+    return 1
 
 
 def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> bool:
@@ -322,6 +317,27 @@ def _is_blank_column(series: pd.Series) -> bool:
 MAX_COORDINATE_DIMS = 3  # Viewer renders 2D/3D only
 
 
+# Control probes / unassigned codewords are not genes. Mirrors
+# lib/utils/gene-filters.ts shouldFilterGene() — the two lists must stay equal.
+_GENE_FILTER_PATTERNS = [
+    re.compile(p, re.IGNORECASE)
+    for p in (
+        r"negative[\s_-]*control",
+        r"neg[\s_-]*ctrl",
+        r"unassigned",
+        r"deprecated",
+        r"codeword",
+        r"blank",
+        r"negcontrol",
+    )
+]
+
+
+def should_filter_gene(gene: str) -> bool:
+    g = str(gene)
+    return any(p.search(g) for p in _GENE_FILTER_PATTERNS)
+
+
 def sanitize_coordinate_name(name: str) -> str:
     """Lowercase an obsm key into a filename-safe embedding name."""
     return re.sub(r'[^a-z0-9_-]+', '_', name.lower()).strip('_')
@@ -334,8 +350,8 @@ def coerce_coordinate_array(
     max_dims: int = MAX_COORDINATE_DIMS,
 ) -> np.ndarray:
     """
-    Coerce an .obsm entry into a dense, contiguous 2D float32 array with at most
-    `max_dims` columns.
+    Coerce an .obsm entry into a dense, contiguous 2D float64 array with at most
+    `max_dims` columns (narrowed to float32 only after rounding).
 
     Handles the shapes .obsm can legally hold: numpy arrays, pandas DataFrames and
     scipy sparse matrices. Raises ValueError with a message naming `context`
@@ -390,7 +406,10 @@ def coerce_coordinate_array(
             f"{expected_rows:,} cells — must match"
         )
 
-    arr = np.ascontiguousarray(arr, dtype=np.float32)
+    # float64 here, float32 only after rounding (round_coordinates): rounding
+    # the original values is what the browser does, and narrowing first would
+    # move values across a 2-dp boundary.
+    arr = np.ascontiguousarray(arr, dtype=np.float64)
 
     num_invalid = int(np.count_nonzero(~np.isfinite(arr)))
     if num_invalid:
@@ -411,7 +430,9 @@ def round_coordinates(coords: np.ndarray) -> np.ndarray:
     """
     if len(coords) == 0:
         return coords
-    return np.round(coords, 2).astype(np.float32)
+    # Round in float64 (round-half-even on x*100, like the browser's `round2`)
+    # so float32 inputs give the same bytes from both pipelines.
+    return np.round(np.asarray(coords, dtype=np.float64), 2).astype(np.float32)
 
 
 def write_coordinate_binary(coords: np.ndarray, output_path: Path):
@@ -436,7 +457,7 @@ def write_coordinate_binary(coords: np.ndarray, output_path: Path):
     print(f"  ✓ Wrote {output_path.name}: {num_points} points, {dimensions}D")
 
 
-def write_sparse_gene_data(indices: np.ndarray, values: np.ndarray) -> bytes:
+def write_sparse_gene_data(indices: np.ndarray, values: np.ndarray, num_cells: int) -> bytes:
     """
     Write sparse gene data to binary format
     Format: [num_cells: uint32, num_non_zero: uint32, [indices: uint32[]], [values: float32[]]]
@@ -444,7 +465,7 @@ def write_sparse_gene_data(indices: np.ndarray, values: np.ndarray) -> bytes:
     num_non_zero = len(indices)
 
     # Header
-    header = struct.pack('<II', num_non_zero, num_non_zero)
+    header = struct.pack('<II', num_cells, num_non_zero)
 
     # Indices and values as contiguous typed arrays
     idx_bytes = np.asarray(indices, dtype=np.uint32).tobytes()
@@ -468,7 +489,7 @@ def write_expression_chunk(
     # Build gene data sections first to know offsets
     gene_data_sections = []
     for indices, values in gene_data_list:
-        gene_data = write_sparse_gene_data(indices, values)
+        gene_data = write_sparse_gene_data(indices, values, total_cells)
         gene_data_sections.append(gene_data)
 
     # Header (16 bytes)
@@ -608,53 +629,111 @@ def write_de_stats_binary(
         f.write(bytes(output))
 
 
+OBS_BINARY_FORMAT = "bin-v1"
+OBS_BINARY_VERSION = 1
+
+
+def encode_obs_binary(values: np.ndarray, categorical: bool):
+    """
+    Serialize one obs column in the binary obs format (see
+    lib/utils/obs-binary.ts for the layout — the two must stay identical).
+
+    Categorical: dictionary of labels in SORTED order (NaN → "") + one
+    uint8/16/32 code per cell. Numerical: one float32 per cell, NaN missing.
+    Returns (bytes, unique_count, categories_or_None).
+    """
+    if categorical:
+        col_str = pd.Series(values).astype("string").fillna("").to_numpy()
+        cat = pd.Categorical(col_str)  # categories come out sorted
+        categories = [str(c) for c in cat.categories]
+        codes = np.asarray(cat.codes)
+        n_cat = len(categories)
+        dtype = np.uint8 if n_cat <= 0xFF else (np.uint16 if n_cat <= 0xFFFF else np.uint32)
+        width = np.dtype(dtype).itemsize
+        # Compact separators = JSON.stringify, so the dictionary bytes match the browser's.
+        dict_bytes = json.dumps(categories, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        pad = (-len(dict_bytes)) % 4
+        header = struct.pack('<IIBBHI', OBS_BINARY_VERSION, len(codes), 0, width, 0, len(dict_bytes))
+        payload = header + dict_bytes + (b"\0" * pad) + codes.astype(dtype).tobytes()
+        return payload, n_cat, categories
+    numeric = pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(dtype=np.float64)
+    header = struct.pack('<IIBBHI', OBS_BINARY_VERSION, len(numeric), 1, 4, 0, 0)
+    unique_count = int(pd.Series(numeric).nunique(dropna=False))
+    return header + numeric.astype(np.float32).tobytes(), unique_count, None
+
+
+def _normalize_hex_color(value) -> Optional[str]:
+    """'#rrggbb' for a stored colour, or None when it isn't one."""
+    if value is None:
+        return None
+    c = str(value).strip()
+    if not c:
+        return None
+    if not c.startswith('#'):
+        c = '#' + c
+    if len(c) > 7:
+        c = c[:7]
+    if len(c) != 7:
+        return None
+    return c.lower()
+
+
+def build_obs_palette(categories: List[str], stored_categories: Optional[List[str]],
+                      uns_colors: Optional[List[str]]) -> Dict[str, str]:
+    """
+    Palette for a categorical column. Default colours are assigned in SORTED
+    label order (`categories`, the binary dictionary order — identical to the
+    browser pipeline). If the h5ad carries `uns[col + "_colors"]` with one
+    colour per stored category (scanpy convention: colours follow the
+    column's category order, not sorted order) and not every colour is the
+    same, those colours override the defaults for those categories.
+    """
+    palette = {label: get_color_from_palette(i) for i, label in enumerate(categories)}
+    if uns_colors is not None and stored_categories is not None:
+        colors = [_normalize_hex_color(c) for c in uns_colors]
+        if (len(colors) == len(stored_categories) and all(colors)
+                and not (len(set(colors)) == 1 and len(colors) > 1)):
+            for label, color in zip(stored_categories, colors):
+                palette[str(label)] = color
+    return palette
+
+
 def _process_obs_column_worker(args):
     """Worker function for parallel obs column processing. Must be top-level for pickling."""
-    col_name, col_values, obs_dir, palettes_dir = args
+    col_name, col_values, obs_dir, palettes_dir, uns_colors = args
     obs_dir = Path(obs_dir)
     palettes_dir = Path(palettes_dir)
 
     categorical = is_categorical(col_values, col_name)
-    series = pd.Series(col_values)
-    series_for_unique = (
-        series.astype("string") if series.dtype == "object" else series
-    )
-    unique_count = int(series_for_unique.nunique(dropna=False))
+
+    payload, unique_count, categories = encode_obs_binary(col_values, categorical)
 
     metadata_entry = {
         'type': 'categorical' if categorical else 'numerical',
-        'unique_values': unique_count
+        'unique_values': unique_count,
+        'format': OBS_BINARY_FORMAT,
     }
 
-    # Write column values
-    if categorical:
-        cat_series = series.astype("string")
-        values_list = cat_series.fillna("").tolist()
-    else:
-        numeric_series = pd.to_numeric(series, errors="coerce")
-        values_list = [
-            None if pd.isna(v) else float(v) for v in numeric_series.tolist()
-        ]
-    obs_file = obs_dir / f'{col_name}.json.gz'
+    obs_file = obs_dir / f'{col_name}.bin.gz'
     obs_file.parent.mkdir(parents=True, exist_ok=True)
-    with gzip.open(obs_file, 'wt', encoding='utf-8') as f:
-        json.dump(values_list, f)
+    with gzip.open(obs_file, 'wb') as f:
+        f.write(payload)
 
     # Generate palette for categorical
     palette_info = None
     if categorical:
-        unique_values = [
-            str(v)
-            for v in cat_series.dropna().unique().tolist()
-        ]
-        palette = generate_color_palette(unique_values)
+        stored = (
+            [str(c) for c in col_values.categories]
+            if isinstance(col_values, pd.Categorical) else None
+        )
+        palette = build_obs_palette(categories, stored, uns_colors)
 
         palette_file = palettes_dir / f'{col_name}.json'
         palette_file.parent.mkdir(parents=True, exist_ok=True)
         with open(palette_file, 'w') as f:
             json.dump(palette, f, indent=2)
 
-        palette_info = len(unique_values)
+        palette_info = len(categories)
 
     return col_name, metadata_entry, palette_info
 
@@ -894,6 +973,19 @@ def load_h5ad_data(input_path: Path):
         obs_df = read_elem(h["obs"])
         var_df = read_elem(h["var"])
         obsm = _read_obsm_coordinate_candidates(h["obsm"], read_elem) if "obsm" in h else {}
+        # uns is otherwise skipped, but scanpy keeps the author's cluster
+        # palettes there as uns["<col>_colors"] — read just those (tiny).
+        uns_colors = {}
+        if "uns" in h:
+            for key in h["uns"].keys():
+                if key.endswith("_colors"):
+                    try:
+                        raw = read_elem(h["uns"][key])
+                        uns_colors[key[: -len("_colors")]] = [
+                            c.decode() if isinstance(c, bytes) else str(c) for c in np.asarray(raw).ravel()
+                        ]
+                    except Exception:
+                        pass
         skipped = [g for g in ("raw", "layers", "obsp", "varp", "uns") if g in h]
         expr_matrix = _read_x_float32(h["X"], read_elem)
 
@@ -979,7 +1071,7 @@ def load_h5ad_data(input_path: Path):
                 continue
             obs_columns[col] = series.values
 
-    return spatial_coords, expr_matrix, gene_names, obs_columns, obsm, n_obs
+    return spatial_coords, expr_matrix, gene_names, obs_columns, obsm, n_obs, uns_colors
 
 
 def load_xenium_data(input_path: Path):
@@ -1276,7 +1368,7 @@ def process_dataset(
 
     # Load data based on format
     if data_format == 'h5ad':
-        spatial_coords, expr_matrix, gene_names, obs_columns, h5ad_obsm, h5ad_n_obs = load_h5ad_data(input_path)
+        spatial_coords, expr_matrix, gene_names, obs_columns, h5ad_obsm, h5ad_n_obs, uns_colors = load_h5ad_data(input_path)
         dataset_name = input_path.stem
         dataset_type = 'h5ad'
 
@@ -1308,6 +1400,7 @@ def process_dataset(
         del h5ad_obsm
 
     elif data_format == 'xenium':
+        uns_colors = {}
         cells_df, expr_matrix, gene_names = load_xenium_data(input_path)
         dataset_name = input_path.name
         dataset_type = 'xenium'
@@ -1478,6 +1571,7 @@ def process_dataset(
             shutil.rmtree(analysis_extract_dir, ignore_errors=True)
 
     elif data_format == 'merscope':
+        uns_colors = {}
         metadata_df, merscope_expr_file, gene_names, merscope_index_col = load_merscope_data(input_path)
         dataset_name = input_path.name
         dataset_type = 'merscope'
@@ -1624,6 +1718,16 @@ def process_dataset(
 
         log(f"  Added {mmc_cols_added} columns from MapMyCells CSV", _t_start)
 
+    # Control probes / blanks / unassigned codewords are dropped from the
+    # output (gene list, chunks, DE stats) in every format — same rule as the
+    # browser pipeline. Done as an index map so the matrix is never copied.
+    gene_col_positions = None
+    kept = [i for i, g in enumerate(gene_names) if not should_filter_gene(g)]
+    if len(kept) != len(gene_names):
+        log(f"  Filtered {len(gene_names) - len(kept)} control/blank genes of {len(gene_names)}", _t_start)
+        gene_names = [gene_names[i] for i in kept]
+        gene_col_positions = np.asarray(kept, dtype=np.int64)
+
     # Continue with common processing
     num_cells = len(spatial_coords)
     num_genes = len(gene_names)
@@ -1668,7 +1772,7 @@ def process_dataset(
     if num_workers > 1 and len(obs_columns) > 1:
         # Parallel obs column processing
         worker_args = [
-            (col_name, col_values, str(obs_dir), str(palettes_dir))
+            (col_name, col_values, str(obs_dir), str(palettes_dir), uns_colors.get(col_name))
             for col_name, col_values in obs_columns.items()
         ]
         effective_workers = min(num_workers, len(obs_columns))
@@ -1689,7 +1793,7 @@ def process_dataset(
         # Serial fallback
         for col_idx, (col_name, col_values) in enumerate(obs_columns.items(), 1):
             col_name, metadata_entry, palette_info = _process_obs_column_worker(
-                (col_name, col_values, str(obs_dir), str(palettes_dir)))
+                (col_name, col_values, str(obs_dir), str(palettes_dir), uns_colors.get(col_name)))
             obs_metadata[col_name] = metadata_entry
             if palette_info is not None:
                 cluster_count += 1
@@ -1787,7 +1891,8 @@ def process_dataset(
 
         if sparse.issparse(expr_matrix):
             def gene_column(gene_idx: int) -> np.ndarray:
-                return expr_matrix[:, gene_idx].toarray().ravel()
+                src = gene_idx if gene_col_positions is None else int(gene_col_positions[gene_idx])
+                return expr_matrix[:, src].toarray().ravel()
         else:
             # A dense cells×genes array is row-major, so one gene's column is a
             # strided walk over the whole matrix — per gene, that is hundreds of
@@ -1802,15 +1907,17 @@ def process_dataset(
             block_state = {"start": -1, "data": None}
 
             def gene_column(gene_idx: int) -> np.ndarray:
+                # Blocks are over SOURCE columns; filtered genes just aren't asked for.
+                src = gene_idx if gene_col_positions is None else int(gene_col_positions[gene_idx])
                 start = block_state["start"]
-                if start < 0 or not (start <= gene_idx < start + cols_per_block):
-                    start = (gene_idx // cols_per_block) * cols_per_block
+                if start < 0 or not (start <= src < start + cols_per_block):
+                    start = (src // cols_per_block) * cols_per_block
                     block_state["data"] = None  # drop the previous block first
                     block_state["data"] = np.asfortranarray(
                         expr_matrix[:, start:start + cols_per_block]
                     )
                     block_state["start"] = start
-                return block_state["data"][:, gene_idx - start]
+                return block_state["data"][:, src - start]
 
     def extract_gene(gene_idx: int) -> Tuple[np.ndarray, np.ndarray]:
         """Sparse (indices, values) for one gene + fold it into the DE stats."""

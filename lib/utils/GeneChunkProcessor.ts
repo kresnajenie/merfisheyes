@@ -6,6 +6,17 @@
 
 import type { StandardizedDataset } from "../StandardizedDataset";
 
+import { getClusterValue } from "../StandardizedDataset";
+import {
+  OBS_BINARY_FORMAT,
+  encodeCategoricalObs,
+  encodeNumericalObs,
+} from "./obs-binary";
+import { computeDeStats, encodeDeStatsBuffer } from "./de-stats";
+
+/** Same threshold as --de-max-celltypes in scripts/process_spatial_data.py. */
+const DE_MAX_CELLTYPES = 20000;
+
 export interface GeneChunkMetadata {
   name: string;
   mean: number;
@@ -65,16 +76,15 @@ export class GeneChunkProcessor {
   }
 
   /**
-   * Determine optimal chunk size based on number of genes
+   * Genes per expression chunk. The spec for BOTH pipelines (browser and
+   * server) is ONE gene per chunk: the viewer fetches exactly the gene it
+   * needs, whatever the cell count. An explicit constructor value overrides
+   * it for local experiments only.
    */
-  determineChunkSize(numGenes: number): number {
+  determineChunkSize(_numGenes: number): number {
     if (this.chunkSize) return this.chunkSize;
 
-    if (numGenes <= 500) return 50; // 10 chunks max
-    if (numGenes <= 2000) return 100; // 20 chunks max
-    if (numGenes <= 10000) return 100; // 100 chunks max
-
-    return 150; // 133 chunks for 20k genes
+    return 1;
   }
 
   /**
@@ -524,24 +534,99 @@ export class GeneChunkProcessor {
     }
 
     for (const cluster of dataset.clusters) {
-      // Save observation data as compressed JSON
-      // Reconstruct per-cell array from indexed representation for S3 storage
-      const perCellValues = cluster.valueIndices && cluster.uniqueValues
-        ? Array.from(cluster.valueIndices, (idx) => cluster.uniqueValues![idx])
-        : cluster.values;
-      const json = JSON.stringify(perCellValues);
-      const compressed = await this.compressText(json);
+      // Binary obs format (lib/utils/obs-binary.ts) — identical to what the
+      // server pipeline writes: sorted dictionary + per-cell codes for
+      // categorical columns, float32 per cell for numerical ones.
+      const type = cluster.type === "numerical" ? "numerical" : "categorical";
+      const n = cluster.valueIndices?.length ?? cluster.values.length;
+      let payload: Uint8Array;
+      let uniqueCount: number;
 
-      files[cluster.column] = compressed;
+      if (type === "numerical") {
+        const values = new Float32Array(n);
+        const seen = new Set<number>();
 
-      // Add to metadata
+        for (let i = 0; i < n; i++) {
+          const raw = getClusterValue(cluster, i);
+          const num = raw === "" || raw === "null" ? NaN : Number(raw);
+
+          values[i] = num;
+          seen.add(Number.isNaN(num) ? NaN : num);
+        }
+        payload = encodeNumericalObs(values);
+        uniqueCount = seen.size;
+      } else {
+        // Dictionary in sorted label order; missing values are the label "".
+        const labelOf = (i: number) => {
+          const v = getClusterValue(cluster, i);
+
+          return v == null || v === "null" || v === "undefined" ? "" : v;
+        };
+        const labels = new Set<string>();
+
+        for (let i = 0; i < n; i++) labels.add(labelOf(i));
+        const dict = Array.from(labels).sort();
+        const codeOf = new Map(dict.map((label, idx) => [label, idx]));
+        const Codes =
+          dict.length <= 0xff ? Uint8Array : dict.length <= 0xffff ? Uint16Array : Uint32Array;
+        const codes = new Codes(n);
+
+        for (let i = 0; i < n; i++) codes[i] = codeOf.get(labelOf(i))!;
+        payload = encodeCategoricalObs(dict, codes);
+        uniqueCount = dict.length;
+      }
+
+      files[cluster.column] = await this.compress(
+        payload.buffer.slice(payload.byteOffset, payload.byteOffset + payload.byteLength) as ArrayBuffer,
+      );
+
       metadata[cluster.column] = {
-        type: cluster.type || "categorical",
-        filename: `${cluster.column}.json.gz`,
+        type,
+        unique_values: uniqueCount,
+        format: OBS_BINARY_FORMAT,
       };
     }
 
     return { files, metadata };
+  }
+
+  /**
+   * Per-celltype DE stats (de/{col}.bin.gz) for every categorical column —
+   * the same files the server pipeline writes, so browser-uploaded datasets
+   * get the DEG panel too. Columns with more than DE_MAX_CELLTYPES values
+   * are skipped (ID-like columns misclassified as categorical).
+   */
+  async processDeStats(
+    dataset: StandardizedDataset,
+    onProgress?: (progress: number, message: string) => void,
+  ): Promise<Record<string, Blob>> {
+    const files: Record<string, Blob> = {};
+    const matrix = dataset.matrix;
+
+    if (!matrix || !dataset.clusters || dataset.clusters.length === 0) {
+      return files;
+    }
+
+    const categorical = dataset.clusters.filter(
+      (c) => c.type === "categorical" && c.valueIndices && c.uniqueValues,
+    );
+
+    for (let i = 0; i < categorical.length; i++) {
+      const cluster = categorical[i];
+
+      if ((cluster.uniqueValues?.length ?? 0) > DE_MAX_CELLTYPES) continue;
+      onProgress?.((i / categorical.length) * 100, `DE stats: ${cluster.column}`);
+      const stats = await computeDeStats(cluster, dataset.genes, matrix);
+
+      if (!stats) continue;
+      const bytes = encodeDeStatsBuffer(stats);
+
+      files[cluster.column] = await this.compress(
+        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
+      );
+    }
+
+    return files;
   }
 
   /**
