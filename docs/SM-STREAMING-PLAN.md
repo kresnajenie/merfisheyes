@@ -17,7 +17,7 @@ consumption (flat `[x,y,z,…]` float32 in one gzip stream), so stream it.
   Deterministic, no RNG → byte-identical JS/Python; old files still stream in file order.
 - Branch stacked on `feat/pipeline-parity` (writers change); merge after parity.
 
-## 1. Writers: progressive molecule order
+## 1. Writers: progressive molecule order — TODO
 Permutation for a gene with `n` molecules: sort indices `0..n-1` by
 `bitrev(i, ceil(log2 n))`, skipping values ≥ n (the standard "bit-reversal permutation
 of the next power of two, dropping out-of-range"). Implemented once per language:
@@ -34,7 +34,7 @@ of the next power of two, dropping out-of-range"). Implemented once per language
 - No manifest change needed; optionally `processing.molecule_order: "bitrev-v1"` so
   the viewer can say "progressive preview" vs "loading in file order".
 
-## 2. Viewer: streamed gene loading
+## 2. Viewer: streamed gene loading — DONE
 - `lib/SingleMoleculeDataset.ts` (fromS3 + fromCustomS3 overrides): add
   `streamCoordinatesByGene(gene, { onChunk(coords: Float32Array, loaded, total), signal })`
   and the unassigned twin:
@@ -82,7 +82,51 @@ of the next power of two, dropping out-of-range"). Implemented once per language
 - Parity harness (docs/PARITY-TESTING.md): add the order to the acceptance list — gene
   files from both pipelines must be byte-identical including order.
 
+## Implemented (viewer), 2026-08-24
+
+- `lib/utils/stream-float32.ts` — `streamFloat32Triples` (carry buffer so a
+  chunk boundary inside a molecule can't corrupt it; batches by molecules or
+  elapsed time; optional legacy scale), `streamGzippedFloat32`
+  (`fetch` → `DecompressionStream("gzip")` → batches), and
+  **`probeGzipMoleculeCount`** — see below.
+- `lib/webgl/point-cloud.ts` — `createStreamingSmPointCloud` (preallocated
+  attributes, `DynamicDrawUsage`, draw range 0) + `appendToSmPointCloud`
+  (copies a batch, `addUpdateRange` so only the new slice is uploaded, grows
+  the draw range and the bounding box over the filled molecules only — the
+  zeroed tail must never reach the camera auto-fit).
+- `lib/SingleMoleculeDataset.ts` — `streamCoordinatesByGene` /
+  `streamUnassignedCoordinatesByGene` (base = one batch from memory; `fromS3`
+  and `fromCustomS3` stream from the network and cache the finished array so
+  re-selection is instant), `moleculeCountFor`, `resolveMoleculeCount`.
+- `components/single-molecule-three-scene.tsx` — per-gene decision via
+  `streamableMolecules`, an `AbortController` per effect run (deselecting
+  stops the download), progress in the existing toast, and a camera re-fit
+  when a stream finishes *if* the user hasn't moved the camera.
+- Config: `VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD = 2_000_000`.
+- Tests: `tests/unit/stream-float32.test.ts` (8),
+  `tests/unit/streaming-point-cloud.test.ts` (4).
+
+### Counting molecules when the manifest doesn't
+Legacy manifests (all the BIL-ingested SM datasets) have no
+`genes.molecule_counts`, and the streaming buffer has to be sized up front.
+`probeGzipMoleculeCount` reads the **gzip trailer**: ISIZE, the uncompressed
+size, is the last 4 bytes of the member, so one `Range: bytes=-4` request
+gives the exact molecule count (`ISIZE / 12`). Verified against the BIL bucket
+(CORS already allows `Range`). Rejected when the size isn't a whole number of
+molecules or looks wrapped (ISIZE is mod 2^32, i.e. unreliable ≥ 4 GB) — then
+the gene simply loads the old way.
+
+### Verified on a real dataset
+`sm_EiUaAmsdXB` (485.8M molecules, 673 genes, 29 of them ≥ 2M):
+- **APOE (12,322,839 molecules)** — first points on screen at ~3 s, 183
+  batches, finished with exactly the expected count.
+- **GFAP (84,431,850 molecules, ~1 GB)** — streamed from ~3 s; deselecting
+  mid-stream stopped the download after the already-buffered batches and
+  cleared its toast.
+- Genes under the threshold (TH 107 k, DRD1 1.1 M) still load whole.
+- Re-selecting a finished gene renders from cache with no re-download.
+
 ## 5. Rollout
-1. Viewer streaming (works on existing files, file order).
-2. Writer progressive order (both pipelines) + worker image rebuild.
+1. ~~Viewer streaming (works on existing files, file order).~~ **Done.**
+2. Writer progressive order (both pipelines) + worker image rebuild — TODO.
 3. Optional later: LOD/tiles (spatial streaming) — separate design.

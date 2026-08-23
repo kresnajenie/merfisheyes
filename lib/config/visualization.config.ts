@@ -162,6 +162,14 @@ export const VISUALIZATION_CONFIG = {
   TARGET_PX_MAX: 5.0,
   TARGET_PX_STEP: 0.01,
 
+  /**
+   * Single-molecule genes with at least this many molecules are STREAMED into
+   * the scene (points appear while the file downloads) instead of being
+   * downloaded whole first. A 50M-molecule gene is ~600 MB of float32; loading
+   * that in one shot is minutes of blank canvas.
+   */
+  SINGLE_MOLECULE_STREAM_THRESHOLD: 2_000_000,
+
   UMAP_POINT_SIZE: 5.0,
   UMAP_POINT_SIZE_MIN: 0.5,
   UMAP_POINT_SIZE_MAX: 100.0,
