@@ -5,7 +5,8 @@ import { H5adAdapter } from "../adapters/H5adAdapter";
 import { XeniumAdapter } from "../adapters/XeniumAdapter";
 import { MerscopeAdapter } from "../adapters/MerscopeAdapter";
 import { ChunkedDataAdapter } from "../adapters/ChunkedDataAdapter";
-import { normalizeCoordinates, normalizeCoordinatesFlat } from "../utils/coordinates";
+import { normalizeCoordinates, normalizeCoordinatesFlat, round2 } from "../utils/coordinates";
+import { shouldFilterGene } from "../utils/gene-filters";
 import { isCategorical } from "../utils/column-type-detection";
 import { selectBestClusterColumnByName } from "../utils/dataset-utils";
 import {
@@ -75,7 +76,10 @@ export interface SerializableStandardizedDataset {
 /**
  * Worker API exposed via Comlink
  */
-const workerApi = {
+// Exported so the parity harness (scripts/parity/run-js.mts) can run the exact
+// browser parsing path headlessly in Node; the browser only ever reaches it
+// through Comlink.
+export const workerApi = {
   /**
    * Parse H5AD file and return serializable dataset data
    */
@@ -97,6 +101,12 @@ const workerApi = {
     await onProgress?.(94, "Loading embeddings...");
     const embeddings = adapter.loadEmbeddings();
 
+    // Embeddings are rounded to 2 dp like the spatial coordinates (the server
+    // pipeline rounds every coordinate file the same way).
+    for (const [name, coords] of Object.entries(embeddings)) {
+      embeddings[name] = coords.map((point) => point.map(round2));
+    }
+
     console.log("[Worker] Embeddings:", embeddings);
     await onProgress?.(96, "Loading genes...");
     const genes = await adapter.loadGenes();
@@ -112,9 +122,36 @@ const workerApi = {
 
     // Load expression matrix for gene visualization
     await onProgress?.(99, "Loading expression matrix...");
-    const matrix = adapter.fetchFullMatrix();
+    let matrix = adapter.fetchFullMatrix();
 
     console.log("[Worker] Expression matrix loaded");
+
+    // Control probes / blanks are dropped in every format (shared rule with
+    // the server pipeline). The dense row-major matrix is compacted in place —
+    // kept columns only move left — so no second copy is needed.
+    const keptIdx = genes.map((g, i) => (shouldFilterGene(g) ? -1 : i)).filter((i) => i >= 0);
+
+    if (keptIdx.length !== genes.length) {
+      const numCellsTotal = dataInfo.numCells;
+      const src = genes.length;
+      const dst = keptIdx.length;
+
+      if (ArrayBuffer.isView(matrix)) {
+        const flat = matrix as any;
+
+        for (let r = 0; r < numCellsTotal; r++) {
+          for (let k = 0; k < dst; k++) flat[r * dst + k] = flat[r * src + keptIdx[k]];
+        }
+        matrix = flat.subarray(0, numCellsTotal * dst);
+      } else if (matrix instanceof Map) {
+        for (const g of genes) if (shouldFilterGene(g)) matrix.delete(g);
+      } else if (Array.isArray(matrix)) {
+        matrix = matrix.map((row: any[]) => keptIdx.map((i) => row[i]));
+      }
+      console.log(`[Worker] Filtered ${src - dst} control/blank genes`);
+      genes.splice(0, genes.length, ...keptIdx.map((i) => genes[i]));
+      dataInfo.numGenes = genes.length;
+    }
 
     // Precompute per-celltype expression stats for the priority categorical
     // cluster column. Skipped gracefully if no categorical column exists.
@@ -139,7 +176,7 @@ const workerApi = {
       const point = coords[i];
 
       roundedCoords.push(
-        point.map((v) => Math.round(v * 100) / 100),
+        point.map(round2),
       );
     }
 
@@ -211,7 +248,12 @@ const workerApi = {
 
     const clusters = clusterList.length
       ? clusterList.map((clusterData) => {
-          const detectValues = clusterData.uniqueValues ?? clusterData.values ?? [];
+          // Detect on per-cell values: a unique-values list always looks
+          // "numerical" (unique ratio 1). "" is a missing label, like NaN.
+          const detectValues =
+            clusterData.valueIndices && clusterData.uniqueValues
+              ? Array.from(clusterData.valueIndices, (i) => clusterData.uniqueValues![i] || null)
+              : clusterData.values ?? [];
           const categorical = isCategoricalData(detectValues, clusterData.column);
 
           return {
@@ -258,7 +300,7 @@ const workerApi = {
       const point = coords[i];
 
       roundedCoords.push(
-        point.map((v) => Math.round(v * 100) / 100),
+        point.map(round2),
       );
     }
 
@@ -340,7 +382,12 @@ const workerApi = {
 
     const clusters = clusterList.length
       ? clusterList.map((clusterData) => {
-          const detectValues = clusterData.uniqueValues ?? clusterData.values ?? [];
+          // Detect on per-cell values: a unique-values list always looks
+          // "numerical" (unique ratio 1). "" is a missing label, like NaN.
+          const detectValues =
+            clusterData.valueIndices && clusterData.uniqueValues
+              ? Array.from(clusterData.valueIndices, (i) => clusterData.uniqueValues![i] || null)
+              : clusterData.values ?? [];
           const categorical = isCategoricalData(detectValues, clusterData.column);
 
           return {
@@ -387,7 +434,7 @@ const workerApi = {
       const point = coords[i];
 
       roundedCoords.push(
-        point.map((v) => Math.round(v * 100) / 100),
+        point.map(round2),
       );
     }
 
@@ -592,7 +639,10 @@ const workerApi = {
   },
 };
 
-// Expose worker API via Comlink
-Comlink.expose(workerApi);
+// Expose worker API via Comlink (only inside a real worker — the module is also
+// imported by the parity harness in Node, which has no `self`).
+if (typeof self !== "undefined") {
+  Comlink.expose(workerApi);
+}
 
 export type StandardizedDatasetWorkerApi = typeof workerApi;

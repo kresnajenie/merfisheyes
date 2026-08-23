@@ -39,10 +39,9 @@ class HyparquetService {
     columnNames: string[],
     onProgress?: (progress: number, message: string) => Promise<void> | void,
     optionalColumns?: string[],
-  ): Promise<Map<string, any[] | Float32Array>> {
-    if (typeof self === "undefined") {
-      throw new Error("Hyparquet service can only be used in browser");
-    }
+  ): Promise<Map<string, any[] | Float32Array | Float64Array>> {
+    // (hyparquet is pure JS: this runs in the browser, in a worker, and in
+    // Node — the parity harness drives it headlessly.)
 
     // Warn for very large files
     const fileGB = file.size / 1_000_000_000;
@@ -107,7 +106,7 @@ class HyparquetService {
 
     // Concatenate chunks into final arrays (single allocation + copy)
     // Use Float32Array for numeric columns, regular Array for string columns
-    const columnData = new Map<string, any[] | Float32Array>();
+    const columnData = new Map<string, any[] | Float32Array | Float64Array>();
 
     for (const [columnName, chunks] of columnChunks.entries()) {
       const totalLen = columnLengths.get(columnName)!;
@@ -123,7 +122,13 @@ class HyparquetService {
         (firstChunk && firstChunk.length > 0 && typeof firstChunk[0] === "number");
 
       if (isNumeric) {
-        const result = new Float32Array(totalLen);
+        // Keep the column's own precision: float32 stays float32, anything
+        // wider (float64 / ints) is kept as float64 so coordinates are rounded
+        // from their original values — same as the CSV path and the server.
+        const result =
+          firstChunk instanceof Float32Array
+            ? new Float32Array(totalLen)
+            : new Float64Array(totalLen);
         let offset = 0;
 
         for (const chunk of chunks) {

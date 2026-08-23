@@ -330,15 +330,13 @@ def sanitize_gene_name(gene_name: str) -> str:
 def _round_column(values: np.ndarray) -> np.ndarray:
     """
     One coordinate column rounded to 2 decimal places, as float32.
-    Matches browser behavior: Math.round(x * 100) / 100
 
-    Rounds in the column's own precision and only then narrows to float32 —
-    exactly the values the old (round full float64 matrix, cast per gene when
-    writing) pipeline produced, without ever holding a float64 N×3 copy.
+    Rounds in float64 (np.round = round-half-even on x*100), then narrows to
+    float32 — the browser does the same (`round2` in lib/utils/coordinates.ts
+    on the column's values as doubles), so float32 parquet columns yield the
+    same bytes from both pipelines. Only one float64 column is live at a time.
     """
-    arr = np.asarray(values)
-    if not np.issubdtype(arr.dtype, np.floating):
-        arr = arr.astype(np.float64)
+    arr = np.asarray(values, dtype=np.float64)
     return np.round(arr, 2).astype(np.float32, copy=False)
 
 
@@ -677,7 +675,14 @@ def process_single_molecule_data(
     finite = np.isfinite(coords[:, 0]) & np.isfinite(coords[:, 1])
     if dimensions == 3:
         finite &= np.isfinite(coords[:, 2])
-    gene_missing = pd.isna(genes) if not isinstance(genes, pd.Categorical) else (genes.codes < 0)
+    # A missing gene is NaN/None OR an empty / whitespace-only name (the browser
+    # drops those rows too; they must never become a "" gene file).
+    if isinstance(genes, pd.Categorical):
+        blank_codes = [i for i, c in enumerate(genes.categories) if str(c).strip() == ""]
+        gene_missing = (genes.codes < 0) | np.isin(genes.codes, blank_codes)
+    else:
+        gene_series = pd.Series(genes)
+        gene_missing = (gene_series.isna() | (gene_series.astype("string").str.strip() == "")).to_numpy()
     keep = finite & ~np.asarray(gene_missing)
     dropped = int((~keep).sum())
     if dropped:
@@ -694,6 +699,11 @@ def process_single_molecule_data(
 
     # Step 3: Build gene index using vectorized pandas groupby
     log(f"=== STEP 3: Building gene index (vectorized) ===")
+
+    # Categories that no surviving molecule uses (e.g. the blank name dropped
+    # above) must not become genes: the index/counts are built per category.
+    if isinstance(genes, pd.Categorical):
+        genes = genes.remove_unused_categories()
 
     has_cell_ids = cell_ids is not None
 
@@ -862,7 +872,7 @@ def process_single_molecule_data(
             "compression": "gzip",
             "coordinate_format": "float32_flat_array",
             "coordinate_range": "raw_rounded_2dp",
-            "scaling_factor": 1.0,
+            "scaling_factor": 1,  # integer literal, like the browser's manifest
             "created_by": "MERFISH Eyes - Single Molecule Viewer",
             "source_file": source_name,
         },

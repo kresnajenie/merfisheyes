@@ -21,6 +21,7 @@
     "test:infra:down": "docker compose --env-file .env.test -f docker-compose.test.yml down -v",
     "test:data:make-tiny": "python3 scripts/testdata/make-tiny-fixtures.py",
     "test:data:fetch": "tsx scripts/testdata/fetch.ts",
+    "parity": "python3 scripts/parity/run.py",
     "dev": "next dev --turbopack",
     "build": "npx prisma generate && npx prisma migrate deploy && NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=4096' next build",
     "build:low-memory": "npx prisma generate && npx prisma migrate deploy && NEXT_DISABLE_ESLINT=true NODE_OPTIONS='--max-old-space-size=2048' next build",

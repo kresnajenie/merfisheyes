@@ -350,8 +350,8 @@ def coerce_coordinate_array(
     max_dims: int = MAX_COORDINATE_DIMS,
 ) -> np.ndarray:
     """
-    Coerce an .obsm entry into a dense, contiguous 2D float32 array with at most
-    `max_dims` columns.
+    Coerce an .obsm entry into a dense, contiguous 2D float64 array with at most
+    `max_dims` columns (narrowed to float32 only after rounding).
 
     Handles the shapes .obsm can legally hold: numpy arrays, pandas DataFrames and
     scipy sparse matrices. Raises ValueError with a message naming `context`
@@ -406,7 +406,10 @@ def coerce_coordinate_array(
             f"{expected_rows:,} cells — must match"
         )
 
-    arr = np.ascontiguousarray(arr, dtype=np.float32)
+    # float64 here, float32 only after rounding (round_coordinates): rounding
+    # the original values is what the browser does, and narrowing first would
+    # move values across a 2-dp boundary.
+    arr = np.ascontiguousarray(arr, dtype=np.float64)
 
     num_invalid = int(np.count_nonzero(~np.isfinite(arr)))
     if num_invalid:
@@ -427,7 +430,9 @@ def round_coordinates(coords: np.ndarray) -> np.ndarray:
     """
     if len(coords) == 0:
         return coords
-    return np.round(coords, 2).astype(np.float32)
+    # Round in float64 (round-half-even on x*100, like the browser's `round2`)
+    # so float32 inputs give the same bytes from both pipelines.
+    return np.round(np.asarray(coords, dtype=np.float64), 2).astype(np.float32)
 
 
 def write_coordinate_binary(coords: np.ndarray, output_path: Path):
@@ -645,7 +650,8 @@ def encode_obs_binary(values: np.ndarray, categorical: bool):
         n_cat = len(categories)
         dtype = np.uint8 if n_cat <= 0xFF else (np.uint16 if n_cat <= 0xFFFF else np.uint32)
         width = np.dtype(dtype).itemsize
-        dict_bytes = json.dumps(categories, ensure_ascii=False).encode("utf-8")
+        # Compact separators = JSON.stringify, so the dictionary bytes match the browser's.
+        dict_bytes = json.dumps(categories, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         pad = (-len(dict_bytes)) % 4
         header = struct.pack('<IIBBHI', OBS_BINARY_VERSION, len(codes), 0, width, 0, len(dict_bytes))
         payload = header + dict_bytes + (b"\0" * pad) + codes.astype(dtype).tobytes()

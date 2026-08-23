@@ -3,6 +3,7 @@ import Papa, { ParseResult } from "papaparse";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 import { buildObsColumnsFromRows } from "./table-obs-columns";
+import { shouldFilterGene } from "@/lib/utils/gene-filters";
 
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 
@@ -224,6 +225,8 @@ export class MerscopeAdapter {
     }
 
     // 6) remember obs keys and cluster column
+    this._applyGeneFilters();
+
     await onProgress?.(85, "Processing clusters and embeddings...");
     this._obsKeys = Array.from(new Set(Object.keys(this._rows[0] || {})));
     const clusterCandidates = [
@@ -402,6 +405,16 @@ export class MerscopeAdapter {
     if (this._umap) return { umap: this._umap.coordinates };
 
     return {};
+  }
+
+  /** Control probes / blanks are dropped in every format (shared rule with the server). */
+  private _applyGeneFilters(): void {
+    const kept = this._genes.filter((g) => !shouldFilterGene(g));
+
+    if (kept.length === this._genes.length) return;
+    for (const g of this._genes) if (shouldFilterGene(g)) this._exprByGene.delete(g);
+    console.log(`[MerscopeAdapter] Filtered ${this._genes.length - kept.length} control/blank genes.`);
+    this._genes = kept;
   }
 
   async loadGenes(): Promise<string[]> {

@@ -102,7 +102,14 @@ export function isCategorical(values: any[], columnName?: string): boolean {
   }
 
   // Filter out null/undefined values for analysis
-  const validValues = values.filter((v) => v != null);
+  // Missing values (null, NaN, "" / whitespace, the "NaN" label) don't vote —
+  // the server's is_categorical drops NaN before looking at the values.
+  const validValues = values.filter(
+    (v) =>
+      v != null &&
+      !(typeof v === "number" && Number.isNaN(v)) &&
+      !(typeof v === "string" && (v.trim() === "" || v === "NaN")),
+  );
 
   if (validValues.length === 0) return false;
 

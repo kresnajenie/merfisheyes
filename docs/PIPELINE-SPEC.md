@@ -54,6 +54,29 @@ Rules shared by both pipelines:
 - The viewer shows the **user's title** (`Dataset.title`), not `manifest.name`.
 - Server-processed SM rows get `manifestJson` copied onto the row at finalize.
 
+## Rules pinned by the parity harness (`npm run parity`, docs/PARITY-TESTING.md)
+
+- **Coordinate rounding** (spatial, embeddings, molecules): round the value in
+  float64 as `np.round(x, 2)` does (round-half-even on `x*100`), then narrow to
+  float32 — JS `round2` in `lib/utils/coordinates.ts`, Python `round_coordinates`
+  / `_round_column`. Never narrow to float32 first. Parquet columns keep their
+  own precision until rounding (float32 stays float32, float64 stays float64).
+- **Expression values are float32** on both sides before anything is derived
+  from them (DE means/pct accumulate float32 values in float64).
+- **h5ad obs**: bool columns label as `"True"` / `"False"`; the fixed coordinate
+  names (`center_x/y/z`, `centerX/Y/Z`, `x/y/z`, `X/Y/Z`, `x_centroid…`,
+  `centroid_x…`) are never exported as obs; all-empty columns are skipped;
+  sparse `X` (CSR/CSC) is supported by both.
+- **Embeddings** are truncated to ≤ 3 dims and rounded like spatial.
+- **Type detection** runs on per-cell values with missing (`null`, NaN, `""`,
+  `"NaN"`) removed.
+- **SM**: a blank / whitespace-only gene name is a missing gene (row dropped);
+  an empty CSV coordinate cell is a missing coordinate (row dropped); an absent
+  optional parquet z column means 2D; `processing.scaling_factor` is the
+  integer `1`.
+- **Obs dictionary JSON** is compact (`JSON.stringify` ≡ `json.dumps(…,
+  separators=(",", ":"))`).
+
 ## Known remaining divergences (Tier 2, not in scope of `feat/pipeline-parity`)
 - Two manifest `files.*` / `expr/index.json` schemas (JS writes both spellings of the
   keys consumers read; Python's `dataset_id` is `"local_dataset"`, overridden by the app).

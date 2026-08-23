@@ -1128,9 +1128,17 @@ async function parseFeaturesFile(file: File): Promise<FeatureEntry[]> {
 
   const delim = lines[0].includes("\t") ? "\t" : ",";
   const firstParts = lines[0].split(delim).map((s) => s.trim());
-  const looksLikeHeader = firstParts.some((p) =>
-    /gene|feature|target|type|id/.test(p.toLowerCase()),
-  );
+  // The 10x features.tsv has no header: "<id>\t<name>\t<feature type>". Its
+  // first row would pass a naive header sniff ("Gene Expression" contains
+  // "gene"), dropping the first gene — the server reads it headerless. Only
+  // treat the first line as a header when it doesn't look like a data row.
+  const FEATURE_TYPES =
+    /^(gene expression|negative control (probe|codeword)|unassigned codeword|deprecated codeword|blank codeword|genomic control|antibody capture|peaks)$/i;
+  const looksLikeDataRow =
+    firstParts.some((p) => FEATURE_TYPES.test(p)) || /^ENS[A-Z]*G\d+/.test(firstParts[0]);
+  const looksLikeHeader =
+    !looksLikeDataRow &&
+    firstParts.some((p) => /gene|feature|target|type|id/.test(p.toLowerCase()));
 
   let startIdx = 0;
   let geneIdx = -1;

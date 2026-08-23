@@ -10,6 +10,7 @@ import {
   isUnassignedCellId,
 } from "./config/moleculeColumnMappings";
 import { shouldFilterGene } from "./utils/gene-filters";
+import { round2 } from "./utils/coordinates";
 
 /**
  * Denormalize coordinates from [-1,1] range back to raw microns.
@@ -459,7 +460,10 @@ export class SingleMoleculeDataset {
     const moleculeGenes = columnData.get(columnMapping.gene);
     const xData = columnData.get(columnMapping.x);
     const yData = columnData.get(columnMapping.y);
-    const zData = columnData.get(columnMapping.z || "");
+    // The reader hands back an EMPTY column for an absent optional z: treat
+    // that as "no z" (2D), not as a z column every molecule fails.
+    const zRead = columnMapping.z ? columnData.get(columnMapping.z) : undefined;
+    const zData = zRead && zRead.length > 0 ? zRead : undefined;
     const cellIdData = cellIdCol ? columnData.get(cellIdCol) : null;
 
     if (!moleculeGenes || !xData || !yData) {
@@ -478,11 +482,13 @@ export class SingleMoleculeDataset {
 
     await onProgress?.(50, "Converting to typed arrays...");
 
-    // Convert to typed arrays for efficiency
-    const xCoords = new Float32Array(xData);
-    const yCoords = new Float32Array(yData);
-    const zCoords = zData
-      ? new Float32Array(zData)
+    // Keep the columns in their own precision (float32 or float64 from the
+    // parquet reader): coordinates are rounded from the original values, like
+    // the CSV path and the server pipeline do.
+    const xCoords = xData as ArrayLike<number>;
+    const yCoords = yData as ArrayLike<number>;
+    const zCoords: ArrayLike<number> = zData
+      ? (zData as ArrayLike<number>)
       : new Float32Array(xCoords.length); // Fill with 0s if 2D
 
     const dimensions: 2 | 3 = zData ? 3 : 2;
@@ -510,7 +516,7 @@ export class SingleMoleculeDataset {
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
 
-      if (gene == null || !coordOk(i)) {
+      if (gene == null || String(gene).trim() === "" || !coordOk(i)) {
         droppedMolecules++;
         continue;
       }
@@ -550,7 +556,7 @@ export class SingleMoleculeDataset {
     for (let i = 0; i < totalMolecules; i++) {
       const gene = moleculeGenes[i];
 
-      if (gene == null || !coordOk(i)) continue;
+      if (gene == null || String(gene).trim() === "" || !coordOk(i)) continue;
       const isUnassigned =
         hasCellIdColumn && isUnassignedCellId(cellIdData![i]);
 
@@ -562,9 +568,9 @@ export class SingleMoleculeDataset {
 
       const offset = targetOffsets.get(gene)!;
 
-      arr[offset] = Math.round(xCoords[i] * 100) / 100;
-      arr[offset + 1] = Math.round(yCoords[i] * 100) / 100;
-      arr[offset + 2] = Math.round(zCoords[i] * 100) / 100;
+      arr[offset] = round2(xCoords[i]);
+      arr[offset + 1] = round2(yCoords[i]);
+      arr[offset + 2] = round2(zCoords[i]);
       targetOffsets.set(gene, offset + 3);
 
       // Report progress every 5% and yield to browser
@@ -718,7 +724,8 @@ export class SingleMoleculeDataset {
             const row = rows[i];
 
             // Skip invalid rows
-            if (!row || !row[columnMapping.gene]) continue;
+            // A missing or blank gene name drops the molecule (same as the server).
+            if (!row || row[columnMapping.gene] == null || String(row[columnMapping.gene]).trim() === "") continue;
 
             // Check for cell_id column on first valid row
             if (!checkedCellIdColumn) {
@@ -732,8 +739,11 @@ export class SingleMoleculeDataset {
             }
 
             const gene = String(row[columnMapping.gene]);
-            const xRaw = Number(row[columnMapping.x]);
-            const yRaw = Number(row[columnMapping.y]);
+            // An empty cell is a missing coordinate (Number("") would be 0 and
+            // silently put the molecule at the origin); it is dropped below.
+            const num = (v: unknown) => (v == null || v === "" ? NaN : Number(v));
+            const xRaw = num(row[columnMapping.x]);
+            const yRaw = num(row[columnMapping.y]);
             let zRaw: number | null = null;
 
             if (
@@ -757,9 +767,9 @@ export class SingleMoleculeDataset {
               continue;
             }
 
-            const x = Math.round(xRaw * 100) / 100;
-            const y = Math.round(yRaw * 100) / 100;
-            const z = zRaw === null ? 0 : Math.round(zRaw * 100) / 100;
+            const x = round2(xRaw);
+            const y = round2(yRaw);
+            const z = zRaw === null ? 0 : round2(zRaw);
 
             // Skip control genes immediately
             if (shouldFilterGene(gene)) continue;
