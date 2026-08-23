@@ -291,6 +291,34 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
     return unique_ratio < 0.8
 
 
+def _is_blank_column(series: pd.Series) -> bool:
+    """True when an obs column carries nothing: all missing, or every value
+    stringifies to '' after stripping.
+
+    Same predicate as
+        series.isna().all() or (series.astype(str).str.strip() == '').all()
+    but without building a Python string per cell for dtypes that can never be
+    blank. On 3M cells × 80 columns the literal form took 76 s and ~6 GB of
+    transient strings — before the expression matrix had even been touched.
+    """
+    if series.isna().all():
+        return True
+    if isinstance(series.dtype, pd.CategoricalDtype):
+        codes = series.cat.codes.to_numpy()
+        if (codes < 0).any():
+            return False  # a missing value stringifies to 'nan', which is not blank
+        cats = series.cat.categories
+        blank = np.fromiter((str(c).strip() == '' for c in cats), dtype=bool, count=len(cats))
+        return bool(blank[np.unique(codes)].all())
+    if (
+        pd.api.types.is_numeric_dtype(series.dtype)
+        or pd.api.types.is_bool_dtype(series.dtype)
+        or pd.api.types.is_datetime64_any_dtype(series.dtype)
+    ):
+        return False  # numbers, booleans and dates never stringify to ''
+    return bool((series.astype(str).str.strip() == '').all())
+
+
 MAX_COORDINATE_DIMS = 3  # Viewer renders 2D/3D only
 
 
@@ -743,18 +771,112 @@ def _read_x_float32(x_obj, read_elem):
     return _as_float32(read_elem(x_obj))
 
 
+def _h5_column_is_numeric(col) -> bool:
+    """Cheap numeric check for one h5ad dataframe column, without reading it.
+
+    Mirrors pandas' is_numeric_dtype on what read_elem would return: plain
+    numeric/bool datasets and the nullable-integer/boolean encodings are
+    numeric; strings and categoricals are not.
+    """
+    enc = col.attrs.get("encoding-type", "")
+    if isinstance(enc, bytes):
+        enc = enc.decode()
+    if enc in ("nullable-integer", "nullable-boolean"):
+        return True
+    if enc in ("categorical", "string-array", "string"):
+        return False
+    dtype = getattr(col, "dtype", None)
+    return dtype is not None and dtype.kind in "biuf"
+
+
+def _read_leading_columns(elem, context, read_elem, max_dims):
+    """Read at most `max_dims` leading columns of one obsm entry (see below)."""
+    import h5py
+
+    def note_truncation(total_dims):
+        # The line coerce_coordinate_array prints when it does the truncating.
+        if total_dims > max_dims:
+            print(f"  ℹ {context}: limiting to first {max_dims} dimensions (from {total_dims})")
+
+    if isinstance(elem, h5py.Dataset):
+        if elem.ndim == 2 and elem.shape[1] > max_dims and elem.dtype.kind in "biuf":
+            note_truncation(elem.shape[1])
+            return elem[:, :max_dims]
+        return read_elem(elem)
+
+    enc = elem.attrs.get("encoding-type", "")
+    if isinstance(enc, bytes):
+        enc = enc.decode()
+
+    if enc == "dataframe" and "column-order" in elem.attrs:
+        columns = [str(c) for c in elem.attrs["column-order"]]
+        if len(columns) <= max_dims:
+            return read_elem(elem)
+        # coerce_coordinate_array rejects a dataframe with ANY non-numeric
+        # column, so vet the ones we are not going to read from their metadata.
+        non_numeric = [c for c in columns if not _h5_column_is_numeric(elem[c])]
+        if non_numeric:
+            raise ValueError(
+                f"{context} has non-numeric column(s) "
+                f"[{', '.join(non_numeric[:5])}] — coordinates must be numeric"
+            )
+        note_truncation(len(columns))
+        return pd.DataFrame({c: read_elem(elem[c]) for c in columns[:max_dims]})
+
+    if enc == "csc_matrix":
+        shape = tuple(int(v) for v in elem.attrs["shape"])
+        if shape[1] > max_dims:
+            note_truncation(shape[1])
+            indptr = elem["indptr"][: max_dims + 1]
+            nnz = int(indptr[-1])
+            return sparse.csc_matrix(
+                (elem["data"][:nnz], elem["indices"][:nnz], indptr),
+                shape=(shape[0], max_dims),
+            )
+        return read_elem(elem)
+
+    # CSR and anything else: no cheap column slice; coerce truncates after reading.
+    return read_elem(elem)
+
+
+def _read_obsm_coordinate_candidates(obsm_group, read_elem, max_dims=MAX_COORDINATE_DIMS):
+    """Read the obsm entries that can become coordinates — and only their leading columns.
+
+    Every entry ends up in coerce_coordinate_array, which keeps at most `max_dims`
+    columns of the spatial candidates ('X_spatial' / 'spatial') and of the 'X_*'
+    embeddings; nothing else in obsm is consumed. Reading every entry in full is
+    how a file carrying a full-width matrix in obsm (retroB30: a 3M × 992 float32
+    `X_raw` next to X, plus two 120-column blank-count dataframes) needed more
+    than twice the memory of X before X itself was read — and OOM'd 16 GB at
+    load. Arrays and dataframes are sliced to `max_dims` columns at the h5py
+    level and CSC matrices via their column pointers; other encodings fall back
+    to read_elem.
+    """
+    obsm = {}
+    for key in obsm_group.keys():
+        if key not in ("X_spatial", "spatial") and not key.startswith("X_"):
+            continue  # never consumed (see the spatial lookup and the embedding loop)
+        context = f"obsm['{key}']"
+        try:
+            obsm[key] = _read_leading_columns(obsm_group[key], context, read_elem, max_dims)
+        except Exception as e:  # unreadable entry: skip, don't fail the dataset
+            print(f"  ⚠ Skipping {context}: could not read ({e})")
+    return obsm
+
+
 def load_h5ad_data(input_path: Path):
     """Load an H5AD file, reading ONLY the elements this script uses.
 
     `anndata.read_h5ad` materialises everything — `.raw.X`, every `layers`
     matrix, `obsp` neighbour graphs, `uns` — which routinely costs several
     times the memory of the one matrix we need (a scanpy-produced file carries
-    raw + a couple of layers as full extra copies of X). Here X, obs, obsm and
-    the var index are read element-wise with h5py and the rest is never
-    touched.
+    raw + a couple of layers as full extra copies of X). Here X, obs, the var
+    index and the coordinate-bearing columns of obsm are read element-wise with
+    h5py and the rest is never touched.
 
     Returns (spatial_coords, expr_matrix, gene_names, obs_columns, obsm, n_obs)
-    where `obsm` is a plain dict of the file's obsm entries (for embeddings).
+    where `obsm` is a plain dict of the file's usable obsm entries (spatial
+    candidates + 'X_*' embeddings, at most MAX_COORDINATE_DIMS columns each).
     """
     try:
         import h5py
@@ -771,13 +893,7 @@ def load_h5ad_data(input_path: Path):
     with h5py.File(input_path, "r") as h:
         obs_df = read_elem(h["obs"])
         var_df = read_elem(h["var"])
-        obsm = {}
-        if "obsm" in h:
-            for key in h["obsm"].keys():
-                try:
-                    obsm[key] = read_elem(h["obsm"][key])
-                except Exception as e:  # unreadable entry: skip, don't fail the dataset
-                    print(f"  ⚠ Skipping obsm['{key}']: could not read ({e})")
+        obsm = _read_obsm_coordinate_candidates(h["obsm"], read_elem) if "obsm" in h else {}
         skipped = [g for g in ("raw", "layers", "obsp", "varp", "uns") if g in h]
         expr_matrix = _read_x_float32(h["X"], read_elem)
 
@@ -859,7 +975,7 @@ def load_h5ad_data(input_path: Path):
     for col in obs_df.columns:
         if col not in coord_cols:
             series = obs_df[col]
-            if series.isna().all() or (series.astype(str).str.strip() == '').all():
+            if _is_blank_column(series):
                 continue
             obs_columns[col] = series.values
 
@@ -1240,7 +1356,7 @@ def process_dataset(
         for col in cells_df.columns:
             if col not in exclude_cols and col not in gene_names:
                 series = cells_df[col]
-                if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                if _is_blank_column(series):
                     continue
                 obs_columns[col] = series.values
 
@@ -1412,7 +1528,7 @@ def process_dataset(
         for col in metadata_df.columns:
             if col not in exclude_cols:
                 series = metadata_df[col]
-                if series.isna().all() or (series.astype(str).str.strip() == '').all():
+                if _is_blank_column(series):
                     continue
                 obs_columns[col] = series.values
 
@@ -1501,7 +1617,7 @@ def process_dataset(
             if col == 'cell_id':
                 continue
             series = mmc_df[col]
-            if series.isna().all() or (series.astype(str).str.strip() == '').all():
+            if _is_blank_column(series):
                 continue
             obs_columns[col] = series.values
             mmc_cols_added += 1
