@@ -10,6 +10,50 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.3.0] - 2026-08-25
+
+Large datasets stop being a wall: whole-transcriptome Xenium runs convert with
+their full expression matrices, out-of-memory jobs retry themselves on bigger
+machines, and big single-molecule genes stream into the viewer instead of
+loading whole.
+
+### Added
+
+- **Xenium `cell_feature_matrix.h5` support.** Current Xenium exports ship
+  expression only as the 10x HDF5 matrix, which neither pipeline could read —
+  datasets loaded cells with zero genes. The server now reads it natively
+  (a 717,576-cell x 27,104-gene run converts in 44 minutes), and the browser
+  loads standard panels in full; whole-transcriptome matrices too large for a
+  tab fall back to cells + gene list instead of crashing.
+- **Automatic memory-tier escalation.** Processing jobs that run out of memory
+  are retried on larger instances (16 -> 32 -> 64 GB) without user action, and
+  admins can retry failures from the dashboard.
+- **Progressive single-molecule streaming.** Gene files are written in
+  bit-reversal order and streamed into the scene, so a half-loaded gene shows
+  the whole slide densifying instead of one corner.
+- **Account & Projects overhaul**: dataset cards, a project picker, optimistic
+  toggles, and a shared dataset detail page.
+- **Benchmark harness** (`bench/`, `scripts/bench/`): measures browser vs
+  server processing across a real-dataset databank, with per-machine limits,
+  costs, and a self-contained report page; 64-dataset results included.
+
+### Changed
+
+- The ingestion worker reads `.h5ad` selectively and streams the expression
+  matrix: a 3-million-cell dataset that previously needed >64 GB now converts
+  in a 16 GB instance (peak 13.3 GB).
+- Browser and server pipelines produce byte-identical chunked output,
+  enforced by a parity harness.
+- The single-molecule gene picker paginates (250 genes per page) —
+  thousand-gene panels no longer lag the panel open.
+
+### Fixed
+
+- Ingestion failures report the container's real reason instead of the
+  generic task status.
+- Community catalog entries resolve thumbnails from the live dataset.
+- Unnamed single-molecule files upload correctly.
+
 ## [0.2.0] - 2026-08-19
 
 Explore overhaul: the catalog is fast to search, gene search actually works
@@ -78,6 +122,7 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kresnajenie/merfisheyes/releases/tag/v0.1.0
