@@ -1,0 +1,663 @@
+<title>The 2-Gigabyte Wall</title>
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --surface-2: #f4f3f0;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --ink-3: #8a887f;
+    --grid: #e7e5df;
+    --browser: #2a78d6;
+    --server: #eb6834;
+    --ref: #8a887f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface: #1a1a19;
+      --surface-2: #232322;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --ink-3: #8b8a80;
+      --grid: #33332f;
+      --browser: #3987e5;
+      --server: #d95926;
+      --ref: #8b8a80;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19;
+    --surface-2: #232322;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-3: #8b8a80;
+    --grid: #33332f;
+    --browser: #3987e5;
+    --server: #d95926;
+    --ref: #8b8a80;
+  }
+  body {
+    background: var(--surface);
+    color: var(--ink);
+    font-family: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1350px; margin: 0 auto; padding: 40px 24px 72px; }
+  header h1 {
+    font-size: 34px; font-weight: 700; letter-spacing: -0.01em;
+    margin: 0 0 6px; text-wrap: balance;
+  }
+  .sub { color: var(--ink-2); font-size: 15px; max-width: 64ch; margin: 0; }
+  .machine {
+    font-family: "Spline Sans Mono", ui-monospace, monospace;
+    font-size: 12px; color: var(--ink-3); margin-top: 10px;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 28px 0 8px; }
+  .tile { background: var(--surface-2); border-radius: 6px; padding: 14px 16px; }
+  .tile .num {
+    font-family: "Spline Sans Mono", ui-monospace, monospace;
+    font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .tile .num small { font-size: 15px; font-weight: 500; }
+  .tile .cap { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+  .tile.browser .num { color: var(--browser); }
+  .tile.server .num { color: var(--server); }
+  section { margin-top: 44px; }
+  h2 { font-size: 20px; font-weight: 650; margin: 0 0 4px; }
+  .note { font-size: 13px; color: var(--ink-2); margin: 0 0 14px; max-width: 72ch; }
+  .legend { display: flex; gap: 18px; align-items: center; font-size: 13px; color: var(--ink-2); margin: 10px 0 4px; flex-wrap: wrap; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.browser { background: var(--browser); }
+  .dot.server { background: var(--server); }
+  .dot.hollow { background: transparent; border: 2px solid var(--browser); width: 7px; height: 7px; }
+  .xmark { font-family: "Spline Sans Mono", monospace; color: var(--ink-3); font-weight: 600; }
+  .chartbox { overflow-x: auto; }
+  svg text {
+    font-family: "Spline Sans Mono", ui-monospace, monospace;
+    font-size: 11.5px; fill: var(--ink-2);
+  }
+  svg text.rowlabel { font-family: "Archivo", sans-serif; font-size: 12.5px; fill: var(--ink); }
+  svg text.fmt { font-family: "Archivo", sans-serif; font-size: 11px; font-weight: 650; letter-spacing: 0.08em; fill: var(--ink-3); }
+  svg text.fail { font-size: 11px; fill: var(--ink-3);  paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+  svg text.reflabel { font-size: 10.5px; fill: var(--ref); }
+  #tip {
+    position: fixed; pointer-events: none; display: none; z-index: 5;
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--grid); border-radius: 6px;
+    padding: 8px 11px; font-size: 12.5px; line-height: 1.45;
+    max-width: 280px; box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  }
+  #tip .t { font-weight: 650; }
+  #tip .m { font-family: "Spline Sans Mono", monospace; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  details { margin-top: 40px; }
+  summary { cursor: pointer; font-weight: 650; font-size: 15px; }
+  .tablebox { overflow-x: auto; margin-top: 12px; }
+  table { border-collapse: collapse; font-size: 12.5px; min-width: 860px; }
+  th, td { text-align: left; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--ink-3); font-weight: 600; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+  td.n { font-family: "Spline Sans Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .costform { display: flex; flex-wrap: wrap; gap: 14px 22px; margin: 14px 0 6px; }
+  .costform label { display: flex; flex-direction: column; gap: 3px; font-size: 11px;
+    color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .costform input { width: 108px; padding: 5px 8px; border: 1px solid var(--grid); border-radius: 5px;
+    background: var(--surface-2); color: var(--ink);
+    font-family: "Spline Sans Mono", monospace; font-size: 13px; }
+  .costform input:focus { outline: 2px solid var(--browser); outline-offset: 1px; }
+  .costunit { font-family: "Spline Sans Mono", monospace; font-size: 13px; color: var(--ink-2);
+    background: var(--surface-2); border-radius: 6px; padding: 10px 14px; margin: 10px 0 18px;
+    line-height: 1.7; }
+  .costunit b { color: var(--ink); font-weight: 600; }
+  .costcharts { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .costcharts h3 { font-size: 13.5px; font-weight: 650; margin: 0 0 8px; }
+  @media (max-width: 900px) { .costcharts { grid-template-columns: 1fr; } }
+  footer { margin-top: 44px; font-size: 12.5px; color: var(--ink-3); max-width: 76ch; }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;650;700&family=Spline+Sans+Mono:wght@400;600&display=swap">
+
+<div class="wrap">
+  <header>
+    <h1>The 2-Gigabyte Wall</h1>
+    <p class="sub">Browser vs server processing across the real-dataset ladder. <strong>process</strong> = parse&nbsp;+ build the chunked layout only — upload and queue time are excluded on both paths and listed in the table.</p>
+    <p class="machine" id="machine"></p>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <h2>Processing time — per input, per method</h2>
+    <p class="note">Log scale. Single-cell rows are ranked by the <strong>dense in-memory size</strong> their matrix inflates to (cells&nbsp;× genes&nbsp;× 4&nbsp;bytes) — that, not file size, decides whether a dataset fits; both sizes are shown. A row without a dot did not process: the browser refuses any file over its measured <span class="xmark">1.98&nbsp;GB</span> single-file cap, crashes when parsing exhausts its <span class="xmark">3.5&nbsp;GB</span> JS heap, or freezes. Server time excludes upload &amp; queue. A dot labeled <strong>32&nbsp;GB</strong> or <strong>64&nbsp;GB</strong> ran out of memory on the 16&nbsp;GB tier and succeeded after automatic escalation to a bigger machine.</p>
+    <div class="legend">
+      <span class="chip"><span class="dot browser"></span>Browser (local)</span>
+      <span class="chip"><span class="dot server"></span>Server (16&nbsp;GB tier)</span>
+      <span class="chip"><span class="dot hollow"></span>loaded, but no gene expression</span>
+      <span class="chip"><span class="xmark">✕</span>&nbsp;did not process</span>
+    </div>
+    <div class="chartbox"><svg id="timeChart"></svg></div>
+  </section>
+
+  <section>
+    <h2>Peak memory — per input, per method</h2>
+    <p class="note">Peak RSS of the whole browser tree vs the worker's own peak. ✕ marks the memory at which a browser tab died — the measured ceiling. Dashed lines: the browser's 3.5&nbsp;GB JS-heap cap and the 16&nbsp;GB server tier.</p>
+    <div class="legend">
+      <span class="chip"><span class="dot browser"></span>Browser (local)</span>
+      <span class="chip"><span class="dot server"></span>Server (16&nbsp;GB tier)</span>
+      <span class="chip"><span class="xmark">✕</span>&nbsp;memory at tab death</span>
+    </div>
+    <div class="chartbox"><svg id="memChart"></svg></div>
+  </section>
+
+  <section id="escSection" style="display:none">
+    <h2>Beyond 16&nbsp;GB — the escalation ladder</h2>
+    <p class="note">Datasets the 16&nbsp;GB tier could not hold, on the axis their machines actually had (0–64&nbsp;GB). Each dot is the worker's peak on the tier that finally fit; ✕ marks datasets that ran out of memory on every tier.</p>
+    <div class="chartbox"><svg id="escChart"></svg></div>
+  </section>
+
+  <section>
+    <h2>Cost model — what growth actually costs</h2>
+    <p class="note">A single-cell dataset of your chosen shape, priced with rates fitted to the measured runs above
+      (billed runtime R² = 0.98 against cells × genes; storage density defaults to the measured median,
+      spread 0.2–3.2 B per cell×gene). Every assumption below is editable — charts update live.</p>
+    <div class="costform" id="costForm">
+      <label>cells<input id="cf-cells" type="number" value="300000" min="1000" step="10000"></label>
+      <label>genes<input id="cf-genes" type="number" value="500" min="10" step="50"></label>
+      <label>new datasets / mo<input id="cf-rate" type="number" value="50" min="0" step="10"></label>
+      <label>horizon (months)<input id="cf-months" type="number" value="24" min="1" step="6"></label>
+      <label>views / dataset / mo<input id="cf-views" type="number" value="10" min="0" step="5"></label>
+      <label>% of output per view<input id="cf-frac" type="number" value="25" min="0" max="100" step="5"></label>
+      <label>output B / cell×gene<input id="cf-dens" type="number" value="2.3" min="0.1" step="0.1"></label>
+    </div>
+    <div class="costunit" id="costUnit"></div>
+    <div class="costcharts">
+      <div><h3>Monthly cost vs total datasets hosted</h3><svg id="sweepChart"></svg></div>
+      <div><h3>Monthly cost over time at this upload rate</h3><svg id="tlChart"></svg></div>
+    </div>
+    <p class="note" id="costFoot"></p>
+  </section>
+
+  <details>
+    <summary>All numbers (including excluded upload &amp; queue phases)</summary>
+    <div class="tablebox"><table id="tbl"></table></div>
+  </details>
+
+  <footer id="foot"></footer>
+</div>
+<div id="tip"></div>
+
+<script>
+const DATA = {"rows": [{"id": "h5ad__140MB_cbm2_combined_neuropath", "format": "h5ad", "sizeGB": 0.132, "relevantGB": null, "shape": {"cells": 57489, "genes": 223, "molecules": null}, "local": {"outcome": "ok", "processMs": 2125, "peakRssGB": 1.28, "genes": 223, "cells": 57489, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 9000, "peakRssGB": 0.27, "genes": null, "cells": null, "uploadMs": 2830, "queueMs": 34857, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 49748, "status": "SUCCEEDED", "usd": 0.0032}], "totalUsd": 0.0032, "outputBytes": 30263350, "outputUsdMonth": 0.0006}}}, {"id": "h5ad__250MB_CBM7_labeled", "format": "h5ad", "sizeGB": 0.232, "relevantGB": null, "shape": {"cells": 139997, "genes": 223, "molecules": null}, "local": {"outcome": "ok", "processMs": 3430, "peakRssGB": 1.59, "genes": 223, "cells": 139997, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 9600, "peakRssGB": 0.37, "genes": null, "cells": null, "uploadMs": 2892, "queueMs": 37703, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 50007, "status": "SUCCEEDED", "usd": 0.0032}], "totalUsd": 0.0032, "outputBytes": 32157136, "outputUsdMonth": 0.0007}}}, {"id": "h5ad__cbm5_combined_neuropath", "format": "h5ad", "sizeGB": 0.511, "relevantGB": null, "shape": {"cells": 152568, "genes": 223, "molecules": null}, "local": {"outcome": "ok", "processMs": 4296, "peakRssGB": 1.98, "genes": 223, "cells": 152568, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 16400, "peakRssGB": 0.39, "genes": null, "cells": null, "uploadMs": 5484, "queueMs": 28710, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 57565, "status": "SUCCEEDED", "usd": 0.0037}], "totalUsd": 0.0037, "outputBytes": 79164260, "outputUsdMonth": 0.0017}}}, {"id": "h5ad__scdata_2000gnMERFISH_DCBB_5_9_2024__set3", "format": "h5ad", "sizeGB": 0.749, "relevantGB": null, "shape": {"cells": 163800, "genes": 275, "molecules": null}, "local": {"outcome": "ok", "processMs": 6799, "peakRssGB": 3.01, "genes": 275, "cells": 163800, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 26800, "peakRssGB": 0.57, "genes": null, "cells": null, "uploadMs": 5957, "queueMs": 32253, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 68980, "status": "SUCCEEDED", "usd": 0.0045}], "totalUsd": 0.0045, "outputBytes": 139475136, "outputUsdMonth": 0.003}}}, {"id": "h5ad__year1s_labelled_edu", "format": "h5ad", "sizeGB": 1.807, "relevantGB": null, "shape": {"cells": 381811, "genes": 275, "molecules": null}, "local": {"outcome": "ok", "processMs": 29984, "peakRssGB": 5.77, "genes": 275, "cells": 381811, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 84200, "peakRssGB": 0.88, "genes": null, "cells": null, "uploadMs": 18803, "queueMs": 35713, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 136050, "status": "SUCCEEDED", "usd": 0.0088}], "totalUsd": 0.0088, "outputBytes": 331341876, "outputUsdMonth": 0.0071}}}, {"id": "h5ad__retroB30_all_BRBB_Axon_Virus_AnnotBRBBTransfer", "format": "h5ad", "sizeGB": 2.493, "relevantGB": null, "shape": {"cells": 3009652, "genes": 992, "molecules": null}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 0.63, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that ha"}, "server": {"outcome": "ok", "processMs": 3954700, "peakRssGB": 13.49, "genes": null, "cells": null, "uploadMs": 23781, "queueMs": 29455, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 4019151, "status": "SUCCEEDED", "usd": 0.2602}], "totalUsd": 0.2602, "outputBytes": 1218482067, "outputUsdMonth": 0.0261}}}, {"id": "h5ad__scdata_2000gnMERFISH_DCBB_5_9_2024__set1_FULL_corrected__wit", "format": "h5ad", "sizeGB": 2.938, "relevantGB": null, "shape": {"cells": 93022, "genes": 2088, "molecules": null}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 0.64, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that ha"}, "server": {"outcome": "ok", "processMs": 94300, "peakRssGB": 1.1, "genes": null, "cells": null, "uploadMs": 26061, "queueMs": 43988, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 161217, "status": "SUCCEEDED", "usd": 0.0104}], "totalUsd": 0.0104, "outputBytes": 460099990, "outputUsdMonth": 0.0099}}}, {"id": "h5ad__4GB_2kset2_labelled_clusters", "format": "h5ad", "sizeGB": 3.972, "relevantGB": null, "shape": {"cells": 125665, "genes": 2088, "molecules": null}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 0.63, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that ha"}, "server": {"outcome": "ok", "processMs": 125200, "peakRssGB": 1.38, "genes": null, "cells": null, "uploadMs": 38487, "queueMs": 31489, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 196363, "status": "SUCCEEDED", "usd": 0.0127}], "totalUsd": 0.0127, "outputBytes": 616538878, "outputUsdMonth": 0.0132}}}, {"id": "merscope__Human_Ovarian_Cancer_150mb", "format": "merscope", "sizeGB": 0.156, "relevantGB": 0.156, "shape": {"cells": 71381, "genes": 550, "molecules": null}, "local": {"outcome": "ok", "processMs": 14224, "peakRssGB": 3.1, "genes": 500, "cells": 71381, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 42100, "peakRssGB": 0.83, "genes": null, "cells": null, "uploadMs": 3805, "queueMs": 32691, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 86790, "status": "SUCCEEDED", "usd": 0.0056}], "totalUsd": 0.0056, "outputBytes": 16866679, "outputUsdMonth": 0.0004}}}, {"id": "merscope__Mouse_receptors_rep3_1_190mb", "format": "merscope", "sizeGB": 0.186, "relevantGB": 0.186, "shape": {"cells": 70844, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 14343, "peakRssGB": 3.26, "genes": 483, "cells": 70844, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 35600, "peakRssGB": 0.97, "genes": null, "cells": null, "uploadMs": 6764, "queueMs": 40054, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 106311, "status": "SUCCEEDED", "usd": 0.0069}], "totalUsd": 0.0069, "outputBytes": 14492859, "outputUsdMonth": 0.0003}}}, {"id": "merscope__Mouse_receptors_rep1_1_210mb", "format": "merscope", "sizeGB": 0.205, "relevantGB": 0.205, "shape": {"cells": 78329, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 16002, "peakRssGB": 3.2, "genes": 483, "cells": 78329, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 40700, "peakRssGB": 1.05, "genes": null, "cells": null, "uploadMs": 3979, "queueMs": 36261, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 83177, "status": "SUCCEEDED", "usd": 0.0054}], "totalUsd": 0.0054, "outputBytes": 16519490, "outputUsdMonth": 0.0004}}}, {"id": "merscope__Mouse_receptors_rep2_1_220mb", "format": "merscope", "sizeGB": 0.219, "relevantGB": 0.219, "shape": {"cells": 83461, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 16682, "peakRssGB": 3.64, "genes": 483, "cells": 83461, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 45000, "peakRssGB": 1.1, "genes": null, "cells": null, "uploadMs": 6434, "queueMs": 37209, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 89940, "status": "SUCCEEDED", "usd": 0.0058}], "totalUsd": 0.0058, "outputBytes": 17891358, "outputUsdMonth": 0.0004}}}, {"id": "merscope__Mouse_receptors_rep3_2_220mb", "format": "merscope", "sizeGB": 0.219, "relevantGB": 0.219, "shape": {"cells": 83461, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 17056, "peakRssGB": 3.61, "genes": 483, "cells": 83461, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 44600, "peakRssGB": 1.11, "genes": null, "cells": null, "uploadMs": 8333, "queueMs": 34414, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 88585, "status": "SUCCEEDED", "usd": 0.0057}], "totalUsd": 0.0057, "outputBytes": 17891358, "outputUsdMonth": 0.0004}}}, {"id": "merscope__Mouse_receptors_rep2_2_220mb", "format": "merscope", "sizeGB": 0.221, "relevantGB": 0.221, "shape": {"cells": 84172, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 17098, "peakRssGB": 3.61, "genes": 483, "cells": 84172, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 42000, "peakRssGB": 1.12, "genes": null, "cells": null, "uploadMs": 3995, "queueMs": 28650, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 86491, "status": "SUCCEEDED", "usd": 0.0056}], "totalUsd": 0.0056, "outputBytes": 16908948, "outputUsdMonth": 0.0004}}}, {"id": "merscope__Mouse_receptors_rep1_3_220mb", "format": "merscope", "sizeGB": 0.222, "relevantGB": 0.222, "shape": {"cells": 84636, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 17257, "peakRssGB": 3.68, "genes": 483, "cells": 84636, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 43100, "peakRssGB": 1.12, "genes": null, "cells": null, "uploadMs": 3391, "queueMs": 36383, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 85389, "status": "SUCCEEDED", "usd": 0.0055}], "totalUsd": 0.0055, "outputBytes": 17666245, "outputUsdMonth": 0.0004}}}, {"id": "merscope__Mouse_receptors_rep2_3_230mb", "format": "merscope", "sizeGB": 0.226, "relevantGB": 0.226, "shape": {"cells": 85958, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 16591, "peakRssGB": 3.72, "genes": 483, "cells": 85958, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 44900, "peakRssGB": 1.14, "genes": null, "cells": null, "uploadMs": 4691, "queueMs": 30799, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 87776, "status": "SUCCEEDED", "usd": 0.0057}], "totalUsd": 0.0057, "outputBytes": 18440206, "outputUsdMonth": 0.0004}}}, {"id": "merscope__Mouse_receptors_rep1_2_240mb", "format": "merscope", "sizeGB": 0.233, "relevantGB": 0.233, "shape": {"cells": 88884, "genes": 649, "molecules": null}, "local": {"outcome": "ok", "processMs": 17683, "peakRssGB": 3.81, "genes": 483, "cells": 88884, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 45100, "peakRssGB": 1.23, "genes": null, "cells": null, "uploadMs": 3522, "queueMs": 40744, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 88546, "status": "SUCCEEDED", "usd": 0.0057}], "totalUsd": 0.0057, "outputBytes": 17741046, "outputUsdMonth": 0.0004}}}, {"id": "merscope__hum_brain2_280mb", "format": "merscope", "sizeGB": 0.302, "relevantGB": 0.302, "shape": {"cells": 137627, "genes": 1000, "molecules": null}, "local": {"outcome": "oom", "processMs": null, "peakRssGB": 4.66, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "page.waitForURL: Navigation failed because page crashed!"}, "server": {"outcome": "ok", "processMs": 100600, "peakRssGB": 2.69, "genes": null, "cells": null, "uploadMs": 7834, "queueMs": 32582, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 147471, "status": "SUCCEEDED", "usd": 0.0095}], "totalUsd": 0.0095, "outputBytes": 53804827, "outputUsdMonth": 0.0012}}}, {"id": "merscope__Human_Uterine_Cancer_800mb", "format": "merscope", "sizeGB": 1.047, "relevantGB": 1.047, "shape": {"cells": 739735, "genes": 550, "molecules": null}, "local": {"outcome": "oom", "processMs": null, "peakRssGB": 4.81, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "page.waitForURL: Navigation failed because page crashed!"}, "server": {"outcome": "ok", "processMs": 576900, "peakRssGB": 9.54, "genes": null, "cells": null, "uploadMs": 10089, "queueMs": 31736, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 625704, "status": "SUCCEEDED", "usd": 0.0405}], "totalUsd": 0.0405, "outputBytes": 239494021, "outputUsdMonth": 0.0051}}}, {"id": "merscope__Human_Colon_Cancer_1-2gb", "format": "merscope", "sizeGB": 1.425, "relevantGB": 1.425, "shape": {"cells": 706468, "genes": 900, "molecules": null}, "local": {"outcome": "oom", "processMs": null, "peakRssGB": 4.69, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "page.waitForURL: Navigation failed because page crashed!"}, "server": {"outcome": "ok", "processMs": 286300, "peakRssGB": 14.25, "genes": null, "cells": null, "uploadMs": 15099, "queueMs": 29414, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 339592, "status": "SUCCEEDED", "usd": 0.022}], "totalUsd": 0.022, "outputBytes": 155733966, "outputUsdMonth": 0.0033}}}, {"id": "merscope__ed_lein_ace-irk-sag", "format": "merscope", "sizeGB": 4.508, "relevantGB": 0.45, "shape": {"cells": 878735, "genes": 315, "molecules": null}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 5.58, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: Unserializable return value"}, "server": {"outcome": "error", "processMs": 4300, "peakRssGB": null, "genes": null, "cells": null, "uploadMs": 11078, "queueMs": 101879, "err": "Essential container in task exited", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 94491, "status": "FAILED", "usd": 0.0061}], "totalUsd": 0.0061, "outputBytes": 0, "outputUsdMonth": 0}}}, {"id": "single-molecule__merscope-800m-ace-dry-dog-detected_transcripts3-csv", "format": "single-molecule", "sizeGB": 0.039, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 499999}, "local": {"outcome": "ok", "processMs": 3101, "peakRssGB": 1.01, "genes": 300, "cells": null, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 2200, "peakRssGB": 0.25, "genes": null, "cells": null, "uploadMs": 2020, "queueMs": 36776, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 51617, "status": "SUCCEEDED", "usd": 0.0033}], "totalUsd": 0.0033, "outputBytes": 3279356, "outputUsdMonth": 0.0001}}}, {"id": "single-molecule__xenium-Human_Lung_Cancer_FFPE-parquet", "format": "single-molecule", "sizeGB": 0.332, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 32073729}, "local": {"outcome": "ok", "processMs": 55502, "peakRssGB": 5.37, "genes": 289, "cells": null, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 46800, "peakRssGB": 2.99, "genes": null, "cells": null, "uploadMs": 3435, "queueMs": 40388, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 88092, "status": "SUCCEEDED", "usd": 0.0057}], "totalUsd": 0.0057, "outputBytes": 251896635, "outputUsdMonth": 0.0054}}}, {"id": "single-molecule__xenium-Human_Melanoma_10gb-parquet", "format": "single-molecule", "sizeGB": 0.393, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 23651907}, "local": {"outcome": "ok", "processMs": 39281, "peakRssGB": 4.54, "genes": 282, "cells": null, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 34600, "peakRssGB": 2.32, "genes": null, "cells": null, "uploadMs": 3723, "queueMs": 37898, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 79359, "status": "SUCCEEDED", "usd": 0.0051}], "totalUsd": 0.0051, "outputBytes": 189940939, "outputUsdMonth": 0.0041}}}, {"id": "single-molecule__merscope-800m-ace-dry-dog-detected_transcripts2-csv", "format": "single-molecule", "sizeGB": 0.625, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 8044719}, "local": {"outcome": "timeout", "processMs": null, "peakRssGB": 1.6, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "locator.click: Timeout 420000ms exceeded."}, "server": {"outcome": "ok", "processMs": 49600, "peakRssGB": 1.77, "genes": null, "cells": null, "uploadMs": 6020, "queueMs": 42942, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 94415, "status": "SUCCEEDED", "usd": 0.0061}], "totalUsd": 0.0061, "outputBytes": 51096542, "outputUsdMonth": 0.0011}}}, {"id": "single-molecule__merscope-800m-ace-dry-dog-csv", "format": "single-molecule", "sizeGB": 0.785, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 10107749}, "local": {"outcome": "timeout", "processMs": null, "peakRssGB": 1.66, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "locator.click: Timeout 420000ms exceeded."}, "server": {"outcome": "ok", "processMs": 57200, "peakRssGB": 2.14, "genes": null, "cells": null, "uploadMs": 6227, "queueMs": 42310, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 101515, "status": "SUCCEEDED", "usd": 0.0066}], "totalUsd": 0.0066, "outputBytes": 63984470, "outputUsdMonth": 0.0014}}}, {"id": "single-molecule__xenium-Human_Renal_Carcinoma_50gb-parquet", "format": "single-molecule", "sizeGB": 0.954, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 77056936}, "local": {"outcome": "oom", "processMs": null, "peakRssGB": 7.35, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "page.waitForURL: Navigation failed because page crashed!"}, "server": {"outcome": "ok", "processMs": 117800, "peakRssGB": 7.16, "genes": null, "cells": null, "uploadMs": 9201, "queueMs": 37836, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 164046, "status": "SUCCEEDED", "usd": 0.0106}], "totalUsd": 0.0106, "outputBytes": 587349372, "outputUsdMonth": 0.0126}}}, {"id": "single-molecule__merscope-ed_lein_ace-irk-sag-H22-30-001-CX-13-01-0-csv", "format": "single-molecule", "sizeGB": 1.53, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 18644913}, "local": {"outcome": "timeout", "processMs": null, "peakRssGB": 3.01, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "locator.click: Timeout 420000ms exceeded."}, "server": {"outcome": "ok", "processMs": 92400, "peakRssGB": 3.96, "genes": null, "cells": null, "uploadMs": 12893, "queueMs": 34806, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 149766, "status": "SUCCEEDED", "usd": 0.0097}], "totalUsd": 0.0097, "outputBytes": 118207957, "outputUsdMonth": 0.0025}}}, {"id": "single-molecule__xenium-Human_Melanoma_10gb-csv", "format": "single-molecule", "sizeGB": 1.934, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 23390260}, "local": {"outcome": "timeout", "processMs": null, "peakRssGB": 4.28, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "locator.click: Timeout 420000ms exceeded."}, "server": {"outcome": "ok", "processMs": 32900, "peakRssGB": 4.39, "genes": null, "cells": null, "uploadMs": 14781, "queueMs": 36826, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 85345, "status": "SUCCEEDED", "usd": 0.0055}], "totalUsd": 0.0055, "outputBytes": 189934461, "outputUsdMonth": 0.0041}}}, {"id": "single-molecule__merscope-ed_lein_ace-irk-sag-csv", "format": "single-molecule", "sizeGB": 2.127, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 26196203}, "local": {"outcome": "timeout", "processMs": null, "peakRssGB": 0.68, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "locator.waitFor: Timeout 420000ms exceeded."}, "server": {"outcome": "ok", "processMs": 142000, "peakRssGB": 5.36, "genes": null, "cells": null, "uploadMs": 19663, "queueMs": 36467, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 197266, "status": "SUCCEEDED", "usd": 0.0128}], "totalUsd": 0.0128, "outputBytes": 166445244, "outputUsdMonth": 0.0036}}}, {"id": "single-molecule__merscope-2g-ace-ear-nap-202204011403_2022040113532-csv", "format": "single-molecule", "sizeGB": 2.439, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 32146915}, "local": {"outcome": "timeout", "processMs": null, "peakRssGB": 0.67, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "locator.waitFor: Timeout 420000ms exceeded."}, "server": {"outcome": "ok", "processMs": 178300, "peakRssGB": 5.91, "genes": null, "cells": null, "uploadMs": 19978, "queueMs": 33887, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 235553, "status": "SUCCEEDED", "usd": 0.0152}], "totalUsd": 0.0152, "outputBytes": 196476181, "outputUsdMonth": 0.0042}}}, {"id": "single-molecule__xenium-Human_Lymph_Node-parquet", "format": "single-molecule", "sizeGB": 2.776, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 232650139}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 0.81, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that ha"}, "server": {"outcome": "oom", "processMs": 12800, "peakRssGB": null, "genes": null, "cells": null, "uploadMs": 35568, "queueMs": 166124, "err": "OutOfMemoryError: container killed due to memory usage", "escalation": {"tier": "32768", "outcome": "ok", "processMs": 347100, "peakRssGB": 20.8}, "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 176790, "status": "FAILED", "usd": 0.0114}, {"tier": "32GB", "vcpu": 8, "memGB": 32, "runtimeMs": 429275, "status": "SUCCEEDED", "usd": 0.0556}], "totalUsd": 0.067, "outputBytes": 1876095956, "outputUsdMonth": 0.0402}}}, {"id": "single-molecule__merscope-5g-ace-dry-dog-csv", "format": "single-molecule", "sizeGB": 5.435, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 69965035}, "local": {"outcome": "timeout", "processMs": null, "peakRssGB": 1.8, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "locator.waitFor: Timeout 420000ms exceeded."}, "server": {"outcome": "ok", "processMs": 391600, "peakRssGB": 13.72, "genes": null, "cells": null, "uploadMs": 47379, "queueMs": 40288, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 472532, "status": "SUCCEEDED", "usd": 0.0306}], "totalUsd": 0.0306, "outputBytes": 421960421, "outputUsdMonth": 0.009}}}, {"id": "single-molecule__xenium-Whole_mouse_pup_65gb-parquet", "format": "single-molecule", "sizeGB": 8.005, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 669251333}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 0.88, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that ha"}, "server": {"outcome": "oom", "processMs": 0, "peakRssGB": null, "genes": null, "cells": null, "uploadMs": 67573, "queueMs": 207315, "err": "OutOfMemoryError: container killed due to memory usage", "escalation": {"tier": "65536", "outcome": "ok", "processMs": 810400, "peakRssGB": 59.44}, "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 251874, "status": "FAILED", "usd": 0.0163}, {"tier": "32GB", "vcpu": 8, "memGB": 32, "runtimeMs": 258519, "status": "FAILED", "usd": 0.0335}, {"tier": "64GB", "vcpu": 16, "memGB": 64, "runtimeMs": 898636, "status": "SUCCEEDED", "usd": 0.2327}], "totalUsd": 0.2825, "outputBytes": 5255893528, "outputUsdMonth": 0.1126}}}, {"id": "single-molecule__xenium-WTA_Preview_FFPE_Breast_Cancer-parquet", "format": "single-molecule", "sizeGB": 9.411, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 740442119}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 1.93, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that ha"}, "server": {"outcome": "oom", "processMs": 0, "peakRssGB": null, "genes": null, "cells": null, "uploadMs": 66755, "queueMs": 209224, "err": "OutOfMemoryError: container killed due to memory usage", "escalation": {"tier": "65536", "outcome": "oom", "processMs": null, "peakRssGB": null}, "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 278844, "status": "FAILED", "usd": 0.0181}, {"tier": "32GB", "vcpu": 8, "memGB": 32, "runtimeMs": 290549, "status": "FAILED", "usd": 0.0376}, {"tier": "64GB", "vcpu": 16, "memGB": 64, "runtimeMs": 784193, "status": "FAILED", "usd": 0.2031}], "totalUsd": 0.2588, "outputBytes": 0, "outputUsdMonth": 0}}}, {"id": "single-molecule__xenium-WTA_Preview_FFPE_Cervical_Cancer-parquet", "format": "single-molecule", "sizeGB": 15.617, "relevantGB": null, "shape": {"cells": null, "genes": null, "molecules": 1235087993}, "local": {"outcome": "failed", "processMs": null, "peakRssGB": 0.8, "genes": null, "cells": null, "uploadMs": null, "queueMs": null, "err": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that ha"}, "server": {"outcome": "oom", "processMs": 0, "peakRssGB": null, "genes": null, "cells": null, "uploadMs": 180945, "queueMs": 301637, "err": "OutOfMemoryError: container killed due to memory usage", "escalation": {"tier": "65536", "outcome": "oom", "processMs": null, "peakRssGB": null}, "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 467157, "status": "FAILED", "usd": 0.0302}, {"tier": "32GB", "vcpu": 8, "memGB": 32, "runtimeMs": 413550, "status": "FAILED", "usd": 0.0535}, {"tier": "64GB", "vcpu": 16, "memGB": 64, "runtimeMs": 394444, "status": "FAILED", "usd": 0.1021}], "totalUsd": 0.1858, "outputBytes": 0, "outputUsdMonth": 0}}}, {"id": "xenium__MouseSpinalCord_Run7_Slide1_Mus_M6_F6_ace-pie-car", "format": "xenium", "sizeGB": 0.613, "relevantGB": 0.011, "shape": {"cells": 201328, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6130, "peakRssGB": 2.22, "genes": 480, "cells": 201328, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 54000, "peakRssGB": 0.43, "genes": null, "cells": null, "uploadMs": 2068, "queueMs": 57721, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 95498, "status": "SUCCEEDED", "usd": 0.0062}], "totalUsd": 0.0062, "outputBytes": 22865819, "outputUsdMonth": 0.0005}}}, {"id": "xenium__MouseSpinalCord_Run7_Slide2_Mus_M6_F6_ace-pie-cat", "format": "xenium", "sizeGB": 0.666, "relevantGB": 0.011, "shape": {"cells": 197012, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6254, "peakRssGB": 2.27, "genes": 480, "cells": 197012, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 55400, "peakRssGB": 0.44, "genes": null, "cells": null, "uploadMs": 2235, "queueMs": 31490, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 95377, "status": "SUCCEEDED", "usd": 0.0062}], "totalUsd": 0.0062, "outputBytes": 23451514, "outputUsdMonth": 0.0005}}}, {"id": "xenium__MouseSpinalCord_Run6_Slide2_Mus_M5_F5_ace-pie-cap", "format": "xenium", "sizeGB": 0.867, "relevantGB": 0.011, "shape": {"cells": 202387, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6515, "peakRssGB": 2.31, "genes": 480, "cells": 202387, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 73800, "peakRssGB": 0.51, "genes": null, "cells": null, "uploadMs": 2136, "queueMs": 39428, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 114246, "status": "SUCCEEDED", "usd": 0.0074}], "totalUsd": 0.0074, "outputBytes": 29396490, "outputUsdMonth": 0.0006}}}, {"id": "xenium__MouseSpinalCord_Run8_Slide2_Mus_M7_F7_ace-pie-cot", "format": "xenium", "sizeGB": 0.876, "relevantGB": 0.01, "shape": {"cells": 182698, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6349, "peakRssGB": 2.26, "genes": 480, "cells": 182698, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 69300, "peakRssGB": 0.48, "genes": null, "cells": null, "uploadMs": 1985, "queueMs": 41609, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 111989, "status": "SUCCEEDED", "usd": 0.0072}], "totalUsd": 0.0072, "outputBytes": 28115835, "outputUsdMonth": 0.0006}}}, {"id": "xenium__MouseSpinalCord_Run6_Slide1_Mus_M5_F5_ace-pie-can", "format": "xenium", "sizeGB": 0.904, "relevantGB": 0.011, "shape": {"cells": 195045, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6608, "peakRssGB": 2.31, "genes": 480, "cells": 195045, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 72400, "peakRssGB": 0.52, "genes": null, "cells": null, "uploadMs": 2145, "queueMs": 33813, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 115280, "status": "SUCCEEDED", "usd": 0.0075}], "totalUsd": 0.0075, "outputBytes": 29877584, "outputUsdMonth": 0.0006}}}, {"id": "xenium__MouseSpinalCord_Run8_Slide1_Mus_M7_F7_ace-pie-cop", "format": "xenium", "sizeGB": 0.906, "relevantGB": 0.011, "shape": {"cells": 193138, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6608, "peakRssGB": 2.29, "genes": 480, "cells": 193138, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 54200, "peakRssGB": 0.51, "genes": null, "cells": null, "uploadMs": 2365, "queueMs": 29812, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 95233, "status": "SUCCEEDED", "usd": 0.0062}], "totalUsd": 0.0062, "outputBytes": 29834651, "outputUsdMonth": 0.0006}}}, {"id": "xenium__MouseSpinalCord_Run2_Slide2_Mus_M2_F2_ace-pie-boo", "format": "xenium", "sizeGB": 0.912, "relevantGB": 0.013, "shape": {"cells": 239887, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 7081, "peakRssGB": 2.57, "genes": 480, "cells": 239887, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 75900, "peakRssGB": 0.55, "genes": null, "cells": null, "uploadMs": 2993, "queueMs": 38597, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 115309, "status": "SUCCEEDED", "usd": 0.0075}], "totalUsd": 0.0075, "outputBytes": 31474109, "outputUsdMonth": 0.0007}}}, {"id": "xenium__MouseSpinalCord_Run3_Slide1_Mus_M2_F2_ace-pie-box", "format": "xenium", "sizeGB": 0.942, "relevantGB": 0.012, "shape": {"cells": 214194, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6845, "peakRssGB": 2.39, "genes": 480, "cells": 214194, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 76000, "peakRssGB": 0.52, "genes": null, "cells": null, "uploadMs": 3711, "queueMs": 39522, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 115689, "status": "SUCCEEDED", "usd": 0.0075}], "totalUsd": 0.0075, "outputBytes": 30135428, "outputUsdMonth": 0.0006}}}, {"id": "xenium__MouseSpinalCord_Run3_Slide2_Mus_M2_F2_ace-pie-bud", "format": "xenium", "sizeGB": 0.981, "relevantGB": 0.011, "shape": {"cells": 203848, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6538, "peakRssGB": 2.41, "genes": 480, "cells": 203848, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 77600, "peakRssGB": 0.53, "genes": null, "cells": null, "uploadMs": 2615, "queueMs": 37883, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 120578, "status": "SUCCEEDED", "usd": 0.0078}], "totalUsd": 0.0078, "outputBytes": 30977028, "outputUsdMonth": 0.0007}}}, {"id": "xenium__MouseSpinalCord_Run1_Slide1_Mus_M1_F1_ace-pie-bin", "format": "xenium", "sizeGB": 0.987, "relevantGB": 0.012, "shape": {"cells": 208799, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 7042, "peakRssGB": 2.37, "genes": 480, "cells": 208799, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 80000, "peakRssGB": 0.54, "genes": null, "cells": null, "uploadMs": 2399, "queueMs": 32147, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 122162, "status": "SUCCEEDED", "usd": 0.0079}], "totalUsd": 0.0079, "outputBytes": 31969221, "outputUsdMonth": 0.0007}}}, {"id": "xenium__MouseSpinalCord_Run4_Slide1_Mus_M3_F3_ace-pie-bug", "format": "xenium", "sizeGB": 1.008, "relevantGB": 0.012, "shape": {"cells": 214349, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6941, "peakRssGB": 2.39, "genes": 480, "cells": 214349, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 82400, "peakRssGB": 0.55, "genes": null, "cells": null, "uploadMs": 2321, "queueMs": 33043, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 122977, "status": "SUCCEEDED", "usd": 0.008}], "totalUsd": 0.008, "outputBytes": 32675922, "outputUsdMonth": 0.0007}}}, {"id": "xenium__MouseSpinalCord_Run2_Slide1_Mus_M2_F2_ace-pie-bog", "format": "xenium", "sizeGB": 1.03, "relevantGB": 0.014, "shape": {"cells": 258147, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 7493, "peakRssGB": 2.68, "genes": 480, "cells": 258147, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 82900, "peakRssGB": 0.6, "genes": null, "cells": null, "uploadMs": 2521, "queueMs": 44890, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 124590, "status": "SUCCEEDED", "usd": 0.0081}], "totalUsd": 0.0081, "outputBytes": 34651412, "outputUsdMonth": 0.0007}}}, {"id": "xenium__MouseSpinalCord_Run1_Slide2_Mus_M1_F1_ace-pie-bit", "format": "xenium", "sizeGB": 1.124, "relevantGB": 0.013, "shape": {"cells": 226204, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6969, "peakRssGB": 2.52, "genes": 480, "cells": 226204, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 87200, "peakRssGB": 0.58, "genes": null, "cells": null, "uploadMs": 2094, "queueMs": 33483, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 128265, "status": "SUCCEEDED", "usd": 0.0083}], "totalUsd": 0.0083, "outputBytes": 34900845, "outputUsdMonth": 0.0007}}}, {"id": "xenium__MouseSpinalCord_Run4_Slide2_Mus_M3_F3_ace-pie-bun", "format": "xenium", "sizeGB": 1.162, "relevantGB": 0.013, "shape": {"cells": 238228, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 7143, "peakRssGB": 2.63, "genes": 480, "cells": 238228, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 94800, "peakRssGB": 0.61, "genes": null, "cells": null, "uploadMs": 2611, "queueMs": 32077, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 134919, "status": "SUCCEEDED", "usd": 0.0087}], "totalUsd": 0.0087, "outputBytes": 36893445, "outputUsdMonth": 0.0008}}}, {"id": "xenium__MouseSpinalCord_Run5_Slide1_Mus_M4_F4_ace-pie-bus", "format": "xenium", "sizeGB": 1.162, "relevantGB": 0.012, "shape": {"cells": 211359, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 7198, "peakRssGB": 2.49, "genes": 480, "cells": 211359, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 64000, "peakRssGB": 0.61, "genes": null, "cells": null, "uploadMs": 2677, "queueMs": 35838, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 104524, "status": "SUCCEEDED", "usd": 0.0068}], "totalUsd": 0.0068, "outputBytes": 36365053, "outputUsdMonth": 0.0008}}}, {"id": "xenium__MouseSpinalCord_Run5_Slide2_Mus_M4_F4_ace-pie-cab", "format": "xenium", "sizeGB": 1.166, "relevantGB": 0.011, "shape": {"cells": 200677, "genes": 541, "molecules": null}, "local": {"outcome": "ok", "processMs": 6827, "peakRssGB": 2.35, "genes": 480, "cells": 200677, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 82300, "peakRssGB": 0.57, "genes": null, "cells": null, "uploadMs": 3297, "queueMs": 34127, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 125093, "status": "SUCCEEDED", "usd": 0.0081}], "totalUsd": 0.0081, "outputBytes": 34150792, "outputUsdMonth": 0.0007}}}, {"id": "xenium__Xenium_Prime_Mouse_Pup_FFPE", "format": "xenium", "sizeGB": 9.872, "relevantGB": 1.507, "shape": {"cells": 1298870, "genes": 13780, "molecules": null}, "local": {"outcome": "ok", "processMs": 9723, "peakRssGB": 2.94, "genes": 0, "cells": 1298870, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 855800, "peakRssGB": 7.84, "genes": null, "cells": null, "uploadMs": 5978, "queueMs": 42765, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 917946, "status": "SUCCEEDED", "usd": 0.0594}], "totalUsd": 0.0594, "outputBytes": 569804118, "outputUsdMonth": 0.0122}}}, {"id": "xenium__WTA_Preview_FFPE_Breast_Cancer", "format": "xenium", "sizeGB": 11.185, "relevantGB": 1.404, "shape": {"cells": 170057, "genes": 27104, "molecules": null}, "local": {"outcome": "ok", "processMs": 6519, "peakRssGB": 5.85, "genes": 0, "cells": 170057, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "ok", "processMs": 1867700, "peakRssGB": 10.61, "genes": null, "cells": null, "uploadMs": 9626, "queueMs": 33265, "err": "", "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 1977637, "status": "SUCCEEDED", "usd": 0.128}], "totalUsd": 0.128, "outputBytes": 917380632, "outputUsdMonth": 0.0197}}}, {"id": "xenium__WTA_Preview_FFPE_Cervical_Cancer", "format": "xenium", "sizeGB": 19.326, "relevantGB": 2.917, "shape": {"cells": 717576, "genes": 27104, "molecules": null}, "local": {"outcome": "ok", "processMs": 9008, "peakRssGB": 4.71, "genes": 0, "cells": 717576, "uploadMs": null, "queueMs": null, "err": ""}, "server": {"outcome": "oom", "processMs": 1800, "peakRssGB": null, "genes": null, "cells": null, "uploadMs": 11326, "queueMs": 153353, "err": "OutOfMemoryError: container killed due to memory usage", "escalation": {"tier": "32768", "outcome": "ok", "processMs": 2633400, "peakRssGB": 16.26}, "cost": {"runs": [{"tier": "16GB", "vcpu": 4, "memGB": 16, "runtimeMs": 175427, "status": "FAILED", "usd": 0.0114}, {"tier": "32GB", "vcpu": 8, "memGB": 32, "runtimeMs": 0, "status": "RUNNING", "usd": 0}], "totalUsd": 0.0114, "outputBytes": 0, "outputUsdMonth": 0}}}], "limits": {"maxArrayBufferGB": 1.98, "jsHeapLimitGB": 3.5}, "machine": {"env": "linux-x64", "platform": "linux 6.8.0-136-generic", "arch": "x64", "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores", "cores": 64, "totalRamGB": 503.52, "chromium": "149.0.7827.55"}};
+
+const FMT_ORDER = ["h5ad", "merscope", "xenium", "single-molecule"];
+const FMT_LABEL = { h5ad: "H5AD", merscope: "MERSCOPE", xenium: "XENIUM", "single-molecule": "SINGLE MOLECULE" };
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const rung = (r) => r.relevantGB || r.sizeGB || 0;
+// What decides whether a single-cell dataset fits in memory is the dense
+// matrix it inflates to (cells × genes × 4 bytes float32), not the file size —
+// retroB30 is a 2.5 GB file that inflates to 11.1 GB. Single-cell rows are
+// ranked by that inflated size; single-molecule rows by file size.
+const denseGB = (r) =>
+  r.shape?.cells && r.shape?.genes
+    ? +((r.shape.cells * r.shape.genes * 4) / 1024 ** 3).toFixed(2)
+    : null;
+const rank = (r) => (r.format === "single-molecule" ? rung(r) : denseGB(r) ?? rung(r));
+const rows = DATA.rows
+  .filter((r) => FMT_ORDER.includes(r.format))
+  .sort((a, b) => FMT_ORDER.indexOf(a.format) - FMT_ORDER.indexOf(b.format) || rank(a) - rank(b));
+
+const shortName = (r) =>
+  r.id.replace(/^[a-z0-9-]+__/, "").replace(/_/g, " ");
+// genes<=1 covers both the browser (0 genes loaded) and the server, whose
+// worker writes a 1-gene placeholder when it cannot read the expression file.
+const degraded = (m) => m && m.outcome === "ok" && m.genes != null && m.genes <= 1;
+const tierGB = (t) => Math.round(Number(t) / 1024);
+const usd = (v) => "$" + (v < 0.1 ? v.toFixed(3) : v.toFixed(2));
+const outGB = (b) => (b / 1024 ** 3).toFixed(2) + " GB";
+const failWord = (m, side) => {
+  if (!m) return null;
+  if (m.outcome === "ok") return null;
+  if (m.outcome === "oom") return "crashed";
+  if (m.outcome === "failed") return side === "server" ? "rejected" : "refused";
+  if (m.outcome === "timeout") return "froze";
+  if (m.outcome === "error") return "rejected";
+  return m.outcome;
+};
+const fmtTime = (ms) => ms == null ? "–" : ms >= 60000 ? (ms / 60000).toFixed(1) + " min" : (ms / 1000).toFixed(1) + " s";
+const compactN = (n) => n == null ? "–"
+  : n < 1000 ? String(n)
+  : n < 1e6 ? Math.round(n / 1e3) + "k"
+  : n < 1e9 ? (n < 1e7 ? (n / 1e6).toFixed(1) : Math.round(n / 1e6)) + "M"
+  : (n / 1e9).toFixed(2) + "B";
+const compactShape = (r) => r.shape?.molecules ? compactN(r.shape.molecules)
+  : r.shape?.cells ? compactN(r.shape.cells) + "×" + compactN(r.shape.genes) : "–";
+const fmtShape = (s) => !s ? "" : s.cells ? s.cells.toLocaleString() + " cells" : s.molecules ? s.molecules.toLocaleString() + " molecules" : "";
+
+// ---- stat tiles -------------------------------------------------------------
+const okLocal = rows.filter((r) => r.local?.outcome === "ok" && !degraded(r.local));
+const okServer = rows.filter((r) => r.server?.outcome === "ok");
+const biggestLocal = okLocal.reduce((a, b) => (rung(a) > rung(b) ? a : b), okLocal[0]);
+const biggestServer = okServer.reduce((a, b) => (rung(a) > rung(b) ? a : b), okServer[0]);
+document.getElementById("tiles").innerHTML = `
+  <div class="tile"><div class="num">${DATA.limits.maxArrayBufferGB} <small>GB</small></div>
+    <div class="cap">largest file the browser can open — measured cap, not hardware</div></div>
+  <div class="tile"><div class="num">${DATA.limits.jsHeapLimitGB} <small>GB</small></div>
+    <div class="cap">browser JS-heap limit — where CSV parsing crashes the tab</div></div>
+  <div class="tile browser"><div class="num">${rung(biggestLocal).toFixed(2)} <small>GB</small></div>
+    <div class="cap">largest dataset fully processed in the browser (${fmtTime(biggestLocal.local.processMs)})</div></div>
+  <div class="tile server"><div class="num">${rung(biggestServer).toFixed(2)} <small>GB</small></div>
+    <div class="cap">largest processed on the server — molecule-heavy parquets can still OOM the 16 GB tier</div></div>`;
+
+document.getElementById("machine").textContent =
+  `${DATA.machine.cpu} · ${DATA.machine.cores} cores · ${DATA.machine.totalRamGB} GB RAM · Chromium ${DATA.machine.chromium} · server: AWS Fargate 4 vCPU / 16 GB`;
+
+// ---- shared chart scaffolding ----------------------------------------------
+const ROW_H = 26, LABEL_W = 700, PLOT_W = 504, PAD_R = 98, FMT_GAP = 26, TOP = 26;
+
+function layoutRows() {
+  let y = TOP, lastFmt = null;
+  return rows.map((r) => {
+    if (r.format !== lastFmt) { y += lastFmt ? FMT_GAP : 0; lastFmt = r.format; r._fmtHead = true; y += 18; }
+    else r._fmtHead = false;
+    const my = y + ROW_H / 2;
+    y += ROW_H;
+    return { r, y: my };
+  });
+}
+
+const tip = document.getElementById("tip");
+function bindTip(el, html) {
+  el.addEventListener("mousemove", (e) => {
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    const x = Math.min(e.clientX + 14, innerWidth - 300);
+    tip.style.left = x + "px";
+    tip.style.top = Math.min(e.clientY + 14, innerHeight - 120) + "px";
+  });
+  el.addEventListener("mouseleave", () => (tip.style.display = "none"));
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function tipHtml(r, side, m) {
+  const extra = side === "server"
+    ? `<div class="m">upload ${fmtTime(m.uploadMs)} · queue ${fmtTime(m.queueMs)} (excluded)</div>`
+      + (m.cost ? `<div class="m">compute ${usd(m.cost.totalUsd)}${m.cost.runs.length > 1 ? ` (${m.cost.runs.length} runs)` : ""} · output ${outGB(m.cost.outputBytes)} → ${usd(m.cost.outputUsdMonth)}/mo S3</div>` : "") : "";
+  const genes = m.genes != null ? ` · ${m.genes} genes` : "";
+  const esc = side === "server" && m.escalation
+    ? `<div class="m">auto-escalated → ${m.escalation.outcome === "ok"
+        ? `ok on ${tierGB(m.escalation.tier)} GB in ${fmtTime(m.escalation.processMs)}${m.escalation.peakRssGB ? ` · peak ${m.escalation.peakRssGB} GB` : ""}`
+        : `still OOM on ${tierGB(m.escalation.tier)} GB (final attempt)`}</div>` : "";
+  return `<div class="t">${shortName(r)}</div>
+    <div class="m">${rung(r).toFixed(2)} GB file${denseGB(r) != null ? ` · inflates to ${denseGB(r).toFixed(2)} GB dense` : ""} · ${fmtShape(r.shape)}</div>
+    <div class="m">${side === "server" ? "server" : "browser"}: ${m.outcome === "ok" ? fmtTime(m.processMs) : failWord(m, side)} · peak ${m.peakRssGB ?? "–"} GB${genes}</div>${esc}${extra}`;
+}
+
+function drawChart(svgId, opts) {
+  const laid = layoutRows();
+  const H = laid[laid.length - 1].y + ROW_H;
+  const svg = document.getElementById(svgId);
+  const W = LABEL_W + PLOT_W + PAD_R;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  svg.replaceChildren();
+
+  // size-column headers
+  const hd = (x, txt) => {
+    const e = svgEl("text", { x, y: 14, "text-anchor": "end", class: "fail" });
+    e.textContent = txt;
+    svg.append(e);
+  };
+  hd(LABEL_W - 262, "dense");
+  hd(LABEL_W - 206, "file");
+  hd(LABEL_W - 122, "cells×genes");
+  hd(LABEL_W - 66, "fargate");
+  hd(LABEL_W - 10, "s3/mo");
+
+  // gridlines + ticks
+  for (const t of opts.ticks) {
+    const pos = opts.scale(t.v);
+    const x = LABEL_W + pos * PLOT_W;
+    svg.append(svgEl("line", { x1: x, x2: x, y1: TOP - 6, y2: H - 8, stroke: css("--grid"), "stroke-width": 1 }));
+    // Leftmost tick label sits inside the plot so it can't touch the size headers.
+    const lbl = svgEl("text", { x: pos === 0 ? x + 3 : x, y: 14, "text-anchor": pos === 0 ? "start" : "middle" });
+    lbl.textContent = t.label; svg.append(lbl);
+  }
+  // reference lines
+  for (const ref of opts.refs ?? []) {
+    const x = LABEL_W + opts.scale(ref.v) * PLOT_W;
+    svg.append(svgEl("line", { x1: x, x2: x, y1: TOP - 6, y2: H - 8, stroke: css("--ref"), "stroke-width": 1.25, "stroke-dasharray": "4 4" }));
+    const atEdge = opts.scale(ref.v) > 0.9;
+    const lbl = svgEl("text", { x: atEdge ? x - 5 : x + 5, y: TOP + 4, class: "reflabel",
+      "text-anchor": atEdge ? "end" : "start" });
+    lbl.textContent = ref.label; svg.append(lbl);
+  }
+
+  for (const { r, y } of laid) {
+    if (r._fmtHead) {
+      const h = svgEl("text", { x: 0, y: y - ROW_H / 2 - 7, class: "fmt" });
+      h.textContent = FMT_LABEL[r.format]; svg.append(h);
+    }
+    const lbl = svgEl("text", { x: 0, y: y + 4, class: "rowlabel" });
+    lbl.textContent = shortName(r);
+    svg.append(lbl);
+    const dn = svgEl("text", { x: LABEL_W - 262, y: y + 4, "text-anchor": "end" });
+    dn.textContent = denseGB(r) != null ? denseGB(r).toFixed(2) : "–";
+    svg.append(dn);
+    const sz = svgEl("text", { x: LABEL_W - 206, y: y + 4, "text-anchor": "end" });
+    sz.textContent = rung(r).toFixed(2);
+    svg.append(sz);
+    const sh = svgEl("text", { x: LABEL_W - 122, y: y + 4, "text-anchor": "end" });
+    sh.textContent = compactShape(r);
+    svg.append(sh);
+    const co = svgEl("text", { x: LABEL_W - 66, y: y + 4, "text-anchor": "end" });
+    co.textContent = r.server?.cost ? usd(r.server.cost.totalUsd) : "\u2013";
+    svg.append(co);
+    const s3c = svgEl("text", { x: LABEL_W - 10, y: y + 4, "text-anchor": "end" });
+    s3c.textContent = r.server?.cost?.outputBytes ? usd(r.server.cost.outputUsdMonth) : "\u2013";
+    svg.append(s3c);
+
+    const pts = [];
+    const failTexts = [];
+    let degradedTagX = -1;
+    for (const side of ["local", "server"]) {
+      const m = r[side];
+      if (!m) continue;
+      const val = opts.value(m);
+      const color = css(side === "local" ? "--browser" : "--server");
+      if (val != null && (m.outcome === "ok" || (opts.showFailValues && m.outcome === "oom"))) {
+        const x = LABEL_W + opts.scale(val) * PLOT_W;
+        pts.push(x);
+        let mark;
+        if (m.outcome === "oom") {
+          mark = svgEl("text", { x, y: y + 4.5, "text-anchor": "middle", fill: color,
+            style: "font-weight:600;font-size:13px;paint-order:stroke;stroke:var(--surface);stroke-width:3px" });
+          mark.textContent = "✕";
+        } else if (degraded(m)) {
+          mark = svgEl("circle", { cx: x, cy: y, r: 4.5, fill: "none", stroke: color, "stroke-width": 2 });
+        } else {
+          mark = svgEl("circle", { cx: x, cy: y, r: 5, fill: color, stroke: css("--surface"), "stroke-width": 2 });
+        }
+        const hit = svgEl("circle", { cx: x, cy: y, r: 12, fill: "transparent" });
+        bindTip(hit, tipHtml(r, side, m));
+        svg.append(mark, hit);
+        if (degraded(m)) degradedTagX = Math.max(degradedTagX, x);
+      } else if (m.outcome !== "ok" && (!opts.showFailValues || m.outcome !== "oom")) {
+        // One fixed gutter column per side, so the two methods' annotations
+        // can never collide. The memory chart uses the LEFT gutter — its dots
+        // (a 13.5 GB server peak, a near-16 GB tick) live at the right edge,
+        // while a failing row's left region is always empty. The time chart
+        // uses the right gutter for the mirrored reason.
+        const local = side === "local";
+        const localFailX = () => {
+          let endX = LABEL_W + PLOT_W - 72;
+          const sv = r.server && r.server.outcome === "ok" ? opts.value(r.server) : null;
+          if (sv != null) {
+            const sx = LABEL_W + opts.scale(sv) * PLOT_W;
+            if (sx > endX - 66 && sx < endX + 12) endX = sx - 10;
+          }
+          return endX;
+        };
+        // Memory chart: local-fail text lives in the right gutter (past the
+        // 16 GB edge, always empty) and server-fail text in the left gutter —
+        // a failed server has no dot anywhere, and small server peaks would
+        // otherwise sit inside the text. Time chart: right gutter, two columns.
+        // A row recovered by tier escalation: the escalated dot (drawn below)
+        // replaces the server's gutter note, and the local failure takes the
+        // freed right-gutter column so the dot region stays clear.
+        const escOk = !opts.failLeft && opts.escValue && r.server?.escalation?.outcome === "ok";
+        const t = svgEl("text", opts.failLeft
+          ? { x: local ? LABEL_W + PLOT_W + 8 : LABEL_W + 4, y: y + 4, class: "fail" }
+          : escOk
+            ? { x: LABEL_W + PLOT_W + 8, y: y + 4, class: "fail", "text-anchor": "start" }
+            : { x: local ? localFailX() : LABEL_W + PLOT_W + 8,
+                y: y + 4, class: "fail", "text-anchor": local ? "end" : "start" });
+        if (!(escOk && !local)) {
+          t.textContent = "✕ " + failWord(m, side);
+          bindTip(t, tipHtml(r, side, m));
+          failTexts.push(t);
+        }
+      }
+      // A dataset the 16 GB tier killed but a bigger tier completed: plot the
+      // bigger tier's time as a normal server dot, tagged with that tier.
+      if (side === "server" && m.escalation?.outcome === "ok" && opts.escValue) {
+        const ev = opts.escValue(m);
+        if (ev != null) {
+          const x = LABEL_W + opts.scale(ev) * PLOT_W;
+          const dot = svgEl("circle", { cx: x, cy: y, r: 5, fill: color, stroke: css("--surface"), "stroke-width": 2 });
+          const hit = svgEl("circle", { cx: x, cy: y, r: 12, fill: "transparent" });
+          bindTip(hit, tipHtml(r, side, m));
+          svg.append(dot, hit);
+          const tag = svgEl("text", { x: x - 9, y: y + 4, class: "fail", "text-anchor": "end",
+            style: "fill:var(--server);font-weight:600" });
+          tag.textContent = tierGB(m.escalation.tier) + " GB";
+          failTexts.push(tag);
+          pts.push(x);
+        }
+      }
+    }
+    if (pts.length === 2) {
+      svg.prepend(svgEl("line", { x1: Math.min(...pts), x2: Math.max(...pts), y1: y, y2: y, stroke: css("--grid"), "stroke-width": 2 }));
+    }
+    for (const t of failTexts) svg.append(t);
+    // One shared tag per row, right of the rightmost hollow dot — both paths
+    // can be degraded on the same dataset and two tags would overlap.
+    if (degradedTagX >= 0 && opts.tagDegraded) {
+      const t = svgEl("text", { x: degradedTagX + 10, y: y + 4, class: "fail" });
+      t.textContent = "no genes"; svg.append(t);
+    }
+  }
+}
+
+// time chart: log scale 1 s → 80 min
+const tmin = Math.log10(1000), tmax = Math.log10(80 * 60000);
+drawChart("timeChart", {
+  value: (m) => m.processMs,
+  scale: (v) => (Math.log10(Math.max(v, 1000)) - tmin) / (tmax - tmin),
+  ticks: [
+    { v: 1000, label: "1 s" }, { v: 10000, label: "10 s" },
+    { v: 60000, label: "1 min" }, { v: 600000, label: "10 min" }, { v: 3600000, label: "1 h" },
+  ],
+  tagDegraded: true,
+  escValue: (m) => m.escalation?.processMs,
+});
+
+// memory chart: linear 0 → 16 GB
+drawChart("memChart", {
+  value: (m) => (m.peakRssGB == null ? null : m.peakRssGB * 1),
+  scale: (v) => Math.min(v, 16) / 16,
+  ticks: [0, 4, 8, 12, 16].map((v) => ({ v, label: v + " GB" })),
+  refs: [
+    { v: DATA.limits.jsHeapLimitGB, label: "JS-heap cap" },
+    { v: 16, label: "16 GB tier" },
+  ],
+  showFailValues: true,
+  failLeft: true,
+});
+
+// ---- escalation ladder chart ------------------------------------------------
+(function drawEscChart() {
+  const escRows = rows.filter((r) => r.server?.escalation);
+  if (!escRows.length) return;
+  document.getElementById("escSection").style.display = "";
+  const svg = document.getElementById("escChart");
+  const H = TOP + 10 + escRows.length * ROW_H;
+  const W = LABEL_W + PLOT_W + PAD_R;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const scale = (v) => Math.min(v, 64) / 64;
+  for (const t of [0, 16, 32, 48, 64]) {
+    const x = LABEL_W + scale(t) * PLOT_W;
+    svg.append(svgEl("line", { x1: x, x2: x, y1: TOP - 6, y2: H - 8, stroke: css("--grid"), "stroke-width": 1 }));
+    const lbl = svgEl("text", { x: t === 0 ? x + 3 : x, y: 14, "text-anchor": t === 0 ? "start" : "middle" });
+    lbl.textContent = t + " GB"; svg.append(lbl);
+  }
+  for (const tier of [16, 32, 64]) {
+    const x = LABEL_W + scale(tier) * PLOT_W;
+    svg.append(svgEl("line", { x1: x, x2: x, y1: TOP - 6, y2: H - 8, stroke: css("--ref"), "stroke-width": 1.25, "stroke-dasharray": "4 4" }));
+    const lbl = svgEl("text", { x: x - 5, y: TOP + 4, class: "reflabel", "text-anchor": "end" });
+    lbl.textContent = tier + " GB tier"; svg.append(lbl);
+  }
+  escRows.forEach((r, i) => {
+    const y = TOP + 14 + i * ROW_H;
+    const esc = r.server.escalation;
+    const lbl = svgEl("text", { x: 0, y: y + 4, class: "rowlabel" });
+    lbl.textContent = shortName(r); svg.append(lbl);
+    const sh = svgEl("text", { x: LABEL_W - 122, y: y + 4, "text-anchor": "end" });
+    sh.textContent = compactShape(r); svg.append(sh);
+    const co = svgEl("text", { x: LABEL_W - 66, y: y + 4, "text-anchor": "end" });
+    co.textContent = r.server?.cost ? usd(r.server.cost.totalUsd) : "\u2013"; svg.append(co);
+    const s3c = svgEl("text", { x: LABEL_W - 10, y: y + 4, "text-anchor": "end" });
+    s3c.textContent = r.server?.cost?.outputBytes ? usd(r.server.cost.outputUsdMonth) : "\u2013"; svg.append(s3c);
+    if (esc.outcome === "ok" && esc.peakRssGB != null) {
+      const x = LABEL_W + scale(esc.peakRssGB) * PLOT_W;
+      const dot = svgEl("circle", { cx: x, cy: y, r: 5, fill: css("--server"), stroke: css("--surface"), "stroke-width": 2 });
+      const hit = svgEl("circle", { cx: x, cy: y, r: 12, fill: "transparent" });
+      bindTip(hit, `<div class="t">${shortName(r)}</div>
+        <div class="m">${compactShape(r)} molecules · ${tierGB(esc.tier)} GB tier</div>
+        <div class="m">peak ${esc.peakRssGB} GB · ${fmtTime(esc.processMs)}</div>`);
+      const tag = svgEl("text", { x: x - 9, y: y + 4, class: "fail", "text-anchor": "end",
+        style: "fill:var(--server);font-weight:600" });
+      tag.textContent = "peak " + esc.peakRssGB + " GB";
+      svg.append(dot, hit, tag);
+    } else if (esc.outcome === "ok") {
+      const t = svgEl("text", { x: LABEL_W + scale(tierGB(esc.tier)) * PLOT_W - 9, y: y + 4, class: "fail", "text-anchor": "end" });
+      t.textContent = "ok @" + tierGB(esc.tier) + " GB (peak not recorded)"; svg.append(t);
+    } else {
+      const t = svgEl("text", { x: LABEL_W + PLOT_W - 8, y: y + 4, class: "fail", "text-anchor": "end" });
+      t.textContent = "\u2715 oom on every tier"; svg.append(t);
+    }
+  });
+})();
+
+// ---- table ------------------------------------------------------------------
+const tbl = document.getElementById("tbl");
+tbl.innerHTML = `<thead><tr>
+  <th>dataset</th><th>format</th><th>file</th><th>dense</th><th>shape</th>
+  <th>browser</th><th>peak</th><th>server</th><th>peak</th><th>upload</th><th>queue</th><th>fargate</th><th>output</th><th>s3/mo</th></tr></thead>` +
+  "<tbody>" + rows.map((r) => {
+    const cell = (m, side) => !m ? "–" : m.outcome === "ok"
+      ? fmtTime(m.processMs) + (degraded(m) ? " ⚠ no genes" : "") : "✕ " + failWord(m, side);
+    const esc = (m) => m?.escalation
+      ? (m.escalation.outcome === "ok"
+        ? ` → ok @${tierGB(m.escalation.tier)} GB ${fmtTime(m.escalation.processMs)}${m.escalation.peakRssGB ? ` (peak ${m.escalation.peakRssGB} GB)` : ""}`
+        : ` → oom @${tierGB(m.escalation.tier)} GB`) : "";
+    return `<tr><td>${shortName(r)}</td><td>${r.format}</td>
+      <td class="n">${rung(r).toFixed(2)} GB</td>
+      <td class="n">${denseGB(r) != null ? denseGB(r).toFixed(2) + " GB" : "–"}</td>
+      <td class="n">${fmtShape(r.shape)}</td>
+      <td class="n">${cell(r.local, "local")}</td><td class="n">${r.local?.peakRssGB ?? "–"}</td>
+      <td class="n">${cell(r.server, "server")}${esc(r.server)}</td><td class="n">${r.server?.peakRssGB ?? "–"}</td>
+      <td class="n">${fmtTime(r.server?.uploadMs)}</td><td class="n">${fmtTime(r.server?.queueMs)}</td>
+      <td class="n">${r.server?.cost ? usd(r.server.cost.totalUsd) + (r.server.cost.runs.length > 1 ? ` (${r.server.cost.runs.length}\u00d7)` : "") : "\u2013"}</td>
+      <td class="n">${r.server?.cost?.outputBytes ? outGB(r.server.cost.outputBytes) : "\u2013"}</td>
+      <td class="n">${r.server?.cost?.outputBytes ? usd(r.server.cost.outputUsdMonth) + "/mo" : "\u2013"}</td></tr>`;
+  }).join("") + "</tbody>";
+
+// ---- cost model -------------------------------------------------------------
+(function costModel() {
+  // Fitted to the measured single-cell server runs (see charts above):
+  //   billed seconds = max(50, -49.8 + 1.334e-6 * cells*genes)   R^2 = 0.98
+  // 16 GB tier: 4 vCPU * $0.04048 + 16 GB * $0.004445 = $0.2330/hr.
+  const T_A = -49.8, T_B = 1.334e-6, T_MIN = 50, RATE_S = 0.2330 / 3600;
+  const S3_GB_MO = 0.023, EGRESS_GB = 0.09;
+  const ids = ["cells", "genes", "rate", "months", "views", "frac", "dens"];
+  const val = (k) => Number(document.getElementById("cf-" + k).value) || 0;
+
+  const CW = 560, CH = 230, PL = 64, PB = 26, PT = 12, PR = 12;
+  function axis(svg, xmax, ymax, xfmt) {
+    svg.innerHTML = "";
+    svg.setAttribute("viewBox", `0 0 ${CW} ${CH}`);
+    svg.setAttribute("width", CW); svg.setAttribute("height", CH);
+    const yt = niceTicks(ymax);
+    for (const t of yt) {
+      const y = CH - PB - (t / yt[yt.length - 1]) * (CH - PB - PT);
+      svg.append(svgEl("line", { x1: PL, x2: CW - PR, y1: y, y2: y, stroke: css("--grid"), "stroke-width": 1 }));
+      const l = svgEl("text", { x: PL - 6, y: y + 4, "text-anchor": "end" });
+      l.textContent = usd(t); svg.append(l);
+    }
+    for (let i = 0; i <= 4; i++) {
+      const xv = xmax * i / 4, x = PL + (i / 4) * (CW - PL - PR);
+      // edge labels anchor inward so they can't clip at the svg bounds
+      const l = svgEl("text", { x, y: CH - 6, "text-anchor": i === 0 ? "start" : i === 4 ? "end" : "middle" });
+      l.textContent = xfmt(xv); svg.append(l);
+    }
+    return { ymax: yt[yt.length - 1] };
+  }
+  function niceTicks(m) {
+    if (m <= 0) return [0, 1];
+    const step = Math.pow(10, Math.floor(Math.log10(m)));
+    const top = Math.ceil(m / step) * step;
+    return [0, top / 2, top];
+  }
+  function line(svg, pts, color, dash) {
+    const el = svgEl("polyline", { points: pts.map(([x, y]) => `${x},${y}`).join(" "),
+      fill: "none", stroke: color, "stroke-width": 2, ...(dash ? { "stroke-dasharray": "4 4" } : {}) });
+    svg.append(el);
+  }
+
+  function render() {
+    const cg = val("cells") * val("genes");
+    const secs = Math.max(T_MIN, T_A + T_B * cg);
+    const compute = secs * RATE_S;
+    const outGB = val("dens") * cg / 1e9;
+    const storeMo = outGB * S3_GB_MO;
+    const egressMo = val("views") * (val("frac") / 100) * outGB * EGRESS_GB;
+    const perDsMo = storeMo + egressMo;
+    document.getElementById("costUnit").innerHTML =
+      `one <b>${val("cells").toLocaleString()} × ${val("genes").toLocaleString()}</b> dataset → ` +
+      `process once: <b>${usd(compute)}</b> (${Math.round(secs)}s billed) · output <b>${(outGB * 1024).toFixed(0)} MB</b> · ` +
+      `keep + serve: <b>${usd(perDsMo)}/mo</b> (${usd(storeMo)} S3 + ${usd(egressMo)} egress)`;
+
+    // sweep: monthly cost vs total datasets hosted
+    const NMAX = 5000, fargateMo = val("rate") * compute;
+    const sweep = document.getElementById("sweepChart");
+    const yFn = (n) => fargateMo + n * perDsMo;
+    const { ymax } = axis(sweep, NMAX, yFn(NMAX), (v) => v.toLocaleString());
+    const px = (n) => PL + (n / NMAX) * (CW - PL - PR);
+    const py = (v) => CH - PB - (v / ymax) * (CH - PB - PT);
+    line(sweep, [[px(0), py(fargateMo)], [px(NMAX), py(fargateMo)]], css("--ref"), true);
+    line(sweep, Array.from({ length: 51 }, (_, i) => { const n = NMAX * i / 50; return [px(n), py(n * storeMo + fargateMo)]; }), css("--browser"));
+    line(sweep, Array.from({ length: 51 }, (_, i) => { const n = NMAX * i / 50; return [px(n), py(yFn(n))]; }), css("--server"));
+    const lg = svgEl("text", { x: PL + 8, y: PT + 10 });
+    lg.textContent = "orange: total · blue: without egress · dashed: processing only";
+    sweep.append(lg);
+
+    // timeline at the chosen upload rate
+    const M = Math.max(1, val("months"));
+    const tl = document.getElementById("tlChart");
+    const yTl = (m) => val("rate") * compute + val("rate") * m * perDsMo;
+    const a2 = axis(tl, M, yTl(M), (v) => Math.round(v) + "mo");
+    const px2 = (m) => PL + (m / M) * (CW - PL - PR);
+    const py2 = (v) => CH - PB - (v / a2.ymax) * (CH - PB - PT);
+    line(tl, Array.from({ length: M + 1 }, (_, m) => [px2(m), py2(yTl(m))]), css("--server"));
+    let cum = 0;
+    for (let m = 1; m <= M; m++) cum += yTl(m);
+    document.getElementById("costFoot").textContent =
+      `After ${M} months at ${val("rate")} new datasets/month: ${(val("rate") * M).toLocaleString()} datasets hosted, ` +
+      `${usd(yTl(M))}/month run-rate, ${usd(cum)} cumulative spend. ` +
+      `Rates: Fargate 16 GB tier $0.2330/hr on fitted billed runtime; S3 $0.023/GB-mo; egress $0.09/GB. ` +
+      `Single-cell model only; request costs (~$0.0004/1k GETs) are negligible and omitted.`;
+  }
+  for (const k of ids) document.getElementById("cf-" + k).addEventListener("input", render);
+  render();
+})();
+
+document.getElementById("foot").innerHTML =
+  `Sizes are the bytes the pipeline actually reads (a 65 GB Xenium export uploads ~1.5 GB).
+   Hollow dots: the gene list loaded but the expression matrix was skipped — the browser
+   refuses matrices over ~3 GB dense (the WTA Preview / Prime panels inflate to 12–71 GB), while
+   smaller Xenium panels (spinal cord, 480 genes) now load fully on both paths. The server reads
+   <code>cell_feature_matrix.h5</code> natively; Cervical's 27k-gene matrix needed the 32 GB tier.
+   Server times vary run-to-run on Fargate (retroB30: 49–66 min across two runs); peak memory is stable.
+   Jobs that OOM the 16 GB tier auto-escalate (32 GB, then 64 GB): Lymph Node succeeded on
+   32 GB, Whole mouse pup on 64 GB (peak 59.4 GB), and Cervical's single-cell matrix on 32 GB
+   (peak 16.3 GB) — tagged dots show the escalated tier. The Breast and Cervical Preview
+   molecule parquets (740 M / 1.24 B molecules) exceed even 64 GB.
+   Costs are computed from each Batch job's billed runtime (every attempt and escalation included) at
+   Fargate us-west-2 Linux/x86 rates \u2014 $0.04048 per vCPU-hour + $0.004445 per GB-hour \u2014 and the final
+   chunked output priced at S3 Standard $0.023 per GB-month. Upload/download transfer is not included.`;
+</script>

@@ -1,0 +1,39 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "node": "v24.14.0",
+  "chromium": "149.0.7827.55",
+  "base": "http://localhost:3100",
+  "heapCapMB": null
+ },
+ "path": "h5ad/4GB_2kset2_labelled_clusters.h5ad",
+ "datasetId": "h5ad__4GB_2kset2_labelled_clusters",
+ "format": "h5ad",
+ "sizeGB": 3.972,
+ "relevantGB": null,
+ "shape": {
+  "cells": 125665,
+  "genes": 2088,
+  "molecules": null
+ },
+ "outcome": "failed",
+ "processMs": null,
+ "sceneMs": null,
+ "peakRssGB": 0.63,
+ "jsHeapGB": null,
+ "hooks": false,
+ "error": "app reported: Failed to process data: The requested file could not be read, typically due to permission problems that have occurred after a reference to a file was acquired.",
+ "wallMs": 1227,
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/",
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/"
+ ]
+}

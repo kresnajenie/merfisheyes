@@ -1,0 +1,54 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "cmm200-136.ucsd.edu"
+ },
+ "path": "merscope/ed_lein_ace-irk-sag",
+ "datasetId": "merscope__ed_lein_ace-irk-sag",
+ "format": "merscope",
+ "sizeGB": 4.508,
+ "relevantGB": 0.45,
+ "shape": {
+  "cells": 878735,
+  "genes": 315,
+  "molecules": null
+ },
+ "uploadFiles": 2,
+ "uploadGB": 0.45,
+ "outcome": "error",
+ "processMs": 4300,
+ "peakRssGB": null,
+ "clientUploadMs": 11078,
+ "uploadMBps": 43.6,
+ "queueMs": 101879,
+ "jobTotalMs": 47106,
+ "computeTier": "16384",
+ "batchJobId": "2db6b408-a15e-418a-8bef-cefdfdf19269",
+ "error": "Essential container in task exited",
+ "datasetRowId": "ds_b5u66R7lTc",
+ "chunkWriteMs": null,
+ "stages": {},
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":fa",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"h"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 94491,
+    "status": "FAILED",
+    "usd": 0.0061
+   }
+  ],
+  "totalUsd": 0.0061,
+  "outputBytes": 0,
+  "outputUsdMonth": 0.0
+ }
+}

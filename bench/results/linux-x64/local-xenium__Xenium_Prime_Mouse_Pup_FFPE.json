@@ -1,0 +1,48 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "node": "v24.14.0",
+  "chromium": "149.0.7827.55",
+  "base": "http://localhost:3100",
+  "heapCapMB": null
+ },
+ "path": "xenium/Xenium_Prime_Mouse_Pup_FFPE",
+ "datasetId": "xenium__Xenium_Prime_Mouse_Pup_FFPE",
+ "format": "xenium",
+ "sizeGB": 9.872,
+ "relevantGB": 1.507,
+ "shape": {
+  "cells": 1298870,
+  "genes": 13780,
+  "molecules": null
+ },
+ "outcome": "ok",
+ "processMs": 9723,
+ "sceneMs": 9330,
+ "peakRssGB": 2.94,
+ "jsHeapGB": null,
+ "hooks": true,
+ "error": null,
+ "stats": {
+  "pointCount": 1298870,
+  "geneCount": 5031,
+  "dimensions": 2,
+  "dataType": "single_cell",
+  "exprGeneCount": 0
+ },
+ "wallMs": 13790,
+ "inputFiles": 2,
+ "inputGB": 0.43,
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/",
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/"
+ ]
+}

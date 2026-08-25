@@ -1,0 +1,81 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "cmm200-136.ucsd.edu"
+ },
+ "path": "single-molecule/xenium-WTA_Preview_FFPE_Cervical_Cancer.parquet",
+ "datasetId": "single-molecule__xenium-WTA_Preview_FFPE_Cervical_Cancer-parquet",
+ "format": "single-molecule",
+ "sizeGB": 15.617,
+ "relevantGB": null,
+ "shape": {
+  "cells": null,
+  "genes": null,
+  "molecules": 1235087993
+ },
+ "uploadFiles": 1,
+ "uploadGB": 15.617,
+ "outcome": "oom",
+ "processMs": 0,
+ "peakRssGB": null,
+ "clientUploadMs": 180945,
+ "uploadMBps": 92.7,
+ "queueMs": 301637,
+ "jobTotalMs": 237001,
+ "computeTier": "16384",
+ "batchJobId": "71f1b464-067a-450b-80b7-d5ecf1c29c4b",
+ "error": "OutOfMemoryError: container killed due to memory usage",
+ "datasetRowId": "sm_RJfEPXzY0z",
+ "chunkWriteMs": null,
+ "stages": {
+  "step1": {
+   "at": 0,
+   "label": "Reading input file"
+  }
+ },
+ "oom": true,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"h",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"h",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfisheyes.com%2Fapi%2Fingest%2Fs"
+ ],
+ "escalation": {
+  "tier": "65536",
+  "outcome": "oom",
+  "processMs": null,
+  "peakRssGB": null
+ },
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 467157,
+    "status": "FAILED",
+    "usd": 0.0302
+   },
+   {
+    "tier": "32GB",
+    "vcpu": 8.0,
+    "memGB": 32.0,
+    "runtimeMs": 413550,
+    "status": "FAILED",
+    "usd": 0.0535
+   },
+   {
+    "tier": "64GB",
+    "vcpu": 16.0,
+    "memGB": 64.0,
+    "runtimeMs": 394444,
+    "status": "FAILED",
+    "usd": 0.1021
+   }
+  ],
+  "totalUsd": 0.1858,
+  "outputBytes": 0,
+  "outputUsdMonth": 0.0
+ }
+}

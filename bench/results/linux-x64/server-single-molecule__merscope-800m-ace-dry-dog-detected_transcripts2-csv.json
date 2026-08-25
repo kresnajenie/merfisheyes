@@ -1,0 +1,83 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "cmm200-136.ucsd.edu"
+ },
+ "path": "single-molecule/merscope-800m-ace-dry-dog-detected_transcripts2.csv",
+ "datasetId": "single-molecule__merscope-800m-ace-dry-dog-detected_transcripts2-csv",
+ "format": "single-molecule",
+ "sizeGB": 0.625,
+ "relevantGB": null,
+ "shape": {
+  "cells": null,
+  "genes": null,
+  "molecules": 8044719
+ },
+ "uploadFiles": 1,
+ "uploadGB": 0.625,
+ "outcome": "ok",
+ "processMs": 49600,
+ "peakRssGB": 1.77,
+ "clientUploadMs": 6020,
+ "uploadMBps": 111.5,
+ "queueMs": 42942,
+ "jobTotalMs": 94415,
+ "computeTier": "16384",
+ "batchJobId": "11f0e7b9-ca1d-433b-b01e-fa7075a1232d",
+ "error": null,
+ "datasetRowId": "sm_FjNAvD7nD5",
+ "chunkWriteMs": null,
+ "stages": {
+  "step1": {
+   "at": 0,
+   "label": "Reading input file"
+  },
+  "step2": {
+   "at": 2100,
+   "label": "Coordinates rounded to 2 decimal places"
+  },
+  "step3": {
+   "at": 2200,
+   "label": "Building gene index"
+  },
+  "step4": {
+   "at": 2700,
+   "label": "Filtering control probes and unassigned genes"
+  },
+  "step5": {
+   "at": 2700,
+   "label": "Creating output folder structure"
+  },
+  "step6": {
+   "at": 2700,
+   "label": "Writing gene files"
+  },
+  "step7": {
+   "at": 49600,
+   "label": "Writing manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfish",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"h"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 94415,
+    "status": "SUCCEEDED",
+    "usd": 0.0061
+   }
+  ],
+  "totalUsd": 0.0061,
+  "outputBytes": 51096542,
+  "outputUsdMonth": 0.0011
+ }
+}

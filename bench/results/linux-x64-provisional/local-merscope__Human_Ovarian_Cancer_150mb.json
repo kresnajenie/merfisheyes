@@ -1,0 +1,41 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "node": "v24.14.0",
+  "chromium": "149.0.7827.55",
+  "base": "http://localhost:3100",
+  "heapCapMB": null
+ },
+ "path": "merscope/Human_Ovarian_Cancer_150mb",
+ "datasetId": "merscope__Human_Ovarian_Cancer_150mb",
+ "format": "merscope",
+ "sizeGB": 0.156,
+ "relevantGB": 0.156,
+ "shape": {
+  "cells": 71381,
+  "genes": 550,
+  "molecules": null
+ },
+ "outcome": "timeout",
+ "processMs": null,
+ "sceneMs": null,
+ "peakRssGB": 1.24,
+ "jsHeapGB": null,
+ "hooks": false,
+ "error": "locator.setInputFiles: Timeout 600000ms exceeded.",
+ "wallMs": 600335,
+ "inputFiles": 2,
+ "inputGB": 0.16,
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/",
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/"
+ ]
+}

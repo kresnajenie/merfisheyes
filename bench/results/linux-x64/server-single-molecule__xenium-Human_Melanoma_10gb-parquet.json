@@ -1,0 +1,83 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "cmm200-136.ucsd.edu"
+ },
+ "path": "single-molecule/xenium-Human_Melanoma_10gb.parquet",
+ "datasetId": "single-molecule__xenium-Human_Melanoma_10gb-parquet",
+ "format": "single-molecule",
+ "sizeGB": 0.393,
+ "relevantGB": null,
+ "shape": {
+  "cells": null,
+  "genes": null,
+  "molecules": 23651907
+ },
+ "uploadFiles": 1,
+ "uploadGB": 0.393,
+ "outcome": "ok",
+ "processMs": 34600,
+ "peakRssGB": 2.32,
+ "clientUploadMs": 3723,
+ "uploadMBps": 113.5,
+ "queueMs": 37898,
+ "jobTotalMs": 79359,
+ "computeTier": "16384",
+ "batchJobId": "1df3e41f-dd22-424a-990b-59e7731c9342",
+ "error": null,
+ "datasetRowId": "sm_r6UKM-mxjn",
+ "chunkWriteMs": null,
+ "stages": {
+  "step1": {
+   "at": 0,
+   "label": "Reading input file"
+  },
+  "step2": {
+   "at": 2000,
+   "label": "Coordinates rounded to 2 decimal places"
+  },
+  "step3": {
+   "at": 8500,
+   "label": "Building gene index"
+  },
+  "step4": {
+   "at": 10300,
+   "label": "Filtering control probes and unassigned genes"
+  },
+  "step5": {
+   "at": 10300,
+   "label": "Creating output folder structure"
+  },
+  "step6": {
+   "at": 10300,
+   "label": "Writing gene files"
+  },
+  "step7": {
+   "at": 34500,
+   "label": "Writing manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"error\":{\"message\":\"Protected deployment\",\"code\":\"401\"},\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"htt",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"error\":{\"message\":\"Protected deployment\",\"code\":\"401\"},\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"htt",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfisheyes.com%2Fapi%2Fingest%2Fs"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 79359,
+    "status": "SUCCEEDED",
+    "usd": 0.0051
+   }
+  ],
+  "totalUsd": 0.0051,
+  "outputBytes": 189940939,
+  "outputUsdMonth": 0.0041
+ }
+}

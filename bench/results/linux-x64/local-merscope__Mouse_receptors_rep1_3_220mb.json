@@ -1,0 +1,47 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "node": "v24.14.0",
+  "chromium": "149.0.7827.55",
+  "base": "http://localhost:3100",
+  "heapCapMB": null
+ },
+ "path": "merscope/Mouse_receptors_rep1_3_220mb",
+ "datasetId": "merscope__Mouse_receptors_rep1_3_220mb",
+ "format": "merscope",
+ "sizeGB": 0.222,
+ "relevantGB": 0.222,
+ "shape": {
+  "cells": 84636,
+  "genes": 649,
+  "molecules": null
+ },
+ "outcome": "ok",
+ "processMs": 17257,
+ "sceneMs": 17220,
+ "peakRssGB": 3.68,
+ "jsHeapGB": null,
+ "hooks": true,
+ "error": null,
+ "stats": {
+  "pointCount": 84636,
+  "geneCount": 483,
+  "dimensions": 2,
+  "dataType": "single_cell"
+ },
+ "wallMs": 17846,
+ "inputFiles": 2,
+ "inputGB": 0.22,
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/",
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/"
+ ]
+}
