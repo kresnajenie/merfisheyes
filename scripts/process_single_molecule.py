@@ -55,6 +55,18 @@ except ImportError:
 _t_start = None  # set in process_single_molecule_data / process_directory
 
 
+def peak_rss_gb() -> float:
+    """Peak RSS of this process and its reaped workers, in GB (Linux: KB)."""
+    try:
+        import resource
+        own = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        kids = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+        rss = max(own, kids)
+        return rss / (1024 ** 2) if sys.platform != "darwin" else rss / (1024 ** 3)
+    except Exception:
+        return float("nan")
+
+
 def fmt_elapsed(seconds):
     """Format elapsed time as human-readable string."""
     if seconds < 60:
@@ -918,6 +930,8 @@ def process_single_molecule_data(
     # Done!
     log(f"{'='*60}")
     log(f"Processing complete!")
+    log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}")
+    log(f"  Peak RSS: {peak_rss_gb():.2f} GB")
     log(f"{'='*60}")
     log(f"Output structure:")
     log(f"  {output_folder}/")
@@ -1081,6 +1095,8 @@ def process_directory(
     log(f"")
     log(f"{'='*60}")
     log(f"Directory processing complete!")
+    log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}")
+    log(f"  Peak RSS: {peak_rss_gb():.2f} GB")
     log(f"{'='*60}")
     log(f"  Samples processed: {len(mapping_links)}/{len(sample_tasks)}")
     if failed:
