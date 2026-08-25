@@ -40,21 +40,24 @@ echo ""
 
 count=0
 
-while IFS=',' read -r sample_name _rest; do
+while IFS=',' read -r sample_name _species percentile _rest; do
     sample_name="$(echo "$sample_name" | xargs)"
+    percentile="$(echo "$percentile" | xargs)"
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
+    percentile="${percentile:-25}"
 
     count=$((count + 1))
     output_base="${MEYES_BASE}/${sample_name}"
     combined_output="${output_base}/combined_output"
     mmc_output="${output_base}/mmc_output"
     meyes_output="${output_base}/meyes_output"
+    mask="${combined_output}/artifact_mask_p${percentile}.csv"
 
     echo "── Sample ${count}: ${sample_name} ──"
     echo "  Combined: ${combined_output}"
     echo "  MMC:      ${mmc_output}/mapping_output.csv"
-    echo "  Mask:     ${combined_output}/artifact_mask_p25.csv"
+    echo "  Mask:     ${mask}"
     echo "  Output:   ${meyes_output}"
 
     # Step 1: process_spatial (with MMC + mask)
@@ -64,7 +67,7 @@ while IFS=',' read -r sample_name _rest; do
         "$combined_output" \
         "$meyes_output" \
         "${mmc_output}/mapping_output.csv" \
-        "${combined_output}/artifact_mask_p25.csv")
+        "$mask")
     echo "  [1/2] process_spatial -> Job ${process_job}"
 
     # Step 2: s3 sync (waits for process_spatial)
