@@ -320,7 +320,7 @@ async function main() {
   console.log("-".repeat(104));
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const machine = { env: ENV_NAME, base: BASE, region: REGION, uploadedFrom: os.hostname() };
+  const machine = { env: ENV_NAME, base: BASE, region: REGION, uploadedFrom: ENV_NAME };
   for (const d of list) {
     let r;
     try {
