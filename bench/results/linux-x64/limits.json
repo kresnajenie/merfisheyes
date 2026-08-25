@@ -1,0 +1,30 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "chromium": "149.0.7827.55"
+ },
+ "arrayBufferGB": {
+  "1": true,
+  "2": false,
+  "3": false,
+  "4": false,
+  "0.5": true,
+  "1.5": true
+ },
+ "wasmMemoryGB": {
+  "1": true,
+  "2": true,
+  "3": true,
+  "4": true
+ },
+ "maxArrayBufferGB": 1.98,
+ "jsHeapLimitGB": 3.5,
+ "deviceMemoryGB": null,
+ "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36",
+ "measuredAt": "2026-08-24T08:33:35.938Z"
+}

@@ -1,0 +1,83 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "workstation"
+ },
+ "path": "single-molecule/xenium-Human_Melanoma_10gb.csv",
+ "datasetId": "single-molecule__xenium-Human_Melanoma_10gb-csv",
+ "format": "single-molecule",
+ "sizeGB": 1.934,
+ "relevantGB": null,
+ "shape": {
+  "cells": null,
+  "genes": null,
+  "molecules": 23390260
+ },
+ "uploadFiles": 1,
+ "uploadGB": 1.934,
+ "outcome": "ok",
+ "processMs": 32900,
+ "peakRssGB": 4.39,
+ "clientUploadMs": 14781,
+ "uploadMBps": 140.5,
+ "queueMs": 36826,
+ "jobTotalMs": 85345,
+ "computeTier": "16384",
+ "batchJobId": "6b202df5-f919-4c90-95a6-e3937885a1d6",
+ "error": null,
+ "datasetRowId": "sm_zG2rGU7uAc",
+ "chunkWriteMs": null,
+ "stages": {
+  "step1": {
+   "at": 0,
+   "label": "Reading input file"
+  },
+  "step2": {
+   "at": 5600,
+   "label": "Coordinates rounded to 2 decimal places"
+  },
+  "step3": {
+   "at": 5900,
+   "label": "Building gene index"
+  },
+  "step4": {
+   "at": 8600,
+   "label": "Filtering control probes and unassigned genes"
+  },
+  "step5": {
+   "at": 8600,
+   "label": "Creating output folder structure"
+  },
+  "step6": {
+   "at": 8600,
+   "label": "Writing gene files"
+  },
+  "step7": {
+   "at": 32900,
+   "label": "Writing manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"htt",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"error\":{\"message\":\"Protected deployment\",\"code\":\"401\"},\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"htt",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"error\":{\"message\":\"Protected deployment\",\"code\":\"401\"},\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 85345,
+    "status": "SUCCEEDED",
+    "usd": 0.0055
+   }
+  ],
+  "totalUsd": 0.0055,
+  "outputBytes": 189934461,
+  "outputUsdMonth": 0.0041
+ }
+}

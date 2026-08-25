@@ -1,0 +1,79 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "workstation"
+ },
+ "path": "h5ad/270MB_HubcTMA_VMSC02511_region_R4.h5ad",
+ "datasetId": "h5ad__270MB_HubcTMA_VMSC02511_region_R4",
+ "format": "h5ad",
+ "sizeGB": 0.248,
+ "relevantGB": null,
+ "shape": {
+  "cells": 69911,
+  "genes": 815,
+  "molecules": null
+ },
+ "uploadFiles": 1,
+ "uploadGB": 0.248,
+ "outcome": "ok",
+ "processMs": 6600,
+ "peakRssGB": 0.45,
+ "clientUploadMs": 3851,
+ "uploadMBps": 69.3,
+ "queueMs": 54877,
+ "jobTotalMs": 52016,
+ "computeTier": "16384",
+ "batchJobId": "332a17aa-4864-4d7e-bb59-217ffdae2b38",
+ "error": null,
+ "datasetRowId": "ds_dv5_xtoIvk",
+ "chunkWriteMs": 5400,
+ "stages": {
+  "step1": {
+   "at": 500,
+   "label": "Processing spatial coordinates"
+  },
+  "step2": {
+   "at": 500,
+   "label": "Processing 2 embedding"
+  },
+  "step3": {
+   "at": 600,
+   "label": "Processing 4 observation column"
+  },
+  "step4": {
+   "at": 1200,
+   "label": "Processing expression matrix"
+  },
+  "step4.5": {
+   "at": 6600,
+   "label": "Writing DE stats for 1 categorical column"
+  },
+  "step5": {
+   "at": 6600,
+   "label": "Creating manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"error\":{\"message\":\"Protected deployment\",\"code\":\"401\"},\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"error\":{\"message\":\"Protected deployment\",\"code\":\"401\"},\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"v",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"v"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 52016,
+    "status": "SUCCEEDED",
+    "usd": 0.0034
+   }
+  ],
+  "totalUsd": 0.0034,
+  "outputBytes": 27254822,
+  "outputUsdMonth": 0.0006
+ }
+}

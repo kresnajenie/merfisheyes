@@ -1,0 +1,79 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "workstation"
+ },
+ "path": "xenium/MouseSpinalCord_Run7_Slide1_Mus_M6_F6_ace-pie-car",
+ "datasetId": "xenium__MouseSpinalCord_Run7_Slide1_Mus_M6_F6_ace-pie-car",
+ "format": "xenium",
+ "sizeGB": 0.613,
+ "relevantGB": 0.011,
+ "shape": {
+  "cells": 201328,
+  "genes": 541,
+  "molecules": null
+ },
+ "uploadFiles": 2,
+ "uploadGB": 0.022,
+ "outcome": "ok",
+ "processMs": 54000,
+ "peakRssGB": 0.43,
+ "clientUploadMs": 2068,
+ "uploadMBps": 11.5,
+ "queueMs": 57721,
+ "jobTotalMs": 95498,
+ "computeTier": "16384",
+ "batchJobId": "f30f7dbc-37e8-46b5-a730-f62eec5587ce",
+ "error": null,
+ "datasetRowId": "ds_A3GA4JbD3S",
+ "chunkWriteMs": 45500,
+ "stages": {
+  "step1": {
+   "at": 1300,
+   "label": "Processing spatial coordinates"
+  },
+  "step2": {
+   "at": 1400,
+   "label": "No embeddings to process"
+  },
+  "step3": {
+   "at": 1400,
+   "label": "Processing 11 observation column"
+  },
+  "step4": {
+   "at": 3100,
+   "label": "Processing expression matrix"
+  },
+  "step4.5": {
+   "at": 49300,
+   "label": "Writing DE stats for 8 categorical column"
+  },
+  "step5": {
+   "at": 54000,
+   "label": "Creating manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfish",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"h",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"v"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 95498,
+    "status": "SUCCEEDED",
+    "usd": 0.0062
+   }
+  ],
+  "totalUsd": 0.0062,
+  "outputBytes": 22865819,
+  "outputUsdMonth": 0.0005
+ }
+}

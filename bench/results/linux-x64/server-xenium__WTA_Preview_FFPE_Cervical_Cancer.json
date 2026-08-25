@@ -1,0 +1,68 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "workstation"
+ },
+ "path": "xenium/WTA_Preview_FFPE_Cervical_Cancer",
+ "datasetId": "xenium__WTA_Preview_FFPE_Cervical_Cancer",
+ "format": "xenium",
+ "sizeGB": 19.326,
+ "relevantGB": 2.917,
+ "shape": {
+  "cells": 717576,
+  "genes": 27104,
+  "molecules": null
+ },
+ "uploadFiles": 2,
+ "uploadGB": 0.833,
+ "outcome": "oom",
+ "processMs": 1800,
+ "peakRssGB": null,
+ "clientUploadMs": 11326,
+ "uploadMBps": 79,
+ "queueMs": 153353,
+ "jobTotalMs": 89622,
+ "computeTier": "16384",
+ "batchJobId": "94ad6954-521d-4092-b58c-1ac4bdcbbec7",
+ "error": "OutOfMemoryError: container killed due to memory usage",
+ "datasetRowId": "ds_W8PkGsW5hF",
+ "chunkWriteMs": null,
+ "stages": {},
+ "oom": true,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfisheyes.com%2Fapi%2Fingest%2Fd",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":fa",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 175427,
+    "status": "FAILED",
+    "usd": 0.0114
+   },
+   {
+    "tier": "32GB",
+    "vcpu": 8.0,
+    "memGB": 32.0,
+    "runtimeMs": 2758111,
+    "status": "SUCCEEDED",
+    "usd": 0.3571
+   }
+  ],
+  "totalUsd": 0.3685,
+  "outputBytes": 1506025225,
+  "outputUsdMonth": 0.0323
+ },
+ "escalation": {
+  "tier": "32768",
+  "outcome": "ok",
+  "processMs": 2633400,
+  "peakRssGB": 16.26
+ }
+}

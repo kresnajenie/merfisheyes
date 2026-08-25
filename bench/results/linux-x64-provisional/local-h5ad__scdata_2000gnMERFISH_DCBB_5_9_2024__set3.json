@@ -1,0 +1,45 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "node": "v24.14.0",
+  "chromium": "149.0.7827.55",
+  "base": "http://localhost:3100",
+  "heapCapMB": null
+ },
+ "path": "h5ad/scdata_2000gnMERFISH_DCBB_5_9_2024__set3.h5ad",
+ "datasetId": "h5ad__scdata_2000gnMERFISH_DCBB_5_9_2024__set3",
+ "format": "h5ad",
+ "sizeGB": 0.749,
+ "relevantGB": null,
+ "shape": {
+  "cells": 163800,
+  "genes": 275,
+  "molecules": null
+ },
+ "outcome": "ok",
+ "processMs": 7633,
+ "sceneMs": 7565,
+ "peakRssGB": 2.87,
+ "jsHeapGB": null,
+ "hooks": true,
+ "error": null,
+ "stats": {
+  "pointCount": 163800,
+  "geneCount": 275,
+  "dimensions": 2,
+  "dataType": "single_cell"
+ },
+ "wallMs": 8398,
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/",
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/"
+ ]
+}

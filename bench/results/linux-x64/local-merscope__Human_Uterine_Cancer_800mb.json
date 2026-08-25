@@ -1,0 +1,41 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "node": "v24.14.0",
+  "chromium": "149.0.7827.55",
+  "base": "http://localhost:3100",
+  "heapCapMB": null
+ },
+ "path": "merscope/Human_Uterine_Cancer_800mb",
+ "datasetId": "merscope__Human_Uterine_Cancer_800mb",
+ "format": "merscope",
+ "sizeGB": 1.047,
+ "relevantGB": 1.047,
+ "shape": {
+  "cells": 739735,
+  "genes": 550,
+  "molecules": null
+ },
+ "outcome": "oom",
+ "processMs": null,
+ "sceneMs": null,
+ "peakRssGB": 4.81,
+ "jsHeapGB": null,
+ "hooks": false,
+ "error": "page.waitForURL: Navigation failed because page crashed!",
+ "wallMs": 37070,
+ "inputFiles": 2,
+ "inputGB": 1.05,
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/",
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/"
+ ]
+}
