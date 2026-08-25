@@ -348,6 +348,33 @@ def stack_rounded_coords(x: np.ndarray, y: np.ndarray, z: Optional[np.ndarray]) 
     return np.column_stack([xr, yr, zr])
 
 
+def progressive_order(n: int) -> np.ndarray:
+    """
+    Indices 0..n-1 in bit-reversal order, so any prefix is spread evenly over
+    the whole range.
+
+    Gene files are streamed into the viewer as they download, so the stored
+    order decides what a half-loaded gene looks like: source order fills one
+    corner of the slide first, bit-reversal order shows the whole slide
+    immediately and just densifies. Pure function of n (no RNG) and identical
+    to progressiveOrder() in lib/utils/progressive-order.ts, so the browser
+    pipeline writes byte-identical files.
+    """
+    if n < 2:
+        return np.arange(n, dtype=np.uint32)
+
+    bits = int(n - 1).bit_length()
+    size = 1 << bits
+
+    # Vectorised bit reversal of 0..size-1.
+    idx = np.arange(size, dtype=np.uint32)
+    rev = np.zeros(size, dtype=np.uint32)
+    for b in range(bits):
+        rev |= ((idx >> np.uint32(b)) & np.uint32(1)) << np.uint32(bits - 1 - b)
+
+    return rev[rev < n]
+
+
 def build_gene_index(genes, positions: np.ndarray) -> Dict[str, np.ndarray]:
     """
     Map gene name → molecule positions (in original order) for the molecules at
@@ -783,9 +810,11 @@ def process_single_molecule_data(
         def gene_args(gene: str):
             sanitized_name = sanitize_gene_name(gene)
 
-            # Assigned coordinates
+            # Assigned coordinates, written in progressive (bit-reversal)
+            # order so a partially streamed gene covers the whole slide.
             if gene in gene_index:
                 indices = gene_index[gene]
+                indices = indices[progressive_order(len(indices))]
                 assigned_bytes = rounded_coords[indices].flatten().astype(np.float32).tobytes()
             else:
                 assigned_bytes = b''
@@ -794,6 +823,7 @@ def process_single_molecule_data(
             # `_uuuuuuuuuu` files; the viewer treats a missing file as empty).
             u_indices = unassigned_index.get(gene) if has_unassigned else None
             if u_indices is not None and len(u_indices) > 0:
+                u_indices = u_indices[progressive_order(len(u_indices))]
                 unassigned_bytes = rounded_coords[u_indices].flatten().astype(np.float32).tobytes()
             else:
                 unassigned_bytes = None
@@ -872,6 +902,7 @@ def process_single_molecule_data(
             "compression": "gzip",
             "coordinate_format": "float32_flat_array",
             "coordinate_range": "raw_rounded_2dp",
+            "molecule_order": "bitrev-v1",
             "scaling_factor": 1,  # integer literal, like the browser's manifest
             "created_by": "MERFISH Eyes - Single Molecule Viewer",
             "source_file": source_name,

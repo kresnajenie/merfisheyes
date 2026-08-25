@@ -7,7 +7,9 @@ import { toast } from "react-toastify";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
+  appendToSmPointCloud,
   createSmPointCloud,
+  createStreamingSmPointCloud,
   updateDotSize,
   updatePointCloudColor,
   updatePointCloudShape,
@@ -65,6 +67,18 @@ export function SingleMoleculeThreeScene() {
   const selectedGenesRef = useRef<Map<string, any>>(new Map());
   const globalScaleRef = useRef<number>(1);
   const hasAutoFittedRef = useRef<boolean>(false);
+  // Where auto-fit put the camera. A gene that is still streaming has only
+  // partial bounds, so the fit is redone when it finishes — but only if the
+  // user hasn't moved the camera since.
+  const autoFitCameraRef = useRef<THREE.Vector3 | null>(null);
+  // Gene streams in flight, keyed by point-cloud key. They deliberately
+  // OUTLIVE the effect run that started them: selecting another gene, or
+  // toggling one on/off, re-runs the effect, and a 30-second download must
+  // not restart (nor block the genes processed after it).
+  const activeStreamsRef = useRef<Map<string, AbortController>>(new Map());
+  // Scene rebuilds (view-mode switch) dispose every cloud, so streams filling
+  // them have to stop. Null until the first point-cloud effect run.
+  const streamViewModeRef = useRef<string | null>(null);
   const sceneGroupRef = useRef<THREE.Group | null>(null);  // outer: rotation/flip
   const innerGroupRef = useRef<THREE.Group | null>(null);  // inner: offset by -center
   const dataCenterRef = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -308,6 +322,28 @@ export function SingleMoleculeThreeScene() {
 
     // Create abort flag for this effect run
     let isCancelled = false;
+    const activeStreams = activeStreamsRef.current;
+
+    /** Stop a gene's stream (deselected, hidden, or its scene went away). */
+    const abortStream = (key: string) => {
+      const controller = activeStreams.get(key);
+
+      if (controller) {
+        controller.abort();
+        activeStreams.delete(key);
+      }
+    };
+
+    // A view-mode switch rebuilds the scene, so every cloud being streamed
+    // into is gone.
+    if (streamViewModeRef.current !== viewMode) {
+      const rebuilt = streamViewModeRef.current !== null;
+
+      streamViewModeRef.current = viewMode;
+      if (rebuilt) {
+        for (const key of Array.from(activeStreams.keys())) abortStream(key);
+      }
+    }
 
     // Remove point clouds for unselected genes
     for (const [key, pointCloud] of currentPointClouds.entries()) {
@@ -315,6 +351,7 @@ export function SingleMoleculeThreeScene() {
 
       if (!selectedGenes.has(gene)) {
         console.log(`Removing point cloud: ${key}`);
+        abortStream(key);
         if (innerGroupRef.current) innerGroupRef.current.remove(pointCloud);
         else scene.remove(pointCloud);
         pointCloud.geometry.dispose();
@@ -352,6 +389,146 @@ export function SingleMoleculeThreeScene() {
       pointCloud.renderOrder = renderOrder;
 
       return pointCloud;
+    };
+
+    /**
+     * Molecules to stream for this gene, or 0 when it should load whole:
+     * streaming pays off past SINGLE_MOLECULE_STREAM_THRESHOLD, needs the
+     * count up front (to size the buffer) and a dataset that supports it
+     * (S3-backed; a locally parsed dataset already has the data in memory).
+     */
+    const streamableMolecules = async (
+      gene: string,
+      kind: "assigned" | "unassigned",
+    ): Promise<number> => {
+      const stream =
+        kind === "assigned"
+          ? dataset.streamCoordinatesByGene
+          : dataset.streamUnassignedCoordinatesByGene;
+
+      if (typeof stream !== "function" || !dataset.resolveMoleculeCount) {
+        return 0;
+      }
+
+      const expected = await dataset.resolveMoleculeCount(gene, kind);
+
+      return expected !== null &&
+        expected >= VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD
+        ? expected
+        : 0;
+    };
+
+    /**
+     * Start filling a cloud for a large gene in the BACKGROUND and return
+     * immediately, so the rest of the genes render while the download runs.
+     *
+     * The stream owns its lifetime through `activeStreams`: it survives the
+     * effect runs caused by selecting or toggling other genes, and stops only
+     * when its own gene is deselected/hidden or the scene is rebuilt. That is
+     * why nothing here closes over `isCancelled` — that flag belongs to one
+     * effect run, and this work deliberately outlives it.
+     */
+    const startStreamingPointCloud = (
+      key: string,
+      gene: string,
+      kind: "assigned" | "unassigned",
+      viz: { color: string; localScale: number },
+      shape: MoleculeShape,
+      renderOrder: number,
+      expected: number,
+      toastId: string,
+    ): void => {
+      const userSize =
+        viz.localScale *
+        globalScale *
+        VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE;
+      const cloud = createStreamingSmPointCloud(
+        expected,
+        viz.color,
+        userSize * SM_DOT_SIZE_FACTOR,
+        shape,
+      );
+
+      cloud.renderOrder = renderOrder;
+
+      if (!innerGroupRef.current) {
+        cloud.geometry.dispose();
+        (cloud.material as THREE.ShaderMaterial).dispose();
+
+        return;
+      }
+      innerGroupRef.current.add(cloud);
+      currentPointClouds.set(key, cloud);
+
+      const controller = new AbortController();
+
+      activeStreams.set(key, controller);
+
+      const label = kind === "assigned" ? gene : `${gene} (unassigned)`;
+      const stream =
+        kind === "assigned"
+          ? dataset.streamCoordinatesByGene.bind(dataset)
+          : dataset.streamUnassignedCoordinatesByGene.bind(dataset);
+
+      void stream(gene, {
+        signal: controller.signal,
+        onBatch: ({ coords, loadedMolecules }) => {
+          // Batches already in flight can arrive after cancellation; they must
+          // not repaint the scene or revive the dismissed toast.
+          if (controller.signal.aborted) return;
+          appendToSmPointCloud(cloud, coords);
+          toast.update(toastId, {
+            render: `${label}: ${loadedMolecules.toLocaleString()} / ${expected.toLocaleString()} molecules`,
+            isLoading: true,
+            autoClose: false,
+          });
+        },
+      })
+        .then((coords) => {
+          if (controller.signal.aborted) return;
+          const total = coords.length / 3;
+
+          console.log(
+            `  ✅ ${label} streamed with ${total.toLocaleString()} molecules`,
+          );
+          toast.update(toastId, {
+            render: `${label}: ${total.toLocaleString()} molecules loaded`,
+            type: "success",
+            isLoading: false,
+            autoClose: 3000,
+            position: "bottom-left",
+          });
+          if (kind === "assigned") markGeneRendered(gene, total);
+
+          // The camera was fitted from partial bounds; refit now that the
+          // gene is complete — unless the user has taken over the camera.
+          const camera = cameraRef.current;
+          const fitted = autoFitCameraRef.current;
+
+          if (camera && fitted && camera.position.distanceTo(fitted) < 1e-3) {
+            hasAutoFittedRef.current = false;
+          }
+        })
+        .catch((error: unknown) => {
+          if ((error as Error)?.name === "AbortError") {
+            // Deselected mid-stream: drop the partial cloud and its toast.
+            removePointCloud(key);
+            toast.dismiss(toastId);
+
+            return;
+          }
+          console.error(`[SM] Streaming ${label} failed:`, error);
+          removePointCloud(key);
+          toast.update(toastId, {
+            render: `Failed to load ${label}`,
+            type: "error",
+            isLoading: false,
+            autoClose: 4000,
+          });
+        })
+        .finally(() => {
+          if (activeStreams.get(key) === controller) activeStreams.delete(key);
+        });
     };
 
     // Helper: update an existing point cloud's color and size in place.
@@ -410,72 +587,114 @@ export function SingleMoleculeThreeScene() {
             });
           }
 
-          // Get assigned coordinates
-          const coords = await dataset.getCoordinatesByGene(gene);
+          // A stream started by an earlier effect run is still filling this
+          // cloud — never re-fetch the gene, just apply appearance changes.
+          const assignedStreaming = activeStreams.has(aKey);
 
-          if (isCancelled) {
-            toast.dismiss(toastId);
+          // Big genes stream (points appear while the file downloads); small
+          // ones load whole, which stays simpler and is fast enough.
+          const expectedAssigned =
+            !assignedStreaming && geneViz.showAssigned && !assignedExists
+              ? await streamableMolecules(gene, "assigned")
+              : 0;
+          let moleculeCount = 0;
+          // True once a background stream owns this gene's toast/progress.
+          let streamStarted = false;
 
-            return;
-          }
+          if (assignedStreaming) {
+            const streamingCloud = currentPointClouds.get(aKey);
 
-          const moleculeCount = coords.length / 3;
-
-          console.log(`Creating/updating point cloud for gene: ${gene}`);
-          console.log(`  Assigned molecules: ${moleculeCount.toLocaleString()}`);
-          console.log(`  Color: ${geneViz.color}`);
-
-          // --- Assigned point cloud ---
-          if (geneViz.showAssigned) {
-            let pointCloud = currentPointClouds.get(aKey);
-
-          if (!pointCloud) {
-            pointCloud = createPointCloud(
-              coords,
+            if (!geneViz.showAssigned) {
+              abortStream(aKey);
+              removePointCloud(aKey);
+            } else if (streamingCloud) {
+              updatePointCloudAppearance(streamingCloud, geneViz);
+              updatePointCloudShape(streamingCloud, geneViz.assignedShape);
+            }
+          } else if (expectedAssigned) {
+            // Fills in the background; the loop moves on to the next gene.
+            startStreamingPointCloud(
+              aKey,
+              gene,
+              "assigned",
               geneViz,
               geneViz.assignedShape,
               0,
+              expectedAssigned,
+              toastId,
             );
+            streamStarted = true;
+          } else {
+            // Get assigned coordinates
+            const coords = await dataset.getCoordinatesByGene(gene);
 
             if (isCancelled) {
-              pointCloud.geometry.dispose();
-              if (pointCloud.material instanceof THREE.Material) {
-                pointCloud.material.dispose();
-              }
               toast.dismiss(toastId);
 
-                return;
-              }
-
-              if (!innerGroupRef.current) {
-                console.warn(`[SM] innerGroupRef is null when adding ${aKey}, skipping`);
-                pointCloud.geometry.dispose();
-                (pointCloud.material as THREE.ShaderMaterial).dispose();
-                return;
-              }
-              innerGroupRef.current.add(pointCloud);
-              currentPointClouds.set(aKey, pointCloud);
-
-              console.log(
-                `  ✅ Assigned point cloud created with ${moleculeCount} molecules`,
-              );
-            } else {
-              updatePointCloudAppearance(pointCloud, geneViz);
-              updatePointCloudShape(pointCloud, geneViz.assignedShape);
-              console.log(`  ✅ Assigned point cloud updated`);
+              return;
             }
-          } else {
-            removePointCloud(aKey);
+
+            moleculeCount = coords.length / 3;
+
+            console.log(`Creating/updating point cloud for gene: ${gene}`);
+            console.log(`  Assigned molecules: ${moleculeCount.toLocaleString()}`);
+            console.log(`  Color: ${geneViz.color}`);
+
+            // --- Assigned point cloud ---
+            if (geneViz.showAssigned) {
+              let pointCloud = currentPointClouds.get(aKey);
+
+            if (!pointCloud) {
+              pointCloud = createPointCloud(
+                coords,
+                geneViz,
+                geneViz.assignedShape,
+                0,
+              );
+
+              if (isCancelled) {
+                pointCloud.geometry.dispose();
+                if (pointCloud.material instanceof THREE.Material) {
+                  pointCloud.material.dispose();
+                }
+                toast.dismiss(toastId);
+
+                  return;
+                }
+
+                if (!innerGroupRef.current) {
+                  console.warn(`[SM] innerGroupRef is null when adding ${aKey}, skipping`);
+                  pointCloud.geometry.dispose();
+                  (pointCloud.material as THREE.ShaderMaterial).dispose();
+                  return;
+                }
+                innerGroupRef.current.add(pointCloud);
+                currentPointClouds.set(aKey, pointCloud);
+
+                console.log(
+                  `  ✅ Assigned point cloud created with ${moleculeCount} molecules`,
+                );
+              } else {
+                updatePointCloudAppearance(pointCloud, geneViz);
+                updatePointCloudShape(pointCloud, geneViz.assignedShape);
+                console.log(`  ✅ Assigned point cloud updated`);
+              }
+            } else {
+              abortStream(aKey);
+              removePointCloud(aKey);
+            }
           }
 
           // --- Unassigned point cloud ---
           const shouldShowUnassigned =
             dataset.hasUnassigned && showUnassigned && geneViz.showUnassigned;
 
-            console.log(
-              `  ✅ Point cloud created with ${moleculeCount} molecules`,
-            );
-            markGeneRendered(gene, moleculeCount);
+            if (!streamStarted && !assignedStreaming) {
+              console.log(
+                `  ✅ Point cloud created with ${moleculeCount} molecules`,
+              );
+              markGeneRendered(gene, moleculeCount);
+            }
           if (shouldShowUnassigned) {
             const unassignedExists = currentPointClouds.has(uKey);
             const uViz = {
@@ -483,7 +702,33 @@ export function SingleMoleculeThreeScene() {
               localScale: geneViz.unassignedLocalScale,
             };
 
-            if (!unassignedExists) {
+            const unassignedStreaming = activeStreams.has(uKey);
+            const expectedUnassigned =
+              !unassignedStreaming && !unassignedExists
+                ? await streamableMolecules(gene, "unassigned")
+                : 0;
+
+            if (unassignedStreaming) {
+              const streamingCloud = currentPointClouds.get(uKey);
+
+              if (streamingCloud) {
+                updatePointCloudAppearance(streamingCloud, uViz);
+                updatePointCloudShape(streamingCloud, geneViz.unassignedShape);
+              }
+              streamStarted = true;
+            } else if (expectedUnassigned) {
+              startStreamingPointCloud(
+                uKey,
+                gene,
+                "unassigned",
+                uViz,
+                geneViz.unassignedShape,
+                -1, // Render behind assigned
+                expectedUnassigned,
+                toastId,
+              );
+              streamStarted = true;
+            } else if (!unassignedExists) {
               // Load unassigned coordinates
               const uCoords =
                 await dataset.getUnassignedCoordinatesByGene(gene);
@@ -536,11 +781,14 @@ export function SingleMoleculeThreeScene() {
             }
           } else {
             // Remove unassigned cloud if toggle is off or dataset has none
+            abortStream(uKey);
             removePointCloud(uKey);
           }
 
-          // Update toast
-          if (!assignedExists) {
+          // Update toast — a background stream finishes its own.
+          if (streamStarted || assignedStreaming) {
+            // left to the stream
+          } else if (!assignedExists) {
             toast.update(toastId, {
               render: `${gene}: ${moleculeCount.toLocaleString()} molecules loaded`,
               type: "success",
@@ -619,6 +867,7 @@ export function SingleMoleculeThreeScene() {
 
         camera.position.set(center.x, center.y, center.z + cameraDistance);
         camera.lookAt(center);
+        autoFitCameraRef.current = camera.position.clone();
 
         // Set group pivot for rotation around data center
         dataCenterRef.current.copy(center);
@@ -651,9 +900,21 @@ export function SingleMoleculeThreeScene() {
     // Cleanup: cancel the async operation if effect is cleaned up
     return () => {
       console.log("[SingleMoleculeThreeScene] Cancelling point cloud updates");
+      // Only this run's sequential work stops here; background streams keep
+      // filling their clouds and are aborted when their gene goes away.
       isCancelled = true;
     };
   }, [dataset, selectedGenes, globalScale, viewMode, showAssigned, showUnassigned]);
+
+  // Unmount: nothing can consume a stream any more.
+  useEffect(() => {
+    const streams = activeStreamsRef.current;
+
+    return () => {
+      streams.forEach((controller) => controller.abort());
+      streams.clear();
+    };
+  }, []);
 
   if (!dataset) {
     return (
