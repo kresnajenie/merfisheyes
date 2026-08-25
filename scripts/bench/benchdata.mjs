@@ -27,6 +27,7 @@ const side = (r, isServer) => ({
   genes: isServer ? r.numGenes ?? null : r.stats?.exprGeneCount ?? r.stats?.geneCount ?? null,
   cells: isServer ? null : (r.stats?.dataType === "single_cell" ? r.stats?.pointCount ?? null : null),
   uploadMs: isServer ? r.clientUploadMs ?? null : null,
+  uploadGB: isServer ? r.uploadGB ?? null : null,
   queueMs: isServer ? r.queueMs ?? null : null,
   err: trunc(r.error),
   ...(isServer && r.escalation ? { escalation: r.escalation } : {}),

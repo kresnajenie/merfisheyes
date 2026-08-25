@@ -26,6 +26,8 @@ provisioning are excluded from it and listed separately.
 | merscope-800m-ace-dry-dog-detected_transcripts3-csv | single-molecule | 0.04 GB | 499,999 molecules | 3.1s | 1.01 GB | 2.2s | 0.25 GB |
 | h5ad__140MB_cbm2_combined_neuropath | h5ad | 0.13 GB | 57,489 cells × 223 | 2.1s | 1.28 GB | 9.0s | 0.27 GB |
 | Human_Ovarian_Cancer_150mb | merscope | 0.16 GB | 71,381 cells × 550 | 14.2s | 3.1 GB | 42.1s | 0.83 GB |
+| h5ad__180MB_HubcTMA_VMSC02511_region_R2 | h5ad | 0.16 GB | 45,913 cells × 815 | 4.5s | 1.47 GB | 4.4s | 0.38 GB |
+| h5ad__190MB_HubcTMA_VMSC02511_region_R3 | h5ad | 0.17 GB | 48,910 cells × 815 | 4.6s | 1.52 GB | 3.2s | 0.39 GB |
 | Mouse_receptors_rep3_1_190mb | merscope | 0.19 GB | 70,844 cells × 649 | 14.3s | 3.26 GB | 35.6s | 0.97 GB |
 | Mouse_receptors_rep1_1_210mb | merscope | 0.20 GB | 78,329 cells × 649 | 16.0s | 3.2 GB | 40.7s | 1.05 GB |
 | Mouse_receptors_rep2_1_220mb | merscope | 0.22 GB | 83,461 cells × 649 | 16.7s | 3.64 GB | 45.0s | 1.1 GB |
@@ -35,11 +37,18 @@ provisioning are excluded from it and listed separately.
 | Mouse_receptors_rep2_3_230mb | merscope | 0.23 GB | 85,958 cells × 649 | 16.6s | 3.72 GB | 44.9s | 1.14 GB |
 | h5ad__250MB_CBM7_labeled | h5ad | 0.23 GB | 139,997 cells × 223 | 3.4s | 1.59 GB | 9.6s | 0.37 GB |
 | Mouse_receptors_rep1_2_240mb | merscope | 0.23 GB | 88,884 cells × 649 | 17.7s | 3.81 GB | 45.1s | 1.23 GB |
+| h5ad__270MB_HubcTMA_VMSC02511_region_R4 | h5ad | 0.25 GB | 69,911 cells × 815 | 6.4s | 2.05 GB | 6.6s | 0.45 GB |
+| h5ad__290MB_HubcTMA_VMSC02511_region_R5 | h5ad | 0.27 GB | 76,409 cells × 815 | 6.8s | 2.12 GB | 6.2s | 0.47 GB |
 | hum_brain2_280mb | merscope | 0.30 GB | 137,627 cells × 1000 | **oom** | 4.66 GB | 1.7m | 2.69 GB |
+| h5ad__340MB_HubcTMA_VMSC02511_region_R1 | h5ad | 0.32 GB | 88,649 cells × 815 | 8.1s | 2.33 GB | 11.6s | 0.51 GB |
 | xenium-Human_Lung_Cancer_FFPE-parquet | single-molecule | 0.33 GB | 32,073,729 molecules | 55.5s | 5.37 GB | 46.8s | 2.99 GB |
 | xenium-Human_Melanoma_10gb-parquet | single-molecule | 0.39 GB | 23,651,907 molecules | 39.3s | 4.54 GB | 34.6s | 2.32 GB |
+| h5ad__430MB_MsBrain_VMSC02011_region_R1 | h5ad | 0.40 GB | 112,060 cells × 815 | 10.2s | 2.72 GB | 25.5s | 0.59 GB |
+| h5ad__440MB_mmc_MsBrain_VMSC02011_region_R1 | h5ad | 0.41 GB | 112,060 cells × 815 | 11.6s | 2.79 GB | 39.5s | 0.66 GB |
 | ed_lein_ace-irk-sag | merscope | 0.45 GB | 878,735 cells × 315 | **failed** | 5.58 GB | **error** | – |
+| h5ad__500MB_Mouse_receptors_rep2_3_adata | h5ad | 0.47 GB | 85,958 cells × 649 | 14.3s | 2.76 GB | 40.2s | 0.56 GB |
 | h5ad__cbm5_combined_neuropath | h5ad | 0.51 GB | 152,568 cells × 223 | 4.3s | 1.98 GB | 16.4s | 0.39 GB |
+| h5ad__570MB_HuBrain_VMSC16710_region_R1 | h5ad | 0.53 GB | 149,697 cells × 815 | 13.3s | 3.37 GB | 29.7s | 0.71 GB |
 | merscope-800m-ace-dry-dog-detected_transcripts2-csv | single-molecule | 0.63 GB | 8,044,719 molecules | **timeout** | 1.6 GB | 49.6s | 1.77 GB |
 | h5ad__scdata_2000gnMERFISH_DCBB_5_9_2024__set3 | h5ad | 0.75 GB | 163,800 cells × 275 | 6.8s | 3.01 GB | 26.8s | 0.57 GB |
 | merscope-800m-ace-dry-dog-csv | single-molecule | 0.79 GB | 10,107,749 molecules | **timeout** | 1.66 GB | 57.2s | 2.14 GB |
@@ -98,6 +107,8 @@ Xenium rows are cells-only on both paths, not full comparisons.
 | merscope-800m-ace-dry-dog-detected_transcripts3-csv | 3.1s | 2.2s | 1.01 GB | 0.25 GB |
 | h5ad__140MB_cbm2_combined_neuropath | 2.1s | 9.0s | 1.28 GB | 0.27 GB |
 | Human_Ovarian_Cancer_150mb | 14.2s | 42.1s | 3.1 GB | 0.83 GB |
+| h5ad__180MB_HubcTMA_VMSC02511_region_R2 | 4.5s | 4.4s | 1.47 GB | 0.38 GB |
+| h5ad__190MB_HubcTMA_VMSC02511_region_R3 | 4.6s | 3.2s | 1.52 GB | 0.39 GB |
 | Mouse_receptors_rep3_1_190mb | 14.3s | 35.6s | 3.26 GB | 0.97 GB |
 | Mouse_receptors_rep1_1_210mb | 16.0s | 40.7s | 3.2 GB | 1.05 GB |
 | Mouse_receptors_rep2_1_220mb | 16.7s | 45.0s | 3.64 GB | 1.1 GB |
@@ -107,9 +118,16 @@ Xenium rows are cells-only on both paths, not full comparisons.
 | Mouse_receptors_rep2_3_230mb | 16.6s | 44.9s | 3.72 GB | 1.14 GB |
 | h5ad__250MB_CBM7_labeled | 3.4s | 9.6s | 1.59 GB | 0.37 GB |
 | Mouse_receptors_rep1_2_240mb | 17.7s | 45.1s | 3.81 GB | 1.23 GB |
+| h5ad__270MB_HubcTMA_VMSC02511_region_R4 | 6.4s | 6.6s | 2.05 GB | 0.45 GB |
+| h5ad__290MB_HubcTMA_VMSC02511_region_R5 | 6.8s | 6.2s | 2.12 GB | 0.47 GB |
+| h5ad__340MB_HubcTMA_VMSC02511_region_R1 | 8.1s | 11.6s | 2.33 GB | 0.51 GB |
 | xenium-Human_Lung_Cancer_FFPE-parquet | 55.5s | 46.8s | 5.37 GB | 2.99 GB |
 | xenium-Human_Melanoma_10gb-parquet | 39.3s | 34.6s | 4.54 GB | 2.32 GB |
+| h5ad__430MB_MsBrain_VMSC02011_region_R1 | 10.2s | 25.5s | 2.72 GB | 0.59 GB |
+| h5ad__440MB_mmc_MsBrain_VMSC02011_region_R1 | 11.6s | 39.5s | 2.79 GB | 0.66 GB |
+| h5ad__500MB_Mouse_receptors_rep2_3_adata | 14.3s | 40.2s | 2.76 GB | 0.56 GB |
 | h5ad__cbm5_combined_neuropath | 4.3s | 16.4s | 1.98 GB | 0.39 GB |
+| h5ad__570MB_HuBrain_VMSC16710_region_R1 | 13.3s | 29.7s | 3.37 GB | 0.71 GB |
 | h5ad__scdata_2000gnMERFISH_DCBB_5_9_2024__set3 | 6.8s | 26.8s | 3.01 GB | 0.57 GB |
 | WTA_Preview_FFPE_Breast_Cancer | 6.5s | 31.1m | 5.85 GB | 10.61 GB |
 | Xenium_Prime_Mouse_Pup_FFPE | 9.7s | 14.3m | 2.94 GB | 7.84 GB |
@@ -138,6 +156,8 @@ Xenium rows are cells-only on both paths, not full comparisons.
 | merscope-800m-ace-dry-dog-detected_transcripts3-csv | 2.0s | 20.5 | 36.8s |
 | h5ad__140MB_cbm2_combined_neuropath | 2.8s | 50 | 34.9s |
 | Human_Ovarian_Cancer_150mb | 3.8s | 44 | 32.7s |
+| h5ad__180MB_HubcTMA_VMSC02511_region_R2 | 2.2s | 79.6 | 32.8s |
+| h5ad__190MB_HubcTMA_VMSC02511_region_R3 | 6.3s | 29.8 | 32.5s |
 | Mouse_receptors_rep3_1_190mb | 6.8s | 29.5 | 40.1s |
 | Mouse_receptors_rep1_1_210mb | 4.0s | 55.4 | 36.3s |
 | Mouse_receptors_rep2_1_220mb | 6.4s | 36.6 | 37.2s |
@@ -147,11 +167,18 @@ Xenium rows are cells-only on both paths, not full comparisons.
 | Mouse_receptors_rep2_3_230mb | 4.7s | 51.6 | 30.8s |
 | h5ad__250MB_CBM7_labeled | 2.9s | 86.3 | 37.7s |
 | Mouse_receptors_rep1_2_240mb | 3.5s | 71 | 40.7s |
+| h5ad__270MB_HubcTMA_VMSC02511_region_R4 | 3.9s | 69.3 | 54.9s |
+| h5ad__290MB_HubcTMA_VMSC02511_region_R5 | 4.0s | 72.8 | 34.1s |
 | hum_brain2_280mb | 7.8s | 41.4 | 32.6s |
+| h5ad__340MB_HubcTMA_VMSC02511_region_R1 | 3.7s | 90.6 | 30.4s |
 | xenium-Human_Lung_Cancer_FFPE-parquet | 3.4s | 103.7 | 40.4s |
 | xenium-Human_Melanoma_10gb-parquet | 3.7s | 113.5 | 37.9s |
+| h5ad__430MB_MsBrain_VMSC02011_region_R1 | 4.7s | 90.1 | 32.1s |
+| h5ad__440MB_mmc_MsBrain_VMSC02011_region_R1 | 8.2s | 53.4 | 33.9s |
 | ed_lein_ace-irk-sag | 11.1s | 43.6 | 1.7m |
+| h5ad__500MB_Mouse_receptors_rep2_3_adata | 4.8s | 104.7 | 39.2s |
 | h5ad__cbm5_combined_neuropath | 5.5s | 100 | 28.7s |
+| h5ad__570MB_HuBrain_VMSC16710_region_R1 | 7.2s | 79.6 | 31.1s |
 | merscope-800m-ace-dry-dog-detected_transcripts2-csv | 6.0s | 111.5 | 42.9s |
 | h5ad__scdata_2000gnMERFISH_DCBB_5_9_2024__set3 | 6.0s | 135.1 | 32.3s |
 | merscope-800m-ace-dry-dog-csv | 6.2s | 135.4 | 42.3s |

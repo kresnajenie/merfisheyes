@@ -1,0 +1,79 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "cmm200-136.ucsd.edu"
+ },
+ "path": "h5ad/440MB_mmc_MsBrain_VMSC02011_region_R1.h5ad",
+ "datasetId": "h5ad__440MB_mmc_MsBrain_VMSC02011_region_R1",
+ "format": "h5ad",
+ "sizeGB": 0.405,
+ "relevantGB": null,
+ "shape": {
+  "cells": 112060,
+  "genes": 815,
+  "molecules": null
+ },
+ "uploadFiles": 1,
+ "uploadGB": 0.405,
+ "outcome": "ok",
+ "processMs": 39500,
+ "peakRssGB": 0.66,
+ "clientUploadMs": 8156,
+ "uploadMBps": 53.4,
+ "queueMs": 33936,
+ "jobTotalMs": 83460,
+ "computeTier": "16384",
+ "batchJobId": "fa5b29cd-988c-42f7-8d8a-e31462fedb1e",
+ "error": null,
+ "datasetRowId": "ds_o3VrVSGwC2",
+ "chunkWriteMs": 24900,
+ "stages": {
+  "step1": {
+   "at": 600,
+   "label": "Processing spatial coordinates"
+  },
+  "step2": {
+   "at": 700,
+   "label": "Processing 2 embedding"
+  },
+  "step3": {
+   "at": 800,
+   "label": "Processing 17 observation column"
+  },
+  "step4": {
+   "at": 2400,
+   "label": "Processing expression matrix"
+  },
+  "step4.5": {
+   "at": 27600,
+   "label": "Writing DE stats for 10 categorical column"
+  },
+  "step5": {
+   "at": 39500,
+   "label": "Creating manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfisheyes.com%2Fapi%2Fingest%2Fd",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"v"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 83460,
+    "status": "SUCCEEDED",
+    "usd": 0.0054
+   }
+  ],
+  "totalUsd": 0.0054,
+  "outputBytes": 144267644,
+  "outputUsdMonth": 0.0031
+ }
+}

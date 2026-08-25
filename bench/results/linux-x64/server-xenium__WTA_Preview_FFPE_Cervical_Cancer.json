@@ -50,14 +50,14 @@
     "tier": "32GB",
     "vcpu": 8.0,
     "memGB": 32.0,
-    "runtimeMs": 0,
-    "status": "RUNNING",
-    "usd": 0.0
+    "runtimeMs": 2758111,
+    "status": "SUCCEEDED",
+    "usd": 0.3571
    }
   ],
-  "totalUsd": 0.0114,
-  "outputBytes": 0,
-  "outputUsdMonth": 0.0
+  "totalUsd": 0.3685,
+  "outputBytes": 1506025225,
+  "outputUsdMonth": 0.0323
  },
  "escalation": {
   "tier": "32768",

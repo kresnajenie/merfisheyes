@@ -129,9 +129,87 @@ does), and each run records CPU model, core count, total RAM, OS, and browser
 version, so "on a Mac" and "on a high-end PC" are comparable rather than
 anecdotal. Results land in `bench/results/<env>/`.
 
-## Status
+## Running the benchmark on a new machine
 
-Built: the drop folder and `scripts/bench/discover.py`.
-Next: the local/browser runner (ceiling detection), the server runner (reusing
-`scripts/perf/ingest-upload.mjs` + the CloudWatch stage parser), and the
-aggregator that turns all machines' results into the comparison table.
+Everything below assumes the repo is cloned and `npm install` has run. Results
+are keyed by machine, so set a name first — it becomes the folder under
+`bench/results/`:
+
+```bash
+export PERF_ENV=macbook-m3        # or omit to get e.g. "darwin-arm64"
+```
+
+### 0. Prerequisites
+
+- Node 20+, Python 3.11+ with `numpy pandas pyarrow h5py` (`pip install numpy pandas pyarrow h5py`)
+- Playwright's Chromium: `npx playwright install chromium`
+- For the **server** path only: AWS credentials that can reach Batch +
+  CloudWatch logs (`aws sts get-caller-identity` must work), and `.env` with
+  `CALLBACK_SECRET` / DB / S3 config as usual.
+
+### 1. Point at your data
+
+Either drop/symlink datasets into `bench/datasets/` (layout above), or pass
+`--root` to every tool if the databank lives elsewhere:
+
+```bash
+python3 scripts/bench/link-transcripts.py --root /path/to/databank   # collect SM tables
+python3 scripts/bench/discover.py        --root /path/to/databank    # -> bench/datasets.json
+```
+
+### 2. Measure this machine's browser limits (once per machine)
+
+```bash
+node scripts/bench/browser-limits.mjs
+```
+
+Bisects the largest single `ArrayBuffer` the browser will allocate and records
+the JS heap cap → `bench/results/<env>/limits.json`. Run it on every machine
+you want in the comparison — it is what makes "on a Mac" a number.
+
+### 3. Build and start the app (the bench drives the real product)
+
+```bash
+NEXT_PUBLIC_E2E=1 npx next build          # E2E hooks must be baked in at build time
+NEXT_PUBLIC_E2E=1 npx next start -p 3100  # local-path server
+# server path additionally needs an app wired to the dev DB/S3:
+ALLOW_DEV_EMAIL_LOGIN=true AUTH_TRUST_HOST=true npx next start -p 3200
+```
+
+(`npx next build` directly — `npm run build` would run prisma migrate against
+the shared database.)
+
+### 4. Run the ladders
+
+```bash
+# Browser path — a crash IS the measurement (the ceiling):
+node scripts/bench/local-run.mjs  --datasets bench/datasets.json --base http://localhost:3100
+
+# Server path — uploads, submits Batch jobs, parses worker logs:
+node scripts/bench/server-run.mjs --datasets bench/datasets.json --base http://localhost:3200      --email you@example.com
+```
+
+Both accept `--only <id...>`, `--format <fmt...>`, `--max-gb N`. Results land
+as one JSON per dataset per path in `bench/results/<env>/`.
+
+Server-path gotchas (all learned the hard way):
+
+- The bench polls AWS Batch directly, so the app never notices finished jobs —
+  datasets stay `QUEUED` and OOM escalation never fires. Either open the
+  dataset in the app (its polling triggers the reconciler) or replay the
+  worker's `CALLBACK` log line, HMAC-signed with `CALLBACK_SECRET`, to
+  `/api/ingest/<id>/callback`.
+- If the log parser improved after a ladder started: `node scripts/bench/backfill-logs.mjs`
+  re-reads CloudWatch for rows with a job id but no `processMs`.
+
+### 5. Costs, report, plots, CSV
+
+```bash
+python3 scripts/bench/harvest-costs.py            # Fargate $ per run + S3 output size
+node scripts/bench/report.mjs --md bench/RESULTS.md
+node scripts/bench/benchdata.mjs                  # joined JSON for bench/plots.html
+node scripts/bench/export-csv.mjs                 # one CSV row per dataset, with viewer links
+```
+
+`bench/plots.html` is self-contained — replace its `const DATA = …` line with
+the benchdata output to refresh the charts.
