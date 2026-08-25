@@ -1589,6 +1589,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       markRenderComplete({
         pointCount: dataset.getPointCount(),
         geneCount: dataset.genes.length,
+        // Genes with expression actually loaded — differs from geneCount when
+        // an adapter listed gene names but skipped the matrix (e.g. the
+        // Xenium h5 dense-size guard).
+        exprGeneCount:
+          dataset.matrix instanceof Map ? dataset.matrix.size : null,
         dimensions: dataset.spatial.dimensions,
         dataType: "single_cell",
       });

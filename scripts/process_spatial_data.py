@@ -1149,6 +1149,8 @@ def load_xenium_data(input_path: Path):
             input_path / "matrix.mtx.gz",
             input_path / "cell_feature_matrix" / "matrix.mtx",
             input_path / "cell_feature_matrix" / "matrix.mtx.gz",
+            # The 10x HDF5 matrix — how current Xenium exports ship expression.
+            input_path / "cell_feature_matrix.h5",
         ]:
             if path.exists():
                 matrix_file = path
@@ -1215,15 +1217,31 @@ def load_xenium_data(input_path: Path):
             elif matrix_file.suffix == '.mtx':
                 matrix = mmread(str(matrix_file))
             elif matrix_file.suffix == '.h5':
+                # 10x HDF5: /matrix holds CSC arrays (features x cells) plus
+                # /matrix/features/name. anndata has no read_10x_h5 (that is
+                # scanpy), so read the layout directly.
                 try:
-                    import anndata as ad
+                    import h5py
 
-                    adata_matrix = ad.read_10x_h5(str(matrix_file))
-                    matrix = adata_matrix.X
-                    if gene_names is None:
-                        gene_names = adata_matrix.var_names.tolist()
+                    with h5py.File(matrix_file, "r") as f:
+                        g = f["matrix"]
+                        shape = tuple(int(v) for v in g["shape"][:])
+                        matrix = sparse.csc_matrix(
+                            (
+                                g["data"][:].astype(np.float32),
+                                g["indices"][:],
+                                g["indptr"][:],
+                            ),
+                            shape=shape,
+                        )
+                        if gene_names is None:
+                            gene_names = [
+                                v.decode() if isinstance(v, bytes) else str(v)
+                                for v in g["features"]["name"][:]
+                            ]
                 except Exception as e:
                     print(f"  ⚠ Failed to read {matrix_file.name}: {e}")
+                    matrix = None
 
             if matrix is not None:
                 expr_matrix = matrix.tocsr() if sparse.issparse(matrix) else sparse.csr_matrix(matrix)
