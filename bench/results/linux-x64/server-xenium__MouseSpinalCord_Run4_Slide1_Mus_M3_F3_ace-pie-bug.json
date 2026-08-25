@@ -3,7 +3,7 @@
   "env": "linux-x64",
   "base": "http://localhost:3200",
   "region": "us-west-2",
-  "uploadedFrom": "cmm200-136.ucsd.edu"
+  "uploadedFrom": "workstation"
  },
  "path": "xenium/MouseSpinalCord_Run4_Slide1_Mus_M3_F3_ace-pie-bug",
  "datasetId": "xenium__MouseSpinalCord_Run4_Slide1_Mus_M3_F3_ace-pie-bug",

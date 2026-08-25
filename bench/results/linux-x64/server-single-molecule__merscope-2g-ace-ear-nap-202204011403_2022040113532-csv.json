@@ -3,7 +3,7 @@
   "env": "linux-x64",
   "base": "http://localhost:3200",
   "region": "us-west-2",
-  "uploadedFrom": "cmm200-136.ucsd.edu"
+  "uploadedFrom": "workstation"
  },
  "path": "single-molecule/merscope-2g-ace-ear-nap-202204011403_20220401135320220401TREM5xADF12mo4hemip_VMSC00101-Region_0.csv",
  "datasetId": "single-molecule__merscope-2g-ace-ear-nap-202204011403_2022040113532-csv",

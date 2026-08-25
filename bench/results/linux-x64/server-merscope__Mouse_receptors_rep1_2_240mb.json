@@ -3,7 +3,7 @@
   "env": "linux-x64",
   "base": "http://localhost:3200",
   "region": "us-west-2",
-  "uploadedFrom": "cmm200-136.ucsd.edu"
+  "uploadedFrom": "workstation"
  },
  "path": "merscope/Mouse_receptors_rep1_2_240mb",
  "datasetId": "merscope__Mouse_receptors_rep1_2_240mb",

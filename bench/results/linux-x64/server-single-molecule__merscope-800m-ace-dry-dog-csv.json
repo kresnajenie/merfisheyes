@@ -3,7 +3,7 @@
   "env": "linux-x64",
   "base": "http://localhost:3200",
   "region": "us-west-2",
-  "uploadedFrom": "cmm200-136.ucsd.edu"
+  "uploadedFrom": "workstation"
  },
  "path": "single-molecule/merscope-800m-ace-dry-dog.csv",
  "datasetId": "single-molecule__merscope-800m-ace-dry-dog-csv",
