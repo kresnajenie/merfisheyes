@@ -1,0 +1,47 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "platform": "linux 6.8.0-136-generic",
+  "arch": "x64",
+  "cpu": "AMD Ryzen Threadripper PRO 5975WX 32-Cores",
+  "cores": 64,
+  "totalRamGB": 503.52,
+  "node": "v24.14.0",
+  "chromium": "149.0.7827.55",
+  "base": "http://localhost:3100",
+  "heapCapMB": null
+ },
+ "path": "xenium/MouseSpinalCord_Run2_Slide2_Mus_M2_F2_ace-pie-boo",
+ "datasetId": "xenium__MouseSpinalCord_Run2_Slide2_Mus_M2_F2_ace-pie-boo",
+ "format": "xenium",
+ "sizeGB": 0.912,
+ "relevantGB": 0.013,
+ "shape": {
+  "cells": 239887,
+  "genes": 541,
+  "molecules": null
+ },
+ "outcome": "ok",
+ "processMs": 7081,
+ "sceneMs": 6973,
+ "peakRssGB": 2.57,
+ "jsHeapGB": null,
+ "hooks": true,
+ "error": null,
+ "stats": {
+  "pointCount": 239887,
+  "geneCount": 480,
+  "dimensions": 2,
+  "dataType": "single_cell"
+ },
+ "wallMs": 8165,
+ "inputFiles": 2,
+ "inputGB": 0.03,
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/",
+  "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+  "l: There was a problem with the server configuration. Check the server logs for more information.. Read more at https://errors.authjs.dev#autherror\n    at r (http://localhost:3100/_next/static/chunks/"
+ ]
+}

@@ -36,6 +36,12 @@ export default async function AdminLayout({
           </NextLink>
           <NextLink
             className="text-sm px-3 py-2 rounded-lg hover:bg-default-100 transition-colors"
+            href="/admin/failures"
+          >
+            Failures
+          </NextLink>
+          <NextLink
+            className="text-sm px-3 py-2 rounded-lg hover:bg-default-100 transition-colors"
             href="/admin/datasets"
           >
             Datasets

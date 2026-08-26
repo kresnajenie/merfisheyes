@@ -240,6 +240,54 @@ function yieldToEventLoop(): Promise<void> {
  * Gene order is positional and must match `genes` here (which mirrors
  * expr/index.json on disk).
  */
+/**
+ * Serialize DeStats in the de/{col}.bin.gz layout (inverse of
+ * parseDeStatsBuffer; identical to write_de_stats_binary in
+ * scripts/process_spatial_data.py):
+ *   [u32 version=1][u32 G][u32 C][u32 0]
+ *   C × ([u32 nameLen][utf-8 name])
+ *   u32 cellCounts[C]
+ *   f32 means[G*C] (gene-major)   f32 pctExpressing[G*C]
+ */
+export function encodeDeStatsBuffer(stats: DeStats): Uint8Array {
+  const G = stats.genes.length;
+  const C = stats.celltypes.length;
+  const encoder = new TextEncoder();
+  const names = stats.celltypes.map((n) => encoder.encode(n));
+  const namesBytes = names.reduce((sum, b) => sum + 4 + b.length, 0);
+  const total = 16 + namesBytes + C * 4 + G * C * 4 * 2;
+  const out = new Uint8Array(total);
+  const view = new DataView(out.buffer);
+  let offset = 0;
+
+  view.setUint32(0, 1, true);
+  view.setUint32(4, G, true);
+  view.setUint32(8, C, true);
+  view.setUint32(12, 0, true);
+  offset = 16;
+  for (const b of names) {
+    view.setUint32(offset, b.length, true);
+    offset += 4;
+    out.set(b, offset);
+    offset += b.length;
+  }
+  for (let c = 0; c < C; c++) {
+    view.setUint32(offset, stats.cellCounts[c], true);
+    offset += 4;
+  }
+  // Write floats through the DataView: `offset` is not necessarily 4-aligned.
+  for (let i = 0; i < G * C; i++) {
+    view.setFloat32(offset, stats.means[i], true);
+    offset += 4;
+  }
+  for (let i = 0; i < G * C; i++) {
+    view.setFloat32(offset, stats.pctExpressing[i], true);
+    offset += 4;
+  }
+
+  return out;
+}
+
 export function parseDeStatsBuffer(
   buffer: ArrayBuffer,
   column: string,

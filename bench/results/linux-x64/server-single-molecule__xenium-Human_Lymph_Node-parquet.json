@@ -1,0 +1,73 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "workstation"
+ },
+ "path": "single-molecule/xenium-Human_Lymph_Node.parquet",
+ "datasetId": "single-molecule__xenium-Human_Lymph_Node-parquet",
+ "format": "single-molecule",
+ "sizeGB": 2.776,
+ "relevantGB": null,
+ "shape": {
+  "cells": null,
+  "genes": null,
+  "molecules": 232650139
+ },
+ "uploadFiles": 1,
+ "uploadGB": 2.776,
+ "outcome": "oom",
+ "processMs": 12800,
+ "peakRssGB": null,
+ "clientUploadMs": 35568,
+ "uploadMBps": 83.8,
+ "queueMs": 166124,
+ "jobTotalMs": 87648,
+ "computeTier": "16384",
+ "batchJobId": "9029db9f-df69-4a77-b7d6-860e0959cc8b",
+ "error": "OutOfMemoryError: container killed due to memory usage",
+ "datasetRowId": "sm_BdIH7B0HMj",
+ "chunkWriteMs": null,
+ "stages": {
+  "step1": {
+   "at": 0,
+   "label": "Reading input file"
+  }
+ },
+ "oom": true,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfisheyes.com%2Fapi%2Fingest%2Fs",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfisheyes.com%2Fapi%2Fingest%2Fs"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 176790,
+    "status": "FAILED",
+    "usd": 0.0114
+   },
+   {
+    "tier": "32GB",
+    "vcpu": 8.0,
+    "memGB": 32.0,
+    "runtimeMs": 429275,
+    "status": "SUCCEEDED",
+    "usd": 0.0556
+   }
+  ],
+  "totalUsd": 0.067,
+  "outputBytes": 1876095956,
+  "outputUsdMonth": 0.0402
+ },
+ "escalation": {
+  "tier": "32768",
+  "outcome": "ok",
+  "processMs": 347100,
+  "peakRssGB": 20.8
+ }
+}

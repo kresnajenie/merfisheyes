@@ -31,7 +31,10 @@ import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { getSingleMoleculeWorker } from "@/lib/workers/singleMoleculeWorkerManager";
 import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
-import { classifyFolder } from "@/lib/ingest/classify-folder";
+import {
+  classifyFolder,
+  fallbackSingleMoleculeFile,
+} from "@/lib/ingest/classify-folder";
 import { useUploadStore } from "@/lib/stores/uploadStore";
 import { AuthModal } from "@/components/auth-modal";
 
@@ -383,27 +386,38 @@ export function FileUpload({
     // reads — a Xenium export is mostly images and QC output, and uploading it
     // whole means sending gigabytes nothing will open.
     const classification = classifyFolder(files);
-    const selected =
+    let selected =
       kind === "single_molecule"
         ? classification.singleMolecule
         : classification.singleCell;
 
+    // Explicit single-molecule upload with no transcripts-style name (e.g.
+    // "spots_set4.parquet"): the worker accepts any lone .csv/.parquet, so a
+    // single candidate is unambiguous — mirror that instead of erroring.
+    if (!selected && kind === "single_molecule") {
+      selected = fallbackSingleMoleculeFile(files) ?? undefined;
+    }
+
     if (!selected) {
       toast.error(
-        `No ${kind === "single_molecule" ? "single-molecule" : "single-cell"} data found in that folder.`,
+        kind === "single_molecule"
+          ? "No single-molecule data found — pick one .parquet or .csv transcripts file."
+          : "No single-cell data found in that folder.",
       );
 
       return;
     }
 
-    if (classification.ignored.length > 0) {
-      const skippedBytes = classification.ignored.reduce(
-        (sum, f) => sum + f.file.size,
-        0,
-      );
+    const selectedKeys = new Set(selected.files.map((f) => f.key));
+    const ignored = classification.ignored.filter(
+      (e) => !selectedKeys.has(e.key),
+    );
+
+    if (ignored.length > 0) {
+      const skippedBytes = ignored.reduce((sum, f) => sum + f.file.size, 0);
 
       toast(
-        `Uploading ${selected.files.length} of ${files.length} files — skipping ${classification.ignored.length} the processor doesn't read (${(skippedBytes / 1024 ** 2).toFixed(0)} MB).`,
+        `Uploading ${selected.files.length} of ${files.length} files — skipping ${ignored.length} the processor doesn't read (${(skippedBytes / 1024 ** 2).toFixed(0)} MB).`,
       );
     }
 

@@ -57,29 +57,51 @@ function getEntryHref(entry: CatalogDatasetEntry): string {
   return "#";
 }
 
+/**
+ * Thumbnail for an entry. App datasets resolve LIVE through the thumbnail
+ * proxy — `/api/datasets/{id}/thumbnail` always serves the dataset's current
+ * image — so an owner changing their thumbnail is reflected here without
+ * re-submitting. The entry's stored thumbnailUrl remains the source for
+ * BIL/S3 entries (static images, no datasetId) and as a fallback.
+ */
+function entryThumbnailSrc(entry: CatalogDatasetEntry): string | null {
+  if (entry.datasetId) return `/api/datasets/${entry.datasetId}/thumbnail`;
+
+  return entry.thumbnailUrl;
+}
+
 function EntryCard({
   entry,
   color,
   large,
   onSelect,
+  actions,
 }: {
   entry: CatalogDatasetEntry;
   color: "blue" | "purple";
   large?: boolean;
   onSelect?: (entry: CatalogDatasetEntry) => void;
+  /** Overlay controls (e.g. an owner's Remove button), top-right of the card. */
+  actions?: React.ReactNode;
 }) {
   const s = COLOR_STYLES[color];
   const className = `group rounded-xl border ${s.border} ${s.bg} overflow-hidden transition-all block w-full text-left`;
+  const thumbSrc = entryThumbnailSrc(entry);
   const body = (
     <>
-      {entry.thumbnailUrl ? (
+      {thumbSrc ? (
         <div
           className={`relative w-full ${large ? "aspect-[4/3]" : "aspect-[16/10]"} bg-default-100`}
         >
           <img
             alt={entry.label}
             className="w-full h-full object-cover"
-            src={entry.thumbnailUrl}
+            src={thumbSrc}
+            onError={(e) => {
+              // Dataset has no thumbnail (proxy 404s) — collapse to the
+              // accent strip instead of a broken-image icon.
+              e.currentTarget.parentElement!.style.display = "none";
+            }}
           />
           <div
             className={`absolute top-2 left-2 w-2 h-2 rounded-full ${s.accent}`}
@@ -113,22 +135,24 @@ function EntryCard({
     </>
   );
 
-  if (onSelect) {
-    return (
-      <button
-        className={className}
-        type="button"
-        onClick={() => onSelect(entry)}
-      >
-        {body}
-      </button>
-    );
-  }
-
-  return (
+  const card = onSelect ? (
+    <button className={className} type="button" onClick={() => onSelect(entry)}>
+      {body}
+    </button>
+  ) : (
     <a className={className} href={getEntryHref(entry)}>
       {body}
     </a>
+  );
+
+  if (!actions) return card;
+
+  // Overlay is a sibling of the link/button so clicking it doesn't navigate.
+  return (
+    <div className="relative">
+      {card}
+      <div className="absolute top-2 right-2 z-10">{actions}</div>
+    </div>
   );
 }
 
@@ -142,6 +166,8 @@ interface Props {
   backLabel?: string;
   /** Owner controls (Edit / Submit / …) rendered top-right of the header. */
   headerActions?: React.ReactNode;
+  /** Per-entry overlay controls (e.g. an owner's Remove button). */
+  entryActions?: (entry: CatalogDatasetEntry) => React.ReactNode;
 }
 
 export function DatasetDetailPage({
@@ -150,6 +176,7 @@ export function DatasetDetailPage({
   onBack,
   backLabel = "← Back to Explore",
   headerActions,
+  entryActions,
 }: Props) {
   const router = useRouter();
   const [showAllGenes, setShowAllGenes] = useState(false);
@@ -180,7 +207,9 @@ export function DatasetDetailPage({
       {/* Header */}
       <div className="space-y-2">
         {headerActions && (
-          <div className="flex flex-wrap justify-end gap-2">{headerActions}</div>
+          <div className="flex flex-wrap justify-end gap-2">
+            {headerActions}
+          </div>
         )}
         <div className="flex items-start gap-2 flex-wrap">
           {dataset.bilCode && (
@@ -223,51 +252,46 @@ export function DatasetDetailPage({
         )}
       </div>
 
-      {/* Entries — SC large on left, SM grid on right */}
-      {(scEntries.length > 0 || smEntries.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Single Cell — takes 1 column, large cards */}
-          {scEntries.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
-                Single Cell
-              </h2>
-              <div className="grid gap-3">
-                {scEntries.map((entry) => (
-                  <EntryCard
-                    key={entry.id}
-                    large
-                    color="blue"
-                    entry={entry}
-                    onSelect={onSelectEntry}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+      {/* Entries — full-width horizontal sections: SC rows first, SM below.
+          Each section flows its cards in responsive rows so projects with
+          many datasets of one type use the whole page width instead of a
+          single narrow column. */}
+      {scEntries.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
+            Single Cell{scEntries.length > 1 ? ` (${scEntries.length})` : ""}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {scEntries.map((entry) => (
+              <EntryCard
+                key={entry.id}
+                large
+                actions={entryActions?.(entry)}
+                color="blue"
+                entry={entry}
+                onSelect={onSelectEntry}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
-          {/* Single Molecule — takes 2 columns, smaller cards */}
-          {smEntries.length > 0 && (
-            <div
-              className={`space-y-2 ${scEntries.length > 0 ? "md:col-span-2" : "md:col-span-3"}`}
-            >
-              <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
-                Single Molecule ({smEntries.length})
-              </h2>
-              <div
-                className={`grid grid-cols-2 ${scEntries.length > 0 ? "lg:grid-cols-3" : "lg:grid-cols-4"} gap-2`}
-              >
-                {smEntries.map((entry) => (
-                  <EntryCard
-                    key={entry.id}
-                    color="purple"
-                    entry={entry}
-                    onSelect={onSelectEntry}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+      {smEntries.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
+            Single Molecule ({smEntries.length})
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            {smEntries.map((entry) => (
+              <EntryCard
+                key={entry.id}
+                actions={entryActions?.(entry)}
+                color="purple"
+                entry={entry}
+                onSelect={onSelectEntry}
+              />
+            ))}
+          </div>
         </div>
       )}
 

@@ -138,3 +138,17 @@ docs-private/
 __pycache__/
 *.pyc
 *.pyo
+
+# Pipeline parity harness work dir (scripts/parity/run.py)
+.parity/
+
+# Benchmark drop folder: keep the structure, never commit the datasets
+bench/datasets/**
+!bench/datasets/
+!bench/datasets/*/
+!bench/datasets/**/.gitkeep
+!bench/datasets/**/README.md
+bench/datasets.json
+
+# Benchmark staging dir (scripts/bench/local-run.mjs)
+.bench-stage/

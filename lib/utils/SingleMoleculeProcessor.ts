@@ -98,8 +98,12 @@ export class SingleMoleculeProcessor {
 
       const sanitizedName = this.sanitizeGeneName(gene);
 
-      // Process assigned coordinates
-      const coordinates = dataset.getCoordinatesByGene(gene);
+      // Process assigned coordinates. A gene whose molecules are ALL
+      // unassigned has no entry in the gene index — it still gets an (empty)
+      // assigned file, like the server pipeline writes.
+      const coordinates = dataset.hasAssignedMolecules(gene)
+        ? dataset.getCoordinatesByGene(gene)
+        : null;
 
       if (coordinates && coordinates.length > 0) {
         const float32Array = new Float32Array(coordinates);

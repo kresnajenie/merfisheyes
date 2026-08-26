@@ -268,6 +268,13 @@ model Dataset {
   batchJobId         String? @map("batch_job_id")
   processingParams   Json?   @map("processing_params")
   processingProgress Json?   @map("processing_progress")
+  // Compute tier the current/last processing job ran on (see COMPUTE_TIERS in
+  // lib/batch.ts). Lets a retry escalate from the tier that actually failed
+  // rather than the owner's default. Null on rows submitted before this existed.
+  computeTier        String? @map("compute_tier") @db.VarChar(20)
+  // Number of processing jobs submitted for this dataset (first run = 1). Caps
+  // automatic OOM escalation.
+  processingAttempts Int     @default(0) @map("processing_attempts")
   // Normalized S3 base URL for datasets registered from a raw S3 link.
   // Unique so re-registering the same URL dedups to one row.
   s3BaseUrl      String?         @unique @map("s3_base_url") @db.VarChar(1000)

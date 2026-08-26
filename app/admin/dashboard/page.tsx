@@ -12,21 +12,7 @@ import {
   TableRow,
   TableCell,
 } from "@heroui/table";
-import { toast } from "react-toastify";
-
-type Fault = "USER" | "PLATFORM" | "UNKNOWN";
-
-interface Failure {
-  id: string;
-  title: string | null;
-  datasetType: string | null;
-  errorMessage: string | null;
-  faultCategory: Fault | null;
-  autoLabel: string;
-  createdAt: string;
-  completedAt: string | null;
-  owner: { name: string | null; email: string | null } | null;
-}
+import NextLink from "next/link";
 
 interface PerUser {
   userId: string;
@@ -50,7 +36,6 @@ interface Stats {
     active7: number;
     active30: number;
   };
-  failures: Failure[];
   perUser: PerUser[];
 }
 
@@ -72,16 +57,6 @@ const STATUS_COLOR: Record<
   COMPLETE: "success",
   FAILED: "danger",
 };
-
-const FAULTS: {
-  key: Fault;
-  label: string;
-  color: "warning" | "danger" | "default";
-}[] = [
-  { key: "USER", label: "User", color: "warning" },
-  { key: "PLATFORM", label: "Us", color: "danger" },
-  { key: "UNKNOWN", label: "?", color: "default" },
-];
 
 function StatTile({
   label,
@@ -105,17 +80,6 @@ function StatTile({
   );
 }
 
-function fmtDate(iso: string | null): string {
-  if (!iso) return "—";
-
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export default function AdminDashboardPage() {
   const [data, setData] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,30 +94,6 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const setFault = async (id: string, next: Fault | null) => {
-    // Optimistic — the tag flips instantly.
-    setData((d) =>
-      d
-        ? {
-            ...d,
-            failures: d.failures.map((f) =>
-              f.id === id ? { ...f, faultCategory: next } : f,
-            ),
-          }
-        : d,
-    );
-    const res = await fetch(`/api/admin/processing/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ faultCategory: next }),
-    });
-
-    if (!res.ok) {
-      toast.error("Couldn't update the fault tag.");
-      load();
-    }
-  };
 
   if (loading) {
     return (
@@ -217,98 +157,23 @@ export default function AdminDashboardPage() {
         <StatTile label="Active users (30d)" value={data.recent.active30} />
       </div>
 
-      {/* Failures */}
+      {/* Failures — the full sortable/paginated table lives on its own page. */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">
-          Recent failures ({data.failures.length})
-        </h2>
-        {data.failures.length === 0 ? (
+        <h2 className="text-lg font-semibold">Failures</h2>
+        {data.failedCount === 0 ? (
           <p className="py-6 text-center text-default-500">No failures. 🎉</p>
         ) : (
-          <Table removeWrapper aria-label="Recent failures">
-            <TableHeader>
-              <TableColumn>DATASET</TableColumn>
-              <TableColumn>OWNER</TableColumn>
-              <TableColumn>WHY</TableColumn>
-              <TableColumn>ERROR</TableColumn>
-              <TableColumn>FAULT</TableColumn>
-              <TableColumn>WHEN</TableColumn>
-            </TableHeader>
-            <TableBody>
-              {data.failures.map((f) => (
-                <TableRow key={f.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="max-w-[220px] truncate text-sm font-medium">
-                        {f.title || "Untitled"}
-                      </span>
-                      <span className="text-[11px] text-default-400">
-                        {f.datasetType ?? "—"} · {f.id}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {f.owner?.email ? (
-                      <a
-                        className="text-sm text-primary hover:underline"
-                        href={`mailto:${f.owner.email}?subject=${encodeURIComponent(
-                          `Your MERFISHEYES upload "${f.title || f.id}"`,
-                        )}`}
-                      >
-                        {f.owner.name || f.owner.email}
-                      </a>
-                    ) : (
-                      <span className="text-sm text-default-400">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="sm" variant="flat">
-                      {f.autoLabel}
-                    </Chip>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className="block max-w-[280px] truncate text-xs text-default-500"
-                      title={f.errorMessage ?? ""}
-                    >
-                      {f.errorMessage || "—"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {FAULTS.map((opt) => {
-                        const active = f.faultCategory === opt.key;
-
-                        return (
-                          <button
-                            key={opt.key}
-                            type="button"
-                            onClick={() =>
-                              setFault(f.id, active ? null : opt.key)
-                            }
-                          >
-                            <Chip
-                              className="cursor-pointer"
-                              color={active ? opt.color : "default"}
-                              size="sm"
-                              variant={active ? "solid" : "bordered"}
-                            >
-                              {opt.label}
-                            </Chip>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="whitespace-nowrap text-xs text-default-400">
-                      {fmtDate(f.completedAt ?? f.createdAt)}
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <p className="text-sm text-default-500">
+            {data.failedCount} failed upload{data.failedCount === 1 ? "" : "s"}{" "}
+            —{" "}
+            <NextLink
+              className="text-primary hover:underline"
+              href="/admin/failures"
+            >
+              review them on the Failures page
+            </NextLink>
+            .
+          </p>
         )}
       </section>
 

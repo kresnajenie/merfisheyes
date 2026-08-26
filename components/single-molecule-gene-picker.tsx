@@ -5,7 +5,7 @@ import { Input } from "@heroui/input";
 import { Checkbox } from "@heroui/checkbox";
 import { Switch } from "@heroui/switch";
 import { Tooltip } from "@heroui/tooltip";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 
 import {
@@ -27,6 +27,10 @@ export function SingleMoleculeGenePicker() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"alpha" | "count">("alpha");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  // Xenium panels can carry thousands of genes; rendering them all in one
+  // list makes the panel lag, so page it like the single-cell panel does.
+  const GENES_PER_PAGE = 250;
+  const [currentPage, setCurrentPage] = useState(1);
 
   const dataset = usePanelSingleMoleculeStore((state) => {
     const id = state.currentDatasetId;
@@ -74,6 +78,16 @@ export function SingleMoleculeGenePicker() {
 
     return filtered;
   }, [dataset, searchTerm, sortBy, sortDir]);
+
+  // Back to page 1 whenever the visible set changes.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortBy, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredGenes.length / GENES_PER_PAGE));
+  const startIndex = (Math.min(currentPage, totalPages) - 1) * GENES_PER_PAGE;
+  const endIndex = startIndex + GENES_PER_PAGE;
+  const paginatedGenes = filteredGenes.slice(startIndex, endIndex);
 
   if (!dataset) {
     return (
@@ -205,7 +219,7 @@ export function SingleMoleculeGenePicker() {
           Abbreviated counts stay inline; native title= shows full precision. */}
       <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
         {filteredGenes.length > 0 ? (
-          filteredGenes.map((gene) => {
+          paginatedGenes.map((gene) => {
             const counts = dataset.moleculeCounts?.[gene];
             const title = counts
               ? `${counts.assigned.toLocaleString()} assigned${counts.unassigned != null ? ` | ${counts.unassigned.toLocaleString()} unassigned` : ""}`
@@ -227,8 +241,11 @@ export function SingleMoleculeGenePicker() {
                 >
                   <span className="text-sm">
                     {gene}
+                    {/* Count is visual only: the checkbox's accessible name stays
+                        the gene (screen readers / e2e address it by name; the
+                        full counts are in the row's title). */}
                     {counts && (
-                      <span className="text-default-400 ml-1">
+                      <span aria-hidden="true" className="text-default-400 ml-1">
                         {formatCount(counts.assigned)}
                         {counts.unassigned != null &&
                           ` | ${formatCount(counts.unassigned)}`}
@@ -246,9 +263,37 @@ export function SingleMoleculeGenePicker() {
         )}
       </div>
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-between items-center gap-2">
+          <Button
+            isDisabled={currentPage === 1}
+            size="sm"
+            variant="flat"
+            onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+          <span className="text-xs text-default-500">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            isDisabled={currentPage >= totalPages}
+            size="sm"
+            variant="flat"
+            onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
+      )}
+
       {/* Gene count info */}
       <div className="text-xs text-default-400 text-center pt-2 border-t border-default-200">
-        Showing {filteredGenes.length} of {dataset.uniqueGenes.length || 0}{" "}
+        Showing {filteredGenes.length === 0 ? 0 : startIndex + 1}-
+        {Math.min(endIndex, filteredGenes.length)} of {filteredGenes.length}
+        {filteredGenes.length !== dataset.uniqueGenes.length &&
+          ` (filtered from ${dataset.uniqueGenes.length})`}{" "}
         genes
       </div>
     </div>

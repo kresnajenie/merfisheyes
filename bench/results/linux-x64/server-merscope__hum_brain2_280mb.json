@@ -1,0 +1,79 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "workstation"
+ },
+ "path": "merscope/hum_brain2_280mb",
+ "datasetId": "merscope__hum_brain2_280mb",
+ "format": "merscope",
+ "sizeGB": 0.302,
+ "relevantGB": 0.302,
+ "shape": {
+  "cells": 137627,
+  "genes": 1000,
+  "molecules": null
+ },
+ "uploadFiles": 2,
+ "uploadGB": 0.302,
+ "outcome": "ok",
+ "processMs": 100600,
+ "peakRssGB": 2.69,
+ "clientUploadMs": 7834,
+ "uploadMBps": 41.4,
+ "queueMs": 32582,
+ "jobTotalMs": 147471,
+ "computeTier": "16384",
+ "batchJobId": "ded8e595-b259-4103-917a-d49becfb8201",
+ "error": null,
+ "datasetRowId": "ds_znG9oP0dOU",
+ "chunkWriteMs": 79100,
+ "stages": {
+  "step1": {
+   "at": 2200,
+   "label": "Processing spatial coordinates"
+  },
+  "step2": {
+   "at": 2200,
+   "label": "No embeddings to process"
+  },
+  "step3": {
+   "at": 2200,
+   "label": "Processing 18 observation column"
+  },
+  "step4": {
+   "at": 3000,
+   "label": "Processing expression matrix"
+  },
+  "step4.5": {
+   "at": 89600,
+   "label": "Writing DE stats for 2 categorical column"
+  },
+  "step5": {
+   "at": 100600,
+   "label": "Creating manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfisheyes.com%2Fapi%2Fingest%2Fd",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"protection\":{\"auto_vercel_auth_redirect\":true,\"password_enabled\":false,\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"h",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"error\":{\"code\":\"401\",\"message\":\"Protected deployment\"},\"protection\":{\"password_enabled\":false,\"vercel_auth_enabled\":true,\"v"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 147471,
+    "status": "SUCCEEDED",
+    "usd": 0.0095
+   }
+  ],
+  "totalUsd": 0.0095,
+  "outputBytes": 53804827,
+  "outputUsdMonth": 0.0012
+ }
+}

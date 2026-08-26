@@ -1,8 +1,10 @@
 // /src/data/adapters/XeniumAdapter.ts
 import Papa, { ParseResult } from "papaparse";
+import h5wasm from "h5wasm";
 import { ungzip } from "pako";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { buildObsColumnsFromRows } from "./table-obs-columns";
 
 import { fileToTextMaybeGz } from "@/lib/utils/gzip";
 import { shouldFilterGene } from "@/lib/utils/gene-filters";
@@ -240,6 +242,15 @@ export class XeniumAdapter {
       }
     }
 
+    // Current Xenium exports ship expression only as the 10x HDF5 matrix.
+    if (!gotExpr) {
+      try {
+        gotExpr = await this._ingestFromH5Matrix();
+      } catch (e) {
+        console.warn("[XeniumAdapter] cell_feature_matrix.h5 ingestion failed:", e);
+      }
+    }
+
     // 7) Fallback: disabled to avoid huge allocations from cells.csv wide columns
 
     this._applyGeneFilters();
@@ -349,6 +360,27 @@ export class XeniumAdapter {
     }
 
     return { column: clusterColumn, values: [], valueIndices, palette, uniqueValues: uniq };
+  }
+
+  /**
+   * Every metadata column of cells.csv (not just the detected cluster
+   * column), same rules as the server pipeline. The detected cluster column
+   * comes first so the viewer's default pick is unchanged.
+   */
+  async loadAllClusters(): Promise<ClusterData[]> {
+    if (!this._rows.length) return [];
+    const { xKey, yKey } = detectCentroidKeys(this._rows[0]);
+    const columns = buildObsColumnsFromRows(this._rows, {
+      coordinateKeys: [xKey, yKey],
+      geneNames: this._genes,
+    });
+
+    if (columns.length === 0) return [await this.loadClusters()];
+    const first = this._clusterColumn;
+
+    return first
+      ? [...columns.filter((c) => c.column === first), ...columns.filter((c) => c.column !== first)]
+      : columns;
   }
 
   // ---- obs/var interface expected by StandardizedDataset ----
@@ -617,6 +649,112 @@ export class XeniumAdapter {
     console.log(
       `[XeniumAdapter] Ingested expression from transcripts.csv: genes=${this._genes.length}`,
     );
+  }
+
+  /**
+   * Expression from the 10x HDF5 matrix (`cell_feature_matrix.h5`) — how
+   * current Xenium exports ship it (often with no MEX copy at all). The
+   * layout is CSC over cells: /matrix/{data,indices,indptr,shape} with
+   * indices holding gene rows, plus /matrix/features/name for gene symbols
+   * (used when features.tsv was absent). Cell order is positional, the same
+   * assumption the matrix.mtx path makes.
+   */
+  async _ingestFromH5Matrix(): Promise<boolean> {
+    const h5FileObj = this._findFileOneOf(["cell_feature_matrix.h5"]);
+
+    if (!h5FileObj) return false;
+    const nCells = this._rows.length;
+
+    if (!nCells) return false;
+
+    const { FS } = await h5wasm.ready;
+    const vName = `xenium_cfm_${Date.now()}.h5`;
+
+    FS!.writeFile(vName, new Uint8Array(await h5FileObj.arrayBuffer()));
+    let f: InstanceType<typeof h5wasm.File> | null = null;
+
+    try {
+      f = new h5wasm.File(vName, "r");
+      const m = f.get("matrix") as any;
+
+      if (!m) {
+        console.warn("[XeniumAdapter] cell_feature_matrix.h5 has no /matrix group.");
+
+        return false;
+      }
+      const shape = Array.from(m.get("shape").value as ArrayLike<number | bigint>, Number);
+      const [nGenesH5, nCellsH5] = shape;
+
+      if (nCellsH5 !== nCells) {
+        console.warn(
+          `[XeniumAdapter] cell_feature_matrix.h5 cell count (${nCellsH5}) != cells.csv rows (${nCells}); skipping.`,
+        );
+
+        return false;
+      }
+
+      if (!this._genes.length) {
+        const rawNames = m.get("features/name")?.value as ArrayLike<unknown> | undefined;
+
+        if (rawNames) this._genes = Array.from(rawNames, (v) => String(v));
+      }
+      if (!this._genes.length) {
+        console.warn("[XeniumAdapter] cell_feature_matrix.h5 found but no gene names available.");
+
+        return false;
+      }
+      if (this._genes.length !== nGenesH5) {
+        console.warn(
+          `[XeniumAdapter] gene name count (${this._genes.length}) != matrix rows (${nGenesH5}); truncating.`,
+        );
+        this._genes = this._genes.slice(0, nGenesH5);
+      }
+
+      // Dense per-gene vectors are this adapter's storage format; refuse
+      // allocations that cannot fit a browser heap so a huge panel degrades
+      // to cells-only instead of killing the tab.
+      const denseBytes = this._genes.length * nCells * 4;
+
+      if (denseBytes > 3e9) {
+        console.warn(
+          `[XeniumAdapter] expression would need ${(denseBytes / 1e9).toFixed(1)} GB dense; ` +
+            "too large for the browser — loading cells only.",
+        );
+
+        return false;
+      }
+
+      const data = m.get("data").value as ArrayLike<number | bigint>;
+      const indices = m.get("indices").value as ArrayLike<number | bigint>;
+      const indptr = m.get("indptr").value as ArrayLike<number | bigint>;
+
+      this._exprByGene.clear();
+      const vecs = this._genes.map(() => new Float32Array(nCells));
+
+      for (let c = 0; c < nCells; c++) {
+        const s0 = Number(indptr[c]);
+        const s1 = Number(indptr[c + 1]);
+
+        for (let k = s0; k < s1; k++) {
+          const g = Number(indices[k]);
+
+          if (g < vecs.length) vecs[g][c] = Number(data[k]);
+        }
+      }
+      this._genes.forEach((g, i) => this._exprByGene.set(g, vecs[i]));
+      console.log(
+        `[XeniumAdapter] Ingested expression from cell_feature_matrix.h5: genes=${this._genes.length}`,
+      );
+
+      return true;
+    } finally {
+      try {
+        f?.close();
+      } catch {}
+      try {
+        FS!.unlink(vName);
+      } catch {}
+    }
   }
 
   async _ingestFromMatrixMarket(cellIdKey: string): Promise<boolean> {
@@ -1106,9 +1244,17 @@ async function parseFeaturesFile(file: File): Promise<FeatureEntry[]> {
 
   const delim = lines[0].includes("\t") ? "\t" : ",";
   const firstParts = lines[0].split(delim).map((s) => s.trim());
-  const looksLikeHeader = firstParts.some((p) =>
-    /gene|feature|target|type|id/.test(p.toLowerCase()),
-  );
+  // The 10x features.tsv has no header: "<id>\t<name>\t<feature type>". Its
+  // first row would pass a naive header sniff ("Gene Expression" contains
+  // "gene"), dropping the first gene — the server reads it headerless. Only
+  // treat the first line as a header when it doesn't look like a data row.
+  const FEATURE_TYPES =
+    /^(gene expression|negative control (probe|codeword)|unassigned codeword|deprecated codeword|blank codeword|genomic control|antibody capture|peaks)$/i;
+  const looksLikeDataRow =
+    firstParts.some((p) => FEATURE_TYPES.test(p)) || /^ENS[A-Z]*G\d+/.test(firstParts[0]);
+  const looksLikeHeader =
+    !looksLikeDataRow &&
+    firstParts.some((p) => /gene|feature|target|type|id/.test(p.toLowerCase()));
 
   let startIdx = 0;
   let geneIdx = -1;

@@ -55,6 +55,18 @@ except ImportError:
 _t_start = None  # set in process_single_molecule_data / process_directory
 
 
+def peak_rss_gb() -> float:
+    """Peak RSS of this process and its reaped workers, in GB (Linux: KB)."""
+    try:
+        import resource
+        own = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        kids = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+        rss = max(own, kids)
+        return rss / (1024 ** 2) if sys.platform != "darwin" else rss / (1024 ** 3)
+    except Exception:
+        return float("nan")
+
+
 def fmt_elapsed(seconds):
     """Format elapsed time as human-readable string."""
     if seconds < 60:
@@ -327,18 +339,80 @@ def sanitize_gene_name(gene_name: str) -> str:
     return sanitized
 
 
-def round_coordinates(coordinates: np.ndarray) -> np.ndarray:
+def _round_column(values: np.ndarray) -> np.ndarray:
     """
-    Round coordinates to 2 decimal places.
-    Matches browser behavior: Math.round(x * 100) / 100
+    One coordinate column rounded to 2 decimal places, as float32.
 
-    Returns:
-        rounded: Coordinates rounded to 2dp
+    Rounds in float64 (np.round = round-half-even on x*100), then narrows to
+    float32 — the browser does the same (`round2` in lib/utils/coordinates.ts
+    on the column's values as doubles), so float32 parquet columns yield the
+    same bytes from both pipelines. Only one float64 column is live at a time.
     """
-    if len(coordinates) == 0:
-        return coordinates
+    arr = np.asarray(values, dtype=np.float64)
+    return np.round(arr, 2).astype(np.float32, copy=False)
 
-    return np.round(coordinates, 2)
+
+def stack_rounded_coords(x: np.ndarray, y: np.ndarray, z: Optional[np.ndarray]) -> np.ndarray:
+    """Rounded float32 (N, 3) coordinates; z is zeros for 2D data."""
+    xr = _round_column(x)
+    yr = _round_column(y)
+    zr = _round_column(z) if z is not None else np.zeros_like(xr)
+    return np.column_stack([xr, yr, zr])
+
+
+def progressive_order(n: int) -> np.ndarray:
+    """
+    Indices 0..n-1 in bit-reversal order, so any prefix is spread evenly over
+    the whole range.
+
+    Gene files are streamed into the viewer as they download, so the stored
+    order decides what a half-loaded gene looks like: source order fills one
+    corner of the slide first, bit-reversal order shows the whole slide
+    immediately and just densifies. Pure function of n (no RNG) and identical
+    to progressiveOrder() in lib/utils/progressive-order.ts, so the browser
+    pipeline writes byte-identical files.
+    """
+    if n < 2:
+        return np.arange(n, dtype=np.uint32)
+
+    bits = int(n - 1).bit_length()
+    size = 1 << bits
+
+    # Vectorised bit reversal of 0..size-1.
+    idx = np.arange(size, dtype=np.uint32)
+    rev = np.zeros(size, dtype=np.uint32)
+    for b in range(bits):
+        rev |= ((idx >> np.uint32(b)) & np.uint32(1)) << np.uint32(bits - 1 - b)
+
+    return rev[rev < n]
+
+
+def build_gene_index(genes, positions: np.ndarray) -> Dict[str, np.ndarray]:
+    """
+    Map gene name → molecule positions (in original order) for the molecules at
+    `positions`, without a pandas groupby.
+
+    Equivalent to `{g: grp['idx'].values for g, grp in DataFrame.groupby('gene')}`
+    with pandas' observed=False semantics: every category gets an entry (empty
+    when absent from this subset), NaN genes are dropped, and each gene's
+    positions keep their original order. A stable argsort over the category
+    codes does this in a couple of flat arrays instead of per-group DataFrames.
+    """
+    sub = genes[positions] if len(positions) != len(genes) else genes
+    cat = sub if isinstance(sub, pd.Categorical) else pd.Categorical(sub)
+    codes = np.asarray(cat.codes)
+    categories = list(cat.categories)
+    valid = codes >= 0
+    codes_v = codes[valid]
+    pos_v = np.asarray(positions)[valid]
+    order = np.argsort(codes_v, kind="stable")
+    sorted_pos = pos_v[order]
+    counts = np.bincount(codes_v, minlength=len(categories))
+    bounds = np.concatenate([[0], np.cumsum(counts)])
+    return {
+        categories[i]: sorted_pos[bounds[i]:bounds[i + 1]]
+        for i in range(len(categories))
+    }
 
 
 def _write_gene_file_worker(args):
@@ -416,36 +490,35 @@ def read_parquet_file(
         for c in (gene_col, x_col, y_col, z_col, cell_id_col)
         if c and c in schema_names
     ]
-    table = pq.read_table(file_path, columns=wanted)
-    df = table.to_pandas()
-
     # Verify required columns exist (only gene, x, y are required)
-    available_cols = set(df.columns)
     required_cols = {gene_col, x_col, y_col}
-
-    missing_cols = required_cols - available_cols
+    missing_cols = required_cols - schema_names
     if missing_cols:
         raise ValueError(
             f"Missing required columns: {missing_cols}\n"
-            f"Available columns: {sorted(available_cols)}\n"
+            f"Available columns: {sorted(schema_names)}\n"
             f"Expected columns: gene='{gene_col}', x='{x_col}', y='{y_col}'"
             + (f", z='{z_col}' (optional for 3D)" if z_col else "")
         )
 
-    # Extract data
-    genes = df[gene_col].values
-    x = df[x_col].values
-    y = df[y_col].values
+    table = pq.read_table(file_path, columns=wanted)
+
+    # Pull columns straight out of the Arrow table — `to_pandas()` on the whole
+    # table would hold a second copy of every column alongside the Arrow
+    # buffers. Gene names come out as a pandas Categorical (dictionary-encoded
+    # in the file), which is what the groupby below wants; coordinates are
+    # zero-copy numpy views (materialised only when nulls force it).
+    genes = table.column(gene_col).to_pandas().values
+    x = table.column(x_col).to_numpy(zero_copy_only=False)
+    y = table.column(y_col).to_numpy(zero_copy_only=False)
 
     # Check if 2D or 3D
-    if z_col and z_col in df.columns:
-        z = df[z_col].values
-        coords = np.column_stack([x, y, z])
+    if z_col and z_col in schema_names:
+        z = table.column(z_col).to_numpy(zero_copy_only=False)
         dimensions = 3
         log(f"  Detected 3D dataset (z column '{z_col}' found)")
     else:
-        z = np.zeros_like(x)
-        coords = np.column_stack([x, y, z])
+        z = None
         dimensions = 2
         if z_col:
             log(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
@@ -454,12 +527,15 @@ def read_parquet_file(
 
     # Read cell_id column if provided
     cell_ids = None
-    if cell_id_col and cell_id_col in df.columns:
-        cell_ids = df[cell_id_col].values
+    if cell_id_col and cell_id_col in schema_names:
+        cell_ids = table.column(cell_id_col).to_pandas().values
         n_unassigned = int(compute_unassigned_mask(cell_ids).sum())
         log(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
     elif cell_id_col:
         log(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
+
+    coords = stack_rounded_coords(x, y, z)
+    del table, x, y, z
 
     log(f"  Total molecules: {len(genes):,}")
     log(f"  Dimensions: {dimensions}D")
@@ -496,49 +572,71 @@ def read_csv_file(
         for c in (gene_col, x_col, y_col, z_col, cell_id_col)
         if c and c in header_cols
     ]
-    df = pd.read_csv(file_path, usecols=wanted)
-
     # Verify required columns exist (only gene, x, y are required)
-    available_cols = set(df.columns)
     required_cols = {gene_col, x_col, y_col}
-
-    missing_cols = required_cols - available_cols
+    missing_cols = required_cols - header_cols
     if missing_cols:
         raise ValueError(
             f"Missing required columns: {missing_cols}\n"
-            f"Available columns: {sorted(available_cols)}\n"
+            f"Available columns: {sorted(header_cols)}\n"
             f"Expected columns: gene='{gene_col}', x='{x_col}', y='{y_col}'"
             + (f", z='{z_col}' (optional for 3D)" if z_col else "")
         )
 
-    # Extract data
-    genes = df[gene_col].values
-    x = df[x_col].values
-    y = df[y_col].values
+    # Gene names must not become one Python string per row (gigabytes over
+    # tens of millions of rows). Preferred: pyarrow's CSV reader with the gene
+    # column dictionary-encoded while parsing — lowest peak memory and several
+    # times faster than pandas. Fallback (no pyarrow): pandas, then categorise.
+    # (pandas' own dtype={gene: "category"} is NOT used: categorising during
+    # parsing roughly doubles the peak.)
+    have_z = bool(z_col and z_col in header_cols)
+    have_cell = bool(cell_id_col and cell_id_col in header_cols)
+    if pq is not None:
+        import pyarrow as pa
+        import pyarrow.csv as pacsv
+
+        table = pacsv.read_csv(
+            file_path,
+            convert_options=pacsv.ConvertOptions(
+                include_columns=wanted,
+                column_types={gene_col: pa.dictionary(pa.int32(), pa.string())},
+            ),
+        )
+        genes = table.column(gene_col).to_pandas().values
+        x = table.column(x_col).to_numpy(zero_copy_only=False)
+        y = table.column(y_col).to_numpy(zero_copy_only=False)
+        z = table.column(z_col).to_numpy(zero_copy_only=False) if have_z else None
+        cell_ids = table.column(cell_id_col).to_pandas().values if have_cell else None
+        del table
+    else:
+        df = pd.read_csv(file_path, usecols=wanted)
+        genes = df[gene_col].astype("category").values
+        x = df[x_col].values
+        y = df[y_col].values
+        z = df[z_col].values if have_z else None
+        cell_ids = df[cell_id_col].values if have_cell else None
+        del df
 
     # Check if 2D or 3D
-    if z_col and z_col in df.columns:
-        z = df[z_col].values
-        coords = np.column_stack([x, y, z])
+    if have_z:
         dimensions = 3
         log(f"  Detected 3D dataset (z column '{z_col}' found)")
     else:
-        z = np.zeros_like(x)
-        coords = np.column_stack([x, y, z])
         dimensions = 2
         if z_col:
             log(f"  Detected 2D dataset (z column '{z_col}' not found in file)")
         else:
             log(f"  Detected 2D dataset (no z column specified)")
 
-    # Read cell_id column if provided
-    cell_ids = None
-    if cell_id_col and cell_id_col in df.columns:
-        cell_ids = df[cell_id_col].values
+    # Cell id column (optional)
+    if cell_ids is not None:
         n_unassigned = int(compute_unassigned_mask(cell_ids).sum())
         log(f"  Cell ID column '{cell_id_col}' found: {n_unassigned:,} unassigned ({n_unassigned/len(genes)*100:.1f}%)")
     elif cell_id_col:
         log(f"  Cell ID column '{cell_id_col}' not found in file, skipping assignment split")
+
+    coords = stack_rounded_coords(x, y, z)
+    del x, y, z
 
     log(f"  Total molecules: {len(genes):,}")
     log(f"  Dimensions: {dimensions}D")
@@ -606,52 +704,71 @@ def process_single_molecule_data(
     else:
         raise ValueError(f"Unsupported file type: {file_ext} (expected .parquet or .csv)")
 
-    total_molecules = len(genes)
+    rows_read = len(genes)
 
-    # Step 2: Round coordinates to 2dp
-    log(f"=== STEP 2: Rounding coordinates to 2 decimal places ===")
+    # Step 2: Coordinates were rounded to 2dp (float32) while reading.
+    # Molecules with a non-finite coordinate (or no gene) are dropped — same
+    # rule as the browser pipeline; never written as NaN or at 0,0.
+    log(f"=== STEP 2: Coordinates rounded to 2 decimal places ===")
 
-    rounded_coords = round_coordinates(coords)
+    finite = np.isfinite(coords[:, 0]) & np.isfinite(coords[:, 1])
+    if dimensions == 3:
+        finite &= np.isfinite(coords[:, 2])
+    # A missing gene is NaN/None OR an empty / whitespace-only name (the browser
+    # drops those rows too; they must never become a "" gene file).
+    if isinstance(genes, pd.Categorical):
+        blank_codes = [i for i, c in enumerate(genes.categories) if str(c).strip() == ""]
+        gene_missing = (genes.codes < 0) | np.isin(genes.codes, blank_codes)
+    else:
+        gene_series = pd.Series(genes)
+        gene_missing = (gene_series.isna() | (gene_series.astype("string").str.strip() == "")).to_numpy()
+    keep = finite & ~np.asarray(gene_missing)
+    dropped = int((~keep).sum())
+    if dropped:
+        keep_idx = np.flatnonzero(keep)
+        genes = genes[keep_idx]
+        coords = coords[keep_idx]
+        if cell_ids is not None:
+            cell_ids = cell_ids[keep_idx]
+        log(f"  Dropped {dropped:,} molecules with a missing gene or non-finite coordinates")
+
+    rounded_coords = coords
 
     log(f"  Coordinate range: x=[{rounded_coords[:,0].min():.2f}, {rounded_coords[:,0].max():.2f}], y=[{rounded_coords[:,1].min():.2f}, {rounded_coords[:,1].max():.2f}]")
 
     # Step 3: Build gene index using vectorized pandas groupby
     log(f"=== STEP 3: Building gene index (vectorized) ===")
 
-    has_unassigned = cell_ids is not None
+    # Categories that no surviving molecule uses (e.g. the blank name dropped
+    # above) must not become genes: the index/counts are built per category.
+    if isinstance(genes, pd.Categorical):
+        genes = genes.remove_unused_categories()
 
-    if has_unassigned:
+    has_cell_ids = cell_ids is not None
+
+    if has_cell_ids:
         # Split into assigned vs unassigned using boolean mask
         unassigned_mask = compute_unassigned_mask(cell_ids)
         assigned_mask = ~unassigned_mask
 
-        # Assigned gene index via groupby
-        assigned_indices = np.where(assigned_mask)[0]
-        assigned_genes = genes[assigned_indices]
-        df_assigned = pd.DataFrame({'gene': assigned_genes, 'idx': assigned_indices})
-        gene_index = {gene: group['idx'].values for gene, group in df_assigned.groupby('gene')}
-        del df_assigned
-
-        # Unassigned gene index via groupby
-        unassigned_indices_arr = np.where(unassigned_mask)[0]
-        unassigned_genes = genes[unassigned_indices_arr]
-        df_unassigned = pd.DataFrame({'gene': unassigned_genes, 'idx': unassigned_indices_arr})
-        unassigned_index = {gene: group['idx'].values for gene, group in df_unassigned.groupby('gene')}
-        del df_unassigned
+        # Assigned / unassigned gene indices (uint32 positions: half of int64)
+        assigned_indices = np.flatnonzero(assigned_mask).astype(np.uint32)
+        gene_index = build_gene_index(genes, assigned_indices)
+        unassigned_indices_arr = np.flatnonzero(unassigned_mask).astype(np.uint32)
+        unassigned_index = build_gene_index(genes, unassigned_indices_arr)
+        del assigned_indices, unassigned_indices_arr, assigned_mask, unassigned_mask
     else:
         # All molecules are assigned
-        df_all = pd.DataFrame({'gene': genes, 'idx': np.arange(len(genes))})
-        gene_index = {gene: group['idx'].values for gene, group in df_all.groupby('gene')}
-        del df_all
+        gene_index = build_gene_index(genes, np.arange(len(genes), dtype=np.uint32))
         unassigned_index = {}
 
     log(f"  Gene index built. Unique genes: {len(gene_index):,}")
-    if has_unassigned:
+    if has_cell_ids:
         total_assigned = sum(len(v) for v in gene_index.values())
         total_unassigned = sum(len(v) for v in unassigned_index.values())
         log(f"  Assigned molecules: {total_assigned:,}")
         log(f"  Unassigned molecules: {total_unassigned:,}")
-        log(f"  Genes with unassigned molecules: {len(unassigned_index):,}")
+        log(f"  Genes with unassigned molecules: {sum(1 for v in unassigned_index.values() if len(v)):,}")
 
     # Step 4: Filter genes
     log(f"=== STEP 4: Filtering control probes and unassigned genes ===")
@@ -672,54 +789,85 @@ def process_single_molecule_data(
     unique_genes = sorted(filtered_genes)
     total_genes = len(unique_genes)
 
+    # has_unassigned (manifest flag + `_uuuuuuuuuu` files) means there ARE
+    # unassigned molecules among the KEPT genes — a cell-id column with every
+    # molecule assigned is the same as no cell-id column. Matches the browser
+    # pipeline, which indexes after filtering.
+    has_unassigned = has_cell_ids and any(
+        len(unassigned_index.get(g, ())) for g in unique_genes
+    )
+
+    # statistics.total_molecules counts the molecules that made it into the
+    # output (kept genes only) — the same number the browser pipeline reports
+    # and the number that becomes the dataset card's molecule count.
+    total_molecules = sum(
+        len(gene_index.get(g, ())) + len(unassigned_index.get(g, ()))
+        for g in unique_genes
+    )
+    if total_molecules != rows_read:
+        log(f"  Molecules in output: {total_molecules:,} of {rows_read:,} rows read")
+
     if not manifest_only:
         genes_folder = output_path / "genes"
         genes_folder.mkdir(parents=True, exist_ok=True)
 
-        # Step 6: Write gene files
-        # Prepare worker args: pre-serialize coordinates to bytes in main process
-        # (numpy slicing is fast, avoids sending huge arrays to workers)
-        log(f"=== STEP 6: Preparing gene file data ===")
+        # Step 6: Write gene files, one gene at a time. Each gene's bytes are
+        # serialised right before they are written (or handed to a worker) and
+        # dropped afterwards — building every gene's payload up front held a
+        # full extra copy of all coordinates.
+        log(f"=== STEP 6: Writing gene files ===")
 
-        worker_args = []
-        for gene in unique_genes:
+        total_files = len(unique_genes)
+
+        def gene_args(gene: str):
             sanitized_name = sanitize_gene_name(gene)
 
-            # Assigned coordinates
+            # Assigned coordinates, written in progressive (bit-reversal)
+            # order so a partially streamed gene covers the whole slide.
             if gene in gene_index:
                 indices = gene_index[gene]
+                indices = indices[progressive_order(len(indices))]
                 assigned_bytes = rounded_coords[indices].flatten().astype(np.float32).tobytes()
             else:
                 assigned_bytes = b''
 
-            # Unassigned coordinates
-            if has_unassigned and gene in unassigned_index:
-                u_indices = unassigned_index[gene]
+            # Unassigned coordinates — only when this gene has some (no empty
+            # `_uuuuuuuuuu` files; the viewer treats a missing file as empty).
+            u_indices = unassigned_index.get(gene) if has_unassigned else None
+            if u_indices is not None and len(u_indices) > 0:
+                u_indices = u_indices[progressive_order(len(u_indices))]
                 unassigned_bytes = rounded_coords[u_indices].flatten().astype(np.float32).tobytes()
             else:
                 unassigned_bytes = None
 
-            worker_args.append((gene, sanitized_name, str(genes_folder), assigned_bytes, unassigned_bytes))
-
-        total_files = len(worker_args)
+            return (gene, sanitized_name, str(genes_folder), assigned_bytes, unassigned_bytes)
 
         log(f"  Writing {total_files} gene files (workers={num_workers})...")
 
         if num_workers > 1 and total_files > 1:
             effective_workers = min(num_workers, total_files)
+            max_in_flight = effective_workers * 4
             log(f"  Launching {effective_workers} workers...")
+            done_count = 0
+            in_flight: deque = deque()
             with ProcessPoolExecutor(max_workers=effective_workers) as pool:
-                futures = {pool.submit(_write_gene_file_worker, a): a[0] for a in worker_args}
-                done_count = 0
-                for future in as_completed(futures):
-                    future.result()
+                for gene in unique_genes:
+                    in_flight.append(pool.submit(_write_gene_file_worker, gene_args(gene)))
+                    # Bound the pickled payloads waiting in the pool.
+                    while len(in_flight) >= max_in_flight:
+                        in_flight.popleft().result()
+                        done_count += 1
+                        if done_count % max(1, total_files // 10) == 0 or done_count == total_files:
+                            log(f"  Writing gene files... ({done_count:,}/{total_files:,})")
+                while in_flight:
+                    in_flight.popleft().result()
                     done_count += 1
                     if done_count % max(1, total_files // 10) == 0 or done_count == total_files:
                         log(f"  Writing gene files... ({done_count:,}/{total_files:,})")
         else:
             # Serial fallback
-            for idx, args in enumerate(worker_args):
-                _write_gene_file_worker(args)
+            for idx, gene in enumerate(unique_genes):
+                _write_gene_file_worker(gene_args(gene))
                 if (idx + 1) % max(1, total_files // 10) == 0 or (idx + 1) == total_files:
                     log(f"  Writing gene files... ({idx + 1:,}/{total_files:,})")
 
@@ -740,7 +888,7 @@ def process_single_molecule_data(
     for gene in unique_genes:
         assigned = len(gene_index.get(gene, []))
         entry = {"assigned": assigned}
-        if has_unassigned:
+        if has_cell_ids:
             unassigned = len(unassigned_index.get(gene, []))
             entry["unassigned"] = unassigned
         gene_molecule_counts[gene] = entry
@@ -766,7 +914,8 @@ def process_single_molecule_data(
             "compression": "gzip",
             "coordinate_format": "float32_flat_array",
             "coordinate_range": "raw_rounded_2dp",
-            "scaling_factor": 1.0,
+            "molecule_order": "bitrev-v1",
+            "scaling_factor": 1,  # integer literal, like the browser's manifest
             "created_by": "MERFISH Eyes - Single Molecule Viewer",
             "source_file": source_name,
         },
@@ -781,6 +930,8 @@ def process_single_molecule_data(
     # Done!
     log(f"{'='*60}")
     log(f"Processing complete!")
+    log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}")
+    log(f"  Peak RSS: {peak_rss_gb():.2f} GB")
     log(f"{'='*60}")
     log(f"Output structure:")
     log(f"  {output_folder}/")
@@ -799,7 +950,7 @@ def process_single_molecule_data(
     log(f"  Unique genes: {len(unique_genes):,}")
     log(f"  Dimensions: {dimensions}D")
     log(f"  Coordinates: raw, rounded to 2dp")
-    if has_unassigned:
+    if has_cell_ids:
         total_assigned = sum(len(v) for v in gene_index.values())
         total_unassigned = sum(len(v) for v in unassigned_index.values())
         log(f"  Assigned molecules: {total_assigned:,}")
@@ -944,6 +1095,8 @@ def process_directory(
     log(f"")
     log(f"{'='*60}")
     log(f"Directory processing complete!")
+    log(f"  Total time: {fmt_elapsed(time.perf_counter() - _t_start)}")
+    log(f"  Peak RSS: {peak_rss_gb():.2f} GB")
     log(f"{'='*60}")
     log(f"  Samples processed: {len(mapping_links)}/{len(sample_tasks)}")
     if failed:

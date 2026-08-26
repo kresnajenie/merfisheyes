@@ -20,6 +20,8 @@ export interface MerfishRenderStats {
   pointCount?: number;
   /** Number of genes available in the dataset. */
   geneCount?: number;
+  /** Genes with expression actually loaded (null when unknown). */
+  exprGeneCount?: number | null;
   /** Spatial dimensionality (2 or 3). */
   dimensions?: number;
   /** Which pipeline produced this dataset. */

@@ -14,6 +14,10 @@ export interface FailureClassification {
   userHint: string;
 }
 
+/** Dashboard label of the out-of-memory rule — the trigger for automatic
+ *  compute-tier escalation on retry. */
+export const OUT_OF_MEMORY_LABEL = "Out of memory";
+
 interface Rule {
   category: DatasetFaultCategory;
   label: string;
@@ -28,7 +32,7 @@ const RULES: Rule[] = [
   // ── Platform / our side ──────────────────────────────────────────────
   {
     category: "PLATFORM",
-    label: "Out of memory",
+    label: OUT_OF_MEMORY_LABEL,
     userHint:
       "The dataset ran out of memory while processing on our servers. This is on our side — we've been notified and will look into giving it more resources. You don't need to do anything.",
     test: /out of memory|outofmemory|memoryerror|cannot allocate|exit code 137|oom[\s-]?kill|killed due to memory|memory usage/i,

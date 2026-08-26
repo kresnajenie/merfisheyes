@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 
 import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { classifyFailure } from "@/lib/ingest/error-classification";
 
 /**
  * GET /api/admin/processing — upload/processing stats for the admin dashboard.
  *
  * Aggregates the real upload `Dataset` rows (NOT the Explore catalog): status
- * totals + success rate, the recent failures to act on (with owner + fault),
- * per-user activity, and recent-activity windows.
+ * totals + success rate, per-user activity, and recent-activity windows. The
+ * failures themselves live on /api/admin/failures (paginated + sortable).
  */
 export async function GET() {
   const { error } = await requireAdmin();
@@ -21,7 +20,7 @@ export async function GET() {
   const d7 = days(7);
   const d30 = days(30);
 
-  const [statusGroups, ownerStatusGroups, recentFailedRaw, created7, created30] =
+  const [statusGroups, ownerStatusGroups, created7, created30] =
     await Promise.all([
       // Status totals across all upload datasets.
       prisma.dataset.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -29,22 +28,6 @@ export async function GET() {
       prisma.dataset.groupBy({
         by: ["ownerId", "status"],
         _count: { _all: true },
-      }),
-      // The failures to act on (most recent first).
-      prisma.dataset.findMany({
-        where: { status: "FAILED" },
-        orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
-        take: 100,
-        select: {
-          id: true,
-          title: true,
-          datasetType: true,
-          errorMessage: true,
-          faultCategory: true,
-          createdAt: true,
-          completedAt: true,
-          owner: { select: { name: true, email: true } },
-        },
       }),
       prisma.dataset.count({ where: { createdAt: { gte: d7 } } }),
       prisma.dataset.count({ where: { createdAt: { gte: d30 } } }),
@@ -130,13 +113,6 @@ export async function GET() {
     }),
   ]);
 
-  // Attach the auto-classified label to each failure (the stored faultCategory
-  // is the admin-facing tag; the classifier label is the "why" hint).
-  const failures = recentFailedRaw.map((f) => ({
-    ...f,
-    autoLabel: classifyFailure(f.errorMessage).label,
-  }));
-
   return NextResponse.json({
     statusCounts,
     total,
@@ -149,7 +125,6 @@ export async function GET() {
       active7: active7.length,
       active30: active30.length,
     },
-    failures,
     perUser,
   });
 }

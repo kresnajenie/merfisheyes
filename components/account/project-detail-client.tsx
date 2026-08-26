@@ -2,9 +2,12 @@
 
 import type { MetadataDraft } from "./metadata-edit-modal";
 import type { SubmissionStatus } from "./types";
+import type {
+  CatalogDatasetItem,
+  CatalogDatasetEntry,
+} from "@/components/explore/types";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Button } from "@heroui/button";
 import {
@@ -14,12 +17,13 @@ import {
   ModalBody,
   ModalFooter,
 } from "@heroui/modal";
-import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 
 import { MetadataEditModal } from "./metadata-edit-modal";
 import { SubmissionBadge } from "./submission-badge";
+
+import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
 
 interface MemberDataset {
   id: string;
@@ -31,6 +35,7 @@ interface MemberDataset {
   numGenes: number;
   ingestSource: string | null;
   s3BaseUrl: string | null;
+  genes?: string[];
 }
 
 interface ProjectData {
@@ -57,15 +62,54 @@ interface PickerDataset {
   thumbnailUrl: string | null;
 }
 
-function viewerUrl(d: MemberDataset): string | null {
-  if (d.status !== "COMPLETE") return null;
-  const base = d.datasetType === "single_molecule" ? "sm-viewer" : "viewer";
-
-  if (d.ingestSource === "s3_registered" && d.s3BaseUrl) {
-    return `/${base}/from-s3?url=${encodeURIComponent(d.s3BaseUrl)}`;
-  }
-
-  return `/${base}/${d.id}`;
+/** Map the project + its members onto the shared Explore detail shape. */
+function toItem(project: ProjectData, members: MemberDataset[]): CatalogDatasetItem {
+  return {
+    id: project.id,
+    title: project.title,
+    description: project.description,
+    species: project.species,
+    disease: project.disease,
+    institute: project.institute,
+    tissue: project.tissue,
+    platform: project.platform,
+    tags: project.tags ?? [],
+    // Union of the member datasets' indexed genes — same list the Explore
+    // detail page shows once the project is published.
+    genes: [...new Set(members.flatMap((d) => d.genes ?? []))].sort(),
+    thumbnailUrl: project.thumbnailUrl,
+    bilCode: null,
+    metadata: (project.metadata ?? {}) as Record<string, unknown>,
+    externalLink: project.externalLink,
+    publicationLink: project.publicationLink,
+    entries: members.map((d, i) => ({
+      id: d.id,
+      label: d.title ?? "Untitled dataset",
+      // Legacy rows store raw formats ("h5ad", "merscope") here; the app-wide
+      // convention is anything not single_molecule renders as single cell.
+      datasetType:
+        d.datasetType === "single_molecule" ? "single_molecule" : "single_cell",
+      // s3-registered datasets open via from-s3; everything else by id. A
+      // non-COMPLETE member gets no link (entry renders inert).
+      s3BaseUrl:
+        d.status === "COMPLETE" &&
+        d.ingestSource === "s3_registered" &&
+        d.s3BaseUrl
+          ? d.s3BaseUrl
+          : null,
+      datasetId: d.status === "COMPLETE" ? d.id : null,
+      thumbnailUrl: d.thumbnailUrl,
+      sortOrder: i,
+    })),
+    isPublished: false,
+    isFeatured: false,
+    isBil: false,
+    isInternal: false,
+    isCommunity: false,
+    sortOrder: 0,
+    numCells: null,
+    numGenes: null,
+  };
 }
 
 export function ProjectDetailClient({
@@ -79,6 +123,10 @@ export function ProjectDetailClient({
 }) {
   const router = useRouter();
   const [project, setProject] = useState(initialProject);
+  // Members are kept as their own state so add/remove can flip optimistically.
+  const [members, setMembers] = useState<MemberDataset[]>(() =>
+    initialProject.datasets.map((pd) => pd.dataset),
+  );
   const [editOpen, setEditOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [thumbOpen, setThumbOpen] = useState(false);
@@ -86,16 +134,17 @@ export function ProjectDetailClient({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Keep local state in sync when router.refresh() re-runs the server page.
-  useEffect(() => setProject(initialProject), [initialProject]);
+  useEffect(() => {
+    setProject(initialProject);
+    setMembers(initialProject.datasets.map((pd) => pd.dataset));
+  }, [initialProject]);
 
-  const members = useMemo(
-    () => project.datasets.map((pd) => pd.dataset),
-    [project],
-  );
   const memberIds = useMemo(() => new Set(members.map((m) => m.id)), [members]);
   const addable = ownDatasets.filter((d) => !memberIds.has(d.id));
   // Thumbnail-reuse options: the project's own member datasets that have one.
   const datasetsWithThumb = members.filter((d) => d.thumbnailUrl);
+
+  const item = useMemo(() => toItem(project, members), [project, members]);
 
   // ---- Thumbnail: upload a file, reuse a dataset's, or clear ----
   const MAX_THUMB = 6 * 1024 * 1024;
@@ -157,27 +206,59 @@ export function ProjectDetailClient({
     return false;
   };
 
-  const addDataset = async (datasetId: string) => {
+  // ---- Membership (optimistic: flip local state, settle in background) ----
+  const addDataset = async (d: PickerDataset) => {
+    setMembers((ms) =>
+      ms.some((m) => m.id === d.id)
+        ? ms
+        : [
+            ...ms,
+            {
+              ...d,
+              // Picker only offers COMPLETE datasets; the refresh after the
+              // API settles fills in the real ingest fields.
+              status: "COMPLETE",
+              numCells: 0,
+              numGenes: 0,
+              ingestSource: null,
+              s3BaseUrl: null,
+            },
+          ],
+    );
+
     const res = await fetch(`/api/projects/${project.id}/datasets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ datasetId }),
-    });
+      body: JSON.stringify({ datasetId: d.id }),
+    }).catch(() => null);
 
-    if (res.ok) router.refresh();
-    else toast.error("Couldn't add dataset.");
+    if (res?.ok) {
+      router.refresh();
+    } else {
+      setMembers((ms) => ms.filter((m) => m.id !== d.id));
+      toast.error("Couldn't add dataset.");
+    }
   };
 
   const removeDataset = async (datasetId: string) => {
+    const removed = members.find((m) => m.id === datasetId);
+
+    setMembers((ms) => ms.filter((m) => m.id !== datasetId));
+
     const res = await fetch(
       `/api/projects/${project.id}/datasets/${datasetId}`,
       { method: "DELETE" },
-    );
+    ).catch(() => null);
 
-    if (res.ok) router.refresh();
-    else toast.error("Couldn't remove dataset.");
+    if (res?.ok) {
+      router.refresh();
+    } else {
+      if (removed) setMembers((ms) => [...ms, removed]);
+      toast.error("Couldn't remove dataset.");
+    }
   };
 
+  // ---- Submit / withdraw ----
   const submit = async () => {
     const res = await fetch("/api/community/submit", {
       method: "POST",
@@ -217,200 +298,76 @@ export function ProjectDetailClient({
     }
   };
 
-  return (
-    <div className="w-full max-w-6xl mx-auto py-8 px-4">
-      <NextLink
-        className="text-sm text-default-500 hover:text-default-700"
-        href="/account"
+  const headerActions = (
+    <>
+      <SubmissionBadge submission={submission} />
+      <Button size="sm" variant="flat" onPress={() => setEditOpen(true)}>
+        Edit
+      </Button>
+      <Button size="sm" variant="flat" onPress={() => setThumbOpen(true)}>
+        {project.thumbnailUrl ? "Change thumbnail" : "Add thumbnail"}
+      </Button>
+      <Button
+        color="primary"
+        isDisabled={addable.length === 0}
+        size="sm"
+        variant="flat"
+        onPress={() => setPickerOpen(true)}
       >
-        ← Back to your datasets
-      </NextLink>
-
-      <div className="flex flex-col sm:flex-row sm:items-start gap-4 mt-4 mb-8">
-        <div className="w-full sm:w-56 shrink-0">
-          {project.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              alt={project.title}
-              className="w-full h-40 object-cover rounded-xl"
-              src={project.thumbnailUrl}
-            />
-          ) : (
-            <div className="flex h-40 w-full items-center justify-center rounded-xl bg-default-100 text-sm text-default-400">
-              No thumbnail
-            </div>
-          )}
-          <Button
-            className="mt-2 w-full"
-            size="sm"
-            variant="flat"
-            onPress={() => setThumbOpen(true)}
-          >
-            {project.thumbnailUrl ? "Change thumbnail" : "Add thumbnail"}
+        Add datasets
+      </Button>
+      {submission ? (
+        <>
+          <Button size="sm" variant="flat" onPress={submit}>
+            Update
           </Button>
-        </div>
-        <div className="flex-1 flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl font-bold">{project.title}</h1>
-                <Chip size="sm" variant="flat">
-                  Project
-                </Chip>
-                <SubmissionBadge submission={submission} />
-              </div>
-              {project.description && (
-                <p className="text-default-500 mt-2 max-w-2xl">
-                  {project.description}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={() => setEditOpen(true)}
-              >
-                Edit
-              </Button>
-              {submission ? (
-                <>
-                  <Button size="sm" variant="flat" onPress={submit}>
-                    Update
-                  </Button>
-                  <Button
-                    color="danger"
-                    size="sm"
-                    variant="light"
-                    onPress={withdraw}
-                  >
-                    Withdraw
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  color="primary"
-                  isDisabled={members.length === 0}
-                  size="sm"
-                  onPress={submit}
-                >
-                  Submit to Explore
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-1">
-            {project.species && (
-              <Chip size="sm" variant="flat">
-                {project.species}
-              </Chip>
-            )}
-            {project.tissue && (
-              <Chip size="sm" variant="flat">
-                {project.tissue}
-              </Chip>
-            )}
-            {project.platform && (
-              <Chip size="sm" variant="flat">
-                {project.platform}
-              </Chip>
-            )}
-            {project.tags.map((t) => (
-              <Chip key={t} className="text-[10px]" size="sm" variant="dot">
-                {t}
-              </Chip>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Datasets ({members.length})</h2>
+          <Button color="danger" size="sm" variant="light" onPress={withdraw}>
+            Withdraw
+          </Button>
+        </>
+      ) : (
         <Button
           color="primary"
-          isDisabled={addable.length === 0}
+          isDisabled={members.length === 0}
           size="sm"
-          variant="flat"
-          onPress={() => setPickerOpen(true)}
+          onPress={submit}
         >
-          Add datasets
+          Submit to Explore
         </Button>
-      </div>
+      )}
+    </>
+  );
 
-      {members.length === 0 ? (
-        <p className="text-default-500 py-10 text-center">
+  const entryActions = (entry: CatalogDatasetEntry) => (
+    <Button
+      isIconOnly
+      aria-label="Remove from project"
+      className="min-w-7 w-7 h-7 bg-default-800/70 text-white backdrop-blur"
+      size="sm"
+      title="Remove from project"
+      variant="flat"
+      onPress={() => removeDataset(entry.id)}
+    >
+      ✕
+    </Button>
+  );
+
+  return (
+    <div className="w-full max-w-7xl mx-auto py-4 px-4">
+      {members.length === 0 && (
+        <p className="mb-2 rounded-xl bg-default-100 px-4 py-3 text-sm text-default-500">
           No datasets in this project yet. Click &quot;Add datasets&quot; to add
           some.
         </p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {members.map((d) => {
-            const url = viewerUrl(d);
-
-            return (
-              <Card
-                key={d.id}
-                isBlurred
-                className="border-none bg-background/60 dark:bg-default-100/50"
-                shadow="sm"
-              >
-                <CardBody className="p-0 overflow-hidden">
-                  {d.thumbnailUrl && (
-                    <div className="h-28 w-full bg-default-200/30">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        alt={d.title ?? "dataset"}
-                        className="w-full h-full object-cover"
-                        src={d.thumbnailUrl}
-                      />
-                    </div>
-                  )}
-                  <div className="p-3 flex flex-col gap-2">
-                    <div className="flex items-center gap-1">
-                      <Chip
-                        color={
-                          d.datasetType === "single_molecule"
-                            ? "secondary"
-                            : "primary"
-                        }
-                        size="sm"
-                        variant="solid"
-                      >
-                        {d.datasetType === "single_molecule" ? "SM" : "SC"}
-                      </Chip>
-                    </div>
-                    <p className="text-sm font-medium line-clamp-2">
-                      {d.title || "Untitled dataset"}
-                    </p>
-                    <div className="flex gap-2">
-                      {url && (
-                        <Button
-                          as={NextLink}
-                          color="primary"
-                          href={url}
-                          size="sm"
-                          variant="flat"
-                        >
-                          Open
-                        </Button>
-                      )}
-                      <Button
-                        color="danger"
-                        size="sm"
-                        variant="light"
-                        onPress={() => removeDataset(d.id)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            );
-          })}
-        </div>
       )}
+
+      <DatasetDetailPage
+        backLabel="← Back to your projects"
+        dataset={item}
+        entryActions={entryActions}
+        headerActions={headerActions}
+        onBack={() => router.push("/account?view=projects")}
+      />
 
       <MetadataEditModal
         showThumbnail
@@ -424,7 +381,7 @@ export function ProjectDetailClient({
       <Modal
         isOpen={pickerOpen}
         scrollBehavior="inside"
-        size="md"
+        size="lg"
         onClose={() => setPickerOpen(false)}
       >
         <ModalContent>
@@ -460,7 +417,7 @@ export function ProjectDetailClient({
                     color="primary"
                     size="sm"
                     variant="flat"
-                    onPress={() => addDataset(d.id)}
+                    onPress={() => addDataset(d)}
                   >
                     Add
                   </Button>

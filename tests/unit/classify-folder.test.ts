@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyFolder,
   datasetRelativeKey,
+  fallbackSingleMoleculeFile,
   scoreTranscriptFile,
 } from "@/lib/ingest/classify-folder";
 
@@ -170,5 +171,41 @@ describe("classifyFolder", () => {
     expect(result.singleCell).toBeUndefined();
     expect(result.singleMolecule).toBeUndefined();
     expect(result.ignored).toHaveLength(2);
+  });
+});
+
+describe("fallbackSingleMoleculeFile", () => {
+  // Mirrors the worker's find_single_molecule_input(): a lone .csv/.parquet is
+  // accepted regardless of name when the user explicitly uploads
+  // single-molecule data.
+  it("accepts a single parquet with no transcripts-style name", () => {
+    const result = fallbackSingleMoleculeFile([
+      pickedFile("spots_set4.parquet"),
+    ]);
+
+    expect(keysOf(result?.files)).toEqual(["spots_set4.parquet"]);
+  });
+
+  it("ignores junk files alongside the single candidate", () => {
+    const result = fallbackSingleMoleculeFile([
+      pickedFile("Run/spots.csv"),
+      pickedFile("Run/.DS_Store"),
+      pickedFile("Run/notes.txt"),
+    ]);
+
+    expect(keysOf(result?.files)).toEqual(["spots.csv"]);
+  });
+
+  it("stays ambiguous with several unnamed candidates", () => {
+    expect(
+      fallbackSingleMoleculeFile([
+        pickedFile("Run/spots_a.parquet"),
+        pickedFile("Run/spots_b.parquet"),
+      ]),
+    ).toBeNull();
+  });
+
+  it("returns null when nothing is a csv/parquet", () => {
+    expect(fallbackSingleMoleculeFile([pickedFile("Run/image.tif")])).toBeNull();
   });
 });

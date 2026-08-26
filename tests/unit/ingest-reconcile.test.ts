@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import { isStale } from "@/lib/ingest/reconcile";
+import { isStale, failureDetail } from "@/lib/ingest/reconcile";
+import { classifyFailure } from "@/lib/ingest/error-classification";
 
 /**
  * isStale is the gate that decides whether /status calls AWS Batch at all.
@@ -63,5 +64,63 @@ describe("isStale", () => {
     expect(
       isStale(ds({ processingProgress: { updatedAt: "not-a-date" } })),
     ).toBe(true);
+  });
+});
+
+describe("failureDetail", () => {
+  // Real payload from an OOM-killed job (a6879df6, dev): the task-level
+  // statusReason is the useless generic string; the container reason carries
+  // the actual cause. Storing the generic one hid OOMs from the classifier,
+  // the admin failures table, and the owner's failure email.
+  it("prefers the container reason over the generic task statusReason", () => {
+    expect(
+      failureDetail({
+        statusReason: "Essential container in task exited",
+        attempts: [
+          {
+            container: {
+              exitCode: 1,
+              reason: "OutOfMemoryError: container killed due to memory usage",
+            },
+          },
+        ],
+      }),
+    ).toBe("OutOfMemoryError: container killed due to memory usage");
+  });
+
+  it("keeps the exit code visible when no container reason exists", () => {
+    expect(
+      failureDetail({
+        statusReason: "Essential container in task exited",
+        attempts: [{ container: { exitCode: 137 } }],
+      }),
+    ).toBe(
+      "container exited with exit code 137 (Essential container in task exited)",
+    );
+  });
+
+  it("falls back through statusReason to a placeholder", () => {
+    expect(failureDetail({ statusReason: "Task failed to start" })).toBe(
+      "Task failed to start",
+    );
+    expect(failureDetail({})).toBe("no reason reported");
+  });
+
+  it("classifies the container OOM reason as an out-of-memory failure", () => {
+    const detail = failureDetail({
+      statusReason: "Essential container in task exited",
+      attempts: [
+        {
+          container: {
+            exitCode: 1,
+            reason: "OutOfMemoryError: container killed due to memory usage",
+          },
+        },
+      ],
+    });
+    const classified = classifyFailure(`Processing failed: ${detail}`);
+
+    expect(classified.label).toBe("Out of memory");
+    expect(classified.category).toBe("PLATFORM");
   });
 });

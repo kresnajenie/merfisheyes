@@ -141,6 +141,138 @@ export function createSmPointCloud(
 }
 
 /**
+ * An empty SM point cloud sized for `capacity` molecules, to be filled by
+ * `appendToSmPointCloud` as a gene streams in.
+ *
+ * Same material and attributes as `createSmPointCloud`, but nothing is drawn
+ * until molecules arrive: the draw range starts at 0 and grows, so the
+ * unfilled tail of the buffer is never rendered. Bounds are maintained from
+ * the filled portion only (`geometry.boundingBox` computed from all-zero
+ * padding would wreck the camera auto-fit).
+ */
+export function createStreamingSmPointCloud(
+  capacity: number,
+  colorHex: string,
+  dotSize: number,
+  shape: "circle" | "square" = "circle",
+): THREE.Points {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(capacity * 3);
+  const positionAttr = new THREE.BufferAttribute(positions, 3);
+
+  positionAttr.setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute("position", positionAttr);
+
+  const c = new THREE.Color(colorHex);
+  const colors = new Float32Array(capacity * 3);
+
+  for (let i = 0; i < capacity; i++) {
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute(
+    "size",
+    new THREE.BufferAttribute(new Float32Array(capacity).fill(1.0), 1),
+  );
+  geometry.setAttribute(
+    "alpha",
+    new THREE.BufferAttribute(new Float32Array(capacity).fill(1.0), 1),
+  );
+
+  geometry.setDrawRange(0, 0);
+  geometry.boundingBox = new THREE.Box3();
+  geometry.boundingSphere = new THREE.Sphere();
+
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      dotSize: { value: dotSize },
+      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
+      uTargetRadius: { value: 1.0 },
+      uTargetFeather: { value: 0.1 },
+      uTargetFilterEnabled: { value: 0.0 },
+      uShape: { value: shape === "square" ? 1.0 : 0.0 },
+    },
+    vertexShader,
+    fragmentShader,
+    transparent: false,
+    alphaTest: 0.5,
+  });
+
+  const points = new THREE.Points(geometry, material);
+
+  // Only the filled prefix is drawn, so let three skip frustum culling until
+  // the bounds are meaningful (they are updated on every append).
+  points.userData.streamedMolecules = 0;
+  points.userData.streamCapacity = capacity;
+
+  return points;
+}
+
+/**
+ * Copy one streamed batch into a cloud made by `createStreamingSmPointCloud`
+ * and reveal it. Returns the new molecule count.
+ *
+ * Only the written slice is uploaded to the GPU (`addUpdateRange`), and the
+ * bounding box grows over the batch's own min/max — both O(batch), not
+ * O(total), so appending stays cheap as the cloud fills.
+ */
+export function appendToSmPointCloud(
+  points: THREE.Points,
+  coords: Float32Array,
+): number {
+  const geometry = points.geometry;
+  const positionAttr = geometry.getAttribute("position") as THREE.BufferAttribute;
+  const positions = positionAttr.array as Float32Array;
+  const offsetMolecules = (points.userData.streamedMolecules as number) ?? 0;
+  const capacity = (points.userData.streamCapacity as number) ?? positions.length / 3;
+
+  const incoming = Math.min(coords.length / 3, capacity - offsetMolecules);
+
+  if (incoming <= 0) return offsetMolecules;
+
+  const start = offsetMolecules * 3;
+  const length = incoming * 3;
+
+  positions.set(coords.subarray(0, length), start);
+  positionAttr.needsUpdate = true;
+  positionAttr.addUpdateRange(start, length);
+
+  const total = offsetMolecules + incoming;
+
+  points.userData.streamedMolecules = total;
+  geometry.setDrawRange(0, total);
+
+  // Grow the bounds over the new points only.
+  const box = geometry.boundingBox ?? new THREE.Box3();
+
+  for (let i = 0; i < length; i += 3) {
+    const x = coords[i];
+    const y = coords[i + 1];
+    const z = coords[i + 2];
+
+    if (x < box.min.x) box.min.x = x;
+    if (y < box.min.y) box.min.y = y;
+    if (z < box.min.z) box.min.z = z;
+    if (x > box.max.x) box.max.x = x;
+    if (y > box.max.y) box.max.y = y;
+    if (z > box.max.z) box.max.z = z;
+  }
+  geometry.boundingBox = box;
+  if (!box.isEmpty()) {
+    box.getBoundingSphere(geometry.boundingSphere ?? new THREE.Sphere());
+  }
+
+  return total;
+}
+
+/** Molecules rendered so far in a streaming cloud. */
+export function streamedMoleculeCount(points: THREE.Points): number {
+  return (points.userData.streamedMolecules as number) ?? 0;
+}
+
+/**
  * Repaints every vertex of an existing point cloud to a new uniform color.
  * Cheaper than recreating the cloud — just rewrites the color buffer.
  */

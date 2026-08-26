@@ -61,6 +61,21 @@ export function normalizeCoordinates(coordinates: number[][]): {
  * Normalize a flat Float32Array of coordinates to [-1, 1] range.
  * Much more memory efficient than the number[][] version for large datasets.
  */
+/**
+ * Round to 2 decimals exactly like numpy's `np.round(x, 2)` — round-half-even
+ * on the scaled value — the rule both pipelines share for raw coordinates
+ * (docs/PIPELINE-SPEC.md). `Math.round` alone rounds exact halves up (0.125 →
+ * 0.13; numpy and the server give 0.12).
+ */
+export function round2(v: number): number {
+  const y = v * 100;
+  let r = Math.round(y);
+
+  if (r - y === 0.5 && r % 2 !== 0) r -= 1;
+
+  return r / 100;
+}
+
 export function normalizeCoordinatesFlat(
   coords: Float32Array,
   dimensions: number,

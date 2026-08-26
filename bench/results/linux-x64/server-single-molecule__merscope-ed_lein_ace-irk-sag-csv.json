@@ -1,0 +1,83 @@
+{
+ "machine": {
+  "env": "linux-x64",
+  "base": "http://localhost:3200",
+  "region": "us-west-2",
+  "uploadedFrom": "workstation"
+ },
+ "path": "single-molecule/merscope-ed_lein_ace-irk-sag.csv",
+ "datasetId": "single-molecule__merscope-ed_lein_ace-irk-sag-csv",
+ "format": "single-molecule",
+ "sizeGB": 2.127,
+ "relevantGB": null,
+ "shape": {
+  "cells": null,
+  "genes": null,
+  "molecules": 26196203
+ },
+ "uploadFiles": 1,
+ "uploadGB": 2.127,
+ "outcome": "ok",
+ "processMs": 142000,
+ "peakRssGB": 5.36,
+ "clientUploadMs": 19663,
+ "uploadMBps": 116.1,
+ "queueMs": 36467,
+ "jobTotalMs": 197266,
+ "computeTier": "16384",
+ "batchJobId": "d89bb47f-c47b-4adc-a058-3a5b5080db80",
+ "error": null,
+ "datasetRowId": "sm_kOUJzo9K8P",
+ "chunkWriteMs": null,
+ "stages": {
+  "step1": {
+   "at": 0,
+   "label": "Reading input file"
+  },
+  "step2": {
+   "at": 6800,
+   "label": "Coordinates rounded to 2 decimal places"
+  },
+  "step3": {
+   "at": 7000,
+   "label": "Building gene index"
+  },
+  "step4": {
+   "at": 9300,
+   "label": "Filtering control probes and unassigned genes"
+  },
+  "step5": {
+   "at": 9300,
+   "label": "Creating output folder structure"
+  },
+  "step6": {
+   "at": 9300,
+   "label": "Writing gene files"
+  },
+  "step7": {
+   "at": 142000,
+   "label": "Writing manifest"
+  }
+ },
+ "oom": false,
+ "tail": [
+  "  !! callback POST failed (attempt 1/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_enabled\":true,\"auto_vercel_auth_redirect\":true,\"password_enabled\":false,\"vercel_auth_callback\":\"h",
+  "  !! callback POST failed (attempt 2/3): HTTP Error 401: Unauthorized body={\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"https:\\/\\/vercel.com\\/sso-api?url=https%3A%2F%2Fdev.merfish",
+  "  !! callback POST failed (attempt 3/3): HTTP Error 401: Unauthorized body={\"error\":{\"message\":\"Protected deployment\",\"code\":\"401\"},\"protection\":{\"vercel_auth_enabled\":true,\"vercel_auth_callback\":\"htt"
+ ],
+ "cost": {
+  "runs": [
+   {
+    "tier": "16GB",
+    "vcpu": 4.0,
+    "memGB": 16.0,
+    "runtimeMs": 197266,
+    "status": "SUCCEEDED",
+    "usd": 0.0128
+   }
+  ],
+  "totalUsd": 0.0128,
+  "outputBytes": 166445244,
+  "outputUsdMonth": 0.0036
+ }
+}
