@@ -60,17 +60,31 @@ while IFS=',' read -r sample_name input_dir; do
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
 
-    # Validate input files
-    h5ad_path="${input_dir}/cell_by_gene.h5ad"
-    csv_path="${input_dir}/segmented_spot_table.csv"
+    # Find h5ad file: exact "cell_by_gene.h5ad", or fuzzy match any file ending
+    # in "cell_by_gene.h5ad" (e.g. Xenium exports prefixed with the run ID, like
+    # "output-XETG00220__.../..._cell_by_gene.h5ad")
+    if [ -f "${input_dir}/cell_by_gene.h5ad" ]; then
+        h5ad_path="${input_dir}/cell_by_gene.h5ad"
+    else
+        h5ad_path=$(find "$input_dir" -maxdepth 1 -type f -iname "*cell_by_gene.h5ad" | head -1)
+    fi
 
-    if [ ! -f "$h5ad_path" ]; then
-        echo "ERROR: cell_by_gene.h5ad not found: $h5ad_path"
+    # Find transcripts CSV: exact "segmented_spot_table.csv", or fuzzy match any
+    # file with "transcript" or "spot_table" in the name (e.g. Xenium's
+    # "..._selected_transcripts.csv")
+    if [ -f "${input_dir}/segmented_spot_table.csv" ]; then
+        csv_path="${input_dir}/segmented_spot_table.csv"
+    else
+        csv_path=$(find "$input_dir" -maxdepth 1 -type f \( -iname "*transcript*.csv" -o -iname "*spot_table*.csv" \) | head -1)
+    fi
+
+    if [ -z "$h5ad_path" ] || [ ! -f "$h5ad_path" ]; then
+        echo "ERROR: No *cell_by_gene.h5ad file found in: $input_dir"
         errors=$((errors + 1))
         continue
     fi
-    if [ ! -f "$csv_path" ]; then
-        echo "ERROR: segmented_spot_table.csv not found: $csv_path"
+    if [ -z "$csv_path" ] || [ ! -f "$csv_path" ]; then
+        echo "ERROR: No transcripts/spot-table CSV found in: $input_dir"
         errors=$((errors + 1))
         continue
     fi

@@ -50,6 +50,24 @@ source ~/merfisheyes_env/bin/activate
 echo "Python:     $(python --version)"
 echo ""
 
+# ── Auto-detect gene/cell-id column names from the CSV header ──
+# segmented_spot_table.csv (ace-lot/ace-low samples) uses gene_names/cell_ids;
+# Xenium's *_selected_transcripts.csv (ace-owl samples) uses feature_name/cell_id.
+HEADER=$(head -1 "$CSV_PATH")
+if echo "$HEADER" | grep -qw "feature_name"; then
+    GENE_COL="feature_name"
+else
+    GENE_COL="gene_names"
+fi
+if echo "$HEADER" | grep -qw "cell_id"; then
+    CELL_ID_COL="cell_id"
+else
+    CELL_ID_COL="cell_ids"
+fi
+echo "Gene col:   $GENE_COL"
+echo "Cell col:   $CELL_ID_COL"
+echo ""
+
 # ── Run ──────────────────────────────────────────────────────
 cd ~/merfisheyes/scripts
 
@@ -62,8 +80,8 @@ python process_single_molecule.py \
     --x-col x \
     --y-col y \
     --z-col z \
-    --gene-col gene_names \
-    --cell-id-col cell_ids \
+    --gene-col "$GENE_COL" \
+    --cell-id-col "$CELL_ID_COL" \
     --mapping-url "$MAPPING_URL"
 
 EXIT_CODE=$?
