@@ -131,6 +131,12 @@ export interface DuplicateDatasetEmailParams {
   /** The already-ingested dataset this duplicates. */
   existingId: string;
   existingTitle?: string;
+  /**
+   * Outcome for a duplicate that was uploaded with a single-molecule dataset to
+   * overlay: "attached" — the molecules were overlaid onto the existing dataset;
+   * "skipped" — the existing dataset already had an overlay, so we left it.
+   */
+  overlay?: "attached" | "skipped";
 }
 
 /**
@@ -142,11 +148,18 @@ export async function sendDuplicateDatasetEmail({
   uploadedName,
   existingId,
   existingTitle,
+  overlay,
 }: DuplicateDatasetEmailParams): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const viewerPath = existingId.startsWith("sm_") ? "sm-viewer" : "viewer";
   const link = `${baseUrl}/${viewerPath}/${existingId}`;
   const existingLabel = existingTitle || "your existing dataset";
+  const overlayNote =
+    overlay === "attached"
+      ? "We overlaid the single-molecule data you uploaded with it onto this dataset."
+      : overlay === "skipped"
+        ? "This dataset already has a single-molecule overlay, so we left it as-is. To change it, open the dataset and use \u201cManage overlay,\u201d or manage it from Your Datasets."
+        : "";
 
   const command = new SendEmailCommand({
     Source: FROM_EMAIL,
@@ -157,7 +170,7 @@ export async function sendDuplicateDatasetEmail({
       },
       Body: {
         Text: {
-          Data: `The dataset you uploaded${uploadedName ? ` (${uploadedName})` : ""} is identical to one already in your library: ${existingLabel}.\n\nWe didn't create a duplicate. Open the existing dataset: ${link}`,
+          Data: `The dataset you uploaded${uploadedName ? ` (${uploadedName})` : ""} is identical to one already in your library: ${existingLabel}.\n\nWe didn't create a duplicate.${overlayNote ? ` ${overlayNote}` : ""}\n\nOpen the existing dataset: ${link}`,
         },
         Html: {
           Data: `<!DOCTYPE html>
@@ -174,6 +187,7 @@ export async function sendDuplicateDatasetEmail({
       <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">Already in your library</p>
       <h2 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 600; color: #111;">${existingLabel}</h2>
       <p style="margin: 0 0 24px 0; font-size: 14px; color: #555;">The dataset you uploaded${uploadedName ? ` (<strong>${uploadedName}</strong>)` : ""} is identical to one you already have, so we didn't create a duplicate.</p>
+      ${overlayNote ? `<p style="margin: 0 0 24px 0; font-size: 14px; color: #555;">${overlayNote}</p>` : ""}
       <a href="${link}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open the existing dataset &rarr;</a>
     </div>
     <div style="margin-top: 24px; font-size: 12px; color: #999; word-break: break-all;">${link}</div>
