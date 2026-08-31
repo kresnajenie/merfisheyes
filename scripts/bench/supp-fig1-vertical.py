@@ -10,8 +10,8 @@ ROWS = json.load(open(f"{SC}/benchdata.json"))["rows"]
 
 BLUE, ORANGE, GREY = "#2a78d6", "#eb6834", "#8a887f"
 plt.rcParams.update({
-    "font.family": "DejaVu Sans", "font.size": 6.5,
-    "axes.titlesize": 8, "xtick.labelsize": 6, "ytick.labelsize": 5.6,
+    "font.family": "DejaVu Sans", "font.size": 12,
+    "axes.titlesize": 15, "xtick.labelsize": 12, "ytick.labelsize": 12,
     "axes.spines.top": False, "axes.spines.right": False,
     "axes.linewidth": 0.6, "svg.fonttype": "none",
 })
@@ -113,18 +113,23 @@ def build(fmt_filter):
             continue
         sh = r["shape"]
         file_gb = (r.get("server") or {}).get("uploadGB") or r.get("relevantGB") or r["sizeGB"]
+        if r["format"] == "single-molecule":
+            ftype = ".parquet" if r["id"].endswith("-parquet") else ".csv"
+        elif r["format"] == "h5ad":
+            ftype = ".h5ad"
+        else:
+            ftype = r["format"] + " folder"
         if sh.get("molecules"):
             m = sh["molecules"]
             mol = f"{m/1e6:.1f}M" if m < 1e7 else f"{round(m/1e6)}M"
-            stats = f"{mol} molecules \u00b7 file {file_gb:.2f} GB"
+            label = f"{mol} molecules\n{ftype} \u00b7 in {file_gb:.2f} GB"
         else:
             dense = sh["cells"] * (sh.get("genes") or 0) * 4 / 1e9
             c = sh["cells"]
             kc = f"{c/1e6:.1f}M" if c >= 1e6 else f"{round(c/1000)}K"
-            stats = (f"{kc}\u00d7{sh.get('genes'):,} \u00b7 file {file_gb:.2f} GB"
-                     f" \u00b7 dense {dense:.2f} GB")
+            label = f"{kc}\u00d7{sh.get('genes'):,}\nin {file_gb:.2f} GB \u00b7 dense {dense:.2f} GB"
         entry = {
-            "label": f"{nice_name(r)}\n{stats}",
+            "label": label,
             "bt": l["processMs"] / 1000 if l_ok else None,
             "bnote": "browser: matrix exceeds tab memory" if l_deg else (FAIL.get(l["outcome"], "browser: failed") if l else None),
             "st": (e["processMs"] / 1000 if e_ok and not s_ok else (s["processMs"] / 1000 if s_ok else None)),
@@ -148,37 +153,37 @@ for ltr in data:
     print(ltr, len(data[ltr]), "rows")
 
 
-# ---- one vertical-bar figure per panel ---------------------------------------
+# ---- one horizontal-bar figure per panel -------------------------------------
 from matplotlib.lines import Line2D
 
 for ltr, title, _ in PANELS:
     entries = data[ltr]
     n = len(entries)
-    fig, ax = plt.subplots(figsize=(0.72 * n + 1.6, 4.4))
-    fig.subplots_adjust(left=1.0 / (0.72 * n + 1.6), right=0.99, top=0.87, bottom=0.42)
-    ymax = max([e["st"] or 0 for e in entries] + [e["bt"] or 0 for e in entries]) / 60
+    fig, ax = plt.subplots(figsize=(10.5, 0.72 * n + 1.9))
+    fig.subplots_adjust(left=0.30, right=0.97, top=1 - 0.85 / (0.72 * n + 1.9), bottom=0.85 / (0.72 * n + 1.9))
+    xmax = max([e["st"] or 0 for e in entries] + [e["bt"] or 0 for e in entries]) / 60
     for i, e in enumerate(entries):
+        y = n - 1 - i  # fastest at top
         if e["bt"] is not None:
-            ax.bar(i - 0.19, e["bt"] / 60, width=0.36, color=BLUE)
-            ax.text(i - 0.19, e["bt"] / 60 + ymax * 0.015, fmt_t(e["bt"]),
-                    ha="center", va="bottom", fontsize=5.6, color=BLUE)
+            ax.barh(y + 0.20, e["bt"] / 60, height=0.36, color=BLUE)
+            ax.text(e["bt"] / 60 + xmax * 0.012, y + 0.20, fmt_t(e["bt"]),
+                    va="center", fontsize=11, color=BLUE)
         elif e["bnote"]:
-            ax.text(i - 0.19, ymax * 0.02, e["bnote"], ha="center", va="bottom",
-                    fontsize=5.2, color=GREY, style="italic", rotation=90)
+            ax.text(xmax * 0.012, y + 0.20, e["bnote"], va="center",
+                    fontsize=10, color=GREY, style="italic")
         if e["st"] is not None:
-            ax.bar(i + 0.19, e["st"] / 60, width=0.36, color=ORANGE)
-            ax.text(i + 0.19, e["st"] / 60 + ymax * 0.015, fmt_t(e["st"], e["tier"]),
-                    ha="center", va="bottom", fontsize=5.6, color=ORANGE)
-    ax.set_xticks(range(n), [e["label"] for e in entries], rotation=45, ha="right",
-                  rotation_mode="anchor", fontsize=5.8)
-    ax.set_xlim(-0.7, n - 0.3)
-    ax.set_ylim(0, ymax * 1.18)
-    ax.set_ylabel("processing time (min)")
-    ax.set_title(title, fontsize=8.5, pad=8)
-    ax.tick_params(axis="x", length=2)
+            ax.barh(y - 0.20, e["st"] / 60, height=0.36, color=ORANGE)
+            ax.text(e["st"] / 60 + xmax * 0.012, y - 0.20, fmt_t(e["st"], e["tier"]),
+                    va="center", fontsize=11, color=ORANGE)
+    ax.set_yticks([n - 1 - i for i in range(n)], [e["label"] for e in entries], fontsize=12)
+    ax.set_ylim(-0.7, n - 0.3)
+    ax.set_xlim(0, xmax * 1.24)
+    ax.set_xlabel("processing time (min)", fontsize=13)
+    ax.set_title(title, fontsize=15, pad=10)
+    ax.tick_params(length=2)
     handles = [Line2D([], [], marker="s", ls="", color=BLUE, ms=6, label="browser (local)"),
                Line2D([], [], marker="s", ls="", color=ORANGE, ms=6, label="server")]
-    ax.legend(handles=handles, frameon=False, loc="upper left", fontsize=6.5)
+    ax.legend(handles=handles, frameon=False, loc="upper right", fontsize=12)
     for ext in ("png", "svg", "pdf"):
         fig.savefig(f"{SC}/supp_fig1_{ltr}.{ext}", dpi=300, bbox_inches="tight")
     plt.close(fig)
