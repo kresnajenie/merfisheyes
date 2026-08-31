@@ -168,7 +168,7 @@ export class H5adAdapter {
     const rows = Math.floor(flat.length / dimensions);
 
     coordinates = Array.from({ length: rows }, (_, i) =>
-      Array.from({ length: keep }, (_, k) => flat[i * dimensions + k]),
+      Array.from({ length: keep }, (_, k) => Number(flat[i * dimensions + k])),
     );
 
     return {
@@ -687,9 +687,24 @@ export class H5adAdapter {
     // Work in float32 like the server pipeline (X is read straight into
     // float32 there): DE means then accumulate the same values on both sides,
     // and a float64 X costs half the memory.
-    const value = m.value;
+    return this.toFloat32(m.value);
+  }
 
-    return value instanceof Float64Array ? new Float32Array(value) : value;
+  /**
+   * Coerce any h5wasm-returned numeric array to Float32Array.
+   *
+   * An integer-count X stored as int64 comes back as a BigInt64Array; left
+   * as-is, its BigInt values reach downstream numeric code and throw
+   * "Cannot mix BigInt and other types". The Float32Array constructor also
+   * refuses a BigInt typed array, so those are mapped through Number first.
+   */
+  private toFloat32(value: any): Float32Array {
+    if (value instanceof Float32Array) return value;
+    if (value instanceof BigInt64Array || value instanceof BigUint64Array) {
+      return Float32Array.from(value, Number);
+    }
+
+    return new Float32Array(value);
   }
 
   /** h5wasm exposes attributes as { value, shape, dtype } records. */

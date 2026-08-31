@@ -38,8 +38,12 @@ export async function sendDatasetReadyEmail({
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   // Single-molecule datasets (sm_ prefix) open in the SM viewer; single-cell in
   // the standard viewer. Same convention used elsewhere in this file.
-  const viewerPath = datasetId.startsWith("sm_") ? "sm-viewer" : "viewer";
+  const isSingleMolecule = datasetId.startsWith("sm_");
+  const viewerPath = isSingleMolecule ? "sm-viewer" : "viewer";
   const link = `${baseUrl}/${viewerPath}/${datasetId}`;
+  // numCells stores the molecule count for single-molecule datasets, so label
+  // the row accordingly.
+  const countLabel = isSingleMolecule ? "Molecules" : "Cells";
 
   const subject = datasetName
     ? `${datasetName} - Dataset Ready - MERFISHEYES`
@@ -54,7 +58,7 @@ export async function sendDatasetReadyEmail({
       Subject: { Data: subject },
       Body: {
         Text: {
-          Data: `Your dataset is ready.\n\nDataset: ${datasetName || "Untitled"}\nCells: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nOpen your dataset: ${link}`,
+          Data: `Your dataset is ready.\n\nDataset: ${datasetName || "Untitled"}\n${countLabel}: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nOpen your dataset: ${link}`,
         },
         Html: {
           Data: `<!DOCTYPE html>
@@ -75,7 +79,7 @@ export async function sendDatasetReadyEmail({
     <div style="margin-top: 32px; padding: 16px; background: #f8f8f8; border-radius: 6px;">
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
         <tr>
-          <td style="padding: 4px 0; color: #888;">Cells</td>
+          <td style="padding: 4px 0; color: #888;">${countLabel}</td>
           <td style="padding: 4px 0; color: #333; text-align: right;">${metadata?.numCells?.toLocaleString() || "N/A"}</td>
         </tr>
         <tr>
