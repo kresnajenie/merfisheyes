@@ -38,6 +38,7 @@ body {
   --z-panel: 40;
   --z-chrome: 60;
   --z-modal: 1000;
+  --z-modal-top: 10050; /* above HeroUI's modal wrapper (z 10000) so the auth popup layers over an open upload modal */
 }
 
 /* Glassmorphism base styles */

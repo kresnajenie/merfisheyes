@@ -11,13 +11,14 @@ import {
   Input,
 } from "@heroui/react";
 import { toast } from "react-toastify";
-import { useSession, signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneChunkProcessor } from "@/lib/utils/GeneChunkProcessor";
 import { createManifest, prepareFilesForUpload } from "@/lib/utils/sc-upload-files";
 import { generateDatasetFingerprint } from "@/lib/utils/fingerprint";
 import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
+import { AuthModal } from "@/components/auth-modal";
 
 interface UploadSettingsModalProps {
   isOpen: boolean;
@@ -45,6 +46,13 @@ export function UploadSettingsModal({
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadComplete, setUploadComplete] = useState(false);
   const [uploadedDatasetId, setUploadedDatasetId] = useState<string>("");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  // A signed-in user's notification email is their account email — don't make
+  // them retype it (and don't show the field at all when signed in).
+  useEffect(() => {
+    if (session?.user?.email) setEmail(session.user.email);
+  }, [session?.user?.email]);
 
   const resetState = (targetDataset: StandardizedDataset | null) => {
     setDatasetName(targetDataset?.name || "dataset");
@@ -483,6 +491,7 @@ export function UploadSettingsModal({
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   return (
+    <>
     <Modal
       classNames={{ wrapper: "z-[10000]" }}
       isOpen={isOpen}
@@ -525,22 +534,24 @@ export function UploadSettingsModal({
                 onValueChange={setDatasetName}
               />
 
-              <Input
-                isRequired
-                description="Get notified when processing is complete"
-                errorMessage={
-                  email.length > 0 && !isEmailValid
-                    ? "Please enter a valid email address"
-                    : ""
-                }
-                isDisabled={isProcessing}
-                isInvalid={email.length > 0 && !isEmailValid}
-                label="Email"
-                placeholder="Enter your email"
-                type="email"
-                value={email}
-                onValueChange={setEmail}
-              />
+              {!isSignedIn && (
+                <Input
+                  isRequired
+                  description="Get notified when processing is complete"
+                  errorMessage={
+                    email.length > 0 && !isEmailValid
+                      ? "Please enter a valid email address"
+                      : ""
+                  }
+                  isDisabled={isProcessing}
+                  isInvalid={email.length > 0 && !isEmailValid}
+                  label="Email"
+                  placeholder="Enter your email"
+                  type="email"
+                  value={email}
+                  onValueChange={setEmail}
+                />
+              )}
 
               <OwnerChoice value={owner} onChange={setOwner} />
 
@@ -553,7 +564,7 @@ export function UploadSettingsModal({
                     color="warning"
                     size="sm"
                     variant="flat"
-                    onPress={() => signIn()}
+                    onPress={() => setAuthModalOpen(true)}
                   >
                     Sign in
                   </Button>
@@ -692,6 +703,12 @@ export function UploadSettingsModal({
         </ModalFooter>
       </ModalContent>
     </Modal>
+    <AuthModal
+      isOpen={authModalOpen}
+      onClose={() => setAuthModalOpen(false)}
+      onAuthenticated={() => setAuthModalOpen(false)}
+    />
+    </>
   );
 }
 
