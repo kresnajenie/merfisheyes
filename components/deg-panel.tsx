@@ -248,8 +248,17 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
             <div className="flex items-end gap-2">
               <Autocomplete
                 className="flex-1"
+                classNames={{
+                  base: "font-semibold",
+                }}
                 color="primary"
                 data-testid="deg-target"
+                inputProps={{
+                  classNames: {
+                    input: "text-foreground font-semibold text-sm",
+                    label: "text-primary-400",
+                  },
+                }}
                 isDisabled={degTargetAuto}
                 label="Target celltype"
                 placeholder="Pick a celltype"
@@ -290,7 +299,14 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
             <div className="flex items-end gap-2">
               <Autocomplete
                 className="flex-1"
+                color="secondary"
                 data-testid="deg-reference"
+                inputProps={{
+                  classNames: {
+                    input: "text-foreground font-semibold text-sm",
+                    label: "text-secondary-400",
+                  },
+                }}
                 isDisabled={degReferenceAuto}
                 label="Reference"
                 placeholder="Rest"
@@ -405,7 +421,7 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
             </div>
 
             {/* Header */}
-            <div className="grid grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr] gap-2 text-[11px] uppercase tracking-wide text-default-400 px-2">
+            <div className="grid grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr] gap-2 text-[11px] tracking-wide text-default-300 px-2">
               <button
                 className="text-left hover:text-default-200"
                 onClick={() => handleSort("mean1")}
@@ -456,10 +472,10 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
                       title={`${r.pctIn > 0 || r.pctOut > 0 ? `% of cells expressing — group 1: ${(r.pctIn * 100).toFixed(1)}%, group 2: ${(r.pctOut * 100).toFixed(1)}%` : ""}`}
                     >
                       <span className="font-mono truncate">{r.gene}</span>
-                      <span className="font-mono text-default-300">
+                      <span className="font-mono text-foreground">
                         {formatMean(r.mean1)}
                       </span>
-                      <span className="font-mono text-default-300">
+                      <span className="font-mono text-foreground/80">
                         {formatMean(r.mean2)}
                       </span>
                       <span
