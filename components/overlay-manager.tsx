@@ -117,23 +117,32 @@ export function OverlayManager({
     options.find((o) => o.id === current)?.title ?? current ?? "";
 
   return (
-    <div className="rounded-xl border border-default-200 p-4">
-      <h3 className="text-sm font-semibold">Single-molecule overlay</h3>
-      <p className="mt-1 text-xs text-default-500">
-        Render one of your single-molecule datasets on top of these cells.
-      </p>
+    <div className="w-full max-w-md space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">
+          Single-molecule overlay
+        </h3>
+        <p className="mt-0.5 text-xs text-default-500">
+          Render one of your single-molecule datasets on top of these cells.
+        </p>
+      </div>
 
       {current ? (
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <span className="text-sm">
-            Overlaid:{" "}
-            <strong className="font-medium">{currentTitle}</strong>
-          </span>
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-content2 px-3 py-2">
+          <div className="min-w-0">
+            <span className="text-[11px] uppercase tracking-wide text-default-400">
+              Overlaid
+            </span>
+            <p className="truncate text-sm font-medium text-foreground">
+              {currentTitle}
+            </p>
+          </div>
           <Button
+            className="shrink-0"
             color="danger"
             isDisabled={busy}
             size="sm"
-            variant="light"
+            variant="flat"
             onPress={remove}
           >
             Remove
@@ -142,19 +151,21 @@ export function OverlayManager({
       ) : null}
 
       {options.length === 0 ? (
-        <p className="mt-3 text-xs text-default-400">
+        <p className="text-xs text-default-400">
           You have no single-molecule datasets to overlay yet.
         </p>
       ) : (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="space-y-2">
           <select
-            className="flex-1 rounded-medium border border-default-200 bg-content1 px-3 py-2 text-sm"
+            className="w-full rounded-medium border border-default-200 bg-content2 px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
             disabled={busy}
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
           >
             <option value="">
-              {current ? "Change to…" : "Choose a single-molecule dataset…"}
+              {current
+                ? "Change to a different dataset…"
+                : "Choose a single-molecule dataset…"}
             </option>
             {options
               .filter((o) => o.id !== current)
@@ -164,14 +175,17 @@ export function OverlayManager({
                 </option>
               ))}
           </select>
-          <Button
-            color="primary"
-            isDisabled={busy || !selected}
-            size="sm"
-            onPress={() => selected && attach(selected)}
-          >
-            {current ? "Change" : "Attach"}
-          </Button>
+          <div className="flex justify-end">
+            <Button
+              color="primary"
+              isDisabled={busy || !selected}
+              isLoading={busy}
+              size="sm"
+              onPress={() => selected && attach(selected)}
+            >
+              {current ? "Change overlay" : "Attach overlay"}
+            </Button>
+          </div>
         </div>
       )}
     </div>
