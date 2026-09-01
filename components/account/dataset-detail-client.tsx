@@ -236,7 +236,7 @@ export function AccountDatasetDetailClient({
 
       {dataset.datasetType === "single_cell" &&
         dataset.status === "COMPLETE" && (
-          <div className="mt-6">
+          <div className="mt-6 max-w-xl rounded-xl border border-default-200 p-4">
             <OverlayManager scDatasetId={dataset.id} />
           </div>
         )}

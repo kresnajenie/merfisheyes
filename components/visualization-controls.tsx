@@ -745,7 +745,7 @@ export function VisualizationControls() {
               if (e.target === e.currentTarget) setIsOverlayOpen(false);
             }}
           >
-            <div className="glass-panel w-full max-w-md rounded-2xl p-6" role="dialog">
+            <div className="glass-panel flex max-h-[85vh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl p-6" role="dialog">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Manage overlay</h2>
                 <button
