@@ -59,7 +59,10 @@ export function SingleMoleculeUploadModal({
   const resetState = (targetDataset: SingleMoleculeDataset | null) => {
     setDatasetName(targetDataset?.name || "dataset");
     setOwner("me");
-    setEmail("");
+    // Preserve a signed-in user's account email — this reset fires when the
+    // dataset id changes, and blanking it here would race the session prefill
+    // (the field is hidden when signed in, so it could never be re-entered).
+    setEmail(session?.user?.email ?? "");
     setIsProcessing(false);
     setProgress(0);
     setProgressMessage("");
