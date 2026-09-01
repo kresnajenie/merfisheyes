@@ -9,7 +9,6 @@ import { Button, Progress, Spinner } from "@heroui/react";
 
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
-import { ViewerOverlayControl } from "@/components/viewer-overlay-control";
 import UMAPPanel from "@/components/umap-panel";
 import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
@@ -336,7 +335,6 @@ function ViewerByIdContent() {
       <VisualizationControls />
       <ThreeScene dataset={dataset} />
       <UMAPPanel />
-      <ViewerOverlayControl scDatasetId={datasetId} />
     </SplitScreenContainer>
   );
 }

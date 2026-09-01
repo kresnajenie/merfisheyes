@@ -7,6 +7,8 @@ import { Button } from "@heroui/button";
 import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useRef, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { useSession } from "next-auth/react";
 import { toast } from "react-toastify";
 
 import { VisualizationPanel } from "./visualization-panel";
@@ -33,6 +35,8 @@ import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { glassButton } from "@/components/primitives";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
+import { OverlayManager } from "@/components/overlay-manager";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 export function VisualizationControls() {
@@ -359,6 +363,18 @@ export function VisualizationControls() {
 
   const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
 
+  // Owner-only single-molecule overlay control (top-right cluster).
+  const { data: session } = useSession();
+  const overlayDbId = useViewerRegistrationStore((st) => st.dbId);
+  const overlayOwnerId = useViewerRegistrationStore((st) => st.ownerId);
+  const overlayRegistered = useViewerRegistrationStore((st) => st.registered);
+  const [isOverlayOpen, setIsOverlayOpen] = useState(false);
+  const canManageOverlay =
+    overlayRegistered &&
+    !!overlayDbId &&
+    !!session?.user?.id &&
+    session.user.id === overlayOwnerId;
+
   // Read playback from global store (works for both left and right panels)
   const globalPlayback = useVisualizationStore((s) => s.celltypePlayback);
   const globalSetPlayback = useVisualizationStore((s) => s.setCelltypePlayback);
@@ -565,6 +581,37 @@ export function VisualizationControls() {
       data-ui-overlay
       className="absolute top-4 right-4 z-[var(--z-rail)] flex flex-row gap-2"
     >
+      {/* Overlay Button — owner-only: attach/change/remove a single-molecule overlay */}
+      {canManageOverlay && (
+        <Tooltip content="Single-molecule overlay" placement="bottom">
+          <Button
+            className={`${buttonBaseClass} ${isOverlayOpen ? "" : glassButton()}`}
+            color={isOverlayOpen ? "primary" : "default"}
+            variant={isOverlayOpen ? "shadow" : "light"}
+            onPress={() => setIsOverlayOpen(true)}
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M12 3.75l8.25 4.5L12 12.75 3.75 8.25 12 3.75z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M3.75 12L12 16.5 20.25 12M3.75 15.75L12 20.25l8.25-4.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Button>
+        </Tooltip>
+      )}
+
       {/* Camera Button */}
       <Tooltip content="Camera controls" placement="bottom">
         <Button
@@ -685,6 +732,37 @@ export function VisualizationControls() {
           </svg>
         </Button>
       </Tooltip>
+
+      {/* Overlay manager modal */}
+      {isOverlayOpen &&
+        canManageOverlay &&
+        overlayDbId &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[var(--z-modal-top)] flex items-center justify-center bg-black/70 p-6 backdrop-blur-md"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setIsOverlayOpen(false);
+            }}
+          >
+            <div className="glass-panel w-full max-w-md rounded-2xl p-6" role="dialog">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Manage overlay</h2>
+                <button
+                  className="text-default-400 hover:text-foreground"
+                  type="button"
+                  onClick={() => setIsOverlayOpen(false)}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-4">
+                <OverlayManager scDatasetId={overlayDbId} />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Advanced Visualization Panel */}
       {isAdvancedOpen && (
