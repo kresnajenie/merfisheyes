@@ -10,6 +10,43 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.4.0] - 2026-09-01
+
+Single-molecule overlays become first-class on single-cell datasets, the DEG
+panel is rebuilt around a plain comparison of means, and signing in to upload
+stops getting in the way.
+
+### Added
+
+- **Single-molecule overlays on single-cell datasets.** Link a molecule dataset
+  to a cell dataset and its spots render on top of the cells. The overlay picker
+  is searchable and paginated, works for both app-uploaded and S3-registered
+  molecule datasets, and the selected molecule genes now persist in the viewer
+  link (`ov=`) so a shared URL restores them.
+- **Route DEG gene clicks to the overlay.** When a molecule overlay is present,
+  a Cell / Molecule toggle beside the Expression control chooses whether clicking
+  a gene colours the cells by expression or adds it as a molecule layer.
+- **Expression-mode explainer.** An info button by the Expression control shows
+  how counts-vs-log-normalized is auto-detected and how it affects the means and
+  fold change.
+
+### Changed
+
+- **DEG panel shows mean1 / mean2 / linear fold change** instead of
+  log2FC / mean_in / mean_pct — a direct comparison of means, with counts-vs-log
+  auto-detected (and overridable) and log means un-logged before the ratio.
+  Higher-contrast target / reference and mean columns.
+
+### Fixed
+
+- Signing in no longer blocks uploads: the email field is hidden when signed in
+  and the account email is preserved, so "Process & Save" / "Process & Upload"
+  enable correctly. Sign-in happens in place from the upload modals.
+- Retroactive overlays no longer orphan a duplicate re-upload; the finalize step
+  redirects to the existing dataset.
+- Large single-cell `.h5ad` files with BigInt values no longer crash the loader,
+  and the homepage featured datasets and server-fallback modal behave correctly.
+
 ## [0.3.0] - 2026-08-25
 
 Large datasets stop being a wall: whole-transcriptome Xenium runs convert with
@@ -122,7 +159,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kresnajenie/merfisheyes/releases/tag/v0.1.0
