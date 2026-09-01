@@ -69,7 +69,8 @@ interface VisualizationState {
   degTargetAuto: boolean; // target follows the most-recently-selected celltype
   degReferenceAuto: boolean; // reference follows the 2nd-most-recently-selected celltype
   degSearchTerm: string;
-  degSortKey: "log2FC" | "meanIn" | "pctIn";
+  degSortKey: "fc" | "mean1" | "pct";
+  degDataMode: "auto" | "counts" | "log";
   degSortDesc: boolean;
   degPanelOpen: boolean;
   columnTypeOverrides: Record<string, "categorical" | "numerical">;
@@ -130,7 +131,8 @@ interface VisualizationState {
   setDegTargetAuto: (auto: boolean) => void;
   setDegReferenceAuto: (auto: boolean) => void;
   setDegSearchTerm: (term: string) => void;
-  setDegSortKey: (key: "log2FC" | "meanIn" | "pctIn") => void;
+  setDegSortKey: (key: "fc" | "mean1" | "pct") => void;
+  setDegDataMode: (mode: "auto" | "counts" | "log") => void;
   setDegPanelOpen: (open: boolean) => void;
   setDegSortDesc: (desc: boolean) => void;
   toggleColumnType: (
@@ -243,7 +245,8 @@ const initialState = {
   degTargetAuto: true,
   degReferenceAuto: false,
   degSearchTerm: "",
-  degSortKey: "log2FC" as "log2FC" | "meanIn" | "pctIn",
+  degSortKey: "fc" as "fc" | "mean1" | "pct",
+  degDataMode: "auto" as "auto" | "counts" | "log",
   degSortDesc: true,
   degPanelOpen: false,
   columnTypeOverrides: {} as Record<string, "categorical" | "numerical">,
@@ -552,6 +555,7 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
     }),
   setDegSearchTerm: (term) => set({ degSearchTerm: term }),
   setDegSortKey: (key) => set({ degSortKey: key }),
+  setDegDataMode: (mode) => set({ degDataMode: mode }),
   setDegSortDesc: (desc) => set({ degSortDesc: desc }),
   setDegPanelOpen: (open) => set({ degPanelOpen: open }),
 

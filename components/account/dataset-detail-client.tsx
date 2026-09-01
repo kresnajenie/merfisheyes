@@ -14,6 +14,7 @@ import { MetadataEditModal } from "./metadata-edit-modal";
 import { SubmissionBadge } from "./submission-badge";
 
 import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
+import { OverlayManager } from "@/components/overlay-manager";
 
 interface DatasetData {
   id: string;
@@ -232,6 +233,13 @@ export function AccountDatasetDetailClient({
         headerActions={headerActions}
         onBack={() => router.push("/account?view=datasets")}
       />
+
+      {dataset.datasetType === "single_cell" &&
+        dataset.status === "COMPLETE" && (
+          <div className="mt-6 max-w-xl rounded-xl border border-default-200 p-4">
+            <OverlayManager scDatasetId={dataset.id} />
+          </div>
+        )}
 
       <MetadataEditModal
         heading="Edit dataset"

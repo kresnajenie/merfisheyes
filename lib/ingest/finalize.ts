@@ -5,6 +5,11 @@ import { nanoid } from "nanoid";
 import { prisma } from "@/lib/prisma";
 import { getObjectJson, listObjectKeys, uploadBufferToS3 } from "@/lib/s3";
 import { sendDatasetReadyEmail, sendDuplicateDatasetEmail } from "@/lib/ses";
+import {
+  getOverlaySmId,
+  writeOverlay,
+  groupInProject,
+} from "@/lib/ingest/overlay";
 import { updateDatasetGenes } from "@/lib/datasets/read-genes";
 
 /**
@@ -67,6 +72,59 @@ export async function finalizeCompletedDataset(
     });
 
     if (existing) {
+      // If this duplicate was uploaded with a single-molecule dataset to
+      // overlay (combined upload), redirect that overlay onto the ORIGINAL
+      // dataset instead of losing it. Skip if the original already has an
+      // overlay — don't clobber it (the email explains how to change it).
+      const dupLinkedSmId = (
+        dataset.processingParams as { linkedSmDatasetId?: unknown } | null
+      )?.linkedSmDatasetId;
+      let overlayOutcome: "attached" | "skipped" | undefined;
+
+      if (typeof dupLinkedSmId === "string" && dupLinkedSmId) {
+        try {
+          const alreadyOverlaid = await getOverlaySmId(existing.id);
+
+          if (alreadyOverlaid) {
+            overlayOutcome = "skipped";
+          } else {
+            await writeOverlay(existing.id, dupLinkedSmId);
+            // Delete the combined-upload auto-project (it grouped the now-failed
+            // duplicate) and regroup the ORIGINAL + molecules into a fresh one.
+            const autoProjects = await prisma.projectDataset.findMany({
+              where: { datasetId },
+              select: { projectId: true },
+            });
+            const projectIds = [
+              ...new Set(autoProjects.map((r) => r.projectId)),
+            ];
+
+            if (projectIds.length) {
+              await prisma.projectDataset.deleteMany({
+                where: { projectId: { in: projectIds } },
+              });
+              await prisma.project.deleteMany({
+                where: { id: { in: projectIds } },
+              });
+            }
+            if (dataset.ownerId) {
+              await groupInProject(
+                dataset.ownerId,
+                existing.title ?? "Overlay",
+                existing.id,
+                dupLinkedSmId,
+              );
+            }
+            overlayOutcome = "attached";
+          }
+        } catch (e: any) {
+          console.error(
+            "Ingest finalize: duplicate overlay redirect failed:",
+            e?.message,
+          );
+        }
+      }
+
       await prisma.dataset.update({
         where: { id: datasetId },
         data: {
@@ -94,6 +152,7 @@ export async function finalizeCompletedDataset(
             uploadedName: dataset.title ?? undefined,
             existingId: existing.id,
             existingTitle: existing.title ?? undefined,
+            overlay: overlayOutcome,
           });
           emailed = true;
         } catch (e: any) {

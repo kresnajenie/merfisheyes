@@ -28,6 +28,8 @@ import {
 import LightRays from "@/components/react-bits/LightRays";
 import { BrainToggle } from "@/components/brain-toggle";
 import { LoadFromS3Modal } from "@/components/load-from-s3-modal";
+import { FeaturedDatasets } from "@/components/explore/featured-datasets";
+import type { CatalogDatasetItem } from "@/components/explore/types";
 
 const MemoizedLightRays = memo(LightRays);
 
@@ -169,6 +171,22 @@ function HomeContent() {
   const currentColorRef = useRef("#5EA2EF");
   const [animatedRaysColor, setAnimatedRaysColor] = useState("#5EA2EF");
   const [isS3ModalOpen, setIsS3ModalOpen] = useState(false);
+  const [featured, setFeatured] = useState<CatalogDatasetItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/explore?limit=1&include=meta")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.featured) setFeatured(d.featured);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const { data: session } = useSession();
   const [serverMode, setServerMode] = useState(false);
   // Optional per-cell label CSV (e.g. a MapMyCells result the user generated
@@ -522,6 +540,12 @@ function HomeContent() {
             </div>
           </div>
         </div>
+
+        {featured.length > 0 && (
+          <div className="relative z-10 w-full max-w-6xl mx-auto mt-6 px-4">
+            <FeaturedDatasets datasets={featured} />
+          </div>
+        )}
 
         <div className="relative z-10 flex justify-center mt-3">
           <Button

@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
     // Ownership scope, reused for the where clause and the facet queries.
     const ownerScope: Prisma.DatasetWhereInput = {
-      status: { not: "UPLOADING" as const },
+      status: { notIn: ["UPLOADING", "FAILED"] as const },
       ...(isAdmin
         ? { OR: [{ ownerId: session.user.id }, { adminOwned: true }] }
         : { ownerId: session.user.id }),

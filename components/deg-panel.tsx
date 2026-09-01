@@ -11,6 +11,10 @@ import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
+// The overlay is rendered by three-scene from the GLOBAL single-molecule stores
+// (it is not panel-scoped), so read/write the same globals here to stay in sync.
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { glassPanel } from "@/components/primitives";
 import {
   rankDegsForCelltype,
@@ -23,7 +27,7 @@ interface DegPanelProps {
   controlsRef?: React.RefObject<HTMLDivElement>;
 }
 
-type SortKey = "log2FC" | "meanIn" | "pctIn";
+type SortKey = "fc" | "mean1" | "pct";
 
 // Sentinel Autocomplete key for the "vs Rest" reference option. Anything
 // starting with "__" can't collide with a real celltype label produced by
@@ -51,7 +55,43 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
     setDegSortKey,
     degSortDesc,
     setDegSortDesc,
+    degDataMode,
+    setDegDataMode,
   } = usePanelVisualizationStore();
+
+  // Single-molecule overlay (present only when this SC dataset has one linked).
+  // When present, gene clicks can be routed to the molecule overlay instead of
+  // the single-cell expression colouring.
+  const smDataset = useSingleMoleculeStore((s) => s.getCurrentDataset());
+  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+    (s) => s.selectedGenes,
+  );
+  const smAddGene = useSingleMoleculeVisualizationStore((s) => s.addGene);
+  const smRemoveGene = useSingleMoleculeVisualizationStore((s) => s.removeGene);
+
+  const [showExprInfo, setShowExprInfo] = useState(false);
+  const hasSmOverlay = !!smDataset;
+  const [clickTargetRaw, setClickTarget] = useState<"cell" | "molecule">("cell");
+  // Fall back to "cell" whenever there's no overlay so a stale "molecule"
+  // choice can't silently swallow clicks.
+  const clickTarget = hasSmOverlay ? clickTargetRaw : "cell";
+  const smGeneSet = useMemo(
+    () => (smDataset ? new Set(smDataset.uniqueGenes) : null),
+    [smDataset],
+  );
+
+  const onGeneClick = (gene: string) => {
+    if (clickTarget === "molecule") {
+      if (smSelectedGenes.has(gene)) {
+        smRemoveGene(gene);
+      } else if (!smGeneSet || smGeneSet.has(gene)) {
+        smAddGene(gene);
+      }
+
+      return;
+    }
+    setSelectedGene(gene);
+  };
 
   const rawDataset = getCurrentDataset();
   const dataset =
@@ -84,16 +124,43 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
     });
   }, [deStats, degTarget, degReference]);
 
+  // Detect raw counts vs log-normalized from the stored means. Log-normalized
+  // matrices (log1p of library-size-normalized counts) rarely exceed ~15;
+  // raw-count means of well-expressed genes run much higher. The user can
+  // override this in the panel.
+  const detectedMode: "counts" | "log" = useMemo(() => {
+    if (!deStats) return "counts";
+    let max = 0;
+    const m = deStats.means;
+    for (let i = 0; i < m.length; i++) if (m[i] > max) max = m[i];
+    return max > 30 ? "counts" : "log";
+  }, [deStats]);
+  const mode: "counts" | "log" =
+    degDataMode === "auto" ? detectedMode : degDataMode;
+
+  // Per-gene display values: for log data, un-log the means so mean1/mean2 and
+  // the fold change are in linear (interpretable) units.
+  const display = useMemo(() => {
+    const lin = (v: number) => (mode === "log" ? Math.expm1(v) : v);
+    return ranked.map((r) => {
+      const mean1 = lin(r.meanIn);
+      const mean2 = lin(r.meanOut);
+      const fc = mean2 > 0 ? mean1 / mean2 : mean1 > 0 ? Infinity : 1;
+      return { ...r, mean1, mean2, fc };
+    });
+  }, [ranked, mode]);
+
   const sorted = useMemo(() => {
-    if (degSortKey === "log2FC" && degSortDesc) return ranked; // already sorted
-    const copy = ranked.slice();
+    const key =
+      degSortKey === "mean1" ? "mean1" : degSortKey === "pct" ? "pctIn" : "fc";
+    const copy = display.slice();
     copy.sort((a, b) => {
-      const av = a[degSortKey];
-      const bv = b[degSortKey];
+      const av = a[key as keyof typeof a] as number;
+      const bv = b[key as keyof typeof b] as number;
       return degSortDesc ? bv - av : av - bv;
     });
     return copy;
-  }, [ranked, degSortKey, degSortDesc]);
+  }, [display, degSortKey, degSortDesc]);
 
   const filtered = useMemo(() => {
     if (!degSearchTerm.trim()) return sorted;
@@ -128,7 +195,7 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
   const [copyState, setCopyState] = useState<"idle" | "ok" | "err">("idle");
 
   const buildCsv = (): string => {
-    const header = "gene,log2FC,mean_in,mean_out,pct_in,pct_out,n_in,n_out";
+    const header = `# expression: ${mode === "log" ? "log-normalized (means un-logged for FC)" : "raw counts"}\ngene,mean1,mean2,fold_change,pct_cells_grp1,pct_cells_grp2,n_grp1,n_grp2`;
     const lines = [header];
     const nIn = targetCount;
     const nOut = referenceCount;
@@ -136,9 +203,9 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
       lines.push(
         [
           csvCell(r.gene),
-          csvNum(r.log2FC),
-          csvNum(r.meanIn),
-          csvNum(r.meanOut),
+          csvNum(r.mean1),
+          csvNum(r.mean2),
+          csvNum(r.fc),
           csvNum(r.pctIn),
           csvNum(r.pctOut),
           nIn,
@@ -219,8 +286,17 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
             <div className="flex items-end gap-2">
               <Autocomplete
                 className="flex-1"
+                classNames={{
+                  base: "font-semibold",
+                }}
                 color="primary"
                 data-testid="deg-target"
+                inputProps={{
+                  classNames: {
+                    input: "text-foreground font-semibold text-sm",
+                    label: "text-primary-400",
+                  },
+                }}
                 isDisabled={degTargetAuto}
                 label="Target celltype"
                 placeholder="Pick a celltype"
@@ -261,7 +337,14 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
             <div className="flex items-end gap-2">
               <Autocomplete
                 className="flex-1"
+                color="secondary"
                 data-testid="deg-reference"
+                inputProps={{
+                  classNames: {
+                    input: "text-foreground font-semibold text-sm",
+                    label: "text-secondary-400",
+                  },
+                }}
                 isDisabled={degReferenceAuto}
                 label="Reference"
                 placeholder="Rest"
@@ -353,31 +436,124 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
               </Button>
             </div>
 
+            {/* Data-mode indicator + override */}
+            <div className="flex items-center gap-2 px-2 text-[11px] text-default-400">
+              <span
+                title={`We detected this dataset as ${detectedMode === "log" ? "log-normalized" : "raw counts"} from its expression values (log-normalized data stays small, ~<15; raw counts run much higher). Fold change = mean of group 1 ÷ mean of group 2${mode === "log" ? " (means shown are un-logged so the ratio is a real fold change)" : ""}. Change it here if it's wrong.`}
+              >
+                Expression:
+              </span>
+              <select
+                className="rounded bg-content2 px-1.5 py-0.5 text-[11px]"
+                value={degDataMode}
+                onChange={(e) =>
+                  setDegDataMode(e.target.value as "auto" | "counts" | "log")
+                }
+              >
+                <option value="auto">
+                  auto ({detectedMode === "log" ? "log-norm" : "counts"})
+                </option>
+                <option value="counts">raw counts</option>
+                <option value="log">log-normalized</option>
+              </select>
+
+              <button
+                aria-label="How expression mode is detected"
+                className={`flex h-4 w-4 items-center justify-center rounded-full border text-[9px] font-semibold transition-colors ${
+                  showExprInfo
+                    ? "border-primary text-primary"
+                    : "border-default-400 text-default-400 hover:border-default-200 hover:text-default-200"
+                }`}
+                onClick={() => setShowExprInfo((v) => !v)}
+              >
+                i
+              </button>
+
+              {hasSmOverlay && (
+                <div className="ml-auto flex items-center gap-1">
+                  <span title="Choose what clicking a gene does: colour the cells by its single-cell expression, or add/remove it as a molecule layer in the overlay.">
+                    Click adds to:
+                  </span>
+                  <div className="flex rounded bg-content2 p-0.5">
+                    <button
+                      className={`rounded px-2 py-0.5 transition-colors ${
+                        clickTarget === "cell"
+                          ? "bg-primary text-white"
+                          : "text-default-400 hover:text-default-200"
+                      }`}
+                      onClick={() => setClickTarget("cell")}
+                    >
+                      Cell
+                    </button>
+                    <button
+                      className={`rounded px-2 py-0.5 transition-colors ${
+                        clickTarget === "molecule"
+                          ? "bg-primary text-white"
+                          : "text-default-400 hover:text-default-200"
+                      }`}
+                      onClick={() => setClickTarget("molecule")}
+                    >
+                      Molecule
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {showExprInfo && (
+              <div className="mx-2 rounded-lg bg-content2/60 p-2.5 text-[11px] leading-relaxed text-default-400">
+                <span className="text-default-200">
+                  How the mode is detected.
+                </span>{" "}
+                We scan the mean expression of every gene in the current
+                comparison and take the largest, currently{" "}
+                <span className="font-mono text-default-200">
+                  {formatMean(
+                    deStats
+                      ? deStats.means.reduce((a, b) => (b > a ? b : a), 0)
+                      : 0,
+                  )}
+                </span>
+                . Log-normalized data (log1p of size-normalized counts) almost
+                never exceeds ~15, while raw counts of well-expressed genes run
+                much higher — so a max above{" "}
+                <span className="font-mono text-default-200">30</span> is read
+                as raw counts, otherwise log-normalized. The mode only affects
+                mean1 / mean2 and the fold change: for log data the means are
+                un-logged (
+                <span className="font-mono">expm1</span>) first so the ratio is
+                a true linear fold change. Override it with the dropdown if the
+                guess is wrong.
+              </div>
+            )}
+
             {/* Header */}
-            <div className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr] gap-2 text-[11px] uppercase tracking-wide text-default-400 px-2">
+            <div className="grid grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr] gap-2 text-[11px] tracking-wide text-default-300 px-2">
               <button
                 className="text-left hover:text-default-200"
-                onClick={() => handleSort("log2FC")}
+                onClick={() => handleSort("mean1")}
               >
                 Gene
               </button>
               <SortHeader
-                active={degSortKey === "log2FC"}
+                active={degSortKey === "mean1"}
                 desc={degSortDesc}
-                label="log2FC"
-                onClick={() => handleSort("log2FC")}
+                label="mean1"
+                title={`Mean expression in ${degTarget ?? "group 1"}${mode === "log" ? " (un-logged)" : ""}`}
+                onClick={() => handleSort("mean1")}
               />
+              <span
+                className="text-left text-default-400"
+                title={`Mean expression in ${degReference ?? "the rest"}${mode === "log" ? " (un-logged)" : ""}`}
+              >
+                mean2
+              </span>
               <SortHeader
-                active={degSortKey === "meanIn"}
+                active={degSortKey === "fc"}
                 desc={degSortDesc}
-                label="mean_in"
-                onClick={() => handleSort("meanIn")}
-              />
-              <SortHeader
-                active={degSortKey === "pctIn"}
-                desc={degSortDesc}
-                label="pct_in"
-                onClick={() => handleSort("pctIn")}
+                label="FC"
+                title="Fold change = mean1 ÷ mean2. >1 = higher in group 1."
+                onClick={() => handleSort("fc")}
               />
             </div>
 
@@ -389,36 +565,64 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
                 </div>
               ) : (
                 filtered.slice(0, 500).map((r, rowIndex) => {
-                  const isSelected = r.gene === selectedGene;
+                  const smViz =
+                    clickTarget === "molecule"
+                      ? smSelectedGenes.get(r.gene)
+                      : undefined;
+                  const isSelected =
+                    clickTarget === "molecule"
+                      ? !!smViz
+                      : r.gene === selectedGene;
+                  // In molecule mode, genes absent from the overlay dataset
+                  // can't be shown — dim + disable them.
+                  const notInSm =
+                    clickTarget === "molecule" &&
+                    !!smGeneSet &&
+                    !smGeneSet.has(r.gene);
                   return (
                     <button
                       key={r.gene}
                       data-testid="deg-row"
                       data-gene={r.gene}
                       data-row-index={rowIndex}
-                      className={`grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr] gap-2 px-2 py-1.5 rounded text-left text-xs hover:bg-white/10 transition-colors ${
-                        isSelected ? "bg-primary/30" : ""
-                      }`}
-                      onClick={() => setSelectedGene(r.gene)}
-                      title={`mean_out=${r.meanOut.toFixed(4)} · pct_out=${r.pctOut.toFixed(3)}`}
+                      disabled={notInSm}
+                      className={`grid grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr] gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors ${
+                        notInSm
+                          ? "opacity-40 cursor-not-allowed"
+                          : "hover:bg-white/10"
+                      } ${isSelected ? "bg-primary/30" : ""}`}
+                      onClick={() => onGeneClick(r.gene)}
+                      title={
+                        notInSm
+                          ? "Not present in the molecule overlay dataset"
+                          : `${r.pctIn > 0 || r.pctOut > 0 ? `% of cells expressing — group 1: ${(r.pctIn * 100).toFixed(1)}%, group 2: ${(r.pctOut * 100).toFixed(1)}%` : ""}`
+                      }
                     >
-                      <span className="font-mono truncate">{r.gene}</span>
+                      <span className="font-mono truncate flex items-center gap-1.5">
+                        {smViz && (
+                          <span
+                            className="inline-block h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: smViz.color }}
+                          />
+                        )}
+                        {r.gene}
+                      </span>
+                      <span className="font-mono text-foreground">
+                        {formatMean(r.mean1)}
+                      </span>
+                      <span className="font-mono text-foreground/80">
+                        {formatMean(r.mean2)}
+                      </span>
                       <span
                         className={`font-mono ${
-                          r.log2FC > 0
+                          r.fc > 1
                             ? "text-rose-300"
-                            : r.log2FC < 0
+                            : r.fc < 1
                               ? "text-sky-300"
                               : "text-default-300"
                         }`}
                       >
-                        {formatLog2FC(r.log2FC)}
-                      </span>
-                      <span className="font-mono text-default-300">
-                        {r.meanIn.toFixed(3)}
-                      </span>
-                      <span className="font-mono text-default-300">
-                        {(r.pctIn * 100).toFixed(1)}%
+                        {formatFC(r.fc)}
                       </span>
                     </button>
                   );
@@ -441,16 +645,19 @@ function SortHeader({
   active,
   desc,
   label,
+  title,
   onClick,
 }: {
   active: boolean;
   desc: boolean;
   label: string;
+  title?: string;
   onClick: () => void;
 }) {
   return (
     <button
       className={`text-left ${active ? "text-default-200" : "hover:text-default-200"}`}
+      title={title}
       onClick={onClick}
     >
       {label}
@@ -459,10 +666,22 @@ function SortHeader({
   );
 }
 
-function formatLog2FC(v: number): string {
-  if (!isFinite(v)) return v > 0 ? "+∞" : "-∞";
-  const sign = v > 0 ? "+" : "";
-  return sign + v.toFixed(2);
+function formatFC(v: number): string {
+  if (!isFinite(v)) return "∞×";
+  if (v === 0) return "0×";
+  // Two sig-figs of scale: 12× / 3.2× / 0.45×.
+  const digits = v >= 10 ? 0 : v >= 1 ? 1 : 2;
+
+  return `${v.toFixed(digits)}×`;
+}
+
+function formatMean(v: number): string {
+  if (!isFinite(v)) return "∞";
+  if (v === 0) return "0";
+  if (v >= 100) return v.toFixed(0);
+  if (v >= 1) return v.toFixed(2);
+
+  return v.toFixed(3);
 }
 
 function csvCell(s: string): string {

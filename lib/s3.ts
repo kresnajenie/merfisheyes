@@ -11,6 +11,7 @@ import {
   AbortMultipartUploadCommand,
   ListMultipartUploadsCommand,
   ListObjectsV2Command,
+  DeleteObjectCommand,
   DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -393,6 +394,13 @@ export async function listObjectKeys(
  * Delete every object under a key prefix (paginated list → batched delete).
  * @returns the number of objects deleted
  */
+/** Delete a single object by key (no-op if it doesn't exist). */
+export async function deleteObject(key: string): Promise<void> {
+  await s3Client.send(
+    new DeleteObjectCommand({ Bucket: ensureBucket(), Key: key }),
+  );
+}
+
 export async function deleteObjectsByPrefix(prefix: string): Promise<number> {
   const bucket = ensureBucket();
   let deleted = 0;

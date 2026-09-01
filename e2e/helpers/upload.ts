@@ -28,7 +28,15 @@ export async function uploadAndSave(
   await page.locator(SELECTORS.uploadSaveButton).first().click();
 
   await page.getByPlaceholder("Enter dataset name").fill(name);
-  await page.getByPlaceholder("Enter your email").fill(email);
+
+  // The email field only renders when signed out (signed-in uploads notify the
+  // account's email). The @upload suite signs in first, so it's normally
+  // hidden — fill it only when actually present.
+  const emailField = page.getByPlaceholder("Enter your email");
+
+  if (await emailField.isVisible().catch(() => false)) {
+    await emailField.fill(email);
+  }
 
   const confirm =
     ds.dataType === "single_molecule"

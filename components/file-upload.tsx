@@ -25,6 +25,8 @@ import {
   MoleculeColumnMapping,
   MOLECULE_COLUMN_MAPPINGS,
 } from "@/lib/config/moleculeColumnMappings";
+import { createPortal } from "react-dom";
+import { Spinner } from "@heroui/react";
 import { readMoleculePreview } from "@/lib/services/molecule-preview";
 import { SingleMoleculeHeaderModal } from "@/components/single-molecule-header-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
@@ -149,12 +151,24 @@ export function FileUpload({
   const mappingResolverRef = useRef<
     ((m: MoleculeColumnMapping | null) => void) | null
   >(null);
+  // Reading a parquet/CSV preview to detect columns can take a few seconds on a
+  // large file; show an explicit indicator so it does not look frozen.
+  const [columnPreviewLoading, setColumnPreviewLoading] = useState(false);
+  // Files whose in-browser processing failed — offer to process them on the
+  // server instead (same flow as Upload & Save), reusing the dropped file.
+  const [serverFallbackFiles, setServerFallbackFiles] = useState<File[] | null>(null);
 
   // Read a preview, open the confirm modal, and resolve with the user's chosen
   // mapping (or null if they cancel).
   const awaitColumnMapping = useCallback(
     async (file: File): Promise<MoleculeColumnMapping | null> => {
-      const preview = await readMoleculePreview(file);
+      setColumnPreviewLoading(true);
+      let preview;
+      try {
+        preview = await readMoleculePreview(file);
+      } finally {
+        setColumnPreviewLoading(false);
+      }
       const autoMapping = MOLECULE_COLUMN_MAPPINGS[preview.autoType];
 
       return new Promise<MoleculeColumnMapping | null>((resolve) => {
@@ -919,6 +933,10 @@ export function FileUpload({
       setLoading(false);
       setProgress(0);
       setProgressMessage("");
+      // Some datasets that fail in the browser (memory limits, int64 matrices,
+      // unusual encodings) process fine on the server — offer that path with
+      // the file the user already dropped.
+      setServerFallbackFiles(files);
     }
   };
 
@@ -1014,6 +1032,55 @@ export function FileUpload({
           )}
         </div>
       </div>
+
+      {serverFallbackFiles &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[var(--z-modal-top)] flex items-center justify-center bg-black/70 p-6 backdrop-blur-md"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setServerFallbackFiles(null);
+            }}
+          >
+            <div className="glass-panel w-full max-w-md rounded-2xl p-7" role="dialog">
+              <h2 className="text-xl font-semibold text-foreground">
+                Process on our server instead?
+              </h2>
+              <p className="mt-2 text-sm text-default-500">
+                This dataset could not be processed in your browser. Our server
+                handles larger datasets and formats the browser can\u2019t \u2014 same
+                zero-setup flow, and you\u2019ll get a shareable link when it\u2019s ready.
+              </p>
+              <div className="mt-6 flex justify-end gap-2">
+                <Button
+                  variant="light"
+                  onPress={() => setServerFallbackFiles(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  color="primary"
+                  onPress={() => {
+                    const files = serverFallbackFiles;
+
+                    setServerFallbackFiles(null);
+                    if (files) void handleServerUpload(files);
+                  }}
+                >
+                  Process on server
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {columnPreviewLoading && (
+        <div className="fixed inset-0 z-[var(--z-modal-top)] flex flex-col items-center justify-center gap-3 bg-black/70 backdrop-blur-md">
+          <Spinner size="lg" />
+          <p className="text-sm text-default-300">Reading column headers…</p>
+        </div>
+      )}
 
       {headerModal && (
         <SingleMoleculeHeaderModal

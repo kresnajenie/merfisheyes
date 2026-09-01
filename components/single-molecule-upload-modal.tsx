@@ -12,12 +12,13 @@ import {
 } from "@heroui/react";
 import { gzip } from "pako";
 import { toast } from "react-toastify";
-import { useSession, signIn } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import { SingleMoleculeProcessor } from "@/lib/utils/SingleMoleculeProcessor";
 import { generateSingleMoleculeFingerprint } from "@/lib/utils/fingerprint";
 import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
+import { AuthModal } from "@/components/auth-modal";
 
 interface SingleMoleculeUploadModalProps {
   isOpen: boolean;
@@ -45,15 +46,23 @@ export function SingleMoleculeUploadModal({
   const [uploadMessage, setUploadMessage] = useState("");
   const [uploadComplete, setUploadComplete] = useState(false);
   const [uploadedDatasetId, setUploadedDatasetId] = useState<string>("");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
 
+  useEffect(() => {
+    if (session?.user?.email) setEmail(session.user.email);
+  }, [session?.user?.email]);
+
   const resetState = (targetDataset: SingleMoleculeDataset | null) => {
     setDatasetName(targetDataset?.name || "dataset");
     setOwner("me");
-    setEmail("");
+    // Preserve a signed-in user's account email — this reset fires when the
+    // dataset id changes, and blanking it here would race the session prefill
+    // (the field is hidden when signed in, so it could never be re-entered).
+    setEmail(session?.user?.email ?? "");
     setIsProcessing(false);
     setProgress(0);
     setProgressMessage("");
@@ -347,6 +356,7 @@ export function SingleMoleculeUploadModal({
   };
 
   return (
+    <>
     <Modal isOpen={isOpen} size="2xl" onClose={onClose}>
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
@@ -362,21 +372,23 @@ export function SingleMoleculeUploadModal({
               onValueChange={setDatasetName}
             />
 
-            <Input
-              isRequired
-              description="Get notified when processing is complete"
-              errorMessage={
-                email.length > 0 && !isEmailValid
-                  ? "Please enter a valid email address"
-                  : ""
-              }
-              isInvalid={email.length > 0 && !isEmailValid}
-              label="Email"
-              placeholder="Enter your email"
-              type="email"
-              value={email}
-              onValueChange={setEmail}
-            />
+            {!isSignedIn && (
+              <Input
+                isRequired
+                description="Get notified when processing is complete"
+                errorMessage={
+                  email.length > 0 && !isEmailValid
+                    ? "Please enter a valid email address"
+                    : ""
+                }
+                isInvalid={email.length > 0 && !isEmailValid}
+                label="Email"
+                placeholder="Enter your email"
+                type="email"
+                value={email}
+                onValueChange={setEmail}
+              />
+            )}
 
             <OwnerChoice value={owner} onChange={setOwner} />
 
@@ -389,7 +401,7 @@ export function SingleMoleculeUploadModal({
                   color="warning"
                   size="sm"
                   variant="flat"
-                  onPress={() => signIn()}
+                  onPress={() => setAuthModalOpen(true)}
                 >
                   Sign in
                 </Button>
@@ -509,5 +521,11 @@ export function SingleMoleculeUploadModal({
         </ModalFooter>
       </ModalContent>
     </Modal>
+    <AuthModal
+      isOpen={authModalOpen}
+      onClose={() => setAuthModalOpen(false)}
+      onAuthenticated={() => setAuthModalOpen(false)}
+    />
+    </>
   );
 }

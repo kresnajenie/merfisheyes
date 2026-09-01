@@ -134,7 +134,7 @@ export function AuthModal({
   // this `fixed` overlay to that ancestor instead of the viewport.
   return createPortal(
     <div
-      className="fixed inset-0 z-[var(--z-modal)] flex items-center justify-center bg-black/70 p-6 backdrop-blur-md"
+      className="fixed inset-0 z-[var(--z-modal-top)] flex items-center justify-center bg-black/70 p-6 backdrop-blur-md"
       role="presentation"
       onClick={(e) => {
         // Backdrop click closes; clicks inside the card don't bubble to here.
