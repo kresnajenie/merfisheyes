@@ -11,6 +11,10 @@ import {
   usePanelDatasetStore,
   usePanelVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
+// The overlay is rendered by three-scene from the GLOBAL single-molecule stores
+// (it is not panel-scoped), so read/write the same globals here to stay in sync.
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { glassPanel } from "@/components/primitives";
 import {
   rankDegsForCelltype,
@@ -54,6 +58,39 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
     degDataMode,
     setDegDataMode,
   } = usePanelVisualizationStore();
+
+  // Single-molecule overlay (present only when this SC dataset has one linked).
+  // When present, gene clicks can be routed to the molecule overlay instead of
+  // the single-cell expression colouring.
+  const smDataset = useSingleMoleculeStore((s) => s.getCurrentDataset());
+  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+    (s) => s.selectedGenes,
+  );
+  const smAddGene = useSingleMoleculeVisualizationStore((s) => s.addGene);
+  const smRemoveGene = useSingleMoleculeVisualizationStore((s) => s.removeGene);
+
+  const hasSmOverlay = !!smDataset;
+  const [clickTargetRaw, setClickTarget] = useState<"cell" | "molecule">("cell");
+  // Fall back to "cell" whenever there's no overlay so a stale "molecule"
+  // choice can't silently swallow clicks.
+  const clickTarget = hasSmOverlay ? clickTargetRaw : "cell";
+  const smGeneSet = useMemo(
+    () => (smDataset ? new Set(smDataset.uniqueGenes) : null),
+    [smDataset],
+  );
+
+  const onGeneClick = (gene: string) => {
+    if (clickTarget === "molecule") {
+      if (smSelectedGenes.has(gene)) {
+        smRemoveGene(gene);
+      } else if (!smGeneSet || smGeneSet.has(gene)) {
+        smAddGene(gene);
+      }
+
+      return;
+    }
+    setSelectedGene(gene);
+  };
 
   const rawDataset = getCurrentDataset();
   const dataset =
@@ -418,6 +455,36 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
                 <option value="counts">raw counts</option>
                 <option value="log">log-normalized</option>
               </select>
+
+              {hasSmOverlay && (
+                <div className="ml-auto flex items-center gap-1">
+                  <span title="Choose what clicking a gene does: colour the cells by its single-cell expression, or add/remove it as a molecule layer in the overlay.">
+                    Click adds to:
+                  </span>
+                  <div className="flex rounded bg-content2 p-0.5">
+                    <button
+                      className={`rounded px-2 py-0.5 transition-colors ${
+                        clickTarget === "cell"
+                          ? "bg-primary text-white"
+                          : "text-default-400 hover:text-default-200"
+                      }`}
+                      onClick={() => setClickTarget("cell")}
+                    >
+                      Cell
+                    </button>
+                    <button
+                      className={`rounded px-2 py-0.5 transition-colors ${
+                        clickTarget === "molecule"
+                          ? "bg-primary text-white"
+                          : "text-default-400 hover:text-default-200"
+                      }`}
+                      onClick={() => setClickTarget("molecule")}
+                    >
+                      Molecule
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Header */}
@@ -458,20 +525,48 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
                 </div>
               ) : (
                 filtered.slice(0, 500).map((r, rowIndex) => {
-                  const isSelected = r.gene === selectedGene;
+                  const smViz =
+                    clickTarget === "molecule"
+                      ? smSelectedGenes.get(r.gene)
+                      : undefined;
+                  const isSelected =
+                    clickTarget === "molecule"
+                      ? !!smViz
+                      : r.gene === selectedGene;
+                  // In molecule mode, genes absent from the overlay dataset
+                  // can't be shown — dim + disable them.
+                  const notInSm =
+                    clickTarget === "molecule" &&
+                    !!smGeneSet &&
+                    !smGeneSet.has(r.gene);
                   return (
                     <button
                       key={r.gene}
                       data-testid="deg-row"
                       data-gene={r.gene}
                       data-row-index={rowIndex}
-                      className={`grid grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr] gap-2 px-2 py-1.5 rounded text-left text-xs hover:bg-white/10 transition-colors ${
-                        isSelected ? "bg-primary/30" : ""
-                      }`}
-                      onClick={() => setSelectedGene(r.gene)}
-                      title={`${r.pctIn > 0 || r.pctOut > 0 ? `% of cells expressing — group 1: ${(r.pctIn * 100).toFixed(1)}%, group 2: ${(r.pctOut * 100).toFixed(1)}%` : ""}`}
+                      disabled={notInSm}
+                      className={`grid grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr] gap-2 px-2 py-1.5 rounded text-left text-xs transition-colors ${
+                        notInSm
+                          ? "opacity-40 cursor-not-allowed"
+                          : "hover:bg-white/10"
+                      } ${isSelected ? "bg-primary/30" : ""}`}
+                      onClick={() => onGeneClick(r.gene)}
+                      title={
+                        notInSm
+                          ? "Not present in the molecule overlay dataset"
+                          : `${r.pctIn > 0 || r.pctOut > 0 ? `% of cells expressing — group 1: ${(r.pctIn * 100).toFixed(1)}%, group 2: ${(r.pctOut * 100).toFixed(1)}%` : ""}`
+                      }
                     >
-                      <span className="font-mono truncate">{r.gene}</span>
+                      <span className="font-mono truncate flex items-center gap-1.5">
+                        {smViz && (
+                          <span
+                            className="inline-block h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: smViz.color }}
+                          />
+                        )}
+                        {r.gene}
+                      </span>
                       <span className="font-mono text-foreground">
                         {formatMean(r.mean1)}
                       </span>
