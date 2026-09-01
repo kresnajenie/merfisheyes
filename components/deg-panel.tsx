@@ -69,6 +69,7 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
   const smAddGene = useSingleMoleculeVisualizationStore((s) => s.addGene);
   const smRemoveGene = useSingleMoleculeVisualizationStore((s) => s.removeGene);
 
+  const [showExprInfo, setShowExprInfo] = useState(false);
   const hasSmOverlay = !!smDataset;
   const [clickTargetRaw, setClickTarget] = useState<"cell" | "molecule">("cell");
   // Fall back to "cell" whenever there's no overlay so a stale "molecule"
@@ -456,6 +457,18 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
                 <option value="log">log-normalized</option>
               </select>
 
+              <button
+                aria-label="How expression mode is detected"
+                className={`flex h-4 w-4 items-center justify-center rounded-full border text-[9px] font-semibold transition-colors ${
+                  showExprInfo
+                    ? "border-primary text-primary"
+                    : "border-default-400 text-default-400 hover:border-default-200 hover:text-default-200"
+                }`}
+                onClick={() => setShowExprInfo((v) => !v)}
+              >
+                i
+              </button>
+
               {hasSmOverlay && (
                 <div className="ml-auto flex items-center gap-1">
                   <span title="Choose what clicking a gene does: colour the cells by its single-cell expression, or add/remove it as a molecule layer in the overlay.">
@@ -486,6 +499,33 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
                 </div>
               )}
             </div>
+
+            {showExprInfo && (
+              <div className="mx-2 rounded-lg bg-content2/60 p-2.5 text-[11px] leading-relaxed text-default-400">
+                <span className="text-default-200">
+                  How the mode is detected.
+                </span>{" "}
+                We scan the mean expression of every gene in the current
+                comparison and take the largest, currently{" "}
+                <span className="font-mono text-default-200">
+                  {formatMean(
+                    deStats
+                      ? deStats.means.reduce((a, b) => (b > a ? b : a), 0)
+                      : 0,
+                  )}
+                </span>
+                . Log-normalized data (log1p of size-normalized counts) almost
+                never exceeds ~15, while raw counts of well-expressed genes run
+                much higher — so a max above{" "}
+                <span className="font-mono text-default-200">30</span> is read
+                as raw counts, otherwise log-normalized. The mode only affects
+                mean1 / mean2 and the fold change: for log data the means are
+                un-logged (
+                <span className="font-mono">expm1</span>) first so the ratio is
+                a true linear fold change. Override it with the dropdown if the
+                guess is wrong.
+              </div>
+            )}
 
             {/* Header */}
             <div className="grid grid-cols-[1.3fr_0.9fr_0.9fr_0.9fr] gap-2 text-[11px] tracking-wide text-default-300 px-2">
