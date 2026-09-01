@@ -22,8 +22,6 @@ Usage:
       --species mouse \\
       --out /bil/data/meyes/_dataset_stats/dataset_stats.csv
 """
-from __future__ import annotations
-
 import argparse
 import contextlib
 import datetime as dt
@@ -51,7 +49,7 @@ CHUNK = 100_000
 # ─────────────────────────────────────────────────────────────
 # meyes_output manifest scraper
 # ─────────────────────────────────────────────────────────────
-def _scrape_meyes_manifest(meyes_output: Path) -> dict | None:
+def _scrape_meyes_manifest(meyes_output):
     """Read meyes_output/manifest.json. Returns None if not present."""
     p = meyes_output / "manifest.json"
     if not p.exists():
@@ -69,7 +67,7 @@ def _scrape_meyes_manifest(meyes_output: Path) -> dict | None:
 # ─────────────────────────────────────────────────────────────
 # sm_output manifest scraper
 # ─────────────────────────────────────────────────────────────
-def _scrape_sm_manifest(sm_output: Path) -> dict | None:
+def _scrape_sm_manifest(sm_output):
     """Read sm_output/manifest.json.gz. Returns None if not present."""
     p = sm_output / "manifest.json.gz"
     if not p.exists():
