@@ -1,0 +1,332 @@
+"use client";
+
+import type { StandardizedDataset } from "@/lib/StandardizedDataset";
+import type { LmMenu } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
+
+import { Button } from "@heroui/button";
+import { Checkbox } from "@heroui/checkbox";
+import { Input } from "@heroui/input";
+import { Slider } from "@heroui/react";
+import { Tooltip } from "@heroui/tooltip";
+import { useMemo, useState } from "react";
+
+import { glassButton, glassPanel } from "@/components/primitives";
+import {
+  LM_MENUS,
+  resolveValueColor,
+} from "@/lib/stores/createLabelledMoleculeVisualizationStore";
+import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
+import {
+  buildSelectionLut,
+  countVisible,
+} from "@/lib/webgl/labelled-molecule-lut";
+
+const MENU_LABEL: Record<LmMenu, string> = {
+  gene: "Gene",
+  domain: "Domain",
+  cell: "Cell",
+};
+
+const MENU_TOOLTIP: Record<LmMenu, string> = {
+  gene: "Filter by gene",
+  domain: "Filter by RNA domain",
+  cell: "Filter by cell",
+};
+
+// Same rail geometry as visualization-controls.tsx.
+const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
+
+interface Props {
+  dataset: StandardizedDataset;
+  clusterVersion?: number;
+}
+
+export default function LabelledMoleculeControls({
+  dataset,
+  clusterVersion = 0,
+}: Props) {
+  const s = useLabelledMoleculeVisualizationStore();
+  const [showSettings, setShowSettings] = useState(false);
+
+  const columnFor: Record<LmMenu, string> = {
+    gene: "gene",
+    domain: s.domainVariant,
+    cell: "cell",
+  };
+
+  const columns = useMemo(() => {
+    const out = {} as Record<
+      LmMenu,
+      {
+        uniqueValues: string[];
+        valueIndices: ArrayLike<number>;
+        palette: Record<string, string> | null;
+        counts: number[];
+      } | null
+    >;
+
+    for (const menu of LM_MENUS) {
+      const c = dataset.clusters?.find((cl) => cl.column === columnFor[menu]);
+
+      if (!c?.uniqueValues || !c.valueIndices) {
+        out[menu] = null;
+        continue;
+      }
+      // Per-value totals. One pass per column, memoised — not recomputed on
+      // every checkbox toggle.
+      const counts = new Array(c.uniqueValues.length).fill(0);
+
+      for (let i = 0; i < c.valueIndices.length; i++)
+        counts[c.valueIndices[i]]++;
+
+      out[menu] = {
+        uniqueValues: c.uniqueValues,
+        valueIndices: c.valueIndices,
+        palette: c.palette,
+        counts,
+      };
+    }
+
+    return out;
+  }, [dataset, s.domainVariant, clusterVersion]);
+
+  const visible = useMemo(() => {
+    if (LM_MENUS.some((m) => !columns[m])) return null;
+
+    const cols = LM_MENUS.map((m) => ({
+      indices: columns[m]!.valueIndices,
+      lut: buildSelectionLut(columns[m]!.uniqueValues, s.selections[m]),
+    }));
+
+    return countVisible(cols, dataset.getPointCount());
+  }, [columns, s.selections, dataset]);
+
+  const open = s.openMenu;
+  const openCol = open ? columns[open] : null;
+
+  const filtered = useMemo(() => {
+    if (!open || !openCol) return [];
+    const term = s.searchTerm[open].toLowerCase();
+
+    return openCol.uniqueValues
+      .map((_, i) => i)
+      .filter(
+        (i) => !term || openCol.uniqueValues[i].toLowerCase().includes(term),
+      )
+      .sort((a, b) => openCol.counts[b] - openCol.counts[a]);
+  }, [open, openCol, s.searchTerm]);
+
+  const openPanel = (menu: LmMenu) => {
+    setShowSettings(false);
+    s.setOpenMenu(open === menu ? null : menu);
+  };
+
+  return (
+    <>
+      <div
+        data-ui-overlay
+        className="absolute top-28 left-4 z-[var(--z-rail)] flex flex-col gap-2"
+      >
+        {LM_MENUS.map((menu) => {
+          const isOpen = open === menu;
+          const isColoring = s.colorBy === menu;
+          const n = s.selections[menu].size;
+
+          return (
+            <Tooltip
+              key={menu}
+              content={
+                `${MENU_TOOLTIP[menu]}${isColoring ? " · colouring the scene" : ""}` +
+                (n ? ` · ${n} selected` : "")
+              }
+              placement="right"
+            >
+              <Button
+                className={`${buttonBaseClass} ${isOpen ? "" : glassButton()}`}
+                color={isOpen ? "primary" : "default"}
+                variant={isOpen ? "shadow" : "light"}
+                onPress={() => openPanel(menu)}
+              >
+                {MENU_LABEL[menu]}
+              </Button>
+            </Tooltip>
+          );
+        })}
+
+        <Tooltip content="View settings" placement="right">
+          <Button
+            className={`${buttonBaseClass} ${showSettings ? "" : glassButton()}`}
+            color={showSettings ? "primary" : "default"}
+            variant={showSettings ? "shadow" : "light"}
+            onPress={() => {
+              s.setOpenMenu(null);
+              setShowSettings((v) => !v);
+            }}
+          >
+            View
+          </Button>
+        </Tooltip>
+
+        {/* Value panel — same placement and shell as VisualizationPanel. */}
+        {open && openCol && (
+          <div
+            className={`absolute top-0 left-16 z-[var(--z-panel)] w-[300px] ${glassPanel()}`}
+          >
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">{MENU_LABEL[open]}</span>
+                <Button
+                  color={s.colorBy === open ? "primary" : "default"}
+                  size="sm"
+                  variant={s.colorBy === open ? "flat" : "light"}
+                  onPress={() => s.setColorBy(open)}
+                >
+                  {s.colorBy === open ? "Colouring" : "Colour by"}
+                </Button>
+              </div>
+
+              {/* The two domain columns are interchangeable; only one filters. */}
+              {open === "domain" && (
+                <div className="flex gap-1">
+                  {(["domain_anno", "domain_id"] as const).map((v) => (
+                    <Button
+                      key={v}
+                      className="flex-1"
+                      color={s.domainVariant === v ? "primary" : "default"}
+                      size="sm"
+                      variant={s.domainVariant === v ? "flat" : "light"}
+                      onPress={() => s.setDomainVariant(v)}
+                    >
+                      {v === "domain_anno" ? "Label" : "ID"}
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              <Input
+                classNames={{ input: "text-sm" }}
+                placeholder={`Search ${MENU_LABEL[open].toLowerCase()}`}
+                value={s.searchTerm[open]}
+                onValueChange={(v) => s.setSearchTerm(open, v)}
+              />
+
+              <div className="flex gap-1">
+                <Button
+                  className="flex-1"
+                  color="danger"
+                  variant="ghost"
+                  onPress={() => {
+                    s.setSearchTerm(open, "");
+                    s.clearMenu(open);
+                  }}
+                >
+                  Clear
+                </Button>
+              </div>
+
+              <div className="text-xs text-default-500 text-center">
+                {s.selections[open].size === 0
+                  ? "No filter — showing all"
+                  : `${s.selections[open].size} of ${openCol.uniqueValues.length} selected`}
+              </div>
+
+              <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
+                {filtered.map((i) => {
+                  const value = openCol.uniqueValues[i];
+                  const color = resolveValueColor(
+                    open,
+                    value,
+                    s.colorOverrides[open],
+                    s.geneColorSlots,
+                    openCol.palette,
+                  );
+
+                  return (
+                    <Checkbox
+                      key={value}
+                      className="w-full max-w-full"
+                      isSelected={s.selections[open].has(value)}
+                      size="sm"
+                      onValueChange={() => s.toggleValue(open, value)}
+                    >
+                      <div className="flex w-full items-center justify-between gap-2">
+                        <span
+                          className="truncate"
+                          style={{ color }}
+                          title={value}
+                        >
+                          {open === "gene" ? value.split(" (")[0] : value}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-default-500">
+                          {openCol.counts[i].toLocaleString()}
+                        </span>
+                      </div>
+                    </Checkbox>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View settings. */}
+        {showSettings && (
+          <div
+            className={`absolute top-0 left-16 z-[var(--z-panel)] w-[280px] ${glassPanel()}`}
+          >
+            <div className="p-4 space-y-4">
+              <div className="flex gap-1">
+                {(["2D", "3D"] as const).map((m) => (
+                  <Button
+                    key={m}
+                    className="flex-1"
+                    color={s.viewMode === m ? "primary" : "default"}
+                    size="sm"
+                    variant={s.viewMode === m ? "flat" : "light"}
+                    onPress={() => s.setViewMode(m)}
+                  >
+                    {m}
+                  </Button>
+                ))}
+              </div>
+
+              <Slider
+                label="Point size"
+                maxValue={4}
+                minValue={0.1}
+                size="sm"
+                step={0.05}
+                value={s.globalScale}
+                onChange={(v) => s.setGlobalScale(Number(v))}
+              />
+
+              <Slider
+                label="Opacity"
+                maxValue={1}
+                minValue={0.02}
+                size="sm"
+                step={0.02}
+                value={s.globalAlpha}
+                onChange={(v) => s.setGlobalAlpha(Number(v))}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* How many molecules survive the intersection. */}
+      <div
+        className={`absolute bottom-6 left-4 z-[var(--z-legends)] rounded-full px-4 py-2 text-xs ${glassButton()}`}
+        data-testid="lm-visible-count"
+      >
+        <span className="font-medium">
+          {visible === null ? "…" : visible.toLocaleString()}
+        </span>
+        <span className="text-default-500">
+          {" "}
+          / {dataset.getPointCount().toLocaleString()} molecules
+        </span>
+      </div>
+    </>
+  );
+}

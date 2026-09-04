@@ -112,22 +112,41 @@ export class ChunkedDataAdapter {
           )
         : this.fetchJSON("manifest.json");
 
-      const [manifest, expressionIndex, obsMetadata] = await Promise.all([
+      // A labelled-molecule dataset has no expression matrix, so expr/index.json
+      // does not exist. We still fire the request concurrently (skipping it
+      // would cost an extra round trip on every single-cell load) and only
+      // decide whether its failure matters once the manifest has arrived — so a
+      // genuinely broken index still throws for datasets that declare one.
+      const exprAttempt = this.fetchJSON("expr/index.json").then(
+        (value) => ({ ok: true, value, error: null as unknown }),
+        (error) => ({ ok: false, value: null, error }),
+      );
+
+      const [manifest, expr, obsMetadata] = await Promise.all([
         manifestPromise,
-        this.fetchJSON("expr/index.json"),
+        exprAttempt,
         this.fetchJSON("obs/metadata.json"),
       ]);
 
+      const hasExpression = manifest?.has_expression !== false;
+
+      if (hasExpression && !expr.ok) throw expr.error;
+
       this.manifest = manifest;
-      this.expressionIndex = expressionIndex;
+      this.expressionIndex = hasExpression ? expr.value : null;
       this.obsMetadata = obsMetadata;
 
       console.log("Loaded manifest:", this.manifest);
-      console.log("Loaded expression index:", {
-        totalGenes: this.expressionIndex.total_genes,
-        numChunks: this.expressionIndex.num_chunks,
-        chunkSize: this.expressionIndex.chunk_size,
-      });
+      console.log(
+        "Loaded expression index:",
+        this.expressionIndex
+          ? {
+              totalGenes: this.expressionIndex.total_genes,
+              numChunks: this.expressionIndex.num_chunks,
+              chunkSize: this.expressionIndex.chunk_size,
+            }
+          : "none (dataset has no expression matrix)",
+      );
       console.log(
         "Loaded observation metadata:",
         Object.keys(this.obsMetadata),
@@ -407,6 +426,10 @@ export class ChunkedDataAdapter {
    * Load gene names from expression index
    */
   async loadGenes(): Promise<string[]> {
+    // A dataset that declares no expression matrix has no gene list — that is
+    // a valid state, not a failure. Only an expected-but-missing index throws.
+    if (this.manifest?.has_expression === false) return [];
+
     if (!this.expressionIndex) {
       throw new Error("Expression index not loaded");
     }
