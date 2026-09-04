@@ -210,24 +210,16 @@ while IFS=',' read -r sample_name input_path; do
         echo "  [2/3] copy mapping    -> Job ${copy_job} (after ${process_job})"
 
         # Step 3: s3 sync (waits for copy)
+        # Uses a real .sbatch file rather than --wrap: sbatch --wrap runs under
+        # /bin/sh, where the `module` function (and thus `aws`) isn't defined.
         s3_dest="${S3_URL}/${sample_name}/sm_output/"
         sync_job=$(sbatch --parsable \
             --dependency=afterok:${copy_job} \
             --job-name="sync_sm_${sample_name}" \
             --output="/bil/users/ijenie/meyes_process_logs/s3_sync_sm_${sample_name}_%j.log" \
-            --ntasks=1 --cpus-per-task=8 --mem=4G --time=2-00:00:00 --partition=compute \
-            --mail-type=BEGIN,END,FAIL --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu \
-            --wrap="
-module load aws-cli
-aws configure set default.s3.max_concurrent_requests 50
-aws configure set default.s3.multipart_chunksize 16MB
-echo '=== SM S3 sync: ${sample_name} ==='
-echo 'Source: ${sm_output}/'
-echo 'Dest:   ${s3_dest}'
-echo 'Started at \$(date)'
-aws s3 sync '${sm_output}/' '${s3_dest}' --size-only
-echo 'Sync complete at \$(date)'
-")
+            "${SCRIPT_DIR}/s3_sync_sm_output.sbatch" \
+            "${sm_output}/" \
+            "${s3_dest}")
         echo "  [3/3] s3_sync_sm      -> Job ${sync_job} (after ${copy_job})"
         echo "        Dest: ${s3_dest}"
     else
