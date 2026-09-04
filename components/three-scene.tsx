@@ -48,6 +48,7 @@ import {
   transformExpression,
 } from "@/lib/utils/expression-scale";
 import { ExportBoxOverlay } from "@/components/export-box-overlay";
+import { WebGLErrorOverlay } from "@/components/webgl-error-overlay";
 import {
   markSceneReady,
   markRenderComplete,
@@ -70,6 +71,7 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
+  const [webglFailed, setWebglFailed] = useState(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
   // Outer group sits at the data center and carries rotation/flip so the
   // dataset spins in place; inner group is offset by -center and holds the
@@ -767,15 +769,26 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       const near = maxExtent * 0.001;
       const far = maxExtent * 10;
 
-      // Initialize Three.js scene with options
-      const { scene, camera, renderer, controls, animate, dispose } =
-        initializeScene(containerRef.current, {
+      // Initialize Three.js scene with options. WebGL context creation can
+      // fail (GPU blocklist, stale browser update, software GL) — surface
+      // that instead of leaving a silently blank canvas.
+      let init: ReturnType<typeof initializeScene> | null = null;
+
+      try {
+        init = initializeScene(containerRef.current, {
           is2D: viewMode === "2D",
           cameraPosition: cameraPos,
           lookAtPosition: center,
           near,
           far,
         });
+        setWebglFailed(false);
+      } catch (e) {
+        console.error("[ThreeScene] WebGL init failed:", e);
+        setWebglFailed(true);
+      }
+      if (!init) return;
+      const { scene, camera, renderer, controls, animate, dispose } = init;
 
       // Store camera, renderer, and controls refs for raycasting + scale bar
       cameraRef.current = camera;
@@ -1049,7 +1062,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       };
     } else {
       // Initialize scene without dataset
-      const { animate, dispose } = initializeScene(containerRef.current);
+      let init: ReturnType<typeof initializeScene> | null = null;
+
+      try {
+        init = initializeScene(containerRef.current);
+        setWebglFailed(false);
+      } catch (e) {
+        console.error("[ThreeScene] WebGL init failed:", e);
+        setWebglFailed(true);
+      }
+      if (!init) return;
+      const { animate, dispose } = init;
 
       // Start animation even without data
       animate();
@@ -1953,6 +1976,8 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         data-testid="sc-scene-canvas"
         style={{ margin: 0, padding: 0 }}
       />
+
+      {webglFailed && <WebGLErrorOverlay />}
 
       {/* SM loading indicator */}
       {smLoading && (
