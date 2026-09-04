@@ -10,6 +10,40 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.4.1] - 2026-09-04
+
+Single-molecule loading becomes visible and cancellable, and pre-chunked
+single-molecule uploads stop timing out on production.
+
+### Fixed
+
+- **Pre-chunked single-molecule uploads no longer 500 on production.** The
+  initiate endpoint created one DB row and one presigned URL per file serially
+  inside a single transaction (~33s for a 529-gene dataset — past Vercel's
+  function timeout). It now batch-inserts the file rows and presigns outside
+  the transaction in parallel batches (~2s).
+- **Streamed default genes render again.** When every default gene streamed,
+  the camera auto-fit ran against still-empty clouds and produced a broken
+  (NaN) camera that never recovered, leaving the viewer permanently blank.
+- **WebGL failures are no longer silent.** If the browser can't create a WebGL
+  context (GPU blocklist, half-applied browser update, software GL), both
+  viewers now show a "3D view unavailable" panel with remediation hints
+  instead of a blank canvas.
+
+### Changed
+
+- **The single-molecule scene shows on first data.** The camera fits as soon
+  as the first gene (or first streamed batch) has points, so molecules appear
+  progressively instead of after every default gene finishes downloading.
+- **Gene loads show progress and truly cancel.** Whole-file downloads report
+  byte progress in the loading toast (e.g. `Drd1: 12.4 / 38.2 MB`); loading
+  toasts are blue, and closing one aborts the download and deselects the gene.
+  Deselecting a gene or leaving the view also aborts in-flight downloads.
+- **Streaming kicks in at 100k molecules** (was 2M), so most genes stream in
+  with visible progress.
+- **Gene expression no longer fades low-expression points by default**
+  (`EXPRESSION_ALPHA_MIN` 0.3 → 1.0; still adjustable in the advanced panel).
+
 ## [0.4.0] - 2026-09-01
 
 Single-molecule overlays become first-class on single-cell datasets, the DEG
@@ -159,7 +193,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.1.0...v0.2.0

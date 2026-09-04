@@ -98,11 +98,15 @@ export async function POST(request: NextRequest) {
     const uploadId = `up_${nanoid(10)}`;
     const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
-    // Start transaction with extended timeout for many files
-    const result = await prisma.$transaction(
+    // Start transaction (optimized for large file counts — one dataset with
+    // hundreds of genes means hundreds of file rows, so batch-insert them and
+    // keep presigned-URL generation out of the transaction entirely; the old
+    // per-file create+presign loop inside the tx took ~33s for 530 files,
+    // past Vercel's function timeout)
+    await prisma.$transaction(
       async (tx) => {
         // 1. Create dataset record
-        const dataset = await tx.dataset.create({
+        await tx.dataset.create({
           data: {
             id: datasetId,
             fingerprint,
@@ -118,7 +122,7 @@ export async function POST(request: NextRequest) {
         });
 
         // 2. Create upload session
-        const uploadSession = await tx.uploadSession.create({
+        await tx.uploadSession.create({
           data: {
             id: uploadId,
             datasetId,
@@ -128,43 +132,47 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // 3. Create upload file records and generate presigned URLs
-        const uploadUrls: Record<string, any> = {};
+        // 3. Batch create upload file records (much faster than individual creates)
+        await tx.uploadFile.createMany({
+          data: files.map((file) => ({
+            uploadSessionId: uploadId,
+            fileKey: file.key,
+            fileSize: BigInt(file.size),
+            status: "PENDING",
+          })),
+        });
+      },
+      {
+        maxWait: 10000, // Maximum time to wait for a transaction slot (10s)
+        timeout: 20000, // Maximum time for the transaction to complete (20s)
+      },
+    );
 
-        for (const file of files) {
-          // Create file record in database
-          await tx.uploadFile.create({
-            data: {
-              uploadSessionId: uploadId,
-              fileKey: file.key,
-              fileSize: BigInt(file.size),
-              status: "PENDING",
-            },
-          });
+    // 4. Generate presigned URLs outside transaction (parallel processing)
+    const uploadUrls: Record<string, any> = {};
 
-          // Generate S3 key (path in bucket)
+    // Process in batches of 50 to avoid overwhelming S3
+    const batchSize = 50;
+
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (file) => {
           const s3Key = `datasets/${datasetId}/${file.key}`;
-
-          // Generate presigned URL
           const presignedUrl = await generatePresignedUploadUrl(
             s3Key,
             file.contentType || "application/octet-stream",
             3600, // 1 hour expiration
           );
 
-          uploadUrls[file.key] = presignedUrl.url;
-        }
+          return { key: file.key, url: presignedUrl.url };
+        }),
+      );
 
-        return {
-          dataset,
-          uploadSession,
-          uploadUrls,
-        };
-      },
-      {
-        timeout: 60000, // 60 second timeout for large datasets with many genes
-      },
-    );
+      for (const { key, url } of batchResults) {
+        uploadUrls[key] = url;
+      }
+    }
 
     // Return success response
     return NextResponse.json(
@@ -172,7 +180,7 @@ export async function POST(request: NextRequest) {
         success: true,
         datasetId,
         uploadId,
-        uploadUrls: result.uploadUrls,
+        uploadUrls,
         expiresIn: 3600,
         expiresAt: expiresAt.toISOString(),
       },

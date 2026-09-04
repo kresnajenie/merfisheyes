@@ -86,7 +86,7 @@ export const VISUALIZATION_CONFIG = {
    * Controls how much alpha varies based on gene expression / numerical value
    * Min alpha for zero/NaN expression, max alpha for full expression
    */
-  EXPRESSION_ALPHA_MIN: 0.3,
+  EXPRESSION_ALPHA_MIN: 1.0,
   EXPRESSION_ALPHA_MAX: 1.0,
 
   /**
@@ -168,7 +168,7 @@ export const VISUALIZATION_CONFIG = {
    * downloaded whole first. A 50M-molecule gene is ~600 MB of float32; loading
    * that in one shot is minutes of blank canvas.
    */
-  SINGLE_MOLECULE_STREAM_THRESHOLD: 2_000_000,
+  SINGLE_MOLECULE_STREAM_THRESHOLD: 100_000,
 
   UMAP_POINT_SIZE: 5.0,
   UMAP_POINT_SIZE_MIN: 0.5,

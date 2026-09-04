@@ -91,6 +91,66 @@ export interface GeneStreamOptions {
 }
 
 /**
+ * Options for whole-file gene loads (the non-streamed path): abort the
+ * download mid-flight and/or observe byte progress. `totalBytes` is the
+ * compressed Content-Length when the server reports one, else null.
+ */
+export interface GeneFetchOptions {
+  signal?: AbortSignal;
+  onProgress?: (loadedBytes: number, totalBytes: number | null) => void;
+}
+
+/**
+ * Download a URL fully, reporting byte progress per network chunk. Used by
+ * the whole-file gene loads so the UI can show download progress and a
+ * deselected gene's fetch can actually be cancelled instead of finishing
+ * silently in the background.
+ */
+async function downloadWithProgress(
+  url: string,
+  opts?: GeneFetchOptions,
+): Promise<{ ok: boolean; status: number; statusText: string; data: Uint8Array }> {
+  const res = await fetch(url, { signal: opts?.signal });
+
+  if (!res.ok) {
+    return { ok: false, status: res.status, statusText: res.statusText, data: new Uint8Array(0) };
+  }
+  if (!res.body || !opts?.onProgress) {
+    return {
+      ok: true,
+      status: res.status,
+      statusText: res.statusText,
+      data: new Uint8Array(await res.arrayBuffer()),
+    };
+  }
+
+  const totalHeader = res.headers.get("content-length");
+  const total = totalHeader ? parseInt(totalHeader, 10) : null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+
+    if (done) break;
+    chunks.push(value);
+    loaded += value.byteLength;
+    opts.onProgress(loaded, total);
+  }
+
+  const data = new Uint8Array(loaded);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    data.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return { ok: true, status: res.status, statusText: res.statusText, data };
+}
+
+/**
  * Per-gene molecule counts for the manifest. Mirrors the server pipeline:
  * `assigned` for every gene, plus `unassigned` only when the input had a
  * cell-id column (then present for every gene, possibly 0).
@@ -400,7 +460,10 @@ export class SingleMoleculeDataset {
     return this.geneIndex.has(geneName);
   }
 
-  getCoordinatesByGene(geneName: string): Float32Array {
+  getCoordinatesByGene(
+    geneName: string,
+    _opts?: GeneFetchOptions, // honored by the S3 factory overrides
+  ): Float32Array {
     // Check if gene exists
     if (!this.geneIndex.has(geneName)) {
       throw new Error(
@@ -482,7 +545,10 @@ export class SingleMoleculeDataset {
    * Returns empty array if no unassigned data exists
    * Overridden by factory methods (fromS3, fromLocalChunked) for lazy loading
    */
-  async getUnassignedCoordinatesByGene(geneName: string): Promise<Float32Array> {
+  async getUnassignedCoordinatesByGene(
+    geneName: string,
+    _opts?: GeneFetchOptions, // honored by the S3 factory overrides
+  ): Promise<Float32Array> {
     return this.unassignedGeneIndex.get(geneName) ?? new Float32Array(0);
   }
 
@@ -1119,6 +1185,7 @@ export class SingleMoleculeDataset {
 
     dataset.getCoordinatesByGene = async function (
       geneName: string,
+      opts?: GeneFetchOptions,
     ): Promise<Float32Array> {
       // Check if already cached
       if (geneIndex.has(geneName)) {
@@ -1139,6 +1206,7 @@ export class SingleMoleculeDataset {
       // Get presigned URL from API
       const urlResponse = await fetch(
         `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}`,
+        { signal: opts?.signal },
       );
 
       if (!urlResponse.ok) {
@@ -1152,14 +1220,13 @@ export class SingleMoleculeDataset {
       const { url: geneUrl } = await urlResponse.json();
 
       // Download and decompress gene file
-      const geneResponse = await fetch(geneUrl);
+      const geneResponse = await downloadWithProgress(geneUrl, opts);
 
       if (!geneResponse.ok) {
         throw new Error(`Failed to download gene file for '${geneName}'`);
       }
 
-      const geneCompressed = await geneResponse.arrayBuffer();
-      const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+      const geneBuffer = ungzip(geneResponse.data);
 
       // Keep as Float32Array directly, denormalize if old dataset
       let float32Array = new Float32Array(geneBuffer.buffer);
@@ -1266,6 +1333,7 @@ export class SingleMoleculeDataset {
 
       (dataset as any).getUnassignedCoordinatesByGene = async function (
         geneName: string,
+        opts?: GeneFetchOptions,
       ): Promise<Float32Array> {
         const empty = new Float32Array(0);
 
@@ -1285,6 +1353,7 @@ export class SingleMoleculeDataset {
         try {
           const urlResponse = await fetch(
             `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}?unassigned=true`,
+            { signal: opts?.signal },
           );
 
           if (!urlResponse.ok) {
@@ -1297,7 +1366,7 @@ export class SingleMoleculeDataset {
           }
 
           const { url: geneUrl } = await urlResponse.json();
-          const geneResponse = await fetch(geneUrl);
+          const geneResponse = await downloadWithProgress(geneUrl, opts);
 
           if (!geneResponse.ok) {
             unassignedGeneIndex.set(geneName, empty);
@@ -1305,8 +1374,7 @@ export class SingleMoleculeDataset {
             return empty;
           }
 
-          const geneCompressed = await geneResponse.arrayBuffer();
-          const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+          const geneBuffer = ungzip(geneResponse.data);
           let float32Array = new Float32Array(geneBuffer.buffer);
           if (denormFactor !== 1) {
             float32Array = denormalizeCoords(float32Array, denormFactor);
@@ -1320,6 +1388,7 @@ export class SingleMoleculeDataset {
 
           return float32Array;
         } catch (error) {
+          if ((error as Error)?.name === "AbortError") throw error;
           console.warn(
             `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
             error,
@@ -1494,6 +1563,7 @@ export class SingleMoleculeDataset {
 
     dataset.getCoordinatesByGene = async function (
       geneName: string,
+      opts?: GeneFetchOptions,
     ): Promise<Float32Array> {
       // Check if already cached
       if (geneIndex.has(geneName)) {
@@ -1521,7 +1591,7 @@ export class SingleMoleculeDataset {
       const geneFileUrl = `${customS3BaseUrl}/genes/${sanitizedName}.bin.gz`;
 
       // Download and decompress gene file
-      const geneResponse = await fetch(geneFileUrl);
+      const geneResponse = await downloadWithProgress(geneFileUrl, opts);
 
       if (!geneResponse.ok) {
         throw new Error(
@@ -1529,8 +1599,7 @@ export class SingleMoleculeDataset {
         );
       }
 
-      const geneCompressed = await geneResponse.arrayBuffer();
-      const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+      const geneBuffer = ungzip(geneResponse.data);
 
       // Keep as Float32Array directly, denormalize if old dataset
       let float32Array = new Float32Array(geneBuffer.buffer);
@@ -1666,6 +1735,7 @@ export class SingleMoleculeDataset {
 
       (dataset as any).getUnassignedCoordinatesByGene = async function (
         geneName: string,
+        opts?: GeneFetchOptions,
       ): Promise<Float32Array> {
         const empty = new Float32Array(0);
 
@@ -1689,7 +1759,7 @@ export class SingleMoleculeDataset {
         );
 
         try {
-          const geneResponse = await fetch(geneFileUrl);
+          const geneResponse = await downloadWithProgress(geneFileUrl, opts);
 
           if (!geneResponse.ok) {
             console.warn(
@@ -1700,8 +1770,7 @@ export class SingleMoleculeDataset {
             return empty;
           }
 
-          const geneCompressed = await geneResponse.arrayBuffer();
-          const geneBuffer = ungzip(new Uint8Array(geneCompressed));
+          const geneBuffer = ungzip(geneResponse.data);
           let float32Array = new Float32Array(geneBuffer.buffer);
           if (denormFactor !== 1) {
             float32Array = denormalizeCoords(float32Array, denormFactor);
@@ -1715,6 +1784,7 @@ export class SingleMoleculeDataset {
 
           return float32Array;
         } catch (error) {
+          if ((error as Error)?.name === "AbortError") throw error;
           console.warn(
             `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
             error,
