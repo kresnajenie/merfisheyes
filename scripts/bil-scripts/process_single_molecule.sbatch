@@ -11,40 +11,36 @@
 
 # ── Help ─────────────────────────────────────────────────────
 if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ -z "$1" ]; then
-    echo "Usage: sbatch process_single_molecule.sbatch INPUT_PATH OUTPUT_PATH S3_PREFIX [SAMPLE_WORKERS] [WORKERS]"
+    echo "Usage: sbatch process_single_molecule.sbatch INPUT_PATH OUTPUT_PATH [PYTHON_ARGS...]"
     echo ""
     echo "Arguments:"
     echo "  INPUT_PATH       Path to input (directory with sample sub-folders, or single .csv/.parquet)"
     echo "  OUTPUT_PATH      Output directory for processed files"
-    echo "  S3_PREFIX        S3 base URL prefix (required for directory mode)"
-    echo "  SAMPLE_WORKERS   (optional) Number of samples to process concurrently (default: 4)"
-    echo "  WORKERS          (optional) Number of gene file write workers per sample (default: 8)"
+    echo "  PYTHON_ARGS      Any additional flags forwarded as-is to process_single_molecule.py"
+    echo "                   (e.g. --s3-prefix, --sample-workers, --workers). --s3-prefix is"
+    echo "                   required by the Python script when INPUT_PATH is a directory."
     echo ""
     echo "Examples:"
-    echo "  # Directory mode: 10 samples, each with detected_transcripts.csv"
-    echo "  sbatch process_single_molecule.sbatch /bil/data/meyes/dataset/ /bil/data/meyes/dataset/sm_output https://bucket.s3.us-west-2.amazonaws.com/prefix"
+    echo "  # Directory mode: samples each with detected_transcripts.csv"
+    echo "  sbatch process_single_molecule.sbatch /bil/data/meyes/dataset/ /bil/data/meyes/dataset/sm_output --s3-prefix https://bucket.s3.us-west-2.amazonaws.com/prefix"
     echo ""
     echo "  # Custom parallelism: 8 samples at a time, 4 write workers each"
-    echo "  sbatch process_single_molecule.sbatch /bil/data/meyes/dataset/ /bil/data/meyes/dataset/sm_output https://bucket.s3.us-west-2.amazonaws.com/prefix 8 4"
+    echo "  sbatch process_single_molecule.sbatch /bil/data/meyes/dataset/ /bil/data/meyes/dataset/sm_output --s3-prefix https://bucket.s3.us-west-2.amazonaws.com/prefix --sample-workers 8 --workers 4"
     echo ""
-    echo "  # Single file mode (no S3_PREFIX needed, pass '-' as placeholder)"
-    echo "  sbatch process_single_molecule.sbatch /bil/data/meyes/detected_transcripts.csv /bil/data/meyes/sm_output -"
+    echo "  # Single file mode (no --s3-prefix needed)"
+    echo "  sbatch process_single_molecule.sbatch /bil/data/meyes/detected_transcripts.csv /bil/data/meyes/sm_output"
     exit 0
 fi
 
 # ── Arguments ────────────────────────────────────────────────
 INPUT_PATH="$1"
 OUTPUT_PATH="$2"
-S3_PREFIX="$3"
-SAMPLE_WORKERS="${4:-4}"
-WORKERS="${5:-8}"
+shift 2
 
 echo "=== process_single_molecule ==="
 echo "Input:          $INPUT_PATH"
 echo "Output:         $OUTPUT_PATH"
-echo "S3 prefix:      $S3_PREFIX"
-echo "Sample workers: $SAMPLE_WORKERS"
-echo "Write workers:  $WORKERS"
+echo "Extra args:     $*"
 echo "Started at $(date)"
 
 # ── Environment setup ────────────────────────────────────────
@@ -54,20 +50,9 @@ source ~/merfisheyes_env/bin/activate
 # ── Run ──────────────────────────────────────────────────────
 cd ~/merfisheyes/scripts
 
-if [ -d "$INPUT_PATH" ]; then
-    # Directory mode
-    python process_single_molecule.py \
-        "$INPUT_PATH" \
-        "$OUTPUT_PATH" \
-        --s3-prefix "$S3_PREFIX" \
-        --sample-workers "$SAMPLE_WORKERS" \
-        --workers "$WORKERS"
-else
-    # Single file mode
-    python process_single_molecule.py \
-        "$INPUT_PATH" \
-        "$OUTPUT_PATH" \
-        --workers "$WORKERS"
-fi
+python process_single_molecule.py \
+    "$INPUT_PATH" \
+    "$OUTPUT_PATH" \
+    "$@"
 
 echo "Job finished at $(date)"
