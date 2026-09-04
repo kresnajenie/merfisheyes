@@ -255,7 +255,13 @@ def is_categorical(values: np.ndarray, column_name: Optional[str] = None) -> boo
             return False
 
     # Check if values are numeric strings or numbers
-    if series.dtype == "object":
+    # (is_object_dtype/is_string_dtype, not `series.dtype == "object"`: pandas
+    # >=3.0 infers plain Python strings as StringDtype, not legacy object
+    # dtype, by default -- the literal comparison silently skipped this whole
+    # branch and fell through to the integer-uniqueness check below, which
+    # misclassifies any high-cardinality string column, e.g. a per-cell
+    # barcode/ID column, as numerical instead of categorical.)
+    if pd.api.types.is_object_dtype(series.dtype) or pd.api.types.is_string_dtype(series.dtype):
         # Try to convert to numeric
         numeric_series = pd.to_numeric(valid_series, errors='coerce')
         numeric_ratio = numeric_series.notna().sum() / len(valid_series)
@@ -700,7 +706,7 @@ def build_obs_palette(categories: List[str], stored_categories: Optional[List[st
 
 def _process_obs_column_worker(args):
     """Worker function for parallel obs column processing. Must be top-level for pickling."""
-    col_name, col_values, obs_dir, palettes_dir, uns_colors = args
+    col_name, col_values, obs_dir, palettes_dir, uns_colors, stored_categories = args
     obs_dir = Path(obs_dir)
     palettes_dir = Path(palettes_dir)
 
@@ -722,11 +728,7 @@ def _process_obs_column_worker(args):
     # Generate palette for categorical
     palette_info = None
     if categorical:
-        stored = (
-            [str(c) for c in col_values.categories]
-            if isinstance(col_values, pd.Categorical) else None
-        )
-        palette = build_obs_palette(categories, stored, uns_colors)
+        palette = build_obs_palette(categories, stored_categories, uns_colors)
 
         palette_file = palettes_dir / f'{col_name}.json'
         palette_file.parent.mkdir(parents=True, exist_ok=True)
@@ -1787,12 +1789,25 @@ def process_dataset(
     obs_metadata = {}
     cluster_count = 0
 
+    # Categorical dtype columns with wide cardinality (e.g. a per-cell barcode
+    # column needing non-default int16/32 codes) hit a pandas bug when pickled
+    # across the ProcessPoolExecutor boundary (NDArrayBacked.__setstate__
+    # raises NotImplementedError), crashing the whole pool. Convert to a plain
+    # array before sending it to a worker, preserving the original category
+    # order separately (only used for scanpy uns[col+"_colors"] remapping).
+    def _pickle_safe(col_values):
+        if isinstance(col_values, pd.Categorical):
+            return np.asarray(col_values), [str(c) for c in col_values.categories]
+        return col_values, None
+
     if num_workers > 1 and len(obs_columns) > 1:
         # Parallel obs column processing
-        worker_args = [
-            (col_name, col_values, str(obs_dir), str(palettes_dir), uns_colors.get(col_name))
-            for col_name, col_values in obs_columns.items()
-        ]
+        worker_args = []
+        for col_name, col_values in obs_columns.items():
+            safe_values, stored_categories = _pickle_safe(col_values)
+            worker_args.append(
+                (col_name, safe_values, str(obs_dir), str(palettes_dir),
+                 uns_colors.get(col_name), stored_categories))
         effective_workers = min(num_workers, len(obs_columns))
         log(f"  Launching {effective_workers} workers for {len(obs_columns)} obs columns...", _t_start)
 
@@ -1810,8 +1825,10 @@ def process_dataset(
     else:
         # Serial fallback
         for col_idx, (col_name, col_values) in enumerate(obs_columns.items(), 1):
+            safe_values, stored_categories = _pickle_safe(col_values)
             col_name, metadata_entry, palette_info = _process_obs_column_worker(
-                (col_name, col_values, str(obs_dir), str(palettes_dir), uns_colors.get(col_name)))
+                (col_name, safe_values, str(obs_dir), str(palettes_dir),
+                 uns_colors.get(col_name), stored_categories))
             obs_metadata[col_name] = metadata_entry
             if palette_info is not None:
                 cluster_count += 1
