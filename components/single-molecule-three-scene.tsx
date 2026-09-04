@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Spinner } from "@heroui/react";
 import { toast } from "react-toastify";
@@ -27,12 +27,21 @@ import {
 } from "@/lib/utils/test-hooks";
 import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import { ExportBoxOverlay } from "@/components/export-box-overlay";
+import { WebGLErrorOverlay } from "@/components/webgl-error-overlay";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 
 
 // Point cloud key helpers for assigned/unassigned separation
 const ASSIGNED_KEY_SUFFIX = ":assigned";
 const UNASSIGNED_KEY_SUFFIX = ":unassigned";
+
+// Blue background for in-progress gene-loading toasts, so they read as
+// activity rather than a neutral notification. Closing one cancels the load.
+const LOADING_TOAST_STYLE = { background: "#1d4ed8", color: "#ffffff" };
+
+function formatMB(bytes: number): string {
+  return (bytes / 1024 ** 2).toFixed(1);
+}
 
 function assignedKey(gene: string): string {
   return gene + ASSIGNED_KEY_SUFFIX;
@@ -55,6 +64,7 @@ function geneFromKey(key: string): string {
 
 export function SingleMoleculeThreeScene() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [webglFailed, setWebglFailed] = useState(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.Camera | null>(null);
@@ -67,15 +77,17 @@ export function SingleMoleculeThreeScene() {
   const selectedGenesRef = useRef<Map<string, any>>(new Map());
   const globalScaleRef = useRef<number>(1);
   const hasAutoFittedRef = useRef<boolean>(false);
-  // Where auto-fit put the camera. A gene that is still streaming has only
-  // partial bounds, so the fit is redone when it finishes — but only if the
-  // user hasn't moved the camera since.
-  const autoFitCameraRef = useRef<THREE.Vector3 | null>(null);
   // Gene streams in flight, keyed by point-cloud key. They deliberately
   // OUTLIVE the effect run that started them: selecting another gene, or
   // toggling one on/off, re-runs the effect, and a 30-second download must
   // not restart (nor block the genes processed after it).
   const activeStreamsRef = useRef<Map<string, AbortController>>(new Map());
+  // Whole-file gene downloads in flight, keyed by gene. Unlike streams these
+  // belong to a single effect run: cleanup aborts them, and closing a gene's
+  // loading toast aborts + deselects it.
+  const wholeLoadControllersRef = useRef<Map<string, AbortController>>(
+    new Map(),
+  );
   // Scene rebuilds (view-mode switch) dispose every cloud, so streams filling
   // them have to stop. Null until the first point-cloud effect run.
   const streamViewModeRef = useRef<string | null>(null);
@@ -96,7 +108,7 @@ export function SingleMoleculeThreeScene() {
     selectedGenes, globalScale, viewMode, showAssigned, showUnassigned,
     sceneRotation, flipX, flipY,
     exportBoxEnabled, exportBoxWidthMm, exportBoxHeightMm,
-    exportBoxCenterPx, setExportBoxCenterPx,
+    exportBoxCenterPx, setExportBoxCenterPx, removeGene,
   } = usePanelSingleMoleculeVisualizationStore();
 
   // Keep refs in sync with store values
@@ -178,10 +190,21 @@ export function SingleMoleculeThreeScene() {
     }
 
     // Initialize Three.js scene with viewMode preference (not dataset dimensions)
-    const { scene, camera, renderer, controls } = initializeScene(
-      containerRef.current,
-      { is2D: viewMode === "2D" },
-    );
+    // WebGL context creation can fail (GPU blocklist, stale browser update,
+    // software GL) — surface that instead of leaving a silently blank canvas.
+    let init: ReturnType<typeof initializeScene> | null = null;
+
+    try {
+      init = initializeScene(containerRef.current, {
+        is2D: viewMode === "2D",
+      });
+      setWebglFailed(false);
+    } catch (e) {
+      console.error("[SingleMoleculeThreeScene] WebGL init failed:", e);
+      setWebglFailed(true);
+    }
+    if (!init) return;
+    const { scene, camera, renderer, controls } = init;
 
     sceneRef.current = scene;
     rendererRef.current = renderer;
@@ -334,6 +357,75 @@ export function SingleMoleculeThreeScene() {
       }
     };
 
+    /**
+     * Fit the camera to the current point-cloud bounds, once. Called as soon
+     * as the FIRST data exists — the first whole-loaded gene, or the first
+     * streamed batch — so the scene shows immediately instead of staying
+     * black until every default gene finishes. Guards against empty/degenerate
+     * bounds (all clouds still streaming with zero points): fitting an empty
+     * THREE.Box3 produces a NaN camera that never recovers, which is why
+     * streamed default genes used to never show up.
+     */
+    const tryAutoFitCamera = () => {
+      if (
+        hasAutoFittedRef.current ||
+        pointCloudsRef.current.size === 0 ||
+        !cameraRef.current ||
+        !controlsRef.current
+      ) {
+        return;
+      }
+      const box = new THREE.Box3();
+
+      pointCloudsRef.current.forEach((pc) => {
+        box.expandByObject(pc);
+      });
+      if (box.isEmpty()) return;
+
+      const center = new THREE.Vector3();
+      const size = new THREE.Vector3();
+
+      box.getCenter(center);
+      box.getSize(size);
+
+      const maxDim = Math.max(size.x, size.y, size.z);
+
+      if (!Number.isFinite(maxDim) || maxDim <= 0) return;
+
+      hasAutoFittedRef.current = true;
+      const camera = cameraRef.current as THREE.PerspectiveCamera;
+      const fov = camera.fov * (Math.PI / 180);
+      const cameraDistance = ((maxDim / 2) / Math.tan(fov / 2)) * 1.5;
+
+      camera.position.set(center.x, center.y, center.z + cameraDistance);
+      camera.lookAt(center);
+
+      // Set group pivot for rotation around data center
+      dataCenterRef.current.copy(center);
+      if (sceneGroupRef.current && innerGroupRef.current) {
+        sceneGroupRef.current.position.copy(center);
+        innerGroupRef.current.position.set(-center.x, -center.y, -center.z);
+      }
+      camera.near = cameraDistance * 0.001;
+      camera.far = cameraDistance * 10;
+      camera.updateProjectionMatrix();
+
+      // Update controls target to center of data
+      const controls = controlsRef.current;
+
+      if (controls.target) {
+        controls.target.copy(center);
+      }
+      controls.update();
+
+      // Update baseline camera distance for zoom-based point sizing
+      baselineCameraDistanceRef.current = cameraDistance;
+
+      console.log(
+        `[SingleMoleculeThreeScene] Camera auto-fitted: center=(${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}), distance=${cameraDistance.toFixed(1)}`,
+      );
+    };
+
     // A view-mode switch rebuilds the scene, so every cloud being streamed
     // into is gone.
     if (streamViewModeRef.current !== viewMode) {
@@ -477,10 +569,14 @@ export function SingleMoleculeThreeScene() {
           // not repaint the scene or revive the dismissed toast.
           if (controller.signal.aborted) return;
           appendToSmPointCloud(cloud, coords);
+          // First data anywhere in the scene: point the camera at it so the
+          // stream is visible as it fills.
+          tryAutoFitCamera();
           toast.update(toastId, {
             render: `${label}: ${loadedMolecules.toLocaleString()} / ${expected.toLocaleString()} molecules`,
             isLoading: true,
             autoClose: false,
+            style: LOADING_TOAST_STYLE,
           });
         },
       })
@@ -497,17 +593,9 @@ export function SingleMoleculeThreeScene() {
             isLoading: false,
             autoClose: 3000,
             position: "bottom-left",
+            style: undefined,
           });
           if (kind === "assigned") markGeneRendered(gene, total);
-
-          // The camera was fitted from partial bounds; refit now that the
-          // gene is complete — unless the user has taken over the camera.
-          const camera = cameraRef.current;
-          const fitted = autoFitCameraRef.current;
-
-          if (camera && fitted && camera.position.distanceTo(fitted) < 1e-3) {
-            hasAutoFittedRef.current = false;
-          }
         })
         .catch((error: unknown) => {
           if ((error as Error)?.name === "AbortError") {
@@ -524,6 +612,7 @@ export function SingleMoleculeThreeScene() {
             type: "error",
             isLoading: false,
             autoClose: 4000,
+            style: undefined,
           });
         })
         .finally(() => {
@@ -576,14 +665,42 @@ export function SingleMoleculeThreeScene() {
         const uKey = unassignedKey(gene);
         const assignedExists = currentPointClouds.has(aKey);
         const toastId = `loading-gene-${gene}`;
+        // One abort handle for this gene's whole-file downloads (assigned +
+        // unassigned). Registered for the iteration so effect cleanup and the
+        // toast's close button can truly cancel the fetch.
+        const wholeController = new AbortController();
+
+        wholeLoadControllersRef.current.set(gene, wholeController);
 
         try {
-          // Only show loading toast for new genes
+          // Only show loading toast for new genes. Closing the toast is a
+          // real cancel: it aborts the in-flight download (stream or whole
+          // file) and deselects the gene so nothing restarts it.
           if (!assignedExists) {
             toast.loading(`Loading ${gene}...`, {
               toastId,
               position: "bottom-left",
               autoClose: false,
+              style: LOADING_TOAST_STYLE,
+              onClose: (reason) => {
+                // Only the close button (reason === true) cancels; autoClose
+                // and programmatic dismissals pass no reason.
+                if (reason !== true) return;
+                const whole = wholeLoadControllersRef.current.get(gene);
+
+                if (
+                  !whole &&
+                  !activeStreams.has(assignedKey(gene)) &&
+                  !activeStreams.has(unassignedKey(gene))
+                ) {
+                  return; // load finished — nothing to cancel
+                }
+                abortStream(assignedKey(gene));
+                abortStream(unassignedKey(gene));
+                whole?.abort();
+                wholeLoadControllersRef.current.delete(gene);
+                removeGene(gene);
+              },
             });
           }
 
@@ -625,8 +742,22 @@ export function SingleMoleculeThreeScene() {
             );
             streamStarted = true;
           } else {
-            // Get assigned coordinates
-            const coords = await dataset.getCoordinatesByGene(gene);
+            // Get assigned coordinates. Abortable (effect cleanup / toast
+            // close) with byte progress in the toast, so a slow download is
+            // distinguishable from a hung one.
+            const coords = await dataset.getCoordinatesByGene(gene, {
+              signal: wholeController.signal,
+              onProgress: (loadedBytes, totalBytes) => {
+                toast.update(toastId, {
+                  render: totalBytes
+                    ? `${gene}: ${formatMB(loadedBytes)} / ${formatMB(totalBytes)} MB`
+                    : `${gene}: ${formatMB(loadedBytes)} MB`,
+                  isLoading: true,
+                  autoClose: false,
+                  style: LOADING_TOAST_STYLE,
+                });
+              },
+            });
 
             if (isCancelled) {
               toast.dismiss(toastId);
@@ -670,6 +801,9 @@ export function SingleMoleculeThreeScene() {
                 }
                 innerGroupRef.current.add(pointCloud);
                 currentPointClouds.set(aKey, pointCloud);
+                // First data in the scene: show it now rather than after the
+                // remaining genes finish downloading.
+                tryAutoFitCamera();
 
                 console.log(
                   `  ✅ Assigned point cloud created with ${moleculeCount} molecules`,
@@ -730,8 +864,10 @@ export function SingleMoleculeThreeScene() {
               streamStarted = true;
             } else if (!unassignedExists) {
               // Load unassigned coordinates
-              const uCoords =
-                await dataset.getUnassignedCoordinatesByGene(gene);
+              const uCoords = await dataset.getUnassignedCoordinatesByGene(
+                gene,
+                { signal: wholeController.signal },
+              );
 
               if (isCancelled) {
                 toast.dismiss(toastId);
@@ -795,11 +931,18 @@ export function SingleMoleculeThreeScene() {
               isLoading: false,
               autoClose: 3000,
               position: "bottom-left",
+              style: undefined,
             });
           } else {
             toast.dismiss(toastId);
           }
         } catch (error) {
+          // Cancelled (toast closed / effect cleanup): not a failure — drop
+          // the toast and move on to the next gene.
+          if ((error as Error)?.name === "AbortError") {
+            toast.dismiss(toastId);
+            continue;
+          }
           console.error(`Error creating point cloud for gene ${gene}:`, error);
 
           if (assignedExists) {
@@ -815,7 +958,12 @@ export function SingleMoleculeThreeScene() {
               isLoading: false,
               autoClose: 5000,
               position: "bottom-left",
+              style: undefined,
             });
+          }
+        } finally {
+          if (wholeLoadControllersRef.current.get(gene) === wholeController) {
+            wholeLoadControllersRef.current.delete(gene);
           }
         }
       }
@@ -839,62 +987,9 @@ export function SingleMoleculeThreeScene() {
         pointClouds: pointCloudsRef.current.size,
       });
 
-      // Auto-fit camera to data bounds (only on first gene load)
-      if (
-        !hasAutoFittedRef.current &&
-        pointCloudsRef.current.size > 0 &&
-        cameraRef.current &&
-        controlsRef.current
-      ) {
-        hasAutoFittedRef.current = true;
-        const box = new THREE.Box3();
-
-        pointCloudsRef.current.forEach((pc) => {
-          box.expandByObject(pc);
-        });
-
-        const center = new THREE.Vector3();
-        const size = new THREE.Vector3();
-
-        box.getCenter(center);
-        box.getSize(size);
-
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const camera = cameraRef.current as THREE.PerspectiveCamera;
-        const fov = camera.fov * (Math.PI / 180);
-        const cameraDistance =
-          ((maxDim / 2) / Math.tan(fov / 2)) * 1.5;
-
-        camera.position.set(center.x, center.y, center.z + cameraDistance);
-        camera.lookAt(center);
-        autoFitCameraRef.current = camera.position.clone();
-
-        // Set group pivot for rotation around data center
-        dataCenterRef.current.copy(center);
-        if (sceneGroupRef.current && innerGroupRef.current) {
-          sceneGroupRef.current.position.copy(center);
-          innerGroupRef.current.position.set(-center.x, -center.y, -center.z);
-          console.log(`[SM] Auto-fit: center=(${center.x.toFixed(1)}, ${center.y.toFixed(1)}), outerGroup children=${sceneGroupRef.current.children.length}, innerGroup children=${innerGroupRef.current.children.length}, scene children=${sceneRef.current?.children.length}`);
-        }
-        camera.near = cameraDistance * 0.001;
-        camera.far = cameraDistance * 10;
-        camera.updateProjectionMatrix();
-
-        // Update controls target to center of data
-        const controls = controlsRef.current;
-
-        if (controls.target) {
-          controls.target.copy(center);
-        }
-        controls.update();
-
-        // Update baseline camera distance for zoom-based point sizing
-        baselineCameraDistanceRef.current = cameraDistance;
-
-        console.log(
-          `[SingleMoleculeThreeScene] Camera auto-fitted: center=(${center.x.toFixed(1)}, ${center.y.toFixed(1)}, ${center.z.toFixed(1)}), distance=${cameraDistance.toFixed(1)}`,
-        );
-      }
+      // Fallback fit for whatever data exists once the loop finishes (no-op
+      // when the first gene/batch already fitted the camera).
+      tryAutoFitCamera();
     });
 
     // Cleanup: cancel the async operation if effect is cleaned up
@@ -903,6 +998,12 @@ export function SingleMoleculeThreeScene() {
       // Only this run's sequential work stops here; background streams keep
       // filling their clouds and are aborted when their gene goes away.
       isCancelled = true;
+      // Whole-file downloads belong to this run — abort them for real (the
+      // next run re-requests anything still selected).
+      for (const controller of wholeLoadControllersRef.current.values()) {
+        controller.abort();
+      }
+      wholeLoadControllersRef.current.clear();
     };
   }, [dataset, selectedGenes, globalScale, viewMode, showAssigned, showUnassigned]);
 
@@ -947,6 +1048,7 @@ export function SingleMoleculeThreeScene() {
         className="absolute inset-0 w-full h-full"
         style={{ margin: 0, padding: 0 }}
       />
+      {webglFailed && <WebGLErrorOverlay />}
       <SpatialScaleBar
         cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
         rendererRef={rendererRef}

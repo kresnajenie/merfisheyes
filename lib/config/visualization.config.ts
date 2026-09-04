@@ -168,7 +168,7 @@ export const VISUALIZATION_CONFIG = {
    * downloaded whole first. A 50M-molecule gene is ~600 MB of float32; loading
    * that in one shot is minutes of blank canvas.
    */
-  SINGLE_MOLECULE_STREAM_THRESHOLD: 500_000,
+  SINGLE_MOLECULE_STREAM_THRESHOLD: 100_000,
 
   UMAP_POINT_SIZE: 5.0,
   UMAP_POINT_SIZE_MIN: 0.5,
