@@ -9,6 +9,8 @@
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
 
+set -euo pipefail
+
 # ── Arguments ────────────────────────────────────────────────
 SAMPLE_NAME="$1"   # e.g. ace-dud-vex
 
