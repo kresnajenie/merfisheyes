@@ -22,6 +22,8 @@ if [ "$1" = "-h" ] || [ "$1" = "--help" ] || [ -z "$1" ]; then
     exit 0
 fi
 
+set -euo pipefail
+
 # ── Arguments ────────────────────────────────────────────────
 SOURCE="$1"
 DESTINATION="$2"
@@ -33,8 +35,13 @@ echo "Started at $(date)"
 
 # ── Environment setup ────────────────────────────────────────
 module load aws-cli
-aws configure set default.s3.max_concurrent_requests 50
-aws configure set default.s3.multipart_chunksize 16MB
+
+# S3 transfer tuning is read from ~/.aws/config, not set here: `aws configure
+# set` writes to that shared file, and concurrent sync jobs racing to write it
+# corrupts it for every job (this is what broke every sync previously). Run
+# once, interactively, before submitting jobs:
+#   aws configure set default.s3.max_concurrent_requests 50
+#   aws configure set default.s3.multipart_chunksize 16MB
 
 # ── Run ──────────────────────────────────────────────────────
 aws s3 sync "$SOURCE" "$DESTINATION" --size-only
