@@ -10,6 +10,10 @@ dataset. Scrapes whichever outputs exist under ${MEYES_BASE}/<dataset>/:
   sm_output/manifest.json.gz     → n_genes_imaged (total molecules)
   combined_output/               → legacy CSV path (MERFISH combine step)
   --h5ad <file>                  → single-sample h5ad fallback
+  --samples-csv <file>           → sample_name,input_path lookup for SM-only
+                                    datasets: n_cells from raw cell_by_gene.h5ad
+                                    (obs count) or unique cell_id in the raw
+                                    transcripts CSV
   mmc_output/mapping_output.csv  → MapMyCells hierarchical
   mmc_output_corr/               → MapMyCells correlation → mean_corr
 
@@ -20,6 +24,11 @@ clobber the file.
 Usage:
   python collect_dataset_stats.py --datasets ace-pie-bit ace-pie-bin \\
       --species mouse \\
+      --out /bil/data/meyes/_dataset_stats/dataset_stats.csv
+
+  # --datasets defaults to every sample_name in --samples-csv when omitted:
+  python collect_dataset_stats.py --samples-csv xenium-samples.csv \\
+      --species marmoset \\
       --out /bil/data/meyes/_dataset_stats/dataset_stats.csv
 """
 import argparse
@@ -68,16 +77,79 @@ def _scrape_meyes_manifest(meyes_output):
 # sm_output manifest scraper
 # ─────────────────────────────────────────────────────────────
 def _scrape_sm_manifest(sm_output):
-    """Read sm_output/manifest.json.gz. Returns None if not present."""
-    p = sm_output / "manifest.json.gz"
-    if not p.exists():
-        return None
+    """Read sm_output/manifest.json.gz or sm_output/{job_id}/manifest.json.gz."""
+    # Direct path (new layout)
+    direct = sm_output / "manifest.json.gz"
+    if direct.exists():
+        p = direct
+    else:
+        # Older datasets store the manifest in a numeric job-ID subdirectory
+        candidates = sorted(sm_output.glob("*/manifest.json.gz"))
+        if not candidates:
+            return None
+        p = candidates[0]
     with gzip.open(p, "rt", encoding="utf-8") as f:
         m = json.load(f)
     stats = m.get("statistics", {})
     return {
         "n_genes_imaged": stats.get("total_molecules"),
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# Raw-input fallback (SM-only datasets: cell count from the un-pipelined
+# source directory, before any meyes/combined/sm output exists)
+# ─────────────────────────────────────────────────────────────
+UNASSIGNED_CELL_IDS = {"-1", "unassigned", ""}
+
+
+def _find_by_keywords(directory: Path, keywords, exclude, ext):
+    """Fuzzy-match a file in `directory` by required keywords / extension."""
+    for entry in sorted(directory.iterdir()):
+        if not entry.is_file():
+            continue
+        if entry.suffix.lower() != ext:
+            continue
+        name = entry.stem.lower()
+        if any(x in name for x in exclude):
+            continue
+        if all(kw in name for kw in keywords):
+            return entry
+    return None
+
+
+def _n_obs_h5ad(path: Path):
+    """Cell count from an h5ad's obs index, without loading the expression matrix."""
+    import h5py
+    with h5py.File(path, "r") as f:
+        obs = f["obs"]
+        idx_name = obs.attrs.get("_index", "_index")
+        return int(obs[idx_name].shape[0])
+
+
+def _n_unique_cell_ids(path: Path):
+    """Unique assigned cell_id count from a (detected|selected)_transcripts CSV."""
+    ids = set()
+    for chunk in pd.read_csv(path, usecols=["cell_id"], chunksize=CHUNK, dtype=str):
+        vals = chunk["cell_id"].str.strip()
+        ids.update(vals[~vals.str.lower().isin(UNASSIGNED_CELL_IDS)].unique())
+    return len(ids)
+
+
+def _scrape_raw_input(input_dir: Path):
+    """n_cells for an SM-only dataset, scraped straight from the raw BIL input
+    dir. Prefers cell_by_gene.h5ad (cheap, exact); falls back to unique
+    cell_id in the transcripts CSV. Returns None if neither is present."""
+    if not input_dir.is_dir():
+        return None
+    h5ad = _find_by_keywords(input_dir, ["cell", "gene"], ["metadata"], ".h5ad")
+    if h5ad is not None:
+        return _n_obs_h5ad(h5ad)
+    transcripts = _find_by_keywords(
+        input_dir, ["transcript"], ["metadata", "cell_by_gene"], ".csv")
+    if transcripts is None:
+        return None
+    return _n_unique_cell_ids(transcripts)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -212,7 +284,7 @@ def _mmc_summary(hier, corr):
 # ─────────────────────────────────────────────────────────────
 # Per-dataset scrape
 # ─────────────────────────────────────────────────────────────
-def scrape_dataset(name, meyes_base, percentile, species, h5ad_path, now):
+def scrape_dataset(name, meyes_base, percentile, species, h5ad_path, now, raw_input=None):
     base = Path(meyes_base) / name
     meyes_output = base / "meyes_output"
     sm_output    = base / "sm_output"
@@ -246,12 +318,19 @@ def scrape_dataset(name, meyes_base, percentile, species, h5ad_path, now):
     else:
         # SM-only dataset (no cell segmentation output yet)
         sm_info = _scrape_sm_manifest(sm_output)
-        if sm_info is None:
+        n_cells = pd.NA
+        if raw_input is not None:
+            raw_n_cells = _scrape_raw_input(Path(raw_input))
+            if raw_n_cells is not None:
+                n_cells = raw_n_cells
+        if sm_info is None and n_cells is pd.NA:
             raise FileNotFoundError(
                 f"No usable output found for {name} "
-                f"(checked meyes_output, combined_output, h5ad, sm_output)")
-        print(f"[sm   ] {name}: SM-only dataset, no cell stats available")
-        n_cells = pd.NA
+                f"(checked meyes_output, combined_output, h5ad, sm_output, raw_input)")
+        if n_cells is pd.NA:
+            print(f"[sm   ] {name}: SM-only dataset, no cell stats available")
+        else:
+            print(f"[sm   ] {name}: SM-only dataset, n_cells={n_cells} from raw input")
 
     # ── molecule count from sm manifest ────────────────────────
     sm_info = _scrape_sm_manifest(sm_output)
@@ -320,12 +399,17 @@ def _merge_write(out_path: Path, new_df: pd.DataFrame, preferred, sort_by):
 def parse_args():
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--datasets",        nargs="+", required=True)
+    p.add_argument("--datasets",        nargs="+", default=None,
+                   help="dataset names to scrape (defaults to every sample_name "
+                        "in --samples-csv if omitted)")
     p.add_argument("--out",             required=True, help="dataset_stats.csv accumulator")
     p.add_argument("--species",         default="")
     p.add_argument("--mask-percentile", type=int, default=25)
     p.add_argument("--h5ad",            default=None,
                    help="h5ad file for combine-derived metrics when no combined_output exists")
+    p.add_argument("--samples-csv",     default=None,
+                   help="sample_name,input_path CSV (e.g. xenium-samples.csv) used as a "
+                        "raw-input n_cells fallback for SM-only datasets")
     p.add_argument("--meyes-base",
                    default=os.environ.get("MEYES_BASE", "/bil/data/meyes"))
     return p.parse_args()
@@ -336,11 +420,24 @@ def main():
     meyes_base = Path(args.meyes_base)
     now    = dt.datetime.now().isoformat(timespec="seconds")
 
+    raw_inputs = {}
+    if args.samples_csv:
+        raw_df = pd.read_csv(args.samples_csv, comment="#", header=None,
+                              names=["sample_name", "input_path"])
+        raw_inputs = dict(zip(raw_df["sample_name"], raw_df["input_path"]))
+
+    datasets = args.datasets
+    if datasets is None:
+        if not raw_inputs:
+            sys.exit("--datasets or --samples-csv is required")
+        datasets = list(raw_inputs)
+
     rows = []
-    for name in args.datasets:
+    for name in datasets:
         try:
             row = scrape_dataset(
-                name, meyes_base, args.mask_percentile, args.species, args.h5ad, now)
+                name, meyes_base, args.mask_percentile, args.species, args.h5ad, now,
+                raw_input=raw_inputs.get(name))
         except (FileNotFoundError, ValueError) as e:
             print(f"[skip ] {name}: {e}", file=sys.stderr)
             continue
