@@ -106,12 +106,12 @@ export class ChunkedDataAdapter {
       // For custom/remote S3: fetch all three concurrently
       const manifestPromise =
         this.mode === "custom"
-          ? this.fetchJSON("manifest.json").catch(() =>
+          ? this.fetchJSON("manifest.json", true).catch(() =>
               this.fetchBinary("manifest.json.gz").then((buffer) =>
                 JSON.parse(new TextDecoder().decode(buffer)),
               ),
             )
-          : this.fetchJSON("manifest.json");
+          : this.fetchJSON("manifest.json", true);
 
       // A labelled-molecule dataset has no expression matrix, so expr/index.json
       // does not exist. We still fire the request concurrently (skipping it
@@ -126,7 +126,7 @@ export class ChunkedDataAdapter {
       const [manifest, expr, obsMetadata] = await Promise.all([
         manifestPromise,
         exprAttempt,
-        this.fetchJSON("obs/metadata.json"),
+        this.fetchJSON("obs/metadata.json", true),
       ]);
 
       const hasExpression = manifest?.has_expression !== false;
@@ -163,8 +163,17 @@ export class ChunkedDataAdapter {
   /**
    * Fetch and parse JSON file (from S3 URL or local File)
    */
-  private async fetchJSON(fileKey: string) {
+  private async fetchJSON(fileKey: string, revalidate = false) {
     console.log(`Fetching JSON: ${fileKey} (mode: ${this.mode})`);
+
+    // The index files describe which data files exist. If a dataset is
+    // replaced in place, a cached index points at names that are gone and the
+    // load fails on a confusing 403/404 from a *different* file. Revalidating
+    // (conditional request, 304 when unchanged) costs nothing on two small
+    // JSONs and removes that whole failure mode.
+    const init: RequestInit | undefined = revalidate
+      ? { cache: "no-cache" }
+      : undefined;
 
     if (this.mode === "local") {
       const file = this.localFiles?.get(fileKey);
@@ -182,7 +191,7 @@ export class ChunkedDataAdapter {
 
       console.log(`Fetching JSON from custom S3: ${url}`);
 
-      const response = await fetch(url);
+      const response = await fetch(url, init);
 
       if (!response.ok) {
         throw new Error(
@@ -199,7 +208,7 @@ export class ChunkedDataAdapter {
         throw new Error(`No download URL found for ${fileKey}`);
       }
 
-      const response = await fetch(url);
+      const response = await fetch(url, init);
 
       if (!response.ok) {
         throw new Error(
