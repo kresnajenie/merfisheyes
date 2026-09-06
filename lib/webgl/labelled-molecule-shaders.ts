@@ -19,9 +19,6 @@
 /** Per-value size multipliers are encoded into an 8-bit alpha over this range. */
 export const SIZE_ENCODE_RANGE = 4.0;
 
-/** Selected molecules are drawn this much larger than the grey backdrop. */
-export const SELECTED_SIZE_MULTIPLIER = 1.5;
-
 export const labelledMoleculeVertexShader = `
     attribute float aGene;
     attribute float aDomain;
@@ -42,9 +39,9 @@ export const labelledMoleculeVertexShader = `
 
     uniform float dotSize;
     uniform float uGlobalSize;
-    uniform float uGlobalAlpha;
     uniform float uOpaque;           // 1.0 = opaque pass (no partial alpha)
-    uniform float uUnselectedSize;   // size multiplier for greyed points
+    uniform float uSelectedSize;     // size multiplier, molecules in the filter
+    uniform float uUnselectedSize;   // size multiplier, grey backdrop
     uniform vec3 uUnselectedColor;
 
     varying vec3 vColor;
@@ -70,7 +67,7 @@ export const labelledMoleculeVertexShader = `
         // they read as context rather than haze, and so the opaque renderer
         // can draw them at all.
         vColor = selected > 0.5 ? entry.rgb : uUnselectedColor;
-        vAlpha = aAlpha * uGlobalAlpha;
+        vAlpha = aAlpha;
 
         // Selected points are drawn larger so they stand out against the grey
         // backdrop, which is now fully opaque and can otherwise crowd them.
@@ -78,7 +75,7 @@ export const labelledMoleculeVertexShader = `
         // uniform multiplier so a big category can't dominate it.
         float valueSize = entry.a * ${SIZE_ENCODE_RANGE.toFixed(1)};
         float sizeMul = selected > 0.5
-            ? valueSize * ${SELECTED_SIZE_MULTIPLIER.toFixed(1)}
+            ? valueSize * uSelectedSize
             : uUnselectedSize;
 
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);

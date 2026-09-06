@@ -112,7 +112,6 @@ function LabelledMoleculeViewer({ renderMode = "blended" }: Props) {
       if (config?.camera && !st.pendingCamera && !st.camera) {
         st.applyCamera(config.camera);
       }
-      if (config?.viewMode) st.applyUrlState({ viewMode: config.viewMode });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

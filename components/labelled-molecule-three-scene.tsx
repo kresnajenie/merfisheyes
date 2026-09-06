@@ -101,6 +101,9 @@ export default function LabelledMoleculeThreeScene({
   const controlsTargetRef = useRef<THREE.Vector3 | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const resetViewRef = useRef<(() => void) | null>(null);
+  const flyToRef = useRef<
+    ((endPos: THREE.Vector3, endTarget: THREE.Vector3) => void) | null
+  >(null);
   const applyCameraRef = useRef<
     | ((p: {
         position: [number, number, number];
@@ -130,8 +133,8 @@ export default function LabelledMoleculeThreeScene({
     geneColorSlots,
     hiddenValues,
     globalScale,
-    globalAlpha,
-    viewMode,
+    selectedScale,
+    unselectedScale,
     resetViewNonce,
     pendingCamera,
   } = useLabelledMoleculeVisualizationStore();
@@ -181,7 +184,8 @@ export default function LabelledMoleculeThreeScene({
     let setup;
 
     try {
-      setup = initializeScene(container, { is2D: viewMode === "2D" });
+      // Always 3D: these are volumetric embryos, a flat view hides the z axis.
+      setup = initializeScene(container, { is2D: false });
     } catch (e) {
       setGlError(e instanceof Error ? e.message : String(e));
 
@@ -271,7 +275,7 @@ export default function LabelledMoleculeThreeScene({
         uColorBy: { value: 2 },
         dotSize: { value: baseDotSize },
         uGlobalSize: { value: 1 },
-        uGlobalAlpha: { value: 1 },
+        uSelectedSize: { value: 1.5 },
         uUnselectedSize: { value: 0.6 },
         uUnselectedColor: { value: new THREE.Color(0x555555) },
         uShape: { value: 0 },
@@ -306,10 +310,10 @@ export default function LabelledMoleculeThreeScene({
     controlsTargetRef.current = controls.target;
     // Captured so the reset-view effect can re-frame without rebuilding.
     resetViewRef.current = () => {
-      camera.position.set(0, 0, cameraDistance);
-      camera.lookAt(0, 0, 0);
-      controls.target.set(0, 0, 0);
-      controls.update();
+      flyToRef.current?.(
+        new THREE.Vector3(0, 0, cameraDistance),
+        new THREE.Vector3(0, 0, 0),
+      );
     };
 
     // ── Hover picking.
@@ -404,6 +408,39 @@ export default function LabelledMoleculeThreeScene({
 
     const handleMouseLeave = () => setHover(null);
 
+    /**
+     * Ease the camera to a new pose instead of teleporting — a jump cut loses
+     * the viewer's sense of where they were in the embryo.
+     */
+    let flyRaf = 0;
+    const flyTo = (
+      endPos: THREE.Vector3,
+      endTarget: THREE.Vector3,
+      durationMs = 500,
+    ) => {
+      cancelAnimationFrame(flyRaf);
+      const startPos = camera.position.clone();
+      const startTarget = controls.target.clone();
+      const t0 = performance.now();
+      // easeInOutCubic: gentle at both ends, so the move reads as deliberate.
+      const ease = (t: number) =>
+        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+      const step = () => {
+        const k = Math.min(1, (performance.now() - t0) / durationMs);
+        const e = ease(k);
+
+        camera.position.lerpVectors(startPos, endPos, e);
+        controls.target.lerpVectors(startTarget, endTarget, e);
+        controls.update();
+        if (k < 1) flyRaf = requestAnimationFrame(step);
+      };
+
+      flyRaf = requestAnimationFrame(step);
+    };
+
+    flyToRef.current = flyTo;
+
     /** The molecule under the cursor right now, or null. */
     const pickAt = (event: MouseEvent): number | null => {
       const el = setup.renderer.domElement;
@@ -447,9 +484,7 @@ export default function LabelledMoleculeThreeScene({
       // Keep the current viewing direction and distance; only shift the target.
       const offset = camera.position.clone().sub(controls.target);
 
-      controls.target.copy(p);
-      camera.position.copy(p).add(offset);
-      controls.update();
+      flyTo(p.clone().add(offset), p);
     };
 
     // Double-click adds the clicked molecule's value for the ACTIVE column to
@@ -513,6 +548,8 @@ export default function LabelledMoleculeThreeScene({
         "dblclick",
         handleDoubleClick,
       );
+      cancelAnimationFrame(flyRaf);
+      flyToRef.current = null;
       controls.removeEventListener("change", publishCamera);
       applyCameraRef.current = null;
       dispose();
@@ -526,7 +563,7 @@ export default function LabelledMoleculeThreeScene({
       rendererRef.current = null;
       setHover(null);
     };
-  }, [dataset, ready, viewMode, columnFor, clusterVersion, opaque]);
+  }, [dataset, ready, columnFor, clusterVersion, opaque]);
 
   // ── Selection LUTs. This is the hot path: a checkbox toggle re-uploads
   //    three textures of one byte per category and nothing else.
@@ -593,8 +630,9 @@ export default function LabelledMoleculeThreeScene({
 
     if (!material) return;
     material.uniforms.uGlobalSize.value = globalScale;
-    material.uniforms.uGlobalAlpha.value = globalAlpha;
-  }, [globalScale, globalAlpha, materialVersion]);
+    material.uniforms.uSelectedSize.value = selectedScale;
+    material.uniforms.uUnselectedSize.value = unselectedScale;
+  }, [globalScale, selectedScale, unselectedScale, materialVersion]);
 
   // ── Adopt an inbound camera pose (shared link or saved default).
   useEffect(() => {

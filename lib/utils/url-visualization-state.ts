@@ -337,8 +337,8 @@ export interface LmVizUrlState {
   d?: string[]; // domain selection
   c?: string[]; // cell selection
   gs?: number; // globalScale
-  ga?: number; // globalAlpha
-  vm?: "2D" | "3D"; // viewMode
+  ss?: number; // selectedScale
+  us?: number; // unselectedScale
   cam?: [number, number, number, number, number, number]; // camera pos + target
 }
 
@@ -347,8 +347,8 @@ export function encodeLmVizState(state: {
   selections: Record<"gene" | "domain" | "cell", Set<string>>;
   geneColorSlots: Map<string, number>;
   globalScale: number;
-  globalAlpha: number;
-  viewMode: "2D" | "3D";
+  selectedScale: number;
+  unselectedScale: number;
   camera?: {
     position: [number, number, number];
     target: [number, number, number];
@@ -367,8 +367,8 @@ export function encodeLmVizState(state: {
   if (state.selections.domain.size > 0) s.d = [...state.selections.domain];
   if (state.selections.cell.size > 0) s.c = [...state.selections.cell];
   if (state.globalScale !== 1) s.gs = state.globalScale;
-  if (state.globalAlpha !== 1) s.ga = state.globalAlpha;
-  if (state.viewMode !== "3D") s.vm = state.viewMode;
+  if (state.selectedScale !== 1.5) s.ss = state.selectedScale;
+  if (state.unselectedScale !== 0.6) s.us = state.unselectedScale;
   if (state.camera) {
     // Rounded: sub-0.01 µm camera precision is meaningless and costs URL length.
     const r = (v: number) => Math.round(v * 100) / 100;

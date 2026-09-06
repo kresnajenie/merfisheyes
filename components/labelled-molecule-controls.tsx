@@ -8,7 +8,7 @@ import { Checkbox } from "@heroui/checkbox";
 import { Input } from "@heroui/input";
 import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
 import { LM_MENUS } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
@@ -45,7 +45,6 @@ export default function LabelledMoleculeControls({
   renderMode = "blended",
 }: Props) {
   const s = useLabelledMoleculeVisualizationStore();
-  const [showSettings, setShowSettings] = useState(false);
 
   const columnFor: Record<LmMenu, string> = {
     gene: "gene",
@@ -161,7 +160,6 @@ export default function LabelledMoleculeControls({
   }, [setColorBy]);
 
   const openPanel = (menu: LmMenu) => {
-    setShowSettings(false);
     s.setOpenMenu(open === menu ? null : menu);
   };
 
@@ -214,20 +212,6 @@ export default function LabelledMoleculeControls({
               onChange={(v) => s.setGlobalScale(v as number)}
             />
           </div>
-        </Tooltip>
-
-        <Tooltip content="View settings" placement="right">
-          <Button
-            className={`${buttonBaseClass} ${showSettings ? "" : glassButton()}`}
-            color={showSettings ? "primary" : "default"}
-            variant={showSettings ? "shadow" : "light"}
-            onPress={() => {
-              s.setOpenMenu(null);
-              setShowSettings((v) => !v);
-            }}
-          >
-            View
-          </Button>
         </Tooltip>
 
         {/* Value panel — same placement and shell as VisualizationPanel. */}
@@ -353,35 +337,6 @@ export default function LabelledMoleculeControls({
                   );
                 })}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* View settings. */}
-        {showSettings && (
-          <div
-            className={`absolute top-0 left-16 z-[var(--z-panel)] w-[280px] ${glassPanel()}`}
-          >
-            <div className="p-4 space-y-4">
-              {/* Opacity is a blending concept; the opaque renderer has no
-                  way to express it, so the control is disabled rather than
-                  silently inert. */}
-              <Slider
-                isDisabled={renderMode === "opaque"}
-                label="Opacity"
-                maxValue={1}
-                minValue={0.02}
-                size="sm"
-                step={0.02}
-                value={s.globalAlpha}
-                onChange={(v) => s.setGlobalAlpha(Number(v))}
-              />
-              {renderMode === "opaque" && (
-                <p className="text-[11px] text-default-500">
-                  Opacity and Transparent mode need alpha blending, which this
-                  renderer trades away for depth-correct occlusion.
-                </p>
-              )}
             </div>
           </div>
         )}

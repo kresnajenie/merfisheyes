@@ -5,8 +5,6 @@ import {
   getColorForSlot,
 } from "@/lib/utils/gene-color-palette";
 
-export type LmViewMode = "2D" | "3D";
-
 /** The three menus, each backed by an obs column of the same name. */
 export type LmMenu = "gene" | "domain" | "cell";
 
@@ -49,8 +47,10 @@ export interface LabelledMoleculeVisualizationState {
   geneColorSlots: Map<string, number>;
 
   globalScale: number;
-  globalAlpha: number;
-  viewMode: LmViewMode;
+  /** Size multiplier for molecules passing the filter. */
+  selectedScale: number;
+  /** Size multiplier for the grey backdrop. */
+  unselectedScale: number;
   searchTerm: Record<LmMenu, string>;
   /**
    * Incremented to ask the scene to re-frame the cloud. A nonce rather than a
@@ -84,8 +84,8 @@ export interface LabelledMoleculeVisualizationState {
   toggleValueVisibility: (menu: LmMenu, value: string) => void;
   soloValue: (menu: LmMenu, value: string) => void;
   setGlobalScale: (scale: number) => void;
-  setGlobalAlpha: (alpha: number) => void;
-  setViewMode: (mode: LmViewMode) => void;
+  setSelectedScale: (scale: number) => void;
+  setUnselectedScale: (scale: number) => void;
   setSearchTerm: (menu: LmMenu, term: string) => void;
   resetView: () => void;
   setCamera: (
@@ -130,8 +130,8 @@ const initialState = () => ({
   } as Record<LmMenu, Set<string>>,
   geneColorSlots: new Map<string, number>(),
   globalScale: 1.0,
-  globalAlpha: 1.0,
-  viewMode: "3D" as LmViewMode,
+  selectedScale: 1.5,
+  unselectedScale: 0.6,
   searchTerm: { gene: "", domain: "", cell: "" } as Record<LmMenu, string>,
   resetViewNonce: 0,
   camera: null as {
@@ -259,9 +259,8 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
       }),
 
     setGlobalScale: (scale) => set({ globalScale: Math.max(0, scale) }),
-    setGlobalAlpha: (alpha) =>
-      set({ globalAlpha: Math.min(1, Math.max(0, alpha)) }),
-    setViewMode: (mode) => set({ viewMode: mode }),
+    setSelectedScale: (scale) => set({ selectedScale: Math.max(0, scale) }),
+    setUnselectedScale: (scale) => set({ unselectedScale: Math.max(0, scale) }),
     setSearchTerm: (menu, term) =>
       set((s) => ({ searchTerm: { ...s.searchTerm, [menu]: term } })),
 

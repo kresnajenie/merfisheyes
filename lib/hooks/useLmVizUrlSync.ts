@@ -45,8 +45,8 @@ export function useLmVizUrlSync(
 
     if (d.cb) patch.colorBy = d.cb;
     if (d.gs !== undefined) patch.globalScale = d.gs;
-    if (d.ga !== undefined) patch.globalAlpha = d.ga;
-    if (d.vm) patch.viewMode = d.vm;
+    if (d.ss !== undefined) patch.selectedScale = d.ss;
+    if (d.us !== undefined) patch.unselectedScale = d.us;
     if (d.cam?.length === 6) {
       patch.camera = {
         position: [d.cam[0], d.cam[1], d.cam[2]],
@@ -74,8 +74,8 @@ export function useLmVizUrlSync(
     selections,
     geneColorSlots,
     globalScale,
-    globalAlpha,
-    viewMode,
+    selectedScale,
+    unselectedScale,
     camera,
   } = store;
 
@@ -89,8 +89,8 @@ export function useLmVizUrlSync(
         selections,
         geneColorSlots,
         globalScale,
-        globalAlpha,
-        viewMode,
+        selectedScale,
+        unselectedScale,
         camera,
       }),
     );
@@ -100,8 +100,8 @@ export function useLmVizUrlSync(
     selections,
     geneColorSlots,
     globalScale,
-    globalAlpha,
-    viewMode,
+    selectedScale,
+    unselectedScale,
     camera,
   ]);
 }

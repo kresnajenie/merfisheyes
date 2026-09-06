@@ -3,6 +3,7 @@
 import type { ViewerConfig } from "@/lib/utils/viewer-config";
 
 import { Button } from "@heroui/button";
+import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
@@ -25,8 +26,14 @@ const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
  * something are offered.
  */
 export default function LabelledMoleculeTopControls() {
-  const { viewMode, setViewMode, resetView, camera } =
-    useLabelledMoleculeVisualizationStore();
+  const {
+    resetView,
+    camera,
+    selectedScale,
+    setSelectedScale,
+    unselectedScale,
+    setUnselectedScale,
+  } = useLabelledMoleculeVisualizationStore();
   const setHideUi = useSplitScreenStore((s) => s.setHideUi);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,7 +55,6 @@ export default function LabelledMoleculeTopControls() {
       const merged: ViewerConfig = {
         ...(viewerConfig ?? { version: 1 }),
         version: 1,
-        viewMode,
         ...(camera ? { camera } : {}),
       };
       const res = await fetch(`/api/ingest/mine/${dbId}`, {
@@ -162,23 +168,25 @@ export default function LabelledMoleculeTopControls() {
       {isCameraOpen && (
         <div className={`absolute top-16 right-0 w-[240px] ${glassPanel()}`}>
           <div className="p-4 space-y-4">
-            <div className="space-y-2">
-              <span className="text-xs text-default-500">View</span>
-              <div className="flex gap-1">
-                {(["2D", "3D"] as const).map((m) => (
-                  <Button
-                    key={m}
-                    className="flex-1"
-                    color={viewMode === m ? "primary" : "default"}
-                    size="sm"
-                    variant={viewMode === m ? "flat" : "light"}
-                    onPress={() => setViewMode(m)}
-                  >
-                    {m}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <Slider
+              label="Selected size"
+              maxValue={4}
+              minValue={0.1}
+              size="sm"
+              step={0.05}
+              value={selectedScale}
+              onChange={(v) => setSelectedScale(Number(v))}
+            />
+
+            <Slider
+              label="Unselected size"
+              maxValue={4}
+              minValue={0}
+              size="sm"
+              step={0.05}
+              value={unselectedScale}
+              onChange={(v) => setUnselectedScale(Number(v))}
+            />
 
             <Button
               className="w-full"
