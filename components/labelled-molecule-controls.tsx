@@ -50,7 +50,7 @@ export default function LabelledMoleculeControls({
 
   const columnFor: Record<LmMenu, string> = {
     gene: "gene",
-    domain: s.domainVariant,
+    domain: "domain",
     cell: "cell",
   };
 
@@ -88,7 +88,7 @@ export default function LabelledMoleculeControls({
     }
 
     return out;
-  }, [dataset, s.domainVariant, clusterVersion]);
+  }, [dataset, clusterVersion]);
 
   const visible = useMemo(() => {
     if (LM_MENUS.some((m) => !columns[m])) return null;
@@ -113,8 +113,19 @@ export default function LabelledMoleculeControls({
       .filter(
         (i) => !term || openCol.uniqueValues[i].toLowerCase().includes(term),
       )
-      .sort((a, b) => openCol.counts[b] - openCol.counts[a]);
-  }, [open, openCol, s.searchTerm]);
+      .sort((a, b) => {
+        // Only the gene list is sortable; the short lists read best A→Z.
+        if (open !== "gene") {
+          return openCol.uniqueValues[a].localeCompare(openCol.uniqueValues[b]);
+        }
+        const sign = s.geneSortDir === "asc" ? 1 : -1;
+
+        return s.geneSortBy === "count"
+          ? sign * (openCol.counts[a] - openCol.counts[b])
+          : sign *
+              openCol.uniqueValues[a].localeCompare(openCol.uniqueValues[b]);
+      });
+  }, [open, openCol, s.searchTerm, s.geneSortBy, s.geneSortDir]);
 
   const openPanel = (menu: LmMenu) => {
     setShowSettings(false);
@@ -203,21 +214,52 @@ export default function LabelledMoleculeControls({
                 </Button>
               </div>
 
-              {/* The two domain columns are interchangeable; only one filters. */}
-              {open === "domain" && (
+              {/* Genes are numerous enough to need ordering; domain and cell
+                  are short lists and stay alphabetical. */}
+              {open === "gene" && (
                 <div className="flex gap-1">
-                  {(["domain_anno", "domain_id"] as const).map((v) => (
-                    <Button
-                      key={v}
-                      className="flex-1"
-                      color={s.domainVariant === v ? "primary" : "default"}
-                      size="sm"
-                      variant={s.domainVariant === v ? "flat" : "light"}
-                      onPress={() => s.setDomainVariant(v)}
-                    >
-                      {v === "domain_anno" ? "Label" : "ID"}
-                    </Button>
-                  ))}
+                  <Button
+                    className="flex-1 text-xs"
+                    color={s.geneSortBy === "alpha" ? "primary" : "default"}
+                    size="sm"
+                    variant={s.geneSortBy === "alpha" ? "flat" : "light"}
+                    onPress={() =>
+                      s.setGeneSort(
+                        "alpha",
+                        s.geneSortBy === "alpha" && s.geneSortDir === "asc"
+                          ? "desc"
+                          : "asc",
+                      )
+                    }
+                  >
+                    A→Z{" "}
+                    {s.geneSortBy === "alpha"
+                      ? s.geneSortDir === "asc"
+                        ? "↑"
+                        : "↓"
+                      : ""}
+                  </Button>
+                  <Button
+                    className="flex-1 text-xs"
+                    color={s.geneSortBy === "count" ? "primary" : "default"}
+                    size="sm"
+                    variant={s.geneSortBy === "count" ? "flat" : "light"}
+                    onPress={() =>
+                      s.setGeneSort(
+                        "count",
+                        s.geneSortBy === "count" && s.geneSortDir === "desc"
+                          ? "asc"
+                          : "desc",
+                      )
+                    }
+                  >
+                    # Count{" "}
+                    {s.geneSortBy === "count"
+                      ? s.geneSortDir === "asc"
+                        ? "↑"
+                        : "↓"
+                      : ""}
+                  </Button>
                 </div>
               )}
 

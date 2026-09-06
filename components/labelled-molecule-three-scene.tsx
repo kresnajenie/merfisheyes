@@ -107,7 +107,6 @@ export default function LabelledMoleculeThreeScene({
 
   const {
     colorBy,
-    domainVariant,
     selections,
     colorOverrides,
     sizeOverrides,
@@ -124,10 +123,10 @@ export default function LabelledMoleculeThreeScene({
   const columnFor = useMemo(
     (): Record<LmMenu, string> => ({
       gene: "gene",
-      domain: domainVariant,
+      domain: "domain",
       cell: "cell",
     }),
-    [domainVariant],
+    [],
   );
 
   /** Menu -> its loaded column, or null while it is still being fetched. */
@@ -382,8 +381,72 @@ export default function LabelledMoleculeThreeScene({
 
     const handleMouseLeave = () => setHover(null);
 
+    /** The molecule under the cursor right now, or null. */
+    const pickAt = (event: MouseEvent): number | null => {
+      const el = setup.renderer.domElement;
+      const rect = el.getBoundingClientRect();
+
+      mouseRef.current.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouseRef.current.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      const target = controlsTargetRef.current;
+      const camDist = target
+        ? camera.position.distanceTo(target)
+        : camera.position.length();
+      const fovRad = (camera.fov / 2) * (Math.PI / 180);
+
+      raycasterRef.current.params.Points!.threshold =
+        ((2 * camDist * Math.tan(fovRad)) / rect.height) * 5;
+      raycasterRef.current.setFromCamera(mouseRef.current, camera);
+
+      const hits = raycasterRef.current.intersectObject(points);
+
+      hits.sort((a, b) => a.distance - b.distance);
+      const hit = hits.find((h) => h.index != null && passesFilter(h.index));
+
+      return hit?.index ?? null;
+    };
+
+    // ⌘/Ctrl-click re-centres the camera on the clicked molecule, so the
+    // trackball then orbits around it rather than the whole cloud's middle.
+    const handleClick = (event: MouseEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const i = pickAt(event);
+
+      if (i == null) return;
+      event.preventDefault();
+
+      const p = new THREE.Vector3(
+        positions[i * 3],
+        positions[i * 3 + 1],
+        positions[i * 3 + 2],
+      );
+      // Keep the current viewing direction and distance; only shift the target.
+      const offset = camera.position.clone().sub(controls.target);
+
+      controls.target.copy(p);
+      camera.position.copy(p).add(offset);
+      controls.update();
+    };
+
+    // Double-click adds the clicked molecule's value for the ACTIVE column to
+    // that menu's selection — the colouring column is what the user is reading,
+    // so that is the one they mean.
+    const handleDoubleClick = (event: MouseEvent) => {
+      const i = pickAt(event);
+
+      if (i == null) return;
+      const st = labelledMoleculeVisualizationStore.getState();
+      const menu = st.colorBy;
+      const col = columns[menu]!;
+
+      st.toggleValue(menu, col.uniqueValues[col.valueIndices[i]]);
+    };
+
     setup.renderer.domElement.addEventListener("mousemove", handleMouseMove);
     setup.renderer.domElement.addEventListener("mouseleave", handleMouseLeave);
+    setup.renderer.domElement.addEventListener("click", handleClick);
+    setup.renderer.domElement.addEventListener("dblclick", handleDoubleClick);
 
     animate();
 
@@ -395,6 +458,11 @@ export default function LabelledMoleculeThreeScene({
       setup.renderer.domElement.removeEventListener(
         "mouseleave",
         handleMouseLeave,
+      );
+      setup.renderer.domElement.removeEventListener("click", handleClick);
+      setup.renderer.domElement.removeEventListener(
+        "dblclick",
+        handleDoubleClick,
       );
       dispose();
       geometry.dispose();

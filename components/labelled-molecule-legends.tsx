@@ -42,7 +42,7 @@ export default function LabelledMoleculeLegends({
   const palettes = useMemo(() => {
     const columnFor: Record<LmMenu, string> = {
       gene: "gene",
-      domain: s.domainVariant,
+      domain: "domain",
       cell: "cell",
     };
 
@@ -56,7 +56,7 @@ export default function LabelledMoleculeLegends({
       },
       {} as Record<LmMenu, Record<string, string> | null>,
     );
-  }, [dataset, s.domainVariant, clusterVersion]);
+  }, [dataset, clusterVersion]);
 
   const active = LM_MENUS.filter((m) => s.selections[m].size > 0);
 

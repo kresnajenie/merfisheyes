@@ -333,7 +333,6 @@ export function decodeSMVizState(encoded: string): SMVizUrlState | null {
  */
 export interface LmVizUrlState {
   cb?: "gene" | "domain" | "cell"; // colorBy
-  dv?: "domain_anno" | "domain_id"; // which column the domain menu reads
   g?: [string, number][]; // [gene, colourSlot]
   d?: string[]; // domain selection
   c?: string[]; // cell selection
@@ -346,7 +345,6 @@ export interface LmVizUrlState {
 
 export function encodeLmVizState(state: {
   colorBy: "gene" | "domain" | "cell";
-  domainVariant: "domain_anno" | "domain_id";
   selections: Record<"gene" | "domain" | "cell", Set<string>>;
   geneColorSlots: Map<string, number>;
   unselectedMode: "grey" | "hidden";
@@ -359,7 +357,6 @@ export function encodeLmVizState(state: {
 
   // Defaults are omitted so an untouched viewer keeps a clean URL.
   if (state.colorBy !== "cell") s.cb = state.colorBy;
-  if (state.domainVariant !== "domain_anno") s.dv = state.domainVariant;
   if (state.selections.gene.size > 0) {
     s.g = [...state.selections.gene].map((gene) => [
       gene,

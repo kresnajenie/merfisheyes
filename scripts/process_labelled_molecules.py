@@ -36,6 +36,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import struct
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -60,6 +61,40 @@ _t0 = None
 def log(msg):
     el = f"[{fmt_elapsed(time.perf_counter() - _t0)}]" if _t0 else ""
     print(f"{el} {msg}", flush=True)
+
+
+def write_coordinates_q16(coords: np.ndarray, output_path: Path):
+    """Coordinates as uint16 per axis instead of float32.
+
+    Float coordinates barely compress (37.7 MB -> 32.1 MB measured), because
+    the mantissa is high-entropy. Quantising each axis onto its own 16-bit grid
+    halves the raw size and gzips far better. Precision is ~0.008 µm over a
+    500 µm embryo — finer than the 2 dp the source is already rounded to, so
+    nothing is lost relative to what we were storing.
+
+    Layout (little-endian), read by ChunkedDataAdapter when the manifest
+    declares coord_format "q16":
+        u32 numPoints | u32 dims | f32 min[dims] | f32 scale[dims]
+        u16 codes[numPoints * dims]     coord = min + code * scale
+    """
+    n, dims = coords.shape
+    lo = coords.min(axis=0).astype(np.float32)
+    hi = coords.max(axis=0).astype(np.float32)
+    scale = ((hi - lo) / 65535.0).astype(np.float32)
+    scale[scale == 0] = 1.0  # a degenerate axis maps every point to code 0
+
+    codes = np.rint((coords - lo) / scale).clip(0, 65535).astype(np.uint16)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(output_path, "wb") as f:
+        f.write(struct.pack("<II", n, dims))
+        f.write(lo.tobytes())
+        f.write(scale.tobytes())
+        f.write(np.ascontiguousarray(codes).tobytes())
+
+    err = np.abs((lo + codes.astype(np.float32) * scale) - coords).max()
+    log(f"  max quantisation error: {err:.5f} units (grid step "
+        f"{scale.max():.5f})")
 
 
 def parse_kv(pairs, flag):
@@ -107,6 +142,9 @@ def main():
                     help="Drop rows whose COLUMN value is a control/blank probe. "
                          "Repeatable.")
     ap.add_argument("--name", help="Dataset name (default: input stem)")
+    ap.add_argument("--float-coords", action="store_true",
+                    help="Write float32 coords/spatial.bin.gz instead of the "
+                         "quantised q16 form (larger; only for debugging).")
     args = ap.parse_args()
 
     _t0 = time.perf_counter()
@@ -163,7 +201,12 @@ def main():
         keep = np.zeros(n_in, dtype=bool)
         keep[idx] = True
         n = len(coords)
-    write_coordinate_binary(coords, out / "coords" / "spatial.bin.gz")
+    if args.float_coords:
+        write_coordinate_binary(coords, out / "coords" / "spatial.bin.gz")
+        coord_format = "f32"
+    else:
+        write_coordinates_q16(coords, out / "coords" / "spatial.q16.bin.gz")
+        coord_format = "q16"
     lo, hi = coords.min(axis=0), coords.max(axis=0)
     log(f"  extent {' × '.join(f'{a:.1f}..{b:.1f}' for a, b in zip(lo, hi))} (raw units)")
 
@@ -202,6 +245,8 @@ def main():
     manifest = {
         "version": "1.0",
         "normalized": False,
+        # f32 = coords/spatial.bin.gz (shared format); q16 = coords/spatial.q16.bin.gz
+        "coord_format": coord_format,
         # No expression matrix: the adapter must skip expr/index.json.
         "has_expression": False,
         "dataset_id": "local_dataset",
@@ -220,6 +265,8 @@ def main():
         },
         "files": {
             "coordinates": ["spatial"],
+            "coord_file": ("coords/spatial.bin.gz" if args.float_coords
+                           else "coords/spatial.q16.bin.gz"),
             "expression_chunks": 0,
             "observation_columns": list(obs_meta.keys()),
             "de_stats": [],

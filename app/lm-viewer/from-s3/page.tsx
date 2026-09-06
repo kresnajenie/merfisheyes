@@ -15,9 +15,7 @@ import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMole
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 
 /** Columns the three menus need before the scene can draw. */
-const REQUIRED_COLUMNS = ["gene", "domain_anno", "cell"];
-/** Fetched after first paint — only needed if the domain menu switches to it. */
-const DEFERRED_COLUMNS = ["domain_id"];
+const REQUIRED_COLUMNS = ["gene", "domain", "cell"];
 
 function LabelledMoleculeViewer() {
   const searchParams = useSearchParams();
@@ -50,18 +48,12 @@ function LabelledMoleculeViewer() {
       );
 
       setMessage("Loading label columns…");
-      for (const col of REQUIRED_COLUMNS) {
-        await loadClusterColumn(ds, col);
-      }
+      // Concurrently: each is its own worker round trip, and serialising them
+      // added two avoidable trips to every load.
+      await Promise.all(REQUIRED_COLUMNS.map((c) => loadClusterColumn(ds, c)));
 
       setDataset(ds);
       setClusterVersion((v) => v + 1);
-
-      // The second domain column is only read if the user switches the menu
-      // to it, so it must not hold up first paint.
-      for (const col of DEFERRED_COLUMNS) {
-        if (await loadClusterColumn(ds, col)) setClusterVersion((v) => v + 1);
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }

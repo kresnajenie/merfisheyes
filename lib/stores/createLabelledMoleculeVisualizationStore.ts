@@ -10,12 +10,11 @@ export type LmViewMode = "2D" | "3D";
 /** How molecules that fail the filter are drawn. */
 export type UnselectedMode = "grey" | "hidden";
 
-/**
- * The three menus. `domain` is backed by one of two interchangeable columns
- * (`domain_anno`, the coarse label, or `domain_id`, the exact cluster), chosen
- * by `domainVariant` — the ingest ships both and only one filters at a time.
- */
+/** The three menus, each backed by an obs column of the same name. */
 export type LmMenu = "gene" | "domain" | "cell";
+
+/** Gene lists are long enough to need ordering; the other two are short. */
+export type LmSortBy = "alpha" | "count";
 
 export const LM_MENUS: LmMenu[] = ["gene", "domain", "cell"];
 
@@ -24,8 +23,9 @@ export interface LabelledMoleculeVisualizationState {
   colorBy: LmMenu;
   /** Which menu's panel is open, or null when closed. */
   openMenu: LmMenu | null;
-  /** Which column the domain menu currently reads. */
-  domainVariant: "domain_anno" | "domain_id";
+  /** Ordering of the gene list. Counts first, as in the molecule viewer. */
+  geneSortBy: LmSortBy;
+  geneSortDir: "asc" | "desc";
 
   /**
    * Checked values per menu. Empty means "no constraint from this menu" — a
@@ -60,7 +60,7 @@ export interface LabelledMoleculeVisualizationState {
 
   setColorBy: (menu: LmMenu) => void;
   setOpenMenu: (menu: LmMenu | null) => void;
-  setDomainVariant: (variant: "domain_anno" | "domain_id") => void;
+  setGeneSort: (by: LmSortBy, dir: "asc" | "desc") => void;
   toggleValue: (menu: LmMenu, value: string) => void;
   setSelection: (menu: LmMenu, values: Set<string>) => void;
   clearMenu: (menu: LmMenu) => void;
@@ -94,7 +94,8 @@ const emptyRecords = <T>(): Record<LmMenu, Record<string, T>> => ({
 const initialState = () => ({
   colorBy: "cell" as LmMenu,
   openMenu: null as LmMenu | null,
-  domainVariant: "domain_anno" as "domain_anno" | "domain_id",
+  geneSortBy: "count" as LmSortBy,
+  geneSortDir: "desc" as "asc" | "desc",
   selections: emptySelections(),
   colorOverrides: emptyRecords<string>(),
   sizeOverrides: emptyRecords<number>(),
@@ -115,13 +116,7 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
     setColorBy: (menu) => set({ colorBy: menu }),
     setOpenMenu: (menu) => set({ openMenu: menu }),
 
-    // The two domain columns have disjoint value sets, so a selection made
-    // against one is meaningless against the other.
-    setDomainVariant: (variant) =>
-      set((s) => ({
-        domainVariant: variant,
-        selections: { ...s.selections, domain: new Set() },
-      })),
+    setGeneSort: (by, dir) => set({ geneSortBy: by, geneSortDir: dir }),
 
     toggleValue: (menu, value) =>
       set((s) => {

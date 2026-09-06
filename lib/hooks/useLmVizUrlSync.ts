@@ -44,7 +44,6 @@ export function useLmVizUrlSync(
     const patch: Partial<LabelledMoleculeVisualizationState> = {};
 
     if (d.cb) patch.colorBy = d.cb;
-    if (d.dv) patch.domainVariant = d.dv;
     if (d.um) patch.unselectedMode = d.um;
     if (d.ua !== undefined) patch.unselectedAlpha = d.ua;
     if (d.gs !== undefined) patch.globalScale = d.gs;
@@ -67,7 +66,6 @@ export function useLmVizUrlSync(
   // ── Write: mirror state into the URL.
   const {
     colorBy,
-    domainVariant,
     selections,
     geneColorSlots,
     unselectedMode,
@@ -84,7 +82,6 @@ export function useLmVizUrlSync(
       "left",
       encodeLmVizState({
         colorBy,
-        domainVariant,
         selections,
         geneColorSlots,
         unselectedMode,
@@ -97,7 +94,6 @@ export function useLmVizUrlSync(
   }, [
     datasetReady,
     colorBy,
-    domainVariant,
     selections,
     geneColorSlots,
     unselectedMode,
