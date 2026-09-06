@@ -21,6 +21,7 @@ import {
 } from "@/lib/webgl/labelled-molecule-shaders";
 import { glassPanel } from "@/components/primitives";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
+import { loadCellMeshes, type CellMesh } from "@/lib/webgl/cell-meshes";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 
 interface ColumnData {
@@ -93,6 +94,8 @@ export default function LabelledMoleculeThreeScene({
   const controlsTargetRef = useRef<THREE.Vector3 | null>(null);
   // SpatialScaleBar needs the controls object itself, not just its target.
   const controlsRef = useRef<any | null>(null);
+  const meshGroupRef = useRef<THREE.Group | null>(null);
+  const [cellMeshes, setCellMeshes] = useState<CellMesh[] | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const resetViewRef = useRef<(() => void) | null>(null);
   const flyToRef = useRef<
@@ -129,6 +132,10 @@ export default function LabelledMoleculeThreeScene({
     globalScale,
     selectedScale,
     unselectedScale,
+    showMeshes,
+    meshMode,
+    meshOpacity,
+    colorOverrides: colorOverridesAll,
     resetViewNonce,
     pendingCamera,
   } = useLabelledMoleculeVisualizationStore();
@@ -167,6 +174,23 @@ export default function LabelledMoleculeThreeScene({
   }, [dataset, columnFor, clusterVersion]);
 
   const ready = !!(columns.gene && columns.domain && columns.cell);
+
+  // ── Cell meshes, fetched once per dataset. Absent for most datasets, which
+  //    is a normal state — the loader returns null rather than throwing.
+  useEffect(() => {
+    const base = dataset.metadata?.customS3BaseUrl as string | undefined;
+
+    if (!base) return;
+    let alive = true;
+
+    loadCellMeshes(base).then((m) => {
+      if (alive) setCellMeshes(m);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [dataset]);
 
   // ── Scene + geometry. Rebuilt only when the data or the camera mode
   //    changes; selection changes never touch this.
@@ -291,6 +315,10 @@ export default function LabelledMoleculeThreeScene({
     ).aSize = [1];
 
     const points = new THREE.Points(geometry, material);
+
+    // Meshes arrive in the molecules' µm frame, but the cloud is shifted onto
+    // the origin — record the shift so they can be placed identically.
+    points.userData.centerOffset = center;
 
     scene.add(points);
     pointsRef.current = points;
@@ -649,6 +677,92 @@ export default function LabelledMoleculeThreeScene({
     // Clear it so a later manual move isn't yanked back.
     labelledMoleculeVisualizationStore.setState({ pendingCamera: null });
   }, [pendingCamera, materialVersion]);
+
+  // ── Cell surfaces. Rebuilt on style change; cheap next to the point cloud
+  //    (26 cells, ~34k triangles) so there is no need to mutate in place.
+  useEffect(() => {
+    const points = pointsRef.current;
+
+    if (!points || !cellMeshes || !ready) return;
+
+    const scene = points.parent;
+
+    if (!scene) return;
+
+    // The scene is centred on the cloud's origin, so the meshes need the same
+    // shift to line up — they share the molecules' µm frame, not the scene's.
+    const offset = points.userData.centerOffset as
+      | [number, number, number]
+      | undefined;
+
+    const group = new THREE.Group();
+
+    if (offset) group.position.set(-offset[0], -offset[1], -offset[2]);
+
+    const sel = selections.cell;
+    const hid = hiddenValues.cell;
+    // Follow the cell menu: show every cell when nothing is selected.
+    const anyVisiblySelected = [...sel].some((v) => !hid.has(v));
+    const palette = columns.cell?.palette ?? null;
+
+    for (const m of cellMeshes) {
+      if (sel.size > 0 && anyVisiblySelected && !sel.has(m.label)) continue;
+      if (hid.has(m.label) && anyVisiblySelected) continue;
+
+      const geom = new THREE.BufferGeometry();
+
+      geom.setAttribute("position", new THREE.BufferAttribute(m.positions, 3));
+      geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
+      geom.computeVertexNormals();
+
+      const color = new THREE.Color(
+        resolveValueColor(
+          "cell",
+          m.label,
+          colorOverridesAll.cell,
+          new Map(),
+          palette,
+        ),
+      );
+      const material = new THREE.MeshBasicMaterial({
+        color,
+        wireframe: meshMode === "wireframe",
+        transparent: true,
+        opacity: meshMode === "wireframe" ? 0.5 : meshOpacity,
+        // Surfaces enclose the molecules, so they must never occlude them.
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+
+      group.add(new THREE.Mesh(geom, material));
+    }
+
+    scene.add(group);
+    meshGroupRef.current = group;
+    group.visible = showMeshes;
+
+    return () => {
+      scene.remove(group);
+      group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+
+        mesh.geometry?.dispose();
+        (mesh.material as THREE.Material)?.dispose();
+      });
+      meshGroupRef.current = null;
+    };
+  }, [
+    cellMeshes,
+    ready,
+    materialVersion,
+    showMeshes,
+    meshMode,
+    meshOpacity,
+    selections,
+    hiddenValues,
+    columns,
+    colorOverridesAll,
+  ]);
 
   // ── Reset view, driven by the store's nonce.
   useEffect(() => {

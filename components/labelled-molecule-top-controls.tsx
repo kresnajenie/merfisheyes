@@ -33,6 +33,12 @@ export default function LabelledMoleculeTopControls() {
     setSelectedScale,
     unselectedScale,
     setUnselectedScale,
+    showMeshes,
+    setShowMeshes,
+    meshMode,
+    setMeshMode,
+    meshOpacity,
+    setMeshOpacity,
   } = useLabelledMoleculeVisualizationStore();
   const setHideUi = useSplitScreenStore((s) => s.setHideUi);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -196,6 +202,58 @@ export default function LabelledMoleculeTopControls() {
             >
               Reset view
             </Button>
+
+            {/* Cell segmentation surfaces. They follow the cell menu: every
+                cell when nothing is selected, otherwise just the selection. */}
+            <div className="space-y-2 border-t border-default-200/40 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-default-500">Cell meshes</span>
+                <Button
+                  color={showMeshes ? "primary" : "default"}
+                  size="sm"
+                  variant={showMeshes ? "flat" : "light"}
+                  onPress={() => setShowMeshes(!showMeshes)}
+                >
+                  {showMeshes ? "On" : "Off"}
+                </Button>
+              </div>
+
+              {showMeshes && (
+                <>
+                  <div className="flex gap-1">
+                    {(
+                      [
+                        ["wireframe", "Wireframe"],
+                        ["translucent", "Translucent"],
+                      ] as const
+                    ).map(([mode, label]) => (
+                      <Button
+                        key={mode}
+                        className="flex-1"
+                        color={meshMode === mode ? "primary" : "default"}
+                        size="sm"
+                        variant={meshMode === mode ? "flat" : "light"}
+                        onPress={() => setMeshMode(mode)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {meshMode === "translucent" && (
+                    <Slider
+                      label="Mesh opacity"
+                      maxValue={1}
+                      minValue={0.02}
+                      size="sm"
+                      step={0.02}
+                      value={meshOpacity}
+                      onChange={(v) => setMeshOpacity(Number(v))}
+                    />
+                  )}
+                </>
+              )}
+            </div>
 
             {canSave && (
               <Button

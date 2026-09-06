@@ -8,6 +8,9 @@ import {
 /** The three menus, each backed by an obs column of the same name. */
 export type LmMenu = "gene" | "domain" | "cell";
 
+/** How the per-cell segmentation surfaces are drawn. */
+export type MeshMode = "wireframe" | "translucent";
+
 /** Gene lists are long enough to need ordering; the other two are short. */
 export type LmSortBy = "alpha" | "count";
 
@@ -51,6 +54,10 @@ export interface LabelledMoleculeVisualizationState {
   selectedScale: number;
   /** Size multiplier for the grey backdrop. */
   unselectedScale: number;
+  /** Draw the cell segmentation surfaces. */
+  showMeshes: boolean;
+  meshMode: MeshMode;
+  meshOpacity: number;
   searchTerm: Record<LmMenu, string>;
   /**
    * Incremented to ask the scene to re-frame the cloud. A nonce rather than a
@@ -86,6 +93,9 @@ export interface LabelledMoleculeVisualizationState {
   setGlobalScale: (scale: number) => void;
   setSelectedScale: (scale: number) => void;
   setUnselectedScale: (scale: number) => void;
+  setShowMeshes: (show: boolean) => void;
+  setMeshMode: (mode: MeshMode) => void;
+  setMeshOpacity: (opacity: number) => void;
   setSearchTerm: (menu: LmMenu, term: string) => void;
   resetView: () => void;
   setCamera: (
@@ -132,6 +142,9 @@ const initialState = () => ({
   globalScale: 1.0,
   selectedScale: 1.5,
   unselectedScale: 0.6,
+  showMeshes: true,
+  meshMode: "wireframe" as MeshMode,
+  meshOpacity: 0.15,
   searchTerm: { gene: "", domain: "", cell: "" } as Record<LmMenu, string>,
   resetViewNonce: 0,
   camera: null as {
@@ -261,6 +274,10 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
     setGlobalScale: (scale) => set({ globalScale: Math.max(0, scale) }),
     setSelectedScale: (scale) => set({ selectedScale: Math.max(0, scale) }),
     setUnselectedScale: (scale) => set({ unselectedScale: Math.max(0, scale) }),
+    setShowMeshes: (show) => set({ showMeshes: show }),
+    setMeshMode: (mode) => set({ meshMode: mode }),
+    setMeshOpacity: (opacity) =>
+      set({ meshOpacity: Math.min(1, Math.max(0, opacity)) }),
     setSearchTerm: (menu, term) =>
       set((s) => ({ searchTerm: { ...s.searchTerm, [menu]: term } })),
 
