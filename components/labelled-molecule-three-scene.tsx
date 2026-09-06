@@ -279,10 +279,13 @@ export default function LabelledMoleculeThreeScene({
     // (correlation, brightness, scoreA). Until one is in use it is constant, so
     // it is supplied as a default attribute value rather than paying for a
     // Float32Array of length N.
-    material.defaultAttributeValues = {
-      ...(material.defaultAttributeValues ?? {}),
-      aSize: [1],
-    };
+    //
+    // three types this map as { color, uv, uv1 }, but WebGLBindingStates applies
+    // whatever keys it finds, so the cast is the type system being narrower than
+    // the runtime rather than a hole being punched in it.
+    (
+      material.defaultAttributeValues as unknown as Record<string, number[]>
+    ).aSize = [1];
 
     const points = new THREE.Points(geometry, material);
 
