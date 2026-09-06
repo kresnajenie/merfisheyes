@@ -33,13 +33,6 @@ interface Props {
   dataset: StandardizedDataset;
   /** Bumped by the page when a lazily-loaded column arrives. */
   clusterVersion?: number;
-  /**
-   * "blended" alpha-blends with depth writes off: partial opacity works, but
-   * nothing occludes anything and every fragment shades even when buried.
-   * "opaque" writes depth and discards below alphaTest, letting the GPU reject
-   * hidden points early — far cheaper, correct occlusion, no partial opacity.
-   */
-  renderMode?: "blended" | "opaque";
 }
 
 /** A vertex attribute wide enough for the column's category count. */
@@ -89,9 +82,7 @@ function makeLutTexture(data: Uint8Array, channels: 1 | 4): THREE.DataTexture {
 export default function LabelledMoleculeThreeScene({
   dataset,
   clusterVersion = 0,
-  renderMode = "blended",
 }: Props) {
-  const opaque = renderMode === "opaque";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pointsRef = useRef<THREE.Points | null>(null);
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
@@ -260,9 +251,11 @@ export default function LabelledMoleculeThreeScene({
     const material = new THREE.ShaderMaterial({
       vertexShader: labelledMoleculeVertexShader,
       fragmentShader: labelledMoleculeFragmentShader,
-      // The whole difference between /lm-viewer and /lm2-viewer.
-      transparent: !opaque,
-      depthWrite: opaque,
+      // Opaque: depth writes let the GPU reject buried points before shading
+      // them, which is both correct occlusion and the difference between a
+      // smooth and a crawling frame rate at 3M points.
+      transparent: false,
+      depthWrite: true,
       uniforms: {
         uSelGene: { value: null },
         uSelDomain: { value: null },
@@ -279,18 +272,16 @@ export default function LabelledMoleculeThreeScene({
         uUnselectedSize: { value: 0.6 },
         uUnselectedColor: { value: new THREE.Color(0x555555) },
         uShape: { value: 0 },
-        uOpaque: { value: opaque ? 1 : 0 },
       },
     });
 
-    // aSize / aAlpha are reserved for genuinely per-molecule continuous values
-    // (correlation, brightness, scoreA). Until one is in use they are constant,
-    // so we supply them as default attribute values rather than paying for two
-    // Float32Arrays of length N.
+    // aSize is reserved for a genuinely per-molecule continuous value
+    // (correlation, brightness, scoreA). Until one is in use it is constant, so
+    // it is supplied as a default attribute value rather than paying for a
+    // Float32Array of length N.
     material.defaultAttributeValues = {
       ...(material.defaultAttributeValues ?? {}),
       aSize: [1],
-      aAlpha: [1],
     };
 
     const points = new THREE.Points(geometry, material);
@@ -563,7 +554,7 @@ export default function LabelledMoleculeThreeScene({
       rendererRef.current = null;
       setHover(null);
     };
-  }, [dataset, ready, columnFor, clusterVersion, opaque]);
+  }, [dataset, ready, columnFor, clusterVersion]);
 
   // ── Selection LUTs. This is the hot path: a checkbox toggle re-uploads
   //    three textures of one byte per category and nothing else.

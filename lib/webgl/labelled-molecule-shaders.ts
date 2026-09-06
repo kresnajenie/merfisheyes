@@ -24,7 +24,6 @@ export const labelledMoleculeVertexShader = `
     attribute float aDomain;
     attribute float aCell;
     attribute float aSize;
-    attribute float aAlpha;
 
     uniform sampler2D uSelGene;
     uniform sampler2D uSelDomain;
@@ -39,13 +38,11 @@ export const labelledMoleculeVertexShader = `
 
     uniform float dotSize;
     uniform float uGlobalSize;
-    uniform float uOpaque;           // 1.0 = opaque pass (no partial alpha)
     uniform float uSelectedSize;     // size multiplier, molecules in the filter
     uniform float uUnselectedSize;   // size multiplier, grey backdrop
     uniform vec3 uUnselectedColor;
 
     varying vec3 vColor;
-    varying float vAlpha;
 
     // One texel of a width-n 1D lookup texture, sampled at its centre.
     float lut1(sampler2D tex, float index, float n) {
@@ -67,7 +64,6 @@ export const labelledMoleculeVertexShader = `
         // they read as context rather than haze, and so the opaque renderer
         // can draw them at all.
         vColor = selected > 0.5 ? entry.rgb : uUnselectedColor;
-        vAlpha = aAlpha;
 
         // Selected points are drawn larger so they stand out against the grey
         // backdrop, which is now fully opaque and can otherwise crowd them.
@@ -97,32 +93,17 @@ export const labelledMoleculeVertexShader = `
 `;
 
 export const labelledMoleculeFragmentShader = `
-    uniform float uShape;  // 0 = circle, 1 = square
-    uniform float uOpaque; // 1 = write depth, no blending
+    uniform float uShape; // 0 = circle, 1 = square
 
     varying vec3 vColor;
-    varying float vAlpha;
 
     void main() {
-        float alpha = vAlpha;
-        float dist = length(gl_PointCoord - vec2(0.5));
+        // Opaque: points write depth, so the GPU rejects buried ones early —
+        // the difference between this and alpha blending is both correct
+        // occlusion and a large drop in overdraw at 3M points. Only the
+        // sprite's own shape culls; there is no partial alpha to test.
+        if (uShape < 0.5 && length(gl_PointCoord - vec2(0.5)) > 0.5) discard;
 
-        if (uShape < 0.5 && dist > 0.5) discard;
-
-        if (uOpaque > 0.5) {
-            // Everything that reaches here is drawn at full opacity. Opacity is
-            // a blending concept and has no meaning in this pass, so it must NOT
-            // feed the cutoff — doing so let the Opacity slider discard every
-            // fragment and blank the scene. Only the sprite's own shape culls.
-            gl_FragColor = vec4(vColor, 1.0);
-
-            return;
-        }
-
-        // Blended: soften the rim, and let any non-zero alpha through.
-        if (uShape < 0.5) alpha *= smoothstep(0.5, 0.45, dist);
-        if (alpha < 0.004) discard;
-
-        gl_FragColor = vec4(vColor, alpha);
+        gl_FragColor = vec4(vColor, 1.0);
     }
 `;

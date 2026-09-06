@@ -22,19 +22,7 @@ import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 /** Columns the three menus need before the scene can draw. */
 const REQUIRED_COLUMNS = ["gene", "domain", "cell"];
 
-export type LmRenderMode = "blended" | "opaque";
-
-interface Props {
-  /**
-   * How points are rasterised. "blended" is alpha-blended with no depth
-   * writes — partial opacity works, but nothing occludes anything and every
-   * fragment shades. "opaque" writes depth and discards below alphaTest, so
-   * the GPU rejects buried points early.
-   */
-  renderMode?: LmRenderMode;
-}
-
-function LabelledMoleculeViewer({ renderMode = "blended" }: Props) {
+function LabelledMoleculeViewer() {
   const searchParams = useSearchParams();
   const baseUrl = searchParams.get("url");
 
@@ -166,12 +154,10 @@ function LabelledMoleculeViewer({ renderMode = "blended" }: Props) {
       <LabelledMoleculeThreeScene
         clusterVersion={clusterVersion}
         dataset={dataset}
-        renderMode={renderMode}
       />
       <LabelledMoleculeControls
         clusterVersion={clusterVersion}
         dataset={dataset}
-        renderMode={renderMode}
       />
       <LabelledMoleculeLegends
         clusterVersion={clusterVersion}
@@ -183,16 +169,14 @@ function LabelledMoleculeViewer({ renderMode = "blended" }: Props) {
   );
 }
 
-export default function LabelledMoleculeViewerPage({
-  renderMode = "blended",
-}: Props) {
+export default function LabelledMoleculeViewerPage() {
   return (
     <Suspense
       fallback={
         <div className="flex h-screen items-center justify-center bg-black" />
       }
     >
-      <LabelledMoleculeViewer renderMode={renderMode} />
+      <LabelledMoleculeViewer />
     </Suspense>
   );
 }

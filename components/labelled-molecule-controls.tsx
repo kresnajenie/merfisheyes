@@ -36,13 +36,11 @@ const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
 interface Props {
   dataset: StandardizedDataset;
   clusterVersion?: number;
-  renderMode?: "blended" | "opaque";
 }
 
 export default function LabelledMoleculeControls({
   dataset,
   clusterVersion = 0,
-  renderMode = "blended",
 }: Props) {
   const s = useLabelledMoleculeVisualizationStore();
 
@@ -354,17 +352,6 @@ export default function LabelledMoleculeControls({
         <span className="text-default-500">
           {" "}
           / {dataset.getPointCount().toLocaleString()} molecules
-        </span>
-        {/* Which rasterisation this build uses, so an A/B is unambiguous. */}
-        <span
-          className="ml-2 text-default-500"
-          title={
-            renderMode === "opaque"
-              ? "Opaque: depth-tested, buried points rejected early. Partial opacity is not possible."
-              : "Blended: partial opacity works, but nothing occludes anything."
-          }
-        >
-          · {renderMode}
         </span>
       </div>
     </>
