@@ -1,5 +1,7 @@
 "use client";
 
+import type { ViewerConfig } from "@/lib/utils/viewer-config";
+
 import { Progress, Spinner } from "@heroui/react";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -7,11 +9,14 @@ import { useSearchParams } from "next/navigation";
 import LabelledMoleculeControls from "@/components/labelled-molecule-controls";
 import LabelledMoleculeLegends from "@/components/labelled-molecule-legends";
 import LabelledMoleculeTopControls from "@/components/labelled-molecule-top-controls";
+import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { subtitle } from "@/components/primitives";
 import LabelledMoleculeThreeScene from "@/components/labelled-molecule-three-scene";
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { useLmVizUrlSync } from "@/lib/hooks/useLmVizUrlSync";
+import { labelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
 import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 
 /** Columns the three menus need before the scene can draw. */
@@ -54,6 +59,48 @@ function LabelledMoleculeViewer() {
 
       setDataset(ds);
       setClusterVersion((v) => v + 1);
+
+      // Ownership: look the dataset up by its S3 URL so an owner sees their
+      // saved defaults and everyone else gets the claim banner. Best effort —
+      // an unregistered dataset still opens.
+      let config: ViewerConfig | null = null;
+
+      try {
+        const res = await fetch(
+          `/api/datasets/by-url?url=${encodeURIComponent(url)}`,
+        );
+
+        if (res.ok) {
+          const j = await res.json();
+
+          config = (j?.viewerConfig as ViewerConfig | null) ?? null;
+          useViewerRegistrationStore.getState().set({
+            dbId: j?.id ?? null,
+            ownerId: j?.ownerId ?? null,
+            adminOwned: !!j?.adminOwned,
+            registered: !!j?.id,
+            viewerConfig: config,
+            s3Url: url,
+          });
+        } else {
+          useViewerRegistrationStore
+            .getState()
+            .set({ registered: false, s3Url: url });
+        }
+      } catch {
+        useViewerRegistrationStore
+          .getState()
+          .set({ registered: false, s3Url: url });
+      }
+
+      // Apply the owner's saved camera unless the link already carries one —
+      // an explicit shared view beats the dataset default.
+      const st = labelledMoleculeVisualizationStore.getState();
+
+      if (config?.camera && !st.pendingCamera && !st.camera) {
+        st.applyCamera(config.camera);
+      }
+      if (config?.viewMode) st.applyUrlState({ viewMode: config.viewMode });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -118,6 +165,7 @@ function LabelledMoleculeViewer() {
         dataset={dataset}
       />
       <LabelledMoleculeTopControls />
+      <ClaimDatasetBanner />
     </div>
   );
 }

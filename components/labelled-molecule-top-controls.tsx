@@ -1,13 +1,17 @@
 "use client";
 
+import type { ViewerConfig } from "@/lib/utils/viewer-config";
+
 import { Button } from "@heroui/button";
 import { Tooltip } from "@heroui/tooltip";
+import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { toast } from "react-toastify";
 
 import { glassButton, glassPanel } from "@/components/primitives";
 import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 
 // Same rail geometry as visualization-controls.tsx / single-molecule-controls.tsx.
 const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
@@ -21,10 +25,51 @@ const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
  * something are offered.
  */
 export default function LabelledMoleculeTopControls() {
-  const { viewMode, setViewMode, resetView } =
+  const { viewMode, setViewMode, resetView, camera } =
     useLabelledMoleculeVisualizationStore();
   const setHideUi = useSplitScreenStore((s) => s.setHideUi);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const { data: session } = useSession();
+  const { dbId, ownerId, adminOwned, viewerConfig } =
+    useViewerRegistrationStore();
+  const userId = (session?.user as { id?: string } | undefined)?.id;
+  const isAdmin = !!(session?.user as { isAdmin?: boolean } | undefined)
+    ?.isAdmin;
+  // Same gate the single-cell camera panel uses.
+  const canSave =
+    !!dbId && ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
+
+  const saveDefaults = async () => {
+    if (!dbId) return;
+    setSaving(true);
+    try {
+      const merged: ViewerConfig = {
+        ...(viewerConfig ?? { version: 1 }),
+        version: 1,
+        viewMode,
+        ...(camera ? { camera } : {}),
+      };
+      const res = await fetch(`/api/ingest/mine/${dbId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ viewerConfig: merged }),
+      });
+
+      if (!res.ok) {
+        toast.error("Couldn't save defaults.");
+
+        return;
+      }
+      useViewerRegistrationStore.getState().set({ viewerConfig: merged });
+      toast.success("Saved as this dataset's defaults.");
+    } catch {
+      toast.error("Couldn't save defaults.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleShare = async () => {
     try {
@@ -143,6 +188,19 @@ export default function LabelledMoleculeTopControls() {
             >
               Reset view
             </Button>
+
+            {canSave && (
+              <Button
+                className="w-full"
+                color="primary"
+                isDisabled={saving}
+                size="sm"
+                variant="flat"
+                onPress={saveDefaults}
+              >
+                {saving ? "Saving…" : "Save current view as default"}
+              </Button>
+            )}
 
             <p className="text-[11px] text-default-500">
               Rotate and flip aren&apos;t available for this dataset type yet.

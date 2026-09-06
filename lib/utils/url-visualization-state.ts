@@ -341,6 +341,7 @@ export interface LmVizUrlState {
   gs?: number; // globalScale
   ga?: number; // globalAlpha
   vm?: "2D" | "3D"; // viewMode
+  cam?: [number, number, number, number, number, number]; // camera pos + target
 }
 
 export function encodeLmVizState(state: {
@@ -352,6 +353,10 @@ export function encodeLmVizState(state: {
   globalScale: number;
   globalAlpha: number;
   viewMode: "2D" | "3D";
+  camera?: {
+    position: [number, number, number];
+    target: [number, number, number];
+  } | null;
 }): string | null {
   const s: LmVizUrlState = {};
 
@@ -370,6 +375,15 @@ export function encodeLmVizState(state: {
   if (state.globalScale !== 1) s.gs = state.globalScale;
   if (state.globalAlpha !== 1) s.ga = state.globalAlpha;
   if (state.viewMode !== "3D") s.vm = state.viewMode;
+  if (state.camera) {
+    // Rounded: sub-0.01 µm camera precision is meaningless and costs URL length.
+    const r = (v: number) => Math.round(v * 100) / 100;
+
+    s.cam = [
+      ...(state.camera.position.map(r) as [number, number, number]),
+      ...(state.camera.target.map(r) as [number, number, number]),
+    ];
+  }
 
   if (Object.keys(s).length === 0) return null;
 

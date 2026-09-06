@@ -18,17 +18,24 @@ import { SIZE_ENCODE_RANGE } from "./labelled-molecule-shaders";
 export function buildSelectionLut(
   uniqueValues: string[],
   selection: Set<string>,
+  hidden?: Set<string>,
 ): Uint8Array {
   const lut = new Uint8Array(uniqueValues.length);
 
   if (selection.size === 0) {
     lut.fill(255);
-
-    return lut;
+  } else {
+    for (let i = 0; i < uniqueValues.length; i++) {
+      if (selection.has(uniqueValues[i])) lut[i] = 255;
+    }
   }
 
-  for (let i = 0; i < uniqueValues.length; i++) {
-    if (selection.has(uniqueValues[i])) lut[i] = 255;
+  // The legend's eye toggle hides a value without removing it from the filter,
+  // so it is applied on top of the selection rather than folded into it.
+  if (hidden?.size) {
+    for (let i = 0; i < uniqueValues.length; i++) {
+      if (hidden.has(uniqueValues[i])) lut[i] = 0;
+    }
   }
 
   return lut;

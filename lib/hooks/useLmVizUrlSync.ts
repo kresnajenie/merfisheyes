@@ -49,6 +49,13 @@ export function useLmVizUrlSync(
     if (d.gs !== undefined) patch.globalScale = d.gs;
     if (d.ga !== undefined) patch.globalAlpha = d.ga;
     if (d.vm) patch.viewMode = d.vm;
+    if (d.cam?.length === 6) {
+      patch.camera = {
+        position: [d.cam[0], d.cam[1], d.cam[2]],
+        target: [d.cam[3], d.cam[4], d.cam[5]],
+      };
+      patch.pendingCamera = patch.camera;
+    }
 
     if (d.g || d.d || d.c) {
       patch.selections = {
@@ -73,6 +80,7 @@ export function useLmVizUrlSync(
     globalScale,
     globalAlpha,
     viewMode,
+    camera,
   } = store;
 
   useEffect(() => {
@@ -89,6 +97,7 @@ export function useLmVizUrlSync(
         globalScale,
         globalAlpha,
         viewMode,
+        camera,
       }),
     );
   }, [
@@ -101,5 +110,6 @@ export function useLmVizUrlSync(
     globalScale,
     globalAlpha,
     viewMode,
+    camera,
   ]);
 }

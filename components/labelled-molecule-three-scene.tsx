@@ -92,6 +92,13 @@ export default function LabelledMoleculeThreeScene({
   const controlsTargetRef = useRef<THREE.Vector3 | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const resetViewRef = useRef<(() => void) | null>(null);
+  const applyCameraRef = useRef<
+    | ((p: {
+        position: [number, number, number];
+        target: [number, number, number];
+      }) => void)
+    | null
+  >(null);
   const mouseRef = useRef(new THREE.Vector2());
   const [hover, setHover] = useState<{
     x: number;
@@ -111,12 +118,14 @@ export default function LabelledMoleculeThreeScene({
     colorOverrides,
     sizeOverrides,
     geneColorSlots,
+    hiddenValues,
     unselectedMode,
     unselectedAlpha,
     globalScale,
     globalAlpha,
     viewMode,
     resetViewNonce,
+    pendingCamera,
   } = useLabelledMoleculeVisualizationStore();
 
   /** The column backing each menu, resolved through the domain variant. */
@@ -300,15 +309,15 @@ export default function LabelledMoleculeThreeScene({
     // are millions of dimmed points, and letting them win the depth test would
     // make the selection nearly impossible to inspect.
     const passesFilter = (i: number) => {
-      const { selections: sel } = labelledMoleculeVisualizationStore.getState();
+      const { selections: sel, hiddenValues: hid } =
+        labelledMoleculeVisualizationStore.getState();
 
       for (const menu of ["gene", "domain", "cell"] as LmMenu[]) {
-        const s = sel[menu];
-
-        if (s.size === 0) continue;
         const col = columns[menu]!;
+        const value = col.uniqueValues[col.valueIndices[i]];
 
-        if (!s.has(col.uniqueValues[col.valueIndices[i]])) return false;
+        if (hid[menu].has(value)) return false;
+        if (sel[menu].size > 0 && !sel[menu].has(value)) return false;
       }
 
       return true;
@@ -443,6 +452,32 @@ export default function LabelledMoleculeThreeScene({
       st.toggleValue(menu, col.uniqueValues[col.valueIndices[i]]);
     };
 
+    // Publish the camera pose so the URL and owner defaults can capture it.
+    // Throttled: controls emit "change" on every frame of a drag.
+    let lastPublish = 0;
+    const publishCamera = () => {
+      const now = Date.now();
+
+      if (now - lastPublish < 250) return;
+      lastPublish = now;
+      labelledMoleculeVisualizationStore.getState().setCamera({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+      });
+    };
+
+    controls.addEventListener("change", publishCamera);
+    applyCameraRef.current = (pose) => {
+      camera.position.set(...pose.position);
+      controls.target.set(...pose.target);
+      controls.update();
+    };
+
+    // A pose from the URL or a saved default, waiting for the scene to exist.
+    const queued = labelledMoleculeVisualizationStore.getState().pendingCamera;
+
+    if (queued) applyCameraRef.current(queued);
+
     setup.renderer.domElement.addEventListener("mousemove", handleMouseMove);
     setup.renderer.domElement.addEventListener("mouseleave", handleMouseLeave);
     setup.renderer.domElement.addEventListener("click", handleClick);
@@ -464,6 +499,8 @@ export default function LabelledMoleculeThreeScene({
         "dblclick",
         handleDoubleClick,
       );
+      controls.removeEventListener("change", publishCamera);
+      applyCameraRef.current = null;
       dispose();
       geometry.dispose();
       material.dispose();
@@ -489,13 +526,17 @@ export default function LabelledMoleculeThreeScene({
 
     menus.forEach((menu, i) => {
       const col = columns[menu]!;
-      const lut = buildSelectionLut(col.uniqueValues, selections[menu]);
+      const lut = buildSelectionLut(
+        col.uniqueValues,
+        selections[menu],
+        hiddenValues[menu],
+      );
       const tex = makeLutTexture(lut, 1);
 
       material.uniforms[uniforms[i]].value?.dispose?.();
       material.uniforms[uniforms[i]].value = tex;
     });
-  }, [columns, selections, ready, materialVersion]);
+  }, [columns, selections, hiddenValues, ready, materialVersion]);
 
   // ── Palette LUT for the colouring column.
   useEffect(() => {
@@ -549,6 +590,14 @@ export default function LabelledMoleculeThreeScene({
     unselectedMode,
     materialVersion,
   ]);
+
+  // ── Adopt an inbound camera pose (shared link or saved default).
+  useEffect(() => {
+    if (!pendingCamera || !applyCameraRef.current) return;
+    applyCameraRef.current(pendingCamera);
+    // Clear it so a later manual move isn't yanked back.
+    labelledMoleculeVisualizationStore.setState({ pendingCamera: null });
+  }, [pendingCamera, materialVersion]);
 
   // ── Reset view, driven by the store's nonce.
   useEffect(() => {

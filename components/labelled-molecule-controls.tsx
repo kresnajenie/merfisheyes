@@ -8,7 +8,7 @@ import { Checkbox } from "@heroui/checkbox";
 import { Input } from "@heroui/input";
 import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
 import {
@@ -95,11 +95,15 @@ export default function LabelledMoleculeControls({
 
     const cols = LM_MENUS.map((m) => ({
       indices: columns[m]!.valueIndices,
-      lut: buildSelectionLut(columns[m]!.uniqueValues, s.selections[m]),
+      lut: buildSelectionLut(
+        columns[m]!.uniqueValues,
+        s.selections[m],
+        s.hiddenValues[m],
+      ),
     }));
 
     return countVisible(cols, dataset.getPointCount());
-  }, [columns, s.selections, dataset]);
+  }, [columns, s.selections, s.hiddenValues, dataset]);
 
   const open = s.openMenu;
   const openCol = open ? columns[open] : null;
@@ -127,6 +131,36 @@ export default function LabelledMoleculeControls({
       });
   }, [open, openCol, s.searchTerm, s.geneSortBy, s.geneSortDir]);
 
+  // G / D / C switch the colouring column. Ignored while typing (the value
+  // search box is a text input) and when a modifier is held, matching how
+  // HideUiManager guards its own H shortcut.
+  const setColorBy = s.setColorBy;
+
+  useEffect(() => {
+    const keys: Record<string, LmMenu> = { g: "gene", d: "domain", c: "cell" };
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const menu = keys[e.key.toLowerCase()];
+
+      if (!menu) return;
+      const el = e.target as HTMLElement | null;
+
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      setColorBy(menu);
+    };
+
+    window.addEventListener("keydown", handler);
+
+    return () => window.removeEventListener("keydown", handler);
+  }, [setColorBy]);
+
   const openPanel = (menu: LmMenu) => {
     setShowSettings(false);
     s.setOpenMenu(open === menu ? null : menu);
@@ -148,7 +182,8 @@ export default function LabelledMoleculeControls({
               key={menu}
               content={
                 `${MENU_TOOLTIP[menu]}${isColoring ? " · colouring the scene" : ""}` +
-                (n ? ` · ${n} selected` : "")
+                (n ? ` · ${n} selected` : "") +
+                ` · ${MENU_LABEL[menu][0]} to colour by this`
               }
               placement="right"
             >
@@ -304,20 +339,27 @@ export default function LabelledMoleculeControls({
                   return (
                     <Checkbox
                       key={value}
-                      className="w-full max-w-full"
+                      classNames={{
+                        base: "w-full max-w-full",
+                        label: "w-full min-w-0",
+                      }}
                       isSelected={s.selections[open].has(value)}
                       size="sm"
                       onValueChange={() => s.toggleValue(open, value)}
                     >
-                      <div className="flex w-full items-center justify-between gap-2">
+                      <div className="flex w-full min-w-0 items-center gap-2">
+                        {/* Colour as a swatch, not on the label: the label has
+                            to stay readable while its colour is being edited. */}
                         <span
-                          className="truncate"
-                          style={{ color }}
-                          title={value}
-                        >
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: color }}
+                        />
+                        <span className="min-w-0 flex-1 truncate" title={value}>
                           {open === "gene" ? value.split(" (")[0] : value}
                         </span>
-                        <span className="shrink-0 text-[10px] text-default-500">
+                        {/* Fixed-width column so counts line up down the list
+                            rather than trailing each name. */}
+                        <span className="w-16 shrink-0 text-right text-[10px] tabular-nums text-default-500">
                           {openCol.counts[i].toLocaleString()}
                         </span>
                       </div>

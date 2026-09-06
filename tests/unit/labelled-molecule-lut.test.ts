@@ -23,6 +23,18 @@ describe("buildSelectionLut", () => {
     ]);
   });
 
+  it("hides a value on top of the selection", () => {
+    expect([
+      ...buildSelectionLut(dict, new Set(["a", "c"]), new Set(["c"])),
+    ]).toEqual([255, 0, 0]);
+  });
+
+  it("hides even when nothing is selected", () => {
+    expect([...buildSelectionLut(dict, new Set(), new Set(["b"]))]).toEqual([
+      255, 0, 255,
+    ]);
+  });
+
   it("ignores values that aren't in the column", () => {
     expect([...buildSelectionLut(dict, new Set(["zzz"]))]).toEqual([0, 0, 0]);
   });

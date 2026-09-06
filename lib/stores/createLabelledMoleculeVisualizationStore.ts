@@ -39,6 +39,12 @@ export interface LabelledMoleculeVisualizationState {
   /** Per-value size multipliers, keyed by menu then value. */
   sizeOverrides: Record<LmMenu, Record<string, number>>;
   /**
+   * Values temporarily hidden from the scene while staying in the selection —
+   * the legend's eye toggle. Distinct from deselecting, which drops the value
+   * from the filter entirely.
+   */
+  hiddenValues: Record<LmMenu, Set<string>>;
+  /**
    * Palette slot per selected gene. Genes are coloured on selection rather
    * than from a fixed 213-entry palette, so the few that are checked stay
    * visually distinct.
@@ -57,6 +63,19 @@ export interface LabelledMoleculeVisualizationState {
    * handle back into this store.
    */
   resetViewNonce: number;
+  /**
+   * Live camera pose, mirrored out of the scene so it can be written to the URL
+   * and saved as an owner default. `pendingCamera` is the inbound direction:
+   * set it (from a URL or a saved config) and the scene adopts it.
+   */
+  camera: {
+    position: [number, number, number];
+    target: [number, number, number];
+  } | null;
+  pendingCamera: {
+    position: [number, number, number];
+    target: [number, number, number];
+  } | null;
 
   setColorBy: (menu: LmMenu) => void;
   setOpenMenu: (menu: LmMenu | null) => void;
@@ -67,6 +86,7 @@ export interface LabelledMoleculeVisualizationState {
   clearAll: () => void;
   setColorOverride: (menu: LmMenu, value: string, color: string) => void;
   setSizeOverride: (menu: LmMenu, value: string, size: number) => void;
+  toggleValueVisibility: (menu: LmMenu, value: string) => void;
   setUnselectedMode: (mode: UnselectedMode) => void;
   setUnselectedAlpha: (alpha: number) => void;
   setGlobalScale: (scale: number) => void;
@@ -74,6 +94,16 @@ export interface LabelledMoleculeVisualizationState {
   setViewMode: (mode: LmViewMode) => void;
   setSearchTerm: (menu: LmMenu, term: string) => void;
   resetView: () => void;
+  setCamera: (
+    camera: {
+      position: [number, number, number];
+      target: [number, number, number];
+    } | null,
+  ) => void;
+  applyCamera: (camera: {
+    position: [number, number, number];
+    target: [number, number, number];
+  }) => void;
   /** Bulk apply, for restoring a shared URL in one commit. */
   applyUrlState: (patch: Partial<LabelledMoleculeVisualizationState>) => void;
   reset: () => void;
@@ -99,14 +129,27 @@ const initialState = () => ({
   selections: emptySelections(),
   colorOverrides: emptyRecords<string>(),
   sizeOverrides: emptyRecords<number>(),
+  hiddenValues: {
+    gene: new Set<string>(),
+    domain: new Set<string>(),
+    cell: new Set<string>(),
+  } as Record<LmMenu, Set<string>>,
   geneColorSlots: new Map<string, number>(),
-  unselectedMode: "grey" as UnselectedMode,
+  unselectedMode: "hidden" as UnselectedMode,
   unselectedAlpha: 0.2,
   globalScale: 1.0,
   globalAlpha: 1.0,
   viewMode: "3D" as LmViewMode,
   searchTerm: { gene: "", domain: "", cell: "" } as Record<LmMenu, string>,
   resetViewNonce: 0,
+  camera: null as {
+    position: [number, number, number];
+    target: [number, number, number];
+  } | null,
+  pendingCamera: null as {
+    position: [number, number, number];
+    target: [number, number, number];
+  } | null,
 });
 
 export function createLabelledMoleculeVisualizationStoreInstance() {
@@ -124,8 +167,13 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
 
         next.has(value) ? next.delete(value) : next.add(value);
 
+        const hidden = new Set(s.hiddenValues[menu]);
+
+        hidden.delete(value); // never leave a stale hide behind a deselect
+
         const patch: Partial<LabelledMoleculeVisualizationState> = {
           selections: { ...s.selections, [menu]: next },
+          hiddenValues: { ...s.hiddenValues, [menu]: hidden },
         };
 
         // Genes take their colour from a slot assigned at selection time.
@@ -191,6 +239,15 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
         },
       })),
 
+    toggleValueVisibility: (menu, value) =>
+      set((s) => {
+        const next = new Set(s.hiddenValues[menu]);
+
+        next.has(value) ? next.delete(value) : next.add(value);
+
+        return { hiddenValues: { ...s.hiddenValues, [menu]: next } };
+      }),
+
     setUnselectedMode: (mode) => set({ unselectedMode: mode }),
     setUnselectedAlpha: (alpha) =>
       set({ unselectedAlpha: Math.min(1, Math.max(0, alpha)) }),
@@ -202,6 +259,11 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
       set((s) => ({ searchTerm: { ...s.searchTerm, [menu]: term } })),
 
     resetView: () => set((s) => ({ resetViewNonce: s.resetViewNonce + 1 })),
+
+    // From the scene outward — never triggers a scene update itself.
+    setCamera: (camera) => set({ camera }),
+    // Into the scene — consumed and cleared once adopted.
+    applyCamera: (camera) => set({ pendingCamera: camera, camera }),
 
     applyUrlState: (patch) => set(patch),
 
