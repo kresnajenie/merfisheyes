@@ -153,6 +153,24 @@ export default function LabelledMoleculeControls({
           );
         })}
 
+        <Tooltip content="Molecule size" placement="right">
+          <div
+            className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+          >
+            <Slider
+              aria-label="Molecule size"
+              className="h-full"
+              maxValue={4}
+              minValue={0.1}
+              orientation="vertical"
+              size="sm"
+              step={0.05}
+              value={s.globalScale}
+              onChange={(v) => s.setGlobalScale(v as number)}
+            />
+          </div>
+        </Tooltip>
+
         <Tooltip content="View settings" placement="right">
           <Button
             className={`${buttonBaseClass} ${showSettings ? "" : glassButton()}`}
@@ -275,31 +293,6 @@ export default function LabelledMoleculeControls({
             className={`absolute top-0 left-16 z-[var(--z-panel)] w-[280px] ${glassPanel()}`}
           >
             <div className="p-4 space-y-4">
-              <div className="flex gap-1">
-                {(["2D", "3D"] as const).map((m) => (
-                  <Button
-                    key={m}
-                    className="flex-1"
-                    color={s.viewMode === m ? "primary" : "default"}
-                    size="sm"
-                    variant={s.viewMode === m ? "flat" : "light"}
-                    onPress={() => s.setViewMode(m)}
-                  >
-                    {m}
-                  </Button>
-                ))}
-              </div>
-
-              <Slider
-                label="Point size"
-                maxValue={4}
-                minValue={0.1}
-                size="sm"
-                step={0.05}
-                value={s.globalScale}
-                onChange={(v) => s.setGlobalScale(Number(v))}
-              />
-
               <Slider
                 label="Opacity"
                 maxValue={1}
@@ -316,6 +309,7 @@ export default function LabelledMoleculeControls({
 
       {/* How many molecules survive the intersection. */}
       <div
+        data-ui-overlay
         className={`absolute bottom-6 left-4 z-[var(--z-legends)] rounded-full px-4 py-2 text-xs ${glassButton()}`}
         data-testid="lm-visible-count"
       >

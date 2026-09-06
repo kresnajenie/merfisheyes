@@ -6,9 +6,12 @@ import { useSearchParams } from "next/navigation";
 
 import LabelledMoleculeControls from "@/components/labelled-molecule-controls";
 import LabelledMoleculeLegends from "@/components/labelled-molecule-legends";
+import LabelledMoleculeTopControls from "@/components/labelled-molecule-top-controls";
 import { subtitle } from "@/components/primitives";
 import LabelledMoleculeThreeScene from "@/components/labelled-molecule-three-scene";
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
+import { useLmVizUrlSync } from "@/lib/hooks/useLmVizUrlSync";
+import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 
 /** Columns the three menus need before the scene can draw. */
@@ -26,6 +29,11 @@ function LabelledMoleculeViewer() {
   const [message, setMessage] = useState("Loading…");
   const [error, setError] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
+
+  // Restores a shared link once the columns exist, then mirrors state into `v=`.
+  const vizStore = useLabelledMoleculeVisualizationStore();
+
+  useLmVizUrlSync(!!dataset, vizStore);
 
   const load = useCallback(async (url: string) => {
     try {
@@ -117,6 +125,7 @@ function LabelledMoleculeViewer() {
         clusterVersion={clusterVersion}
         dataset={dataset}
       />
+      <LabelledMoleculeTopControls />
     </div>
   );
 }

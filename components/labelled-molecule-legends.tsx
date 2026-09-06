@@ -63,7 +63,10 @@ export default function LabelledMoleculeLegends({
   if (active.length === 0) return null;
 
   return (
-    <div className="absolute right-6 top-24 z-[var(--z-legends)] flex max-w-xs flex-col items-end gap-3">
+    <div
+      data-ui-overlay
+      className="absolute right-6 top-24 z-[var(--z-legends)] flex max-w-xs flex-col items-end gap-3"
+    >
       {active.map((menu) => (
         <div key={menu} className={`w-full p-3 ${glassPanel()}`}>
           <div className="mb-2 flex items-center justify-between">

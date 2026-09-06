@@ -91,6 +91,7 @@ export default function LabelledMoleculeThreeScene({
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsTargetRef = useRef<THREE.Vector3 | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
+  const resetViewRef = useRef<(() => void) | null>(null);
   const mouseRef = useRef(new THREE.Vector2());
   const [hover, setHover] = useState<{
     x: number;
@@ -116,6 +117,7 @@ export default function LabelledMoleculeThreeScene({
     globalScale,
     globalAlpha,
     viewMode,
+    resetViewNonce,
   } = useLabelledMoleculeVisualizationStore();
 
   /** The column backing each menu, resolved through the domain variant. */
@@ -286,6 +288,13 @@ export default function LabelledMoleculeThreeScene({
     cameraRef.current = camera;
     rendererRef.current = setup.renderer;
     controlsTargetRef.current = controls.target;
+    // Captured so the reset-view effect can re-frame without rebuilding.
+    resetViewRef.current = () => {
+      camera.position.set(0, 0, cameraDistance);
+      camera.lookAt(0, 0, 0);
+      controls.target.set(0, 0, 0);
+      controls.update();
+    };
 
     // ── Hover picking.
     // Only molecules that pass the filter are pickable: with grey-mode on there
@@ -473,6 +482,11 @@ export default function LabelledMoleculeThreeScene({
     materialVersion,
   ]);
 
+  // ── Reset view, driven by the store's nonce.
+  useEffect(() => {
+    if (resetViewNonce > 0) resetViewRef.current?.();
+  }, [resetViewNonce]);
+
   if (glError) {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-black p-8 text-center">
@@ -500,6 +514,7 @@ export default function LabelledMoleculeThreeScene({
 
       {hover && (
         <div
+          data-ui-overlay
           className={`pointer-events-none absolute z-[var(--z-legends)] rounded-xl px-3 py-2 text-xs ${glassPanel()}`}
           data-testid="lm-hover-tooltip"
           style={{ left: hover.x + 12, top: hover.y + 12 }}

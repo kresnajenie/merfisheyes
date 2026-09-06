@@ -51,6 +51,12 @@ export interface LabelledMoleculeVisualizationState {
   globalAlpha: number;
   viewMode: LmViewMode;
   searchTerm: Record<LmMenu, string>;
+  /**
+   * Incremented to ask the scene to re-frame the cloud. A nonce rather than a
+   * boolean so repeated resets each fire, and so the scene needs no imperative
+   * handle back into this store.
+   */
+  resetViewNonce: number;
 
   setColorBy: (menu: LmMenu) => void;
   setOpenMenu: (menu: LmMenu | null) => void;
@@ -67,6 +73,9 @@ export interface LabelledMoleculeVisualizationState {
   setGlobalAlpha: (alpha: number) => void;
   setViewMode: (mode: LmViewMode) => void;
   setSearchTerm: (menu: LmMenu, term: string) => void;
+  resetView: () => void;
+  /** Bulk apply, for restoring a shared URL in one commit. */
+  applyUrlState: (patch: Partial<LabelledMoleculeVisualizationState>) => void;
   reset: () => void;
 }
 
@@ -96,6 +105,7 @@ const initialState = () => ({
   globalAlpha: 1.0,
   viewMode: "3D" as LmViewMode,
   searchTerm: { gene: "", domain: "", cell: "" } as Record<LmMenu, string>,
+  resetViewNonce: 0,
 });
 
 export function createLabelledMoleculeVisualizationStoreInstance() {
@@ -195,6 +205,10 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
     setViewMode: (mode) => set({ viewMode: mode }),
     setSearchTerm: (menu, term) =>
       set((s) => ({ searchTerm: { ...s.searchTerm, [menu]: term } })),
+
+    resetView: () => set((s) => ({ resetViewNonce: s.resetViewNonce + 1 })),
+
+    applyUrlState: (patch) => set(patch),
 
     reset: () => set(initialState()),
   }));

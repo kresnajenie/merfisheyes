@@ -1,4 +1,7 @@
-import type { VisualizationMode, CellViewMode } from "@/lib/stores/createVisualizationStore";
+import type {
+  VisualizationMode,
+  CellViewMode,
+} from "@/lib/stores/createVisualizationStore";
 import type { ViewMode } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
@@ -30,7 +33,17 @@ export interface CellVizUrlState {
 
 // Gene tuple: [name, color, localScale, isVisible, showAssigned, showUnassigned, unassignedColor, unassignedLocalScale, colorSynced]
 // Fields 4-8 are optional for backwards compat (default: true, true, same as color, same as localScale, true)
-export type SMGeneTuple = [string, string, number, boolean, boolean?, boolean?, string?, number?, boolean?];
+export type SMGeneTuple = [
+  string,
+  string,
+  number,
+  boolean,
+  boolean?,
+  boolean?,
+  string?,
+  number?,
+  boolean?,
+];
 
 export interface SMVizUrlState {
   genes?: SMGeneTuple[];
@@ -143,18 +156,24 @@ export function encodeCellVizState(state: {
 
   // Encode advanced settings (only non-default values)
   const avDefaults: Record<string, number> = {
-    selectedSizeMultiplier: VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
-    greyedOutSizeMultiplier: VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
+    selectedSizeMultiplier:
+      VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number,
+    greyedOutSizeMultiplier:
+      VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
     greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
     expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
     expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
-    pointSizeMultiplierMin: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
-    pointSizeMultiplierMax: VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
+    pointSizeMultiplierMin:
+      VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MIN as number,
+    pointSizeMultiplierMax:
+      VISUALIZATION_CONFIG.POINT_SIZE_MULTIPLIER_MAX as number,
     targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
   };
   const av: Record<string, number> = {};
+
   for (const [key, defaultVal] of Object.entries(avDefaults)) {
     const val = (state as any)[key] as number;
+
     if (val !== defaultVal) av[key] = val;
   }
   if (Object.keys(av).length > 0) obj.av = av;
@@ -199,7 +218,10 @@ export function decodeCellVizState(encoded: string): CellVizUrlState | null {
     return null;
   if (obj.vm !== undefined && obj.vm !== "2D" && obj.vm !== "3D") return null;
   if (obj.g2 !== undefined && typeof obj.g2 !== "string") return null;
-  if (obj.gs2 !== undefined && (!Array.isArray(obj.gs2) || obj.gs2.length !== 2))
+  if (
+    obj.gs2 !== undefined &&
+    (!Array.isArray(obj.gs2) || obj.gs2.length !== 2)
+  )
     return null;
   if (obj.ce !== undefined && typeof obj.ce !== "boolean") return null;
   if (obj.cw !== undefined && typeof obj.cw !== "boolean") return null;
@@ -300,4 +322,63 @@ export function decodeSMVizState(encoded: string): SMVizUrlState | null {
   if (obj.su !== undefined && typeof obj.su !== "boolean") return null;
 
   return obj;
+}
+
+// --- Labelled single-molecule viewer ---------------------------------------
+
+/**
+ * Compact URL shape for /lm-viewer. Genes carry their palette slot so a shared
+ * link reproduces the exact colours the sender saw — slots are handed out in
+ * selection order, which a bare list of names would not reconstruct.
+ */
+export interface LmVizUrlState {
+  cb?: "gene" | "domain" | "cell"; // colorBy
+  dv?: "domain_anno" | "domain_id"; // which column the domain menu reads
+  g?: [string, number][]; // [gene, colourSlot]
+  d?: string[]; // domain selection
+  c?: string[]; // cell selection
+  um?: "grey" | "hidden"; // unselectedMode
+  ua?: number; // unselectedAlpha
+  gs?: number; // globalScale
+  ga?: number; // globalAlpha
+  vm?: "2D" | "3D"; // viewMode
+}
+
+export function encodeLmVizState(state: {
+  colorBy: "gene" | "domain" | "cell";
+  domainVariant: "domain_anno" | "domain_id";
+  selections: Record<"gene" | "domain" | "cell", Set<string>>;
+  geneColorSlots: Map<string, number>;
+  unselectedMode: "grey" | "hidden";
+  unselectedAlpha: number;
+  globalScale: number;
+  globalAlpha: number;
+  viewMode: "2D" | "3D";
+}): string | null {
+  const s: LmVizUrlState = {};
+
+  // Defaults are omitted so an untouched viewer keeps a clean URL.
+  if (state.colorBy !== "cell") s.cb = state.colorBy;
+  if (state.domainVariant !== "domain_anno") s.dv = state.domainVariant;
+  if (state.selections.gene.size > 0) {
+    s.g = [...state.selections.gene].map((gene) => [
+      gene,
+      state.geneColorSlots.get(gene) ?? 0,
+    ]);
+  }
+  if (state.selections.domain.size > 0) s.d = [...state.selections.domain];
+  if (state.selections.cell.size > 0) s.c = [...state.selections.cell];
+  if (state.unselectedMode !== "grey") s.um = state.unselectedMode;
+  if (state.unselectedAlpha !== 0.2) s.ua = state.unselectedAlpha;
+  if (state.globalScale !== 1) s.gs = state.globalScale;
+  if (state.globalAlpha !== 1) s.ga = state.globalAlpha;
+  if (state.viewMode !== "3D") s.vm = state.viewMode;
+
+  if (Object.keys(s).length === 0) return null;
+
+  return toBase64Url(s);
+}
+
+export function decodeLmVizState(encoded: string): LmVizUrlState | null {
+  return fromBase64Url<LmVizUrlState>(encoded);
 }
