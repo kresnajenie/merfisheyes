@@ -366,7 +366,9 @@ export function encodeLmVizState(state: {
   }
   if (state.selections.domain.size > 0) s.d = [...state.selections.domain];
   if (state.selections.cell.size > 0) s.c = [...state.selections.cell];
-  if (state.globalScale !== 1) s.gs = state.globalScale;
+  // These must track the store's defaults; a stale value here silently writes
+  // the default into every URL and omits the one setting that matters.
+  if (state.globalScale !== 0.4) s.gs = state.globalScale;
   if (state.selectedScale !== 1.5) s.ss = state.selectedScale;
   if (state.unselectedScale !== 0.6) s.us = state.unselectedScale;
   if (state.camera) {
