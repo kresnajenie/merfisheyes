@@ -142,6 +142,7 @@ def main():
                     help="Drop rows whose COLUMN value is a control/blank probe. "
                          "Repeatable.")
     ap.add_argument("--name", help="Dataset name (default: input stem)")
+    ap.add_argument("--stage", help="Developmental stage, recorded in the manifest")
     ap.add_argument("--float-coords", action="store_true",
                     help="Write float32 coords/spatial.bin.gz instead of the "
                          "quantised q16 form (larger; only for debugging).")
@@ -252,6 +253,7 @@ def main():
         "dataset_id": "local_dataset",
         "name": name,
         "type": "labelled_single_molecule",
+        **({"metadata": {"stage": args.stage}} if args.stage else {}),
         "statistics": {
             "total_cells": n,
             "total_genes": 0,

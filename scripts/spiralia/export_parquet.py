@@ -83,6 +83,19 @@ cell_ids = F["cell_ids"][sel].astype(np.int32)
 # cell_names is a Series indexed by cell id; 0 = not in any cell.
 names = F["cell_names"]
 name_map = {int(i): str(v).split("::")[1] for i, v in names.items()}
+
+# cell_ids can carry labels that have no cell_names entry — segmentation
+# regions that didn't survive curation. They are not cells, so fold them into
+# 0 ("no cell") and let the unassigned filter drop them. Without this they were
+# kept as a phantom cell literally named "unassigned"; on MER5-1_E1_01 that was
+# 374 molecules and one extra cell versus the counts in the embryo metadata.
+unnamed = np.array([c not in name_map for c in cell_ids])
+if unnamed.any():
+    ids = sorted({int(c) for c in cell_ids[unnamed]})
+    print(f"  dropping {int(unnamed.sum()):,} molecules on {len(ids)} unnamed "
+          f"cell id(s): {ids}")
+    cell_ids = np.where(unnamed, 0, cell_ids).astype(np.int32)
+
 cell_name = pd.Series(cell_ids).map(name_map).fillna("unassigned").to_numpy()
 
 domain_anno = np.asarray(F["RNA_domain_anno"], dtype=object)[sel]
