@@ -104,30 +104,50 @@ export class ChunkedDataAdapter {
 
       // Load manifest, expression index, and observation metadata
       // For custom/remote S3: fetch all three concurrently
-      const manifestPromise = this.mode === "custom"
-        ? this.fetchJSON("manifest.json").catch(() =>
-            this.fetchBinary("manifest.json.gz").then((buffer) =>
-              JSON.parse(new TextDecoder().decode(buffer)),
-            ),
-          )
-        : this.fetchJSON("manifest.json");
+      const manifestPromise =
+        this.mode === "custom"
+          ? this.fetchJSON("manifest.json", true).catch(() =>
+              this.fetchBinary("manifest.json.gz").then((buffer) =>
+                JSON.parse(new TextDecoder().decode(buffer)),
+              ),
+            )
+          : this.fetchJSON("manifest.json", true);
 
-      const [manifest, expressionIndex, obsMetadata] = await Promise.all([
+      // A labelled-molecule dataset has no expression matrix, so expr/index.json
+      // does not exist. We still fire the request concurrently (skipping it
+      // would cost an extra round trip on every single-cell load) and only
+      // decide whether its failure matters once the manifest has arrived — so a
+      // genuinely broken index still throws for datasets that declare one.
+      const exprAttempt = this.fetchJSON("expr/index.json").then(
+        (value) => ({ ok: true, value, error: null as unknown }),
+        (error) => ({ ok: false, value: null, error }),
+      );
+
+      const [manifest, expr, obsMetadata] = await Promise.all([
         manifestPromise,
-        this.fetchJSON("expr/index.json"),
-        this.fetchJSON("obs/metadata.json"),
+        exprAttempt,
+        this.fetchJSON("obs/metadata.json", true),
       ]);
 
+      const hasExpression = manifest?.has_expression !== false;
+
+      if (hasExpression && !expr.ok) throw expr.error;
+
       this.manifest = manifest;
-      this.expressionIndex = expressionIndex;
+      this.expressionIndex = hasExpression ? expr.value : null;
       this.obsMetadata = obsMetadata;
 
       console.log("Loaded manifest:", this.manifest);
-      console.log("Loaded expression index:", {
-        totalGenes: this.expressionIndex.total_genes,
-        numChunks: this.expressionIndex.num_chunks,
-        chunkSize: this.expressionIndex.chunk_size,
-      });
+      console.log(
+        "Loaded expression index:",
+        this.expressionIndex
+          ? {
+              totalGenes: this.expressionIndex.total_genes,
+              numChunks: this.expressionIndex.num_chunks,
+              chunkSize: this.expressionIndex.chunk_size,
+            }
+          : "none (dataset has no expression matrix)",
+      );
       console.log(
         "Loaded observation metadata:",
         Object.keys(this.obsMetadata),
@@ -143,8 +163,17 @@ export class ChunkedDataAdapter {
   /**
    * Fetch and parse JSON file (from S3 URL or local File)
    */
-  private async fetchJSON(fileKey: string) {
+  private async fetchJSON(fileKey: string, revalidate = false) {
     console.log(`Fetching JSON: ${fileKey} (mode: ${this.mode})`);
+
+    // The index files describe which data files exist. If a dataset is
+    // replaced in place, a cached index points at names that are gone and the
+    // load fails on a confusing 403/404 from a *different* file. Revalidating
+    // (conditional request, 304 when unchanged) costs nothing on two small
+    // JSONs and removes that whole failure mode.
+    const init: RequestInit | undefined = revalidate
+      ? { cache: "no-cache" }
+      : undefined;
 
     if (this.mode === "local") {
       const file = this.localFiles?.get(fileKey);
@@ -162,7 +191,7 @@ export class ChunkedDataAdapter {
 
       console.log(`Fetching JSON from custom S3: ${url}`);
 
-      const response = await fetch(url);
+      const response = await fetch(url, init);
 
       if (!response.ok) {
         throw new Error(
@@ -179,7 +208,7 @@ export class ChunkedDataAdapter {
         throw new Error(`No download URL found for ${fileKey}`);
       }
 
-      const response = await fetch(url);
+      const response = await fetch(url, init);
 
       if (!response.ok) {
         throw new Error(
@@ -263,8 +292,16 @@ export class ChunkedDataAdapter {
     console.log("Loading spatial coordinates...");
 
     try {
-      const spatialBuffer = await this.fetchBinary("coords/spatial.bin.gz");
-      const coordinates = this.parseCoordinateBuffer(spatialBuffer);
+      // Labelled-molecule datasets store coordinates quantised to uint16 in a
+      // separate file; float32 coords barely compress, so this roughly halves
+      // the download. Every other dataset type keeps the shared f32 file.
+      const isQ16 = this.manifest?.coord_format === "q16";
+      const spatialBuffer = await this.fetchBinary(
+        isQ16 ? "coords/spatial.q16.bin.gz" : "coords/spatial.bin.gz",
+      );
+      const coordinates = isQ16
+        ? this.parseQuantisedCoordinateBuffer(spatialBuffer)
+        : this.parseCoordinateBuffer(spatialBuffer);
 
       console.log("Loaded spatial coordinates:", coordinates.data.length);
 
@@ -321,11 +358,7 @@ export class ChunkedDataAdapter {
           nested[i] = pt;
         }
         embeddings[coordType] = nested;
-        console.log(
-          `Loaded ${coordType} embedding:`,
-          numPts,
-          "points",
-        );
+        console.log(`Loaded ${coordType} embedding:`, numPts, "points");
       } catch (error) {
         console.warn(`Failed to load ${coordType} embedding:`, error);
       }
@@ -341,9 +374,7 @@ export class ChunkedDataAdapter {
   async loadEmbedding(
     name: string,
   ): Promise<{ name: string; data: number[][] } | null> {
-    const coordType = name
-      .trim()
-      .replace(/\.bin\.gz$/i, "");
+    const coordType = name.trim().replace(/\.bin\.gz$/i, "");
 
     if (!coordType) return null;
 
@@ -366,11 +397,7 @@ export class ChunkedDataAdapter {
         nested[i] = pt;
       }
 
-      console.log(
-        `Loaded ${coordType} embedding on demand:`,
-        numPts,
-        "points",
-      );
+      console.log(`Loaded ${coordType} embedding on demand:`, numPts, "points");
 
       return { name: coordType, data: nested };
     } catch (error) {
@@ -383,6 +410,41 @@ export class ChunkedDataAdapter {
   /**
    * Parse binary coordinate buffer
    */
+  /**
+   * uint16-per-axis coordinates (manifest `coord_format: "q16"`).
+   *
+   *   u32 numPoints | u32 dims | f32 min[dims] | f32 scale[dims]
+   *   u16 codes[numPoints * dims]        coord = min + code * scale
+   *
+   * Written by scripts/process_labelled_molecules.py — the two must stay in
+   * step.
+   */
+  private parseQuantisedCoordinateBuffer(buffer: ArrayBuffer) {
+    const view = new DataView(buffer);
+    const numPoints = view.getUint32(0, true);
+    const dimensions = view.getUint32(4, true);
+
+    let offset = 8;
+    const min = new Float32Array(dimensions);
+    const scale = new Float32Array(dimensions);
+
+    for (let d = 0; d < dimensions; d++, offset += 4)
+      min[d] = view.getFloat32(offset, true);
+    for (let d = 0; d < dimensions; d++, offset += 4)
+      scale[d] = view.getFloat32(offset, true);
+
+    const codes = new Uint16Array(buffer, offset, numPoints * dimensions);
+    const coordinates = new Float32Array(numPoints * dimensions);
+
+    for (let i = 0, k = 0; i < numPoints; i++) {
+      for (let d = 0; d < dimensions; d++, k++) {
+        coordinates[k] = min[d] + codes[k] * scale[d];
+      }
+    }
+
+    return { data: coordinates, dimensions };
+  }
+
   private parseCoordinateBuffer(buffer: ArrayBuffer) {
     const view = new DataView(buffer);
 
@@ -407,6 +469,10 @@ export class ChunkedDataAdapter {
    * Load gene names from expression index
    */
   async loadGenes(): Promise<string[]> {
+    // A dataset that declares no expression matrix has no gene list — that is
+    // a valid state, not a failure. Only an expected-but-missing index throws.
+    if (this.manifest?.has_expression === false) return [];
+
     if (!this.expressionIndex) {
       throw new Error("Expression index not loaded");
     }
@@ -428,6 +494,7 @@ export class ChunkedDataAdapter {
 
     const names = Object.keys(this.obsMetadata);
     const types: Record<string, string> = {};
+
     for (const name of names) {
       types[name] = this.obsMetadata[name].type || "categorical";
     }
@@ -443,7 +510,10 @@ export class ChunkedDataAdapter {
     palette: Record<string, string> | null;
     uniqueValues: string[];
   }> | null> {
-    console.log("Loading clusters...", columns ? `(filtered: ${columns.join(", ")})` : "(all)");
+    console.log(
+      "Loading clusters...",
+      columns ? `(filtered: ${columns.join(", ")})` : "(all)",
+    );
 
     try {
       // Use cached observation metadata to load all cluster columns
@@ -506,7 +576,9 @@ export class ChunkedDataAdapter {
               const { dict, codes } = decoded;
               const order = dict
                 .map((_, i) => i)
-                .sort((x, y) => dict[x].localeCompare(dict[y], undefined, { numeric: true }));
+                .sort((x, y) =>
+                  dict[x].localeCompare(dict[y], undefined, { numeric: true }),
+                );
 
               uniqueValues = order.map((i) => dict[i]);
               const remap = new Uint32Array(dict.length);
@@ -514,7 +586,8 @@ export class ChunkedDataAdapter {
               order.forEach((orig, sortedIdx) => {
                 remap[orig] = sortedIdx;
               });
-              const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
+              const IndexArray =
+                uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
 
               valueIndices = new IndexArray(codes.length);
               for (let i = 0; i < codes.length; i++) {
@@ -539,8 +612,8 @@ export class ChunkedDataAdapter {
               }
             }
 
-            uniqueValues = uniqueValuesList.sort(
-              (x: string, y: string) => x.localeCompare(y, undefined, { numeric: true }),
+            uniqueValues = uniqueValuesList.sort((x: string, y: string) =>
+              x.localeCompare(y, undefined, { numeric: true }),
             );
 
             const sortedIndexMap = new Map<string, number>();
@@ -549,7 +622,8 @@ export class ChunkedDataAdapter {
               sortedIndexMap.set(uniqueValues[i], i);
             }
 
-            const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
+            const IndexArray =
+              uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
 
             valueIndices = new IndexArray(clusterValues.length);
             for (let i = 0; i < clusterValues.length; i++) {
@@ -824,6 +898,7 @@ export class ChunkedDataAdapter {
    */
   getAvailableDeStatsColumns(): string[] {
     const list = this.manifest?.files?.de_stats;
+
     return Array.isArray(list) ? list.map((v: any) => String(v)) : [];
   }
 
@@ -836,10 +911,12 @@ export class ChunkedDataAdapter {
     genes: string[],
   ): Promise<import("../utils/de-stats").DeStats | null> {
     const available = this.getAvailableDeStatsColumns();
+
     if (!available.includes(column)) return null;
 
     const buffer = await this.fetchBinary(`de/${column}.bin.gz`);
     const { parseDeStatsBuffer } = await import("../utils/de-stats");
+
     return parseDeStatsBuffer(buffer, column, genes);
   }
 
