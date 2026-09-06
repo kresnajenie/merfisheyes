@@ -42,6 +42,7 @@ export const labelledMoleculeVertexShader = `
     uniform float uGlobalAlpha;
     uniform float uUnselectedAlpha;
     uniform float uUnselectedHidden; // 1.0 = cull unselected entirely
+    uniform float uOpaque;           // 1.0 = opaque pass (no partial alpha)
     uniform float uUnselectedSize;   // size multiplier for greyed points
     uniform vec3 uUnselectedColor;
 
@@ -58,7 +59,10 @@ export const labelledMoleculeVertexShader = `
                        * lut1(uSelDomain, aDomain, uNDomain)
                        * lut1(uSelCell, aCell, uNCell);
 
-        if (selected < 0.5 && uUnselectedHidden > 0.5) {
+        // Opaque rasterisation has no partial alpha, so a faint backdrop is not
+        // expressible — unselected molecules are culled exactly as in Hidden
+        // mode rather than drawn solid, which would bury the selection.
+        if (selected < 0.5 && (uUnselectedHidden > 0.5 || uOpaque > 0.5)) {
             gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
             return;
         }
@@ -96,12 +100,9 @@ export const labelledMoleculeVertexShader = `
     }
 `;
 
-/** alphaTest cutoff for the opaque path. */
-export const OPAQUE_ALPHA_TEST = 0.5;
-
 export const labelledMoleculeFragmentShader = `
     uniform float uShape;  // 0 = circle, 1 = square
-    uniform float uOpaque; // 1 = write depth, hard cutoff, no blending
+    uniform float uOpaque; // 1 = write depth, no blending
 
     varying vec3 vColor;
     varying float vAlpha;
@@ -113,12 +114,10 @@ export const labelledMoleculeFragmentShader = `
         if (uShape < 0.5 && dist > 0.5) discard;
 
         if (uOpaque > 0.5) {
-            // Opaque: a fragment is drawn or it isn't. Anything below the
-            // cutoff is discarded rather than blended, which keeps the depth
-            // buffer meaningful so buried points are rejected early. The cost
-            // is that partial opacity cannot be expressed at all.
-            if (alpha < ${OPAQUE_ALPHA_TEST}) discard;
-
+            // Everything that reaches here is drawn at full opacity. Opacity is
+            // a blending concept and has no meaning in this pass, so it must NOT
+            // feed the cutoff — doing so let the Opacity slider discard every
+            // fragment and blank the scene. Only the sprite's own shape culls.
             gl_FragColor = vec4(vColor, 1.0);
 
             return;

@@ -379,7 +379,11 @@ export default function LabelledMoleculeControls({
             className={`absolute top-0 left-16 z-[var(--z-panel)] w-[280px] ${glassPanel()}`}
           >
             <div className="p-4 space-y-4">
+              {/* Opacity is a blending concept; the opaque renderer has no
+                  way to express it, so the control is disabled rather than
+                  silently inert. */}
               <Slider
+                isDisabled={renderMode === "opaque"}
                 label="Opacity"
                 maxValue={1}
                 minValue={0.02}
@@ -388,6 +392,12 @@ export default function LabelledMoleculeControls({
                 value={s.globalAlpha}
                 onChange={(v) => s.setGlobalAlpha(Number(v))}
               />
+              {renderMode === "opaque" && (
+                <p className="text-[11px] text-default-500">
+                  Opacity and Transparent mode need alpha blending, which this
+                  renderer trades away for depth-correct occlusion.
+                </p>
+              )}
             </div>
           </div>
         )}
