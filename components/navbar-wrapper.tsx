@@ -20,10 +20,12 @@ export function NavbarWrapper() {
   // Check if we're in single molecule viewer based on path
   const isSingleMolecule = pathname?.startsWith("/sm-viewer");
 
-  // Both viewer families get the compact top-left brand pill instead of the
+  // Every viewer family gets the compact top-left brand pill instead of the
   // centered nav bar.
   const isViewer =
-    pathname?.startsWith("/viewer") || pathname?.startsWith("/sm-viewer");
+    pathname?.startsWith("/viewer") ||
+    pathname?.startsWith("/sm-viewer") ||
+    pathname?.startsWith("/lm-viewer");
 
   // Get dataset from appropriate store
   const cellDatasetId = useDatasetStore((state) => state.currentDatasetId);

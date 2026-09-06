@@ -11,6 +11,7 @@ import { Tooltip } from "@heroui/tooltip";
 import { useEffect, useMemo } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { useSliderRangeLocal } from "@/components/slider-range-popover";
 import { LM_MENUS } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
 import {
@@ -43,6 +44,8 @@ export default function LabelledMoleculeControls({
   clusterVersion = 0,
 }: Props) {
   const s = useLabelledMoleculeVisualizationStore();
+  // Right-click the size slider to widen its range past the default.
+  const sizeRange = useSliderRangeLocal(0.1, 2, s.globalScale);
 
   const columnFor: Record<LmMenu, string> = {
     gene: "gene",
@@ -194,21 +197,26 @@ export default function LabelledMoleculeControls({
           );
         })}
 
-        <Tooltip content="Molecule size" placement="right">
+        <Tooltip
+          content="Molecule size (right-click to edit range)"
+          placement="right"
+        >
           <div
             className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+            onContextMenu={sizeRange.onContextMenu}
           >
             <Slider
               aria-label="Molecule size"
               className="h-full"
-              maxValue={4}
-              minValue={0.1}
+              maxValue={sizeRange.max}
+              minValue={sizeRange.min}
               orientation="vertical"
               size="sm"
               step={0.05}
               value={s.globalScale}
               onChange={(v) => s.setGlobalScale(v as number)}
             />
+            {sizeRange.popover}
           </div>
         </Tooltip>
 

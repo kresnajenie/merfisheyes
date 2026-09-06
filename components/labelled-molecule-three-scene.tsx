@@ -20,6 +20,7 @@ import {
   labelledMoleculeVertexShader,
 } from "@/lib/webgl/labelled-molecule-shaders";
 import { glassPanel } from "@/components/primitives";
+import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 
 interface ColumnData {
@@ -90,6 +91,8 @@ export default function LabelledMoleculeThreeScene({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsTargetRef = useRef<THREE.Vector3 | null>(null);
+  // SpatialScaleBar needs the controls object itself, not just its target.
+  const controlsRef = useRef<any | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const resetViewRef = useRef<(() => void) | null>(null);
   const flyToRef = useRef<
@@ -301,6 +304,7 @@ export default function LabelledMoleculeThreeScene({
 
     cameraRef.current = camera;
     rendererRef.current = setup.renderer;
+    controlsRef.current = controls;
     controlsTargetRef.current = controls.target;
     // Captured so the reset-view effect can re-frame without rebuilding.
     resetViewRef.current = () => {
@@ -323,6 +327,15 @@ export default function LabelledMoleculeThreeScene({
         const col = columns[menu]!;
         const value = col.uniqueValues[col.valueIndices[i]];
 
+        // Mirrors buildSelectionLut: a menu whose every selected value is
+        // hidden imposes no constraint, hides included. These two must agree or
+        // the tooltip contradicts what is drawn.
+        if (
+          sel[menu].size > 0 &&
+          ![...sel[menu]].some((v) => !hid[menu].has(v))
+        ) {
+          continue;
+        }
         if (hid[menu].has(value)) return false;
         if (sel[menu].size > 0 && !sel[menu].has(value)) return false;
       }
@@ -555,6 +568,7 @@ export default function LabelledMoleculeThreeScene({
       materialRef.current = null;
       cameraRef.current = null;
       rendererRef.current = null;
+      controlsRef.current = null;
       setHover(null);
     };
   }, [dataset, ready, columnFor, clusterVersion]);
@@ -665,6 +679,16 @@ export default function LabelledMoleculeThreeScene({
   return (
     <div className="absolute inset-0 bg-black">
       <div ref={containerRef} className="h-full w-full" />
+
+      {/* Draggable µm ruler, same component the cell and molecule viewers use.
+          Only meaningful once the camera exists. */}
+      {!glError && ready && (
+        <SpatialScaleBar
+          cameraRef={cameraRef}
+          controlsRef={controlsRef}
+          rendererRef={rendererRef}
+        />
+      )}
 
       {hover && (
         <div
