@@ -11,10 +11,7 @@ import { Tooltip } from "@heroui/tooltip";
 import { useEffect, useMemo, useState } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
-import {
-  LM_MENUS,
-  resolveValueColor,
-} from "@/lib/stores/createLabelledMoleculeVisualizationStore";
+import { LM_MENUS } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
 import {
   buildSelectionLut,
@@ -330,13 +327,6 @@ export default function LabelledMoleculeControls({
               <div className="max-h-[400px] overflow-y-auto flex flex-col gap-0">
                 {filtered.map((i) => {
                   const value = openCol.uniqueValues[i];
-                  const color = resolveValueColor(
-                    open,
-                    value,
-                    s.colorOverrides[open],
-                    s.geneColorSlots,
-                    openCol.palette,
-                  );
 
                   return (
                     <Checkbox
@@ -350,12 +340,6 @@ export default function LabelledMoleculeControls({
                       onValueChange={() => s.toggleValue(open, value)}
                     >
                       <div className="flex w-full min-w-0 items-center gap-2">
-                        {/* Colour as a swatch, not on the label: the label has
-                            to stay readable while its colour is being edited. */}
-                        <span
-                          className="h-2 w-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: color }}
-                        />
                         <span className="min-w-0 flex-1 truncate" title={value}>
                           {open === "gene" ? value.split(" (")[0] : value}
                         </span>

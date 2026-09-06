@@ -336,8 +336,6 @@ export interface LmVizUrlState {
   g?: [string, number][]; // [gene, colourSlot]
   d?: string[]; // domain selection
   c?: string[]; // cell selection
-  um?: "grey" | "hidden"; // unselectedMode
-  ua?: number; // unselectedAlpha
   gs?: number; // globalScale
   ga?: number; // globalAlpha
   vm?: "2D" | "3D"; // viewMode
@@ -348,8 +346,6 @@ export function encodeLmVizState(state: {
   colorBy: "gene" | "domain" | "cell";
   selections: Record<"gene" | "domain" | "cell", Set<string>>;
   geneColorSlots: Map<string, number>;
-  unselectedMode: "grey" | "hidden";
-  unselectedAlpha: number;
   globalScale: number;
   globalAlpha: number;
   viewMode: "2D" | "3D";
@@ -370,8 +366,6 @@ export function encodeLmVizState(state: {
   }
   if (state.selections.domain.size > 0) s.d = [...state.selections.domain];
   if (state.selections.cell.size > 0) s.c = [...state.selections.cell];
-  if (state.unselectedMode !== "grey") s.um = state.unselectedMode;
-  if (state.unselectedAlpha !== 0.2) s.ua = state.unselectedAlpha;
   if (state.globalScale !== 1) s.gs = state.globalScale;
   if (state.globalAlpha !== 1) s.ga = state.globalAlpha;
   if (state.viewMode !== "3D") s.vm = state.viewMode;

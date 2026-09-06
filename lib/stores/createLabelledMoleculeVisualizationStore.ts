@@ -7,9 +7,6 @@ import {
 
 export type LmViewMode = "2D" | "3D";
 
-/** How molecules that fail the filter are drawn. */
-export type UnselectedMode = "grey" | "hidden";
-
 /** The three menus, each backed by an obs column of the same name. */
 export type LmMenu = "gene" | "domain" | "cell";
 
@@ -51,8 +48,6 @@ export interface LabelledMoleculeVisualizationState {
    */
   geneColorSlots: Map<string, number>;
 
-  unselectedMode: UnselectedMode;
-  unselectedAlpha: number;
   globalScale: number;
   globalAlpha: number;
   viewMode: LmViewMode;
@@ -88,8 +83,6 @@ export interface LabelledMoleculeVisualizationState {
   setSizeOverride: (menu: LmMenu, value: string, size: number) => void;
   toggleValueVisibility: (menu: LmMenu, value: string) => void;
   soloValue: (menu: LmMenu, value: string) => void;
-  setUnselectedMode: (mode: UnselectedMode) => void;
-  setUnselectedAlpha: (alpha: number) => void;
   setGlobalScale: (scale: number) => void;
   setGlobalAlpha: (alpha: number) => void;
   setViewMode: (mode: LmViewMode) => void;
@@ -136,8 +129,6 @@ const initialState = () => ({
     cell: new Set<string>(),
   } as Record<LmMenu, Set<string>>,
   geneColorSlots: new Map<string, number>(),
-  unselectedMode: "hidden" as UnselectedMode,
-  unselectedAlpha: 0.2,
   globalScale: 1.0,
   globalAlpha: 1.0,
   viewMode: "3D" as LmViewMode,
@@ -267,9 +258,6 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
         };
       }),
 
-    setUnselectedMode: (mode) => set({ unselectedMode: mode }),
-    setUnselectedAlpha: (alpha) =>
-      set({ unselectedAlpha: Math.min(1, Math.max(0, alpha)) }),
     setGlobalScale: (scale) => set({ globalScale: Math.max(0, scale) }),
     setGlobalAlpha: (alpha) =>
       set({ globalAlpha: Math.min(1, Math.max(0, alpha)) }),

@@ -5,7 +5,6 @@ import type { LmMenu } from "@/lib/stores/createLabelledMoleculeVisualizationSto
 
 import { Button } from "@heroui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@heroui/popover";
-import { Slider } from "@heroui/react";
 import { Eye, EyeOff, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -115,11 +114,11 @@ export default function LabelledMoleculeLegends({
               return (
                 <div
                   key={value}
-                  className="group flex items-center gap-1.5 rounded-full bg-default-100/80 px-2 py-1 text-xs transition-all hover:scale-105"
-                  style={{ opacity: hidden ? 0.45 : 1 }}
+                  className="group flex items-center gap-1 rounded-full px-2 py-1 text-xs transition-all hover:scale-105"
+                  style={{ backgroundColor: color, opacity: hidden ? 0.45 : 1 }}
                 >
                   <button
-                    className="flex items-center justify-center rounded-full p-0.5 text-default-500 transition-colors hover:bg-default-200 hover:text-foreground"
+                    className="flex items-center justify-center rounded-full p-0.5 text-black/60 transition-colors hover:bg-black/15 hover:text-black"
                     title={
                       hidden
                         ? "Hidden — click to show, ⌘-click to solo"
@@ -148,18 +147,12 @@ export default function LabelledMoleculeLegends({
                   >
                     <PopoverTrigger>
                       <button
-                        className="flex cursor-pointer items-center gap-1.5"
+                        className="max-w-[130px] cursor-pointer truncate text-black"
                         title={`${value} — click to recolour`}
                         type="button"
                         onClick={() => setOpenPicker(key)}
                       >
-                        <span
-                          className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/20"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className="max-w-[130px] truncate">
-                          {menu === "gene" ? value.split(" (")[0] : value}
-                        </span>
+                        {menu === "gene" ? value.split(" (")[0] : value}
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="p-2">
@@ -184,7 +177,7 @@ export default function LabelledMoleculeLegends({
                   </Popover>
 
                   <button
-                    className="flex items-center justify-center rounded-full p-0.5 text-default-500 transition-colors hover:bg-default-200 hover:text-danger"
+                    className="flex items-center justify-center rounded-full p-0.5 text-black/60 transition-colors hover:bg-black/15 hover:text-black"
                     title="Remove"
                     type="button"
                     onClick={() => s.toggleValue(menu, value)}
@@ -197,45 +190,6 @@ export default function LabelledMoleculeLegends({
           </div>
         </div>
       ))}
-
-      {active.length > 0 && (
-        <div className={`w-full p-3 ${glassPanel()}`}>
-          <div className="mb-2 text-xs text-default-500">Unselected</div>
-          <div className="flex gap-1">
-            {(
-              [
-                ["hidden", "Hidden"],
-                ["grey", "Transparent"],
-              ] as const
-            ).map(([mode, label]) => (
-              <Button
-                key={mode}
-                className="flex-1"
-                color={s.unselectedMode === mode ? "primary" : "default"}
-                size="sm"
-                variant={s.unselectedMode === mode ? "flat" : "light"}
-                onPress={() => s.setUnselectedMode(mode)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-
-          {s.unselectedMode === "grey" && (
-            <Slider
-              aria-label="Unselected opacity"
-              className="mt-3"
-              label="Opacity"
-              maxValue={1}
-              minValue={0}
-              size="sm"
-              step={0.02}
-              value={s.unselectedAlpha}
-              onChange={(v) => s.setUnselectedAlpha(Number(v))}
-            />
-          )}
-        </div>
-      )}
     </div>
   );
 }

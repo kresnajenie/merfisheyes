@@ -2,7 +2,10 @@
 
 import LabelledMoleculeViewerPage from "@/components/labelled-molecule-viewer";
 
-/** Alpha-blended points: partial opacity, but no depth occlusion. */
+/**
+ * Depth-correct opaque rasterisation — the default. /lm2-viewer is kept as the
+ * blended counterpart for comparison.
+ */
 export default function Page() {
-  return <LabelledMoleculeViewerPage renderMode="blended" />;
+  return <LabelledMoleculeViewerPage renderMode="opaque" />;
 }

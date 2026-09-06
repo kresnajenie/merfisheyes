@@ -19,6 +19,9 @@
 /** Per-value size multipliers are encoded into an 8-bit alpha over this range. */
 export const SIZE_ENCODE_RANGE = 4.0;
 
+/** Selected molecules are drawn this much larger than the grey backdrop. */
+export const SELECTED_SIZE_MULTIPLIER = 1.5;
+
 export const labelledMoleculeVertexShader = `
     attribute float aGene;
     attribute float aDomain;
@@ -40,8 +43,6 @@ export const labelledMoleculeVertexShader = `
     uniform float dotSize;
     uniform float uGlobalSize;
     uniform float uGlobalAlpha;
-    uniform float uUnselectedAlpha;
-    uniform float uUnselectedHidden; // 1.0 = cull unselected entirely
     uniform float uOpaque;           // 1.0 = opaque pass (no partial alpha)
     uniform float uUnselectedSize;   // size multiplier for greyed points
     uniform vec3 uUnselectedColor;
@@ -59,28 +60,26 @@ export const labelledMoleculeVertexShader = `
                        * lut1(uSelDomain, aDomain, uNDomain)
                        * lut1(uSelCell, aCell, uNCell);
 
-        // Opaque rasterisation has no partial alpha, so a faint backdrop is not
-        // expressible — unselected molecules are culled exactly as in Hidden
-        // mode rather than drawn solid, which would bury the selection.
-        if (selected < 0.5 && (uUnselectedHidden > 0.5 || uOpaque > 0.5)) {
-            gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-            return;
-        }
-
         // Index the palette by whichever column is currently colouring.
         float colorIndex = uColorBy < 0.5 ? aGene
                          : (uColorBy < 1.5 ? aDomain : aCell);
         vec4 entry = texture2D(uPalette,
                      vec2((colorIndex + 0.5) / uNColorBy, 0.5));
 
+        // Unselected molecules are a solid grey backdrop — fully opaque, so
+        // they read as context rather than haze, and so the opaque renderer
+        // can draw them at all.
         vColor = selected > 0.5 ? entry.rgb : uUnselectedColor;
-        vAlpha = aAlpha * uGlobalAlpha
-               * (selected > 0.5 ? 1.0 : uUnselectedAlpha);
+        vAlpha = aAlpha * uGlobalAlpha;
 
-        // Per-value size only applies to selected points; greyed ones fall back
-        // to a uniform multiplier so a big category can't dominate the backdrop.
+        // Selected points are drawn larger so they stand out against the grey
+        // backdrop, which is now fully opaque and can otherwise crowd them.
+        // Per-value size applies only to the selection; the backdrop uses one
+        // uniform multiplier so a big category can't dominate it.
         float valueSize = entry.a * ${SIZE_ENCODE_RANGE.toFixed(1)};
-        float sizeMul = selected > 0.5 ? valueSize : uUnselectedSize;
+        float sizeMul = selected > 0.5
+            ? valueSize * ${SELECTED_SIZE_MULTIPLIER.toFixed(1)}
+            : uUnselectedSize;
 
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
 

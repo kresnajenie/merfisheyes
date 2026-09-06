@@ -44,8 +44,6 @@ export function useLmVizUrlSync(
     const patch: Partial<LabelledMoleculeVisualizationState> = {};
 
     if (d.cb) patch.colorBy = d.cb;
-    if (d.um) patch.unselectedMode = d.um;
-    if (d.ua !== undefined) patch.unselectedAlpha = d.ua;
     if (d.gs !== undefined) patch.globalScale = d.gs;
     if (d.ga !== undefined) patch.globalAlpha = d.ga;
     if (d.vm) patch.viewMode = d.vm;
@@ -75,8 +73,6 @@ export function useLmVizUrlSync(
     colorBy,
     selections,
     geneColorSlots,
-    unselectedMode,
-    unselectedAlpha,
     globalScale,
     globalAlpha,
     viewMode,
@@ -92,8 +88,6 @@ export function useLmVizUrlSync(
         colorBy,
         selections,
         geneColorSlots,
-        unselectedMode,
-        unselectedAlpha,
         globalScale,
         globalAlpha,
         viewMode,
@@ -105,8 +99,6 @@ export function useLmVizUrlSync(
     colorBy,
     selections,
     geneColorSlots,
-    unselectedMode,
-    unselectedAlpha,
     globalScale,
     globalAlpha,
     viewMode,

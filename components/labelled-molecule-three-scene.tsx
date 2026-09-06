@@ -129,8 +129,6 @@ export default function LabelledMoleculeThreeScene({
     sizeOverrides,
     geneColorSlots,
     hiddenValues,
-    unselectedMode,
-    unselectedAlpha,
     globalScale,
     globalAlpha,
     viewMode,
@@ -274,8 +272,6 @@ export default function LabelledMoleculeThreeScene({
         dotSize: { value: baseDotSize },
         uGlobalSize: { value: 1 },
         uGlobalAlpha: { value: 1 },
-        uUnselectedAlpha: { value: 0.2 },
-        uUnselectedHidden: { value: 0 },
         uUnselectedSize: { value: 0.6 },
         uUnselectedColor: { value: new THREE.Color(0x555555) },
         uShape: { value: 0 },
@@ -336,14 +332,9 @@ export default function LabelledMoleculeThreeScene({
       return true;
     };
 
-    /**
-     * Pickable == drawn. In "hidden" mode the unselected molecules aren't
-     * rendered, so picking them would report something invisible; in
-     * "transparent" mode they ARE on screen, so they answer to the cursor.
-     */
-    const isPickable = (i: number) =>
-      labelledMoleculeVisualizationStore.getState().unselectedMode !==
-        "hidden" || passesFilter(i);
+    // Every molecule is drawn now — the selection in colour, the rest as a
+    // solid grey backdrop — so every molecule answers to the cursor.
+    const isPickable = () => true;
 
     const describe = (i: number) => {
       const st = labelledMoleculeVisualizationStore.getState();
@@ -397,7 +388,7 @@ export default function LabelledMoleculeThreeScene({
 
       hits.sort((a, b) => a.distance - b.distance);
 
-      const hit = hits.find((h) => h.index != null && isPickable(h.index));
+      const hit = hits.find((h) => h.index != null && isPickable());
 
       setHover(
         hit
@@ -434,7 +425,7 @@ export default function LabelledMoleculeThreeScene({
       const hits = raycasterRef.current.intersectObject(points);
 
       hits.sort((a, b) => a.distance - b.distance);
-      const hit = hits.find((h) => h.index != null && isPickable(h.index));
+      const hit = hits.find((h) => h.index != null && isPickable());
 
       return hit?.index ?? null;
     };
@@ -603,16 +594,7 @@ export default function LabelledMoleculeThreeScene({
     if (!material) return;
     material.uniforms.uGlobalSize.value = globalScale;
     material.uniforms.uGlobalAlpha.value = globalAlpha;
-    material.uniforms.uUnselectedAlpha.value = unselectedAlpha;
-    material.uniforms.uUnselectedHidden.value =
-      unselectedMode === "hidden" ? 1 : 0;
-  }, [
-    globalScale,
-    globalAlpha,
-    unselectedAlpha,
-    unselectedMode,
-    materialVersion,
-  ]);
+  }, [globalScale, globalAlpha, materialVersion]);
 
   // ── Adopt an inbound camera pose (shared link or saved default).
   useEffect(() => {
@@ -665,7 +647,15 @@ export default function LabelledMoleculeThreeScene({
             </div>
           )}
           {hover.rows.map((r) => (
-            <div key={r.menu} className="flex items-center gap-2 py-0.5">
+            // The colouring column is what double-click toggles, so it is
+            // highlighted — otherwise it isn't obvious which of the three
+            // labels the gesture will act on.
+            <div
+              key={r.menu}
+              className={`flex items-center gap-2 rounded px-1 py-0.5 ${
+                r.menu === colorBy ? "bg-primary/25" : ""
+              }`}
+            >
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: r.color }}
@@ -676,6 +666,10 @@ export default function LabelledMoleculeThreeScene({
               </span>
             </div>
           ))}
+          <div className="mt-1 border-t border-default-200/40 pt-1 text-[10px] text-default-500">
+            double-click to {hover.selected ? "remove" : "add"} the highlighted{" "}
+            {MENU_LABEL[colorBy].toLowerCase()}
+          </div>
         </div>
       )}
       {!ready && (
