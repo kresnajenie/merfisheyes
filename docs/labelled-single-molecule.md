@@ -127,12 +127,21 @@ that only protects caches populated after the header exists.
 
 | | |
 |---|---|
-| rail | Gene / Domain / Cell menus, molecule-size slider |
+| rail | Gene / Domain / Cell menus; molecule-size slider (right-click to widen its range) |
 | hotkeys | `G` `D` `C` switch the colouring column, `H` hides the UI |
-| legends | active selections; eye to hide (⌘-click to solo), name to recolour, X to remove |
-| scene | hover for all three labels; ⌘-click eases the camera to a molecule; double-click toggles that molecule's value for the colouring column |
-| camera panel | selected/unselected size, reset view, owner "save current view as default" |
+| legends | "Colouring by" switch, then active selections; eye to hide (⌘-click to solo), name to recolour, X to remove |
+| scene | hover for all three labels; ⌘-click eases the camera to a molecule over 500 ms; double-click toggles that molecule's value for the colouring column |
+| camera panel | selected/unselected size, cell meshes, reset view, owner "save current view as default" |
+| scale bar | draggable µm ruler, the same component the other viewers use |
 | share | full viewer state, including camera pose, encoded into `v=` |
+
+Always 3D — these are volumetric embryos and a flat view hides the z axis.
+Molecules that fail the filter are drawn as a solid grey backdrop, so the
+embryo's shape stays visible; selected ones draw larger (1.5× by default).
+
+**Menus are OR within, AND across, and an empty menu imposes no constraint.**
+Hiding *every* selected value in a menu counts as empty rather than excluding
+everything, so the eye cannot strand you with a blank scene.
 
 Genes are coloured on selection from a 10-slot palette so the few you pick stay
 distinct; domain and cell use fixed palettes generated at ingest.
@@ -160,6 +169,51 @@ scene with no error.
 
 ---
 
+## Cell meshes
+
+Per-cell segmentation surfaces render alongside the molecules — translucent by
+default, wireframe as a toggle, following the cell menu (every cell when nothing
+is selected, otherwise just the selection). They never depth-write, so they
+cannot occlude the molecules they enclose.
+
+```
+meshes/index.json     per-cell label + vertex/index slices
+meshes/cells.bin.gz   Float32 vertices, then Uint32 indices (local per cell)
+```
+
+Written by `scripts/spiralia/export_meshes.py`, which also sets `has_meshes` on
+the manifest. For E3_1: 26 cells, 16,877 vertices, 33,868 triangles, **292 KB** —
+1.5% of the dataset, and ~150 ms on a ~2.6 s load. It is fetched after the
+dataset resolves, so it never delays first paint.
+
+**Use `vertices_xyz`, never `vertices_reoriented_xyz`.** This was settled by
+measurement, not by asking:
+
+| vertex set | median centroid offset vs molecules |
+|---|---|
+| `vertices_xyz` (mask-derived) | **4.6 µm** |
+| `vertices_xyz` (pointcloud) | 9.7 µm |
+| `vertices_reoriented_xyz` (either) | ~40 µm |
+
+Per cell, 97–100% of each cell's molecules fall inside its own mesh bounding
+box. The four cells with larger centroid offsets (36–58 µm) are exactly the
+macromeres `3A/3B/3C/3D`, whose molecules are yolk-skewed so the molecule
+centroid legitimately sits off the surface centroid — their bbox containment is
+100%. The reoriented set is a **different frame**: it would render plausibly and
+be wrong by ~40 µm.
+
+Mask-derived meshes are used rather than the pointcloud variant: better aligned,
+and it is the actual curated segmentation. The pointcloud variant is still read
+for its `cell_identity` attribute, which the mask-derived file lacks — that is
+what maps a mesh to a selectable cell label. Labels are asserted against the
+shipped `cell` obs dictionary, `(id)` suffix included, so a mesh can always be
+tied to a selection.
+
+Coverage: **31 of 45 embryos have meshes, and the 14 without them are exactly
+the 14 MER2 embryos.**
+
+---
+
 ## Verification
 
 Ground truth computed in Python from the source parquet, before any viewer code
@@ -179,12 +233,17 @@ Re-check that number after any change to the filter, the LUT or the ingest.
 
 ## What still needs doing
 
-### 1. Segmentation masks and 3D cell meshes — **blocked**
+### 1. Meshes for the other 30 embryos
 
-The largest remaining piece, and the reason the viewer currently shows molecules
-with no cell geometry.
+Done for `MER6-2_E3_1`; the exporter is per-embryo, so the rest is a loop. Worth
+re-running the centroid check per embryo rather than assuming the frames agree
+everywhere — the check is cheap and it is what caught the reoriented-vertex trap.
 
-The data already exists. Under `Segmentation/Bogdan/` each embryo has:
+The masks below are still unused. Only the prebuilt meshes are consumed, so
+which of the three mask resolutions is canonical remains unanswered — it just no
+longer blocks anything.
+
+Under `Segmentation/Bogdan/` each embryo has:
 
 | artefact | shape (E3_1) | voxel size |
 |---|---|---|
@@ -199,18 +258,13 @@ and **prebuilt triangle meshes** in HDF5, 26 cells for E3_1, in two variants:
   molecule cloud, guaranteed non-overlapping, and **the only one carrying a
   `cell_identity` attribute** per mesh.
 
-Each mesh group holds `faces`, `vertices_xyz` and `vertices_reoriented_xyz`.
-Vertices are in **µm**, and `vertices_xyz` sits inside the molecule bounding box
-— which is why the ingest keeps coordinates raw rather than normalising.
+Vertices are in **µm**, in the same frame as the molecules — which is why the
+ingest keeps coordinates raw rather than normalising. See **Cell meshes** above
+for which vertex set to use and why.
 
-**The blocker (question A3):** nobody has confirmed what
-`vertices_reoriented_xyz` is. If it is a per-embryo alignment, the meshes and the
-molecules will not co-register without that transform, and it is **not stored in
-the h5**. Until that is answered, building the mesh layer risks being wrong in a
-way that looks plausible.
-
-Also unresolved: which of the three masks is canonical, and which mesh variant
-to render.
+Question **A3** — what `vertices_reoriented_xyz` actually represents — is still
+formally unanswered, but it no longer blocks: we know empirically that it is not
+the molecule frame, so it is simply not used.
 
 ### 2. Upload and registration
 
@@ -226,12 +280,16 @@ and the shader already reads both out of the palette LUT. Colour has a picker in
 the legend; **per-value size has no UI**. Worth having: gene abundance spans
 21 → 256,402 molecules, so a rare gene is easily swamped by a common one.
 
-### 4. The other 44 embryos
+### 4. Two molecule counts that don't match the metadata
 
-The ingest is generic and the other embryos are ready, but **question E1** —
-whether the 306-probe panel is identical across MER1 / MER2 / MER5-1 / MER6 — is
-unanswered. Note the mesh coverage split: **31 of 45 embryos have meshes, and the
-14 without them are exactly the 14 MER2 embryos.**
+All 45 embryos are built and published — see `scripts/spiralia/DATASETS.md`.
+Every stage from 1-cell to 24-cells is covered.
+
+43 of 45 match `embryo_count_noblank` in the embryo metadata exactly. Two are
+over by a handful of molecules: `MER2_E2_2` by **5** and `MER6-1_E4_2` by **3**
+(0.0002% and 0.00006%). Missed control probes, non-finite coordinates and
+surviving duplicate probes are all ruled out; most likely the CSV was computed
+from a slightly different snapshot. Worth confirming with whoever generated it.
 
 ### 5. Smaller items
 
@@ -257,9 +315,14 @@ block work.
 |---|---|
 | `scripts/process_labelled_molecules.py` | generic parquet → chunked ingest |
 | `scripts/spiralia/export_parquet.py` | spiralia dill object → parquet |
+| `scripts/spiralia/export_meshes.py` | per-cell segmentation meshes → `meshes/` |
+| `scripts/spiralia/build_all.py` | batch build, checked against the embryo metadata |
+| `scripts/spiralia/upload_all.sh` | publish to S3 and print the viewer links |
+| `scripts/spiralia/DATASETS.md` | every dataset link, grouped by stage |
 | `scripts/spiralia/view_napari.py` | load one embryo in napari, per the source notebook |
 | `scripts/spiralia/{PLAN,QUESTIONS}.md` | design decisions; open questions |
 | `lib/webgl/labelled-molecule-{shaders,lut}.ts` | shader and lookup-table builders |
+| `lib/webgl/cell-meshes.ts` | mesh loader and binary format |
 | `lib/stores/createLabelledMoleculeVisualizationStore.ts` | viewer state |
 | `components/labelled-molecule-*.tsx` | scene, rail, legends, top controls |
 | `lib/hooks/useLmVizUrlSync.ts` | URL state |
