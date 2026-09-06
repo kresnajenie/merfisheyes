@@ -96,22 +96,36 @@ export const labelledMoleculeVertexShader = `
     }
 `;
 
+/** alphaTest cutoff for the opaque path. */
+export const OPAQUE_ALPHA_TEST = 0.5;
+
 export const labelledMoleculeFragmentShader = `
-    uniform float uShape; // 0 = circle, 1 = square
+    uniform float uShape;  // 0 = circle, 1 = square
+    uniform float uOpaque; // 1 = write depth, hard cutoff, no blending
 
     varying vec3 vColor;
     varying float vAlpha;
 
     void main() {
         float alpha = vAlpha;
+        float dist = length(gl_PointCoord - vec2(0.5));
 
-        if (uShape < 0.5) {
-            float dist = length(gl_PointCoord - vec2(0.5));
+        if (uShape < 0.5 && dist > 0.5) discard;
 
-            if (dist > 0.5) discard;
-            alpha *= smoothstep(0.5, 0.45, dist);
+        if (uOpaque > 0.5) {
+            // Opaque: a fragment is drawn or it isn't. Anything below the
+            // cutoff is discarded rather than blended, which keeps the depth
+            // buffer meaningful so buried points are rejected early. The cost
+            // is that partial opacity cannot be expressed at all.
+            if (alpha < ${OPAQUE_ALPHA_TEST}) discard;
+
+            gl_FragColor = vec4(vColor, 1.0);
+
+            return;
         }
 
+        // Blended: soften the rim, and let any non-zero alpha through.
+        if (uShape < 0.5) alpha *= smoothstep(0.5, 0.45, dist);
         if (alpha < 0.004) discard;
 
         gl_FragColor = vec4(vColor, alpha);
