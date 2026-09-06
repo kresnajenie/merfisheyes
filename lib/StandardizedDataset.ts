@@ -1,6 +1,10 @@
-import { normalizeCoordinates, normalizeCoordinatesFlat } from "./utils/coordinates";
-import { selectBestClusterColumnByName } from "./utils/dataset-utils";
 import type { DeStats } from "./utils/de-stats";
+
+import {
+  normalizeCoordinates,
+  normalizeCoordinatesFlat,
+} from "./utils/coordinates";
+import { selectBestClusterColumnByName } from "./utils/dataset-utils";
 import { markDeStatsReady } from "./utils/test-hooks";
 
 interface SpatialData {
@@ -13,7 +17,11 @@ interface SpatialData {
  * Get the coordinate for a specific point at a given dimension.
  * Works with both flat Float32Array and nested number[][] formats.
  */
-export function getCoord(spatial: SpatialData, pointIndex: number, dim: number): number {
+export function getCoord(
+  spatial: SpatialData,
+  pointIndex: number,
+  dim: number,
+): number {
   const coords = spatial.coordinates;
 
   if (coords instanceof Float32Array) {
@@ -49,10 +57,14 @@ interface ClusterData {
  * Get the cluster value for a specific cell index.
  * Uses indexed lookup if available, falls back to raw values array.
  */
-export function getClusterValue(cluster: ClusterData, cellIndex: number): string {
+export function getClusterValue(
+  cluster: ClusterData,
+  cellIndex: number,
+): string {
   if (cluster.valueIndices && cluster.uniqueValues) {
     return cluster.uniqueValues[cluster.valueIndices[cellIndex]];
   }
+
   return String(cluster.values[cellIndex]);
 }
 
@@ -188,7 +200,8 @@ export class StandardizedDataset {
     if (
       !this.spatial ||
       !this.spatial.coordinates ||
-      (!(this.spatial.coordinates instanceof Float32Array) && !Array.isArray(this.spatial.coordinates))
+      (!(this.spatial.coordinates instanceof Float32Array) &&
+        !Array.isArray(this.spatial.coordinates))
     ) {
       throw new Error("Dataset must have valid spatial coordinates");
     }
@@ -201,7 +214,9 @@ export class StandardizedDataset {
       if (this.spatial.coordinates instanceof Float32Array) {
         // Flat Float32Array: validate length is divisible by dimensions
         if (this.spatial.coordinates.length % this.spatial.dimensions !== 0) {
-          throw new Error("Spatial coordinates length is not divisible by dimensions");
+          throw new Error(
+            "Spatial coordinates length is not divisible by dimensions",
+          );
         }
       } else {
         const firstCoord = this.spatial.coordinates[0];
@@ -423,9 +438,8 @@ export class StandardizedDataset {
       dataset.allClusterColumnNames = data.allClusterColumnNames;
       dataset.allClusterColumnTypes = data.allClusterColumnTypes || {};
       // If not all columns are loaded yet, mark as not fully loaded
-      const loadedColumns = new Set(
-        (data.clusters || []).map((c) => c.column),
-      );
+      const loadedColumns = new Set((data.clusters || []).map((c) => c.column));
+
       dataset.clustersFullyLoaded = data.allClusterColumnNames.every((name) =>
         loadedColumns.has(name),
       );
@@ -435,6 +449,7 @@ export class StandardizedDataset {
     if (data.allEmbeddingNames && data.allEmbeddingNames.length > 0) {
       dataset.allEmbeddingNames = data.allEmbeddingNames;
       const loadedEmbeddings = new Set(Object.keys(data.embeddings || {}));
+
       dataset.embeddingsFullyLoaded = data.allEmbeddingNames.every((name) =>
         loadedEmbeddings.has(name),
       );
@@ -563,6 +578,7 @@ export class StandardizedDataset {
 
     // Read column info from adapter (already cached from initialize())
     const columnInfo = adapter.getClusterColumnInfo();
+
     dataset.allClusterColumnNames = columnInfo.names;
     dataset.allClusterColumnTypes = columnInfo.types;
     dataset.availableDeStatsColumns = adapter.getAvailableDeStatsColumns();
@@ -603,10 +619,7 @@ export class StandardizedDataset {
     const columnInfo = adapter.getClusterColumnInfo();
     let priorityColumn: string | null = null;
 
-    if (
-      priorityColumnHint &&
-      columnInfo.names.includes(priorityColumnHint)
-    ) {
+    if (priorityColumnHint && columnInfo.names.includes(priorityColumnHint)) {
       priorityColumn = priorityColumnHint;
     } else {
       priorityColumn = selectBestClusterColumnByName(
@@ -617,13 +630,28 @@ export class StandardizedDataset {
 
     // Fetch spatial coordinates and cluster data concurrently with progress
     const [spatial, clusters] = await Promise.all([
-      adapter.loadSpatialCoordinates().then((result) => {
-        onProgress?.(55, "Spatial coordinates loaded");
-        return result;
-      }),
+      adapter
+        .loadSpatialCoordinates((received: number, total: number) => {
+          // Coordinates are the bulk of the payload, so map the download over
+          // most of the bar (30 -> 55) instead of jumping when it finishes.
+          const mb = (n: number) => (n / 1_000_000).toFixed(1);
+
+          onProgress?.(
+            total ? 30 + Math.round((received / total) * 25) : 30,
+            total
+              ? `Downloading coordinates — ${mb(received)} / ${mb(total)} MB`
+              : `Downloading coordinates — ${mb(received)} MB`,
+          );
+        })
+        .then((result) => {
+          onProgress?.(55, "Spatial coordinates loaded");
+
+          return result;
+        }),
       priorityColumn
         ? adapter.loadClusters([priorityColumn]).then((result) => {
             onProgress?.(65, `Cluster column "${priorityColumn}" loaded`);
+
             return result;
           })
         : Promise.resolve(null),
@@ -639,35 +667,55 @@ export class StandardizedDataset {
 
     const dataInfo = adapter.getDatasetInfo();
 
-    await onProgress?.(80, `${genes.length.toLocaleString()} genes, ${dataInfo.numCells?.toLocaleString()} cells`);
+    await onProgress?.(
+      80,
+      `${genes.length.toLocaleString()} genes, ${dataInfo.numCells?.toLocaleString()} cells`,
+    );
     const matrix = await adapter.fetchFullMatrix();
 
     await onProgress?.(90, "Building dataset...");
 
     // Denormalize old datasets so all coords are raw microns
     const wasNormalized = dataInfo.normalized !== false;
-    const manifestScalingFactor = adapter.getManifest()?.processing?.spatial_scaling_factor || 1;
-    let finalSpatial: { coordinates: Float32Array | number[][]; dimensions: number; scalingFactor: number } = {
+    const manifestScalingFactor =
+      adapter.getManifest()?.processing?.spatial_scaling_factor || 1;
+    let finalSpatial: {
+      coordinates: Float32Array | number[][];
+      dimensions: number;
+      scalingFactor: number;
+    } = {
       ...spatial,
       scalingFactor: 1,
     };
 
     if (wasNormalized && manifestScalingFactor > 1) {
-      console.log(`[fromCustomS3] Denormalizing old coords (×${manifestScalingFactor})`);
+      console.log(
+        `[fromCustomS3] Denormalizing old coords (×${manifestScalingFactor})`,
+      );
       const coords = spatial.coordinates;
       const sf = manifestScalingFactor;
 
       if (coords instanceof Float32Array) {
         const denorm = new Float32Array(coords.length);
+
         for (let i = 0; i < coords.length; i++) {
           denorm[i] = coords[i] * sf;
         }
-        finalSpatial = { coordinates: denorm, dimensions: spatial.dimensions, scalingFactor: 1 };
+        finalSpatial = {
+          coordinates: denorm,
+          dimensions: spatial.dimensions,
+          scalingFactor: 1,
+        };
       } else {
         const denorm = (coords as number[][]).map((point) =>
           point.map((v) => v * sf),
         );
-        finalSpatial = { coordinates: denorm, dimensions: spatial.dimensions, scalingFactor: 1 };
+
+        finalSpatial = {
+          coordinates: denorm,
+          dimensions: spatial.dimensions,
+          scalingFactor: 1,
+        };
       }
     }
 
@@ -772,10 +820,7 @@ export class StandardizedDataset {
     const columnInfo = adapter.getClusterColumnInfo();
     let priorityColumn: string | null = null;
 
-    if (
-      priorityColumnHint &&
-      columnInfo.names.includes(priorityColumnHint)
-    ) {
+    if (priorityColumnHint && columnInfo.names.includes(priorityColumnHint)) {
       priorityColumn = priorityColumnHint;
     } else {
       priorityColumn = selectBestClusterColumnByName(
@@ -898,10 +943,7 @@ export class StandardizedDataset {
     const columnInfo = adapter.getClusterColumnInfo();
     let priorityColumn: string | null = null;
 
-    if (
-      priorityColumnHint &&
-      columnInfo.names.includes(priorityColumnHint)
-    ) {
+    if (priorityColumnHint && columnInfo.names.includes(priorityColumnHint)) {
       priorityColumn = priorityColumnHint;
     } else {
       priorityColumn = selectBestClusterColumnByName(
@@ -937,9 +979,10 @@ export class StandardizedDataset {
       );
 
       try {
-        const api = Comlink.wrap<
-          import("./workers/zarr-densify.worker").ZarrDensifyWorkerApi
-        >(worker);
+        const api =
+          Comlink.wrap<
+            import("./workers/zarr-densify.worker").ZarrDensifyWorkerApi
+          >(worker);
 
         const proxiedProgress = onProgress
           ? Comlink.proxy((p: number, msg: string) => {
@@ -1030,10 +1073,7 @@ export class StandardizedDataset {
     onProgress?: (progress: number, message: string) => Promise<void> | void,
     priorityColumnHint?: string,
   ): Promise<StandardizedDataset> {
-    console.log(
-      "[StandardizedDataset] Loading h5ad-zarr from S3:",
-      datasetId,
-    );
+    console.log("[StandardizedDataset] Loading h5ad-zarr from S3:", datasetId);
 
     await onProgress?.(5, "Fetching dataset metadata...");
     const metaRes = await fetch(`/api/datasets/${datasetId}`);
@@ -1079,7 +1119,10 @@ export class StandardizedDataset {
         }
       }
     } catch (e) {
-      console.warn("[fromS3Zarr] manifest probe failed, assuming legacy layout:", e);
+      console.warn(
+        "[fromS3Zarr] manifest probe failed, assuming legacy layout:",
+        e,
+      );
     }
 
     if (manifestJson) {
@@ -1109,7 +1152,9 @@ export class StandardizedDataset {
 
     await onProgress?.(15, "Initializing h5ad-zarr adapter...");
 
-    const store = new PresignedFetchStore(datasetId, { keyPrefix: zarrPathPrefix });
+    const store = new PresignedFetchStore(datasetId, {
+      keyPrefix: zarrPathPrefix,
+    });
     const { H5adZarrAdapter } = await import("./adapters/H5adZarrAdapter");
     const adapter = new H5adZarrAdapter(store, storeKeys);
 
@@ -1124,10 +1169,7 @@ export class StandardizedDataset {
     const columnInfo = adapter.getClusterColumnInfo();
     let priorityColumn: string | null = null;
 
-    if (
-      priorityColumnHint &&
-      columnInfo.names.includes(priorityColumnHint)
-    ) {
+    if (priorityColumnHint && columnInfo.names.includes(priorityColumnHint)) {
       priorityColumn = priorityColumnHint;
     } else {
       priorityColumn = selectBestClusterColumnByName(

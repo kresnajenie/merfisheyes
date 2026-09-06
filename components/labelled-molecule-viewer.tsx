@@ -140,10 +140,15 @@ function LabelledMoleculeViewer() {
             aria-label="Loading progress"
             className="w-full"
             color="secondary"
+            // The coordinate download dominates and now reports real bytes, so
+            // the bar moves continuously rather than sitting at 30%.
             size="md"
             value={progress}
           />
-          <p className="text-sm text-default-500">{message}</p>
+          <div className="flex w-full items-baseline justify-between text-sm">
+            <span className="text-default-500">{message}</span>
+            <span className="tabular-nums text-default-400">{progress}%</span>
+          </div>
         </div>
       </div>
     );
