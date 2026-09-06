@@ -209,8 +209,20 @@ what maps a mesh to a selectable cell label. Labels are asserted against the
 shipped `cell` obs dictionary, `(id)` suffix included, so a mesh can always be
 tied to a selection.
 
-Coverage: **31 of 45 embryos have meshes, and the 14 without them are exactly
-the 14 MER2 embryos.**
+Coverage: **all 31 embryos that have meshes are built and published** (7.4 MB
+total, 237 KB average). The 14 without are exactly the 14 MER2 embryos — worth
+asking the data author whether those are pending or deliberately excluded.
+
+`build_meshes_all.py` re-runs the alignment check per embryo rather than
+trusting E3_1. All 31 land at **99.6–100%** of molecules inside their own cell's
+mesh, and the worst *real* cell in any embryo is 95%.
+
+The check must be **weighted by molecule count**. Polar bodies are a few hundred
+molecules in a 15–30 vertex mesh and score 30–70% on their own, so gating on the
+raw per-cell minimum flags every healthy embryo — including E3_1, which is known
+good. A handful of meshes have no matching cell at all (`MER5-1_E3_7`×3,
+`MER6-1_E2_2`×2, four others ×1): those are cells the ingest dropped as unnamed
+or unassigned, they hold no molecules in the shipped data, and they are omitted.
 
 ---
 
