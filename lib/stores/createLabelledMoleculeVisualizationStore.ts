@@ -87,6 +87,7 @@ export interface LabelledMoleculeVisualizationState {
   setColorOverride: (menu: LmMenu, value: string, color: string) => void;
   setSizeOverride: (menu: LmMenu, value: string, size: number) => void;
   toggleValueVisibility: (menu: LmMenu, value: string) => void;
+  soloValue: (menu: LmMenu, value: string) => void;
   setUnselectedMode: (mode: UnselectedMode) => void;
   setUnselectedAlpha: (alpha: number) => void;
   setGlobalScale: (scale: number) => void;
@@ -246,6 +247,24 @@ export function createLabelledMoleculeVisualizationStoreInstance() {
         next.has(value) ? next.delete(value) : next.add(value);
 
         return { hiddenValues: { ...s.hiddenValues, [menu]: next } };
+      }),
+
+    // Hide every other selected value in this menu; repeating it restores them.
+    soloValue: (menu, value) =>
+      set((s) => {
+        const others = [...s.selections[menu]].filter((v) => v !== value);
+        const hidden = s.hiddenValues[menu];
+        const alreadySolo =
+          others.length > 0 &&
+          !hidden.has(value) &&
+          others.every((v) => hidden.has(v));
+
+        return {
+          hiddenValues: {
+            ...s.hiddenValues,
+            [menu]: alreadySolo ? new Set<string>() : new Set(others),
+          },
+        };
       }),
 
     setUnselectedMode: (mode) => set({ unselectedMode: mode }),

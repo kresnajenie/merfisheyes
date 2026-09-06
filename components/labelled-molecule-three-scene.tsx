@@ -103,6 +103,7 @@ export default function LabelledMoleculeThreeScene({
   const [hover, setHover] = useState<{
     x: number;
     y: number;
+    selected: boolean;
     rows: { menu: LmMenu; value: string; color: string }[];
   } | null>(null);
   const [glError, setGlError] = useState<string | null>(null);
@@ -308,6 +309,7 @@ export default function LabelledMoleculeThreeScene({
     // Only molecules that pass the filter are pickable: with grey-mode on there
     // are millions of dimmed points, and letting them win the depth test would
     // make the selection nearly impossible to inspect.
+    /** Does this molecule pass every menu (i.e. is it drawn "selected")? */
     const passesFilter = (i: number) => {
       const { selections: sel, hiddenValues: hid } =
         labelledMoleculeVisualizationStore.getState();
@@ -322,6 +324,15 @@ export default function LabelledMoleculeThreeScene({
 
       return true;
     };
+
+    /**
+     * Pickable == drawn. In "hidden" mode the unselected molecules aren't
+     * rendered, so picking them would report something invisible; in
+     * "transparent" mode they ARE on screen, so they answer to the cursor.
+     */
+    const isPickable = (i: number) =>
+      labelledMoleculeVisualizationStore.getState().unselectedMode !==
+        "hidden" || passesFilter(i);
 
     const describe = (i: number) => {
       const st = labelledMoleculeVisualizationStore.getState();
@@ -375,13 +386,14 @@ export default function LabelledMoleculeThreeScene({
 
       hits.sort((a, b) => a.distance - b.distance);
 
-      const hit = hits.find((h) => h.index != null && passesFilter(h.index));
+      const hit = hits.find((h) => h.index != null && isPickable(h.index));
 
       setHover(
         hit
           ? {
               x: event.clientX - rect.left,
               y: event.clientY - rect.top,
+              selected: passesFilter(hit.index!),
               rows: describe(hit.index!),
             }
           : null,
@@ -411,7 +423,7 @@ export default function LabelledMoleculeThreeScene({
       const hits = raycasterRef.current.intersectObject(points);
 
       hits.sort((a, b) => a.distance - b.distance);
-      const hit = hits.find((h) => h.index != null && passesFilter(h.index));
+      const hit = hits.find((h) => h.index != null && isPickable(h.index));
 
       return hit?.index ?? null;
     };
@@ -636,6 +648,11 @@ export default function LabelledMoleculeThreeScene({
           data-testid="lm-hover-tooltip"
           style={{ left: hover.x + 12, top: hover.y + 12 }}
         >
+          {!hover.selected && (
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-default-500">
+              Not in selection
+            </div>
+          )}
           {hover.rows.map((r) => (
             <div key={r.menu} className="flex items-center gap-2 py-0.5">
               <span

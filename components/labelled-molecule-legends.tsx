@@ -122,11 +122,17 @@ export default function LabelledMoleculeLegends({
                     className="flex items-center justify-center rounded-full p-0.5 text-default-500 transition-colors hover:bg-default-200 hover:text-foreground"
                     title={
                       hidden
-                        ? "Hidden — click to show"
-                        : "Visible — click to hide"
+                        ? "Hidden — click to show, ⌘-click to solo"
+                        : "Visible — click to hide, ⌘-click to solo"
                     }
                     type="button"
-                    onClick={() => s.toggleValueVisibility(menu, value)}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey || e.altKey) {
+                        s.soloValue(menu, value);
+                      } else {
+                        s.toggleValueVisibility(menu, value);
+                      }
+                    }}
                   >
                     {hidden ? (
                       <EyeOff className="h-3 w-3" />
