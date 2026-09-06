@@ -210,8 +210,25 @@ shipped `cell` obs dictionary, `(id)` suffix included, so a mesh can always be
 tied to a selection.
 
 Coverage: **all 31 embryos that have meshes are built and published** (7.4 MB
-total, 237 KB average). The 14 without are exactly the 14 MER2 embryos — worth
-asking the data author whether those are pending or deliberately excluded.
+total, 237 KB average). The 14 without are exactly the 14 MER2 embryos.
+
+**MER2 is not missing segmentation** — only the prebuilt meshes. All 14 have
+`Old/*_segm.npz`, `AutoRefined_Masks/` and `ManualCurate_Masks/`, and the
+curated masks are real: the label count matches the metadata's `n_cells` for 13
+of 14 (`MER2_E3_1` has 3 against `n_cells=4`). Someone ran marching cubes over
+31 embryos and stopped before MER2.
+
+So the meshes are reproducible rather than lost. The existing h5 files record
+the recipe in their attributes — `marching_cubes_step_size: 2`,
+`smooth_iterations: 8`, `simplify_spacing_um: 8.0`,
+`resolve_overlap_after_smoothing: true`, `spacing_zxy_um: 4.0, 2.832, 2.832` —
+over the same `ManualCurate_Masks` source. Two cautions if anyone does it: get
+the voxel→µm frame right and validate with the molecule-containment check above
+(99%+ means correct), and note MER2 has no pointcloud file either, so the
+id→name map has to come from the dill object's `cell_names`.
+
+**Deferred by request, not blocked.** Worth telling the data author regardless,
+since they may intend to finish that run themselves.
 
 `build_meshes_all.py` re-runs the alignment check per embryo rather than
 trusting E3_1. All 31 land at **99.6–100%** of molecules inside their own cell's
