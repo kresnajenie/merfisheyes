@@ -38,6 +38,13 @@ export async function GET(request: NextRequest) {
       viewerConfig: true,
       viewCount: true,
       title: true,
+      // First project this dataset belongs to, so a viewer can show the rail
+      // of its siblings without a second round trip.
+      projects: {
+        orderBy: { project: { createdAt: "asc" } },
+        take: 1,
+        select: { projectId: true },
+      },
     },
   });
 
@@ -48,8 +55,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const { projects, ...rest } = dataset;
+
   return NextResponse.json(
-    { registered: true, ...dataset },
+    { registered: true, ...rest, projectId: projects[0]?.projectId ?? null },
     { headers: corsHeaders },
   );
 }

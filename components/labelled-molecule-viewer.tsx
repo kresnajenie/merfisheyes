@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import LabelledMoleculeControls from "@/components/labelled-molecule-controls";
 import LabelledMoleculeLegends from "@/components/labelled-molecule-legends";
 import LabelledMoleculeTopControls from "@/components/labelled-molecule-top-controls";
+import StageRail, { type ProjectDatasetSummary } from "@/components/stage-rail";
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { subtitle } from "@/components/primitives";
 import LabelledMoleculeThreeScene from "@/components/labelled-molecule-three-scene";
@@ -31,6 +32,8 @@ function LabelledMoleculeViewer() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Loading…");
   const [error, setError] = useState<string | null>(null);
+  // The project this dataset belongs to, if any — drives the stage rail.
+  const [projectId, setProjectId] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
 
   // Restores a shared link once the columns exist, then mirrors state into `v=`.
@@ -74,6 +77,7 @@ function LabelledMoleculeViewer() {
           const j = await res.json();
 
           config = (j?.viewerConfig as ViewerConfig | null) ?? null;
+          setProjectId((j?.projectId as string | null) ?? null);
           useViewerRegistrationStore.getState().set({
             dbId: j?.id ?? null,
             ownerId: j?.ownerId ?? null,
@@ -170,6 +174,24 @@ function LabelledMoleculeViewer() {
       />
       <LabelledMoleculeTopControls />
       <ClaimDatasetBanner />
+      {projectId && (
+        <StageRail
+          currentUrl={baseUrl}
+          projectId={projectId}
+          onOpen={(d: ProjectDatasetSummary) => {
+            // Full navigation: each dataset is ~19 MB, so an in-place swap
+            // would need its own teardown path. Kept simple until asked for.
+            window.location.href = `/lm-viewer/from-s3?url=${encodeURIComponent(d.s3BaseUrl)}`;
+          }}
+          onSplit={(d: ProjectDatasetSummary) => {
+            const url = new URL(window.location.href);
+
+            url.searchParams.set("splitS3Url", d.s3BaseUrl);
+            url.searchParams.set("splitType", "lm");
+            window.location.href = url.toString();
+          }}
+        />
+      )}
     </div>
   );
 }
