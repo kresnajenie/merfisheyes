@@ -321,7 +321,7 @@ export default function StageRail({
         className="absolute bottom-0 left-0 right-0 z-[var(--z-rail)]"
       >
         <div
-          className={`flex items-center gap-2 overflow-hidden px-3 py-2 ${glassPanel()} rounded-none`}
+          className={`flex items-center justify-center gap-2 overflow-hidden px-3 py-2 ${glassPanel()} rounded-none`}
           style={{ height: STAGE_RAIL_HEIGHT }}
         >
           {Array.from({ length: 8 }).map((_, i) => (
@@ -351,15 +351,7 @@ export default function StageRail({
       {/* Hover card: what this stage is, and where it can go. */}
       {open && (
         <div
-          className={`absolute bottom-full mb-2 w-80 p-3 ${glassPanel()}`}
-          style={{
-            left: Math.max(
-              8,
-              (tileRefs.current.get(open.stage)?.offsetLeft ?? 0) -
-                (stripRef.current?.scrollLeft ?? 0) -
-                40,
-            ),
-          }}
+          className={`absolute bottom-full left-1/2 mb-2 w-80 -translate-x-1/2 p-3 ${glassPanel()}`}
         >
           <canvas
             ref={bigCanvasRef}
@@ -409,7 +401,7 @@ export default function StageRail({
 
       <div
         ref={stripRef}
-        className={`relative flex gap-2 overflow-x-auto px-3 py-2 ${glassPanel()} rounded-none`}
+        className={`relative flex gap-2 overflow-x-auto px-3 py-2 [justify-content:safe_center] ${glassPanel()} rounded-none`}
         style={{ height: TILE + 34 }}
       >
         {/* One canvas for every tile; positioned under them, drawn per-viewport. */}
