@@ -36,6 +36,9 @@ interface Props {
 
 const TILE = 96;
 
+/** Total height of the rail; the viewer lifts its bottom-left chrome by this. */
+export const STAGE_RAIL_HEIGHT = TILE + 34;
+
 /**
  * Allen-atlas style rail: one tile per developmental stage, each a live
  * preview rather than a screenshot.
@@ -57,6 +60,7 @@ export default function StageRail({
   // every hover, tearing down and re-fetching all previews.
   const hoveredRef = useRef<string | null>(null);
   const [previewsReady, setPreviewsReady] = useState(0);
+  const [loaded, setLoaded] = useState<Set<string>>(new Set());
   const previewsRef = useRef(new Map<string, DatasetPreview>());
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
@@ -71,6 +75,7 @@ export default function StageRail({
       }
     >(),
   );
+  const bigCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // ── Project members, grouped into stages in project order.
   useEffect(() => {
@@ -116,6 +121,7 @@ export default function StageRail({
       loadPreview(s.rep.s3BaseUrl, ac.signal).then((p) => {
         if (!p) return;
         previewsRef.current.set(s.stage, p);
+        setLoaded((prev) => new Set(prev).add(s.stage));
         setPreviewsReady((n) => n + 1);
       });
     }
@@ -123,6 +129,7 @@ export default function StageRail({
     return () => {
       for (const c of controllers) c.abort();
       previewsRef.current.clear();
+      setLoaded(new Set());
     };
   }, [stages]);
 
@@ -237,6 +244,53 @@ export default function StageRail({
     };
   }, [stages, previewsReady]);
 
+  // ── Enlarged preview inside the hover card.
+  //
+  // Its own context: the strip's canvas lives inside the strip and cannot reach
+  // the card above it. Two contexts is still far under the browser's limit and
+  // much simpler than reshaping the shared canvas to span both.
+  useEffect(() => {
+    const canvas = bigCanvasRef.current;
+    const entry = hovered ? scenesRef.current.get(hovered) : null;
+
+    if (!canvas || !entry) return;
+
+    let renderer: THREE.WebGLRenderer;
+
+    try {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    } catch {
+      return;
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+
+    // Its own camera: the tile's is framed for a 96px square.
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      canvas.clientWidth / canvas.clientHeight,
+      0.01,
+      100,
+    );
+
+    camera.position.set(0, 0, 1.5);
+    camera.lookAt(0, 0, 0);
+
+    let raf = 0;
+    const frame = () => {
+      raf = requestAnimationFrame(frame);
+      renderer.setClearColor(0x000000, 0);
+      renderer.render(entry.scene, camera);
+    };
+
+    frame();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      renderer.dispose();
+    };
+  }, [hovered, previewsReady]);
+
   const hover = useCallback((stage: string | null) => {
     hoveredRef.current = stage;
     setHovered(stage);
@@ -258,7 +312,33 @@ export default function StageRail({
     );
   }, [currentUrl, stages]);
 
-  if (!stages?.length) return null;
+  // Rendered before the project resolves so the rail doesn't pop in once the
+  // scene is already up. Sized identically to the real strip.
+  if (!stages) {
+    return (
+      <div
+        data-ui-overlay
+        className="absolute bottom-0 left-0 right-0 z-[var(--z-rail)]"
+      >
+        <div
+          className={`flex items-center gap-2 overflow-hidden px-3 py-2 ${glassPanel()} rounded-none`}
+          style={{ height: STAGE_RAIL_HEIGHT }}
+        >
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="shrink-0">
+              <div
+                className="animate-pulse rounded-lg bg-default-200/40"
+                style={{ width: TILE, height: TILE }}
+              />
+              <div className="mx-auto mt-1 h-2 w-12 animate-pulse rounded bg-default-200/30" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!stages.length) return null;
 
   const open = hovered ? stages.find((s) => s.stage === hovered) : null;
 
@@ -271,7 +351,7 @@ export default function StageRail({
       {/* Hover card: what this stage is, and where it can go. */}
       {open && (
         <div
-          className={`absolute bottom-full mb-2 w-72 p-3 ${glassPanel()}`}
+          className={`absolute bottom-full mb-2 w-80 p-3 ${glassPanel()}`}
           style={{
             left: Math.max(
               8,
@@ -281,6 +361,10 @@ export default function StageRail({
             ),
           }}
         >
+          <canvas
+            ref={bigCanvasRef}
+            className="mb-2 h-40 w-full rounded-lg bg-black/40"
+          />
           <div className="mb-1 text-sm font-medium">{open.stage}</div>
           <div className="mb-2 text-xs text-default-500">
             {open.members.length} embryo{open.members.length > 1 ? "s" : ""} ·
@@ -344,7 +428,7 @@ export default function StageRail({
           >
             <div
               ref={(el) => setTileRef(s.stage, el)}
-              className={`rounded-lg border-2 transition-colors ${
+              className={`relative rounded-lg border-2 transition-colors ${
                 activeStage === s.stage
                   ? "border-primary"
                   : hovered === s.stage
@@ -352,7 +436,11 @@ export default function StageRail({
                     : "border-transparent"
               }`}
               style={{ width: TILE, height: TILE }}
-            />
+            >
+              {!loaded.has(s.stage) && (
+                <div className="absolute inset-2 animate-pulse rounded bg-default-200/30" />
+              )}
+            </div>
             <div
               className={`mt-0.5 text-center text-[10px] ${
                 activeStage === s.stage ? "text-primary" : "text-default-500"

@@ -9,11 +9,20 @@ interface SpatialScaleBarProps {
   cameraRef: React.RefObject<THREE.PerspectiveCamera | null>;
   rendererRef: React.RefObject<THREE.WebGLRenderer | null>;
   controlsRef: React.RefObject<any | null>;
+  /**
+   * Distance from the bottom of the scene for the default placement, in CSS
+   * units. Viewers with something else along the bottom — the labelled-molecule
+   * stage rail — raise it so the two don't overlap. Ignored once dragged.
+   */
+  bottomOffset?: string;
 }
 
 /** Pick the largest "nice" number that fits within the target value */
 function niceNumber(value: number): number {
-  const steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000];
+  const steps = [
+    0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000,
+    20000, 50000,
+  ];
 
   // Find the largest step that's <= value
   let result = steps[0];
@@ -43,7 +52,12 @@ function formatLabel(microns: number): string {
   return `${microns} μm`;
 }
 
-export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: SpatialScaleBarProps) {
+export function SpatialScaleBar({
+  cameraRef,
+  rendererRef,
+  controlsRef,
+  bottomOffset = "4rem",
+}: SpatialScaleBarProps) {
   const [barWidth, setBarWidth] = useState(0);
   const [label, setLabel] = useState("");
   const rafRef = useRef<number>(0);
@@ -104,11 +118,13 @@ export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: Spatial
     const onMove = (e: MouseEvent) => {
       const d = dragRef.current;
       const el = elRef.current;
+
       if (!d || !el) return;
       const parent = el.offsetParent as HTMLElement | null;
       const parentRect = parent
         ? parent.getBoundingClientRect()
         : { left: 0, top: 0 };
+
       setPos({
         x: e.clientX - parentRect.left - d.offsetX,
         y: e.clientY - parentRect.top - d.offsetY,
@@ -118,8 +134,10 @@ export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: Spatial
       dragRef.current = null;
       document.body.style.userSelect = "";
     };
+
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
+
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
@@ -128,12 +146,14 @@ export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: Spatial
 
   const onMouseDown = (e: React.MouseEvent) => {
     const el = elRef.current;
+
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const parent = el.offsetParent as HTMLElement | null;
     const parentRect = parent
       ? parent.getBoundingClientRect()
       : { left: 0, top: 0 };
+
     dragRef.current = {
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top,
@@ -153,7 +173,7 @@ export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: Spatial
     ? { top: `${pos.y}px`, left: `${pos.x}px` }
     : // Sit above the cmd/ctrl+click coordinate chip (bottom-4 in the viewer)
       // so the two don't collide in the bottom-left corner.
-      { bottom: "4rem", left: "1.5rem" };
+      { bottom: bottomOffset, left: "1.5rem" };
 
   return (
     <div
@@ -163,10 +183,7 @@ export function SpatialScaleBar({ cameraRef, rendererRef, controlsRef }: Spatial
       title="Drag to reposition"
       onMouseDown={onMouseDown}
     >
-      <div
-        className="h-[2px] bg-white"
-        style={{ width: `${barWidth}px` }}
-      />
+      <div className="h-[2px] bg-white" style={{ width: `${barWidth}px` }} />
       <span className="text-white text-xs font-medium drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
         {label}
       </span>

@@ -21,6 +21,7 @@ import {
 } from "@/lib/webgl/labelled-molecule-shaders";
 import { glassPanel } from "@/components/primitives";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
+import { STAGE_RAIL_HEIGHT } from "@/components/stage-rail";
 import { loadCellMeshes, type CellMesh } from "@/lib/webgl/cell-meshes";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 
@@ -35,6 +36,8 @@ interface Props {
   dataset: StandardizedDataset;
   /** Bumped by the page when a lazily-loaded column arrives. */
   clusterVersion?: number;
+  /** Lift the bottom-left chrome clear of the stage rail. */
+  hasStageRail?: boolean;
 }
 
 /** A vertex attribute wide enough for the column's category count. */
@@ -84,6 +87,7 @@ function makeLutTexture(data: Uint8Array, channels: 1 | 4): THREE.DataTexture {
 export default function LabelledMoleculeThreeScene({
   dataset,
   clusterVersion = 0,
+  hasStageRail = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pointsRef = useRef<THREE.Points | null>(null);
@@ -798,6 +802,9 @@ export default function LabelledMoleculeThreeScene({
           Only meaningful once the camera exists. */}
       {!glError && ready && (
         <SpatialScaleBar
+          bottomOffset={
+            hasStageRail ? `${STAGE_RAIL_HEIGHT + 24}px` : undefined
+          }
           cameraRef={cameraRef}
           controlsRef={controlsRef}
           rendererRef={rendererRef}

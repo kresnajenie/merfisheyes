@@ -11,6 +11,7 @@ import { Tooltip } from "@heroui/tooltip";
 import { useEffect, useMemo } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { STAGE_RAIL_HEIGHT } from "@/components/stage-rail";
 import { useSliderRangeLocal } from "@/components/slider-range-popover";
 import { LM_MENUS } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
@@ -37,11 +38,14 @@ const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
 interface Props {
   dataset: StandardizedDataset;
   clusterVersion?: number;
+  /** Lift the molecule count clear of the stage rail. */
+  hasStageRail?: boolean;
 }
 
 export default function LabelledMoleculeControls({
   dataset,
   clusterVersion = 0,
+  hasStageRail = false,
 }: Props) {
   const s = useLabelledMoleculeVisualizationStore();
   // Right-click the size slider to widen its range past the default.
@@ -351,8 +355,9 @@ export default function LabelledMoleculeControls({
       {/* How many molecules survive the intersection. */}
       <div
         data-ui-overlay
-        className={`absolute bottom-6 left-4 z-[var(--z-legends)] rounded-full px-4 py-2 text-xs ${glassButton()}`}
+        className={`absolute left-4 z-[var(--z-legends)] rounded-full px-4 py-2 text-xs ${glassButton()}`}
         data-testid="lm-visible-count"
+        style={{ bottom: hasStageRail ? STAGE_RAIL_HEIGHT + 16 : 24 }}
       >
         <span className="font-medium">
           {visible === null ? "…" : visible.toLocaleString()}

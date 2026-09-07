@@ -163,10 +163,12 @@ function LabelledMoleculeViewer() {
       <LabelledMoleculeThreeScene
         clusterVersion={clusterVersion}
         dataset={dataset}
+        hasStageRail={!!projectId}
       />
       <LabelledMoleculeControls
         clusterVersion={clusterVersion}
         dataset={dataset}
+        hasStageRail={!!projectId}
       />
       <LabelledMoleculeLegends
         clusterVersion={clusterVersion}
