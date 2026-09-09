@@ -121,6 +121,16 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
         // saved defaults and everyone else gets the claim banner. Best effort —
         // an unregistered dataset still opens.
         let config: ViewerConfig | null = null;
+        // The registration store is a page-level global — dbId, owner, claim
+        // banner. A split panel still wants the saved camera below, but must
+        // not overwrite the left panel's identity in it.
+        const register = (
+          patch: Parameters<
+            ReturnType<typeof useViewerRegistrationStore.getState>["set"]
+          >[0],
+        ) => {
+          if (!embedded) useViewerRegistrationStore.getState().set(patch);
+        };
 
         try {
           const res = await fetch(
@@ -132,7 +142,7 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
 
             config = (j?.viewerConfig as ViewerConfig | null) ?? null;
             setProjectId((j?.projectId as string | null) ?? null);
-            useViewerRegistrationStore.getState().set({
+            register({
               dbId: j?.id ?? null,
               ownerId: j?.ownerId ?? null,
               adminOwned: !!j?.adminOwned,
@@ -141,14 +151,10 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
               s3Url: url,
             });
           } else {
-            useViewerRegistrationStore
-              .getState()
-              .set({ registered: false, s3Url: url });
+            register({ registered: false, s3Url: url });
           }
         } catch {
-          useViewerRegistrationStore
-            .getState()
-            .set({ registered: false, s3Url: url });
+          register({ registered: false, s3Url: url });
         }
 
         // Apply the owner's saved camera unless the link already carries one —
@@ -163,7 +169,7 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
         setSwapping(false);
       }
     },
-    [api],
+    [api, embedded],
   );
 
   useEffect(() => {
@@ -266,7 +272,7 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
         clusterVersion={clusterVersion}
         dataset={dataset}
       />
-      {!embedded && <LabelledMoleculeTopControls />}
+      <LabelledMoleculeTopControls embedded={embedded} />
       {!embedded && <ClaimDatasetBanner />}
       {swapping && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[var(--z-chrome)] flex justify-center p-3">

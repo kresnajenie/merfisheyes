@@ -25,7 +25,17 @@ const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
  * rotation or flip support yet, so only the controls that actually do
  * something are offered.
  */
-export default function LabelledMoleculeTopControls() {
+interface Props {
+  /**
+   * Rendered inside a split panel. Hide-UI and Share act on the whole page,
+   * so only one panel offers them; and `useViewerRegistrationStore` is a
+   * global that the left panel owns, so a right panel must not offer to save
+   * defaults against it.
+   */
+  embedded?: boolean;
+}
+
+export default function LabelledMoleculeTopControls({ embedded }: Props) {
   const {
     resetView,
     camera,
@@ -54,7 +64,9 @@ export default function LabelledMoleculeTopControls() {
   const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
   // Same gate the single-cell camera panel uses.
   const canSave =
-    !!dbId && ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
+    !embedded &&
+    !!dbId &&
+    ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
 
   const saveDefaults = async () => {
     if (!dbId) return;
@@ -97,7 +109,10 @@ export default function LabelledMoleculeTopControls() {
   return (
     <div
       data-ui-overlay
-      className="absolute top-4 right-4 z-[var(--z-rail)] flex flex-row gap-2"
+      className={`absolute top-4 z-[var(--z-rail)] flex flex-row gap-2 ${
+        // Clear of the split panel's own close button.
+        embedded ? "right-16" : "right-4"
+      }`}
     >
       <Tooltip content="Camera controls" placement="bottom">
         <Button
@@ -127,51 +142,55 @@ export default function LabelledMoleculeTopControls() {
         </Button>
       </Tooltip>
 
-      <Tooltip content="Hide UI for screenshot (H)" placement="bottom">
-        <Button
-          className={`${buttonBaseClass} ${glassButton()}`}
-          color="default"
-          variant="light"
-          onPress={() => setHideUi(true)}
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            viewBox="0 0 24 24"
+      {!embedded && (
+        <Tooltip content="Hide UI for screenshot (H)" placement="bottom">
+          <Button
+            className={`${buttonBaseClass} ${glassButton()}`}
+            color="default"
+            variant="light"
+            onPress={() => setHideUi(true)}
           >
-            <path
-              d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </Button>
-      </Tooltip>
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Button>
+        </Tooltip>
+      )}
 
-      <Tooltip content="Copy link to this view" placement="bottom">
-        <Button
-          className={`${buttonBaseClass} ${glassButton()}`}
-          color="default"
-          variant="light"
-          onPress={handleShare}
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            viewBox="0 0 24 24"
+      {!embedded && (
+        <Tooltip content="Copy link to this view" placement="bottom">
+          <Button
+            className={`${buttonBaseClass} ${glassButton()}`}
+            color="default"
+            variant="light"
+            onPress={handleShare}
           >
-            <path
-              d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </Button>
-      </Tooltip>
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Button>
+        </Tooltip>
+      )}
 
       {isCameraOpen && (
         <div className={`absolute top-16 right-0 w-[240px] ${glassPanel()}`}>
