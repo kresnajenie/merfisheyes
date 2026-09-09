@@ -8,9 +8,9 @@ import * as THREE from "three";
 
 import { resolveValueColor } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 import {
-  labelledMoleculeVisualizationStore,
-  useLabelledMoleculeVisualizationStore,
-} from "@/lib/stores/labelledMoleculeVisualizationStore";
+  usePanelLabelledMoleculeApi,
+  usePanelLabelledMoleculeVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
 import {
   buildPaletteLut,
   buildSelectionLut,
@@ -147,7 +147,10 @@ export default function LabelledMoleculeThreeScene({
     colorOverrides: colorOverridesAll,
     resetViewNonce,
     pendingCamera,
-  } = useLabelledMoleculeVisualizationStore();
+  } = usePanelLabelledMoleculeVisualizationStore();
+  // Vanilla handle for the event handlers and the frame loop, which read and
+  // write without wanting a re-render. Stable per panel.
+  const api = usePanelLabelledMoleculeApi();
 
   /** The column backing each menu, resolved through the domain variant. */
   const columnFor = useMemo(
@@ -363,7 +366,7 @@ export default function LabelledMoleculeThreeScene({
     /** Does this molecule pass every menu (i.e. is it drawn "selected")? */
     const passesFilter = (i: number) => {
       const { selections: sel, hiddenValues: hid } =
-        labelledMoleculeVisualizationStore.getState();
+        api.getState();
 
       for (const menu of ["gene", "domain", "cell"] as LmMenu[]) {
         const col = columns[menu]!;
@@ -390,7 +393,7 @@ export default function LabelledMoleculeThreeScene({
     const isPickable = () => true;
 
     const describe = (i: number) => {
-      const st = labelledMoleculeVisualizationStore.getState();
+      const st = api.getState();
 
       return (["gene", "domain", "cell"] as LmMenu[]).map((menu) => {
         const col = columns[menu]!;
@@ -543,7 +546,7 @@ export default function LabelledMoleculeThreeScene({
       const i = pickAt(event);
 
       if (i == null) return;
-      const st = labelledMoleculeVisualizationStore.getState();
+      const st = api.getState();
       const menu = st.colorBy;
       const col = columns[menu]!;
 
@@ -558,7 +561,7 @@ export default function LabelledMoleculeThreeScene({
 
       if (now - lastPublish < 250) return;
       lastPublish = now;
-      labelledMoleculeVisualizationStore.getState().setCamera({
+      api.getState().setCamera({
         position: [camera.position.x, camera.position.y, camera.position.z],
         target: [controls.target.x, controls.target.y, controls.target.z],
       });
@@ -572,7 +575,7 @@ export default function LabelledMoleculeThreeScene({
     };
 
     // A pose from the URL or a saved default, waiting for the scene to exist.
-    const queued = labelledMoleculeVisualizationStore.getState().pendingCamera;
+    const queued = api.getState().pendingCamera;
 
     if (queued) applyCameraRef.current(queued);
 
@@ -693,7 +696,7 @@ export default function LabelledMoleculeThreeScene({
     applyCameraRef.current(pendingCamera);
     invalidateRef.current?.();
     // Clear it so a later manual move isn't yanked back.
-    labelledMoleculeVisualizationStore.setState({ pendingCamera: null });
+    api.setState({ pendingCamera: null });
   }, [pendingCamera, materialVersion]);
 
   // ── Cell surfaces. Rebuilt on style change; cheap next to the point cloud

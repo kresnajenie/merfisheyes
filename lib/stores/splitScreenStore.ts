@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type PanelType = "cell" | "sm";
+export type PanelType = "cell" | "sm" | "lm";
 
 interface SplitScreenState {
   isSplitMode: boolean;

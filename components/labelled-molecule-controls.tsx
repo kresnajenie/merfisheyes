@@ -14,7 +14,7 @@ import { glassButton, glassPanel } from "@/components/primitives";
 import { STAGE_RAIL_HEIGHT } from "@/components/stage-rail";
 import { useSliderRangeLocal } from "@/components/slider-range-popover";
 import { LM_MENUS } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
-import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
+import { usePanelLabelledMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 import {
   buildSelectionLut,
   countVisible,
@@ -58,7 +58,7 @@ export default function LabelledMoleculeControls({
   clusterVersion = 0,
   hasStageRail = false,
 }: Props) {
-  const s = useLabelledMoleculeVisualizationStore();
+  const s = usePanelLabelledMoleculeVisualizationStore();
   // Right-click the size slider to widen its range past the default.
   const sizeRange = useSliderRangeLocal(0.1, 2, s.globalScale);
 

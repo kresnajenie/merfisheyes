@@ -157,6 +157,10 @@ const initialState = () => ({
   } | null,
 });
 
+export type LabelledMoleculeVisualizationStore = ReturnType<
+  typeof createLabelledMoleculeVisualizationStoreInstance
+>;
+
 export function createLabelledMoleculeVisualizationStoreInstance() {
   return createStore<LabelledMoleculeVisualizationState>((set) => ({
     ...initialState(),

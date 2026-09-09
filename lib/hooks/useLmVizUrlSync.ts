@@ -1,10 +1,12 @@
 "use client";
 
-import type { LabelledMoleculeVisualizationState } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
+import type {
+  LabelledMoleculeVisualizationState,
+  LabelledMoleculeVisualizationStore,
+} from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 
 import { useEffect, useRef } from "react";
 
-import { labelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
 import {
   decodeLmVizState,
   encodeLmVizState,
@@ -25,6 +27,8 @@ import {
 export function useLmVizUrlSync(
   datasetReady: boolean,
   store: LabelledMoleculeVisualizationState,
+  api: LabelledMoleculeVisualizationStore,
+  panel: "left" | "right" = "left",
 ) {
   const appliedRef = useRef(false);
 
@@ -33,7 +37,7 @@ export function useLmVizUrlSync(
     if (!datasetReady || appliedRef.current) return;
     appliedRef.current = true;
 
-    const encoded = readUrlVizState().left;
+    const encoded = readUrlVizState()[panel];
 
     if (!encoded) return;
 
@@ -65,8 +69,8 @@ export function useLmVizUrlSync(
     // Restore the exact palette slots so shared links keep their colours.
     if (d.g) patch.geneColorSlots = new Map(d.g);
 
-    labelledMoleculeVisualizationStore.getState().applyUrlState(patch);
-  }, [datasetReady]);
+    api.getState().applyUrlState(patch);
+  }, [datasetReady, api, panel]);
 
   // ── Write: mirror state into the URL.
   const {
@@ -83,7 +87,7 @@ export function useLmVizUrlSync(
     if (!datasetReady) return;
 
     scheduleUrlUpdate(
-      "left",
+      panel,
       encodeLmVizState({
         colorBy,
         selections,
@@ -95,6 +99,7 @@ export function useLmVizUrlSync(
       }),
     );
   }, [
+    panel,
     datasetReady,
     colorBy,
     selections,

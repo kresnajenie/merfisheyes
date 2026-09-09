@@ -13,6 +13,7 @@ import UMAPPanel from "./umap-panel";
 import { SingleMoleculeThreeScene } from "./single-molecule-three-scene";
 import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
+import LabelledMoleculeViewerPage from "./labelled-molecule-viewer";
 
 import { useCellVizUrlSync, useSMVizUrlSync } from "@/lib/hooks/useUrlVizSync";
 import {
@@ -44,6 +45,13 @@ export function SplitPanelViewer({
 }: SplitPanelViewerProps) {
   if (type === "cell") {
     return <CellViewer datasetId={datasetId} s3Url={s3Url} />;
+  }
+
+  if (type === "lm") {
+    // The LM viewer already owns its loader, and inside a PanelProvider its
+    // hooks resolve to this panel's stores, so it needs no separate copy —
+    // only the URL to load and the flag that strips the page-level chrome.
+    return s3Url ? <LabelledMoleculeViewerPage embedded s3Url={s3Url} /> : null;
   }
 
   return <SingleMoleculeViewer datasetId={datasetId} s3Url={s3Url} />;

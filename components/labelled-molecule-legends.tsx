@@ -20,7 +20,7 @@ import {
   LM_MENUS,
   resolveValueColor,
 } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
-import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
+import { usePanelLabelledMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 
 const MENU_LABEL: Record<LmMenu, string> = {
   gene: "Gene",
@@ -42,7 +42,7 @@ export default function LabelledMoleculeLegends({
   dataset,
   clusterVersion = 0,
 }: Props) {
-  const s = useLabelledMoleculeVisualizationStore();
+  const s = usePanelLabelledMoleculeVisualizationStore();
   const [openPicker, setOpenPicker] = useState<string | null>(null);
 
   const palettes = useMemo(() => {

@@ -10,7 +10,7 @@ import { useState } from "react";
 import { toast } from "react-toastify";
 
 import { glassButton, glassPanel } from "@/components/primitives";
-import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
+import { usePanelLabelledMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 
@@ -39,7 +39,7 @@ export default function LabelledMoleculeTopControls() {
     setMeshMode,
     meshOpacity,
     setMeshOpacity,
-  } = useLabelledMoleculeVisualizationStore();
+  } = usePanelLabelledMoleculeVisualizationStore();
   const setHideUi = useSplitScreenStore((s) => s.setHideUi);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [saving, setSaving] = useState(false);

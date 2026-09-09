@@ -15,17 +15,33 @@ import { subtitle } from "@/components/primitives";
 import LabelledMoleculeThreeScene from "@/components/labelled-molecule-three-scene";
 import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { useLmVizUrlSync } from "@/lib/hooks/useLmVizUrlSync";
-import { labelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
-import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
+import {
+  usePanelId,
+  usePanelLabelledMoleculeApi,
+  usePanelLabelledMoleculeVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
+import { setLmDataset } from "@/lib/stores/lmDatasetRegistry";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 
 /** Columns the three menus need before the scene can draw. */
 const REQUIRED_COLUMNS = ["gene", "domain", "cell"];
 
-function LabelledMoleculeViewer() {
+interface Props {
+  /**
+   * Dataset to show. Omitted for the standalone page, which reads `?url=`;
+   * supplied by a split panel, which has its own dataset and must not follow
+   * the query string the left panel owns.
+   */
+  s3Url?: string;
+  /** In a split panel: no stage rail, no top controls, no claim banner. */
+  embedded?: boolean;
+}
+
+function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
   const searchParams = useSearchParams();
-  const baseUrl = searchParams.get("url");
+  const baseUrl = s3Url ?? searchParams.get("url");
 
   // The dataset actually being shown. Seeded from `?url=`, then swapped in
   // place by the stage rail — `useSearchParams` deliberately does not drive
@@ -44,12 +60,26 @@ function LabelledMoleculeViewer() {
   const loadedFor = useRef<string | null>(null);
 
   // Restores a shared link once the columns exist, then mirrors state into `v=`.
-  const vizStore = useLabelledMoleculeVisualizationStore();
+  const vizStore = usePanelLabelledMoleculeVisualizationStore();
+  const api = usePanelLabelledMoleculeApi();
+  const panelId = usePanelId();
 
-  useLmVizUrlSync(!!dataset, vizStore);
+  useLmVizUrlSync(!!dataset, vizStore, api, embedded ? "right" : "left");
+
+  // So the other panel's selection sync can intersect against this dataset's
+  // own vocabulary — see useSyncLabelledMoleculeVisualization.
+  useEffect(() => {
+    setLmDataset(panelId, dataset);
+  }, [panelId, dataset]);
+
+  // A split panel is driven by its prop, not by history.
+  useEffect(() => {
+    if (s3Url) setActiveUrl(s3Url);
+  }, [s3Url]);
 
   // Back/forward across swapped datasets.
   useEffect(() => {
+    if (embedded) return;
     const onPop = () => {
       const u = new URLSearchParams(window.location.search).get("url");
 
@@ -59,77 +89,82 @@ function LabelledMoleculeViewer() {
     window.addEventListener("popstate", onPop);
 
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [embedded]);
 
-  const load = useCallback(async (url: string) => {
-    try {
-      setError(null);
-      // Colour defaults to cell, so ask for that column up front rather than
-      // letting the generic heuristic pick `gene`.
-      const ds = await StandardizedDataset.fromCustomS3(
-        url,
-        (p, m) => {
-          setProgress(p);
-          setMessage(m);
-        },
-        "cell",
-      );
-
-      setMessage("Loading label columns…");
-      // Concurrently: each is its own worker round trip, and serialising them
-      // added two avoidable trips to every load.
-      await Promise.all(REQUIRED_COLUMNS.map((c) => loadClusterColumn(ds, c)));
-
-      setDataset(ds);
-      setClusterVersion((v) => v + 1);
-      setSwapping(false);
-
-      // Ownership: look the dataset up by its S3 URL so an owner sees their
-      // saved defaults and everyone else gets the claim banner. Best effort —
-      // an unregistered dataset still opens.
-      let config: ViewerConfig | null = null;
-
+  const load = useCallback(
+    async (url: string) => {
       try {
-        const res = await fetch(
-          `/api/datasets/by-url?url=${encodeURIComponent(url)}`,
+        setError(null);
+        // Colour defaults to cell, so ask for that column up front rather than
+        // letting the generic heuristic pick `gene`.
+        const ds = await StandardizedDataset.fromCustomS3(
+          url,
+          (p, m) => {
+            setProgress(p);
+            setMessage(m);
+          },
+          "cell",
         );
 
-        if (res.ok) {
-          const j = await res.json();
+        setMessage("Loading label columns…");
+        // Concurrently: each is its own worker round trip, and serialising them
+        // added two avoidable trips to every load.
+        await Promise.all(
+          REQUIRED_COLUMNS.map((c) => loadClusterColumn(ds, c)),
+        );
 
-          config = (j?.viewerConfig as ViewerConfig | null) ?? null;
-          setProjectId((j?.projectId as string | null) ?? null);
-          useViewerRegistrationStore.getState().set({
-            dbId: j?.id ?? null,
-            ownerId: j?.ownerId ?? null,
-            adminOwned: !!j?.adminOwned,
-            registered: !!j?.id,
-            viewerConfig: config,
-            s3Url: url,
-          });
-        } else {
+        setDataset(ds);
+        setClusterVersion((v) => v + 1);
+        setSwapping(false);
+
+        // Ownership: look the dataset up by its S3 URL so an owner sees their
+        // saved defaults and everyone else gets the claim banner. Best effort —
+        // an unregistered dataset still opens.
+        let config: ViewerConfig | null = null;
+
+        try {
+          const res = await fetch(
+            `/api/datasets/by-url?url=${encodeURIComponent(url)}`,
+          );
+
+          if (res.ok) {
+            const j = await res.json();
+
+            config = (j?.viewerConfig as ViewerConfig | null) ?? null;
+            setProjectId((j?.projectId as string | null) ?? null);
+            useViewerRegistrationStore.getState().set({
+              dbId: j?.id ?? null,
+              ownerId: j?.ownerId ?? null,
+              adminOwned: !!j?.adminOwned,
+              registered: !!j?.id,
+              viewerConfig: config,
+              s3Url: url,
+            });
+          } else {
+            useViewerRegistrationStore
+              .getState()
+              .set({ registered: false, s3Url: url });
+          }
+        } catch {
           useViewerRegistrationStore
             .getState()
             .set({ registered: false, s3Url: url });
         }
-      } catch {
-        useViewerRegistrationStore
-          .getState()
-          .set({ registered: false, s3Url: url });
-      }
 
-      // Apply the owner's saved camera unless the link already carries one —
-      // an explicit shared view beats the dataset default.
-      const st = labelledMoleculeVisualizationStore.getState();
+        // Apply the owner's saved camera unless the link already carries one —
+        // an explicit shared view beats the dataset default.
+        const st = api.getState();
 
-      if (config?.camera && !st.pendingCamera && !st.camera) {
-        st.applyCamera(config.camera);
+        if (config?.camera && !st.pendingCamera && !st.camera) {
+          st.applyCamera(config.camera);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setSwapping(false);
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setSwapping(false);
-    }
-  }, []);
+    },
+    [api],
+  );
 
   useEffect(() => {
     if (!activeUrl || loadedFor.current === activeUrl) return;
@@ -153,7 +188,7 @@ function LabelledMoleculeViewer() {
     (d: ProjectDatasetSummary) => {
       if (d.s3BaseUrl === activeUrl) return;
 
-      labelledMoleculeVisualizationStore.getState().reset();
+      api.getState().reset();
 
       const next = new URL(window.location.href);
 
@@ -164,7 +199,7 @@ function LabelledMoleculeViewer() {
 
       setActiveUrl(d.s3BaseUrl);
     },
-    [activeUrl],
+    [activeUrl, api],
   );
 
   if (!baseUrl) {
@@ -231,8 +266,8 @@ function LabelledMoleculeViewer() {
         clusterVersion={clusterVersion}
         dataset={dataset}
       />
-      <LabelledMoleculeTopControls />
-      <ClaimDatasetBanner />
+      {!embedded && <LabelledMoleculeTopControls />}
+      {!embedded && <ClaimDatasetBanner />}
       {swapping && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[var(--z-chrome)] flex justify-center p-3">
           <div className="flex w-72 flex-col gap-1 rounded-xl bg-black/70 px-4 py-3 backdrop-blur">
@@ -249,17 +284,18 @@ function LabelledMoleculeViewer() {
           </div>
         </div>
       )}
-      {projectId && (
+      {projectId && !embedded && (
         <StageRail
           currentUrl={activeUrl}
           projectId={projectId}
           onOpen={switchDataset}
           onSplit={(d: ProjectDatasetSummary) => {
-            const url = new URL(window.location.href);
+            // In place, like opening one: the right panel gets its own stores
+            // and loads straight into them.
+            const split = useSplitScreenStore.getState();
 
-            url.searchParams.set("splitS3Url", d.s3BaseUrl);
-            url.searchParams.set("splitType", "lm");
-            window.location.href = url.toString();
+            split.setRightPanelS3(d.s3BaseUrl, "lm");
+            split.enableSplit();
           }}
         />
       )}
@@ -267,14 +303,14 @@ function LabelledMoleculeViewer() {
   );
 }
 
-export default function LabelledMoleculeViewerPage() {
+export default function LabelledMoleculeViewerPage(props: Props) {
   return (
     <Suspense
       fallback={
         <div className="flex h-screen items-center justify-center bg-black" />
       }
     >
-      <LabelledMoleculeViewer />
+      <LabelledMoleculeViewer {...props} />
     </Suspense>
   );
 }
