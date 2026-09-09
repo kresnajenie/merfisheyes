@@ -199,54 +199,101 @@ export default function StageRail({
       scenes.set(url, { scene, camera, points });
     }
 
+    const strip = stripRef.current;
+
+    if (!strip) return;
+
+    // Tile rectangles are measured once and reused. Reading them every frame
+    // meant a forced layout flush per tile per frame — the strip's real cost,
+    // since nothing about its geometry changes except on scroll or resize.
+    /** Last CSS size the drawing buffer was sized for. */
+    const sized = { w: 0, h: 0 };
+    let layoutDirty = true;
+    let layout: {
+      url: string;
+      stage: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }[] = [];
+
+    const measure = () => {
+      const sr = strip.getBoundingClientRect();
+
+      if (sized.w !== sr.width || sized.h !== sr.height) {
+        sized.w = sr.width;
+        sized.h = sr.height;
+        renderer.setSize(sr.width, sr.height, false);
+      }
+
+      layout = [];
+      for (const s of stages) {
+        const el = tileRefs.current.get(s.stage);
+
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+
+        // Cull tiles scrolled out of the strip.
+        if (r.right < sr.left || r.left > sr.right) continue;
+        layout.push({
+          url: s.rep.s3BaseUrl,
+          stage: s.stage,
+          x: r.left - sr.left,
+          y: sr.bottom - r.bottom, // WebGL origin is bottom-left
+          w: r.width,
+          h: r.height,
+        });
+      }
+      layoutDirty = false;
+    };
+
+    const markDirty = () => {
+      layoutDirty = true;
+    };
+
+    strip.addEventListener("scroll", markDirty, { passive: true });
+    window.addEventListener("resize", markDirty);
+
+    const ro = new ResizeObserver(markDirty);
+
+    ro.observe(strip);
+
+    // 30fps: the spin is slow enough that the extra 30 frames buy nothing, and
+    // this halves what the rail takes from the main scene.
+    const FRAME_MS = 1000 / 30;
     let raf = 0;
     let last = performance.now();
-    const sized = { w: 0, h: 0 };
 
     const frame = () => {
       raf = requestAnimationFrame(frame);
-      const strip = stripRef.current;
 
-      if (!strip) return;
       const now = performance.now();
-      const dt = (now - last) / 1000;
+
+      if (now - last < FRAME_MS) return;
+      // Clamped: a backgrounded tab resumes with a huge gap and would snap
+      // every tile to a new angle.
+      const dt = Math.min((now - last) / 1000, 0.1);
 
       last = now;
 
-      const stripRect = strip.getBoundingClientRect();
-
-      // Compare against the last CSS size, not canvas.width: that is scaled by
-      // the pixel ratio, so on a HiDPI display it never matches and the drawing
-      // buffer was being reallocated every frame.
-      if (sized.w !== stripRect.width || sized.h !== stripRect.height) {
-        sized.w = stripRect.width;
-        sized.h = stripRect.height;
-        renderer.setSize(stripRect.width, stripRect.height, false);
-      }
+      if (layoutDirty) measure();
 
       renderer.setClearColor(0x000000, 0);
       renderer.clear();
 
-      for (const s of stages) {
-        const entry = scenes.get(s.rep.s3BaseUrl);
-        const el = tileRefs.current.get(s.stage);
+      for (const t of layout) {
+        const entry = scenes.get(t.url);
 
-        if (!entry || !el) continue;
-        const r = el.getBoundingClientRect();
-
-        // Cull tiles scrolled out of the strip.
-        if (r.right < stripRect.left || r.left > stripRect.right) continue;
+        if (!entry) continue;
 
         // Slow spin so the preview reads as 3D; paused on the open tile so a
         // still look is possible.
-        if (holdRef.current !== s.stage) entry.points.rotation.y += dt * 0.35;
+        if (holdRef.current !== t.stage) entry.points.rotation.y += dt * 0.35;
 
-        const x = r.left - stripRect.left;
-        const y = stripRect.bottom - r.bottom; // WebGL origin is bottom-left
-
-        renderer.setViewport(x, y, r.width, r.height);
-        renderer.setScissor(x, y, r.width, r.height);
-        entry.camera.aspect = r.width / r.height;
+        renderer.setViewport(t.x, t.y, t.w, t.h);
+        renderer.setScissor(t.x, t.y, t.w, t.h);
+        entry.camera.aspect = t.w / t.h;
         entry.camera.updateProjectionMatrix();
         renderer.render(entry.scene, entry.camera);
       }
@@ -256,6 +303,9 @@ export default function StageRail({
 
     return () => {
       cancelAnimationFrame(raf);
+      strip.removeEventListener("scroll", markDirty);
+      window.removeEventListener("resize", markDirty);
+      ro.disconnect();
       for (const { scene, points } of scenes.values()) {
         points.geometry.dispose();
         (points.material as THREE.Material).dispose();

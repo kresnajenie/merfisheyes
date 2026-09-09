@@ -99,6 +99,8 @@ export default function LabelledMoleculeThreeScene({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsTargetRef = useRef<THREE.Vector3 | null>(null);
+  /** Ask the scene for one more frame; see `idleFps` in initializeScene. */
+  const invalidateRef = useRef<(() => void) | null>(null);
   // SpatialScaleBar needs the controls object itself, not just its target.
   const controlsRef = useRef<any | null>(null);
   const meshGroupRef = useRef<THREE.Group | null>(null);
@@ -210,7 +212,11 @@ export default function LabelledMoleculeThreeScene({
 
     try {
       // Always 3D: these are volumetric embryos, a flat view hides the z axis.
-      setup = initializeScene(container, { is2D: false });
+      // Draw on demand. 3.1M molecules redrawn every frame is most of the
+      // GPU budget spent reproducing an identical image whenever the camera is
+      // still; every mutation here is a discrete effect, and the hover tooltip
+      // is DOM, so nothing needs a per-frame redraw.
+      setup = initializeScene(container, { is2D: false, idleFps: 8 });
     } catch (e) {
       setGlError(e instanceof Error ? e.message : String(e));
 
@@ -339,6 +345,7 @@ export default function LabelledMoleculeThreeScene({
 
     cameraRef.current = camera;
     rendererRef.current = setup.renderer;
+    invalidateRef.current = setup.invalidate;
     controlsRef.current = controls;
     controlsTargetRef.current = controls.target;
     // Captured so the reset-view effect can re-frame without rebuilding.
@@ -630,6 +637,7 @@ export default function LabelledMoleculeThreeScene({
       material.uniforms[uniforms[i]].value?.dispose?.();
       material.uniforms[uniforms[i]].value = tex;
     });
+    invalidateRef.current?.();
   }, [columns, selections, hiddenValues, ready, materialVersion]);
 
   // ── Palette LUT for the colouring column.
@@ -657,6 +665,7 @@ export default function LabelledMoleculeThreeScene({
     material.uniforms.uNColorBy.value = col.uniqueValues.length;
     material.uniforms.uColorBy.value =
       colorBy === "gene" ? 0 : colorBy === "domain" ? 1 : 2;
+    invalidateRef.current?.();
   }, [
     columns,
     colorBy,
@@ -675,12 +684,14 @@ export default function LabelledMoleculeThreeScene({
     material.uniforms.uGlobalSize.value = globalScale;
     material.uniforms.uSelectedSize.value = selectedScale;
     material.uniforms.uUnselectedSize.value = unselectedScale;
+    invalidateRef.current?.();
   }, [globalScale, selectedScale, unselectedScale, materialVersion]);
 
   // ── Adopt an inbound camera pose (shared link or saved default).
   useEffect(() => {
     if (!pendingCamera || !applyCameraRef.current) return;
     applyCameraRef.current(pendingCamera);
+    invalidateRef.current?.();
     // Clear it so a later manual move isn't yanked back.
     labelledMoleculeVisualizationStore.setState({ pendingCamera: null });
   }, [pendingCamera, materialVersion]);
@@ -747,6 +758,7 @@ export default function LabelledMoleculeThreeScene({
     scene.add(group);
     meshGroupRef.current = group;
     group.visible = showMeshes;
+    invalidateRef.current?.();
 
     return () => {
       scene.remove(group);
