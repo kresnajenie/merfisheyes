@@ -27,7 +27,14 @@ function LabelledMoleculeViewer() {
   const searchParams = useSearchParams();
   const baseUrl = searchParams.get("url");
 
+  // The dataset actually being shown. Seeded from `?url=`, then swapped in
+  // place by the stage rail — `useSearchParams` deliberately does not drive
+  // this, because the viz-state writer rewrites the query string constantly
+  // and a swap must not be triggered by one of those writes.
+  const [activeUrl, setActiveUrl] = useState<string | null>(baseUrl);
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
+  /** True while a second dataset loads over an already-drawn one. */
+  const [swapping, setSwapping] = useState(false);
   const [clusterVersion, setClusterVersion] = useState(0);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Loading…");
@@ -40,6 +47,19 @@ function LabelledMoleculeViewer() {
   const vizStore = useLabelledMoleculeVisualizationStore();
 
   useLmVizUrlSync(!!dataset, vizStore);
+
+  // Back/forward across swapped datasets.
+  useEffect(() => {
+    const onPop = () => {
+      const u = new URLSearchParams(window.location.search).get("url");
+
+      if (u) setActiveUrl(u);
+    };
+
+    window.addEventListener("popstate", onPop);
+
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const load = useCallback(async (url: string) => {
     try {
@@ -62,6 +82,7 @@ function LabelledMoleculeViewer() {
 
       setDataset(ds);
       setClusterVersion((v) => v + 1);
+      setSwapping(false);
 
       // Ownership: look the dataset up by its S3 URL so an owner sees their
       // saved defaults and everyone else gets the claim banner. Best effort —
@@ -106,14 +127,45 @@ function LabelledMoleculeViewer() {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      setSwapping(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!baseUrl || loadedFor.current === baseUrl) return;
-    loadedFor.current = baseUrl;
-    load(baseUrl);
-  }, [baseUrl, load]);
+    if (!activeUrl || loadedFor.current === activeUrl) return;
+    // A second load keeps the outgoing scene on screen behind a progress
+    // overlay; only the first shows a bare spinner.
+    if (loadedFor.current !== null) setSwapping(true);
+    loadedFor.current = activeUrl;
+    setProgress(0);
+    setMessage("Loading…");
+    load(activeUrl);
+  }, [activeUrl, load]);
+
+  /**
+   * Open another embryo without a navigation.
+   *
+   * Nothing carries over. Cell and domain names are disjoint across stages —
+   * no value of either column appears in all 45 datasets — so a kept selection
+   * would mostly name values the incoming embryo has not got.
+   */
+  const switchDataset = useCallback(
+    (d: ProjectDatasetSummary) => {
+      if (d.s3BaseUrl === activeUrl) return;
+
+      labelledMoleculeVisualizationStore.getState().reset();
+
+      const next = new URL(window.location.href);
+
+      next.searchParams.set("url", d.s3BaseUrl);
+      // `v=` encodes selections of the outgoing embryo.
+      next.searchParams.delete("v");
+      window.history.pushState(null, "", next.toString());
+
+      setActiveUrl(d.s3BaseUrl);
+    },
+    [activeUrl],
+  );
 
   if (!baseUrl) {
     return (
@@ -160,31 +212,48 @@ function LabelledMoleculeViewer() {
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
+      {/* Keyed on the dataset: a swap tears the WebGL scene and every panel's
+          local state down rather than relying on each effect to notice. */}
       <LabelledMoleculeThreeScene
+        key={activeUrl}
         clusterVersion={clusterVersion}
         dataset={dataset}
         hasStageRail={!!projectId}
       />
       <LabelledMoleculeControls
+        key={`c-${activeUrl}`}
         clusterVersion={clusterVersion}
         dataset={dataset}
         hasStageRail={!!projectId}
       />
       <LabelledMoleculeLegends
+        key={`l-${activeUrl}`}
         clusterVersion={clusterVersion}
         dataset={dataset}
       />
       <LabelledMoleculeTopControls />
       <ClaimDatasetBanner />
+      {swapping && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[var(--z-chrome)] flex justify-center p-3">
+          <div className="flex w-72 flex-col gap-1 rounded-xl bg-black/70 px-4 py-3 backdrop-blur">
+            <Progress
+              aria-label="Loading dataset"
+              color="secondary"
+              size="sm"
+              value={progress}
+            />
+            <div className="flex items-baseline justify-between text-[11px]">
+              <span className="text-default-400">{message}</span>
+              <span className="tabular-nums text-default-500">{progress}%</span>
+            </div>
+          </div>
+        </div>
+      )}
       {projectId && (
         <StageRail
-          currentUrl={baseUrl}
+          currentUrl={activeUrl}
           projectId={projectId}
-          onOpen={(d: ProjectDatasetSummary) => {
-            // Full navigation: each dataset is ~19 MB, so an in-place swap
-            // would need its own teardown path. Kept simple until asked for.
-            window.location.href = `/lm-viewer/from-s3?url=${encodeURIComponent(d.s3BaseUrl)}`;
-          }}
+          onOpen={switchDataset}
           onSplit={(d: ProjectDatasetSummary) => {
             const url = new URL(window.location.href);
 
