@@ -141,7 +141,7 @@ const initialState = () => ({
   geneColorSlots: new Map<string, number>(),
   globalScale: 0.4,
   selectedScale: 1.5,
-  unselectedScale: 0.6,
+  unselectedScale: 0,
   showMeshes: true,
   meshMode: "translucent" as MeshMode,
   meshOpacity: 0.15,
