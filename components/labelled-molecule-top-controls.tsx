@@ -48,8 +48,10 @@ export default function LabelledMoleculeTopControls() {
   const { dbId, ownerId, adminOwned, viewerConfig } =
     useViewerRegistrationStore();
   const userId = (session?.user as { id?: string } | undefined)?.id;
-  const isAdmin = !!(session?.user as { isAdmin?: boolean } | undefined)
-    ?.isAdmin;
+  // The session carries `role`, not `isAdmin` — reading the latter made this
+  // always false, so an admin only ever qualified via the ownerId branch.
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const isAdmin = role === "ADMIN" || role === "SUPER_ADMIN";
   // Same gate the single-cell camera panel uses.
   const canSave =
     !!dbId && ((!!ownerId && ownerId === userId) || (adminOwned && isAdmin));
