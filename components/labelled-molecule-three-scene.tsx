@@ -21,7 +21,10 @@ import {
 } from "@/lib/webgl/labelled-molecule-shaders";
 import { glassPanel } from "@/components/primitives";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
-import { STAGE_RAIL_HEIGHT } from "@/components/stage-rail";
+import {
+  LM_CHIP_H,
+  lmChipBottom,
+} from "@/components/labelled-molecule-controls";
 import { loadCellMeshes, type CellMesh } from "@/lib/webgl/cell-meshes";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 
@@ -802,9 +805,8 @@ export default function LabelledMoleculeThreeScene({
           Only meaningful once the camera exists. */}
       {!glError && ready && (
         <SpatialScaleBar
-          bottomOffset={
-            hasStageRail ? `${STAGE_RAIL_HEIGHT + 24}px` : undefined
-          }
+          // Above the molecule-count chip rather than across it.
+          bottomOffset={`${lmChipBottom(hasStageRail) + LM_CHIP_H + 12}px`}
           cameraRef={cameraRef}
           controlsRef={controlsRef}
           rendererRef={rendererRef}

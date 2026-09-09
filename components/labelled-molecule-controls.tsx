@@ -20,6 +20,17 @@ import {
   countVisible,
 } from "@/lib/webgl/labelled-molecule-lut";
 
+/**
+ * Height of the molecule-count chip: py-2 plus a text-xs line. The scale bar
+ * stacks above it — the two sat 8px apart and drew over each other.
+ */
+export const LM_CHIP_H = 32;
+
+/** Bottom edge of that chip, clearing the stage rail when one is present. */
+export function lmChipBottom(hasStageRail: boolean) {
+  return hasStageRail ? STAGE_RAIL_HEIGHT + 16 : 24;
+}
+
 const MENU_LABEL: Record<LmMenu, string> = {
   gene: "Gene",
   domain: "Domain",
@@ -172,7 +183,7 @@ export default function LabelledMoleculeControls({
     <>
       <div
         data-ui-overlay
-        className="absolute top-28 left-4 z-[var(--z-rail)] flex flex-col gap-2"
+        className="absolute top-48 left-4 z-[var(--z-rail)] flex flex-col gap-2"
       >
         {LM_MENUS.map((menu) => {
           const isOpen = open === menu;
@@ -357,7 +368,7 @@ export default function LabelledMoleculeControls({
         data-ui-overlay
         className={`absolute left-4 z-[var(--z-legends)] rounded-full px-4 py-2 text-xs ${glassButton()}`}
         data-testid="lm-visible-count"
-        style={{ bottom: hasStageRail ? STAGE_RAIL_HEIGHT + 16 : 24 }}
+        style={{ bottom: lmChipBottom(hasStageRail) }}
       >
         <span className="font-medium">
           {visible === null ? "…" : visible.toLocaleString()}
