@@ -21,8 +21,8 @@ const prisma = new PrismaClient();
 
 const S3 = "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/yiqun-spiralia";
 const PROJECT_TITLE = "Spiralia embryo atlas";
-const META = "/home/data/yiqun-spiralia/Sep2026/embryo_metadata_deDup_May12_2026.csv";
-const REPORT = "/home/kjenie/merfisheyes/scripts/spiralia/build_report.csv";
+// Resolved from this file, not the cwd, so it runs from anywhere.
+const REPORT = new URL("./build_report.csv", import.meta.url).pathname;
 
 /** Developmental order; anything unlisted sorts after, alphabetically. */
 const STAGE_ORDER = [
@@ -43,20 +43,23 @@ function csv(path: string): Record<string, string>[] {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
-  const meta = new Map(csv(META).map((r) => [r.embryo, r]));
   const built = csv(REPORT).filter((r) => r.status === "ok");
 
+  // SUPER_ADMIN too: an equality check on "ADMIN" alone fails on a database
+  // whose only administrator holds the higher role.
   const admin = await prisma.user.findFirst({
-    where: { role: "ADMIN" },
-    select: { id: true, email: true },
+    where: { role: { in: ["ADMIN", "SUPER_ADMIN"] } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, email: true, role: true },
   });
 
-  if (!admin) throw new Error("no ADMIN user to own these datasets");
+  if (!admin) throw new Error("no ADMIN or SUPER_ADMIN user to own these datasets");
 
   const rows = built
     .map((r) => {
-      const m = meta.get(r.embryo);
-      const stage = m?.stage ?? "";
+      // build_report.csv records the stage each dataset was built for; it is
+      // the same value the metadata CSV carried and travels with the repo.
+      const stage = r.stage ?? "";
       const rank = STAGE_ORDER.indexOf(stage);
 
       return {
@@ -71,7 +74,20 @@ async function main() {
     })
     .sort((a, b) => a.rank - b.rank || a.embryo.localeCompare(b.embryo));
 
-  console.log(`${rows.length} datasets, owner ${admin.email} (adminOwned)`);
+  const unknown = rows.filter((r) => r.rank === STAGE_ORDER.length);
+
+  if (unknown.length) {
+    console.warn(
+      `warning: ${unknown.length} dataset(s) have a stage not in STAGE_ORDER ` +
+        `and will sort last: ${[...new Set(unknown.map((r) => r.stage))].join(", ")}`,
+    );
+  }
+
+  console.log(
+    `${rows.length} datasets, owner ${admin.email} (${admin.role}, adminOwned)`,
+  );
+  console.log(`database: ${(process.env.DATABASE_URL ?? "").replace(/:[^:@/]*@/, ":***@")}`);
+
   if (dryRun) {
     for (const r of rows.slice(0, 5)) {
       console.log(`  ${r.embryo.padEnd(15)} ${r.stage.padEnd(13)} ${r.molecules.toLocaleString()} molecules`);
