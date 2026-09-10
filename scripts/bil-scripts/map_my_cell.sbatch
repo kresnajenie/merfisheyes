@@ -10,7 +10,7 @@
 #SBATCH --mail-user=ijenie@ucsd.edu,eas001@ucsd.edu
 
 # ── Arguments ────────────────────────────────────────────────
-INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output
+INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output, or a .h5ad file
 OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dip-use/mmc_output
 SPECIES="${3:-mouse}"  # "mouse" (default) or "human"
 REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
@@ -50,10 +50,28 @@ echo ""
 # ── Run ──────────────────────────────────────────────────────
 cd ~/merfisheyes/scripts
 
+# map_my_cell.py is h5ad-only. combine_slices_v3.py's combined_output/ (CSV
+# pair) needs converting first -- same conversion the old pre-refactor
+# map_my_cell.py did internally, now a standalone step since the script no
+# longer reads CSV. Skipped entirely for h5ad input (h5ad-native samples).
+QUERY_H5AD="$INPUT_PATH"
+if [[ "$INPUT_PATH" != *.h5ad ]]; then
+    QUERY_H5AD="${TMPDIR:-/tmp}/combined_query_${SLURM_JOB_ID}.h5ad"
+    trap 'rm -f "$QUERY_H5AD"' EXIT
+    echo "=== Converting combined_output to h5ad for MapMyCells ==="
+    python combined_output_to_h5ad.py "$INPUT_PATH" "$QUERY_H5AD"
+    CONVERT_EXIT=$?
+    if [ "$CONVERT_EXIT" -ne 0 ]; then
+        echo "ERROR: combined_output_to_h5ad.py failed with exit code $CONVERT_EXIT"
+        exit "$CONVERT_EXIT"
+    fi
+    echo ""
+fi
+
 START_TIME=$SECONDS
 
 python map_my_cell.py \
-    "$INPUT_PATH" \
+    "$QUERY_H5AD" \
     "$OUTPUT_BASE" \
     --species "$SPECIES" \
     --n_processors 50 \
@@ -72,3 +90,5 @@ echo "Exit code:  $EXIT_CODE"
 echo "Runtime:    ${MINUTES}m ${SECS}s"
 echo "Finished:   $(date)"
 echo "========================================"
+
+exit "$EXIT_CODE"
