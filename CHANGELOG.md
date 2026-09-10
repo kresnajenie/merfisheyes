@@ -10,6 +10,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.5.1] - 2026-09-10
+
+### Added
+
+- **`spiralia.merfisheyes.com`** lands on one spiralia embryo with a set
+  camera. Only the root is redirected, so every other route still resolves on
+  that host — which is what lets the viewer's in-place dataset switching keep
+  working once you are there.
+
 ## [0.5.0] - 2026-09-10
 
 A new dataset type for MERFISH data where every molecule carries labels as
@@ -250,7 +259,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.3.0...v0.4.0
