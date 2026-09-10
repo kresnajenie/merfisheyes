@@ -8,9 +8,9 @@ import * as THREE from "three";
 
 import { resolveValueColor } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 import {
-  labelledMoleculeVisualizationStore,
-  useLabelledMoleculeVisualizationStore,
-} from "@/lib/stores/labelledMoleculeVisualizationStore";
+  usePanelLabelledMoleculeApi,
+  usePanelLabelledMoleculeVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
 import {
   buildPaletteLut,
   buildSelectionLut,
@@ -20,6 +20,12 @@ import {
   labelledMoleculeVertexShader,
 } from "@/lib/webgl/labelled-molecule-shaders";
 import { glassPanel } from "@/components/primitives";
+import { SpatialScaleBar } from "@/components/spatial-scale-bar";
+import {
+  LM_CHIP_H,
+  lmChipBottom,
+} from "@/components/labelled-molecule-controls";
+import { loadCellMeshes, type CellMesh } from "@/lib/webgl/cell-meshes";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 
 interface ColumnData {
@@ -33,6 +39,8 @@ interface Props {
   dataset: StandardizedDataset;
   /** Bumped by the page when a lazily-loaded column arrives. */
   clusterVersion?: number;
+  /** Lift the bottom-left chrome clear of the stage rail. */
+  hasStageRail?: boolean;
 }
 
 /** A vertex attribute wide enough for the column's category count. */
@@ -82,6 +90,7 @@ function makeLutTexture(data: Uint8Array, channels: 1 | 4): THREE.DataTexture {
 export default function LabelledMoleculeThreeScene({
   dataset,
   clusterVersion = 0,
+  hasStageRail = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pointsRef = useRef<THREE.Points | null>(null);
@@ -90,6 +99,12 @@ export default function LabelledMoleculeThreeScene({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsTargetRef = useRef<THREE.Vector3 | null>(null);
+  /** Ask the scene for one more frame; see `idleFps` in initializeScene. */
+  const invalidateRef = useRef<(() => void) | null>(null);
+  // SpatialScaleBar needs the controls object itself, not just its target.
+  const controlsRef = useRef<any | null>(null);
+  const meshGroupRef = useRef<THREE.Group | null>(null);
+  const [cellMeshes, setCellMeshes] = useState<CellMesh[] | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const resetViewRef = useRef<(() => void) | null>(null);
   const flyToRef = useRef<
@@ -126,9 +141,16 @@ export default function LabelledMoleculeThreeScene({
     globalScale,
     selectedScale,
     unselectedScale,
+    showMeshes,
+    meshMode,
+    meshOpacity,
+    colorOverrides: colorOverridesAll,
     resetViewNonce,
     pendingCamera,
-  } = useLabelledMoleculeVisualizationStore();
+  } = usePanelLabelledMoleculeVisualizationStore();
+  // Vanilla handle for the event handlers and the frame loop, which read and
+  // write without wanting a re-render. Stable per panel.
+  const api = usePanelLabelledMoleculeApi();
 
   /** The column backing each menu, resolved through the domain variant. */
   const columnFor = useMemo(
@@ -165,6 +187,23 @@ export default function LabelledMoleculeThreeScene({
 
   const ready = !!(columns.gene && columns.domain && columns.cell);
 
+  // ── Cell meshes, fetched once per dataset. Absent for most datasets, which
+  //    is a normal state — the loader returns null rather than throwing.
+  useEffect(() => {
+    const base = dataset.metadata?.customS3BaseUrl as string | undefined;
+
+    if (!base) return;
+    let alive = true;
+
+    loadCellMeshes(base).then((m) => {
+      if (alive) setCellMeshes(m);
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [dataset]);
+
   // ── Scene + geometry. Rebuilt only when the data or the camera mode
   //    changes; selection changes never touch this.
   useEffect(() => {
@@ -176,7 +215,11 @@ export default function LabelledMoleculeThreeScene({
 
     try {
       // Always 3D: these are volumetric embryos, a flat view hides the z axis.
-      setup = initializeScene(container, { is2D: false });
+      // Draw on demand. 3.1M molecules redrawn every frame is most of the
+      // GPU budget spent reproducing an identical image whenever the camera is
+      // still; every mutation here is a discrete effect, and the hover tooltip
+      // is DOM, so nothing needs a per-frame redraw.
+      setup = initializeScene(container, { is2D: false, idleFps: 8 });
     } catch (e) {
       setGlError(e instanceof Error ? e.message : String(e));
 
@@ -289,6 +332,10 @@ export default function LabelledMoleculeThreeScene({
 
     const points = new THREE.Points(geometry, material);
 
+    // Meshes arrive in the molecules' µm frame, but the cloud is shifted onto
+    // the origin — record the shift so they can be placed identically.
+    points.userData.centerOffset = center;
+
     scene.add(points);
     pointsRef.current = points;
     materialRef.current = material;
@@ -301,6 +348,8 @@ export default function LabelledMoleculeThreeScene({
 
     cameraRef.current = camera;
     rendererRef.current = setup.renderer;
+    invalidateRef.current = setup.invalidate;
+    controlsRef.current = controls;
     controlsTargetRef.current = controls.target;
     // Captured so the reset-view effect can re-frame without rebuilding.
     resetViewRef.current = () => {
@@ -317,12 +366,21 @@ export default function LabelledMoleculeThreeScene({
     /** Does this molecule pass every menu (i.e. is it drawn "selected")? */
     const passesFilter = (i: number) => {
       const { selections: sel, hiddenValues: hid } =
-        labelledMoleculeVisualizationStore.getState();
+        api.getState();
 
       for (const menu of ["gene", "domain", "cell"] as LmMenu[]) {
         const col = columns[menu]!;
         const value = col.uniqueValues[col.valueIndices[i]];
 
+        // Mirrors buildSelectionLut: a menu whose every selected value is
+        // hidden imposes no constraint, hides included. These two must agree or
+        // the tooltip contradicts what is drawn.
+        if (
+          sel[menu].size > 0 &&
+          ![...sel[menu]].some((v) => !hid[menu].has(v))
+        ) {
+          continue;
+        }
         if (hid[menu].has(value)) return false;
         if (sel[menu].size > 0 && !sel[menu].has(value)) return false;
       }
@@ -335,7 +393,7 @@ export default function LabelledMoleculeThreeScene({
     const isPickable = () => true;
 
     const describe = (i: number) => {
-      const st = labelledMoleculeVisualizationStore.getState();
+      const st = api.getState();
 
       return (["gene", "domain", "cell"] as LmMenu[]).map((menu) => {
         const col = columns[menu]!;
@@ -488,7 +546,7 @@ export default function LabelledMoleculeThreeScene({
       const i = pickAt(event);
 
       if (i == null) return;
-      const st = labelledMoleculeVisualizationStore.getState();
+      const st = api.getState();
       const menu = st.colorBy;
       const col = columns[menu]!;
 
@@ -503,7 +561,7 @@ export default function LabelledMoleculeThreeScene({
 
       if (now - lastPublish < 250) return;
       lastPublish = now;
-      labelledMoleculeVisualizationStore.getState().setCamera({
+      api.getState().setCamera({
         position: [camera.position.x, camera.position.y, camera.position.z],
         target: [controls.target.x, controls.target.y, controls.target.z],
       });
@@ -517,7 +575,7 @@ export default function LabelledMoleculeThreeScene({
     };
 
     // A pose from the URL or a saved default, waiting for the scene to exist.
-    const queued = labelledMoleculeVisualizationStore.getState().pendingCamera;
+    const queued = api.getState().pendingCamera;
 
     if (queued) applyCameraRef.current(queued);
 
@@ -555,6 +613,7 @@ export default function LabelledMoleculeThreeScene({
       materialRef.current = null;
       cameraRef.current = null;
       rendererRef.current = null;
+      controlsRef.current = null;
       setHover(null);
     };
   }, [dataset, ready, columnFor, clusterVersion]);
@@ -581,6 +640,7 @@ export default function LabelledMoleculeThreeScene({
       material.uniforms[uniforms[i]].value?.dispose?.();
       material.uniforms[uniforms[i]].value = tex;
     });
+    invalidateRef.current?.();
   }, [columns, selections, hiddenValues, ready, materialVersion]);
 
   // ── Palette LUT for the colouring column.
@@ -608,6 +668,7 @@ export default function LabelledMoleculeThreeScene({
     material.uniforms.uNColorBy.value = col.uniqueValues.length;
     material.uniforms.uColorBy.value =
       colorBy === "gene" ? 0 : colorBy === "domain" ? 1 : 2;
+    invalidateRef.current?.();
   }, [
     columns,
     colorBy,
@@ -626,15 +687,104 @@ export default function LabelledMoleculeThreeScene({
     material.uniforms.uGlobalSize.value = globalScale;
     material.uniforms.uSelectedSize.value = selectedScale;
     material.uniforms.uUnselectedSize.value = unselectedScale;
+    invalidateRef.current?.();
   }, [globalScale, selectedScale, unselectedScale, materialVersion]);
 
   // ── Adopt an inbound camera pose (shared link or saved default).
   useEffect(() => {
     if (!pendingCamera || !applyCameraRef.current) return;
     applyCameraRef.current(pendingCamera);
+    invalidateRef.current?.();
     // Clear it so a later manual move isn't yanked back.
-    labelledMoleculeVisualizationStore.setState({ pendingCamera: null });
+    api.setState({ pendingCamera: null });
   }, [pendingCamera, materialVersion]);
+
+  // ── Cell surfaces. Rebuilt on style change; cheap next to the point cloud
+  //    (26 cells, ~34k triangles) so there is no need to mutate in place.
+  useEffect(() => {
+    const points = pointsRef.current;
+
+    if (!points || !cellMeshes || !ready) return;
+
+    const scene = points.parent;
+
+    if (!scene) return;
+
+    // The scene is centred on the cloud's origin, so the meshes need the same
+    // shift to line up — they share the molecules' µm frame, not the scene's.
+    const offset = points.userData.centerOffset as
+      | [number, number, number]
+      | undefined;
+
+    const group = new THREE.Group();
+
+    if (offset) group.position.set(-offset[0], -offset[1], -offset[2]);
+
+    const sel = selections.cell;
+    const hid = hiddenValues.cell;
+    // Follow the cell menu: show every cell when nothing is selected.
+    const anyVisiblySelected = [...sel].some((v) => !hid.has(v));
+    const palette = columns.cell?.palette ?? null;
+
+    for (const m of cellMeshes) {
+      if (sel.size > 0 && anyVisiblySelected && !sel.has(m.label)) continue;
+      if (hid.has(m.label) && anyVisiblySelected) continue;
+
+      const geom = new THREE.BufferGeometry();
+
+      geom.setAttribute("position", new THREE.BufferAttribute(m.positions, 3));
+      geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
+      geom.computeVertexNormals();
+
+      const color = new THREE.Color(
+        resolveValueColor(
+          "cell",
+          m.label,
+          colorOverridesAll.cell,
+          new Map(),
+          palette,
+        ),
+      );
+      const material = new THREE.MeshBasicMaterial({
+        color,
+        wireframe: meshMode === "wireframe",
+        transparent: true,
+        opacity: meshMode === "wireframe" ? 0.5 : meshOpacity,
+        // Surfaces enclose the molecules, so they must never occlude them.
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+
+      group.add(new THREE.Mesh(geom, material));
+    }
+
+    scene.add(group);
+    meshGroupRef.current = group;
+    group.visible = showMeshes;
+    invalidateRef.current?.();
+
+    return () => {
+      scene.remove(group);
+      group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+
+        mesh.geometry?.dispose();
+        (mesh.material as THREE.Material)?.dispose();
+      });
+      meshGroupRef.current = null;
+    };
+  }, [
+    cellMeshes,
+    ready,
+    materialVersion,
+    showMeshes,
+    meshMode,
+    meshOpacity,
+    selections,
+    hiddenValues,
+    columns,
+    colorOverridesAll,
+  ]);
 
   // ── Reset view, driven by the store's nonce.
   useEffect(() => {
@@ -665,6 +815,18 @@ export default function LabelledMoleculeThreeScene({
   return (
     <div className="absolute inset-0 bg-black">
       <div ref={containerRef} className="h-full w-full" />
+
+      {/* Draggable µm ruler, same component the cell and molecule viewers use.
+          Only meaningful once the camera exists. */}
+      {!glError && ready && (
+        <SpatialScaleBar
+          // Above the molecule-count chip rather than across it.
+          bottomOffset={`${lmChipBottom(hasStageRail) + LM_CHIP_H + 12}px`}
+          cameraRef={cameraRef}
+          controlsRef={controlsRef}
+          rendererRef={rendererRef}
+        />
+      )}
 
       {hover && (
         <div

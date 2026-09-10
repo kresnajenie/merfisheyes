@@ -223,7 +223,10 @@ export class ChunkedDataAdapter {
   /**
    * Fetch and decompress binary file (from S3 URL or local File)
    */
-  private async fetchBinary(fileKey: string): Promise<ArrayBuffer> {
+  private async fetchBinary(
+    fileKey: string,
+    onBytes?: (received: number, total: number) => void,
+  ): Promise<ArrayBuffer> {
     console.log(`Fetching binary: ${fileKey} (mode: ${this.mode})`);
 
     if (this.mode === "local") {
@@ -249,6 +252,27 @@ export class ChunkedDataAdapter {
         );
       }
 
+      // Stream when the caller wants byte progress: the coordinate file is the
+      // bulk of a dataset, so without this the progress bar sits still through
+      // the longest part of the load.
+      if (onBytes && response.body) {
+        const total = Number(response.headers.get("content-length")) || 0;
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+
+        for (;;) {
+          const { done, value } = await reader.read();
+
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          onBytes(received, total);
+        }
+
+        return await this.decompress(new Blob(chunks as BlobPart[]));
+      }
+
       const compressedBlob = await response.blob();
 
       return await this.decompress(compressedBlob);
@@ -266,6 +290,27 @@ export class ChunkedDataAdapter {
         throw new Error(
           `Failed to fetch ${fileKey}: ${response.status} ${response.statusText}`,
         );
+      }
+
+      // Stream when the caller wants byte progress: the coordinate file is the
+      // bulk of a dataset, so without this the progress bar sits still through
+      // the longest part of the load.
+      if (onBytes && response.body) {
+        const total = Number(response.headers.get("content-length")) || 0;
+        const reader = response.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+
+        for (;;) {
+          const { done, value } = await reader.read();
+
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          onBytes(received, total);
+        }
+
+        return await this.decompress(new Blob(chunks as BlobPart[]));
       }
 
       const compressedBlob = await response.blob();
@@ -288,7 +333,9 @@ export class ChunkedDataAdapter {
   /**
    * Load spatial coordinates
    */
-  async loadSpatialCoordinates() {
+  async loadSpatialCoordinates(
+    onBytes?: (received: number, total: number) => void,
+  ) {
     console.log("Loading spatial coordinates...");
 
     try {
@@ -298,6 +345,7 @@ export class ChunkedDataAdapter {
       const isQ16 = this.manifest?.coord_format === "q16";
       const spatialBuffer = await this.fetchBinary(
         isQ16 ? "coords/spatial.q16.bin.gz" : "coords/spatial.bin.gz",
+        onBytes,
       );
       const coordinates = isQ16
         ? this.parseQuantisedCoordinateBuffer(spatialBuffer)

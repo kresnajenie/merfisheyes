@@ -4,6 +4,10 @@ import type { VisualizationState } from "../stores/createVisualizationStore";
 import type { DatasetState } from "../stores/createDatasetStore";
 import type { SingleMoleculeState } from "../stores/createSingleMoleculeStore";
 import type { SingleMoleculeVisualizationState } from "../stores/createSingleMoleculeVisualizationStore";
+import type {
+  LabelledMoleculeVisualizationState,
+  LabelledMoleculeVisualizationStore,
+} from "../stores/createLabelledMoleculeVisualizationStore";
 
 import { useContext } from "react";
 import { useStore } from "zustand";
@@ -13,6 +17,10 @@ import { useVisualizationStore } from "../stores/visualizationStore";
 import { useDatasetStore } from "../stores/datasetStore";
 import { useSingleMoleculeStore } from "../stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "../stores/singleMoleculeVisualizationStore";
+import {
+  labelledMoleculeVisualizationStore,
+  useLabelledMoleculeVisualizationStore,
+} from "../stores/labelledMoleculeVisualizationStore";
 
 // Overloads: with selector returns T, without selector returns full state
 export function usePanelVisualizationStore(): VisualizationState;
@@ -78,6 +86,38 @@ export function usePanelSingleMoleculeVisualizationStore<T>(
   }
 
   return useSingleMoleculeVisualizationStore(sel);
+}
+
+export function usePanelLabelledMoleculeVisualizationStore(): LabelledMoleculeVisualizationState;
+export function usePanelLabelledMoleculeVisualizationStore<T>(
+  selector: (s: LabelledMoleculeVisualizationState) => T,
+): T;
+export function usePanelLabelledMoleculeVisualizationStore<T>(
+  selector?: (s: LabelledMoleculeVisualizationState) => T,
+) {
+  const ctx = useContext(PanelContext);
+  const sel =
+    selector ?? ((s: LabelledMoleculeVisualizationState) => s as unknown as T);
+
+  if (ctx) {
+    return useStore(ctx.labelledMoleculeVisualizationStore, sel);
+  }
+
+  return useLabelledMoleculeVisualizationStore(sel);
+}
+
+/**
+ * The vanilla store behind the hook above, for getState/setState outside
+ * React — event handlers and the WebGL frame loop, which must not re-render
+ * to read a value. Same panel-or-global resolution.
+ */
+export function usePanelLabelledMoleculeApi(): LabelledMoleculeVisualizationStore {
+  const ctx = useContext(PanelContext);
+
+  return (
+    ctx?.labelledMoleculeVisualizationStore ??
+    labelledMoleculeVisualizationStore
+  );
 }
 
 export function usePanelId(): string | null {

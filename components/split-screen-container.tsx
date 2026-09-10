@@ -11,9 +11,11 @@ import { createVisualizationStoreInstance } from "@/lib/stores/createVisualizati
 import { createDatasetStoreInstance } from "@/lib/stores/createDatasetStore";
 import { createSingleMoleculeStoreInstance } from "@/lib/stores/createSingleMoleculeStore";
 import { createSingleMoleculeVisualizationStoreInstance } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+import { createLabelledMoleculeVisualizationStoreInstance } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useSyncVisualization } from "@/lib/hooks/useSyncVisualization";
 import { useSyncSingleMoleculeVisualization } from "@/lib/hooks/useSyncSingleMoleculeVisualization";
+import { useSyncLabelledMoleculeVisualization } from "@/lib/hooks/useSyncLabelledMoleculeVisualization";
 
 interface SplitScreenContainerProps {
   children: React.ReactNode;
@@ -38,6 +40,8 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
       singleMoleculeStore: createSingleMoleculeStoreInstance(),
       singleMoleculeVisualizationStore:
         createSingleMoleculeVisualizationStoreInstance(),
+      labelledMoleculeVisualizationStore:
+        createLabelledMoleculeVisualizationStoreInstance(),
     }),
     [],
   );
@@ -50,6 +54,9 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
   useSyncSingleMoleculeVisualization(
     rightPanelStores.singleMoleculeVisualizationStore,
     rightPanelStores.singleMoleculeStore,
+  );
+  useSyncLabelledMoleculeVisualization(
+    rightPanelStores.labelledMoleculeVisualizationStore,
   );
 
   // Always render the same DOM tree so {children} (ThreeScene) never unmounts.

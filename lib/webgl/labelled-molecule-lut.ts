@@ -22,6 +22,16 @@ export function buildSelectionLut(
 ): Uint8Array {
   const lut = new Uint8Array(uniqueValues.length);
 
+  // Hiding every selected value would otherwise leave the column all-zero and
+  // exclude everything. Treat it as an empty menu instead — no constraint at
+  // all — so the eye can't strand you with a blank scene. The hides go with it:
+  // they were scoped to a selection that no longer constrains anything.
+  if (selection.size > 0 && ![...selection].some((v) => !hidden?.has(v))) {
+    lut.fill(255);
+
+    return lut;
+  }
+
   if (selection.size === 0) {
     lut.fill(255);
   } else {

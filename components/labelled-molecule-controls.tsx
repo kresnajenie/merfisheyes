@@ -11,12 +11,25 @@ import { Tooltip } from "@heroui/tooltip";
 import { useEffect, useMemo } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { STAGE_RAIL_HEIGHT } from "@/components/stage-rail";
+import { useSliderRangeLocal } from "@/components/slider-range-popover";
 import { LM_MENUS } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
-import { useLabelledMoleculeVisualizationStore } from "@/lib/stores/labelledMoleculeVisualizationStore";
+import { usePanelLabelledMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 import {
   buildSelectionLut,
   countVisible,
 } from "@/lib/webgl/labelled-molecule-lut";
+
+/**
+ * Height of the molecule-count chip: py-2 plus a text-xs line. The scale bar
+ * stacks above it — the two sat 8px apart and drew over each other.
+ */
+export const LM_CHIP_H = 32;
+
+/** Bottom edge of that chip, clearing the stage rail when one is present. */
+export function lmChipBottom(hasStageRail: boolean) {
+  return hasStageRail ? STAGE_RAIL_HEIGHT + 16 : 24;
+}
 
 const MENU_LABEL: Record<LmMenu, string> = {
   gene: "Gene",
@@ -36,13 +49,18 @@ const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
 interface Props {
   dataset: StandardizedDataset;
   clusterVersion?: number;
+  /** Lift the molecule count clear of the stage rail. */
+  hasStageRail?: boolean;
 }
 
 export default function LabelledMoleculeControls({
   dataset,
   clusterVersion = 0,
+  hasStageRail = false,
 }: Props) {
-  const s = useLabelledMoleculeVisualizationStore();
+  const s = usePanelLabelledMoleculeVisualizationStore();
+  // Right-click the size slider to widen its range past the default.
+  const sizeRange = useSliderRangeLocal(0.1, 2, s.globalScale);
 
   const columnFor: Record<LmMenu, string> = {
     gene: "gene",
@@ -165,7 +183,7 @@ export default function LabelledMoleculeControls({
     <>
       <div
         data-ui-overlay
-        className="absolute top-28 left-4 z-[var(--z-rail)] flex flex-col gap-2"
+        className="absolute top-48 left-4 z-[var(--z-rail)] flex flex-col gap-2"
       >
         {LM_MENUS.map((menu) => {
           const isOpen = open === menu;
@@ -194,21 +212,26 @@ export default function LabelledMoleculeControls({
           );
         })}
 
-        <Tooltip content="Molecule size" placement="right">
+        <Tooltip
+          content="Molecule size (right-click to edit range)"
+          placement="right"
+        >
           <div
             className={`w-14 h-32 rounded-full border-2 border-default-200 p-2 flex flex-col items-center justify-center ${glassButton()}`}
+            onContextMenu={sizeRange.onContextMenu}
           >
             <Slider
               aria-label="Molecule size"
               className="h-full"
-              maxValue={4}
-              minValue={0.1}
+              maxValue={sizeRange.max}
+              minValue={sizeRange.min}
               orientation="vertical"
               size="sm"
               step={0.05}
               value={s.globalScale}
               onChange={(v) => s.setGlobalScale(v as number)}
             />
+            {sizeRange.popover}
           </div>
         </Tooltip>
 
@@ -343,8 +366,9 @@ export default function LabelledMoleculeControls({
       {/* How many molecules survive the intersection. */}
       <div
         data-ui-overlay
-        className={`absolute bottom-6 left-4 z-[var(--z-legends)] rounded-full px-4 py-2 text-xs ${glassButton()}`}
+        className={`absolute left-4 z-[var(--z-legends)] rounded-full px-4 py-2 text-xs ${glassButton()}`}
         data-testid="lm-visible-count"
+        style={{ bottom: lmChipBottom(hasStageRail) }}
       >
         <span className="font-medium">
           {visible === null ? "…" : visible.toLocaleString()}

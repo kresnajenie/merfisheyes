@@ -35,6 +35,20 @@ describe("buildSelectionLut", () => {
     ]);
   });
 
+  it("falls back to all-pass when every selected value is hidden", () => {
+    // Otherwise the eye can strand you: hide the last visible chip and the
+    // column goes all-zero, excluding everything.
+    expect([
+      ...buildSelectionLut(dict, new Set(["a", "b"]), new Set(["a", "b"])),
+    ]).toEqual([255, 255, 255]);
+  });
+
+  it("still constrains while one selected value remains visible", () => {
+    expect([
+      ...buildSelectionLut(dict, new Set(["a", "b"]), new Set(["a"])),
+    ]).toEqual([0, 255, 0]);
+  });
+
   it("ignores values that aren't in the column", () => {
     expect([...buildSelectionLut(dict, new Set(["zzz"]))]).toEqual([0, 0, 0]);
   });
