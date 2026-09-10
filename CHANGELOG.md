@@ -10,6 +10,63 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.5.0] - 2026-09-10
+
+A new dataset type for MERFISH data where every molecule carries labels as
+well as coordinates, and a browsable atlas of 45 spiralia embryos built on it.
+
+### Added
+
+- **Labelled single-molecule viewer** (`/lm-viewer`). A third dataset type
+  alongside single-cell and single-molecule: every molecule carries a gene, an
+  RNA domain and a cell, with three filter menus that intersect (OR within a
+  menu, AND across menus). Any of the three can drive colour. Selection and
+  sizing are applied on the GPU through lookup textures — one texel per
+  category — so toggling a value re-uploads under a kilobyte instead of
+  rebuilding multi-million-element attribute arrays.
+- **Spiralia embryo atlas.** 45 embryos from the 1-cell stage to 24 cells,
+  grouped into one project.
+- **Stage rail.** An Allen-atlas style filmstrip along the bottom of the
+  viewer, one tile per developmental stage, each a live 3D preview rather than
+  a screenshot. All tiles share a single WebGL context drawn with per-tile
+  scissor rectangles. Hovering opens a card listing that stage's embryos with
+  the selected one previewed beside them; opening another embryo swaps it in
+  place with no page reload.
+- **Cell segmentation meshes** for the 31 embryos that have them, as a
+  translucent or wireframe overlay.
+- **Split screen for labelled molecules**, syncing selections and the colouring
+  column between the two panels. Incoming values are intersected with the
+  target dataset's own vocabulary, so gene selections carry across the whole
+  series while cell and domain selections carry within a developmental stage
+  and drop across one — which is what the data supports.
+- **Quantised coordinates** (`q16`) for labelled-molecule datasets, cutting a
+  typical embryo from 34.7 MB to 19.5 MB.
+- **Dataset previews.** A `preview/` folder beside each dataset holding ~5,000
+  sampled points at roughly 32 KB, enough to render a recognisable thumbnail
+  without touching the full dataset.
+- **Public project reads** (`/api/projects/[id]/public`), served only when
+  every dataset in a project is admin-owned.
+
+### Changed
+
+- **Real byte progress** while a viewer downloads coordinates, so the bar
+  tracks the download instead of jumping between fixed checkpoints.
+
+### Fixed
+
+- **Scenes redraw only when something changes.** The render loop drew every
+  frame unconditionally, so a stationary camera still redrew every molecule 60
+  times a second. Opt-in per viewer, currently used by the labelled-molecule
+  viewer; the cell and single-molecule viewers are unchanged.
+- **Camera defaults could not be saved** by an admin on an admin-owned
+  labelled-molecule dataset — the permission check read a session field that
+  does not exist, so it was always false.
+- **A split panel no longer overwrites the main panel's dataset identity**,
+  which had made "save as defaults" target the wrong dataset once a split was
+  open.
+- **Chunked datasets revalidate their manifest**, so replacing a dataset's
+  files in place no longer serves a stale manifest from cache.
+
 ## [0.4.1] - 2026-09-04
 
 Single-molecule loading becomes visible and cancellable, and pre-chunked
@@ -193,7 +250,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.2.0...v0.3.0

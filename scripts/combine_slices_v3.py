@@ -23,6 +23,7 @@ Output:
 
 import argparse
 import gc
+import json
 import math
 import os
 import sys
@@ -489,7 +490,8 @@ else:
     out_meta_path = out_dir / "cell_metadata.csv"
     
     rows_written = 0
-    
+    sample_offsets = []  # per-slice inverse transform: original = combined - (dx, dy)
+
     for i, info in enumerate(sample_info):
         t_sample = time.perf_counter()
         log(f"  [{i + 1}/{n}] Processing {info['meta_path'].name}...", t_start)
@@ -512,7 +514,17 @@ else:
         old_bbox = info['bbox']
         dx = origin[0] - old_bbox[0]
         dy = origin[1] - old_bbox[1]
-    
+
+        # Record the exact per-slice shift so the combine is invertible later:
+        #   original_coord = combined_coord - (dx, dy)   (pure translation)
+        sample_offsets.append({
+            "sample_id": info['sample_id'],
+            "dx": float(dx), "dy": float(dy),
+            "orig_bbox": [float(v) for v in old_bbox],
+            "grid_origin": [float(origin[0]), float(origin[1])],
+            "num_rows": int(info['num_rows']),
+        })
+
         df[x_col] += dx
         df[y_col] += dy
     
@@ -530,6 +542,15 @@ else:
         log(f"    Appended {info['num_rows']:,} rows ({rows_written:,} total, {fmt_elapsed(time.perf_counter() - t_sample)})", t_start)
     
     log(f"Saved {out_meta_path} ({rows_written:,} rows)", t_start)
+
+    # Per-slice offset table so downstream code can invert the combine exactly:
+    #   original_coord = combined_coord - (dx, dy)  for cells with that _sample_id.
+    offsets_path = out_dir / "sample_offsets.json"
+    with open(offsets_path, "w") as f:
+        json.dump({"x_col": x_col, "y_col": y_col, "padding": padding,
+                   "note": "original = combined - (dx, dy); pure per-slice translation",
+                   "samples": sample_offsets}, f, indent=2)
+    log(f"Saved {offsets_path} ({len(sample_offsets)} slices)", t_start)
     
     
     # ─────────────────────────────────────────────

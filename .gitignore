@@ -152,3 +152,4 @@ bench/datasets.json
 
 # Benchmark staging dir (scripts/bench/local-run.mjs)
 .bench-stage/
+/public/lm-test/

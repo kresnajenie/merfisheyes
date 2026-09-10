@@ -9,6 +9,11 @@ export interface SceneSetup {
   controls: OrbitControls | TrackballControls;
   animate: () => void;
   dispose: () => void;
+  /**
+   * Request one more frame. Only meaningful with `idleFps`; call it after
+   * mutating anything the scene draws (uniforms, textures, visibility).
+   */
+  invalidate: () => void;
 }
 
 export interface SceneOptions {
@@ -17,6 +22,17 @@ export interface SceneOptions {
   lookAtPosition?: THREE.Vector3;
   near?: number;
   far?: number;
+  /**
+   * Redraw on demand instead of every frame, falling back to this rate when
+   * nothing has changed.
+   *
+   * The default (undefined) keeps the historical behaviour: redraw forever, so
+   * a stationary multi-million-point cloud spends the whole GPU budget
+   * reproducing an identical image. With this set, a frame is drawn when the
+   * controls report movement or something calls `invalidate()`; the slow tick
+   * is a safety net for any mutation that forgets to.
+   */
+  idleFps?: number;
 }
 
 /**
@@ -26,7 +42,14 @@ export function initializeScene(
   container: HTMLElement,
   options: SceneOptions = {},
 ): SceneSetup {
-  const { is2D = false, cameraPosition, lookAtPosition, near, far } = options;
+  const {
+    is2D = false,
+    cameraPosition,
+    lookAtPosition,
+    near,
+    far,
+    idleFps,
+  } = options;
 
   // Scene setup
   const scene = new THREE.Scene();
@@ -111,9 +134,32 @@ export function initializeScene(
 
   // Animation loop
   let animationId: number;
+  let dirty = true;
+  let lastDraw = 0;
+  const invalidate = () => {
+    dirty = true;
+  };
+
+  // Damping and inertia move the camera without any new input, so the controls
+  // themselves are what tell us a frame is still worth drawing.
+  controls.addEventListener("change", invalidate);
+
   const animate = () => {
     animationId = requestAnimationFrame(animate);
     controls.update();
+
+    if (idleFps === undefined) {
+      renderer.render(scene, camera);
+
+      return;
+    }
+
+    const now = performance.now();
+
+    if (!dirty && now - lastDraw < 1000 / idleFps) return;
+
+    dirty = false;
+    lastDraw = now;
     renderer.render(scene, camera);
   };
 
@@ -126,6 +172,7 @@ export function initializeScene(
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+    invalidate();
   };
 
   const resizeObserver = new ResizeObserver(handleResize);
@@ -134,6 +181,7 @@ export function initializeScene(
 
   // Cleanup function
   const dispose = () => {
+    controls.removeEventListener("change", invalidate);
     resizeObserver.disconnect();
     cancelAnimationFrame(animationId);
     controls.dispose();
@@ -150,5 +198,6 @@ export function initializeScene(
     controls,
     animate,
     dispose,
+    invalidate,
   };
 }

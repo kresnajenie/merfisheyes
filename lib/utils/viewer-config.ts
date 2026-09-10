@@ -23,6 +23,21 @@ export interface ViewerConfig {
   transformColumn?: string | null; // sample column for per-sample align
   sampleTransforms?: Record<string, SampleTransform>; // keyed by sample VALUE
   colorOverrides?: Record<string, Record<string, string>>; // column -> (value -> hex)
+  /**
+   * Saved camera pose, in the scene's own coordinate space. Restored on load so
+   * a dataset opens on the view its owner chose, rather than the default framing.
+   */
+  camera?: {
+    position: [number, number, number];
+    target: [number, number, number];
+  };
+}
+
+function vec3(input: unknown): [number, number, number] | null {
+  if (!Array.isArray(input) || input.length !== 3) return null;
+  const out = input.map((v) => (typeof v === "number" ? v : NaN));
+
+  return out.every(Number.isFinite) ? (out as [number, number, number]) : null;
 }
 
 const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -36,13 +51,24 @@ export function validateViewerConfig(input: unknown): ViewerConfig | null {
   const src = input as Record<string, unknown>;
   const out: ViewerConfig = { version: 1 };
 
-  if (typeof src.sceneRotation === "number" && Number.isFinite(src.sceneRotation)) {
+  if (
+    typeof src.sceneRotation === "number" &&
+    Number.isFinite(src.sceneRotation)
+  ) {
     // Normalize to [0, 360)
     out.sceneRotation = ((src.sceneRotation % 360) + 360) % 360;
   }
   if (typeof src.flipX === "boolean") out.flipX = src.flipX;
   if (typeof src.flipY === "boolean") out.flipY = src.flipY;
-  if (src.viewMode === "2D" || src.viewMode === "3D") out.viewMode = src.viewMode;
+  if (src.viewMode === "2D" || src.viewMode === "3D")
+    out.viewMode = src.viewMode;
+  if (src.camera && typeof src.camera === "object") {
+    const c = src.camera as Record<string, unknown>;
+    const position = vec3(c.position);
+    const target = vec3(c.target);
+
+    if (position && target) out.camera = { position, target };
+  }
   if (src.priorityColumn === null || typeof src.priorityColumn === "string") {
     out.priorityColumn = src.priorityColumn as string | null;
   }
@@ -157,7 +183,10 @@ export function applyViewerConfig(
         try {
           const key = paletteStorageKey(dataset.id, column);
           const existing = window.localStorage.getItem(key);
-          const merged = { ...(existing ? JSON.parse(existing) : {}), ...palette };
+          const merged = {
+            ...(existing ? JSON.parse(existing) : {}),
+            ...palette,
+          };
 
           window.localStorage.setItem(key, JSON.stringify(merged));
         } catch {
@@ -187,7 +216,8 @@ export function applyViewerConfig(
     }
   }
 
-  if (config.sceneRotation !== undefined) store.setSceneRotation(config.sceneRotation);
+  if (config.sceneRotation !== undefined)
+    store.setSceneRotation(config.sceneRotation);
   if (config.flipX !== undefined) store.setFlipX(config.flipX);
   if (config.flipY !== undefined) store.setFlipY(config.flipY);
 
@@ -241,7 +271,11 @@ export function extractViewerConfig(
         if (!raw) continue;
         const palette = JSON.parse(raw) as Record<string, string>;
 
-        if (palette && typeof palette === "object" && Object.keys(palette).length) {
+        if (
+          palette &&
+          typeof palette === "object" &&
+          Object.keys(palette).length
+        ) {
           colorOverrides[column] = palette;
         }
       }
