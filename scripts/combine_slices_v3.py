@@ -583,22 +583,30 @@ else:
         sample_rows = 0
     
         valid_id_set = set(info['valid_cell_ids'])
+        missing_logged = False
         for chunk in pd.read_csv(info['cbg_path'], chunksize=50_000):
             # Filter to aligned cell IDs
             if info['cbg_id_col'] != 'cell':
                 chunk = chunk.rename(columns={info['cbg_id_col']: 'cell'})
             chunk['cell'] = chunk['cell'].astype(str)
             chunk = chunk[chunk['cell'].isin(valid_id_set)]
-    
+
             if len(chunk) == 0:
                 continue
-    
+
             if canonical_columns is None:
                 canonical_columns = list(chunk.columns)
             else:
-                # Reorder columns to match first sample's order
-                # (different MERSCOPE slices may have genes in different column orders)
-                chunk = chunk[canonical_columns]
+                # Reindex to match the first sample's columns/order. Some slices
+                # carry a smaller gene panel (e.g. fewer completed MERSCOPE
+                # decoding rounds) -- missing genes are filled with 0, same
+                # convention as an undetected transcript.
+                missing = [c for c in canonical_columns if c not in chunk.columns]
+                if missing and not missing_logged:
+                    log(f"    WARNING: {info['cbg_path'].name} missing {len(missing)}/{len(canonical_columns)} "
+                        f"canonical genes -- filling with 0", t_start)
+                    missing_logged = True
+                chunk = chunk.reindex(columns=canonical_columns, fill_value=0)
     
             if write_header and first_chunk:
                 chunk.to_csv(out_cbg_path, mode='w', header=True, index=False)
