@@ -1,0 +1,780 @@
+[
+  {
+    "key": "mosta3d",
+    "featured": true,
+    "project": "MOSTA-3D \u2014 Mouse Organogenesis in 3D",
+    "title": "Mouse Organogenesis in 3D (MOSTA-3D)",
+    "description": "Stereo-seq reconstructions of whole mouse embryos and isolated hearts at E9.5 and E11.5, with serial sections registered into a volume. The E11.5 embryo carries 6,993,667 cells across 84 z-planes. Each 3D stack also ships a flattened variant whose sections are tiled side by side without overlap.",
+    "species": "Mouse",
+    "disease": null,
+    "tissue": "Whole embryo, heart",
+    "platform": "Stereo-seq",
+    "institute": "BGI Research",
+    "externalLink": "https://db.cngb.org/stomics/mosta/",
+    "publicationLink": "https://www.biorxiv.org/content/10.1101/2024.08.17.608366v1",
+    "tags": [
+      "3D",
+      "embryo",
+      "organogenesis",
+      "stereo-seq"
+    ],
+    "numCells": 6993667,
+    "numGenes": 21717,
+    "datasets": [
+      {
+        "slug": "mosta3d-mouse-embryo-e11-5",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-embryo-e11-5",
+        "label": "MOSTA-3D Mouse Embryo E11.5",
+        "sortOrder": 0,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "mapped_celltype"
+        }
+      },
+      {
+        "slug": "mosta3d-mouse-embryo-e9-5",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-embryo-e9-5",
+        "label": "MOSTA-3D Mouse Embryo E9.5",
+        "sortOrder": 1,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "mapped_celltype"
+        }
+      },
+      {
+        "slug": "mosta3d-mouse-heart-e11-5",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-heart-e11-5",
+        "label": "MOSTA-3D Mouse Heart E11.5",
+        "sortOrder": 2,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta3d-mouse-heart-e9-5",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-heart-e9-5",
+        "label": "MOSTA-3D Mouse Heart E9.5",
+        "sortOrder": 3,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta3d-mouse-embryo-e11-5-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-embryo-e11-5-separated2d",
+        "label": "MOSTA-3D Mouse Embryo E11.5 (sections)",
+        "sortOrder": 4,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "mapped_celltype"
+        }
+      },
+      {
+        "slug": "mosta3d-mouse-embryo-e9-5-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-embryo-e9-5-separated2d",
+        "label": "MOSTA-3D Mouse Embryo E9.5 (sections)",
+        "sortOrder": 5,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "mapped_celltype"
+        }
+      },
+      {
+        "slug": "mosta3d-mouse-heart-e11-5-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-heart-e11-5-separated2d",
+        "label": "MOSTA-3D Mouse Heart E11.5 (sections)",
+        "sortOrder": 6,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta3d-mouse-heart-e9-5-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta3d-mouse-heart-e9-5-separated2d",
+        "label": "MOSTA-3D Mouse Heart E9.5 (sections)",
+        "sortOrder": 7,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      }
+    ]
+  },
+  {
+    "key": "mosta",
+    "featured": false,
+    "project": "MOSTA \u2014 Mouse Organogenesis Sections",
+    "title": "Mouse Organogenesis Sections (MOSTA)",
+    "description": "One representative Stereo-seq section per developmental stage across E9.5 to E16.5, spanning the mouse organogenesis window.",
+    "species": "Mouse",
+    "disease": null,
+    "tissue": "Whole embryo",
+    "platform": "Stereo-seq",
+    "institute": "BGI Research",
+    "externalLink": "https://db.cngb.org/stomics/mosta/",
+    "publicationLink": null,
+    "tags": [
+      "embryo",
+      "organogenesis",
+      "stereo-seq"
+    ],
+    "numCells": 92928,
+    "numGenes": 27831,
+    "datasets": [
+      {
+        "slug": "mosta-mouse-embryo-e10-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e10-5-section",
+        "label": "MOSTA Mouse Embryo E10.5 (section)",
+        "sortOrder": 0,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta-mouse-embryo-e11-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e11-5-section",
+        "label": "MOSTA Mouse Embryo E11.5 (section)",
+        "sortOrder": 1,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta-mouse-embryo-e12-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e12-5-section",
+        "label": "MOSTA Mouse Embryo E12.5 (section)",
+        "sortOrder": 2,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta-mouse-embryo-e13-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e13-5-section",
+        "label": "MOSTA Mouse Embryo E13.5 (section)",
+        "sortOrder": 3,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta-mouse-embryo-e14-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e14-5-section",
+        "label": "MOSTA Mouse Embryo E14.5 (section)",
+        "sortOrder": 4,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta-mouse-embryo-e15-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e15-5-section",
+        "label": "MOSTA Mouse Embryo E15.5 (section)",
+        "sortOrder": 5,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta-mouse-embryo-e16-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e16-5-section",
+        "label": "MOSTA Mouse Embryo E16.5 (section)",
+        "sortOrder": 6,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "mosta-mouse-embryo-e9-5-section",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/mosta-mouse-embryo-e9-5-section",
+        "label": "MOSTA Mouse Embryo E9.5 (section)",
+        "sortOrder": 7,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      }
+    ]
+  },
+  {
+    "key": "flysta3d",
+    "featured": true,
+    "project": "Flysta3D \u2014 Drosophila Embryo and Larva in 3D",
+    "title": "Drosophila Embryo and Larva in 3D (Flysta3D)",
+    "description": "Whole-organism Stereo-seq reconstructions of late-stage Drosophila embryos and all three larval instars, built from cryosections registered into a volume. Cells are annotated by tissue: CNS, epidermis, fat body, midgut, muscle, salivary gland, trachea and more.",
+    "species": "Drosophila melanogaster",
+    "disease": null,
+    "tissue": "Whole organism",
+    "platform": "Stereo-seq",
+    "institute": "BGI Research",
+    "externalLink": "https://db.cngb.org/stomics/flysta3d/",
+    "publicationLink": "https://www.cell.com/developmental-cell/fulltext/S1534-5807(22)00246-5",
+    "tags": [
+      "3D",
+      "embryo",
+      "larva",
+      "stereo-seq"
+    ],
+    "numCells": 64658,
+    "numGenes": 16325,
+    "datasets": [
+      {
+        "slug": "flysta3d-drosophila-embryo-e14-16h",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-embryo-e14-16h",
+        "label": "Flysta3D Drosophila Embryo E14-16h",
+        "sortOrder": 0,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-embryo-e16-18h",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-embryo-e16-18h",
+        "label": "Flysta3D Drosophila Embryo E16-18h",
+        "sortOrder": 1,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-larva-l1",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-larva-l1",
+        "label": "Flysta3D Drosophila Larva L1",
+        "sortOrder": 2,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-larva-l2",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-larva-l2",
+        "label": "Flysta3D Drosophila Larva L2",
+        "sortOrder": 3,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-larva-l3",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-larva-l3",
+        "label": "Flysta3D Drosophila Larva L3",
+        "sortOrder": 4,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-embryo-e14-16h-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-embryo-e14-16h-separated2d",
+        "label": "Flysta3D Drosophila Embryo E14-16h (sections)",
+        "sortOrder": 5,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-embryo-e16-18h-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-embryo-e16-18h-separated2d",
+        "label": "Flysta3D Drosophila Embryo E16-18h (sections)",
+        "sortOrder": 6,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-larva-l1-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-larva-l1-separated2d",
+        "label": "Flysta3D Drosophila Larva L1 (sections)",
+        "sortOrder": 7,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-larva-l2-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-larva-l2-separated2d",
+        "label": "Flysta3D Drosophila Larva L2 (sections)",
+        "sortOrder": 8,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "flysta3d-drosophila-larva-l3-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/flysta3d-drosophila-larva-l3-separated2d",
+        "label": "Flysta3D Drosophila Larva L3 (sections)",
+        "sortOrder": 9,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      }
+    ]
+  },
+  {
+    "key": "prista4d",
+    "featured": true,
+    "project": "PRISTA4D \u2014 Planarian Whole-Body Regeneration",
+    "title": "Planarian Whole-Body Regeneration in 3D (PRISTA4D)",
+    "description": "A homeostatic planarian plus an eight-point regeneration time course from 0 hours to 14 days post-amputation, each reconstructed in 3D from Stereo-seq sections. Together the series covers 2.5 million cells of whole-body regeneration.",
+    "species": "Schmidtea mediterranea",
+    "disease": null,
+    "tissue": "Whole body",
+    "platform": "Stereo-seq",
+    "institute": "BGI Research",
+    "externalLink": "https://db.cngb.org/stomics/prista4d/",
+    "publicationLink": "https://doi.org/10.1093/gigascience/giag064",
+    "tags": [
+      "3D",
+      "regeneration",
+      "whole-body",
+      "stereo-seq"
+    ],
+    "numCells": 865719,
+    "numGenes": 20577,
+    "datasets": [
+      {
+        "slug": "prista4d-planarian-0hpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-0hpa",
+        "label": "PRISTA4D Planarian 0 hpa",
+        "sortOrder": 0,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-10dpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-10dpa",
+        "label": "PRISTA4D Planarian 10 dpa",
+        "sortOrder": 1,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-12hpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-12hpa",
+        "label": "PRISTA4D Planarian 12 hpa",
+        "sortOrder": 2,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-14dpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-14dpa",
+        "label": "PRISTA4D Planarian 14 dpa",
+        "sortOrder": 3,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-36hpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-36hpa",
+        "label": "PRISTA4D Planarian 36 hpa",
+        "sortOrder": 4,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-3dpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-3dpa",
+        "label": "PRISTA4D Planarian 3 dpa",
+        "sortOrder": 5,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-5dpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-5dpa",
+        "label": "PRISTA4D Planarian 5 dpa",
+        "sortOrder": 6,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-7dpa",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-7dpa",
+        "label": "PRISTA4D Planarian 7 dpa",
+        "sortOrder": 7,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-wt",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-wt",
+        "label": "PRISTA4D Planarian WT (homeostatic)",
+        "sortOrder": 8,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-0hpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-0hpa-separated2d",
+        "label": "PRISTA4D Planarian 0 hpa (sections)",
+        "sortOrder": 9,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-10dpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-10dpa-separated2d",
+        "label": "PRISTA4D Planarian 10 dpa (sections)",
+        "sortOrder": 10,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-12hpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-12hpa-separated2d",
+        "label": "PRISTA4D Planarian 12 hpa (sections)",
+        "sortOrder": 11,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-14dpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-14dpa-separated2d",
+        "label": "PRISTA4D Planarian 14 dpa (sections)",
+        "sortOrder": 12,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-36hpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-36hpa-separated2d",
+        "label": "PRISTA4D Planarian 36 hpa (sections)",
+        "sortOrder": 13,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-3dpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-3dpa-separated2d",
+        "label": "PRISTA4D Planarian 3 dpa (sections)",
+        "sortOrder": 14,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-5dpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-5dpa-separated2d",
+        "label": "PRISTA4D Planarian 5 dpa (sections)",
+        "sortOrder": 15,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-7dpa-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-7dpa-separated2d",
+        "label": "PRISTA4D Planarian 7 dpa (sections)",
+        "sortOrder": 16,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "prista4d-planarian-wt-separated2d",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/prista4d-planarian-wt-separated2d",
+        "label": "PRISTA4D Planarian WT (homeostatic) (sections)",
+        "sortOrder": 17,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      }
+    ]
+  },
+  {
+    "key": "hesta",
+    "featured": true,
+    "project": "HESTA \u2014 Human Embryo Spatiotemporal Atlas",
+    "title": "Human Embryo Atlas, CS12\u2013CS23 (HESTA)",
+    "description": "Stereo-seq sagittal sections of human embryos spanning Carnegie stages 12 to 23, the post-gastrulation organogenesis window. One section per stage, from 12,138 cells at CS12-13 up to 554,306 at CS23, annotated by cell type.",
+    "species": "Human",
+    "disease": null,
+    "tissue": "Whole embryo",
+    "platform": "Stereo-seq",
+    "institute": "BGI Research",
+    "externalLink": "https://db.cngb.org/hesta/",
+    "publicationLink": "https://www.nature.com/articles/s41586-026-10545-0",
+    "tags": [
+      "human",
+      "embryo",
+      "organogenesis",
+      "stereo-seq"
+    ],
+    "numCells": 554306,
+    "numGenes": 52983,
+    "datasets": [
+      {
+        "slug": "hesta-human-embryo-cs12-13",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/hesta-human-embryo-cs12-13",
+        "label": "HESTA Human Embryo CS12-13 (section)",
+        "sortOrder": 0,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "hesta-human-embryo-cs14-15",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/hesta-human-embryo-cs14-15",
+        "label": "HESTA Human Embryo CS14-15 (section)",
+        "sortOrder": 1,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "hesta-human-embryo-cs17",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/hesta-human-embryo-cs17",
+        "label": "HESTA Human Embryo CS17 (section)",
+        "sortOrder": 2,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "hesta-human-embryo-cs18",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/hesta-human-embryo-cs18",
+        "label": "HESTA Human Embryo CS18 (section)",
+        "sortOrder": 3,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "hesta-human-embryo-cs19",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/hesta-human-embryo-cs19",
+        "label": "HESTA Human Embryo CS19 (section)",
+        "sortOrder": 4,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "hesta-human-embryo-cs20",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/hesta-human-embryo-cs20",
+        "label": "HESTA Human Embryo CS20 (section)",
+        "sortOrder": 5,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      },
+      {
+        "slug": "hesta-human-embryo-cs23",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/hesta-human-embryo-cs23",
+        "label": "HESTA Human Embryo CS23 (section)",
+        "sortOrder": 6,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "celltype"
+        }
+      }
+    ]
+  },
+  {
+    "key": "xenium",
+    "featured": true,
+    "project": "Xenium \u2014 Human Breast Cancer",
+    "title": "Human Breast Cancer, Cells and Molecules (Xenium)",
+    "description": "Xenium In Situ profiling of FFPE human breast cancer: 167,780 segmented cells across 21 graph-based clusters, paired with all 42,473,766 raw transcripts. The two are linked, so opening the cells also renders the molecules they came from in the same scene.",
+    "species": "Human",
+    "disease": "Breast cancer",
+    "tissue": "Breast",
+    "platform": "Xenium",
+    "institute": "10x Genomics",
+    "externalLink": "https://www.10xgenomics.com/datasets/xenium-ffpe-human-breast-cancer",
+    "publicationLink": null,
+    "tags": [
+      "human",
+      "cancer",
+      "single-molecule",
+      "xenium"
+    ],
+    "numCells": 167780,
+    "numGenes": 321,
+    "datasets": [
+      {
+        "slug": "xenium-human-breast-cancer",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/xenium-human-breast-cancer",
+        "label": "Xenium Human Breast Cancer",
+        "sortOrder": 0,
+        "datasetType": "single_cell",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "2D",
+          "priorityColumn": "graphclust"
+        }
+      },
+      {
+        "slug": "xenium-human-breast-cancer-sm",
+        "s3BaseUrl": "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/featured-datasets/xenium-human-breast-cancer-sm",
+        "label": "Xenium Human Breast Cancer (molecules)",
+        "sortOrder": 1,
+        "datasetType": "single_molecule",
+        "viewerConfig": {
+          "version": 1,
+          "viewMode": "3D"
+        }
+      }
+    ]
+  }
+]

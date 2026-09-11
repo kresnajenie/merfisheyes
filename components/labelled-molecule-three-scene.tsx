@@ -3,7 +3,7 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { LmMenu } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { resolveValueColor } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
@@ -25,7 +25,7 @@ import {
   LM_CHIP_H,
   lmChipBottom,
 } from "@/components/labelled-molecule-controls";
-import { loadCellMeshes, type CellMesh } from "@/lib/webgl/cell-meshes";
+import { loadSurfaceMeshes, type CellMesh } from "@/lib/webgl/cell-meshes";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 
 interface ColumnData {
@@ -105,6 +105,7 @@ export default function LabelledMoleculeThreeScene({
   const controlsRef = useRef<any | null>(null);
   const meshGroupRef = useRef<THREE.Group | null>(null);
   const [cellMeshes, setCellMeshes] = useState<CellMesh[] | null>(null);
+  const [nucleiMeshes, setNucleiMeshes] = useState<CellMesh[] | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const resetViewRef = useRef<(() => void) | null>(null);
   const flyToRef = useRef<
@@ -142,6 +143,8 @@ export default function LabelledMoleculeThreeScene({
     selectedScale,
     unselectedScale,
     showMeshes,
+    showNuclei,
+    nucleiOpacity,
     meshMode,
     meshOpacity,
     colorOverrides: colorOverridesAll,
@@ -195,7 +198,10 @@ export default function LabelledMoleculeThreeScene({
     if (!base) return;
     let alive = true;
 
-    loadCellMeshes(base).then((m) => {
+    loadSurfaceMeshes(base, "nuclei").then((m) => {
+      if (alive) setNucleiMeshes(m);
+    });
+    loadSurfaceMeshes(base, "cells").then((m: CellMesh[] | null) => {
       if (alive) setCellMeshes(m);
     });
 
@@ -365,8 +371,7 @@ export default function LabelledMoleculeThreeScene({
     // make the selection nearly impossible to inspect.
     /** Does this molecule pass every menu (i.e. is it drawn "selected")? */
     const passesFilter = (i: number) => {
-      const { selections: sel, hiddenValues: hid } =
-        api.getState();
+      const { selections: sel, hiddenValues: hid } = api.getState();
 
       for (const menu of ["gene", "domain", "cell"] as LmMenu[]) {
         const col = columns[menu]!;
@@ -699,71 +704,81 @@ export default function LabelledMoleculeThreeScene({
     api.setState({ pendingCamera: null });
   }, [pendingCamera, materialVersion]);
 
-  // ── Cell surfaces. Rebuilt on style change; cheap next to the point cloud
-  //    (26 cells, ~34k triangles) so there is no need to mutate in place.
-  useEffect(() => {
-    const points = pointsRef.current;
+  /**
+   * Build one surface group — cells or nuclei.
+   *
+   * Both are keyed by the same `cell` labels and follow the same selection, so
+   * the only differences are the geometry and the material style. Rebuilt on
+   * style change rather than mutated: 26 surfaces of ~34k triangles is cheap
+   * next to the point cloud.
+   */
+  const buildSurfaces = useCallback(
+    (meshes: CellMesh[], wireframe: boolean, opacity: number) => {
+      const points = pointsRef.current;
+      const scene = points?.parent;
 
-    if (!points || !cellMeshes || !ready) return;
+      if (!points || !scene) return null;
 
-    const scene = points.parent;
+      // The scene is centred on the cloud's origin, so surfaces need the same
+      // shift — they are in the molecules' µm frame, not the scene's.
+      const offset = points.userData.centerOffset as
+        | [number, number, number]
+        | undefined;
 
-    if (!scene) return;
+      const group = new THREE.Group();
 
-    // The scene is centred on the cloud's origin, so the meshes need the same
-    // shift to line up — they share the molecules' µm frame, not the scene's.
-    const offset = points.userData.centerOffset as
-      | [number, number, number]
-      | undefined;
+      if (offset) group.position.set(-offset[0], -offset[1], -offset[2]);
 
-    const group = new THREE.Group();
+      const sel = selections.cell;
+      const hid = hiddenValues.cell;
+      // Follow the cell menu: show everything when nothing is selected.
+      const anyVisiblySelected = [...sel].some((v) => !hid.has(v));
+      const palette = columns.cell?.palette ?? null;
 
-    if (offset) group.position.set(-offset[0], -offset[1], -offset[2]);
+      for (const m of meshes) {
+        if (sel.size > 0 && anyVisiblySelected && !sel.has(m.label)) continue;
+        if (hid.has(m.label) && anyVisiblySelected) continue;
 
-    const sel = selections.cell;
-    const hid = hiddenValues.cell;
-    // Follow the cell menu: show every cell when nothing is selected.
-    const anyVisiblySelected = [...sel].some((v) => !hid.has(v));
-    const palette = columns.cell?.palette ?? null;
+        const geom = new THREE.BufferGeometry();
 
-    for (const m of cellMeshes) {
-      if (sel.size > 0 && anyVisiblySelected && !sel.has(m.label)) continue;
-      if (hid.has(m.label) && anyVisiblySelected) continue;
+        geom.setAttribute(
+          "position",
+          new THREE.BufferAttribute(m.positions, 3),
+        );
+        geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
+        geom.computeVertexNormals();
 
-      const geom = new THREE.BufferGeometry();
+        const material = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(
+            resolveValueColor(
+              "cell",
+              m.label,
+              colorOverridesAll.cell,
+              new Map(),
+              palette,
+            ),
+          ),
+          wireframe,
+          transparent: true,
+          opacity,
+          // Surfaces enclose the molecules, so must never occlude them.
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
 
-      geom.setAttribute("position", new THREE.BufferAttribute(m.positions, 3));
-      geom.setIndex(new THREE.BufferAttribute(m.indices, 1));
-      geom.computeVertexNormals();
+        group.add(new THREE.Mesh(geom, material));
+      }
 
-      const color = new THREE.Color(
-        resolveValueColor(
-          "cell",
-          m.label,
-          colorOverridesAll.cell,
-          new Map(),
-          palette,
-        ),
-      );
-      const material = new THREE.MeshBasicMaterial({
-        color,
-        wireframe: meshMode === "wireframe",
-        transparent: true,
-        opacity: meshMode === "wireframe" ? 0.5 : meshOpacity,
-        // Surfaces enclose the molecules, so they must never occlude them.
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
+      scene.add(group);
 
-      group.add(new THREE.Mesh(geom, material));
-    }
+      return { group, scene };
+    },
+    [selections, hiddenValues, columns, colorOverridesAll],
+  );
 
-    scene.add(group);
-    meshGroupRef.current = group;
-    group.visible = showMeshes;
-    invalidateRef.current?.();
-
-    return () => {
+  /** Tear a surface group down, freeing every geometry and material it owns. */
+  const disposeGroup = useCallback(
+    (scene: THREE.Object3D, group: THREE.Group) => {
       scene.remove(group);
       group.traverse((o) => {
         const mesh = o as THREE.Mesh;
@@ -771,6 +786,28 @@ export default function LabelledMoleculeThreeScene({
         mesh.geometry?.dispose();
         (mesh.material as THREE.Material)?.dispose();
       });
+    },
+    [],
+  );
+
+  // ── Cell surfaces.
+  useEffect(() => {
+    if (!cellMeshes || !ready) return;
+
+    const built = buildSurfaces(
+      cellMeshes,
+      meshMode === "wireframe",
+      meshMode === "wireframe" ? 0.5 : meshOpacity,
+    );
+
+    if (!built) return;
+
+    built.group.visible = showMeshes;
+    meshGroupRef.current = built.group;
+    invalidateRef.current?.();
+
+    return () => {
+      disposeGroup(built.scene, built.group);
       meshGroupRef.current = null;
     };
   }, [
@@ -780,10 +817,31 @@ export default function LabelledMoleculeThreeScene({
     showMeshes,
     meshMode,
     meshOpacity,
-    selections,
-    hiddenValues,
-    columns,
-    colorOverridesAll,
+    buildSurfaces,
+    disposeGroup,
+  ]);
+
+  // ── Nuclear surfaces. Same labels, same selection, drawn more opaque so they
+  //    read as a distinct structure through the translucent cell surface.
+  useEffect(() => {
+    if (!nucleiMeshes || !ready) return;
+
+    const built = buildSurfaces(nucleiMeshes, false, nucleiOpacity);
+
+    if (!built) return;
+
+    built.group.visible = showNuclei;
+    invalidateRef.current?.();
+
+    return () => disposeGroup(built.scene, built.group);
+  }, [
+    nucleiMeshes,
+    ready,
+    materialVersion,
+    showNuclei,
+    nucleiOpacity,
+    buildSurfaces,
+    disposeGroup,
   ]);
 
   // ── Reset view, driven by the store's nonce.

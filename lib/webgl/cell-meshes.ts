@@ -1,15 +1,22 @@
 /**
- * Per-cell segmentation meshes for the labelled-molecule viewer.
+ * Per-cell segmentation surfaces for the labelled-molecule viewer.
  *
- * Written by scripts/spiralia/export_meshes.py — the two must stay in step.
- * Vertices are in the same µm frame as the molecules (the exporter uses
- * `vertices_xyz`, not `vertices_reoriented_xyz`, which is a different frame),
- * so no transform is applied here.
+ * Two kinds share this format and this loader:
+ *   cells   written by scripts/spiralia/export_meshes.py
+ *   nuclei  written by scripts/spiralia/export_nuclei.py
  *
- *   meshes/index.json    per-cell label + vertex/index slices
- *   meshes/cells.bin.gz  u32 version | u32 cells | u32 nVerts | u32 nIndices
- *                        Float32 vertices[nVerts * 3]
- *                        Uint32  indices[nIndices]   (local to each cell)
+ * Both are keyed by the same `cell` obs labels, so a nucleus follows the same
+ * selection as the cell that contains it.
+ *
+ * Vertices are in the molecules' µm frame — cells use `vertices_xyz`, not
+ * `vertices_reoriented_xyz` which is a different frame; nuclei are converted
+ * from segm voxels at 1.0 µm in z and 0.708 µm in x/y — so no transform is
+ * applied here.
+ *
+ *   <index>.json   per-cell label + vertex/index slices
+ *   <bin>.bin.gz   u32 version | u32 cells | u32 nVerts | u32 nIndices
+ *                  Float32 vertices[nVerts * 3]
+ *                  Uint32  indices[nIndices]   (local to each cell)
  */
 
 export interface CellMesh {
@@ -35,21 +42,30 @@ async function gunzip(response: Response): Promise<ArrayBuffer> {
   return await new Response(stream).arrayBuffer();
 }
 
+export type SurfaceKind = "cells" | "nuclei";
+
+const FILES: Record<SurfaceKind, { index: string; bin: string }> = {
+  cells: { index: "meshes/index.json", bin: "meshes/cells.bin.gz" },
+  nuclei: { index: "meshes/nuclei_index.json", bin: "meshes/nuclei.bin.gz" },
+};
+
 /**
- * Fetch the cell meshes for a dataset, or null when it has none.
+ * Fetch one kind of surface for a dataset, or null when it has none.
  *
- * Returns null rather than throwing on a missing file: most datasets have no
- * meshes, and that is a normal state, not a failure.
+ * Returns null rather than throwing on a missing file: a dataset without
+ * meshes is a normal state, not a failure.
  */
-export async function loadCellMeshes(
+export async function loadSurfaceMeshes(
   baseUrl: string,
+  kind: SurfaceKind,
 ): Promise<CellMesh[] | null> {
   const base = baseUrl.replace(/\/+$/, "");
+  const files = FILES[kind];
 
   try {
     const [indexRes, binRes] = await Promise.all([
-      fetch(`${base}/meshes/index.json`),
-      fetch(`${base}/meshes/cells.bin.gz`),
+      fetch(`${base}/${files.index}`),
+      fetch(`${base}/${files.bin}`),
     ]);
 
     if (!indexRes.ok || !binRes.ok) return null;

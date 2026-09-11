@@ -41,6 +41,23 @@ const COLOR_STYLES = {
   },
 };
 
+/**
+ * Label for the external-source button. This used to read "View on BIL"
+ * unconditionally, which mislabels every non-BIL source. Keep the BIL wording
+ * for BIL rows and fall back to the link's own host elsewhere.
+ */
+function externalLinkLabel(dataset: CatalogDatasetItem): string {
+  if (dataset.bilCode) return "View on BIL";
+
+  try {
+    const host = new URL(dataset.externalLink!).hostname.replace(/^www\./, "");
+
+    return `View on ${host}`;
+  } catch {
+    return "View source";
+  }
+}
+
 function getEntryHref(entry: CatalogDatasetEntry): string {
   const base =
     entry.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
@@ -360,7 +377,7 @@ export function DatasetDetailPage({
               target="_blank"
               variant="flat"
             >
-              View on BIL
+              {externalLinkLabel(dataset)}
             </Button>
           )}
           {dataset.publicationLink && (
