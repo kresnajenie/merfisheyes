@@ -49,6 +49,10 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
     setMeshMode,
     meshOpacity,
     setMeshOpacity,
+    showNuclei,
+    setShowNuclei,
+    nucleiOpacity,
+    setNucleiOpacity,
   } = usePanelLabelledMoleculeVisualizationStore();
   const setHideUi = useSplitScreenStore((s) => s.setHideUi);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -273,6 +277,34 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
                     />
                   )}
                 </>
+              )}
+            </div>
+
+            {/* Nuclear surfaces, from the segmentation volume. Keyed by the
+                same cell labels, so they follow the cell menu too. */}
+            <div className="space-y-2 border-t border-default-200/40 pt-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-default-500">Nuclei</span>
+                <Button
+                  color={showNuclei ? "primary" : "default"}
+                  size="sm"
+                  variant={showNuclei ? "flat" : "light"}
+                  onPress={() => setShowNuclei(!showNuclei)}
+                >
+                  {showNuclei ? "On" : "Off"}
+                </Button>
+              </div>
+
+              {showNuclei && (
+                <Slider
+                  label="Nucleus opacity"
+                  maxValue={1}
+                  minValue={0.02}
+                  size="sm"
+                  step={0.02}
+                  value={nucleiOpacity}
+                  onChange={(v) => setNucleiOpacity(Number(v))}
+                />
               )}
             </div>
 
