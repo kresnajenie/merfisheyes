@@ -145,16 +145,15 @@ const initialState = () => ({
   } as Record<LmMenu, Set<string>>,
   geneColorSlots: new Map<string, number>(),
   globalScale: 0.4,
-  selectedScale: 1.5,
+  selectedScale: 0.45,
   unselectedScale: 0,
   showMeshes: true,
-  // Off by default: nuclei sit inside the cell surfaces, so showing both
-  // unasked reads as clutter rather than as two distinct structures.
-  showNuclei: false,
-  // More opaque than the cells (0.15) — a nucleus is seen through one.
-  nucleiOpacity: 0.7,
+  showNuclei: true,
+  // Read off a tuned view: the cell surface is a faint envelope and the
+  // nucleus inside it is solid enough to read through that envelope.
+  meshOpacity: 0.06,
+  nucleiOpacity: 0.64,
   meshMode: "translucent" as MeshMode,
-  meshOpacity: 0.15,
   searchTerm: { gene: "", domain: "", cell: "" } as Record<LmMenu, string>,
   resetViewNonce: 0,
   camera: null as {

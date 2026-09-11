@@ -3,7 +3,7 @@
 import type { ViewerConfig } from "@/lib/utils/viewer-config";
 
 import { Button } from "@heroui/button";
-import { Slider } from "@heroui/react";
+import { Slider, Switch } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
@@ -16,6 +16,16 @@ import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore
 
 // Same rail geometry as visualization-controls.tsx / single-molecule-controls.tsx.
 const buttonBaseClass = "w-14 h-14 min-w-0 rounded-full font-medium text-xs";
+
+/**
+ * Section headings in the camera flyout.
+ *
+ * Matches the weight and colour HeroUI gives a Slider's own label, so the
+ * panel reads as one list of settings. They were text-xs/default-500 against
+ * the sliders' text-medium/foreground, which made them recede exactly where
+ * the eye needs an anchor to skim.
+ */
+const sectionLabel = "text-medium text-foreground";
 
 /**
  * Top-right cluster: camera, hide-UI, share — matching the single-cell and
@@ -232,15 +242,12 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
                 cell when nothing is selected, otherwise just the selection. */}
             <div className="space-y-2 border-t border-default-200/40 pt-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-default-500">Cell meshes</span>
-                <Button
-                  color={showMeshes ? "primary" : "default"}
+                <span className={sectionLabel}>Cell meshes</span>
+                <Switch
+                  isSelected={showMeshes}
                   size="sm"
-                  variant={showMeshes ? "flat" : "light"}
-                  onPress={() => setShowMeshes(!showMeshes)}
-                >
-                  {showMeshes ? "On" : "Off"}
-                </Button>
+                  onValueChange={setShowMeshes}
+                />
               </div>
 
               {showMeshes && (
@@ -284,15 +291,12 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
                 same cell labels, so they follow the cell menu too. */}
             <div className="space-y-2 border-t border-default-200/40 pt-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-default-500">Nuclei</span>
-                <Button
-                  color={showNuclei ? "primary" : "default"}
+                <span className={sectionLabel}>Nuclei</span>
+                <Switch
+                  isSelected={showNuclei}
                   size="sm"
-                  variant={showNuclei ? "flat" : "light"}
-                  onPress={() => setShowNuclei(!showNuclei)}
-                >
-                  {showNuclei ? "On" : "Off"}
-                </Button>
+                  onValueChange={setShowNuclei}
+                />
               </div>
 
               {showNuclei && (
