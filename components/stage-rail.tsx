@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { STAGE_RAIL_HEIGHT, TILE } from "@/lib/ui/stage-rail-geometry";
 import { loadPreview } from "@/lib/webgl/preview";
 
 export interface ProjectDatasetSummary {
@@ -34,16 +35,9 @@ interface Props {
   onSplit: (d: ProjectDatasetSummary) => void;
 }
 
-const TILE = 96;
-/** The stage caption under each tile: 12px line plus its 2px top margin. */
-const LABEL_H = 14;
-/** Vertical padding of the bar, top + bottom. */
-const PAD_Y = 12;
-
-/**
- * Height of the rail; the viewer lifts its bottom-left chrome by this.
- */
-export const STAGE_RAIL_HEIGHT = TILE + LABEL_H + PAD_Y;
+// Re-exported so existing importers are unaffected; the numbers live in their
+// own module because the footer needs them without pulling three.js in.
+export { STAGE_RAIL_HEIGHT };
 
 /**
  * Allen-atlas style rail: one tile per developmental stage, each a live
