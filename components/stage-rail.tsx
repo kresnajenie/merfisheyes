@@ -20,16 +20,9 @@ export interface ProjectDatasetSummary {
   sortOrder: number;
 }
 
-interface Stage {
-  stage: string;
-  members: ProjectDatasetSummary[];
-  /** The one whose preview the tile renders: first in project order. */
-  rep: ProjectDatasetSummary;
-}
-
 interface Props {
   projectId: string;
-  /** s3BaseUrl of the dataset currently open, to mark the active stage. */
+  /** s3BaseUrl of the dataset currently open, to mark its tile. */
   currentUrl?: string | null;
   onOpen: (d: ProjectDatasetSummary) => void;
   onSplit: (d: ProjectDatasetSummary) => void;
@@ -39,14 +32,23 @@ interface Props {
 // own module because the footer needs them without pulling three.js in.
 export { STAGE_RAIL_HEIGHT };
 
+/** Width of the hover card, needed to clamp it inside the strip. */
+const CARD_W = 260;
+
+const norm = (u: string) => u.replace(/\/+$/, "");
+
 /**
- * Allen-atlas style rail: one tile per developmental stage, each a live
- * preview rather than a screenshot.
+ * Allen-atlas style rail: one tile per embryo, in developmental order, each a
+ * live preview rather than a screenshot. Clicking a tile opens it.
+ *
+ * Every embryo is its own tile. Grouping by stage put two clicks between the
+ * user and a dataset the strip was already showing — one to open the stage,
+ * another to pick an embryo inside it.
  *
  * All tiles share ONE WebGL context, drawn with per-tile scissor rectangles.
  * A context each would exhaust the browser's limit (~16) and cost far more
  * memory; one canvas over the strip, with viewports recomputed from the tiles'
- * DOM rects each frame, also means scrolling needs no special handling.
+ * DOM rects, also means scrolling needs no special handling.
  */
 export default function StageRail({
   projectId,
@@ -54,31 +56,14 @@ export default function StageRail({
   onOpen,
   onSplit,
 }: Props) {
-  const [stages, setStages] = useState<Stage[] | null>(null);
-  // Hover opens a stage's card; a click pins it so it survives the pointer
-  // leaving. Dock magnification stays gone — that was the part that thrashed
-  // layout, not the card itself.
+  const [items, setItems] = useState<ProjectDatasetSummary[] | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
-  const [pinned, setPinned] = useState<string | null>(null);
-  // Which embryo within the open stage the card previews. Falls back to the
-  // stage's representative whenever it names one from a different stage, so
-  // changing stage needs no reset.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const shown = pinned ?? hovered;
-
-  /** Dismiss the card outright — used after opening a dataset. */
-  const dismiss = useCallback(() => {
-    setPinned(null);
-    setHovered(null);
-  }, []);
-  const open = shown ? (stages?.find((s) => s.stage === shown) ?? null) : null;
-  const selected =
-    open?.members.find((m) => m.id === selectedId) ?? open?.rep ?? null;
-  const selectedUrl = selected?.s3BaseUrl ?? null;
+  /** Centre of the hovered tile, relative to the strip, to anchor the card. */
+  const [cardX, setCardX] = useState(0);
 
   const [previewsReady, setPreviewsReady] = useState(0);
   const [loaded, setLoaded] = useState<Set<string>>(new Set());
-  /** Keyed by s3BaseUrl — a stage's tile shows its rep, the card any member. */
+  /** Keyed by s3BaseUrl. */
   const previewsRef = useRef(new Map<string, DatasetPreview>());
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
@@ -95,7 +80,7 @@ export default function StageRail({
   );
   const bigCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // ── Project members, grouped into stages in project order.
+  // ── Project members, in project order (which is developmental order).
   useEffect(() => {
     let alive = true;
 
@@ -103,20 +88,11 @@ export default function StageRail({
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (!alive || !j) return;
-        const byStage = new Map<string, ProjectDatasetSummary[]>();
+        const ds = (j.datasets as ProjectDatasetSummary[])
+          .filter((d) => d.s3BaseUrl)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
 
-        for (const d of j.datasets as ProjectDatasetSummary[]) {
-          if (!d.stage) continue;
-          if (!byStage.has(d.stage)) byStage.set(d.stage, []);
-          byStage.get(d.stage)!.push(d);
-        }
-        setStages(
-          [...byStage.entries()].map(([stage, members]) => ({
-            stage,
-            members,
-            rep: members[0],
-          })),
-        );
+        setItems(ds);
       })
       .catch(() => {});
 
@@ -126,20 +102,19 @@ export default function StageRail({
   }, [projectId]);
 
   // ── Preview data. Independent of the renderer, so a browser without WebGL
-  //    still fetches nothing it cannot use and one without previews degrades to
-  //    plain labelled buttons.
+  //    fetches nothing it cannot use and degrades to plain labelled buttons.
   useEffect(() => {
-    if (!stages?.length) return;
+    if (!items?.length) return;
     const controllers: AbortController[] = [];
 
-    for (const s of stages) {
+    for (const d of items) {
       const ac = new AbortController();
 
       controllers.push(ac);
-      loadPreview(s.rep.s3BaseUrl, ac.signal).then((p) => {
+      loadPreview(d.s3BaseUrl, ac.signal).then((p) => {
         if (!p) return;
-        previewsRef.current.set(s.rep.s3BaseUrl, p);
-        setLoaded((prev) => new Set(prev).add(s.rep.s3BaseUrl));
+        previewsRef.current.set(d.s3BaseUrl, p);
+        setLoaded((prev) => new Set(prev).add(d.s3BaseUrl));
         setPreviewsReady((n) => n + 1);
       });
     }
@@ -149,17 +124,15 @@ export default function StageRail({
       previewsRef.current.clear();
       setLoaded(new Set());
     };
-  }, [stages]);
+  }, [items]);
 
   /**
    * Scene for one preview, built on first use and kept until the project
    * changes.
    *
-   * This used to be a pass at the top of the renderer effect with
-   * `previewsReady` in its dependencies, so one newly-fetched preview tore
-   * down and rebuilt every scene — resetting all the tiles' rotations.
-   * Selecting an embryo in the card fetches its preview, which is why a plain
-   * click reset the strip.
+   * Built lazily rather than in a pass keyed on `previewsReady`: that rebuilt
+   * every scene whenever one more preview arrived, resetting all the tiles'
+   * rotations.
    */
   const sceneFor = useCallback((url: string) => {
     const existing = scenesRef.current.get(url);
@@ -199,7 +172,7 @@ export default function StageRail({
   useEffect(() => {
     const canvas = canvasRef.current;
 
-    if (!canvas || !stages?.length) return;
+    if (!canvas || !items?.length) return;
 
     let renderer: THREE.WebGLRenderer;
 
@@ -215,25 +188,18 @@ export default function StageRail({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setScissorTest(true);
 
-    const scenes = scenesRef.current;
     const strip = stripRef.current;
 
     if (!strip) return;
 
     // Tile rectangles are measured once and reused. Reading them every frame
-    // meant a forced layout flush per tile per frame — the strip's real cost,
-    // since nothing about its geometry changes except on scroll or resize.
+    // meant a forced layout flush per tile per frame, and with 45 embryos that
+    // is 45 of them.
     /** Last CSS size the drawing buffer was sized for. */
     const sized = { w: 0, h: 0 };
     let layoutDirty = true;
-    let layout: {
-      url: string;
-      stage: string;
-      x: number;
-      y: number;
-      w: number;
-      h: number;
-    }[] = [];
+    let layout: { url: string; x: number; y: number; w: number; h: number }[] =
+      [];
 
     const measure = () => {
       const sr = strip.getBoundingClientRect();
@@ -245,17 +211,17 @@ export default function StageRail({
       }
 
       layout = [];
-      for (const s of stages) {
-        const el = tileRefs.current.get(s.stage);
+      for (const d of items) {
+        const el = tileRefs.current.get(d.id);
 
         if (!el) continue;
         const r = el.getBoundingClientRect();
 
-        // Cull tiles scrolled out of the strip.
+        // Cull tiles scrolled out of the strip. With 45 embryos most are off
+        // screen at any moment, so this is what keeps the cost flat.
         if (r.right < sr.left || r.left > sr.right) continue;
         layout.push({
-          url: s.rep.s3BaseUrl,
-          stage: s.stage,
+          url: d.s3BaseUrl,
           x: r.left - sr.left,
           y: sr.bottom - r.bottom, // WebGL origin is bottom-left
           w: r.width,
@@ -304,9 +270,7 @@ export default function StageRail({
 
         if (!entry) continue;
 
-        // Slow spin so the preview reads as 3D. Every tile spins, including
-        // the open one — its scene is what the card's enlarged canvas draws,
-        // and a paused tile left that embryo frozen.
+        // Slow spin so the preview reads as 3D.
         entry.points.rotation.y += dt * 0.35;
 
         renderer.setViewport(t.x, t.y, t.w, t.h);
@@ -324,39 +288,29 @@ export default function StageRail({
       strip.removeEventListener("scroll", markDirty);
       window.removeEventListener("resize", markDirty);
       ro.disconnect();
-      for (const { scene, points } of scenes.values()) {
+      for (const { scene, points } of scenesRef.current.values()) {
         points.geometry.dispose();
         (points.material as THREE.Material).dispose();
         scene.clear();
       }
-      scenes.clear();
+      scenesRef.current.clear();
       renderer.dispose();
     };
-  }, [stages, sceneFor]);
+  }, [items, sceneFor]);
 
-  // ── A non-representative member has no preview yet; fetch on selection.
-  useEffect(() => {
-    if (!selectedUrl || previewsRef.current.has(selectedUrl)) return;
-    const ac = new AbortController();
+  const open = useMemo(
+    () => items?.find((d) => d.id === hovered) ?? null,
+    [items, hovered],
+  );
 
-    loadPreview(selectedUrl, ac.signal).then((p) => {
-      if (!p) return;
-      previewsRef.current.set(selectedUrl, p);
-      setLoaded((prev) => new Set(prev).add(selectedUrl));
-      setPreviewsReady((n) => n + 1);
-    });
-
-    return () => ac.abort();
-  }, [selectedUrl]);
-
-  // ── Enlarged preview inside the stage card.
+  // ── Enlarged preview inside the hover card.
   //
-  // Its own context: the strip's canvas lives inside the strip and cannot reach
-  // the card above it. Two contexts is still far under the browser's limit and
-  // much simpler than reshaping the shared canvas to span both.
+  // Its own context: the strip's canvas lives inside the strip and cannot
+  // reach the card above it. Two contexts is still far under the browser's
+  // limit and much simpler than reshaping the shared canvas to span both.
   useEffect(() => {
     const canvas = bigCanvasRef.current;
-    const entry = selectedUrl ? sceneFor(selectedUrl) : null;
+    const entry = open ? sceneFor(open.s3BaseUrl) : null;
 
     if (!canvas || !entry) return;
 
@@ -398,51 +352,53 @@ export default function StageRail({
       cancelAnimationFrame(raf);
       renderer.dispose();
     };
-  }, [selectedUrl, previewsReady, sceneFor]);
+  }, [open, previewsReady, sceneFor]);
 
-  const setTileRef = useCallback((stage: string, el: HTMLDivElement | null) => {
-    if (el) tileRefs.current.set(stage, el);
-    else tileRefs.current.delete(stage);
+  const setTileRef = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (el) tileRefs.current.set(id, el);
+    else tileRefs.current.delete(id);
   }, []);
 
-  /** The embryo currently open, for the title. */
-  const activeMember = useMemo(() => {
-    if (!currentUrl || !stages) return null;
-    const norm = currentUrl.replace(/\/+$/, "");
-
-    for (const s of stages) {
-      const m = s.members.find((d) => d.s3BaseUrl.replace(/\/+$/, "") === norm);
-
-      if (m) return { stage: s.stage, member: m };
-    }
-
-    return null;
-  }, [currentUrl, stages]);
-
-  const activeStage = useMemo(() => {
-    if (!currentUrl || !stages) return null;
-    const norm = currentUrl.replace(/\/+$/, "");
+  /** The embryo currently open, for the title and the active ring. */
+  const activeId = useMemo(() => {
+    if (!currentUrl || !items) return null;
 
     return (
-      stages.find((s) =>
-        s.members.some((m) => m.s3BaseUrl.replace(/\/+$/, "") === norm),
-      )?.stage ?? null
+      items.find((d) => norm(d.s3BaseUrl) === norm(currentUrl))?.id ?? null
     );
-  }, [currentUrl, stages]);
+  }, [currentUrl, items]);
 
-  // Rendered before the project resolves so the rail doesn't pop in once the
-  // scene is already up. Sized identically to the real strip.
-  if (!stages) {
+  const active = items?.find((d) => d.id === activeId) ?? null;
+
+  /** Anchor the card over the tile the pointer is on, clamped to the strip. */
+  const hover = useCallback((d: ProjectDatasetSummary | null) => {
+    setHovered(d?.id ?? null);
+    if (!d) return;
+
+    const el = tileRefs.current.get(d.id);
+    const strip = stripRef.current;
+
+    if (!el || !strip) return;
+    const r = el.getBoundingClientRect();
+    const sr = strip.getBoundingClientRect();
+    const centre = r.left + r.width / 2 - sr.left;
+
+    setCardX(
+      Math.max(CARD_W / 2 + 8, Math.min(sr.width - CARD_W / 2 - 8, centre)),
+    );
+  }, []);
+
+  if (!items) {
     return (
       <div
         data-ui-overlay
         className="absolute bottom-0 left-0 right-0 z-[var(--z-rail)]"
       >
         <div
-          className={`flex items-center justify-center gap-2 overflow-hidden px-2 py-1.5 ${glassPanel()} rounded-none`}
+          className={`mx-auto flex w-fit max-w-full items-end gap-2 overflow-hidden px-2 py-1.5 ${glassPanel()} rounded-b-none`}
           style={{ height: STAGE_RAIL_HEIGHT }}
         >
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="shrink-0">
               <div
                 className="animate-pulse rounded-lg bg-default-200/40"
@@ -456,21 +412,21 @@ export default function StageRail({
     );
   }
 
-  if (!stages.length) return null;
+  if (!items.length) return null;
 
   return (
     <>
       {/* Which embryo is on screen. The rail shows where it sits in the
           series; this says what it actually is. */}
-      {activeMember && (
+      {active && (
         <div
           data-ui-overlay
           className={`absolute left-1/2 top-6 z-[var(--z-legends)] -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-1.5 ${glassButton()}`}
         >
-          <span className="text-sm font-medium">{activeMember.stage}</span>
+          <span className="text-sm font-medium">{active.stage}</span>
           <span className="text-sm text-default-500">
             {" · "}
-            {activeMember.member.title}
+            {active.title}
           </span>
         </div>
       )}
@@ -478,134 +434,80 @@ export default function StageRail({
       <div
         data-ui-overlay
         className="absolute bottom-0 left-0 right-0 z-[var(--z-rail)]"
-        onMouseLeave={() => setHovered(null)}
+        onMouseLeave={() => hover(null)}
       >
-        {/* Stage card: the embryos at this stage on the left, the selected
-          one previewed on the right. Pinned by a click on the tile. */}
-        {open && selected && (
+        {/* Hover card, anchored over its tile. Clicking the tile opens the
+            embryo, so this only has to name it and offer the split. */}
+        {open && (
           <div
-            className={`absolute bottom-full left-1/2 mb-2 -translate-x-1/2 p-3 ${glassPanel()}`}
+            className={`absolute bottom-full mb-2 -translate-x-1/2 p-3 ${glassPanel()}`}
+            style={{ left: cardX, width: CARD_W }}
           >
-            <div className="mb-2 flex items-baseline gap-2">
-              <span className="text-sm font-medium">{open.stage}</span>
-              <span className="text-xs text-default-500">
-                {open.members.length} embryo{open.members.length > 1 ? "s" : ""}
-              </span>
-              {
-                <button
-                  aria-label="Close"
-                  className="ml-auto text-xs text-default-500 hover:text-default-700"
-                  type="button"
-                  onClick={dismiss}
-                >
-                  ✕
-                </button>
-              }
+            <canvas
+              ref={bigCanvasRef}
+              className="mb-2 h-40 w-full rounded-lg bg-black/40"
+            />
+            <div className="text-sm font-medium">{open.title}</div>
+            <div className="mb-2 text-xs text-default-500">
+              {open.stage} · {(open.numCells / 1e6).toFixed(1)}M molecules
             </div>
-
-            <div className="flex gap-3">
-              {/* Left: the embryos at this stage. */}
-              <div className="flex w-48 max-h-52 flex-col gap-0.5 overflow-y-auto">
-                {open.members.map((m) => (
-                  <button
-                    key={m.id}
-                    className={`flex items-center justify-between rounded px-2 py-1 text-left text-xs transition-colors ${
-                      m.id === selected.id
-                        ? "bg-primary/20 text-primary"
-                        : "hover:bg-default-100"
-                    }`}
-                    type="button"
-                    onClick={() => setSelectedId(m.id)}
-                    onDoubleClick={() => {
-                      onOpen(m);
-                      dismiss();
-                    }}
-                  >
-                    <span className="truncate">{m.title}</span>
-                    <span className="shrink-0 tabular-nums text-[10px] text-default-500">
-                      {(m.numCells / 1e6).toFixed(1)}M
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Right: the selected embryo. */}
-              <canvas
-                ref={bigCanvasRef}
-                className="h-52 w-52 shrink-0 rounded-lg bg-black/40"
-              />
-            </div>
-
-            <div className="mt-2 flex gap-1">
-              <Button
-                className="flex-1"
-                color="primary"
-                size="sm"
-                variant="flat"
-                onPress={() => {
-                  onOpen(selected);
-                  dismiss();
-                }}
-              >
-                Open {selected.title}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onPress={() => {
-                  onSplit(selected);
-                  dismiss();
-                }}
-              >
-                Split screen
-              </Button>
-            </div>
+            <Button
+              className="w-full"
+              size="sm"
+              variant="ghost"
+              onPress={() => {
+                onSplit(open);
+                hover(null);
+              }}
+            >
+              Split screen
+            </Button>
           </div>
         )}
 
         <div
           ref={stripRef}
-          // Hugs its tiles: a full-bleed bar left wide empty margins either side
-          // of a centred strip. `max-w-full` keeps the scroll for narrow windows.
+          // Hugs its tiles, and `max-w-full` keeps the scroll for narrow
+          // windows — with 45 embryos it is always scrolling.
           className={`relative mx-auto flex w-fit max-w-full items-end gap-2 overflow-x-auto px-2 py-1.5 ${glassPanel()} rounded-b-none`}
           style={{ height: STAGE_RAIL_HEIGHT }}
         >
-          {/* One canvas for every tile; positioned under them, drawn per-viewport. */}
+          {/* One canvas for every tile; under them, drawn per-viewport. */}
           <canvas
             ref={canvasRef}
             className="pointer-events-none absolute inset-0 h-full w-full"
           />
 
-          {stages.map((s) => (
+          {items.map((d) => (
             <button
-              key={s.stage}
+              key={d.id}
               className="relative z-10 shrink-0 cursor-pointer"
               style={{ width: TILE }}
               type="button"
-              onClick={() => setPinned(pinned === s.stage ? null : s.stage)}
-              onMouseEnter={() => setHovered(s.stage)}
+              onClick={() => onOpen(d)}
+              onMouseEnter={() => hover(d)}
             >
               <div
-                ref={(el) => setTileRef(s.stage, el)}
+                ref={(el) => setTileRef(d.id, el)}
                 className={`relative rounded-lg border-2 transition-colors ${
-                  activeStage === s.stage
+                  activeId === d.id
                     ? "border-primary"
-                    : shown === s.stage
+                    : hovered === d.id
                       ? "border-default-400"
                       : "border-transparent"
                 }`}
                 style={{ width: TILE, height: TILE }}
               >
-                {!loaded.has(s.rep.s3BaseUrl) && (
+                {!loaded.has(d.s3BaseUrl) && (
                   <div className="absolute inset-2 animate-pulse rounded bg-default-200/30" />
                 )}
               </div>
               <div
                 className={`mt-0.5 truncate text-center text-[10px] leading-3 ${
-                  activeStage === s.stage ? "text-primary" : "text-default-500"
+                  activeId === d.id ? "text-primary" : "text-default-500"
                 }`}
               >
-                {s.stage}
+                {d.title}
               </div>
             </button>
           ))}
