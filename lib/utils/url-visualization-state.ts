@@ -369,7 +369,7 @@ export function encodeLmVizState(state: {
   // These must track the store's defaults; a stale value here silently writes
   // the default into every URL and omits the one setting that matters.
   if (state.globalScale !== 0.4) s.gs = state.globalScale;
-  if (state.selectedScale !== 1.5) s.ss = state.selectedScale;
+  if (state.selectedScale !== 0.45) s.ss = state.selectedScale;
   if (state.unselectedScale !== 0) s.us = state.unselectedScale;
   if (state.camera) {
     // Rounded: sub-0.01 µm camera precision is meaningless and costs URL length.

@@ -10,6 +10,42 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.6.0] - 2026-09-15
+
+Nuclei alongside cells in the labelled-molecule viewer, and every featured
+atlas reachable on Explore.
+
+### Added
+
+- **Nuclear surfaces in the labelled-molecule viewer**, for all 45 spiralia
+  embryos — unlike the cell meshes, which exist for 31. Nuclei are keyed by the
+  same cell labels, so they follow the cell menu exactly as the cell surfaces
+  do, and they have their own on/off and opacity controls. Built from the
+  segmentation volume by `scripts/spiralia/export_nuclei.py`, decimated to
+  about 160 KB per embryo.
+
+### Changed
+
+- **The featured row on Explore is a carousel.** It rendered a 4-up grid and
+  hid everything past the fourth card behind a "view all" link, so growing from
+  3 featured datasets to 8 left most of them invisible. Arrows page a viewport
+  at a time, disable at each end, and hide when the row already fits.
+- **Labelled-molecule defaults follow a hand-tuned view** rather than first
+  guesses: smaller selected molecules, a fainter cell surface, and nuclei shown
+  by default. Nuclei are only on because the cell surface is now faint enough
+  not to compete with them.
+- **Surface toggles are switches**, and the camera panel's section headings now
+  match the weight of the slider labels beside them — they were the dimmest
+  text in the panel, where the eye needs an anchor to skim.
+
+### Fixed
+
+- **Admin-curated atlases get their detail page.** The link was gated on a
+  dataset being a community submission, so a curated atlas that is
+  project-backed in exactly the same way only ever offered an inline dropdown.
+- **An external-source button names its destination.** It read "View on BIL"
+  for every external link regardless of where it pointed.
+
 ## [0.5.1] - 2026-09-10
 
 ### Added
@@ -259,7 +295,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.0...v0.4.1

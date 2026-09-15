@@ -23,10 +23,12 @@ function getCardHref(
   if (dataset.bilCode) {
     return { href: `/explore/bil/${dataset.bilCode}` };
   }
-  // Community projects open a detail page, like BIL — always when the row is
-  // project-backed (sourceProjectId), even with a single dataset, and as a
-  // fallback for multi-entry rows from payloads without that field.
-  if (dataset.isCommunity && (dataset.sourceProjectId || entries.length > 1)) {
+  // Project-backed rows open a detail page, like BIL — whoever curated them.
+  // Gating this on isCommunity used to hide the detail page from admin-curated
+  // atlases, which are project-backed in exactly the same way. Multi-entry
+  // rows still need isCommunity, so curated rows that were never project-backed
+  // (e.g. the BIL slice collections) keep their inline dropdown.
+  if (dataset.sourceProjectId || (dataset.isCommunity && entries.length > 1)) {
     return { href: `/explore/${dataset.id}` };
   }
   if (entries.length === 0) {
