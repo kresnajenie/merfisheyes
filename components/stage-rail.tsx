@@ -465,52 +465,60 @@ export default function StageRail({
           </div>
         )}
 
+        {/* The bar, which does not scroll, holding a scroller that does.
+            The canvas has to live out here: inside the scroller it is
+            positioned against the content origin and scrolls away with it, so
+            scrolling right left an uncovered strip at the right edge and drew
+            every preview shifted by the scroll offset. */}
         <div
-          ref={stripRef}
           // Hugs its tiles, and `max-w-full` keeps the scroll for narrow
           // windows — with 45 embryos it is always scrolling.
-          className={`relative mx-auto flex w-fit max-w-full items-end gap-2 overflow-x-auto px-2 py-1.5 ${glassPanel()} rounded-b-none`}
+          className={`relative mx-auto w-fit max-w-full ${glassPanel()} rounded-b-none`}
           style={{ height: STAGE_RAIL_HEIGHT }}
         >
-          {/* One canvas for every tile; under them, drawn per-viewport. */}
           <canvas
             ref={canvasRef}
             className="pointer-events-none absolute inset-0 h-full w-full"
           />
 
-          {items.map((d) => (
-            <button
-              key={d.id}
-              className="relative z-10 shrink-0 cursor-pointer"
-              style={{ width: TILE }}
-              type="button"
-              onClick={() => onOpen(d)}
-              onMouseEnter={() => hover(d)}
-            >
-              <div
-                ref={(el) => setTileRef(d.id, el)}
-                className={`relative rounded-lg border-2 transition-colors ${
-                  activeId === d.id
-                    ? "border-primary"
-                    : hovered === d.id
-                      ? "border-default-400"
-                      : "border-transparent"
-                }`}
-                style={{ width: TILE, height: TILE }}
+          <div
+            ref={stripRef}
+            className="relative z-10 flex h-full items-end gap-2 overflow-x-auto px-2 py-1.5"
+          >
+            {items.map((d) => (
+              <button
+                key={d.id}
+                className="relative z-10 shrink-0 cursor-pointer"
+                style={{ width: TILE }}
+                type="button"
+                onClick={() => onOpen(d)}
+                onMouseEnter={() => hover(d)}
               >
-                {!loaded.has(d.s3BaseUrl) && (
-                  <div className="absolute inset-2 animate-pulse rounded bg-default-200/30" />
-                )}
-              </div>
-              <div
-                className={`mt-0.5 truncate text-center text-[10px] leading-3 ${
-                  activeId === d.id ? "text-primary" : "text-default-500"
-                }`}
-              >
-                {d.title}
-              </div>
-            </button>
-          ))}
+                <div
+                  ref={(el) => setTileRef(d.id, el)}
+                  className={`relative rounded-lg border-2 transition-colors ${
+                    activeId === d.id
+                      ? "border-primary"
+                      : hovered === d.id
+                        ? "border-default-400"
+                        : "border-transparent"
+                  }`}
+                  style={{ width: TILE, height: TILE }}
+                >
+                  {!loaded.has(d.s3BaseUrl) && (
+                    <div className="absolute inset-2 animate-pulse rounded bg-default-200/30" />
+                  )}
+                </div>
+                <div
+                  className={`mt-0.5 truncate text-center text-[10px] leading-3 ${
+                    activeId === d.id ? "text-primary" : "text-default-500"
+                  }`}
+                >
+                  {d.title}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </>
