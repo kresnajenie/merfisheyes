@@ -9,37 +9,26 @@ import type { StandardizedDataset } from "../StandardizedDataset";
 
 import { useEffect, useRef } from "react";
 
-import { LM_MENUS } from "../stores/createLabelledMoleculeVisualizationStore";
 import { labelledMoleculeVisualizationStore } from "../stores/labelledMoleculeVisualizationStore";
 import { getLmDataset } from "../stores/lmDatasetRegistry";
+import {
+  carrySelections,
+  sameCarry,
+  type LmCarryFields,
+} from "../utils/lm-selection";
 import { useSplitScreenStore } from "../stores/splitScreenStore";
 
 /** What the two panels keep in step. Camera is deliberately not in here. */
-type LmSyncFields = {
-  selections: Record<LmMenu, Set<string>>;
-  colorBy: LmMenu;
-};
+type LmSyncFields = LmCarryFields & { colorBy: LmMenu };
 
 function pick(state: LabelledMoleculeVisualizationState): LmSyncFields {
-  return { selections: state.selections, colorBy: state.colorBy };
-}
-
-/**
- * Values of `menu` the dataset actually has, as a set for membership tests.
- *
- * A column is only present once it has been lazily loaded; until then the
- * dataset can answer "no values", which would wrongly drop every incoming
- * selection. Returning null for that case means "cannot tell yet, do nothing".
- */
-function vocabulary(
-  dataset: StandardizedDataset | null,
-  menu: LmMenu,
-): Set<string> | null {
-  const col = dataset?.clusters?.find((c) => c.column === menu);
-
-  if (!col?.uniqueValues?.length) return null;
-
-  return new Set(col.uniqueValues);
+  return {
+    selections: state.selections,
+    hiddenValues: state.hiddenValues,
+    geneColorSlots: state.geneColorSlots,
+    colorOverrides: state.colorOverrides,
+    colorBy: state.colorBy,
+  };
 }
 
 /**
@@ -96,26 +85,13 @@ export function useSyncLabelledMoleculeVisualization(
       syncingRef.current = true;
       try {
         const state = target.getState();
+        const carried = carrySelections(source, targetDataset);
 
-        for (const menu of LM_MENUS) {
-          const vocab = vocabulary(targetDataset, menu);
-
-          // Column not loaded yet — leave this menu alone rather than clearing
-          // it against an empty vocabulary.
-          if (!vocab) continue;
-
-          const next = new Set<string>();
-
-          for (const v of source.selections[menu]) {
-            if (vocab.has(v)) next.add(v);
-          }
-
-          const current = state.selections[menu];
-          const same =
-            current.size === next.size &&
-            [...next].every((v) => current.has(v));
-
-          if (!same) target.getState().setSelection(menu, next);
+        // Colours come across with the selection, not just which values are
+        // selected: the same gene showing in two colours across a split is
+        // worse than it not carrying at all.
+        if (!sameCarry(state, carried)) {
+          target.getState().applyUrlState(carried);
         }
 
         if (state.colorBy !== source.colorBy) {
@@ -154,8 +130,9 @@ export function useSyncLabelledMoleculeVisualization(
         return;
       }
       if (
-        fields.selections !== prevLeftRef.current?.selections ||
-        fields.colorBy !== prevLeftRef.current?.colorBy
+        !prevLeftRef.current ||
+        !sameCarry(fields, prevLeftRef.current) ||
+        fields.colorBy !== prevLeftRef.current.colorBy
       ) {
         propagate(fields, rightStore, getLmDataset("right"));
       }
@@ -171,8 +148,9 @@ export function useSyncLabelledMoleculeVisualization(
         return;
       }
       if (
-        fields.selections !== prevRightRef.current?.selections ||
-        fields.colorBy !== prevRightRef.current?.colorBy
+        !prevRightRef.current ||
+        !sameCarry(fields, prevRightRef.current) ||
+        fields.colorBy !== prevRightRef.current.colorBy
       ) {
         propagate(
           fields,
