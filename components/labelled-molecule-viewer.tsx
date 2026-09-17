@@ -24,6 +24,7 @@ import { setLmDataset } from "@/lib/stores/lmDatasetRegistry";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
+import { carrySelections, sameCarry } from "@/lib/utils/lm-selection";
 
 /** Columns the three menus need before the scene can draw. */
 const REQUIRED_COLUMNS = ["gene", "domain", "cell"];
@@ -113,6 +114,15 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
           REQUIRED_COLUMNS.map((c) => loadClusterColumn(ds, c)),
         );
 
+        // Carry the current selection onto this embryo, dropping values it
+        // does not have. Genes survive across the whole series; cell and
+        // domain names survive within a stage and fall away across one.
+        const carried = carrySelections(api.getState(), ds);
+
+        if (!sameCarry(api.getState(), carried)) {
+          api.getState().applyUrlState(carried);
+        }
+
         setDataset(ds);
         setClusterVersion((v) => v + 1);
         setSwapping(false);
@@ -194,18 +204,17 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
     (d: ProjectDatasetSummary) => {
       if (d.s3BaseUrl === activeUrl) return;
 
-      api.getState().reset();
-
+      // Selections carry over and are pruned against the incoming embryo once
+      // its columns load — see the intersect call in load(). `v=` is left
+      // alone so a reload reproduces what is on screen.
       const next = new URL(window.location.href);
 
       next.searchParams.set("url", d.s3BaseUrl);
-      // `v=` encodes selections of the outgoing embryo.
-      next.searchParams.delete("v");
       window.history.pushState(null, "", next.toString());
 
       setActiveUrl(d.s3BaseUrl);
     },
-    [activeUrl, api],
+    [activeUrl],
   );
 
   if (!baseUrl) {
@@ -302,6 +311,10 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
 
             split.setRightPanelS3(d.s3BaseUrl, "lm");
             split.enableSplit();
+            // On by default: opening a second panel from the rail is a request
+            // to see the same selection on another embryo, so requiring a
+            // separate click on the divider's link button was busywork.
+            split.setSyncEnabled(true);
           }}
         />
       )}
