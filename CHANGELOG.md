@@ -10,6 +10,38 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.7.0] - 2026-09-17
+
+Every embryo reachable in one click from the filmstrip, and a selection that
+follows you between them.
+
+### Added
+
+- **Every embryo has its own tile in the filmstrip**, in developmental order,
+  and clicking one opens it. The strip grouped 45 embryos into 11 stage tiles,
+  so reaching a dataset it was already showing took two clicks — one to open
+  the stage, another to pick from a list inside it. Each run of tiles still
+  carries its stage as a heading, highlighted when the open embryo is in it, so
+  nothing about where you are in the series was lost.
+- **Selections carry across embryos.** Switching used to clear everything.
+  Selections now follow, pruned against the embryo you are opening so nothing
+  stays selected that it does not have — gene selections survive the whole
+  series, while cell and domain selections survive within a developmental stage
+  and fall away across one, which is what the labels support.
+- **Splitting from the filmstrip turns sync on**, since opening a second panel
+  from the strip is a request to compare the same selection on another embryo.
+
+### Fixed
+
+- **The filmstrip no longer leaves a bar at its right edge when scrolled.** The
+  shared preview canvas was positioned inside the scrolling element, so it slid
+  out of view with the content, uncovering the right edge and drawing every
+  preview shifted by the scroll offset.
+- **A split panel shows the same colours as the main one.** Syncing rebuilt
+  each gene's colour from scratch in the receiving panel, so the same gene
+  could appear in two different colours across the split.
+- **The "made by" credit sits above the filmstrip** rather than on top of it.
+
 ## [0.6.0] - 2026-09-15
 
 Nuclei alongside cells in the labelled-molecule viewer, and every featured
@@ -295,7 +327,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.4.1...v0.5.0
