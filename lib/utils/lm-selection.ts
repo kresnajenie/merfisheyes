@@ -7,6 +7,17 @@ import type {
 import { LM_MENUS } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 
 /**
+ * Everything that has to travel together for a selection to look the same on
+ * another embryo. Colours are part of it: carrying which genes are selected
+ * without carrying what colour each one is gives two panels the same genes in
+ * different colours, which is worse than not carrying them at all.
+ */
+export type LmCarryFields = Pick<
+  LabelledMoleculeVisualizationState,
+  "selections" | "hiddenValues" | "geneColorSlots" | "colorOverrides"
+>;
+
+/**
  * Values of `menu` the dataset actually has.
  *
  * Null means "cannot tell yet" — a column that has not finished lazy-loading
@@ -34,49 +45,68 @@ function vocabulary(
  * 67% and 0%. No cell or domain name is common to all 45 — a 2-cell embryo has
  * AB/CD where a 24-cell has 1a1 — so genes carry everywhere and the other two
  * carry within a developmental stage and simply fall away across one.
- *
- * Returns null when nothing would change, so a caller can skip the write.
  */
-export function intersectSelectionsWithDataset(
-  state: Pick<
-    LabelledMoleculeVisualizationState,
-    "selections" | "hiddenValues" | "geneColorSlots"
-  >,
+export function carrySelections(
+  source: LmCarryFields,
   dataset: StandardizedDataset | null,
-): Partial<LabelledMoleculeVisualizationState> | null {
-  const selections = {} as Record<LmMenu, Set<string>>;
-  const hiddenValues = {} as Record<LmMenu, Set<string>>;
-  let changed = false;
+): LmCarryFields {
+  const selections = {} as LmCarryFields["selections"];
+  const hiddenValues = {} as LmCarryFields["hiddenValues"];
 
   for (const menu of LM_MENUS) {
     const vocab = vocabulary(dataset, menu);
-    const current = state.selections[menu];
-    const hidden = state.hiddenValues[menu];
 
     if (!vocab) {
-      selections[menu] = current;
-      hiddenValues[menu] = hidden;
+      selections[menu] = source.selections[menu];
+      hiddenValues[menu] = source.hiddenValues[menu];
       continue;
     }
 
-    const keptSel = new Set([...current].filter((v) => vocab.has(v)));
-    const keptHid = new Set([...hidden].filter((v) => vocab.has(v)));
-
-    if (keptSel.size !== current.size || keptHid.size !== hidden.size) {
-      changed = true;
-    }
-    selections[menu] = keptSel;
-    hiddenValues[menu] = keptHid;
+    selections[menu] = new Set(
+      [...source.selections[menu]].filter((v) => vocab.has(v)),
+    );
+    hiddenValues[menu] = new Set(
+      [...source.hiddenValues[menu]].filter((v) => vocab.has(v)),
+    );
   }
 
-  if (!changed) return null;
+  return {
+    selections,
+    hiddenValues,
+    // Surviving genes keep their slot. Rebuilding the slots would recolour
+    // genes that carried over perfectly well — and across a split it would
+    // show the same gene in two colours.
+    geneColorSlots: new Map(
+      [...source.geneColorSlots].filter(([gene]) => selections.gene.has(gene)),
+    ),
+    // Copied whole, not pruned: an override for a value this embryo lacks is
+    // inert, and keeping it means the colour returns if you go back.
+    colorOverrides: source.colorOverrides,
+  };
+}
 
-  // Keep each surviving gene's colour slot. Rebuilding them would recolour
-  // genes that carried over perfectly well, which is the opposite of what
-  // carrying a selection across embryos is for.
-  const geneColorSlots = new Map(
-    [...state.geneColorSlots].filter(([gene]) => selections.gene.has(gene)),
-  );
+/** Whether two carried states would draw identically. */
+export function sameCarry(a: LmCarryFields, b: LmCarryFields): boolean {
+  const setsEqual = (x: Set<string>, y: Set<string>) =>
+    x.size === y.size && [...x].every((v) => y.has(v));
 
-  return { selections, hiddenValues, geneColorSlots };
+  for (const menu of LM_MENUS) {
+    if (!setsEqual(a.selections[menu], b.selections[menu])) return false;
+    if (!setsEqual(a.hiddenValues[menu], b.hiddenValues[menu])) return false;
+  }
+
+  if (a.geneColorSlots.size !== b.geneColorSlots.size) return false;
+  for (const [gene, slot] of a.geneColorSlots) {
+    if (b.geneColorSlots.get(gene) !== slot) return false;
+  }
+
+  return LM_MENUS.every((menu) => {
+    const x = a.colorOverrides[menu];
+    const y = b.colorOverrides[menu];
+    const kx = Object.keys(x);
+
+    return (
+      kx.length === Object.keys(y).length && kx.every((k) => x[k] === y[k])
+    );
+  });
 }

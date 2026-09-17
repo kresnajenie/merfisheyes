@@ -303,6 +303,30 @@ export default function StageRail({
     [items, hovered],
   );
 
+  /**
+   * Consecutive runs sharing a stage.
+   *
+   * Every embryo still gets its own tile — the point of the flat strip — but
+   * the strip is in developmental order, so a heading over each run says where
+   * you are in the series without costing a click. Built from runs rather than
+   * a group-by so a stage that somehow appears twice in project order renders
+   * twice rather than being silently merged.
+   */
+  const groups = useMemo(() => {
+    if (!items) return [];
+    const out: { stage: string; items: ProjectDatasetSummary[] }[] = [];
+
+    for (const d of items) {
+      const stage = d.stage ?? "—";
+      const last = out[out.length - 1];
+
+      if (last && last.stage === stage) last.items.push(d);
+      else out.push({ stage, items: [d] });
+    }
+
+    return out;
+  }, [items]);
+
   // ── Enlarged preview inside the hover card.
   //
   // Its own context: the strip's canvas lives inside the strip and cannot
@@ -483,40 +507,58 @@ export default function StageRail({
 
           <div
             ref={stripRef}
-            className="relative z-10 flex h-full items-end gap-2 overflow-x-auto px-2 py-1.5"
+            className="relative z-10 flex h-full items-end gap-5 overflow-x-auto px-2 py-1.5"
           >
-            {items.map((d) => (
-              <button
-                key={d.id}
-                className="relative z-10 shrink-0 cursor-pointer"
-                style={{ width: TILE }}
-                type="button"
-                onClick={() => onOpen(d)}
-                onMouseEnter={() => hover(d)}
-              >
+            {groups.map((g) => (
+              <div key={g.stage} className="flex shrink-0 flex-col gap-1">
                 <div
-                  ref={(el) => setTileRef(d.id, el)}
-                  className={`relative rounded-lg border-2 transition-colors ${
-                    activeId === d.id
-                      ? "border-primary"
-                      : hovered === d.id
-                        ? "border-default-400"
-                        : "border-transparent"
-                  }`}
-                  style={{ width: TILE, height: TILE }}
-                >
-                  {!loaded.has(d.s3BaseUrl) && (
-                    <div className="absolute inset-2 animate-pulse rounded bg-default-200/30" />
-                  )}
-                </div>
-                <div
-                  className={`mt-0.5 truncate text-center text-[10px] leading-3 ${
-                    activeId === d.id ? "text-primary" : "text-default-500"
+                  className={`truncate px-1 text-[10px] leading-3 ${
+                    g.items.some((d) => d.id === activeId)
+                      ? "text-primary"
+                      : "text-default-500"
                   }`}
                 >
-                  {d.title}
+                  {g.stage}
                 </div>
-              </button>
+
+                <div className="flex gap-2">
+                  {g.items.map((d) => (
+                    <button
+                      key={d.id}
+                      className="relative z-10 shrink-0 cursor-pointer"
+                      style={{ width: TILE }}
+                      type="button"
+                      onClick={() => onOpen(d)}
+                      onMouseEnter={() => hover(d)}
+                    >
+                      <div
+                        ref={(el) => setTileRef(d.id, el)}
+                        className={`relative rounded-lg border-2 transition-colors ${
+                          activeId === d.id
+                            ? "border-primary"
+                            : hovered === d.id
+                              ? "border-default-400"
+                              : "border-transparent"
+                        }`}
+                        style={{ width: TILE, height: TILE }}
+                      >
+                        {!loaded.has(d.s3BaseUrl) && (
+                          <div className="absolute inset-2 animate-pulse rounded bg-default-200/30" />
+                        )}
+                      </div>
+                      <div
+                        className={`mt-0.5 truncate text-center text-[10px] leading-3 ${
+                          activeId === d.id
+                            ? "text-primary"
+                            : "text-default-500"
+                        }`}
+                      >
+                        {d.title}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>

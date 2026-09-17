@@ -24,7 +24,7 @@ import { setLmDataset } from "@/lib/stores/lmDatasetRegistry";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
-import { intersectSelectionsWithDataset } from "@/lib/utils/lm-selection";
+import { carrySelections, sameCarry } from "@/lib/utils/lm-selection";
 
 /** Columns the three menus need before the scene can draw. */
 const REQUIRED_COLUMNS = ["gene", "domain", "cell"];
@@ -117,9 +117,11 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
         // Carry the current selection onto this embryo, dropping values it
         // does not have. Genes survive across the whole series; cell and
         // domain names survive within a stage and fall away across one.
-        const pruned = intersectSelectionsWithDataset(api.getState(), ds);
+        const carried = carrySelections(api.getState(), ds);
 
-        if (pruned) api.getState().applyUrlState(pruned);
+        if (!sameCarry(api.getState(), carried)) {
+          api.getState().applyUrlState(carried);
+        }
 
         setDataset(ds);
         setClusterVersion((v) => v + 1);
@@ -309,6 +311,10 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
 
             split.setRightPanelS3(d.s3BaseUrl, "lm");
             split.enableSplit();
+            // On by default: opening a second panel from the rail is a request
+            // to see the same selection on another embryo, so requiring a
+            // separate click on the divider's link button was busywork.
+            split.setSyncEnabled(true);
           }}
         />
       )}
