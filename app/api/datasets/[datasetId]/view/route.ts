@@ -69,6 +69,22 @@ export async function POST(
         create: { datasetId, day, count: 1 },
         update: { count: { increment: 1 } },
       }),
+      // Keep the denormalized catalog counter in step, so Explore can order by
+      // popularity without joining through entries. A catalog row is bumped
+      // once no matter how many of its entries point at this dataset. Curated
+      // entries carry no datasetId, so they're matched on s3BaseUrl instead.
+      prisma.$executeRaw`
+        UPDATE "catalog_datasets" c
+           SET "view_count" = c."view_count" + 1
+         WHERE EXISTS (
+               SELECT 1
+                 FROM "catalog_dataset_entries" e
+                WHERE e."catalog_id" = c."id"
+                  AND (e."dataset_id" = ${datasetId}
+                       OR e."s3_base_url" = (
+                            SELECT d."s3_base_url" FROM "datasets" d
+                             WHERE d."id" = ${datasetId}))
+         )`,
     ]);
 
     const row = await prisma.dataset.findUnique({

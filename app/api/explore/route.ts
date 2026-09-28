@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import {
+  CARD_ORDER_BY,
   CARD_SELECT,
   findGeneMatchIds,
   findMatchedGenes,
@@ -169,7 +170,7 @@ export async function GET(req: NextRequest) {
     prisma.catalogDataset.findMany({
       where,
       select: CARD_SELECT,
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      orderBy: CARD_ORDER_BY,
       skip,
       take: limit,
     }),
