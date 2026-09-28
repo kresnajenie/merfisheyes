@@ -5,7 +5,11 @@ import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { generatePresignedUploadUrl } from "@/lib/s3";
+import {
+  generatePrefixUploadPolicy,
+  generatePresignedUploadUrl,
+  S3_POST_MAX_OBJECT_BYTES,
+} from "@/lib/s3";
 import { resolveDatasetOwner } from "@/lib/datasets/owner";
 
 const corsHeaders = {
@@ -34,6 +38,11 @@ interface InitiateUploadRequest {
   }>;
   /** Admins only: true → collective "admin" ownership instead of personal. */
   asAdmin?: boolean;
+  /**
+   * "post-policy" → return one prefix-scoped POST policy instead of a
+   * presigned PUT URL per file. Omitted → legacy per-file URLs.
+   */
+  uploadMode?: "post-policy";
 }
 
 export async function POST(request: NextRequest) {
@@ -52,6 +61,18 @@ export async function POST(request: NextRequest) {
     if (!metadata.numCells || !metadata.numGenes) {
       return NextResponse.json(
         { error: "metadata.numCells and metadata.numGenes are required" },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+
+    const maxFileSize = files.reduce((max, f) => Math.max(max, f.size), 1);
+
+    if (
+      body.uploadMode === "post-policy" &&
+      maxFileSize > S3_POST_MAX_OBJECT_BYTES
+    ) {
+      return NextResponse.json(
+        { error: "A single file exceeds the 5 GB upload limit" },
         { status: 400, headers: corsHeaders },
       );
     }
@@ -128,6 +149,20 @@ export async function POST(request: NextRequest) {
         timeout: 20000, // Maximum time for the transaction to complete (20s)
       },
     );
+
+    // 4a. POST-policy mode: one signature for the whole dataset prefix, capped
+    // at the largest declared file. Refreshed via /upload-policy.
+    if (body.uploadMode === "post-policy") {
+      const policy = await generatePrefixUploadPolicy(
+        `datasets/${datasetId}/`,
+        maxFileSize,
+      );
+
+      return NextResponse.json(
+        { success: true, datasetId, uploadId, policy },
+        { headers: corsHeaders },
+      );
+    }
 
     // 4. Generate presigned URLs outside transaction (parallel processing)
     console.log(`Generating presigned URLs for ${files.length} files...`);

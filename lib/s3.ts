@@ -15,6 +15,7 @@ import {
   DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
@@ -87,6 +88,43 @@ export async function generatePresignedUploadUrl(
     headers: {
       "Content-Type": contentType,
     },
+  };
+}
+
+// S3 rejects a single POST upload above 5 GB (larger objects need multipart).
+export const S3_POST_MAX_OBJECT_BYTES = 5 * 1024 ** 3;
+
+/**
+ * Sign ONE presigned-POST policy that authorizes uploads of any key under
+ * `keyPrefix` until it expires — one signature for a whole folder instead of
+ * one presigned URL per file. The client sets `key` and `Content-Type` per
+ * file on the form.
+ * @param keyPrefix - e.g. "datasets/ds_abc123/"
+ * @param maxFileSize - largest single object allowed, in bytes
+ * @param expiresIn - policy expiration in seconds (default: 1 hour)
+ */
+export async function generatePrefixUploadPolicy(
+  keyPrefix: string,
+  maxFileSize: number,
+  expiresIn: number = 3600,
+) {
+  const { url, fields } = await createPresignedPost(s3Client, {
+    Bucket: ensureBucket(),
+    // Placeholder key; the client overrides it per upload via the form's `key` field.
+    Key: `${keyPrefix}\${filename}`,
+    Conditions: [
+      ["starts-with", "$key", keyPrefix],
+      ["starts-with", "$Content-Type", ""],
+      ["content-length-range", 0, maxFileSize],
+    ],
+    Expires: expiresIn,
+  });
+
+  return {
+    url,
+    fields,
+    keyPrefix,
+    expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
   };
 }
 

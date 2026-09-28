@@ -17,6 +17,7 @@ import { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { GeneChunkProcessor } from "@/lib/utils/GeneChunkProcessor";
 import { createManifest, prepareFilesForUpload } from "@/lib/utils/sc-upload-files";
 import { generateDatasetFingerprint } from "@/lib/utils/fingerprint";
+import { uploadChunkedToS3 } from "@/lib/upload/uploadChunkedToS3";
 import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
 import { AuthModal } from "@/components/auth-modal";
 
@@ -435,30 +436,27 @@ export function UploadSettingsModal({
         );
       }
 
-      // Initiate upload
+      // Initiate + upload files to S3 under one prefix-scoped POST policy
       setProgressMessage("Initiating upload...");
       setProgress(60);
-      const uploadSession = await initiateUpload(
-        fingerprint,
-        datasetName,
-        dataset,
-        filesToUpload,
-        owner === "admin",
-      );
-
-      // Upload files to S3
       setUploadMessage("Uploading files to S3...");
       setUploadProgress(0);
-      await uploadFilesToS3(
-        uploadSession.uploadUrls,
-        filesToUpload,
-        uploadSession.datasetId,
-        uploadSession.uploadId,
-        (prog, msg) => {
+      const uploadSession = await uploadChunkedToS3({
+        fingerprint,
+        metadata: {
+          title: datasetName,
+          numCells: dataset.getPointCount(),
+          numGenes: dataset.genes.length,
+          platform: dataset.type,
+          description: "",
+        },
+        files: filesToUpload,
+        asAdmin: owner === "admin",
+        onProgress: (prog, msg) => {
           setUploadProgress(prog);
           setUploadMessage(msg);
         },
-      );
+      });
 
       // Complete upload
       setProgressMessage("Completing upload...");
@@ -809,142 +807,6 @@ async function checkDuplicate(
     console.error("Duplicate check error:", error);
 
     return null; // Continue on error
-  }
-}
-
-/**
- * Initiate upload with backend
- */
-async function initiateUpload(
-  fingerprint: string,
-  title: string,
-  dataset: any,
-  files: { key: string; size: number; contentType: string }[],
-  asAdmin: boolean,
-): Promise<{
-  uploadId: string;
-  datasetId: string;
-  uploadUrls: Record<string, string>;
-}> {
-  const response = await fetch("/api/datasets/initiate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fingerprint,
-      metadata: {
-        title,
-        numCells: dataset.getPointCount(),
-        numGenes: dataset.genes.length,
-        platform: dataset.type,
-        description: "",
-      },
-      files: files.map((f) => ({
-        key: f.key,
-        size: f.size,
-        contentType: f.contentType,
-      })),
-      asAdmin,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-
-    throw new Error(error.error || "Failed to initiate upload");
-  }
-
-  const result = await response.json();
-
-  // Map uploadUrls to presignedUrls for consistency
-  return {
-    uploadId: result.uploadId,
-    datasetId: result.datasetId,
-    uploadUrls: result.uploadUrls,
-  };
-}
-
-/**
- * Upload files to S3 using presigned URLs
- */
-async function uploadFilesToS3(
-  uploadUrls: Record<string, string>,
-  files: { key: string; blob: Blob; contentType: string }[],
-  datasetId: string,
-  uploadId: string,
-  onProgress: (progress: number, message: string) => void,
-) {
-  const MAX_RETRIES = 3;
-  let completed = 0;
-
-  for (const file of files) {
-    const url = uploadUrls[file.key];
-
-    if (!url) {
-      console.warn(`No presigned URL for ${file.key}, skipping`);
-      continue;
-    }
-
-    let retries = 0;
-    let success = false;
-
-    while (retries < MAX_RETRIES && !success) {
-      try {
-        // Upload to S3
-        const response = await fetch(url, {
-          method: "PUT",
-          body: file.blob,
-          headers: {
-            "Content-Type": file.contentType || "application/octet-stream",
-          },
-          mode: "cors", // Explicitly set CORS mode
-        });
-
-        if (!response.ok) {
-          throw new Error(`Upload failed: ${response.statusText}`);
-        }
-
-        // Mark file as complete in database
-        await markFileComplete(datasetId, file.key, uploadId);
-
-        success = true;
-        completed++;
-        const progress = (completed / files.length) * 100;
-
-        onProgress(progress, `Uploaded ${completed}/${files.length} files`);
-      } catch (error) {
-        retries++;
-        if (retries >= MAX_RETRIES) {
-          throw new Error(
-            `Failed to upload ${file.key} after ${MAX_RETRIES} retries: ${error}`,
-          );
-        }
-        console.warn(`Retry ${retries}/${MAX_RETRIES} for ${file.key}:`, error);
-        await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
-      }
-    }
-  }
-}
-
-/**
- * Mark a file as complete in the database
- */
-async function markFileComplete(
-  datasetId: string,
-  fileKey: string,
-  uploadId: string,
-): Promise<void> {
-  const response = await fetch(
-    `/api/datasets/${datasetId}/files/${encodeURIComponent(fileKey)}/complete`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uploadId }),
-    },
-  );
-
-  if (!response.ok) {
-    console.warn(`Failed to mark ${fileKey} as complete in database`);
-    // Don't throw - the file is uploaded to S3, this is just metadata
   }
 }
 
