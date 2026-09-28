@@ -147,6 +147,13 @@ model CatalogDataset {
   numCells     Int?    @map("num_cells")
   numGenes     Int?    @map("num_genes")
 
+  // Denormalized total views across this row's entries — the sum of
+  // Dataset.viewCount for every dataset an entry resolves to (by datasetId, or
+  // by s3BaseUrl for curated entries). Bumped alongside Dataset.viewCount in
+  // /api/datasets/[datasetId]/view so Explore can order by it directly.
+  // Re-derivable with scripts/recompute-catalog-views.ts.
+  viewCount    Int     @default(0) @map("view_count")
+
   // Audit
   createdBy     String?   @map("created_by")
   createdByUser User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
@@ -164,6 +171,7 @@ model CatalogDataset {
   @@index([submittedById])
   @@index([sourceDatasetId])
   @@index([sourceProjectId])
+  @@index([viewCount])
   @@map("catalog_datasets")
 }
 
