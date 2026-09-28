@@ -8,21 +8,7 @@ import { Chip } from "@heroui/chip";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-// Metadata keys to display with human-readable labels
-const METADATA_LABELS: Record<string, string> = {
-  authors: "Authors",
-  investigator: "Investigator",
-  institution: "Institution",
-  coInvestigators: "Co-Investigators",
-  funding: "Funding",
-  publicationYear: "Year",
-  license: "License",
-  age: "Age",
-  sex: "Sex",
-  genotype: "Genotype",
-  technique: "Technique",
-  citation: "Citation",
-};
+import { METADATA_LABELS } from "./metadata-labels";
 
 const COLOR_STYLES = {
   blue: {
