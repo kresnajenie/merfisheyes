@@ -19,10 +19,12 @@ services:
       retries: 20
 
   minio:
-    # minio/minio was removed from Docker Hub; Quay still hosts the last public
-    # build. Pinned because upstream no longer publishes images.
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data --console-address ":9001"
+    # Upstream MinIO images are gone: minio/minio left Docker Hub and
+    # quay.io/minio/minio went private in Sept 2026. Bitnami's frozen legacy
+    # archive still serves a public build (amd64 + arm64) that honours
+    # MINIO_ROOT_USER/PASSWORD, listens on 9000/9001 and bundles `mc`. Its
+    # entrypoint starts the server itself, so no `command:` override.
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
