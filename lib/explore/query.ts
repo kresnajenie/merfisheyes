@@ -50,6 +50,7 @@ export const CARD_SELECT = {
   // the detail page, even with a single entry.
   sourceProjectId: true,
   sortOrder: true,
+  viewCount: true,
   numCells: true,
   numGenes: true,
   entries: {
@@ -57,6 +58,21 @@ export const CARD_SELECT = {
     orderBy: { sortOrder: "asc" as const },
   },
 } satisfies Prisma.CatalogDatasetSelect;
+
+/**
+ * Default ordering for the Explore grid: most-viewed first. `sortOrder` stays
+ * ahead of it so an admin can still pin a row to the top (every row defaults
+ * to 0, so in practice this is a pure popularity sort); `createdAt` breaks
+ * ties so pagination stays deterministic when counts are equal.
+ *
+ * Shared by the SSR seed (app/explore/page.tsx) and /api/explore so the first
+ * page and subsequent pages can't be ordered differently.
+ */
+export const CARD_ORDER_BY: Prisma.CatalogDatasetOrderByWithRelationInput[] = [
+  { sortOrder: "asc" },
+  { viewCount: "desc" },
+  { createdAt: "desc" },
+];
 
 /** Split a raw gene query into search tokens: commas and whitespace both
  * separate terms, so "ntrk, bdnf" and "ntrk bdnf" mean the same thing. */

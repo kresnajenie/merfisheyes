@@ -9,15 +9,31 @@
  * Destinations must be fully percent-encoded. Next parses ":" in a redirect
  * destination as a path parameter, so a bare "https://" would be mangled.
  */
+// MER6-2_E3_1 with a chosen camera.
+const SPIRALIA_LANDING =
+  "/lm-viewer/from-s3" +
+  "?url=https%3A%2F%2Fmerfisheyes-bil.s3.us-west-2.amazonaws.com%2Fyiqun-spiralia%2FMER6-2_E3_1_lm" +
+  "&v=eyJjYW0iOlstMjI1LjA0LC04Mi44NSwtMzYyLjc2LDAsMCwwXX0";
+
 const VANITY_LANDINGS = [
+  { host: "spiralia.merfisheyes.com", destination: SPIRALIA_LANDING },
   {
-    host: "spiralia.merfisheyes.com",
-    // MER6-2_E3_1 with a chosen camera.
+    host: "demo1.merfisheyes.com",
+    // ACE mouse brain (bil-psc-data2/ace-low-bag) with a saved view: column,
+    // overlay genes and right-panel state carried in v / ov / rv.
     destination:
-      "/lm-viewer/from-s3" +
-      "?url=https%3A%2F%2Fmerfisheyes-bil.s3.us-west-2.amazonaws.com%2Fyiqun-spiralia%2FMER6-2_E3_1_lm" +
-      "&v=eyJjYW0iOlstMjI1LjA0LC04Mi44NSwtMzYyLjc2LDAsMCwwXX0",
+      "/viewer/from-s3" +
+      "?url=https%3A%2F%2Fmerfisheyes-bil.s3.us-west-2.amazonaws.com%2Fbil-psc-data2%2Face-low-bag%2Fmeyes_output" +
+      "&v=eyJjIjoic3ViY2xhc3NfbmFtZSIsImdzIjpbMCwyXSwic3oiOjIuOH0" +
+      "&ov=eyJnZW5lcyI6W1siSWdmYnBsMSIsIiMwMEZGRkYiLDEsdHJ1ZV0sWyJEcmQxIiwiI0ZGMDBGRiIsMSx0cnVlXSxbIlRoIiwiI0ZGRkYwMCIsMSx0cnVlXV0sImdzIjoyLjN9" +
+      "&rv=eyJnIjoiQ25yMSIsImMiOiJzdWJjbGFzc19uYW1lIiwiY3QiOlsiMDM3IERHIEdsdXQiLCIwMzggREctUElSIEV4IElNTiJdLCJtIjpbImNlbGx0eXBlIiwiZ2VuZSJdLCJncyI6WzAsMy4zODk4MzMyMTE4OTg4MDM3XX0",
   },
+  // Same embryo as spiralia.merfisheyes.com, landed directly so there is no
+  // second hop and in-place switching keeps working on this host.
+  { host: "demo2.merfisheyes.com", destination: SPIRALIA_LANDING },
+  // These two live in other Vercel projects, so they are absolute.
+  { host: "demo3.merfisheyes.com", destination: "https://schier.merfisheyes.com" },
+  { host: "demo4.merfisheyes.com", destination: "https://heart.merfisheyes.com/3d-heart" },
 ];
 
 /** @type {import('next').NextConfig} */

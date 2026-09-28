@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { CARD_SELECT } from "@/lib/explore/query";
+import { CARD_ORDER_BY, CARD_SELECT } from "@/lib/explore/query";
 import { title } from "@/components/primitives";
 import { ExplorePageClient } from "@/components/explore/explore-page-client";
 import { ExploreBackground } from "@/components/explore/explore-background";
@@ -40,7 +40,7 @@ async function loadPublicData() {
       prisma.catalogDataset.findMany({
         where: allBase,
         select: CARD_SELECT,
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+        orderBy: CARD_ORDER_BY,
         take: 20,
       }),
       prisma.catalogDataset.count({ where: allBase }),

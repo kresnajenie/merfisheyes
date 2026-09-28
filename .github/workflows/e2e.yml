@@ -112,6 +112,11 @@ jobs:
         run: npm run test:perf
       - name: Compare against baseline
         run: npm run test:perf:compare
+        # Shared runners swing 100-200 ms metrics by >20% on an unchanged
+        # commit, so the default 20% gate flaps. 30% still catches real
+        # regressions.
+        env:
+          PERF_FAIL_PCT: "30"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

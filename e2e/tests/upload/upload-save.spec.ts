@@ -20,7 +20,7 @@ import { signInDev } from "../../helpers/auth";
 const UPLOAD_ENABLED = process.env.E2E_UPLOAD === "1";
 
 // One representative dataset per upload path.
-const UPLOAD_TARGETS = ["h5ad-tiny", "sm-tiny"];
+const UPLOAD_TARGETS = ["h5ad-tiny", "chunked-tiny", "sm-tiny"];
 
 test.describe("@upload upload + save + reload", () => {
   test.skip(!UPLOAD_ENABLED, "Set E2E_UPLOAD=1 (and start docker infra) to run upload tests.");

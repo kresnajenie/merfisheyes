@@ -10,6 +10,36 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.8.0] - 2026-09-29
+
+Explore ranks what people actually open, every card explains itself, and large
+uploads no longer outlive their credentials.
+
+### Added
+
+- **Explore orders the grid by views.** It listed catalog rows in insertion
+  order, so nothing surfaced what people open most. View counts now live on
+  the catalog row and are kept current by the view endpoint, so the list and
+  the API agree; admins keep `sortOrder` in front to pin a row, and the
+  featured carousel stays hand-curated.
+- **An info button on every Explore card.** Only BIL and project-backed cards
+  could reach the detail page; a curated single-entry card went straight to
+  the viewer, so its description, provenance and stats had nowhere to surface.
+  The ⓘ opens a modal, so search, filters and scroll position survive a quick
+  look, with a link through to the full page for the gene list.
+- **`demo1`–`demo4.merfisheyes.com`** land on one dataset each, the way
+  `spiralia.merfisheyes.com` does: the ACE mouse brain with a saved view, the
+  spiralia embryo, and the schier and heart sites.
+
+### Fixed
+
+- **Large chunked uploads finish.** The upload modal signed one presigned URL
+  per file with a one-hour expiry and uploaded files one at a time, so a big
+  pre-chunked folder could outlive its URLs partway through — and the retries
+  reused the expired ones. Files now upload eight at a time under a single
+  POST policy that refreshes itself before it expires, and completion is
+  recorded in batches instead of one request per file.
+
 ## [0.7.0] - 2026-09-17
 
 Every embryo reachable in one click from the filmstrip, and a selection that
@@ -327,7 +357,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.0...v0.5.1

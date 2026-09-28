@@ -42,6 +42,9 @@ export interface CatalogDatasetItem {
    *  (e.g. account-card adapters) carries it. */
   sourceProjectId?: string | null;
   sortOrder: number;
+  /** Denormalized total views across this row's entries. Drives the Explore
+   *  grid's default ordering; absent on adapters that build items by hand. */
+  viewCount?: number;
   numCells: number | null;
   numGenes: number | null;
 }

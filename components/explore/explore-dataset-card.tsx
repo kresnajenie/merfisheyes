@@ -10,6 +10,8 @@ import NextLink from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { DatasetInfoModal } from "./dataset-info-modal";
+
 /**
  * Compute a static destination URL for the card if exactly one exists.
  * Returns null when the card needs runtime branching (e.g. multi-entry
@@ -156,6 +158,7 @@ export function ExploreDatasetCard({
 }: ExploreDatasetCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
@@ -378,71 +381,107 @@ export function ExploreDatasetCard({
               </Chip>
             </div>
           )}
-          {/* Link icons */}
-          {(dataset.externalLink || dataset.publicationLink) && (
-            <div className="absolute bottom-2 right-2 flex gap-1.5">
-              {dataset.publicationLink && (
-                <div
-                  className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
-                  role="link"
-                  title="Open publication"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.open(
-                      dataset.publicationLink!,
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }}
-                >
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              )}
-              {dataset.externalLink && (
-                <div
-                  className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
-                  role="link"
-                  title="Open source page"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.open(
-                      dataset.externalLink!,
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }}
-                >
-                  <svg
-                    className="w-3.5 h-3.5 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-              )}
+          {/* Info + link icons. The info button always renders — it's the only
+              way to read a single-entry card's metadata without opening the
+              viewer. */}
+          <div className="absolute bottom-2 right-2 flex gap-1.5">
+            <div
+              aria-label="Dataset information"
+              className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+              role="button"
+              tabIndex={0}
+              title="Dataset information"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowInfo(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                e.stopPropagation();
+                setShowInfo(true);
+              }}
+            >
+              <svg
+                className="w-4 h-4 text-white"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
-          )}
+            {(dataset.externalLink || dataset.publicationLink) && (
+              <>
+                {dataset.publicationLink && (
+                  <div
+                    className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+                    role="link"
+                    title="Open publication"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(
+                        dataset.publicationLink!,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                )}
+                {dataset.externalLink && (
+                  <div
+                    className="w-7 h-7 rounded-full bg-default-800/60 flex items-center justify-center hover:bg-default-800/80 transition-colors cursor-pointer"
+                    role="link"
+                    title="Open source page"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(
+                        dataset.externalLink!,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
           {/* Header badges (e.g. project membership) — bottom-left */}
           {headerBadges && (
             <div className="absolute bottom-2 left-2 z-10 flex max-w-[70%] flex-wrap gap-1">
@@ -672,6 +711,17 @@ export function ExploreDatasetCard({
 
       {/* Portal-based dropdown (horizontal scroll rows) */}
       {portalDropdown}
+
+      {/* Quick-look info. Rendered outside the card's link wrapper so nothing
+          inside it counts as a click on the card. Mounted only while open so
+          a full grid doesn't carry 20 idle modals. */}
+      {showInfo && (
+        <DatasetInfoModal
+          dataset={dataset}
+          isOpen={showInfo}
+          onClose={() => setShowInfo(false)}
+        />
+      )}
     </div>
   );
 }
