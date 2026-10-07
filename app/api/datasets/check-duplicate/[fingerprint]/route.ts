@@ -30,7 +30,8 @@ export async function GET(
     }
 
     // Check if dataset with this fingerprint exists
-    const existingDataset = await prisma.dataset.findUnique({
+    // findFirst, not findUnique: fingerprint is no longer a unique key.
+    const existingDataset = await prisma.dataset.findFirst({
       where: { fingerprint },
       select: {
         id: true,

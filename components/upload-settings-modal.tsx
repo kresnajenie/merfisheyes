@@ -150,7 +150,10 @@ export function UploadSettingsModal({
         const fpHash = Array.from(new Uint8Array(hashBuf))
           .map((b) => b.toString(16).padStart(2, "0"))
           .join("");
-        const fp = `${fpHash.slice(0, 50)}_${Date.now()}`;
+        // The real hash: it used to be suffixed with a timestamp purely to
+        // satisfy the unique constraint on fingerprint, which stored a value
+        // that could never match anything.
+        const fp = fpHash;
 
         setProgressMessage("Uploading zarr to S3...");
         setProgress(5);
@@ -272,27 +275,9 @@ export function UploadSettingsModal({
           fingerprint.substring(0, 50),
         );
 
-        // Check for duplicates
-        setProgressMessage("Checking for duplicates...");
-        setProgress(5);
-        const duplicateExists = await checkDuplicate(fingerprint);
-
-        if (duplicateExists) {
-          const confirmed = window.confirm(
-            `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`,
-          );
-
-          if (!confirmed) {
-            setIsProcessing(false);
-            setProgress(0);
-            setProgressMessage("");
-
-            return;
-          }
-
-          // Make fingerprint unique so the DB allows re-upload (VarChar(64) limit)
-          fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
-        }
+        // Duplicates are no longer checked at upload time. The fingerprint is
+        // still computed and stored; it is simply not enforced, so re-uploading
+        // a file whose earlier attempt failed no longer needs manual cleanup.
 
         // Generate dataset ID
         datasetId = `${dataset.type}_${datasetName}_${Date.now()}_${fingerprint.substring(0, 9)}`;
@@ -345,27 +330,9 @@ export function UploadSettingsModal({
 
         console.log("Dataset fingerprint:", fingerprint);
 
-        // Check for duplicates
-        setProgressMessage("Checking for duplicates...");
-        setProgress(5);
-        const duplicateExists = await checkDuplicate(fingerprint);
-
-        if (duplicateExists) {
-          const confirmed = window.confirm(
-            `A dataset with this content already exists.\n\nDataset: ${duplicateExists.title}\nUploaded: ${new Date(duplicateExists.createdAt).toLocaleString()}\n\nDo you want to upload anyway?`,
-          );
-
-          if (!confirmed) {
-            setIsProcessing(false);
-            setProgress(0);
-            setProgressMessage("");
-
-            return;
-          }
-
-          // Make fingerprint unique so the DB allows re-upload (VarChar(64) limit)
-          fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
-        }
+        // Duplicates are no longer checked at upload time. The fingerprint is
+        // still computed and stored; it is simply not enforced, so re-uploading
+        // a file whose earlier attempt failed no longer needs manual cleanup.
 
         // One gene per chunk — the shared spec for both pipelines.
         const processor = new GeneChunkProcessor();
@@ -779,35 +746,6 @@ async function saveFilesWithStructure(
   toast.info(
     `Files saved to downloads folder: ${folderName} (${fileCount} files)`,
   );
-}
-
-/**
- * Check for duplicate dataset
- */
-async function checkDuplicate(
-  fingerprint: string,
-): Promise<{ title: string; createdAt: string } | null> {
-  try {
-    const response = await fetch(
-      `/api/datasets/check-duplicate/${fingerprint}`,
-    );
-
-    if (response.status === 404) {
-      return null; // No duplicate
-    }
-
-    if (response.ok) {
-      const data = await response.json();
-
-      return data.dataset;
-    }
-
-    throw new Error("Failed to check for duplicates");
-  } catch (error) {
-    console.error("Duplicate check error:", error);
-
-    return null; // Continue on error
-  }
 }
 
 /**
