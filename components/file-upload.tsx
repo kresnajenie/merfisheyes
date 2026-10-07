@@ -531,38 +531,17 @@ export function FileUpload({
     const pending = pendingUpload;
     const base = titleDraft.trim() || "Untitled Dataset";
 
-    // A single-molecule file is being uploaded for server processing — either a
-    // standalone SM upload, or the SM half of a combined SC+SM upload. Confirm
-    // its columns first so the worker gets an explicit gene/x/y/z/cell-id
-    // mapping instead of auto-detecting.
-    const smFile =
-      pending.kind === "single_molecule"
-        ? pending.files[0]?.file
-        : pending.sm && includeSm
-          ? pending.sm.files[0]?.file
-          : undefined;
-
-    // Close the name dialog first so only the column modal is shown.
+    // Server-side processing does NOT ask the user to confirm columns: the
+    // worker auto-detects the schema itself (detect_molecule_type picks
+    // MERSCOPE vs Xenium from the header, and the cell-id column with it).
+    //
+    // The confirm step used to run here, but on very large CSVs the browser
+    // preview can come back with no columns at all, leaving the dialog blank
+    // and its "process" button permanently disabled — an upload that cannot be
+    // completed. Auto-detection has no such failure mode, so the server path
+    // skips the check entirely. The in-browser path (handleFiles) still shows
+    // the confirm dialog, because nothing auto-detects on that side.
     setPendingUpload(null);
-
-    let smMapping: MoleculeColumnMapping | undefined;
-
-    if (smFile) {
-      try {
-        const mapping = await awaitColumnMapping(smFile);
-
-        if (!mapping) return; // user cancelled the column confirm — abort
-        smMapping = mapping;
-      } catch (err) {
-        // Reading the file's columns failed (unreadable parquet encoding, etc.).
-        // Don't strand the upload — fall back to server-side auto-detection and
-        // tell the user what happened instead of silently aborting.
-        console.error("[FileUpload] Column preview failed:", err);
-        toast.error(
-          `Couldn't read columns from ${smFile.name} — uploading with automatic column detection.`,
-        );
-      }
-    }
 
     // Combined SC + SM upload: two separate datasets (each tracked as its own
     // bar) + an auto-created project. The SC upload carries linkedSmDatasetId so
@@ -576,7 +555,7 @@ export function FileUpload({
         files: pending.sm.files,
         processingParams: {
           kind: "single_molecule",
-          ...(smMapping ? { columnMapping: smMapping } : {}),
+          // No columnMapping: the worker auto-detects the schema.
           stages: { chunk: { chunkSize: 1 } },
         },
         onInitiated: (smId) => {
@@ -604,9 +583,8 @@ export function FileUpload({
       kind: pending.kind,
       title: base,
       files: pending.files,
-      processingParams: smMapping
-        ? { ...pending.processingParams, columnMapping: smMapping }
-        : pending.processingParams,
+      // No columnMapping: the worker auto-detects the schema.
+      processingParams: pending.processingParams,
     });
     router.push("/explore");
   };
