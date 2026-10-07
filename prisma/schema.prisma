@@ -250,7 +250,12 @@ model ProjectDataset {
 
 model Dataset {
   id             String          @id @db.VarChar(50)
-  fingerprint    String          @unique @db.VarChar(64)
+  // Not @unique: a failed or abandoned upload leaves its row behind, and the
+  // unique constraint then rejected re-uploading the same file (P2002) even
+  // though check-duplicate said it was safe. Fingerprints are still computed
+  // and stored; they are just not enforced at upload time. @@index below
+  // keeps lookups fast.
+  fingerprint    String          @db.VarChar(64)
   title          String?         @db.VarChar(500)
   numCells       Int             @map("num_cells")
   numGenes       Int             @map("num_genes")

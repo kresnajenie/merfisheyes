@@ -112,34 +112,11 @@ export function SingleMoleculeUploadModal({
 
       console.log("Single molecule dataset fingerprint:", fingerprint);
 
-      // Check for duplicates
-      setProgressMessage("Checking for duplicates...");
-      setProgress(2);
-
-      const duplicateResponse = await fetch(
-        `/api/single-molecule/check-duplicate/${fingerprint}`,
-      );
-
-      if (duplicateResponse.ok) {
-        const duplicateData = await duplicateResponse.json();
-
-        if (duplicateData.exists) {
-          const confirmed = window.confirm(
-            `A dataset with this content already exists.\n\nDataset: ${duplicateData.dataset.title}\nUploaded: ${new Date(duplicateData.dataset.createdAt).toLocaleString()}\nMolecules: ${duplicateData.dataset.numMolecules.toLocaleString()}\n\nDo you want to upload anyway?`,
-          );
-
-          if (!confirmed) {
-            setIsProcessing(false);
-            setProgress(0);
-            setProgressMessage("");
-
-            return;
-          }
-
-          // Make fingerprint unique so the DB allows re-upload (VarChar(64) limit)
-          fingerprint = `${fingerprint.slice(0, 50)}_${Date.now()}`;
-        }
-      }
+      // Duplicates are no longer checked at upload time. The fingerprint is
+      // still computed and stored above; it is simply not enforced, so a file
+      // whose earlier upload failed can be uploaded again without manual
+      // cleanup. (It also means the fingerprint is stored verbatim rather than
+      // being mangled with a timestamp to dodge the old unique constraint.)
 
       // Check if this is a pre-chunked dataset
       const isPreChunked = (dataset as any).isPreChunked === true;
