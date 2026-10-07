@@ -33,7 +33,7 @@ async function readParquetColumns(file: File): Promise<string[]> {
 }
 
 /** Read a CSV's header row by slicing the first chunk of the file. */
-async function readCsvHeader(file: File): Promise<string[]> {
+export async function readCsvHeader(file: File): Promise<string[]> {
   const blob = file.slice(0, 16 * 1024);
   const text = await blob.text();
   const firstLine = text.split(/\r?\n/)[0] ?? "";

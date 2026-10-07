@@ -1,6 +1,6 @@
 import type { MoleculeDatasetType } from "../config/moleculeColumnMappings";
 
-import { pickSchema } from "./molecule-file-sniffer";
+import { pickSchema, readCsvHeader } from "./molecule-file-sniffer";
 
 export interface MoleculePreview {
   columns: string[];
@@ -54,29 +54,70 @@ export async function readMoleculePreview(
   if (ext === "csv" || ext === "tsv" || ext === "txt") {
     const Papa = (await import("papaparse")).default;
 
-    return new Promise<MoleculePreview>((resolve, reject) => {
-      // `preview` on a File input isn't in PapaParse's local-config types, so
-      // cast like the streaming parse in SingleMoleculeDataset does.
+    // PapaParse streams a File in chunks. On very large files it can finish
+    // without ever surfacing the header (meta.fields empty), which left the
+    // confirm-columns modal blank with nothing to map. Treat anything that
+    // does not yield columns — an error, a hang, or an empty field list — as
+    // "no preview" and fall back to reading just the header bytes, which is
+    // O(16 KB) regardless of file size.
+    const PREVIEW_TIMEOUT_MS = 15_000;
 
-      (Papa.parse as any)(file, {
-        header: true,
-        preview: nRows,
-        skipEmptyLines: true,
-        complete: (res: {
-          data: Record<string, unknown>[];
-          meta: { fields?: string[] };
-        }) => {
-          const columns = (res.meta.fields ?? []).map((c) => String(c).trim());
+    const viaPapa = await new Promise<{
+      columns: string[];
+      rows: Record<string, unknown>[];
+    } | null>((resolve) => {
+      let settled = false;
+      const done = (
+        v: { columns: string[]; rows: Record<string, unknown>[] } | null,
+      ) => {
+        if (settled) return;
+        settled = true;
+        resolve(v);
+      };
+      const timer = setTimeout(() => done(null), PREVIEW_TIMEOUT_MS);
 
-          resolve({
-            columns,
-            rows: res.data,
-            autoType: pickSchema(columns),
-          });
-        },
-        error: (err: unknown) => reject(err),
-      });
+      try {
+        // `preview` on a File input isn't in PapaParse's local-config types, so
+        // cast like the streaming parse in SingleMoleculeDataset does.
+
+        (Papa.parse as any)(file, {
+          header: true,
+          preview: nRows,
+          skipEmptyLines: true,
+          complete: (res: {
+            data: Record<string, unknown>[];
+            meta: { fields?: string[] };
+          }) => {
+            clearTimeout(timer);
+            done({
+              columns: (res.meta?.fields ?? []).map((c) => String(c).trim()),
+              rows: res.data ?? [],
+            });
+          },
+          error: () => {
+            clearTimeout(timer);
+            done(null);
+          },
+        });
+      } catch {
+        clearTimeout(timer);
+        done(null);
+      }
     });
+
+    if (viaPapa && viaPapa.columns.length > 0) {
+      return {
+        columns: viaPapa.columns,
+        rows: viaPapa.rows,
+        autoType: pickSchema(viaPapa.columns),
+      };
+    }
+
+    // Fallback: header bytes only. No sample rows, but the dropdowns are
+    // populated and auto-detection still works.
+    const columns = await readCsvHeader(file);
+
+    return { columns, rows: [], autoType: pickSchema(columns) };
   }
 
   throw new Error(
