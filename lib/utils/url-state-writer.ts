@@ -1,12 +1,14 @@
 /**
  * Debounced URL writer that coordinates updates from the left panel (v=),
- * the right panel (rv=), and the SM overlay on the SC viewer (ov=).
+ * the right panel (rv=), and the SM overlay on the SC viewer of either panel
+ * (ov= on the left, rov= on the right).
  * Uses window.history.replaceState to avoid triggering React re-renders.
  */
 
 let pendingLeft: string | null | undefined = undefined; // undefined = no pending change
 let pendingRight: string | null | undefined = undefined;
 let pendingOverlay: string | null | undefined = undefined;
+let pendingRightOverlay: string | null | undefined = undefined;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const DEBOUNCE_MS = 400;
@@ -43,17 +45,28 @@ function flushToUrl() {
     pendingOverlay = undefined;
   }
 
+  if (pendingRightOverlay !== undefined) {
+    if (pendingRightOverlay === null) {
+      url.searchParams.delete("rov");
+    } else {
+      url.searchParams.set("rov", pendingRightOverlay);
+    }
+    pendingRightOverlay = undefined;
+  }
+
   window.history.replaceState(null, "", url.toString());
 }
 
 export function scheduleUrlUpdate(
-  panel: "left" | "right" | "overlay",
+  panel: "left" | "right" | "overlay" | "rightOverlay",
   encoded: string | null,
 ) {
   if (panel === "left") {
     pendingLeft = encoded;
   } else if (panel === "right") {
     pendingRight = encoded;
+  } else if (panel === "rightOverlay") {
+    pendingRightOverlay = encoded;
   } else {
     pendingOverlay = encoded;
   }
@@ -66,9 +79,10 @@ export function readUrlVizState(): {
   left: string | null;
   right: string | null;
   overlay: string | null;
+  rightOverlay: string | null;
 } {
   if (typeof window === "undefined")
-    return { left: null, right: null, overlay: null };
+    return { left: null, right: null, overlay: null, rightOverlay: null };
 
   const params = new URLSearchParams(window.location.search);
 
@@ -76,5 +90,6 @@ export function readUrlVizState(): {
     left: params.get("v"),
     right: params.get("rv"),
     overlay: params.get("ov"),
+    rightOverlay: params.get("rov"),
   };
 }

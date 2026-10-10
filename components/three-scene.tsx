@@ -10,8 +10,8 @@ import { toast } from "react-toastify";
 import gsap from "gsap";
 
 import { getClusterValue } from "@/lib/StandardizedDataset";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { initializeScene } from "@/lib/webgl/scene-manager";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import {
   createPointCloudFromBuffers,
   createSmPointCloud,
@@ -32,6 +32,9 @@ import {
 import {
   usePanelVisualizationStore,
   usePanelId,
+  usePanelSingleMoleculeApi,
+  usePanelSingleMoleculeVisualizationApi,
+  usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import {
@@ -142,22 +145,26 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     y: number;
     z: number;
   } | null>(null);
-  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+  // The overlay's stores are the panel's own, like the gene picker and the
+  // legends that drive them — so each side of a split has its own overlay.
+  const smStoreApi = usePanelSingleMoleculeApi();
+  const smVizApi = usePanelSingleMoleculeVisualizationApi();
+  const smSelectedGenes = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
-  const smSelectedGenesLegend = useSingleMoleculeVisualizationStore(
+  const smSelectedGenesLegend = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenesLegend,
   );
-  const smGlobalScale = useSingleMoleculeVisualizationStore(
+  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
     (s) => s.globalScale,
   );
-  const smShowAssigned = useSingleMoleculeVisualizationStore(
+  const smShowAssigned = usePanelSingleMoleculeVisualizationStore(
     (s) => s.showAssigned,
   );
-  const smShowUnassigned = useSingleMoleculeVisualizationStore(
+  const smShowUnassigned = usePanelSingleMoleculeVisualizationStore(
     (s) => s.showUnassigned,
   );
-  const smLayerVisible = useSingleMoleculeVisualizationStore(
+  const smLayerVisible = usePanelSingleMoleculeVisualizationStore(
     (s) => s.smLayerVisible,
   );
 
@@ -322,16 +329,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       setSmDataset(null);
       // Also wipe the SM viz selection so the gene picker + legends (gated on
       // selectedGenesLegend, not on the dataset) disappear with the overlay.
-      useSingleMoleculeVisualizationStore.getState().clearGenes();
-      import("@/lib/stores/singleMoleculeStore").then(
-        ({ useSingleMoleculeStore }) => {
-          useSingleMoleculeStore.getState().removeDataset(prev.id);
-        },
-      );
+      smVizApi.getState().clearGenes();
+      smStoreApi.getState().removeDataset(prev.id);
     };
 
     // Load the single shared SM dataset for an "__all__" mapping and push it
-    // into the overlay + global SM store. `source` decides how it's loaded:
+    // into the overlay + this panel's SM store. `source` decides how it's loaded:
     //   - "s3": smRef is a PUBLIC S3 base URL → fromCustomS3()
     //   - "app": smRef is an app dataset id (sm_…) → fromS3() (presigned API),
     //            which is how app-uploaded overlays (no public bucket) load.
@@ -350,14 +353,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         smDatasetRef.current = smDs;
         setSmDataset(smDs);
 
-        const { useSingleMoleculeStore } = await import(
-          "@/lib/stores/singleMoleculeStore"
-        );
-
-        useSingleMoleculeStore.getState().addDataset(smDs);
+        smStoreApi.getState().addDataset(smDs);
         // The saved-default-genes fallback keys off a public URL, so it's only
-        // meaningful for the "s3" source.
-        if (source === "s3") {
+        // meaningful for the "s3" source — and only the main (left) viewer's
+        // page reads it, from the global store.
+        if (source === "s3" && smStoreApi === useSingleMoleculeStore) {
           useSingleMoleculeStore.getState().setOverlaySourceUrl(smRef);
         }
       } catch (error) {

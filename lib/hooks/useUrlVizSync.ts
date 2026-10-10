@@ -20,6 +20,7 @@ import {
   scheduleUrlUpdate,
   readUrlVizState,
 } from "@/lib/utils/url-state-writer";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 
@@ -514,20 +515,36 @@ export function useSMVizUrlSync(
 }
 
 /**
- * Read the SM overlay URL slot (ov=) for the SC viewer page.
+ * Read a panel's SM overlay URL slot (ov= on the left, rov= on the right).
  */
-export function tryReadSMOverlayFromUrl(): SMVizUrlState | null {
+export function tryReadSMOverlayFromUrl(
+  panel: "left" | "right" = "left",
+): SMVizUrlState | null {
   const urlState = readUrlVizState();
+  const encoded = panel === "right" ? urlState.rightOverlay : urlState.overlay;
 
-  if (!urlState.overlay) return null;
-
-  return decodeSMVizState(urlState.overlay);
+  return encoded ? decodeSMVizState(encoded) : null;
 }
 
 /**
- * Syncs SM overlay state on the SC viewer to/from the ov= URL param.
- * Uses a dedicated URL slot so it doesn't collide with the SC viz (v=) on
- * the same page. When ov= is missing, auto-selects 3 default genes.
+ * The left panel's overlay, as the starting point for a right panel that has
+ * no state of its own: its live selection, or its URL slot when that hasn't
+ * been applied yet (both panels load at once from a shared link).
+ */
+function leftOverlayState(): SMVizUrlState | null {
+  const left = useSingleMoleculeVisualizationStore.getState();
+  const encoded =
+    left.selectedGenesLegend.size > 0 ? encodeSMVizState(left) : null;
+
+  return encoded ? decodeSMVizState(encoded) : tryReadSMOverlayFromUrl("left");
+}
+
+/**
+ * Syncs a panel's SM overlay state on the SC viewer to/from its URL param
+ * (ov= on the left, rov= on the right) — dedicated slots, so they don't
+ * collide with the SC viz (v= / rv=) on the same page. With no slot, a right
+ * panel starts from the left panel's overlay; otherwise 3 default genes are
+ * auto-selected.
  */
 export function useSMOverlayUrlSync(
   datasetReady: boolean,
@@ -540,27 +557,34 @@ export function useSMOverlayUrlSync(
     dataset: SingleMoleculeDataset,
   ) => Promise<string[] | null>,
 ): { hasUrlState: boolean; hasUrlStateRef: React.RefObject<boolean> } {
+  const panel = getPanel(usePanelId());
+  const slot = panel === "right" ? "rightOverlay" : "overlay";
   const [hasUrlState, setHasUrlState] = useState(false);
   const hasUrlStateRef = useRef(false);
   const appliedRef = useRef(false);
 
-  // Reading: apply URL state once after dataset is ready. If no ov= slot,
-  // fall back to owner default genes (else the pickDefaultGenes heuristic).
+  // Reading: apply URL state once after dataset is ready. If the panel has no
+  // slot, fall back to owner default genes (else the pickDefaultGenes
+  // heuristic).
   useEffect(() => {
     if (!datasetReady || !dataset || appliedRef.current) return;
     appliedRef.current = true;
 
-    const decoded = tryReadSMOverlayFromUrl();
+    const fromUrl = tryReadSMOverlayFromUrl(panel);
+    const decoded = fromUrl ?? (panel === "right" ? leftOverlayState() : null);
 
     if (decoded) {
       applySMVizState(decoded, store, dataset);
-      hasUrlStateRef.current = true;
-      setHasUrlState(true);
+      if (fromUrl) {
+        hasUrlStateRef.current = true;
+        setHasUrlState(true);
+      }
 
       return;
     }
 
     let cancelled = false;
+    let done = false;
 
     (async () => {
       const owner = resolveDefaultGenes
@@ -572,10 +596,15 @@ export function useSMOverlayUrlSync(
         owner && owner.length > 0 ? owner : pickDefaultGenes(dataset.uniqueGenes);
 
       genes.forEach((gene) => store.addGene(gene));
+      done = true;
     })();
 
+    // `store` changes identity on every store update (and effects run twice
+    // under StrictMode), so this can be torn down while the defaults are
+    // still resolving — let the next run try again instead of giving up.
     return () => {
       cancelled = true;
+      if (!done) appliedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetReady, dataset, store]);
@@ -602,9 +631,10 @@ export function useSMOverlayUrlSync(
       showUnassigned,
     });
 
-    scheduleUrlUpdate("overlay", encoded);
+    scheduleUrlUpdate(slot, encoded);
   }, [
     datasetReady,
+    slot,
     selectedGenes,
     geneDataCache,
     globalScale,
@@ -612,6 +642,13 @@ export function useSMOverlayUrlSync(
     showAssigned,
     showUnassigned,
   ]);
+
+  // The right panel's slot goes away with the panel.
+  useEffect(() => {
+    if (slot !== "rightOverlay") return;
+
+    return () => scheduleUrlUpdate(slot, null);
+  }, [slot]);
 
   return { hasUrlState, hasUrlStateRef };
 }
