@@ -26,6 +26,7 @@ interface AccountDatasetCardProps {
   onSubmit: (dataset: DatasetRow) => void;
   onWithdraw: (dataset: DatasetRow) => void;
   onAddToProject: (dataset: DatasetRow) => void;
+  onDelete: (dataset: DatasetRow) => void;
 }
 
 /** Map an owned dataset onto the shared Explore card shape (single entry). */
@@ -81,6 +82,7 @@ export function AccountDatasetCard({
   onSubmit,
   onWithdraw,
   onAddToProject,
+  onDelete,
 }: AccountDatasetCardProps) {
   const router = useRouter();
   const sub = dataset.submission;
@@ -122,6 +124,14 @@ export function AccountDatasetCard({
               Submit to Explore
             </DropdownItem>
           ) : null}
+          <DropdownItem
+            key="delete"
+            className="text-danger"
+            color="danger"
+            onPress={() => onDelete(dataset)}
+          >
+            Delete dataset
+          </DropdownItem>
         </DropdownMenu>
       </Dropdown>
     </>
