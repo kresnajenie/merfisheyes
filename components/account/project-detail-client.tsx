@@ -63,7 +63,10 @@ interface PickerDataset {
 }
 
 /** Map the project + its members onto the shared Explore detail shape. */
-function toItem(project: ProjectData, members: MemberDataset[]): CatalogDatasetItem {
+function toItem(
+  project: ProjectData,
+  members: MemberDataset[],
+): CatalogDatasetItem {
   return {
     id: project.id,
     title: project.title,

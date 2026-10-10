@@ -12,6 +12,7 @@ import { toast } from "react-toastify";
 
 import { MetadataEditModal } from "./metadata-edit-modal";
 import { SubmissionBadge } from "./submission-badge";
+import { DeleteDatasetModal } from "./delete-dataset-modal";
 
 import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
 import { OverlayManager } from "@/components/overlay-manager";
@@ -53,6 +54,7 @@ export function AccountDatasetDetailClient({
   const [dataset, setDataset] = useState(initialDataset);
   const [editOpen, setEditOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   // Map the owned dataset onto the shared Explore detail shape. A single
   // synthetic entry drives the "Open in viewer" card; app-uploaded datasets
@@ -222,11 +224,26 @@ export function AccountDatasetDetailClient({
           Submit to Explore
         </Button>
       )}
+      <Button
+        color="danger"
+        size="sm"
+        variant="light"
+        onPress={() => setDeleteOpen(true)}
+      >
+        Delete
+      </Button>
     </>
   );
 
   return (
     <div className="w-full max-w-7xl mx-auto py-4 px-4">
+      <DeleteDatasetModal
+        dataset={
+          deleteOpen ? { ...dataset, onExplore: submission !== null } : null
+        }
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => router.push("/account?view=datasets")}
+      />
       <DatasetDetailPage
         backLabel="← Back to your datasets"
         dataset={item}
