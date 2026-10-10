@@ -9,6 +9,10 @@
  * `layers/` (e.g. `layers/X_csc`) reads genes from that copy; a CSR X with no
  * such copy is scanned in full for every gene.
  *
+ * Cell columns the store doesn't have (e.g. Leiden clusters) and their
+ * precomputed DE stats are read from an `annotations/` folder beside the
+ * store, written by scripts/spatialdata_cluster.py.
+ *
  * Store-agnostic: takes any zarrita `AsyncReadable` + a list of all keys in
  * the store. The key list is used to enumerate `obs`/`obsm`/`var` children
  * since `AsyncReadable` has no LIST operation.
@@ -20,6 +24,7 @@ import type { SpatialDataStore } from "./store";
 import * as zarr from "zarrita-v3";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { type DeStats, parseDeStatsBuffer } from "../utils/de-stats";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
 
 export type XFormat = "dense" | "csr" | "csc" | "missing";
@@ -72,7 +77,17 @@ export class SpatialDataTableAdapter {
   // Cache for lazy gene queries (dense/CSC path)
   private geneExprCache = new Map<string, number[]>();
 
-  constructor(store: SpatialDataStore["store"], storeKeys: string[]) {
+  // annotations/annotations.json from beside the store, if there is one
+  private annotations: {
+    columns: Record<string, { categories: string[] }>;
+    de_stats: string[];
+  } | null = null;
+
+  constructor(
+    store: SpatialDataStore["store"],
+    storeKeys: string[],
+    private sidecar?: SpatialDataStore["sidecar"],
+  ) {
     this.store = store;
     this.storeKeys = storeKeys;
   }
@@ -178,6 +193,16 @@ export class SpatialDataTableAdapter {
       this.clusterColumnTypes[c] = "categorical";
     }
 
+    const index = await this.sidecar?.get("/annotations/annotations.json");
+
+    if (index) {
+      this.annotations = JSON.parse(new TextDecoder().decode(index));
+      for (const c of Object.keys(this.annotations!.columns)) {
+        this.clusterColumnNames.push(c);
+        this.clusterColumnTypes[c] = "categorical";
+      }
+    }
+
     await onProgress?.(45, "Initialization complete");
   }
 
@@ -261,9 +286,13 @@ export class SpatialDataTableAdapter {
     const out: ClusterColumn[] = [];
 
     for (const columnName of columns) {
-      if (!this.obsColumns.includes(columnName)) continue;
+      const annotated = this.annotations?.columns[columnName];
+
+      if (!annotated && !this.obsColumns.includes(columnName)) continue;
       try {
-        const values = await this.readColumn(`obs/${columnName}`);
+        const values = annotated
+          ? await this.readAnnotation(columnName, annotated.categories)
+          : await this.readColumn(`obs/${columnName}`);
 
         const isCategorical = detectCategorical(values, columnName);
 
@@ -510,6 +539,41 @@ export class SpatialDataTableAdapter {
     for (let i = 0; i < c.length; i++) out[i] = labels[Number(c[i])] ?? "";
 
     return out;
+  }
+
+  /** A column of annotations/: a uint16 category code per cell. */
+  private async readAnnotation(
+    column: string,
+    categories: string[],
+  ): Promise<string[]> {
+    const bytes = await this.sidecar!.get(`/annotations/${column}.bin`);
+
+    if (!bytes) throw new Error(`annotations/${column}.bin is missing`);
+    const codes = new Uint16Array(
+      bytes.buffer,
+      bytes.byteOffset,
+      bytes.byteLength / 2,
+    );
+
+    return Array.from(codes, (code) => categories[code]);
+  }
+
+  /** Columns with precomputed DE stats in annotations/de/. */
+  getAvailableDeStatsColumns(): string[] {
+    return this.annotations?.de_stats ?? [];
+  }
+
+  async loadDeStats(column: string, genes: string[]): Promise<DeStats | null> {
+    if (!this.getAvailableDeStatsColumns().includes(column)) return null;
+
+    const gz = await this.sidecar!.get(`/annotations/de/${column}.bin.gz`);
+
+    if (!gz) return null;
+    const buffer = await new Response(
+      new Blob([gz]).stream().pipeThrough(new DecompressionStream("gzip")),
+    ).arrayBuffer();
+
+    return parseDeStatsBuffer(buffer, column, genes);
   }
 
   getClusterColumnInfo(): { names: string[]; types: Record<string, string> } {

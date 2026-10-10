@@ -10,7 +10,7 @@ import { selectBestClusterColumnByName } from "@/lib/utils/dataset-utils";
  * gene expression is fetched per gene on demand.
  */
 export async function loadSpatialDataCells(
-  { store, keys }: SpatialDataStore,
+  { store, keys, sidecar }: SpatialDataStore,
   datasetId: string,
   name: string,
   onProgress?: (progress: number, message: string) => void,
@@ -18,7 +18,7 @@ export async function loadSpatialDataCells(
   // a mapping.json there to find the linked molecule dataset.
   customS3BaseUrl?: string,
 ): Promise<StandardizedDataset> {
-  const adapter = new SpatialDataTableAdapter(store, keys);
+  const adapter = new SpatialDataTableAdapter(store, keys, sidecar);
 
   await adapter.initialize(onProgress);
 
@@ -65,6 +65,7 @@ export async function loadSpatialDataCells(
   dataset.allClusterColumnNames = columnInfo.names;
   dataset.allClusterColumnTypes = columnInfo.types;
   dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
+  dataset.availableDeStatsColumns = adapter.getAvailableDeStatsColumns();
   dataset.allEmbeddingNames = dataInfo.availableEmbeddings;
   dataset.embeddingsFullyLoaded = false;
 

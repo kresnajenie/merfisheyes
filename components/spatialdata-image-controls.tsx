@@ -24,9 +24,10 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
   }, [layer]);
 
   return (
-    <div className="absolute bottom-6 left-36 z-[var(--z-rail)] flex flex-col-reverse items-start gap-2">
+    // Sits between the brand pill and the control rail's first button
+    <div className="absolute top-[4.25rem] left-4 z-[var(--z-panel)] flex flex-row items-start gap-2">
       <button
-        className={`${glassButton()} h-10 px-4 rounded-full text-sm`}
+        className={`${glassButton()} h-10 w-14 rounded-full text-xs`}
         type="button"
         onClick={() => setOpen((o) => !o)}
       >

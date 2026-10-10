@@ -10,6 +10,11 @@ export interface SpatialDataStore {
    * every array and group — enough to enumerate elements and columns.
    */
   keys: string[];
+  /**
+   * The folder that holds the store, where files that describe it without
+   * being part of it live (annotations/, mapping.json).
+   */
+  sidecar: { get(key: string): Promise<Uint8Array | undefined> };
 }
 
 /**
@@ -29,8 +34,12 @@ export async function openSpatialDataStore(
   }
   const prefix = rootMarker.slice(0, -"zarr.json".length);
 
+  // "data.zarr/" → "", "a/b.zarr/" → "a/"
+  const folder = prefix.replace(/[^/]+\/$/, "");
+
   return {
     store: new PresignedFetchStore(datasetId, { keyPrefix: prefix }),
+    sidecar: new PresignedFetchStore(datasetId, { keyPrefix: folder }),
     keys: allKeys
       .filter((k) => k.startsWith(prefix))
       .map((k) => k.slice(prefix.length)),
@@ -47,9 +56,9 @@ export async function openSpatialDataStoreFromUrl(
   url: string,
 ): Promise<SpatialDataStore> {
   const base = url.replace(/\/+$/, "");
-  const store = {
+  const fetchFrom = (root: string) => ({
     async get(key: string) {
-      const res = await fetch(base + key);
+      const res = await fetch(root + key);
 
       // A public bucket that can't be listed answers 403 for a missing key
       if (res.status === 404 || res.status === 403) return undefined;
@@ -57,7 +66,8 @@ export async function openSpatialDataStoreFromUrl(
 
       return new Uint8Array(await res.arrayBuffer());
     },
-  };
+  });
+  const store = fetchFrom(base);
   const rootBytes = await store.get("/zarr.json");
 
   if (!rootBytes) throw new Error(`No zarr v3 store found at ${base}`);
@@ -70,6 +80,7 @@ export async function openSpatialDataStoreFromUrl(
 
   return {
     store,
+    sidecar: fetchFrom(base.slice(0, base.lastIndexOf("/"))),
     keys: ["zarr.json", ...Object.keys(nodes).map((p) => `${p}/zarr.json`)],
   };
 }

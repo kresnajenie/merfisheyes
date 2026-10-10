@@ -1,10 +1,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { gzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
 import { SpatialDataTableAdapter } from "@/lib/spatialdata/SpatialDataTableAdapter";
+import { encodeDeStatsBuffer } from "@/lib/utils/de-stats";
 
 // Fixture: python scripts/testdata/make-tiny-zarr.py
 const DIR = path.resolve(__dirname, "../data/tiny/zarr");
@@ -13,7 +15,7 @@ const expected = JSON.parse(
   readFileSync(path.join(DIR, "expected.json"), "utf8"),
 );
 
-async function openAdapter() {
+async function openAdapter(sidecarFiles?: Record<string, Uint8Array>) {
   const keys = (readdirSync(ROOT, { recursive: true }) as string[]).map((k) =>
     k.split(path.sep).join("/"),
   );
@@ -24,7 +26,10 @@ async function openAdapter() {
         () => undefined,
       ),
   };
-  const adapter = new SpatialDataTableAdapter(store as any, keys);
+  const sidecar = sidecarFiles && {
+    get: async (key: string) => sidecarFiles[key],
+  };
+  const adapter = new SpatialDataTableAdapter(store as any, keys, sidecar);
 
   await adapter.initialize();
 
@@ -77,5 +82,43 @@ describe("SpatialDataTableAdapter", () => {
     const adapter = await openAdapter();
 
     expect(adapter.getClusterColumnInfo().names).toEqual(["area", "celltype"]);
+  });
+
+  it("adds columns and DE stats from annotations/ beside the store", async () => {
+    const categories = ["0", "1"];
+    const codes = Uint16Array.from({ length: 30 }, (_, i) => (i < 10 ? 1 : 0));
+    const stats = {
+      column: "leiden",
+      celltypes: categories,
+      cellCounts: [20, 10],
+      genes: expected.genes,
+      means: Float32Array.from({ length: 16 }, (_, i) => i / 2),
+      pctExpressing: Float32Array.from({ length: 16 }, (_, i) => i / 16),
+    };
+    const adapter = await openAdapter({
+      "/annotations/annotations.json": new TextEncoder().encode(
+        JSON.stringify({ columns: { leiden: { categories } }, de_stats: ["leiden"] }),
+      ),
+      "/annotations/leiden.bin": new Uint8Array(codes.buffer),
+      "/annotations/de/leiden.bin.gz": gzipSync(encodeDeStatsBuffer(stats)),
+    });
+
+    expect(adapter.getClusterColumnInfo().names).toContain("leiden");
+
+    const [leiden] = await adapter.loadClusters(["leiden"]);
+
+    expect(leiden.uniqueValues).toEqual(categories);
+    expect(Array.from(leiden.valueIndices!)).toEqual(Array.from(codes));
+
+    expect(adapter.getAvailableDeStatsColumns()).toEqual(["leiden"]);
+    expect(await adapter.loadDeStats("leiden", expected.genes)).toEqual(stats);
+    expect(await adapter.loadDeStats("celltype", expected.genes)).toBeNull();
+  });
+
+  it("has no annotations without the folder", async () => {
+    const adapter = await openAdapter({});
+
+    expect(adapter.getClusterColumnInfo().names).toEqual(["area", "celltype"]);
+    expect(adapter.getAvailableDeStatsColumns()).toEqual([]);
   });
 });
