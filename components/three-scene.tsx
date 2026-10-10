@@ -63,11 +63,26 @@ import {
 import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
 import { useTourStore } from "@/lib/stores/tourStore";
 
-interface ThreeSceneProps {
-  dataset?: StandardizedDataset | null;
+export interface SceneHandle {
+  /** Holds the point clouds; children share their coordinates and transforms. */
+  group: THREE.Group;
+  camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
 }
 
-export function ThreeScene({ dataset }: ThreeSceneProps) {
+interface ThreeSceneProps {
+  dataset?: StandardizedDataset | null;
+  /**
+   * Called each time the scene is (re)built, to add extra layers to it.
+   * The returned function is called before that scene is torn down.
+   */
+  onSceneReady?: (scene: SceneHandle) => (() => void) | void;
+}
+
+export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
+  const onSceneReadyRef = useRef(onSceneReady);
+
+  onSceneReadyRef.current = onSceneReady;
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
@@ -1030,9 +1045,15 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // Start animation
       animate();
       markSceneReady();
+      const removeExtraLayers = onSceneReadyRef.current?.({
+        group: innerGroup,
+        camera,
+        renderer,
+      });
 
       // Cleanup on unmount
       return () => {
+        removeExtraLayers?.();
         // Remove event listeners
         renderer.domElement.removeEventListener("mousemove", handleMouseMove);
         renderer.domElement.removeEventListener("dblclick", handleDoubleClick);
