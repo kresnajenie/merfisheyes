@@ -2,8 +2,14 @@
 
 import type { VisualizationState } from "../stores/createVisualizationStore";
 import type { DatasetState } from "../stores/createDatasetStore";
-import type { SingleMoleculeState } from "../stores/createSingleMoleculeStore";
-import type { SingleMoleculeVisualizationState } from "../stores/createSingleMoleculeVisualizationStore";
+import type {
+  SingleMoleculeState,
+  SingleMoleculeStore,
+} from "../stores/createSingleMoleculeStore";
+import type {
+  SingleMoleculeVisualizationState,
+  SingleMoleculeVisualizationStore,
+} from "../stores/createSingleMoleculeVisualizationStore";
 import type {
   LabelledMoleculeVisualizationState,
   LabelledMoleculeVisualizationStore,
@@ -86,6 +92,25 @@ export function usePanelSingleMoleculeVisualizationStore<T>(
   }
 
   return useSingleMoleculeVisualizationStore(sel);
+}
+
+/**
+ * The vanilla stores behind the two hooks above, for getState() outside
+ * render (effects, async loaders). Same panel-or-global resolution.
+ */
+export function usePanelSingleMoleculeApi():
+  | SingleMoleculeStore
+  | typeof useSingleMoleculeStore {
+  return useContext(PanelContext)?.singleMoleculeStore ?? useSingleMoleculeStore;
+}
+
+export function usePanelSingleMoleculeVisualizationApi():
+  | SingleMoleculeVisualizationStore
+  | typeof useSingleMoleculeVisualizationStore {
+  return (
+    useContext(PanelContext)?.singleMoleculeVisualizationStore ??
+    useSingleMoleculeVisualizationStore
+  );
 }
 
 export function usePanelLabelledMoleculeVisualizationStore(): LabelledMoleculeVisualizationState;

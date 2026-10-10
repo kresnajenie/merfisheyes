@@ -9,12 +9,12 @@ import { useMemo, useState } from "react";
 
 import {
   usePanelDatasetStore,
+  usePanelSingleMoleculeStore,
+  usePanelSingleMoleculeVisualizationStore,
   usePanelVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 // The overlay is rendered by three-scene from the GLOBAL single-molecule stores
 // (it is not panel-scoped), so read/write the same globals here to stay in sync.
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { glassPanel } from "@/components/primitives";
 import {
   rankDegsForCelltype,
@@ -62,12 +62,14 @@ export function DegPanel({ onClose: _onClose, controlsRef: _controlsRef }: DegPa
   // Single-molecule overlay (present only when this SC dataset has one linked).
   // When present, gene clicks can be routed to the molecule overlay instead of
   // the single-cell expression colouring.
-  const smDataset = useSingleMoleculeStore((s) => s.getCurrentDataset());
-  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+  const smDataset = usePanelSingleMoleculeStore((s) => s.getCurrentDataset());
+  const smSelectedGenes = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
-  const smAddGene = useSingleMoleculeVisualizationStore((s) => s.addGene);
-  const smRemoveGene = useSingleMoleculeVisualizationStore((s) => s.removeGene);
+  const smAddGene = usePanelSingleMoleculeVisualizationStore((s) => s.addGene);
+  const smRemoveGene = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.removeGene,
+  );
 
   const [showExprInfo, setShowExprInfo] = useState(false);
   const hasSmOverlay = !!smDataset;

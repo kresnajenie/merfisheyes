@@ -28,12 +28,11 @@ import {
   usePanelVisualizationStore,
   usePanelDatasetStore,
   usePanelId,
+  usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { glassButton } from "@/components/primitives";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { OverlayManager } from "@/components/overlay-manager";
@@ -79,18 +78,18 @@ export function VisualizationControls() {
     scLayerVisible,
     setScLayerVisible,
   } = usePanelVisualizationStore();
-  // SM layer visibility reads the global SM store to match three-scene, which
-  // renders the SM overlay from the global (non-panel) store.
-  const smLayerVisible = useSingleMoleculeVisualizationStore(
+  const smLayerVisible = usePanelSingleMoleculeVisualizationStore(
     (s) => s.smLayerVisible,
   );
-  const setSmLayerVisible = useSingleMoleculeVisualizationStore(
+  const setSmLayerVisible = usePanelSingleMoleculeVisualizationStore(
     (s) => s.setSmLayerVisible,
   );
   // An SM overlay is only present when a mapping.json with linkColumn
-  // "__all__" has loaded an SM dataset into the global SM store. The SC/SM
+  // "__all__" has loaded an SM dataset into this panel's SM store. The SC/SM
   // layer toggles + SC↔SM mode toggles only make sense in that case.
-  const hasSmOverlay = useSingleMoleculeStore((s) => s.currentDatasetId != null);
+  const hasSmOverlay = usePanelSingleMoleculeStore(
+    (s) => s.currentDatasetId != null,
+  );
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
 
