@@ -520,23 +520,59 @@ export class SpatialDataTableAdapter {
   private async readColumn(path: string): Promise<string[]> {
     const node = await zarr.open.v3(this.root!.resolve(path));
 
-    if (node instanceof zarr.Array) {
-      return arrayToStringArray((await zarr.get(node, [null])).data);
+    if (
+      node instanceof zarr.Array ||
+      String(node.attrs["encoding-type"]).startsWith("nullable-")
+    ) {
+      return this.readValues(node);
     }
 
-    const [codes, categories] = await Promise.all(
-      ["codes", "categories"].map((k) =>
-        zarr.open
-          .v3(node.resolve(k), { kind: "array" })
-          .then((arr) => zarr.get(arr, [null])),
-      ),
-    );
-    const labels = arrayToStringArray(categories.data);
+    const [codes, labels] = await Promise.all([
+      zarr.open
+        .v3(node.resolve("codes"), { kind: "array" })
+        .then((arr) => zarr.get(arr, [null])),
+      zarr.open.v3(node.resolve("categories")).then((n) => this.readValues(n)),
+    ]);
     const c = codes.data as ArrayLike<number | bigint>;
     const out: string[] = new Array(c.length);
 
     // Code -1 marks a missing value
     for (let i = 0; i < c.length; i++) out[i] = labels[Number(c[i])] ?? "";
+
+    return out;
+  }
+
+  /**
+   * The values of an array, or of one of anndata's nullable arrays (strings,
+   * integers, booleans): a group of `values` and a `mask` that is true where
+   * the value is missing. Missing values read as "".
+   */
+  private async readValues(
+    node:
+      | zarr.Array<zarr.DataType, zarr.Readable>
+      | zarr.Group<zarr.Readable>,
+  ): Promise<string[]> {
+    if (node instanceof zarr.Array) {
+      return arrayToStringArray((await zarr.get(node, [null])).data);
+    }
+
+    const [values, mask] = await Promise.all(
+      ["values", "mask"].map((k) =>
+        zarr.open
+          .v3(node.resolve(k), { kind: "array" })
+          .then((arr) => zarr.get(arr, [null])),
+      ),
+    );
+    const out = arrayToStringArray(values.data);
+    // zarrita hands back booleans as a BoolArray (read with get), not a plain
+    // indexable array
+    const missing = mask.data as any;
+
+    for (let i = 0; i < out.length; i++) {
+      if (typeof missing.get === "function" ? missing.get(i) : missing[i]) {
+        out[i] = "";
+      }
+    }
 
     return out;
   }

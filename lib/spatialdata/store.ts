@@ -1,10 +1,17 @@
+import type { RangeQuery } from "@zarrita/storage";
+
+import { fetchRange } from "@/lib/storage/fetchRange";
 import {
   fetchDatasetKeyList,
   PresignedFetchStore,
 } from "@/lib/storage/PresignedFetchStore";
 
 export interface SpatialDataStore {
-  store: { get(key: string): Promise<Uint8Array | undefined> };
+  store: {
+    get(key: string): Promise<Uint8Array | undefined>;
+    /** Part of an object; needed to read sharded arrays. */
+    getRange?(key: string, range: RangeQuery): Promise<Uint8Array | undefined>;
+  };
   /**
    * Keys in the store, relative to its root. At least the `zarr.json` of
    * every array and group — enough to enumerate elements and columns.
@@ -58,6 +65,7 @@ export function publicUrlStore(root: string) {
 
       return new Uint8Array(await res.arrayBuffer());
     },
+    getRange: (key: string, range: RangeQuery) => fetchRange(root + key, range),
   };
 }
 
