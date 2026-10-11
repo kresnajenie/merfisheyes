@@ -33,6 +33,7 @@ export const SELECTORS = {
   // Canvas containers (data-testid added in the scene components).
   scCanvas: '[data-testid="sc-scene-canvas"] canvas',
   smCanvas: '[data-testid="sm-scene-canvas"] canvas',
+  imageCanvas: '[data-testid="image-scene-canvas"] canvas',
   uploadProgress: '[data-testid="upload-progress"]',
   selectedGeneBadge: '[data-testid="selected-gene-badge"]',
 
@@ -50,6 +51,12 @@ export const SELECTORS = {
   // Single-molecule controls.
   smGenesButton: 'button:has-text("Genes")',
   smGeneSearchInput: 'input[placeholder="Search genes..."]',
+
+  // Image layer (SpatialData viewer, image viewer, image overlay).
+  imageButton: 'button:text-is("Image")',
+  // Layer toggle that only exists while molecules are drawn over cells.
+  smLayerButton: 'button:has(:text-is("SM"))',
+  overlayButton: 'button[aria-label="Manage overlays"]',
 
   // Upload flow.
   uploadSaveButton: 'button:has-text("Upload & Save")',
