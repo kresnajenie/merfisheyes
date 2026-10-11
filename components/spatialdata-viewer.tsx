@@ -203,14 +203,16 @@ export function SpatialDataViewer({
       <div className="flex items-center justify-center h-full">
         <div className="flex flex-col items-center gap-4 w-full max-w-md px-4">
           <Spinner color="primary" size="lg" />
-          <p className={subtitle()}>Loading SpatialData store...</p>
+          <p className={subtitle({ class: "text-center" })}>
+            Loading SpatialData store...
+          </p>
           <Progress
             aria-label="Loading progress"
             className="w-full"
             color="primary"
             value={progress}
           />
-          <p className="text-sm text-default-500">{message}</p>
+          <p className="text-sm text-default-500 text-center">{message}</p>
         </div>
       </div>
     );

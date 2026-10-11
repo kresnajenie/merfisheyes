@@ -69,21 +69,41 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
                 />
                 <span className="truncate">{channel.label}</span>
                 <span className="ml-auto text-xs text-default-500">
-                  {channel.max}
+                  {channel.min} – {channel.max}
                 </span>
               </div>
-              <input
-                aria-label={`${channel.label} maximum`}
-                disabled={!channel.visible}
-                max={layer.maxValue}
-                min={1}
-                type="range"
-                value={channel.max}
-                onChange={(e) => {
-                  layer.setChannel(i, { max: Number(e.target.value) });
-                  rerender();
-                }}
-              />
+              {/* Display window: values at or below the lower bound draw
+                  black, at or above the upper one full colour. */}
+              {(["min", "max"] as const).map((bound) => (
+                <label
+                  key={bound}
+                  className="flex items-center gap-2 text-xs text-default-500"
+                >
+                  <span className="w-7">{bound}</span>
+                  <input
+                    aria-label={`${channel.label} ${bound === "min" ? "minimum" : "maximum"}`}
+                    className="flex-1"
+                    disabled={!channel.visible}
+                    max={layer.maxValue}
+                    min={0}
+                    type="range"
+                    value={channel[bound]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+
+                      // The bounds can't cross: the one being dragged stops
+                      // one short of the other.
+                      layer.setChannel(
+                        i,
+                        bound === "min"
+                          ? { min: Math.min(value, channel.max - 1) }
+                          : { max: Math.max(value, channel.min + 1) },
+                      );
+                      rerender();
+                    }}
+                  />
+                </label>
+              ))}
             </div>
           ))}
         </div>
