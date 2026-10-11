@@ -3,7 +3,7 @@ import type { SpatialDataStore } from "./store";
 // Zarr v3 needs a newer zarrita than the one the h5ad-zarr path is pinned to.
 import * as zarr from "zarrita-v3";
 
-import { elementNames } from "./store";
+import { elementNames, publicUrlStore } from "./store";
 
 type PixelArray = zarr.Array<"uint8" | "uint16", zarr.Readable>;
 
@@ -72,13 +72,6 @@ export async function openSpatialDataImage({
   const group = await zarr.open.v3(root.resolve(`images/${name}`), {
     kind: "group",
   });
-  const ome = group.attrs.ome as any;
-  const multiscale = ome.multiscales[0];
-  const axisNames = multiscale.axes.map((a: { name: string }) => a.name);
-
-  if (axisNames.join("") !== "cyx") {
-    throw new Error(`Unsupported image axes: ${axisNames.join(", ")}`);
-  }
 
   // Scene units → shared coordinate system, from the cells' own element
   const [shapes] = elementNames(keys, "shapes");
@@ -96,6 +89,37 @@ export async function openSpatialDataImage({
       (cells.attrs.coordinateTransformations as Transform[]) ?? [],
       2,
     );
+  }
+
+  return readMultiscale(name, group, toShared);
+}
+
+/**
+ * Open a standalone OME-Zarr multiscale image at a public URL (the image
+ * group itself, not a SpatialData store). Its transforms must already place
+ * it in the scene's units — there is no cells element to undo.
+ */
+export async function openOmeZarrImage(url: string): Promise<SpatialDataImage> {
+  const base = url.replace(/\/+$/, "");
+  const root = zarr.root(publicUrlStore(base) as zarr.Readable);
+  const group = await zarr.open.v3(root, { kind: "group" });
+  const name = base.slice(base.lastIndexOf("/") + 1).replace(/\.zarr$/, "");
+
+  return readMultiscale(name, group, { scale: [1, 1], offset: [0, 0] });
+}
+
+/** Levels of an OME-Zarr multiscale group (axes c/y/x), in scene units. */
+async function readMultiscale(
+  name: string,
+  group: zarr.Group<zarr.Readable>,
+  toShared: { scale: number[]; offset: number[] },
+): Promise<SpatialDataImage> {
+  const ome = group.attrs.ome as any;
+  const multiscale = ome.multiscales[0];
+  const axisNames = multiscale.axes.map((a: { name: string }) => a.name);
+
+  if (axisNames.join("") !== "cyx") {
+    throw new Error(`Unsupported image axes: ${axisNames.join(", ")}`);
   }
 
   const imageToShared = multiscale.coordinateTransformations as Transform[];

@@ -62,6 +62,12 @@ import {
 } from "@/lib/utils/sample-transforms";
 import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
 import { useTourStore } from "@/lib/stores/tourStore";
+import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
+import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
+import {
+  openOmeZarrImage,
+  type SpatialDataImage,
+} from "@/lib/spatialdata/image";
 
 export interface SceneHandle {
   /** Holds the point clouds; children share their coordinates and transforms. */
@@ -83,6 +89,36 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
   const onSceneReadyRef = useRef(onSceneReady);
 
   onSceneReadyRef.current = onSceneReady;
+
+  // Image named by the dataset's mapping.json (`image`), drawn under the
+  // cells. The scene is rebuilt on view changes and the image arrives on its
+  // own schedule, so the layer is attached whenever both exist.
+  const sceneHandleRef = useRef<SceneHandle | null>(null);
+  const overlayImageRef = useRef<SpatialDataImage | null>(null);
+  const overlayImageLayerRef = useRef<ImageLayer | null>(null);
+  const [overlayImageLayer, setOverlayImageLayer] = useState<ImageLayer | null>(
+    null,
+  );
+  const detachOverlayImage = () => {
+    overlayImageLayerRef.current?.dispose();
+    overlayImageLayerRef.current = null;
+    setOverlayImageLayer(null);
+  };
+  const attachOverlayImage = () => {
+    const scene = sceneHandleRef.current;
+    const image = overlayImageRef.current;
+
+    if (!scene || !image || overlayImageLayerRef.current) return;
+    const layer = new ImageLayer(
+      image,
+      scene.group,
+      scene.camera,
+      scene.renderer,
+    );
+
+    overlayImageLayerRef.current = layer;
+    setOverlayImageLayer(layer);
+  };
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
@@ -383,12 +419,34 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
     };
 
     clearSmOverlay();
+    overlayImageRef.current = null;
+    detachOverlayImage();
 
     if (!dataset) {
       linkConfigRef.current = null;
 
       return;
     }
+
+    let stale = false;
+    const loadOverlayImage = async (url?: string) => {
+      if (!url) return;
+      // The image is placed in raw coordinates; a normalized scene has none.
+      if (dataset.normalized !== false) {
+        console.warn("mapping.json image skipped: dataset is normalized");
+
+        return;
+      }
+      try {
+        const image = await openOmeZarrImage(url);
+
+        if (stale) return;
+        overlayImageRef.current = image;
+        attachOverlayImage();
+      } catch (error) {
+        console.warn("Failed to load overlay image:", error);
+      }
+    };
 
     // Check hardcoded registry first
     const registryConfig = getDatasetLinkConfig(dataset);
@@ -401,6 +459,7 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
         if (!mappingConfig) return;
 
         linkConfigRef.current = mappingConfig;
+        void loadOverlayImage(mappingConfig.image);
 
         // "__all__" means every cell links to the same SM dataset — load overlay
         if (mappingConfig.linkColumn === "__all__") {
@@ -461,9 +520,12 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
     // above skips them. Try our own mapping.json proxy instead — currently only
     // the "__all__" overlay is produced this way (the combined SC+SM upload).
     if (!registryConfig && !dataset.metadata?.customS3BaseUrl && dataset.id) {
-      fetch(`/api/datasets/${dataset.id}/mapping`)
+      // Revalidate: the route is cached for a minute, which would hide an
+      // overlay that was just attached or removed until the cache expired.
+      fetch(`/api/datasets/${dataset.id}/mapping`, { cache: "no-cache" })
         .then((r) => (r.ok ? r.json() : null))
         .then((mc: DatasetLinkConfig | null) => {
+          void loadOverlayImage(mc?.image);
           if (mc && mc.linkColumn === "__all__" && mc.links) {
             linkConfigRef.current = mc;
             void loadAllOverlay(mc.links["__all__"], mc.source ?? "s3");
@@ -471,6 +533,10 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
         })
         .catch(() => {});
     }
+
+    return () => {
+      stale = true;
+    };
   }, [dataset, incrementClusterVersion]);
 
   // Store current mode and selection in refs to avoid closure issues
@@ -1045,15 +1111,17 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
       // Start animation
       animate();
       markSceneReady();
-      const removeExtraLayers = onSceneReadyRef.current?.({
-        group: innerGroup,
-        camera,
-        renderer,
-      });
+      const sceneHandle = { group: innerGroup, camera, renderer };
+      const removeExtraLayers = onSceneReadyRef.current?.(sceneHandle);
+
+      sceneHandleRef.current = sceneHandle;
+      attachOverlayImage();
 
       // Cleanup on unmount
       return () => {
         removeExtraLayers?.();
+        detachOverlayImage();
+        sceneHandleRef.current = null;
         // Remove event listeners
         renderer.domElement.removeEventListener("mousemove", handleMouseMove);
         renderer.domElement.removeEventListener("dblclick", handleDoubleClick);
@@ -1999,6 +2067,10 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
       />
 
       {webglFailed && <WebGLErrorOverlay />}
+
+      {overlayImageLayer && (
+        <SpatialDataImageControls layer={overlayImageLayer} />
+      )}
 
       {/* SM loading indicator */}
       {smLoading && (

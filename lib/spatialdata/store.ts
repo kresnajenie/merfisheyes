@@ -46,6 +46,21 @@ export async function openSpatialDataStore(
   };
 }
 
+/** Read-only zarr store over a public URL; keys are paths from `root`. */
+export function publicUrlStore(root: string) {
+  return {
+    async get(key: string) {
+      const res = await fetch(root + key);
+
+      // A public bucket that can't be listed answers 403 for a missing key
+      if (res.status === 404 || res.status === 403) return undefined;
+      if (!res.ok) throw new Error(`GET ${res.status} for ${key}`);
+
+      return new Uint8Array(await res.arrayBuffer());
+    },
+  };
+}
+
 /**
  * Open a SpatialData zarr store at a public URL (e.g. a public S3 bucket).
  *
@@ -56,18 +71,7 @@ export async function openSpatialDataStoreFromUrl(
   url: string,
 ): Promise<SpatialDataStore> {
   const base = url.replace(/\/+$/, "");
-  const fetchFrom = (root: string) => ({
-    async get(key: string) {
-      const res = await fetch(root + key);
-
-      // A public bucket that can't be listed answers 403 for a missing key
-      if (res.status === 404 || res.status === 403) return undefined;
-      if (!res.ok) throw new Error(`GET ${res.status} for ${key}`);
-
-      return new Uint8Array(await res.arrayBuffer());
-    },
-  });
-  const store = fetchFrom(base);
+  const store = publicUrlStore(base);
   const rootBytes = await store.get("/zarr.json");
 
   if (!rootBytes) throw new Error(`No zarr v3 store found at ${base}`);
@@ -80,7 +84,7 @@ export async function openSpatialDataStoreFromUrl(
 
   return {
     store,
-    sidecar: fetchFrom(base.slice(0, base.lastIndexOf("/"))),
+    sidecar: publicUrlStore(base.slice(0, base.lastIndexOf("/"))),
     keys: ["zarr.json", ...Object.keys(nodes).map((p) => `${p}/zarr.json`)],
   };
 }

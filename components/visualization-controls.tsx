@@ -581,10 +581,11 @@ export function VisualizationControls() {
       data-ui-overlay
       className="absolute top-4 right-4 z-[var(--z-rail)] flex flex-row gap-2"
     >
-      {/* Overlay Button — owner-only: attach/change/remove a single-molecule overlay */}
+      {/* Overlay Button — owner-only: attach/change/remove the molecule and image overlays */}
       {canManageOverlay && (
-        <Tooltip content="Single-molecule overlay" placement="bottom">
+        <Tooltip content="Overlays: molecules and image" placement="bottom">
           <Button
+            aria-label="Manage overlays"
             className={`${buttonBaseClass} ${isOverlayOpen ? "" : glassButton()}`}
             color={isOverlayOpen ? "primary" : "default"}
             variant={isOverlayOpen ? "shadow" : "light"}
