@@ -8,7 +8,27 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **SpatialData stores open as they are.** `/spatialdata-viewer` reads a
+  SpatialData zarr (v3) store straight from S3 — by dataset id or by the public
+  URL of the store — without converting it: cells from its table, expression
+  per gene on demand, and its image under the cells at the resolution the zoom
+  needs. Molecules and Leiden clusters with DEGs come from sidecars written
+  beside the store by two scripts. See `docs/spatialdata/README.md`.
+- **A store may hold any of cells, molecules and an image.** Cells give the
+  single cell scene with the others layered on it; molecules without cells
+  give the single molecule scene; an image alone is shown on its own.
+- **Tables written by current anndata are read.** anndata ≥ 0.12 shards its
+  arrays and stores strings as nullable by default; both are now read (shards
+  by byte range, so the bucket's CORS must allow the `Range` header).
+- **An image under any single cell dataset.** `mapping.json` takes an `image`
+  — the public URL of an OME-Zarr image, e.g. a stitched DAPI mosaic — drawn
+  under the cells alongside the molecule overlay. A dataset's owner sets it
+  from the overlay button, which checks the URL can be read before saving it.
+- **An image viewer.** `/image-viewer/from-s3?url=…` opens an OME-Zarr image
+  on its own, with the same channel controls. It is not linked from the site
+  yet.
 
 ## [0.8.0] - 2026-09-29
 

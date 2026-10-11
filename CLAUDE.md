@@ -329,6 +329,52 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
   - Prevents notification spam during visualization adjustments
   - Silent updates for existing point clouds
 
+### SpatialData Stores and Images
+
+Full guide: [docs/spatialdata/README.md](docs/spatialdata/README.md). Three
+routes read zarr v3 lazily and as written, straight from S3 — nothing is
+converted or uploaded through the app:
+
+- `/spatialdata-viewer/from-s3?url=…` and `/spatialdata-viewer/[id]` — a
+  [SpatialData](https://spatialdata.scverse.org) store holding any of cells
+  (`tables/`), molecules (a linked single molecule dataset) and an image
+  (`images/`). `components/spatialdata-viewer.tsx` picks the scene: cells →
+  `ThreeScene`; molecules without cells → `SingleMoleculeThreeScene`; an image
+  alone → `ImageScene`.
+- `/image-viewer/from-s3?url=…` — an OME-Zarr image on its own
+  (`components/image-viewer.tsx`). Not linked from the homepage yet.
+
+**Image under any dataset**: `mapping.json` takes an optional `image` (public
+URL of an OME-Zarr image) next to the molecule link (`DatasetLinkConfig` in
+[lib/config/dataset-links.ts](lib/config/dataset-links.ts)). `ThreeScene`
+draws it under the cells, only for datasets with raw (un-normalized)
+coordinates. An owner sets it from the overlay button
+(`components/overlay-manager.tsx` → `PATCH /api/datasets/[datasetId]/overlay`
+→ `lib/ingest/overlay.ts`, which keeps the molecule link and the image
+independent).
+
+**Code** lives in [lib/spatialdata/](lib/spatialdata/) and is kept apart from
+the h5ad-zarr path:
+
+- `store.ts` — open a store by dataset id (listed through S3) or by public URL
+  (listed by its consolidated metadata)
+- `SpatialDataTableAdapter.ts` — table → cells, genes, columns; reads plain and
+  sharded arrays, plain and nullable strings
+- `image.ts` / `ImageLayer.ts` — OME-Zarr multiscale metadata (axes `c, y, x`,
+  `uint8`/`uint16`, scale + translation only) and the tiled Three.js layer
+  shared by all three viewers
+- [lib/storage/fetchRange.ts](lib/storage/fetchRange.ts) — byte-range reads
+  for sharded arrays (`getRange` on both stores)
+
+Zarr v3 here uses the `zarrita-v3` alias (0.7.x); the h5ad-zarr path stays on
+the pinned `zarrita` 0.5.1. Do not point `lib/spatialdata/` at the old one or
+bump the shared one.
+
+**Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
+`e2e/tests/viewer/spatialdata.spec.ts` (`@quick`) and
+`e2e/tests/upload/image-overlay.spec.ts` (`@upload`) open them in a browser
+through `e2e/helpers/fixture-server.ts`, a local stand-in for a public bucket.
+
 ### Python Preprocessing Scripts
 
 For very large datasets (>500K cells) that exceed browser memory limits, Python scripts can preprocess data into chunked format:

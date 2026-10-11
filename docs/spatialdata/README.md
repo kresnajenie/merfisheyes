@@ -22,6 +22,19 @@ It was built against the Xenium skin store from the Celldega
 
 Cell boundaries (`shapes/<name>`) are not drawn yet.
 
+A store does not need all three. Whatever it has is shown:
+
+| The store has | Shown as |
+| --- | --- |
+| Cells (with or without molecules and an image) | The single cell scene: molecules over the cells, image under them |
+| Molecules but no cells (with or without an image) | The single molecule scene, image under the molecules |
+| Only an image | The image on its own |
+| None of them | An error |
+
+"Has molecules" means the converted `molecules/` folder is linked by a
+`mapping.json` beside the store (see below); the store's own `points/` are
+not read directly.
+
 ## Opening a store
 
 **By public URL** — a store in a public-read bucket:
@@ -110,8 +123,11 @@ Clusters are numbered, not named, and no UMAP is written.
 ## What a store needs
 
 - **Zarr v3** (`zarr.json`). Zarr v2 SpatialData stores are not read.
-- **A table** under `tables/` with `obsm/spatial` (or `obsm/X_spatial`).
-  With several tables, the one named `table` is used, else the first.
+- **A table** (optional) under `tables/` with `obsm/spatial` (or
+  `obsm/X_spatial`). With several tables, the one named `table` is used,
+  else the first. It is read as anndata writes it, old or new: plain or
+  sharded arrays, and plain or nullable string columns (a missing string
+  reads as empty).
 - **Expression that can be sliced by gene.** `X` is CSR in these stores, so
   genes are read from a CSC copy in `layers/` (e.g. `layers/X_csc`): one gene
   is ~17 small chunk reads. A dense or CSC `X` also works. A CSR `X` with no
@@ -125,7 +141,23 @@ Clusters are numbered, not named, and no UMAP is written.
   `identity`, `scale` and `translation`; others are ignored with a console
   warning.
 - **CORS** on the bucket for the origin the app is served from, allowing
-  `GET`.
+  `GET`. A store with sharded arrays (anndata ≥ 0.12 writes them by default)
+  is read by byte range, and the browser asks permission for that first, so
+  the bucket must also allow the `Range` request header:
+
+  ```json
+  [
+    {
+      "AllowedOrigins": ["https://<site>"],
+      "AllowedMethods": ["GET", "HEAD"],
+      "AllowedHeaders": ["*"]
+    }
+  ]
+  ```
+
+  Without it a sharded store fails with "Failed to fetch". A server that
+  ignores `Range` and returns the whole object still works; the part asked
+  for is cut out in the browser.
 
 The SpatialData join-key columns (`instance_key`, `region_key`) are hidden
 from the cell-column picker.
@@ -152,6 +184,111 @@ transform to the shared coordinate system (for Xenium, pixels = microns ×
   needs two to four per visible channel, so that is the slow step on a
   slow connection.
 
+## An image on any dataset
+
+A single cell dataset that is not a SpatialData store can still have an image
+under its cells: name it in the dataset's `mapping.json`, next to the molecule
+overlay.
+
+```json
+{
+  "linkColumn": "__all__",
+  "links": { "__all__": "https://<bucket>.s3.<region>.amazonaws.com/<folder>/molecules" },
+  "image": "https://<bucket>.s3.<region>.amazonaws.com/<folder>/dapi.zarr"
+}
+```
+
+For a dataset uploaded through the app, its owner sets this from the viewer's
+overlay button (or the dataset's page): paste the URL under **Image overlay**.
+The URL is opened first, so one the viewer could not read is refused.
+
+`image` is the public URL of an OME-Zarr multiscale image group (the group
+itself, not a SpatialData store): Zarr v3, axes `c, y, x`, `uint8` or
+`uint16`. Its own `scale` / `translation` must place it in the cells'
+coordinates, e.g. `scale: [1, 0.10833, 0.10833]` for an image at
+0.10833 µm per pixel whose pixel (0, 0) is at the cells' origin. It is drawn
+only for datasets with raw (not normalized) coordinates, and gets the same
+**Image** button as a store's own image. Rotations and flips are not applied,
+so they must already be in the pixels.
+
+The image and the molecule overlay are independent: a `mapping.json` may have
+either or both, and changing one from the overlay button keeps the other.
+
+### Overlay API
+
+Both overlays of an app dataset are stored in its `mapping.json` on S3 and
+edited through one route. Reading needs no sign-in; writing is for the
+dataset's owner (`401` signed out, `404` for anyone else).
+
+| Request | Does |
+| --- | --- |
+| `GET /api/datasets/{id}/overlay` | `{ smDatasetId, image }`, each `null` when unset |
+| `PATCH /api/datasets/{id}/overlay` with `{ "image": "<http(s) URL>" }` | Sets the image |
+| `PATCH /api/datasets/{id}/overlay` with `{ "image": null }` | Removes the image |
+| `POST` / `DELETE /api/datasets/{id}/overlay` | Attach / remove the molecule overlay (unchanged) |
+
+The route only checks that the URL is `http(s)`; that it is a readable image
+is checked in the browser before the request is sent.
+
+### Writing an image
+
+Any tool that writes OME-Zarr 0.5 (Zarr v3) with `c, y, x` axes will do. With
+zarr-python ≥ 3, for one stitched plane:
+
+```python
+import zarr
+
+plane = ...            # 2D uint8/uint16 array: rows are y, columns are x
+um_per_pixel = 0.10833
+x0, y0 = 0.0, 0.0      # where the centre of pixel (0, 0) sits among the cells
+
+root = zarr.open_group("dapi.zarr", mode="w", zarr_format=3)
+datasets, level = [], plane
+for i in range(12):
+    root.create_array(str(i), data=level[None], chunks=(1, 1024, 1024))
+    size = um_per_pixel * 2**i
+    shift = (size - um_per_pixel) / 2   # a coarser pixel's centre moves out
+    datasets.append({
+        "path": str(i),
+        "coordinateTransformations": [
+            {"type": "scale", "scale": [1, size, size]},
+            {"type": "translation", "translation": [0, y0 + shift, x0 + shift]},
+        ],
+    })
+    if max(level.shape) <= 1024:
+        break
+    h, w = level.shape[0] // 2 * 2, level.shape[1] // 2 * 2
+    level = level[:h, :w].reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3)).astype(plane.dtype)
+
+root.attrs["ome"] = {
+    "version": "0.5",
+    "multiscales": [{
+        "axes": [{"name": "c", "type": "channel"},
+                 {"name": "y", "type": "space", "unit": "micrometer"},
+                 {"name": "x", "type": "space", "unit": "micrometer"}],
+        "datasets": datasets,
+    }],
+    "omero": {"channels": [{"label": "DAPI"}]},
+}
+```
+
+Keep halving until a level fits in one or two chunks: the coarsest level is
+loaded whole as the backdrop. Upload the folder to a public-read bucket whose
+CORS allows the site, and use the folder's URL.
+
+## An image on its own
+
+The same kind of image opens without any cells or molecules:
+
+```
+/image-viewer/from-s3?url=https://<bucket>.s3.<region>.amazonaws.com/<folder>/dapi.zarr
+```
+
+It is drawn in its own coordinates with the same layer and **Image** button,
+so it looks the same here as it does under a dataset's cells. This route is
+not linked from the site yet. The URL may also be an image inside a
+SpatialData store (`…/<name>.zarr/images/<image>`).
+
 ## Not supported yet
 
 - Cell boundaries (`shapes/`).
@@ -167,13 +304,39 @@ transform to the shared coordinate system (for Xenium, pixels = microns ×
 | `app/spatialdata-viewer/` | The two routes |
 | `components/spatialdata-viewer.tsx` | Loads the store, mounts the scene and the image layer |
 | `components/spatialdata-image-controls.tsx` | Image button and channel panel |
+| `components/image-viewer.tsx`, `app/image-viewer/` | An image on its own, by URL |
 | `lib/spatialdata/store.ts` | Opening a store by dataset id or URL |
+| `lib/storage/fetchRange.ts` | Byte-range reads, for sharded arrays |
 | `lib/spatialdata/SpatialDataTableAdapter.ts` | Table → cells, genes, columns, annotations, DE stats |
+| `lib/spatialdata/loadSpatialDataMolecules.ts` | The linked molecules of a store that has no cells |
 | `lib/spatialdata/image.ts` | OME-Zarr multiscale metadata and placement |
 | `lib/spatialdata/ImageLayer.ts` | Tiled image layer in the Three.js scene |
+| `components/three-scene.tsx` | Draws a dataset's `mapping.json` image under its cells |
+| `components/overlay-manager.tsx` | The owner's overlay dialog: molecules and image |
+| `app/api/datasets/[datasetId]/overlay/`, `lib/ingest/overlay.ts` | Overlay API and the `mapping.json` it writes |
 | `scripts/spatialdata_points_to_sm.py` | `points/` → per-gene molecule files |
 | `scripts/spatialdata_cluster.py` | Leiden clusters + DE stats sidecar |
-| `tests/unit/spatialdata-table-adapter.test.ts` | Adapter tests on a tiny fixture (`scripts/testdata/make-tiny-zarr.py`) |
+
+## Tests
+
+| Where | What | Runs in CI as |
+| --- | --- | --- |
+| `tests/unit/spatialdata-table-adapter.test.ts` | The table adapter, on both tiny stores (plain, and sharded with nullable strings) | Unit tests |
+| `tests/unit/fetch-range.test.ts` | Byte-range reads, including a server that ignores `Range` | Unit tests |
+| `tests/unit/ome-zarr-image.test.ts` | Image metadata and placement | Unit tests |
+| `e2e/tests/viewer/spatialdata.spec.ts` | Every combination of cells, molecules and image in a store opened by URL; the sharded store; an image on its own | E2E quick (`@quick`) |
+| `e2e/tests/upload/image-overlay.spec.ts` | An owner attaching, seeing and removing an image on a saved dataset; who may change it | E2E upload (`@upload`) |
+
+The browser tests serve the committed fixtures from a local stand-in for a
+public bucket (`e2e/helpers/fixture-server.ts`), which answers CORS
+preflights and byte ranges like S3. One store on disk covers every
+combination: `e2e/helpers/spatialdata.ts` trims the consolidated metadata the
+viewer lists a store by.
+
+The fixtures are `tests/data/tiny/zarr/` (two stores, 30 cells × 8 genes and
+a 64 × 64 image) and `tests/data/tiny/single-molecule/chunked/`. Regenerate
+the stores with `python scripts/testdata/make-tiny-zarr.py` (needs
+anndata ≥ 0.12 and zarr ≥ 3); see [TESTING.md](../../TESTING.md) for the rest.
 
 Zarr v3 string arrays need zarrita ≥ 0.7. The h5ad-zarr path is pinned to
 0.5.1, so the newer one is installed under the alias `zarrita-v3` and used
