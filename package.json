@@ -109,6 +109,7 @@
     "react-toastify": "^11.0.5",
     "three": "^0.180.0",
     "zarrita": "0.5.1",
+    "zarrita-v3": "npm:zarrita@0.7.5",
     "zod": "^4.1.11",
     "zustand": "^5.0.8"
   },

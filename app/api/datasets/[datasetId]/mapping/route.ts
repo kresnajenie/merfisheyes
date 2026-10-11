@@ -18,14 +18,22 @@ export async function GET(
 ) {
   const { datasetId } = await params;
   const obj = await getObjectBytes(`datasets/${datasetId}/mapping.json`);
+  // A stored file that only names an image overlay (no molecule link) must
+  // not hide the combined-upload fallback below, so its image is merged in.
+  let imageOnly: { image?: string } = {};
 
   if (obj) {
-    return new Response(new Uint8Array(obj.body), {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=60",
-      },
-    });
+    const stored = JSON.parse(Buffer.from(obj.body).toString("utf8"));
+
+    if (stored.links) {
+      return new Response(new Uint8Array(obj.body), {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=60",
+        },
+      });
+    }
+    imageOnly = stored;
   }
 
   // Fallback: derive the mapping from the combined-upload link on the row.
@@ -43,9 +51,15 @@ export async function GET(
         linkColumn: "__all__",
         links: { __all__: linkedSmId },
         source: "app",
+        ...imageOnly,
       },
       { headers: { "Cache-Control": "public, max-age=60" } },
     );
+  }
+  if (imageOnly.image) {
+    return NextResponse.json(imageOnly, {
+      headers: { "Cache-Control": "public, max-age=60" },
+    });
   }
 
   return NextResponse.json({ error: "Not found" }, { status: 404 });

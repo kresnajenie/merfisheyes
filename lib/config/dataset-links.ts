@@ -10,6 +10,13 @@ export interface DatasetLinkConfig {
    *     bucket required. Written for datasets uploaded through the app.
    */
   source?: "s3" | "app";
+  /**
+   * Public URL of an OME-Zarr multiscale image (zarr v3, axes c/y/x) drawn
+   * under the cells, e.g. a stitched DAPI mosaic. Its own scale/translation
+   * must place it in the cells' coordinates (microns); see
+   * lib/spatialdata/image.ts. Only drawn for datasets with raw coordinates.
+   */
+  image?: string;
 }
 
 // Keyed by the dataset's customS3BaseUrl (from dataset.metadata.customS3BaseUrl)

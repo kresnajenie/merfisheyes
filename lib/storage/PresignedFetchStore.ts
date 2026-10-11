@@ -1,4 +1,10 @@
-import type { AbsolutePath, AsyncReadable } from "@zarrita/storage";
+import type {
+  AbsolutePath,
+  AsyncReadable,
+  RangeQuery,
+} from "@zarrita/storage";
+
+import { fetchRange } from "./fetchRange";
 
 /**
  * Zarrita store backed by a private S3 bucket through our API.
@@ -56,6 +62,17 @@ export class PresignedFetchStore implements AsyncReadable {
     const buf = await res.arrayBuffer();
 
     return new Uint8Array(buf);
+  }
+
+  /** Part of an object, for sharded arrays. */
+  async getRange(
+    key: AbsolutePath,
+    range: RangeQuery,
+  ): Promise<Uint8Array | undefined> {
+    const relativeKey = key.startsWith("/") ? key.slice(1) : key;
+    const presigned = await this.getPresignedUrl(this.keyPrefix + relativeKey);
+
+    return presigned ? fetchRange(presigned, range) : undefined;
   }
 
   private async getPresignedUrl(fullKey: string): Promise<string | null> {

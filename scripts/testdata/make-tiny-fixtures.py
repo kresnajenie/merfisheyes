@@ -14,6 +14,7 @@ Outputs into tests/data/tiny/:
   merscope/tiny/...
   single-molecule/tiny.parquet
   chunked/tiny/...            (produced from the h5ad via process_spatial_data.py)
+  single-molecule/chunked/... (produced from the parquet via process_single_molecule.py)
 """
 
 import subprocess
@@ -24,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TINY = ROOT / "tests" / "data" / "tiny"
 GEN = ROOT / "scripts" / "testdata" / "generate.py"
 PROCESS = ROOT / "scripts" / "process_spatial_data.py"
+PROCESS_SM = ROOT / "scripts" / "process_single_molecule.py"
 
 CELLS = 300
 GENES = 40
@@ -59,6 +61,10 @@ def main():
             print(f"  WARN: chunked generation failed ({e}); skipping chunked fixture.")
     else:
         print("  WARN: scripts/process_spatial_data.py not found; skipping chunked fixture.")
+
+    # Processed molecules: what a mapping.json link points at.
+    run([PROCESS_SM, TINY / "single-molecule" / "tiny.parquet",
+         TINY / "single-molecule" / "chunked", "--dataset-type", "xenium"])
 
     print("Done. Remember to commit tests/data/tiny/ and tests/data/manifest.json.")
 

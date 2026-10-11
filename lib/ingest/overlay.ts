@@ -64,18 +64,71 @@ export async function getOverlaySmId(scId: string): Promise<string | null> {
   return m.datasetId ?? (m.source !== "s3" ? (m.links?.__all__ ?? null) : null);
 }
 
+/** The image overlay (`image` URL) in the dataset's mapping.json, if any. */
+export async function getOverlayImage(
+  scId: string,
+): Promise<string | undefined> {
+  const m = await getObjectJson<{ image?: string }>(mappingKey(scId)).catch(
+    () => null,
+  );
+
+  return m?.image;
+}
+
+// The image overlay shares mapping.json with the molecule overlay but is
+// independent of it, so writing or removing the molecules keeps the image.
 export async function writeOverlay(scId: string, smId: string): Promise<void> {
   const mapping = await buildMapping(smId);
+  const image = await getOverlayImage(scId);
 
   await uploadBufferToS3(
     mappingKey(scId),
-    Buffer.from(JSON.stringify(mapping)),
+    Buffer.from(JSON.stringify(image ? { ...mapping, image } : mapping)),
     "application/json",
   );
 }
 
 export async function removeOverlay(scId: string): Promise<void> {
+  const image = await getOverlayImage(scId);
+
+  if (image) {
+    await uploadBufferToS3(
+      mappingKey(scId),
+      Buffer.from(JSON.stringify({ image })),
+      "application/json",
+    );
+
+    return;
+  }
   await deleteObject(mappingKey(scId));
+}
+
+/**
+ * Set the image overlay (the public URL of an OME-Zarr image) or, with null,
+ * clear it. The molecule overlay in the same mapping.json is left as it is.
+ */
+export async function writeOverlayImage(
+  scId: string,
+  image: string | null,
+): Promise<void> {
+  const mapping: Record<string, unknown> =
+    (await getObjectJson<Record<string, unknown>>(mappingKey(scId)).catch(
+      () => null,
+    )) ?? {};
+
+  if (image) mapping.image = image;
+  else delete mapping.image;
+
+  if (Object.keys(mapping).length === 0) {
+    await deleteObject(mappingKey(scId));
+
+    return;
+  }
+  await uploadBufferToS3(
+    mappingKey(scId),
+    Buffer.from(JSON.stringify(mapping)),
+    "application/json",
+  );
 }
 
 /**

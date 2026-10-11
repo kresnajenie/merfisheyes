@@ -131,6 +131,22 @@ labelled `test.step()`s:
 - selects 2–3 known genes and measures **gene-selection latency**;
 - exercises **drag-and-drop** loading for single-file formats.
 
+`e2e/tests/viewer/spatialdata.spec.ts` (also `@quick`) opens SpatialData
+stores and images **by URL**, the way they are read from a public bucket:
+
+- a store with each combination of cells, molecules and an image shows the
+  right scene and only the layers it has;
+- a store whose table is sharded and uses nullable strings (anndata's current
+  defaults) is read by byte range;
+- an image on its own is drawn at `/image-viewer/from-s3`, and a URL with no
+  image behind it is explained.
+
+Nothing here needs S3: `e2e/helpers/fixture-server.ts` starts a small HTTP
+server on a free port that stands in for the bucket (CORS, preflights and
+`Range`), and records what was requested so a test can assert that an image
+tile or a byte range was really fetched. See
+[docs/spatialdata/README.md](docs/spatialdata/README.md#tests).
+
 ---
 
 ## Upload & save tests
@@ -154,6 +170,11 @@ metadata and counts.
 
 > Auth is **not** required — the upload API routes are open; only DB + S3 are
 > needed.
+
+`e2e/tests/upload/image-overlay.spec.ts` (also `@upload`) saves a dataset,
+then, as its owner, attaches an image from the overlay button, checks the
+viewer draws it under the cells, checks that nobody else can change it, and
+removes it.
 
 ---
 

@@ -4,15 +4,19 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   getOverlaySmId,
+  getOverlayImage,
   writeOverlay,
+  writeOverlayImage,
   removeOverlay,
   groupInProject,
 } from "@/lib/ingest/overlay";
 
-// Manage the single-molecule overlay on a single-cell dataset the user owns.
-//   GET    → { smDatasetId | null }
+// Manage the overlays on a single-cell dataset the user owns: a
+// single-molecule dataset drawn over the cells, and an image drawn under them.
+//   GET    → { smDatasetId | null, image | null }
 //   POST   { smDatasetId, force? } → attach/replace (409 if one exists and !force)
-//   DELETE → detach (leaves the project grouping intact)
+//   PATCH  { image: url | null } → set or clear the image overlay
+//   DELETE → detach the molecules (leaves the project grouping and image intact)
 
 async function ownedDataset(id: string, userId: string, isAdmin: boolean) {
   const d = await prisma.dataset.findUnique({
@@ -32,7 +36,54 @@ export async function GET(
 ) {
   const { datasetId } = await params;
 
-  return NextResponse.json({ smDatasetId: await getOverlaySmId(datasetId) });
+  return NextResponse.json({
+    smDatasetId: await getOverlaySmId(datasetId),
+    image: (await getOverlayImage(datasetId)) ?? null,
+  });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ datasetId: string }> },
+) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  }
+  const isAdmin =
+    session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
+  const { datasetId } = await params;
+  const body = await req.json().catch(() => ({}));
+  let image: string | null = null;
+
+  if (body.image !== null) {
+    const raw = typeof body.image === "string" ? body.image.trim() : "";
+    const url = URL.canParse(raw) ? new URL(raw) : null;
+
+    if (!url || !/^https?:$/.test(url.protocol)) {
+      return NextResponse.json(
+        { error: "image must be an http(s) URL, or null to remove it" },
+        { status: 400 },
+      );
+    }
+    image = url.href.replace(/\/+$/, "");
+  }
+
+  const sc = await ownedDataset(datasetId, session.user.id, isAdmin);
+
+  if (!sc) {
+    return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
+  }
+  if (sc.datasetType !== "single_cell") {
+    return NextResponse.json(
+      { error: "Overlays attach to single-cell datasets" },
+      { status: 400 },
+    );
+  }
+  await writeOverlayImage(datasetId, image);
+
+  return NextResponse.json({ ok: true, image });
 }
 
 export async function POST(
