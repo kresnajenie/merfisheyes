@@ -22,13 +22,20 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 - **Tables written by current anndata are read.** anndata ≥ 0.12 shards its
   arrays and stores strings as nullable by default; both are now read (shards
   by byte range, so the bucket's CORS must allow the `Range` header).
-- **An image under any single cell dataset.** `mapping.json` takes an `image`
-  — the public URL of an OME-Zarr image, e.g. a stitched DAPI mosaic — drawn
-  under the cells alongside the molecule overlay. A dataset's owner sets it
-  from the overlay button, which checks the URL can be read before saving it.
-- **An image viewer.** `/image-viewer/from-s3?url=…` opens an OME-Zarr image
-  on its own, with the same channel controls. It is not linked from the site
-  yet.
+- **Images are datasets.** An OME-Zarr image opened by URL at
+  `/image-viewer/from-s3?url=…` can be added to your account like any other
+  dataset opened by URL, and then appears under Your datasets. Each channel
+  has a lower and an upper display bound. The viewer is not linked from the
+  homepage yet.
+- **An image under any single cell dataset.** A dataset's owner picks one of
+  their images in the overlay dialog — e.g. a stitched DAPI mosaic — and it
+  is drawn under the cells, alongside the molecule overlay. An image not in
+  the account yet can be added by URL from the same dialog.
+- **Cells, molecules and an image from one folder.** A folder uploaded for
+  server processing may hold a transcripts file and an OME-Zarr image folder
+  beside the cells. Each becomes its own dataset in one project, and the
+  link you get opens the cells with the molecules over them and the image
+  under them.
 
 ## [0.8.0] - 2026-09-29
 
