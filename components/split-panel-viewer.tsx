@@ -15,7 +15,11 @@ import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 import LabelledMoleculeViewerPage from "./labelled-molecule-viewer";
 
-import { useCellVizUrlSync, useSMVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+import {
+  useCellVizUrlSync,
+  useSMOverlayUrlSync,
+  useSMVizUrlSync,
+} from "@/lib/hooks/useUrlVizSync";
 import {
   applyCellOpenState,
   applySMOpenState,
@@ -75,6 +79,15 @@ function CellViewer({
 
   // URL sync hook (handles reading after datasetReady + writing)
   useCellVizUrlSync(datasetReady, dataset, vizStore);
+
+  // SM overlay of this panel: three-scene loads the linked molecule dataset
+  // into the panel's SM store; this restores / seeds its genes (rov=).
+  const smOverlayDataset = usePanelSingleMoleculeStore((s) =>
+    s.currentDatasetId ? (s.datasets.get(s.currentDatasetId) ?? null) : null,
+  );
+  const smOverlayVizStore = usePanelSingleMoleculeVisualizationStore();
+
+  useSMOverlayUrlSync(!!smOverlayDataset, smOverlayDataset, smOverlayVizStore);
 
   // Use a stable key to track which source to load
   const sourceKey = s3Url || datasetId;

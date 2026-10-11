@@ -4,10 +4,8 @@ export default function DocsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
-      <div className="inline-block max-w-lg text-center justify-center">
-        {children}
-      </div>
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-8 md:py-10">
+      {children}
     </section>
   );
 }

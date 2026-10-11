@@ -1,5 +1,7 @@
 "use client";
 
+import type { CatalogDatasetItem } from "@/components/explore/types";
+
 import { Button } from "@heroui/button";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -25,11 +27,11 @@ import {
   XeniumIcon,
   ZarrIcon,
 } from "@/components/format-icons";
+import { FormatGuideButton } from "@/components/format-guide";
 import LightRays from "@/components/react-bits/LightRays";
 import { BrainToggle } from "@/components/brain-toggle";
 import { LoadFromS3Modal } from "@/components/load-from-s3-modal";
 import { FeaturedDatasets } from "@/components/explore/featured-datasets";
-import type { CatalogDatasetItem } from "@/components/explore/types";
 
 const MemoizedLightRays = memo(LightRays);
 
@@ -499,7 +501,10 @@ function HomeContent() {
                   />
                 </div>
 
-                <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
+                  <FormatGuideButton group="cell" />
+                </div>
               </div>
             </div>
 
@@ -535,7 +540,10 @@ function HomeContent() {
                   />
                 </div>
 
-                <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <LoadFromS3Button onClick={() => setIsS3ModalOpen(true)} />
+                  <FormatGuideButton group="molecule" />
+                </div>
               </div>
             </div>
           </div>
