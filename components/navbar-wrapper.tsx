@@ -26,7 +26,8 @@ export function NavbarWrapper() {
     pathname?.startsWith("/viewer") ||
     pathname?.startsWith("/sm-viewer") ||
     pathname?.startsWith("/lm-viewer") ||
-    pathname?.startsWith("/spatialdata-viewer");
+    pathname?.startsWith("/spatialdata-viewer") ||
+    pathname?.startsWith("/image-viewer");
 
   // Get dataset from appropriate store
   const cellDatasetId = useDatasetStore((state) => state.currentDatasetId);
