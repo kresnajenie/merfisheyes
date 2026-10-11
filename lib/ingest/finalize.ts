@@ -7,7 +7,10 @@ import { getObjectJson, listObjectKeys, uploadBufferToS3 } from "@/lib/s3";
 import { sendDatasetReadyEmail, sendDuplicateDatasetEmail } from "@/lib/ses";
 import {
   getOverlaySmId,
+  getOverlayImage,
+  imageOverlayFor,
   writeOverlay,
+  writeOverlayImage,
   groupInProject,
 } from "@/lib/ingest/overlay";
 import { updateDatasetGenes } from "@/lib/datasets/read-genes";
@@ -125,6 +128,27 @@ export async function finalizeCompletedDataset(
         }
       }
 
+      // The same for an image uploaded with the duplicate: the original gets
+      // it, unless it already has one.
+      const dupLinkedImageId = (
+        dataset.processingParams as { linkedImageDatasetId?: unknown } | null
+      )?.linkedImageDatasetId;
+
+      if (typeof dupLinkedImageId === "string" && dupLinkedImageId) {
+        try {
+          const image = await imageOverlayFor(dupLinkedImageId);
+
+          if (image && !(await getOverlayImage(existing.id))) {
+            await writeOverlayImage(existing.id, image);
+          }
+        } catch (e: any) {
+          console.error(
+            "Ingest finalize: duplicate image redirect failed:",
+            e?.message,
+          );
+        }
+      }
+
       await prisma.dataset.update({
         where: { id: datasetId },
         data: {
@@ -235,33 +259,40 @@ export async function finalizeCompletedDataset(
     { timeout: 60000 },
   );
 
-  // If this SC dataset was uploaded alongside a single-molecule dataset (the
-  // combined SC+SM upload flow), write a mapping.json so the SC viewer overlays
-  // the molecules. Written post-processing so the worker's output can't clobber it.
-  const linkedSmId = (
-    dataset.processingParams as { linkedSmDatasetId?: unknown } | null
-  )?.linkedSmDatasetId;
+  // If this SC dataset was uploaded alongside a single-molecule dataset and/or
+  // an image (the combined upload flow), write a mapping.json so the SC viewer
+  // draws the molecules over the cells and the image under them. Written
+  // post-processing so the worker's output can't clobber it.
+  const linked = dataset.processingParams as {
+    linkedSmDatasetId?: unknown;
+    linkedImageDatasetId?: unknown;
+  } | null;
+  const linkedSmId = linked?.linkedSmDatasetId;
+  const linkedImageId = linked?.linkedImageDatasetId;
 
-  if (typeof linkedSmId === "string" && linkedSmId) {
-    try {
-      const mapping = {
-        linkColumn: "__all__",
-        links: { __all__: linkedSmId },
-        source: "app",
-      };
+  try {
+    const mapping = {
+      ...(typeof linkedSmId === "string" && linkedSmId
+        ? { linkColumn: "__all__", links: { __all__: linkedSmId }, source: "app" }
+        : {}),
+      ...(typeof linkedImageId === "string" && linkedImageId
+        ? await imageOverlayFor(linkedImageId)
+        : {}),
+    };
 
+    if (Object.keys(mapping).length > 0) {
       await uploadBufferToS3(
         `datasets/${datasetId}/mapping.json`,
         Buffer.from(JSON.stringify(mapping)),
         "application/json",
       );
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(
-        "Ingest finalize: mapping.json write failed:",
-        (e as Error).message,
-      );
     }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error(
+      "Ingest finalize: mapping.json write failed:",
+      (e as Error).message,
+    );
   }
 
   // The canonical fingerprint replaces the raw_ placeholder. It is @unique, so

@@ -344,14 +344,28 @@ converted or uploaded through the app:
 - `/image-viewer/from-s3?url=…` — an OME-Zarr image on its own
   (`components/image-viewer.tsx`). Not linked from the homepage yet.
 
-**Image under any dataset**: `mapping.json` takes an optional `image` (public
-URL of an OME-Zarr image) next to the molecule link (`DatasetLinkConfig` in
-[lib/config/dataset-links.ts](lib/config/dataset-links.ts)). `ThreeScene`
-draws it under the cells, only for datasets with raw (un-normalized)
-coordinates. An owner sets it from the overlay button
-(`components/overlay-manager.tsx` → `PATCH /api/datasets/[datasetId]/overlay`
-→ `lib/ingest/overlay.ts`, which keeps the molecule link and the image
-independent).
+**An image is a dataset** (`datasetType: "image"`; helpers in
+[lib/datasets/kind.ts](lib/datasets/kind.ts) — never test
+`=== "single_molecule" ? … : …` for routing, an image is neither). It is
+either registered from a public URL (the claim banner in the image viewer,
+`lib/datasets/register-or-claim.ts`) or uploaded as it is into the app's
+bucket (`lib/upload/uploadImageToS3.ts`, ids `ds_…`, `formatVersion: "zarr"`).
+
+**Image under any dataset**: `mapping.json` names it next to the molecule link
+(`DatasetLinkConfig` in [lib/config/dataset-links.ts](lib/config/dataset-links.ts)):
+`image` is a public URL, or with `imageSource: "app"` an image dataset's id.
+`ThreeScene` draws it under the cells, only for datasets with raw
+(un-normalized) coordinates. An owner picks one of their images in the
+overlay dialog (`components/image-overlay-picker.tsx` →
+`PATCH /api/datasets/[datasetId]/overlay` → `lib/ingest/overlay.ts`, which
+keeps the molecule link and the image independent).
+
+**Combined upload**: in server mode a picked folder may hold cells, a
+transcripts file and an OME-Zarr image folder
+([lib/ingest/classify-folder.ts](lib/ingest/classify-folder.ts)). Each becomes
+its own dataset in one project; the cells carry
+`processingParams.linkedSmDatasetId` / `linkedImageDatasetId`, and
+`lib/ingest/finalize.ts` writes the `mapping.json` when they finish.
 
 **Code** lives in [lib/spatialdata/](lib/spatialdata/) and is kept apart from
 the h5ad-zarr path:
@@ -371,8 +385,9 @@ the pinned `zarrita` 0.5.1. Do not point `lib/spatialdata/` at the old one or
 bump the shared one.
 
 **Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
-`e2e/tests/viewer/spatialdata.spec.ts` (`@quick`) and
-`e2e/tests/upload/image-overlay.spec.ts` (`@upload`) open them in a browser
+`e2e/tests/viewer/spatialdata.spec.ts` (`@quick`),
+`e2e/tests/upload/image-overlay.spec.ts` and `combined-upload.spec.ts`
+(`@upload`) open them in a browser
 through `e2e/helpers/fixture-server.ts`, a local stand-in for a public bucket.
 
 ### Python Preprocessing Scripts

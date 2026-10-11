@@ -6,6 +6,8 @@ import { Spinner } from "@heroui/spinner";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
+import { ImageOverlayPicker } from "@/components/image-overlay-picker";
+
 interface SmItem {
   id: string;
   title: string | null;
@@ -25,8 +27,8 @@ function fmtCount(n: number | null): string {
  * Attach / change / remove the overlays on a single-cell dataset the user
  * owns: a single-molecule dataset drawn over the cells (searchable +
  * paginated so it scales to large libraries — it fetches one page of the
- * user's own single-molecule datasets at a time), and an image drawn under
- * them, given by URL.
+ * user's own single-molecule datasets at a time), and one of their images
+ * drawn under them (see ImageOverlayPicker).
  */
 export function OverlayManager({
   scDatasetId,
@@ -43,8 +45,6 @@ export function OverlayManager({
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [image, setImage] = useState<string | null>(null);
-  const [imageDraft, setImageDraft] = useState("");
 
   // Current overlays (once).
   useEffect(() => {
@@ -55,7 +55,6 @@ export function OverlayManager({
       .then((d) => {
         if (cancelled) return;
         setCurrent(d?.smDatasetId ?? null);
-        setImage(d?.image ?? null);
       })
       .catch(() => {});
 
@@ -155,64 +154,6 @@ export function OverlayManager({
       setCurrentTitle(null);
       onChange?.(null);
       toast.success("Overlay removed.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveImage = async (url: string | null) => {
-    const res = await fetch(`/api/datasets/${scDatasetId}/overlay`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: url }),
-    });
-
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-
-      toast.error(j.error ?? "Couldn't update the image overlay.");
-
-      return false;
-    }
-
-    return true;
-  };
-
-  const attachImage = async () => {
-    const url = imageDraft.trim().replace(/\/+$/, "");
-
-    if (!url) return;
-    setBusy(true);
-    try {
-      // Open it the way the viewer will, so a wrong URL, a private bucket or
-      // an unsupported image is caught here rather than as a missing layer.
-      try {
-        const { openOmeZarrImage } = await import("@/lib/spatialdata/image");
-
-        await openOmeZarrImage(url);
-      } catch {
-        toast.error(
-          "Couldn't read an image at that URL. It must be a public OME-Zarr image (Zarr v3, axes c/y/x) that allows this site in CORS.",
-        );
-
-        return;
-      }
-      if (!(await saveImage(url))) return;
-      setImage(url);
-      setImageDraft("");
-      toast.success("Image overlay attached. Reload the viewer to see it.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeImage = async () => {
-    if (!confirm("Remove the image overlay from this dataset?")) return;
-    setBusy(true);
-    try {
-      if (!(await saveImage(null))) return;
-      setImage(null);
-      toast.success("Image overlay removed.");
     } finally {
       setBusy(false);
     }
@@ -342,55 +283,8 @@ export function OverlayManager({
       ) : null}
 
       <div className="mt-2 border-t border-default-200 pt-4">
-        <h3 className="text-sm font-semibold text-foreground">Image overlay</h3>
-        <p className="mt-0.5 text-xs text-default-500">
-          Draw an image, such as a stitched DAPI mosaic, under these cells.
-          Paste the public URL of an OME-Zarr image whose coordinates match the
-          cells (the dataset must keep its original, un-normalized coordinates).
-        </p>
+        <ImageOverlayPicker scDatasetId={scDatasetId} />
       </div>
-
-      {image ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-content2 px-3 py-2">
-          <div className="min-w-0">
-            <span className="text-[11px] uppercase tracking-wide text-default-400">
-              Current image
-            </span>
-            <p className="truncate text-sm font-medium text-foreground">
-              {image}
-            </p>
-          </div>
-          <Button
-            className="shrink-0"
-            color="danger"
-            isDisabled={busy}
-            size="sm"
-            variant="flat"
-            onPress={removeImage}
-          >
-            Remove
-          </Button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Input
-            aria-label="Image URL"
-            placeholder="https://bucket.s3.region.amazonaws.com/folder/image.zarr"
-            size="sm"
-            value={imageDraft}
-            onValueChange={setImageDraft}
-          />
-          <Button
-            className="shrink-0"
-            color="primary"
-            isDisabled={busy || !imageDraft.trim()}
-            size="sm"
-            onPress={attachImage}
-          >
-            Attach
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

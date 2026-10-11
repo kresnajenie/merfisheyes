@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AccountDatasetDetailClient } from "@/components/account/dataset-detail-client";
+import { viewerHref } from "@/lib/datasets/kind";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -68,14 +69,15 @@ export default async function AccountDatasetPage({ params }: Props) {
   });
 
   // Resolve the viewer URL the same way the list API does.
-  const viewerPath =
-    dataset.datasetType === "single_molecule" ? "sm-viewer" : "viewer";
   const viewerUrl =
     dataset.status !== "COMPLETE"
       ? null
-      : dataset.ingestSource === "s3_registered" && dataset.s3BaseUrl
-        ? `/${viewerPath}/from-s3?url=${encodeURIComponent(dataset.s3BaseUrl)}`
-        : `/${viewerPath}/${dataset.id}`;
+      : viewerHref({
+          id: dataset.id,
+          datasetType: dataset.datasetType,
+          s3BaseUrl:
+            dataset.ingestSource === "s3_registered" ? dataset.s3BaseUrl : null,
+        });
 
   return (
     <AccountDatasetDetailClient

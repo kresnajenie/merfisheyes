@@ -13,6 +13,7 @@ export interface AccountFacets {
 const TYPE_LABELS: Record<string, string> = {
   single_cell: "Single cell",
   single_molecule: "Single molecule",
+  image: "Image",
 };
 
 const STATUS_OPTIONS = ["COMPLETE", "PROCESSING", "QUEUED", "FAILED"];
@@ -84,7 +85,7 @@ export function AccountFilterBar({
         <FilterPill
           hideSearch
           label="Type"
-          options={["single_cell", "single_molecule"]}
+          options={["single_cell", "single_molecule", "image"]}
           renderOption={(v) => TYPE_LABELS[v] ?? v}
           value={type}
           onChange={onTypeChange}

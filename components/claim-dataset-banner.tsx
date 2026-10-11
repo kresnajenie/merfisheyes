@@ -24,7 +24,8 @@ export function ClaimDatasetBanner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const { ownerId, adminOwned, s3Url, set } = useViewerRegistrationStore();
+  const { ownerId, adminOwned, s3Url, kind, set } =
+    useViewerRegistrationStore();
 
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -45,7 +46,11 @@ export function ClaimDatasetBanner() {
       const res = await fetch("/api/datasets/register-s3", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: s3Url, asAdmin }),
+        body: JSON.stringify({
+          url: s3Url,
+          asAdmin,
+          ...(kind ? { kind } : {}),
+        }),
       });
 
       if (!res.ok) {

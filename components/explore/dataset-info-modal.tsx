@@ -17,6 +17,7 @@ import { metadataEntries } from "./metadata-labels";
 function entryTypeLabel(datasetType: string): string {
   if (datasetType === "single_cell") return "SC";
   if (datasetType === "single_molecule") return "SM";
+  if (datasetType === "image") return "IMG";
 
   return datasetType;
 }

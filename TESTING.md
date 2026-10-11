@@ -172,9 +172,15 @@ metadata and counts.
 > needed.
 
 `e2e/tests/upload/image-overlay.spec.ts` (also `@upload`) saves a dataset,
-then, as its owner, attaches an image from the overlay button, checks the
-viewer draws it under the cells, checks that nobody else can change it, and
-removes it.
+adds an image to the account from the image viewer's banner, picks it in the
+overlay dialog, checks the viewer draws it under the cells, checks that
+nobody else can change it, and deletes it.
+
+`e2e/tests/upload/combined-upload.spec.ts` (also `@upload`) picks one folder
+holding cells, molecules and an image in server mode and checks it becomes
+three datasets in one project, with the cells told to overlay the other two.
+The test stack has no processing queue, so the cells and molecules stay
+queued; the image needs none and is opened from the app's own storage.
 
 ---
 

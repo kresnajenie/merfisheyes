@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { SubmissionBadge } from "./submission-badge";
 
 import { ExploreDatasetCard } from "@/components/explore/explore-dataset-card";
+import { datasetKind } from "@/lib/datasets/kind";
 
 interface AccountProjectCardProps {
   project: ProjectRow;
@@ -51,10 +52,9 @@ function toItem(p: ProjectRow): CatalogDatasetItem {
     entries: p.datasets.map((d, i) => ({
       id: d.id,
       label: d.title ?? "Dataset",
-      // Legacy rows store raw formats ("h5ad", "merscope") here; anything
-      // not single_molecule renders as single cell.
-      datasetType:
-        d.datasetType === "single_molecule" ? "single_molecule" : "single_cell",
+      // Legacy rows store raw formats ("h5ad", "merscope") here; those
+      // render as single cell.
+      datasetType: datasetKind(d.datasetType),
       s3BaseUrl: null,
       datasetId: d.id,
       thumbnailUrl: d.thumbnailUrl,

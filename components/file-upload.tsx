@@ -38,6 +38,10 @@ import {
   fallbackSingleMoleculeFile,
 } from "@/lib/ingest/classify-folder";
 import { useUploadStore } from "@/lib/stores/uploadStore";
+import {
+  isOmeZarrImage,
+  type ImageUploadFile,
+} from "@/lib/upload/uploadImageToS3";
 import { AuthModal } from "@/components/auth-modal";
 
 type RawFile = { key: string; file: File; contentType: string };
@@ -53,6 +57,11 @@ interface PendingServerUpload {
    * two (with a mapping.json overlay).
    */
   sm?: { files: RawFile[]; fileName: string };
+  /**
+   * Set when a single-cell folder also contained an OME-Zarr image folder.
+   * Offers to upload it as its own image dataset, drawn under the cells.
+   */
+  image?: { files: ImageUploadFile[]; name: string };
 }
 
 /**
@@ -133,6 +142,7 @@ export function FileUpload({
   // Server-side raw upload runs in a global store so the transfer survives the
   // navigation to /explore, where the top bar shows its progress.
   const startUpload = useUploadStore((s) => s.start);
+  const startImageUpload = useUploadStore((s) => s.startImage);
 
   // Auth-on-drop: a signed-out user can drop a file; we stash it and pop the
   // sign-in modal, then resume the upload on success (no sign-in wall first).
@@ -198,6 +208,7 @@ export function FileUpload({
   const [titleDraft, setTitleDraft] = useState("");
   // Whether to also upload the detected single-molecule data (combined flow).
   const [includeSm, setIncludeSm] = useState(true);
+  const [includeImage, setIncludeImage] = useState(true);
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -485,21 +496,38 @@ export function FileUpload({
           }
         : undefined;
 
+    // Likewise an image: the first zarr folder in there that really is an
+    // OME-Zarr image the viewer can draw (its root zarr.json says so).
+    let image: PendingServerUpload["image"];
+
+    if (kind === "single_cell") {
+      for (const candidate of classification.images) {
+        const root = candidate.files.find((f) => f.key === "zarr.json");
+        const isImage = await root?.file
+          .text()
+          .then((text) => isOmeZarrImage(JSON.parse(text)))
+          .catch(() => false);
+
+        if (isImage) {
+          image = { files: candidate.files, name: candidate.name };
+          break;
+        }
+      }
+    }
+
     // Stage the upload and let the user confirm/rename the title before the
     // transfer begins (see startPreparedUpload). Navigation to /explore happens
     // on confirm, once the transfer is actually kicked off.
-    setPendingUpload({ kind, files: rawFiles, processingParams, sm });
+    setPendingUpload({ kind, files: rawFiles, processingParams, sm, image });
     setTitleDraft(title);
     setIncludeSm(true);
+    setIncludeImage(true);
   };
 
-  // Best-effort: create a project grouping the SC + SM datasets from a combined
-  // upload. Runs once both uploads are initiated (their rows exist).
-  const createCombinedProject = async (
-    title: string,
-    scId: string,
-    smId: string,
-  ) => {
+  // Best-effort: create a project grouping the datasets of a combined upload
+  // (cells, and molecules and/or an image). Runs once all of them are
+  // initiated (their rows exist).
+  const createCombinedProject = async (title: string, datasetIds: string[]) => {
     try {
       const res = await fetch("/api/projects", {
         method: "POST",
@@ -511,7 +539,7 @@ export function FileUpload({
       const project = await res.json();
 
       await Promise.all(
-        [scId, smId].map((datasetId) =>
+        datasetIds.map((datasetId) =>
           fetch(`/api/projects/${project.id}/datasets`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -523,6 +551,13 @@ export function FileUpload({
       // Non-fatal — the datasets still upload; only the auto-grouping is missed.
     }
   };
+
+  // How many datasets the staged upload will make: the one picked, plus the
+  // molecules and the image found beside it, when ticked.
+  const combinedCount =
+    1 +
+    (pendingUpload?.sm && includeSm ? 1 : 0) +
+    (pendingUpload?.image && includeImage ? 1 : 0);
 
   // Kick off the staged upload with the (possibly edited) title, then go to
   // /explore where the top bar tracks byte + processing progress.
@@ -543,36 +578,63 @@ export function FileUpload({
     // the confirm dialog, because nothing auto-detects on that side.
     setPendingUpload(null);
 
-    // Combined SC + SM upload: two separate datasets (each tracked as its own
-    // bar) + an auto-created project. The SC upload carries linkedSmDatasetId so
-    // the server writes a mapping.json (overlay) when it finishes processing.
-    if (pending.sm && includeSm) {
-      // Start the SM upload; once it's initiated (id known), start the SC upload
-      // linked to it, and once the SC is initiated too, group both in a project.
-      void startUpload({
-        kind: "single_molecule",
-        title: `${base} (molecules)`,
-        files: pending.sm.files,
-        processingParams: {
+    // Combined upload: the cells plus the molecules and/or the image, each
+    // its own dataset (tracked as its own bar) + an auto-created project. The
+    // cells' upload carries the ids of the others, so the server writes a
+    // mapping.json (the overlays) when it finishes processing them — which is
+    // why it starts last, once those ids are known.
+    const withSm = pending.sm && includeSm ? pending.sm : null;
+    const withImage = pending.image && includeImage ? pending.image : null;
+
+    if (withSm || withImage) {
+      const linked: { sm?: string; image?: string } = {};
+      let waiting = (withSm ? 1 : 0) + (withImage ? 1 : 0);
+      const startCells = () => {
+        if (--waiting > 0) return;
+        void startUpload({
+          kind: pending.kind,
+          title: `${base} (cells)`,
+          files: pending.files,
+          processingParams: {
+            ...pending.processingParams,
+            ...(linked.sm ? { linkedSmDatasetId: linked.sm } : {}),
+            ...(linked.image ? { linkedImageDatasetId: linked.image } : {}),
+          },
+          onInitiated: (scId) => {
+            void createCombinedProject(
+              base,
+              [scId, linked.sm, linked.image].filter((id) => id !== undefined),
+            );
+          },
+        });
+      };
+
+      if (withSm) {
+        void startUpload({
           kind: "single_molecule",
-          // No columnMapping: the worker auto-detects the schema.
-          stages: { chunk: { chunkSize: 1 } },
-        },
-        onInitiated: (smId) => {
-          void startUpload({
-            kind: pending.kind,
-            title: `${base} (cells)`,
-            files: pending.files,
-            processingParams: {
-              ...pending.processingParams,
-              linkedSmDatasetId: smId,
-            },
-            onInitiated: (scId) => {
-              void createCombinedProject(base, scId, smId);
-            },
-          });
-        },
-      });
+          title: `${base} (molecules)`,
+          files: withSm.files,
+          processingParams: {
+            kind: "single_molecule",
+            // No columnMapping: the worker auto-detects the schema.
+            stages: { chunk: { chunkSize: 1 } },
+          },
+          onInitiated: (smId) => {
+            linked.sm = smId;
+            startCells();
+          },
+        });
+      }
+      if (withImage) {
+        void startImageUpload({
+          title: `${base} (image)`,
+          files: withImage.files,
+          onInitiated: (imageId) => {
+            linked.image = imageId;
+            startCells();
+          },
+        });
+      }
       router.push("/explore");
 
       return;
@@ -1111,13 +1173,11 @@ export function FileUpload({
           <ModalBody className="gap-4">
             <Input
               description={
-                pendingUpload?.sm && includeSm
-                  ? "Used for the project. Datasets become “… (cells)” and “… (molecules)”."
+                combinedCount > 1
+                  ? "Used for the project. Datasets become “… (cells)”, “… (molecules)” and “… (image)”."
                   : "You can reuse a name — this is just how it's labeled."
               }
-              label={
-                pendingUpload?.sm && includeSm ? "Project name" : "Dataset name"
-              }
+              label={combinedCount > 1 ? "Project name" : "Dataset name"}
               value={titleDraft}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && titleDraft.trim()) {
@@ -1149,6 +1209,34 @@ export function FileUpload({
                 </p>
               </div>
             )}
+
+            {pendingUpload?.image && (
+              <div className="rounded-xl border border-default-200 bg-default-100/50 p-3">
+                <Checkbox
+                  isSelected={includeImage}
+                  size="sm"
+                  onValueChange={setIncludeImage}
+                >
+                  <span className="text-sm">Also upload the image</span>
+                </Checkbox>
+                <p className="mt-1 ml-7 text-xs text-default-500">
+                  We detected an OME-Zarr image in{" "}
+                  <span className="font-medium text-default-600">
+                    {pendingUpload.image.name}
+                  </span>{" "}
+                  ({pendingUpload.image.files.length.toLocaleString()} files,{" "}
+                  {formatBytes(
+                    pendingUpload.image.files.reduce(
+                      (sum, f) => sum + f.file.size,
+                      0,
+                    ),
+                  )}
+                  ). It&apos;ll upload as a separate dataset in the same
+                  project, and be drawn under the cells. Its coordinates must
+                  match theirs.
+                </p>
+              </div>
+            )}
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={() => setPendingUpload(null)}>
@@ -1159,13 +1247,23 @@ export function FileUpload({
               isDisabled={!titleDraft.trim()}
               onPress={startPreparedUpload}
             >
-              {pendingUpload?.sm && includeSm ? "Upload both" : "Start upload"}
+              {combinedCount === 3
+                ? "Upload all three"
+                : combinedCount === 2
+                  ? "Upload both"
+                  : "Start upload"}
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
     </div>
   );
+}
+
+function formatBytes(bytes: number): string {
+  return bytes >= 1024 ** 3
+    ? `${(bytes / 1024 ** 3).toFixed(1)} GB`
+    : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
 }
 
 /**

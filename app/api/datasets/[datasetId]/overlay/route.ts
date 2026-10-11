@@ -7,6 +7,8 @@ import {
   getOverlayImage,
   writeOverlay,
   writeOverlayImage,
+  imageOverlayFor,
+  type ImageOverlay,
   removeOverlay,
   groupInProject,
 } from "@/lib/ingest/overlay";
@@ -15,7 +17,7 @@ import {
 // single-molecule dataset drawn over the cells, and an image drawn under them.
 //   GET    → { smDatasetId | null, image | null }
 //   POST   { smDatasetId, force? } → attach/replace (409 if one exists and !force)
-//   PATCH  { image: url | null } → set or clear the image overlay
+//   PATCH  { imageDatasetId } | { image: url | null } → set or clear the image overlay
 //   DELETE → detach the molecules (leaves the project grouping and image intact)
 
 async function ownedDataset(id: string, userId: string, isAdmin: boolean) {
@@ -36,9 +38,12 @@ export async function GET(
 ) {
   const { datasetId } = await params;
 
+  const image = await getOverlayImage(datasetId);
+
   return NextResponse.json({
     smDatasetId: await getOverlaySmId(datasetId),
-    image: (await getOverlayImage(datasetId)) ?? null,
+    image: image?.image ?? null,
+    imageDatasetId: image?.imageDatasetId ?? null,
   });
 }
 
@@ -55,19 +60,37 @@ export async function PATCH(
     session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
   const { datasetId } = await params;
   const body = await req.json().catch(() => ({}));
-  let image: string | null = null;
+  let image: ImageOverlay | null = null;
 
-  if (body.image !== null) {
+  if (typeof body.imageDatasetId === "string" && body.imageDatasetId) {
+    // One of the user's own image datasets
+    const owned = await ownedDataset(
+      body.imageDatasetId,
+      session.user.id,
+      isAdmin,
+    );
+
+    image = owned && (await imageOverlayFor(owned.id));
+    if (!image) {
+      return NextResponse.json(
+        { error: "Pick an image you own" },
+        { status: 400 },
+      );
+    }
+  } else if (body.image !== null) {
     const raw = typeof body.image === "string" ? body.image.trim() : "";
     const url = URL.canParse(raw) ? new URL(raw) : null;
 
     if (!url || !/^https?:$/.test(url.protocol)) {
       return NextResponse.json(
-        { error: "image must be an http(s) URL, or null to remove it" },
+        {
+          error:
+            "Give imageDatasetId, an http(s) image URL, or image: null to remove it",
+        },
         { status: 400 },
       );
     }
-    image = url.href.replace(/\/+$/, "");
+    image = { image: url.href.replace(/\/+$/, "") };
   }
 
   const sc = await ownedDataset(datasetId, session.user.id, isAdmin);
@@ -83,7 +106,11 @@ export async function PATCH(
   }
   await writeOverlayImage(datasetId, image);
 
-  return NextResponse.json({ ok: true, image });
+  return NextResponse.json({
+    ok: true,
+    image: image?.image ?? null,
+    imageDatasetId: image?.imageDatasetId ?? null,
+  });
 }
 
 export async function POST(

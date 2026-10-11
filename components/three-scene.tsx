@@ -68,7 +68,7 @@ import { useTourStore } from "@/lib/stores/tourStore";
 import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
 import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
 import {
-  openOmeZarrImage,
+  openImageRef,
   type SpatialDataImage,
 } from "@/lib/spatialdata/image";
 
@@ -429,8 +429,10 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
     }
 
     let stale = false;
-    const loadOverlayImage = async (url?: string) => {
-      if (!url) return;
+    const loadOverlayImage = async (
+      mapping?: Pick<DatasetLinkConfig, "image" | "imageSource"> | null,
+    ) => {
+      if (!mapping?.image) return;
       // The image is placed in raw coordinates; a normalized scene has none.
       if (dataset.normalized !== false) {
         console.warn("mapping.json image skipped: dataset is normalized");
@@ -438,7 +440,10 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
         return;
       }
       try {
-        const image = await openOmeZarrImage(url);
+        const image = await openImageRef({
+          image: mapping.image,
+          source: mapping.imageSource,
+        });
 
         if (stale) return;
         overlayImageRef.current = image;
@@ -458,8 +463,10 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
       fetchMappingConfig(dataset).then(async (mappingConfig) => {
         if (!mappingConfig) return;
 
+        void loadOverlayImage(mappingConfig);
+        // A mapping that only names an image links no molecules
+        if (!mappingConfig.links) return;
         linkConfigRef.current = mappingConfig;
-        void loadOverlayImage(mappingConfig.image);
 
         // "__all__" means every cell links to the same SM dataset — load overlay
         if (mappingConfig.linkColumn === "__all__") {
@@ -525,7 +532,7 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
       fetch(`/api/datasets/${dataset.id}/mapping`, { cache: "no-cache" })
         .then((r) => (r.ok ? r.json() : null))
         .then((mc: DatasetLinkConfig | null) => {
-          void loadOverlayImage(mc?.image);
+          void loadOverlayImage(mc);
           if (mc && mc.linkColumn === "__all__" && mc.links) {
             linkConfigRef.current = mc;
             void loadAllOverlay(mc.links["__all__"], mc.source ?? "s3");

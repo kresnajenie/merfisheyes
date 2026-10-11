@@ -9,7 +9,12 @@ import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { S3_BUCKET, s3Client } from "@/lib/s3";
+import {
+  S3_BUCKET,
+  s3Client,
+  generatePrefixUploadPolicy,
+  ZARR_UPLOAD_MAX_FILE_BYTES,
+} from "@/lib/s3";
 import { resolveDatasetOwner } from "@/lib/datasets/owner";
 
 const corsHeaders = {
@@ -52,7 +57,12 @@ export async function POST(request: NextRequest) {
         { status: 400, headers: corsHeaders },
       );
     }
-    if (!metadata.numCells || !metadata.numGenes) {
+    // An image dataset (an OME-Zarr folder uploaded as it is) has no cells or
+    // genes to count, and its upload may run past one policy's lifetime, so it
+    // gets the refreshable kind (see /upload-policy).
+    const isImage = metadata.platform === "image";
+
+    if (!isImage && (!metadata.numCells || !metadata.numGenes)) {
       return NextResponse.json(
         { error: "metadata.numCells and metadata.numGenes are required" },
         { status: 400, headers: corsHeaders },
@@ -69,7 +79,7 @@ export async function POST(request: NextRequest) {
     const datasetId = `ds_${nanoid(10)}`;
     const uploadId = `up_${nanoid(10)}`;
     const expiresAt = new Date(Date.now() + 3600_000);
-    const maxFileSize = body.maxFileSizeBytes ?? 200 * 1024 * 1024;
+    const maxFileSize = body.maxFileSizeBytes ?? ZARR_UPLOAD_MAX_FILE_BYTES;
     const keyPrefix = `datasets/${datasetId}/`;
 
     // Sign a single POST policy that authorizes uploads anywhere under the
@@ -111,8 +121,8 @@ export async function POST(request: NextRequest) {
           id: datasetId,
           fingerprint,
           title: metadata.title || "Untitled Zarr Dataset",
-          numCells: metadata.numCells,
-          numGenes: metadata.numGenes,
+          numCells: metadata.numCells || 0,
+          numGenes: metadata.numGenes || 0,
           datasetType: metadata.platform || "single_cell",
           formatVersion: "zarr",
           status: "UPLOADING",
@@ -140,6 +150,11 @@ export async function POST(request: NextRequest) {
         keyPrefix,
         url,
         fields,
+        ...(isImage
+          ? {
+              policy: await generatePrefixUploadPolicy(keyPrefix, maxFileSize),
+            }
+          : {}),
         expiresIn: 3600,
         expiresAt: expiresAt.toISOString(),
       },

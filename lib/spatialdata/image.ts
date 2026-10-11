@@ -5,6 +5,11 @@ import * as zarr from "zarrita-v3";
 
 import { elementNames, publicUrlStore } from "./store";
 
+import {
+  fetchDatasetKeyList,
+  PresignedFetchStore,
+} from "@/lib/storage/PresignedFetchStore";
+
 type PixelArray = zarr.Array<"uint8" | "uint16", zarr.Readable>;
 
 export interface ImageLevel {
@@ -106,6 +111,45 @@ export async function openOmeZarrImage(url: string): Promise<SpatialDataImage> {
   const name = base.slice(base.lastIndexOf("/") + 1).replace(/\.zarr$/, "");
 
   return readMultiscale(name, group, { scale: [1, 1], offset: [0, 0] });
+}
+
+/**
+ * Open an image dataset that lives in the app's own bucket (uploaded through
+ * the app). The image group may sit at the dataset root or in a folder under
+ * it, such as `dapi.zarr/` — it is found by its `zarr.json`.
+ */
+export async function openOmeZarrImageDataset(
+  datasetId: string,
+): Promise<SpatialDataImage> {
+  const marker = (await fetchDatasetKeyList(datasetId))
+    .filter((k) => k === "zarr.json" || k.endsWith("/zarr.json"))
+    .sort((a, b) => a.length - b.length)[0];
+
+  if (marker === undefined) {
+    throw new Error("No zarr v3 image found for this dataset");
+  }
+  const prefix = marker.slice(0, -"zarr.json".length);
+  const store = new PresignedFetchStore(datasetId, { keyPrefix: prefix });
+  const group = await zarr.open.v3(zarr.root(store), { kind: "group" });
+  const name = prefix.replace(/\/$/, "").replace(/\.zarr$/, "") || datasetId;
+
+  return readMultiscale(name, group, { scale: [1, 1], offset: [0, 0] });
+}
+
+/**
+ * Where an image comes from: a public URL, or (`source: "app"`) the id of an
+ * image dataset in the app's own bucket. This is how a `mapping.json` names
+ * the image drawn under a dataset's cells.
+ */
+export interface ImageRef {
+  image: string;
+  source?: "s3" | "app";
+}
+
+export function openImageRef(ref: ImageRef): Promise<SpatialDataImage> {
+  return ref.source === "app"
+    ? openOmeZarrImageDataset(ref.image)
+    : openOmeZarrImage(ref.image);
 }
 
 /** Levels of an OME-Zarr multiscale group (axes c/y/x), in scene units. */

@@ -209,3 +209,61 @@ describe("fallbackSingleMoleculeFile", () => {
     expect(fallbackSingleMoleculeFile([pickedFile("Run/image.tif")])).toBeNull();
   });
 });
+
+describe("classifyFolder — image folders", () => {
+  const sample = [
+    pickedFile("Sample/cells.h5ad"),
+    pickedFile("Sample/transcripts.parquet"),
+    pickedFile("Sample/dapi.zarr/zarr.json"),
+    pickedFile("Sample/dapi.zarr/0/zarr.json"),
+    pickedFile("Sample/dapi.zarr/0/c/0/0/0"),
+    pickedFile("Sample/dapi.zarr/1/zarr.json"),
+    pickedFile("Sample/dapi.zarr/1/c/0/0/0"),
+    pickedFile("Sample/notes.txt"),
+  ];
+
+  it("finds cells, molecules and an image in one folder", () => {
+    const result = classifyFolder(sample);
+
+    expect(keysOf(result.singleCell?.files)).toEqual(["cells.h5ad"]);
+    expect(keysOf(result.singleMolecule?.files)).toEqual([
+      "transcripts.parquet",
+    ]);
+    expect(result.images.map((i) => i.name)).toEqual(["dapi.zarr"]);
+    // Only what none of the three wants is left behind
+    expect(keysOf(result.ignored)).toEqual(["notes.txt"]);
+  });
+
+  it("keys an image's files from the image's own root", () => {
+    // They are uploaded as a dataset of their own, whose root zarr.json is
+    // how the viewer finds the image.
+    expect(keysOf(classifyFolder(sample).images[0].files)).toEqual([
+      "0/c/0/0/0",
+      "0/zarr.json",
+      "1/c/0/0/0",
+      "1/zarr.json",
+      "zarr.json",
+    ]);
+  });
+
+  it("only takes zarr folders at the top level that have a root zarr.json", () => {
+    const result = classifyFolder([
+      pickedFile("Sample/cells.h5ad"),
+      pickedFile("Sample/nested/dapi.zarr/zarr.json"),
+      pickedFile("Sample/broken.zarr/0/c/0/0/0"),
+      pickedFile("Sample/v2.zarr/.zgroup"),
+    ]);
+
+    expect(result.images).toEqual([]);
+  });
+
+  it("lists every candidate; the caller reads which is an image", () => {
+    const result = classifyFolder([
+      pickedFile("Sample/cells.h5ad"),
+      pickedFile("Sample/b.zarr/zarr.json"),
+      pickedFile("Sample/a.zarr/zarr.json"),
+    ]);
+
+    expect(result.images.map((i) => i.name)).toEqual(["a.zarr", "b.zarr"]);
+  });
+});

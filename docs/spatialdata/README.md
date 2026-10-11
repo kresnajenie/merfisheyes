@@ -176,59 +176,125 @@ transform to the shared coordinate system (for Xenium, pixels = microns ×
   the screen. The coarsest level stays loaded as a backdrop, so the view
   sharpens as chunks arrive rather than blanking.
 - The **Image** button (top left) shows or hides the image and sets each
-  channel's visibility, colour and brightness. Only the first channel is on
-  to start with; its brightness is set from the 99.9th percentile of the
-  coarsest level.
+  channel's visibility, colour and display window: a lower bound (`min`,
+  values at or below it draw black) and an upper bound (`max`, values at or
+  above it draw full colour). Only the first channel is on to start with;
+  its window starts at 0 to the 99.9th percentile of the coarsest level.
 - Chunks are whatever the store was written with. The test store uses
   4096 × 4096 chunks of ~19 MB at full resolution, and a zoomed-in view
   needs two to four per visible channel, so that is the slow step on a
   slow connection.
 
-## An image on any dataset
+## An image is a dataset
+
+An OME-Zarr image is a dataset of its own (`datasetType: "image"`), owned,
+listed and deleted like a single cell or single molecule one. There are two
+ways to have one:
+
+- **By URL.** Open a public image at `/image-viewer/from-s3?url=…`. If nobody
+  owns it yet a banner offers **Add to my account** — the same banner the
+  other viewers show for a dataset opened by URL. Nothing is copied; the row
+  remembers the URL (`ingestSource: "s3_registered"`).
+- **By upload.** As part of a combined upload (below). The image's files go
+  into the app's own bucket under `datasets/{id}/` and it opens at
+  `/image-viewer/{id}`.
+
+Either way it then shows under **Your datasets** (filter *Type → Image*) and
+in the overlay dialog.
+
+## An image under a dataset's cells
 
 A single cell dataset that is not a SpatialData store can still have an image
-under its cells: name it in the dataset's `mapping.json`, next to the molecule
-overlay.
+under its cells. Its owner opens the viewer's overlay button (or the dataset's
+page) and, under **Image overlay**, picks one of their images from the list.
+**Add by URL** takes an image that is not in the account yet: it is opened
+first, so one the viewer could not read is refused, then added to the account
+and attached. (An image someone else already owns is attached by its URL
+without being added.)
+
+The image must be an OME-Zarr multiscale image group (the group itself, not a
+SpatialData store): Zarr v3, axes `c, y, x`, `uint8` or `uint16`. Its own
+`scale` / `translation` must place it in the cells' coordinates, e.g.
+`scale: [1, 0.10833, 0.10833]` for an image at 0.10833 µm per pixel whose
+pixel (0, 0) is at the cells' origin. It is drawn only for datasets with raw
+(not normalized) coordinates, and gets the same **Image** button as a store's
+own image. Rotations and flips are not applied, so they must already be in
+the pixels.
+
+### In `mapping.json`
+
+The choice is stored in the dataset's `mapping.json`, next to the molecule
+overlay and independent of it: either may be there without the other, and
+changing one keeps the other.
 
 ```json
 {
   "linkColumn": "__all__",
-  "links": { "__all__": "https://<bucket>.s3.<region>.amazonaws.com/<folder>/molecules" },
-  "image": "https://<bucket>.s3.<region>.amazonaws.com/<folder>/dapi.zarr"
+  "links": { "__all__": "sm_abc123" },
+  "source": "app",
+  "image": "ds_def456",
+  "imageSource": "app",
+  "imageDatasetId": "ds_def456"
 }
 ```
 
-For a dataset uploaded through the app, its owner sets this from the viewer's
-overlay button (or the dataset's page): paste the URL under **Image overlay**.
-The URL is opened first, so one the viewer could not read is refused.
+| Field | Meaning |
+| --- | --- |
+| `image` | The public URL of the image, or — with `imageSource: "app"` — the id of an image dataset in the app's bucket |
+| `imageSource` | `"app"`: open `image` by dataset id through the presigned API. `"s3"` or absent: `image` is a URL |
+| `imageDatasetId` | The image's dataset id whenever it is a registered dataset, so the dialog can name it |
 
-`image` is the public URL of an OME-Zarr multiscale image group (the group
-itself, not a SpatialData store): Zarr v3, axes `c, y, x`, `uint8` or
-`uint16`. Its own `scale` / `translation` must place it in the cells'
-coordinates, e.g. `scale: [1, 0.10833, 0.10833]` for an image at
-0.10833 µm per pixel whose pixel (0, 0) is at the cells' origin. It is drawn
-only for datasets with raw (not normalized) coordinates, and gets the same
-**Image** button as a store's own image. Rotations and flips are not applied,
-so they must already be in the pixels.
-
-The image and the molecule overlay are independent: a `mapping.json` may have
-either or both, and changing one from the overlay button keeps the other.
+A `mapping.json` beside a dataset on a public bucket (opened with
+`/viewer/from-s3`) only needs `image` with a URL.
 
 ### Overlay API
 
-Both overlays of an app dataset are stored in its `mapping.json` on S3 and
-edited through one route. Reading needs no sign-in; writing is for the
-dataset's owner (`401` signed out, `404` for anyone else).
+Both overlays of an app dataset are edited through one route. Reading needs
+no sign-in; writing is for the dataset's owner (`401` signed out, `404` for
+anyone else).
 
 | Request | Does |
 | --- | --- |
-| `GET /api/datasets/{id}/overlay` | `{ smDatasetId, image }`, each `null` when unset |
-| `PATCH /api/datasets/{id}/overlay` with `{ "image": "<http(s) URL>" }` | Sets the image |
-| `PATCH /api/datasets/{id}/overlay` with `{ "image": null }` | Removes the image |
-| `POST` / `DELETE /api/datasets/{id}/overlay` | Attach / remove the molecule overlay (unchanged) |
+| `GET /api/datasets/{id}/overlay` | `{ smDatasetId, image, imageDatasetId }`, each `null` when unset |
+| `PATCH …/overlay` with `{ "imageDatasetId": "<id>" }` | Attaches one of your own image datasets (`400` if it is not yours or not an image) |
+| `PATCH …/overlay` with `{ "image": "<http(s) URL>" }` | Attaches an image by URL, without it being a dataset |
+| `PATCH …/overlay` with `{ "image": null }` | Removes the image |
+| `POST` / `DELETE …/overlay` | Attach / remove the molecule overlay |
 
-The route only checks that the URL is `http(s)`; that it is a readable image
-is checked in the browser before the request is sent.
+Deleting an image dataset removes it from every dataset of yours that drew it.
+
+## Cells, molecules and an image from one folder
+
+With **Upload & process on server** chosen on the homepage, a picked folder
+may hold all three:
+
+```
+sample/
+├── cells.h5ad            or a Xenium / MERSCOPE export
+├── transcripts.parquet   (optional) the molecules
+└── dapi.zarr/            (optional) an OME-Zarr image, any name ending .zarr
+```
+
+The dialog that names the upload offers each extra it found as a tick box.
+On confirm:
+
+1. The molecules and the image each start uploading as their own dataset
+   (“… (molecules)”, “… (image)”). The image goes up as it is — it needs no
+   processing — and is viewable as soon as its last file lands.
+2. Once their ids are known the cells start (“… (cells)”), carrying those ids
+   (`processingParams.linkedSmDatasetId` / `linkedImageDatasetId`).
+3. All of them are grouped in one project named after the upload.
+4. When the cells finish processing, `mapping.json` is written with both
+   links. Until then the mapping route answers from the ids on the row.
+
+The cells' link — on their upload bar and in their “ready” email — opens
+their viewer, which draws the molecules over the cells and the image under
+them with no further step.
+
+A `.zarr` folder is only offered when its root `zarr.json` describes an image
+the viewer can draw (axes `c, y, x`). The image is uploaded under one
+refreshable POST policy, eight files at a time, so a multi-gigabyte image is
+not cut off when a signature expires; no single file may exceed 200 MB.
 
 ### Writing an image
 
@@ -278,15 +344,17 @@ CORS allows the site, and use the folder's URL.
 
 ## An image on its own
 
-The same kind of image opens without any cells or molecules:
+An image opens without any cells or molecules, by URL or — when it was
+uploaded — by dataset id:
 
 ```
 /image-viewer/from-s3?url=https://<bucket>.s3.<region>.amazonaws.com/<folder>/dapi.zarr
+/image-viewer/{id}
 ```
 
 It is drawn in its own coordinates with the same layer and **Image** button,
-so it looks the same here as it does under a dataset's cells. This route is
-not linked from the site yet. The URL may also be an image inside a
+so it looks the same here as it does under a dataset's cells. These routes
+are not linked from the homepage yet. The URL may also be an image inside a
 SpatialData store (`…/<name>.zarr/images/<image>`).
 
 ## Not supported yet
@@ -312,7 +380,11 @@ SpatialData store (`…/<name>.zarr/images/<image>`).
 | `lib/spatialdata/image.ts` | OME-Zarr multiscale metadata and placement |
 | `lib/spatialdata/ImageLayer.ts` | Tiled image layer in the Three.js scene |
 | `components/three-scene.tsx` | Draws a dataset's `mapping.json` image under its cells |
-| `components/overlay-manager.tsx` | The owner's overlay dialog: molecules and image |
+| `components/overlay-manager.tsx`, `components/image-overlay-picker.tsx` | The owner's overlay dialog: molecules, and the image browser |
+| `lib/datasets/kind.ts` | The three dataset kinds and which viewer each opens in |
+| `lib/datasets/register-or-claim.ts` | Registering a URL as a dataset; recognises an OME-Zarr image |
+| `lib/upload/uploadImageToS3.ts` | Uploading an image folder as an image dataset |
+| `lib/ingest/classify-folder.ts` | Finding cells, molecules and image folders in a picked folder |
 | `app/api/datasets/[datasetId]/overlay/`, `lib/ingest/overlay.ts` | Overlay API and the `mapping.json` it writes |
 | `scripts/spatialdata_points_to_sm.py` | `points/` → per-gene molecule files |
 | `scripts/spatialdata_cluster.py` | Leiden clusters + DE stats sidecar |
@@ -325,7 +397,9 @@ SpatialData store (`…/<name>.zarr/images/<image>`).
 | `tests/unit/fetch-range.test.ts` | Byte-range reads, including a server that ignores `Range` | Unit tests |
 | `tests/unit/ome-zarr-image.test.ts` | Image metadata and placement | Unit tests |
 | `e2e/tests/viewer/spatialdata.spec.ts` | Every combination of cells, molecules and image in a store opened by URL; the sharded store; an image on its own | E2E quick (`@quick`) |
-| `e2e/tests/upload/image-overlay.spec.ts` | An owner attaching, seeing and removing an image on a saved dataset; who may change it | E2E upload (`@upload`) |
+| `e2e/tests/upload/image-overlay.spec.ts` | Adding an image to an account by URL, picking it in the overlay dialog, the channel bounds, who may change it, deleting it | E2E upload (`@upload`) |
+| `e2e/tests/upload/combined-upload.spec.ts` | One folder of cells, molecules and an image becoming three linked datasets in a project; the uploaded image opening by id | E2E upload (`@upload`) |
+| `tests/unit/classify-folder.test.ts`, `tests/unit/image-dataset.test.ts` | Image-folder detection, dataset kinds, recognising an OME-Zarr image | Unit tests |
 
 The browser tests serve the committed fixtures from a local stand-in for a
 public bucket (`e2e/helpers/fixture-server.ts`), which answers CORS

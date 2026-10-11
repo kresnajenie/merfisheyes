@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   if (error) return error;
 
-  let body: { url?: string; asAdmin?: boolean };
+  let body: { url?: string; asAdmin?: boolean; kind?: string };
 
   try {
     body = await request.json();
@@ -33,7 +33,12 @@ export async function POST(request: NextRequest) {
   try {
     const { dataset, claimed, ownedByOther } = await ensureDatasetForS3Url(
       body.url,
-      { userId: session.user.id, isAdmin, asAdmin: !!body.asAdmin },
+      {
+        userId: session.user.id,
+        isAdmin,
+        asAdmin: !!body.asAdmin,
+        kind: body.kind === "image" ? "image" : undefined,
+      },
     );
 
     return NextResponse.json({ dataset, claimed, ownedByOther });

@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { SubmissionBadge } from "./submission-badge";
 
 import { ExploreDatasetCard } from "@/components/explore/explore-dataset-card";
+import { datasetKind } from "@/lib/datasets/kind";
 
 interface AccountDatasetCardProps {
   dataset: DatasetRow;
@@ -51,12 +52,9 @@ function toItem(d: DatasetRow): CatalogDatasetItem {
       {
         id: d.id,
         label: d.title ?? "Dataset",
-        // Legacy rows store raw formats ("h5ad", "merscope") here; anything
-        // not single_molecule renders as single cell (badge + viewer route).
-        datasetType:
-          d.datasetType === "single_molecule"
-            ? "single_molecule"
-            : "single_cell",
+        // Legacy rows store raw formats ("h5ad", "merscope") here; those
+        // render as single cell (badge + viewer route).
+        datasetType: datasetKind(d.datasetType),
         s3BaseUrl: null,
         datasetId: d.id,
         thumbnailUrl: d.thumbnailUrl,
@@ -69,8 +67,9 @@ function toItem(d: DatasetRow): CatalogDatasetItem {
     isInternal: false,
     isCommunity: false,
     sortOrder: 0,
-    numCells: d.numCells,
-    numGenes: d.numGenes,
+    // An image has neither; the card would show "0 cells".
+    numCells: d.datasetType === "image" ? null : d.numCells,
+    numGenes: d.datasetType === "image" ? null : d.numGenes,
   };
 }
 

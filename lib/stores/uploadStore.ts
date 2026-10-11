@@ -7,6 +7,10 @@ import {
   type RawUploadFile,
   type RawUploadKind,
 } from "@/lib/upload/uploadRawToS3";
+import {
+  uploadImageToS3,
+  type ImageUploadFile,
+} from "@/lib/upload/uploadImageToS3";
 
 /**
  * Global raw-upload state.
@@ -49,7 +53,7 @@ interface StartOpts {
 export interface UploadJob {
   /** Local id used to key + target this job (not the dataset id). */
   id: string;
-  kind: RawUploadKind;
+  kind: RawUploadKind | "image";
   title: string;
   status: UploadStatus;
   loaded: number;
@@ -78,6 +82,15 @@ export interface UploadJob {
 interface UploadStore {
   jobs: UploadJob[];
   start: (opts: StartOpts) => Promise<void>;
+  /**
+   * Upload an OME-Zarr image folder as an image dataset. It needs no
+   * processing, so its bar goes straight from uploading to ready.
+   */
+  startImage: (opts: {
+    title: string;
+    files: ImageUploadFile[];
+    onInitiated?: (datasetId: string) => void;
+  }) => Promise<void>;
   cancel: (id: string) => void;
   dismiss: (id: string) => void;
 }
@@ -227,13 +240,103 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
     }
   },
 
+  async startImage({ title, files, onInitiated }) {
+    const id = `up_local_${++jobSeq}`;
+    const controller = new AbortController();
+    const patch = (partial: Partial<UploadJob>) =>
+      set((s) => ({
+        jobs: s.jobs.map((j) => (j.id === id ? { ...j, ...partial } : j)),
+      }));
+
+    set((s) => ({
+      jobs: [
+        ...s.jobs,
+        {
+          id,
+          kind: "image",
+          title,
+          status: "preparing",
+          loaded: 0,
+          total: files.reduce((a, f) => a + f.file.size, 0),
+          fileIndex: 0,
+          fileCount: files.length,
+          datasetId: null,
+          error: "",
+          submitWarning: "",
+          rateBps: 0,
+          etaSeconds: null,
+          stage: "",
+          percent: null,
+          viewerUrl: null,
+          _abort: controller,
+          _uploadStartAt: null,
+          _stopPoll: null,
+        },
+      ],
+    }));
+
+    try {
+      let startedAt: number | null = null;
+      const { datasetId } = await uploadImageToS3({
+        title,
+        files,
+        signal: controller.signal,
+        onInitiated: (dsId) => {
+          patch({ datasetId: dsId });
+          onInitiated?.(dsId);
+        },
+        onPhase: (phase) => {
+          if (phase === "uploading") startedAt ??= Date.now();
+          patch({ status: phase });
+        },
+        onProgress: (p) => {
+          const elapsed = startedAt ? (Date.now() - startedAt) / 1000 : 0;
+          const rateBps = elapsed > 0.4 ? p.loaded / elapsed : 0;
+
+          patch({
+            loaded: p.loaded,
+            total: p.total,
+            fileIndex: p.fileIndex,
+            fileCount: p.fileCount,
+            rateBps,
+            etaSeconds: rateBps > 0 ? (p.total - p.loaded) / rateBps : null,
+          });
+        },
+      });
+
+      patch({
+        datasetId,
+        status: "complete",
+        percent: 100,
+        viewerUrl: `/image-viewer/${datasetId}`,
+      });
+    } catch (err: unknown) {
+      if (controller.signal.aborted) {
+        set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
+
+        return;
+      }
+      patch({
+        status: "error",
+        error: err instanceof Error ? err.message : "Upload failed",
+      });
+    } finally {
+      patch({ _abort: null });
+    }
+  },
+
   cancel(id) {
     const job = get().jobs.find((j) => j.id === id);
 
     if (!job) return;
     job._stopPoll?.();
     job._abort?.abort();
-    if (job.datasetId) abortRawUpload(job.datasetId);
+    if (job.datasetId && job.kind === "image") {
+      // Nothing is queued for an image; drop what was uploaded of it.
+      void fetch(`/api/ingest/${job.datasetId}`, { method: "DELETE" }).catch(
+        () => {},
+      );
+    } else if (job.datasetId) abortRawUpload(job.datasetId);
     set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) }));
   },
 
