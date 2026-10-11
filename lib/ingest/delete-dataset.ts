@@ -2,7 +2,12 @@ import { TerminateJobCommand } from "@aws-sdk/client-batch";
 import { Prisma } from "@prisma/client";
 
 import { batchClient } from "@/lib/batch";
-import { getOverlaySmId, removeOverlay } from "@/lib/ingest/overlay";
+import {
+  getOverlayImage,
+  getOverlaySmId,
+  removeOverlay,
+  writeOverlayImage,
+} from "@/lib/ingest/overlay";
 import { prisma } from "@/lib/prisma";
 import {
   abortMultipartUpload,
@@ -44,7 +49,12 @@ const linkedSmId = (params: Prisma.JsonValue | null): string | null => {
 export async function overlayOf(
   dataset: DeletableDataset,
 ): Promise<string | null> {
-  if (dataset.datasetType === "single_molecule") return null;
+  if (
+    dataset.datasetType === "single_molecule" ||
+    dataset.datasetType === "image"
+  ) {
+    return null;
+  }
 
   return (
     (await getOverlaySmId(dataset.id)) ?? linkedSmId(dataset.processingParams)
@@ -109,6 +119,47 @@ async function unlinkOverlay(sm: DeletableDataset): Promise<string[]> {
 }
 
 /**
+ * The same for an image dataset that is about to go: single-cell datasets
+ * stop drawing it under their cells.
+ */
+async function unlinkImage(image: DeletableDataset): Promise<string[]> {
+  const candidates = await prisma.dataset.findMany({
+    where: {
+      ...(image.ownerId ? { ownerId: image.ownerId } : { adminOwned: true }),
+      NOT: { datasetType: { in: ["single_molecule", "image"] } },
+    },
+    select: { id: true, processingParams: true },
+  });
+  const unlinked: string[] = [];
+
+  await Promise.all(
+    candidates.map(async (sc) => {
+      const params = sc.processingParams as Record<
+        string,
+        Prisma.JsonValue
+      > | null;
+      const byParam = params?.linkedImageDatasetId === image.id;
+      const byMapping =
+        (await getOverlayImage(sc.id))?.imageDatasetId === image.id;
+
+      if (!byParam && !byMapping) return;
+      if (byMapping) await writeOverlayImage(sc.id, null);
+      if (byParam) {
+        const { linkedImageDatasetId: _, ...rest } = params!;
+
+        await prisma.dataset.update({
+          where: { id: sc.id },
+          data: { processingParams: rest as Prisma.InputJsonObject },
+        });
+      }
+      unlinked.push(sc.id);
+    }),
+  );
+
+  return unlinked;
+}
+
+/**
  * Permanently delete one dataset: its processing job, everything it has in
  * our bucket, and its row (which cascades to upload sessions, views and
  * project memberships). The row goes last, so a failure part-way leaves it
@@ -140,7 +191,9 @@ export async function deleteDatasetCompletely(
   const unlinkedFrom =
     dataset.datasetType === "single_molecule"
       ? await unlinkOverlay(dataset)
-      : [];
+      : dataset.datasetType === "image"
+        ? await unlinkImage(dataset)
+        : [];
 
   // Incomplete multipart uploads hold staged parts that a prefix delete
   // doesn't see; the bucket's lifecycle rule is the backstop if this fails.

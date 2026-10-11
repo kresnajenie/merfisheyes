@@ -64,15 +64,55 @@ export async function getOverlaySmId(scId: string): Promise<string | null> {
   return m.datasetId ?? (m.source !== "s3" ? (m.links?.__all__ ?? null) : null);
 }
 
-/** The image overlay (`image` URL) in the dataset's mapping.json, if any. */
+/**
+ * The image drawn under a dataset's cells, as its mapping.json names it:
+ *   - an image dataset in the app's bucket → `image` is its id, `imageSource`
+ *     "app" (opened by id through the presigned API);
+ *   - an image at a public URL → `image` is the URL (`imageSource` "s3" or
+ *     absent, which is how mappings written before image datasets look).
+ * `imageDatasetId` is set whenever the image is a registered dataset, so the
+ * UI can say which one it is.
+ */
+export interface ImageOverlay {
+  image: string;
+  imageSource?: "s3" | "app";
+  imageDatasetId?: string;
+}
+
+const imageFields = (m: Partial<ImageOverlay> | null): ImageOverlay | null =>
+  m?.image
+    ? {
+        image: m.image,
+        ...(m.imageSource ? { imageSource: m.imageSource } : {}),
+        ...(m.imageDatasetId ? { imageDatasetId: m.imageDatasetId } : {}),
+      }
+    : null;
+
+/** The image overlay in the dataset's mapping.json, if any. */
 export async function getOverlayImage(
   scId: string,
-): Promise<string | undefined> {
-  const m = await getObjectJson<{ image?: string }>(mappingKey(scId)).catch(
-    () => null,
+): Promise<ImageOverlay | null> {
+  return imageFields(
+    await getObjectJson<Partial<ImageOverlay>>(mappingKey(scId)).catch(
+      () => null,
+    ),
   );
+}
 
-  return m?.image;
+/** How a mapping.json names an image dataset; null when there is no such image. */
+export async function imageOverlayFor(
+  imageDatasetId: string,
+): Promise<ImageOverlay | null> {
+  const img = await prisma.dataset.findUnique({
+    where: { id: imageDatasetId },
+    select: { datasetType: true, s3BaseUrl: true, ingestSource: true },
+  });
+
+  if (img?.datasetType !== "image") return null;
+
+  return img.ingestSource === "s3_registered" && img.s3BaseUrl
+    ? { image: img.s3BaseUrl, imageSource: "s3", imageDatasetId }
+    : { image: imageDatasetId, imageSource: "app", imageDatasetId };
 }
 
 // The image overlay shares mapping.json with the molecule overlay but is
@@ -83,7 +123,7 @@ export async function writeOverlay(scId: string, smId: string): Promise<void> {
 
   await uploadBufferToS3(
     mappingKey(scId),
-    Buffer.from(JSON.stringify(image ? { ...mapping, image } : mapping)),
+    Buffer.from(JSON.stringify({ ...mapping, ...image })),
     "application/json",
   );
 }
@@ -94,7 +134,7 @@ export async function removeOverlay(scId: string): Promise<void> {
   if (image) {
     await uploadBufferToS3(
       mappingKey(scId),
-      Buffer.from(JSON.stringify({ image })),
+      Buffer.from(JSON.stringify(image)),
       "application/json",
     );
 
@@ -104,20 +144,22 @@ export async function removeOverlay(scId: string): Promise<void> {
 }
 
 /**
- * Set the image overlay (the public URL of an OME-Zarr image) or, with null,
- * clear it. The molecule overlay in the same mapping.json is left as it is.
+ * Set the image overlay or, with null, clear it. The molecule overlay in the
+ * same mapping.json is left as it is.
  */
 export async function writeOverlayImage(
   scId: string,
-  image: string | null,
+  image: ImageOverlay | null,
 ): Promise<void> {
   const mapping: Record<string, unknown> =
     (await getObjectJson<Record<string, unknown>>(mappingKey(scId)).catch(
       () => null,
     )) ?? {};
 
-  if (image) mapping.image = image;
-  else delete mapping.image;
+  delete mapping.image;
+  delete mapping.imageSource;
+  delete mapping.imageDatasetId;
+  Object.assign(mapping, imageFields(image));
 
   if (Object.keys(mapping).length === 0) {
     await deleteObject(mappingKey(scId));

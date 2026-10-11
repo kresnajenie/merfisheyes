@@ -9,6 +9,7 @@ import {
   findMatchedGenes,
   parseGeneTokens,
 } from "@/lib/explore/query";
+import { viewerHref } from "@/lib/datasets/kind";
 
 /**
  * List the signed-in user's own datasets for the "Your uploads" strip on
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest) {
   const tissue = params.get("tissue") ?? "";
   const platform = params.get("platform") ?? "";
   const genesParam = params.get("genes")?.trim() ?? "";
-  const type = params.get("type") ?? ""; // single_cell | single_molecule
+  const type = params.get("type") ?? ""; // single_cell | single_molecule | image
   const statusFilter = params.get("status") ?? "";
 
   // Pagination is opt-in: only when a page/limit is supplied (the Explore
@@ -224,15 +225,16 @@ export async function GET(request: NextRequest) {
       limit,
       filters: facets,
       datasets: datasets.map((d) => {
-        const viewerPath =
-          d.datasetType === "single_molecule" ? "sm-viewer" : "viewer";
         // S3-registered rows load via the from-s3 URL flow, not by id.
         const viewerUrl =
           d.status !== "COMPLETE"
             ? null
-            : d.ingestSource === "s3_registered" && d.s3BaseUrl
-              ? `/${viewerPath}/from-s3?url=${encodeURIComponent(d.s3BaseUrl)}`
-              : `/${viewerPath}/${d.id}`;
+            : viewerHref({
+                id: d.id,
+                datasetType: d.datasetType,
+                s3BaseUrl:
+                  d.ingestSource === "s3_registered" ? d.s3BaseUrl : null,
+              });
         const sub = submissionByDataset.get(d.id);
 
         return {

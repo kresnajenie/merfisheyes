@@ -9,32 +9,53 @@ import { SpatialDataImageControls } from "@/components/spatialdata-image-control
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { WebGLErrorOverlay } from "@/components/webgl-error-overlay";
 import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
+import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import {
   openOmeZarrImage,
+  openOmeZarrImageDataset,
   type SpatialDataImage,
 } from "@/lib/spatialdata/image";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
+import { normalizeS3Url } from "@/lib/utils/viewer-config";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 
 /**
- * Viewer for an image on its own: an OME-Zarr multiscale image at a public
- * URL, with no cells or molecules.
+ * Viewer for an image on its own, with no cells or molecules: an OME-Zarr
+ * multiscale image at a public URL (`url`), or an image dataset in the app's
+ * own bucket (`datasetId`).
+ *
+ * An image is a dataset like any other. One opened by URL is looked up in the
+ * database, and when nobody owns it yet the banner offers to add it to the
+ * viewer's account.
  */
-export function ImageViewer({ url }: { url: string }) {
+export function ImageViewer({
+  url,
+  datasetId,
+}: {
+  url?: string;
+  datasetId?: string;
+}) {
   const [image, setImage] = useState<SpatialDataImage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Database id of the image, once known; views are counted against it.
+  const [registeredId, setRegisteredId] = useState<string | null>(null);
+  const setRegistration = useViewerRegistrationStore((s) => s.set);
+  const resetRegistration = useViewerRegistrationStore((s) => s.reset);
 
   useEffect(() => {
     let cancelled = false;
 
     setImage(null);
     setError(null);
-    openOmeZarrImage(url)
+    (url ? openOmeZarrImage(url) : openOmeZarrImageDataset(datasetId!))
       .then((opened) => !cancelled && setImage(opened))
       .catch((e) => {
         console.error("Error opening image:", e);
         if (!cancelled) {
           setError(
-            "It must be a public OME-Zarr image (Zarr v3, axes c/y/x) that allows this site in CORS.",
+            url
+              ? "It must be a public OME-Zarr image (Zarr v3, axes c/y/x) that allows this site in CORS."
+              : "This dataset has no OME-Zarr image (Zarr v3, axes c/y/x) the viewer can read.",
           );
         }
       });
@@ -42,13 +63,55 @@ export function ImageViewer({ url }: { url: string }) {
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, datasetId]);
+
+  // Who owns it. A URL nobody has registered still opens; the banner then
+  // offers to add it.
+  useEffect(() => {
+    let cancelled = false;
+
+    setRegisteredId(datasetId ?? null);
+    if (!url) return;
+    const s3Url = normalizeS3Url(url);
+
+    fetch(`/api/datasets/by-url?url=${encodeURIComponent(s3Url)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((reg) => {
+        if (cancelled) return;
+        setRegisteredId(reg?.registered ? reg.id : null);
+        setRegistration({
+          dbId: reg?.registered ? reg.id : null,
+          ownerId: reg?.ownerId ?? null,
+          adminOwned: !!reg?.adminOwned,
+          registered: !!reg?.registered,
+          viewerConfig: null,
+          s3Url,
+          kind: "image",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+      resetRegistration();
+    };
+  }, [url, datasetId]);
+
+  // One view per open (the server dedups per session and day).
+  useEffect(() => {
+    if (!image || !registeredId) return;
+    fetch(`/api/datasets/${registeredId}/view`, { method: "POST" }).catch(
+      () => {},
+    );
+  }, [image, registeredId]);
 
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
         <h2 className={title({ size: "md", color: "pink" })}>
-          Couldn&apos;t read an image at that URL
+          {url
+            ? "Couldn't read an image at that URL"
+            : "Couldn't open this image"}
         </h2>
         <p className={subtitle()}>{error}</p>
       </div>
@@ -58,12 +121,12 @@ export function ImageViewer({ url }: { url: string }) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4">
         <Spinner color="primary" size="lg" />
-        <p className={subtitle()}>Opening image...</p>
+        <p className={subtitle({ class: "text-center" })}>Opening image...</p>
       </div>
     );
   }
 
-  return <ImageScene image={image} />;
+  return <ImageScene image={image}>{url && <ClaimDatasetBanner />}</ImageScene>;
 }
 
 /**
@@ -71,7 +134,14 @@ export function ImageViewer({ url }: { url: string }) {
  * viewers put under their points, in the image's own coordinates, so what is
  * seen here lines up with the image as an overlay.
  */
-export function ImageScene({ image }: { image: SpatialDataImage }) {
+export function ImageScene({
+  image,
+  children,
+}: {
+  image: SpatialDataImage;
+  /** Drawn over the scene, e.g. the banner that offers to claim the image. */
+  children?: React.ReactNode;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -147,6 +217,7 @@ export function ImageScene({ image }: { image: SpatialDataImage }) {
         data-testid="image-scene-canvas"
       />
       {webglFailed && <WebGLErrorOverlay />}
+      {children}
       {layer && <SpatialDataImageControls layer={layer} />}
       {layer && (
         <SpatialScaleBar

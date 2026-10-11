@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { DatasetInfoModal } from "./dataset-info-modal";
+import { viewerBase } from "@/lib/datasets/kind";
 
 /**
  * Compute a static destination URL for the card if exactly one exists.
@@ -40,7 +41,7 @@ function getCardHref(
   }
   if (entries.length === 1) {
     const e = entries[0];
-    const base = e.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
+    const base = viewerBase(e.datasetType);
 
     if (e.s3BaseUrl) {
       const url = e.s3BaseUrl.replace(/\/+$/, "");
@@ -54,6 +55,16 @@ function getCardHref(
 
   return null;
 }
+
+/** Badge for an entry's type: cells, an image, or (anything else) molecules. */
+const typeBadge = (type: string) =>
+  type === "single_cell" ? "SC" : type === "image" ? "IMG" : "SM";
+const typeColor = (type: string) =>
+  type === "single_cell"
+    ? "primary"
+    : type === "image"
+      ? "success"
+      : "secondary";
 
 interface ExploreDatasetCardProps {
   dataset: CatalogDatasetItem;
@@ -84,8 +95,7 @@ function navigateToEntry(
   entry: CatalogDatasetEntry,
   router: ReturnType<typeof useRouter>,
 ) {
-  const base =
-    entry.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
+  const base = viewerBase(entry.datasetType);
 
   if (entry.s3BaseUrl) {
     const url = entry.s3BaseUrl.replace(/\/+$/, "");
@@ -131,13 +141,11 @@ function EntryList({
             }}
           >
             <Chip
-              color={
-                entry.datasetType === "single_cell" ? "primary" : "secondary"
-              }
+              color={typeColor(entry.datasetType)}
               size="sm"
               variant="flat"
             >
-              {entry.datasetType === "single_cell" ? "SC" : "SM"}
+              {typeBadge(entry.datasetType)}
             </Chip>
             <span className="truncate">{entry.label}</span>
           </button>
@@ -361,11 +369,11 @@ export function ExploreDatasetCard({
             {uniqueTypes.map((type) => (
               <Chip
                 key={type}
-                color={type === "single_cell" ? "primary" : "secondary"}
+                color={typeColor(type)}
                 size="sm"
                 variant="solid"
               >
-                {type === "single_cell" ? "SC" : "SM"}
+                {typeBadge(type)}
               </Chip>
             ))}
           </div>

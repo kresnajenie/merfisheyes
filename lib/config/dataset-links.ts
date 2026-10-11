@@ -15,9 +15,21 @@ export interface DatasetLinkConfig {
    * under the cells, e.g. a stitched DAPI mosaic. Its own scale/translation
    * must place it in the cells' coordinates (microns); see
    * lib/spatialdata/image.ts. Only drawn for datasets with raw coordinates.
+   *
+   * With `imageSource: "app"` it is instead the id of an image dataset in the
+   * app's own bucket, opened through the presigned API.
    */
   image?: string;
+  imageSource?: "s3" | "app";
+  /** The image's dataset id, when it is a registered dataset (for the UI). */
+  imageDatasetId?: string;
 }
+
+/** A mapping.json that names an image and links no molecules. */
+export type ImageOnlyLinkConfig = Pick<
+  DatasetLinkConfig,
+  "image" | "imageSource"
+> & { linkColumn?: undefined; links?: undefined };
 
 // Keyed by the dataset's customS3BaseUrl (from dataset.metadata.customS3BaseUrl)
 export const DATASET_LINK_REGISTRY: Record<string, DatasetLinkConfig> = {
@@ -55,7 +67,7 @@ export function getDatasetLinkConfig(dataset: {
  */
 export async function fetchMappingConfig(dataset: {
   metadata?: Record<string, any>;
-}): Promise<DatasetLinkConfig | null> {
+}): Promise<DatasetLinkConfig | ImageOnlyLinkConfig | null> {
   const s3Url = dataset.metadata?.customS3BaseUrl;
 
   if (!s3Url) return null;
@@ -67,9 +79,12 @@ export async function fetchMappingConfig(dataset: {
 
     const data = await response.json();
 
-    // Validate shape
+    // Validate shape: a molecule link, or just an image to draw under the cells
     if (data.linkColumn && data.links && typeof data.links === "object") {
       return data as DatasetLinkConfig;
+    }
+    if (typeof data.image === "string" && data.image) {
+      return { image: data.image, imageSource: data.imageSource };
     }
 
     return null;

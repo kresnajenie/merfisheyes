@@ -24,6 +24,7 @@ import { MetadataEditModal } from "./metadata-edit-modal";
 import { SubmissionBadge } from "./submission-badge";
 
 import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
+import { datasetKind, KIND_BADGE } from "@/lib/datasets/kind";
 
 interface MemberDataset {
   id: string;
@@ -86,9 +87,8 @@ function toItem(project: ProjectData, members: MemberDataset[]): CatalogDatasetI
       id: d.id,
       label: d.title ?? "Untitled dataset",
       // Legacy rows store raw formats ("h5ad", "merscope") here; the app-wide
-      // convention is anything not single_molecule renders as single cell.
-      datasetType:
-        d.datasetType === "single_molecule" ? "single_molecule" : "single_cell",
+      // convention is that those render as single cell.
+      datasetType: datasetKind(d.datasetType),
       // s3-registered datasets open via from-s3; everything else by id. A
       // non-COMPLETE member gets no link (entry renders inert).
       s3BaseUrl:
@@ -400,14 +400,16 @@ export function ProjectDetailClient({
                   <div className="flex items-center gap-2 min-w-0">
                     <Chip
                       color={
-                        d.datasetType === "single_molecule"
+                        datasetKind(d.datasetType) === "single_molecule"
                           ? "secondary"
-                          : "primary"
+                          : datasetKind(d.datasetType) === "image"
+                            ? "default"
+                            : "primary"
                       }
                       size="sm"
                       variant="flat"
                     >
-                      {d.datasetType === "single_molecule" ? "SM" : "SC"}
+                      {KIND_BADGE[datasetKind(d.datasetType)]}
                     </Chip>
                     <span className="text-sm truncate">
                       {d.title || "Untitled dataset"}
