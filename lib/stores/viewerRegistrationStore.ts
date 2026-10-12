@@ -18,8 +18,11 @@ interface ViewerRegistrationState {
   registered: boolean;
   viewerConfig: ViewerConfig | null;
   s3Url: string | null; // set for from-s3 viewers (needed to register/claim)
-  /** Set by the image viewer, so a claim registers the URL as an image. */
-  kind: "image" | null;
+  /**
+   * Set by the image and SpatialData viewers, so a claim registers the URL
+   * as what it was opened as.
+   */
+  kind: "image" | "spatialdata" | null;
   set: (patch: Partial<Omit<ViewerRegistrationState, "set" | "reset">>) => void;
   reset: () => void;
 }

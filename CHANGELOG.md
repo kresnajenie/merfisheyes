@@ -26,8 +26,23 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   the table copied out of a SpatialData store (`tables/<table>/`, or
   `tables/` itself), previews and saves without the store around it. Zarr v2
   AnnData folders open as before.
+- **Load from S3 opens stores, images and whole folders.** The homepage box
+  takes a SpatialData store, an OME-Zarr image, or the folder holding a store
+  with its molecules beside it, which opens with everything overlaid. The
+  folder's `mapping.json` names the store (`cells`); a store named after its
+  folder is found without it.
+- **A SpatialData store opened by URL can be added to your account**, like
+  cells, molecules and images opened by URL.
+- **Image settings are kept in the link.** Channels on or off, their colours
+  and their lower and upper bounds go into the URL as they are changed, so a
+  shared link looks the same.
 - **The upload guide covers images and processed folders**, on the site and
   in the README.
+
+### Fixed
+
+- Load from S3 now says why a URL could not be opened; the message was never
+  shown.
 
 ### Changed
 

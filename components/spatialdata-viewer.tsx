@@ -6,6 +6,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import { useCallback, useEffect, useState } from "react";
 import { Progress, Spinner } from "@heroui/react";
 
+import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { ImageScene } from "@/components/image-viewer";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
@@ -22,6 +23,7 @@ import {
 } from "@/lib/spatialdata/image";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
 import { loadSpatialDataMolecules } from "@/lib/spatialdata/loadSpatialDataMolecules";
+import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 import {
   elementNames,
   openSpatialDataStore,
@@ -31,12 +33,15 @@ import { useSMOverlayUrlSync } from "@/lib/hooks/useUrlVizSync";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
+import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { applyCellOpenState } from "@/lib/viewer/open-dataset";
+import { normalizeS3Url } from "@/lib/utils/viewer-config";
 
 /**
  * Viewer for a SpatialData zarr store, read lazily and as written — either a
- * dataset on our S3 (`datasetId`) or a store at a public URL (`url`).
+ * dataset on our S3 (`datasetId`) or a store at a public URL (`url`), which
+ * may also be the URL of the folder holding the store (see resolveZarrUrl).
  *
  * A store may hold cells (its table), molecules (a linked single molecule
  * dataset, converted from its points with scripts/spatialdata_points_to_sm.py
@@ -66,6 +71,10 @@ export function SpatialDataViewer({
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Initializing...");
+  // The store's own URL, once a folder URL has been resolved to it
+  const [storeUrl, setStoreUrl] = useState<string | null>(null);
+  const setRegistration = useViewerRegistrationStore((s) => s.set);
+  const resetRegistration = useViewerRegistrationStore((s) => s.reset);
 
   // The scene loads the linked molecule dataset into the global SM store;
   // this picks its default genes (or restores them from the URL).
@@ -92,8 +101,11 @@ export function SpatialDataViewer({
 
         setMessage("Opening store...");
         if (url) {
-          const base = url.replace(/\/+$/, "");
+          const base =
+            (await resolveZarrUrl(url))?.url ?? url.replace(/\/+$/, "");
 
+          if (cancelled) return;
+          setStoreUrl(base);
           folder = base.slice(0, base.lastIndexOf("/"));
           name = base.slice(folder.length + 1).replace(/\.zarr$/, "");
           id = `spatialdata_${name}`;
@@ -171,6 +183,40 @@ export function SpatialDataViewer({
     };
   }, [datasetId, url]);
 
+  // Who owns a store opened by URL. One nobody has registered still opens;
+  // the banner then offers to add it. Views are counted once it is known.
+  useEffect(() => {
+    if (!storeUrl) return;
+    let cancelled = false;
+    const s3Url = normalizeS3Url(storeUrl);
+
+    fetch(`/api/datasets/by-url?url=${encodeURIComponent(s3Url)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((reg) => {
+        if (cancelled) return;
+        setRegistration({
+          dbId: reg?.registered ? reg.id : null,
+          ownerId: reg?.ownerId ?? null,
+          adminOwned: !!reg?.adminOwned,
+          registered: !!reg?.registered,
+          viewerConfig: null,
+          s3Url,
+          kind: "spatialdata",
+        });
+        if (reg?.registered) {
+          fetch(`/api/datasets/${reg.id}/view`, { method: "POST" }).catch(
+            () => {},
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      resetRegistration();
+    };
+  }, [storeUrl]);
+
   // The scene is rebuilt on view changes; the layer lives and dies with it.
   const addImageLayer = useCallback(
     ({ group, camera, renderer }: SceneHandle) => {
@@ -221,6 +267,7 @@ export function SpatialDataViewer({
   if (dataset) {
     return (
       <SplitScreenContainer>
+        {storeUrl && <ClaimDatasetBanner />}
         <VisualizationControls />
         <ThreeScene dataset={dataset} onSceneReady={addImageLayer} />
         {imageLayer && <SpatialDataImageControls layer={imageLayer} />}
@@ -230,6 +277,7 @@ export function SpatialDataViewer({
   if (molecules) {
     return (
       <SplitScreenContainer>
+        {storeUrl && <ClaimDatasetBanner />}
         <SingleMoleculeControls />
         <SingleMoleculeLegends />
         <SingleMoleculeThreeScene onSceneReady={addImageLayer} />
@@ -238,5 +286,11 @@ export function SpatialDataViewer({
     );
   }
 
-  return image && <ImageScene image={image} />;
+  return (
+    image && (
+      <ImageScene image={image}>
+        {storeUrl && <ClaimDatasetBanner />}
+      </ImageScene>
+    )
+  );
 }

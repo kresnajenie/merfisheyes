@@ -97,8 +97,10 @@ dapi.zarr/
 **Where an image can come from:**
 
 - **A folder on your computer** — drop it on the single-cell **Folder** card ("Preview in browser"). Tiles are read from disk as you zoom; nothing is uploaded.
-- **A public URL** — `/image-viewer/from-s3?url=<the .zarr folder's URL>`. The bucket must allow the site in CORS.
+- **A public URL** — paste it into **Load from S3** on the homepage, or open `/image-viewer/from-s3?url=<the .zarr folder's URL>`. The bucket must allow the site in CORS.
 - **Beside your cells**, in a [combined upload](#combined-single-cell--single-molecule--image-raw-data) or an [already-processed folder](#already-processed-data-opens-as-it-is).
+
+**What you set on an image is kept in the link.** Which channels are on, their colours and their lower and upper bounds are written into the page's URL as you change them, so a copied link opens looking the same.
 
 An image is only drawn under cells that kept their **original coordinates**. Folders written by older versions of the Python scripts normalized them to [-1, 1]; those load fine, but an image cannot be placed under them.
 
@@ -155,6 +157,8 @@ sample/
 - **With several candidates for one part** (two images, say) the first by name is used, and a message says which were skipped.
 - **A SpatialData store's molecules** are not read from its `points/`; convert them once with `scripts/spatialdata_points_to_sm.py` and put the result beside the store.
 - **Upload & Save** from this preview uploads every part exactly as it is — nothing is processed — each as its own dataset in one project, and the saved cells open with the same overlays. (Molecules and an image saved without cells are grouped in a project but not overlaid.) Signing in is required; no single file may exceed 5 GB.
+
+**The same data on a public bucket** opens from **Load from S3** on the homepage. Paste the URL of a merfisheyes folder, a SpatialData store, an OME-Zarr image, or the folder holding a store with its molecules beside it — the last opens with everything overlaid, and the link you land on reopens all of it. A bucket's folders can't be listed from a browser, so the folder's `mapping.json` names its store (`"cells": "name.zarr"`); without that, a store named after the folder (`sample/sample.zarr`) is tried. A store nobody owns yet shows **Add to my account**, like any other dataset opened by URL. See [docs/spatialdata](docs/spatialdata/README.md) for the layout.
 
 What is and isn't converted:
 

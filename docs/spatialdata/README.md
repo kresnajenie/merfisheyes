@@ -43,6 +43,21 @@ not read directly.
 /spatialdata-viewer/from-s3?url=https://<bucket>.s3.<region>.amazonaws.com/<folder>/<name>.zarr
 ```
 
+The URL may also be the **folder that holds the store**
+(`…/<folder>/`). A public URL can't be listed, so the store is found by
+name: the `cells` entry of the folder's `mapping.json`, else a store named
+after the folder (`<folder>/<folder>.zarr`). Either way everything beside the
+store is overlaid, and the link reopens all of it.
+
+The homepage's **Load from S3** box takes the same URLs — a store, the folder
+holding one, or an OME-Zarr image — as well as merfisheyes folders.
+
+A store opened by URL that nobody owns shows the **Add to my account**
+banner, like any other dataset opened by URL. Nothing is copied: the row
+(`datasetType: "spatialdata"`, `ingestSource: "s3_registered"`) remembers the
+store's URL, it is listed under **Your datasets**, and it opens at the same
+`from-s3` link.
+
 **By dataset id** — a store under `datasets/{id}/` in the app's own bucket,
 with a `Dataset` row (`COMPLETE`):
 
@@ -113,7 +128,7 @@ but not overlaid: only cells carry overlays.
 │   ├── annotations.json
 │   ├── leiden.bin
 │   └── de/leiden.bin.gz
-└── mapping.json          links the cells to molecules/
+└── mapping.json          names the store ("cells") and links it to molecules/
 ```
 
 `molecules/`, `annotations/` and `mapping.json` are all optional; without
@@ -136,8 +151,10 @@ aws s3 sync $STORE $DEST/name.zarr/ --exclude '*.DS_Store'
 python scripts/spatialdata_points_to_sm.py $STORE molecules/ --workers 16 --drop-z
 aws s3 sync molecules/ $DEST/molecules/
 
-# 3. Link the cells to the molecules
-echo "{\"linkColumn\":\"__all__\",\"links\":{\"__all__\":\"$URL/molecules\"}}" > mapping.json
+# 3. Name the store and link its cells to the molecules. "cells" is what lets
+#    the folder URL be opened on its own; it is not needed when the store is
+#    named after the folder.
+echo "{\"cells\":\"name.zarr\",\"linkColumn\":\"__all__\",\"links\":{\"__all__\":\"$URL/molecules\"}}" > mapping.json
 aws s3 cp mapping.json $DEST/mapping.json
 
 # 4. Clusters and DEGs (112k cells: ~1 min)
@@ -444,10 +461,12 @@ SpatialData store (`…/<name>.zarr/images/<image>`).
 | `lib/spatialdata/loadSpatialDataMolecules.ts` | The linked molecules of a store that has no cells |
 | `lib/spatialdata/image.ts` | OME-Zarr multiscale metadata and placement |
 | `lib/spatialdata/ImageLayer.ts` | Tiled image layer in the Three.js scene |
+| `lib/spatialdata/imageUrlState.ts` | An image's display settings in the link (`img=`) |
+| `lib/spatialdata/resolveUrl.ts` | What a URL is: a store, an image, or a folder holding a store |
 | `components/three-scene.tsx` | Draws a dataset's `mapping.json` image under its cells |
 | `components/overlay-manager.tsx`, `components/image-overlay-picker.tsx` | The owner's overlay dialog: molecules, and the image browser |
 | `lib/datasets/kind.ts` | The three dataset kinds and which viewer each opens in |
-| `lib/datasets/register-or-claim.ts` | Registering a URL as a dataset; recognises an OME-Zarr image |
+| `lib/datasets/register-or-claim.ts` | Registering a URL as a dataset; recognises an OME-Zarr image and a SpatialData store |
 | `lib/upload/uploadImageToS3.ts` | Uploading an image folder as an image dataset |
 | `lib/ingest/classify-folder.ts` | Finding cells, molecules and image folders in a picked folder |
 | `app/api/datasets/[datasetId]/overlay/`, `lib/ingest/overlay.ts` | Overlay API and the `mapping.json` it writes |

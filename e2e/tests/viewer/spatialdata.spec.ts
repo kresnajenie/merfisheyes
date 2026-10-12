@@ -5,6 +5,7 @@ import {
   litFraction,
   startSpatialDataServer,
   storeUrl,
+  storeFolderUrl,
   imageUrl,
   SELECTORS,
   type StoreLayout,
@@ -190,6 +191,103 @@ test("@quick image viewer draws an image on its own", async ({ page }) => {
       .poll(() => litFraction(page, SELECTORS.imageCanvas), { timeout: 30_000 })
       .toBeLessThan(0.05);
   });
+});
+
+/** Paste a URL into the homepage's "Load from S3" box. */
+async function loadFromS3(
+  page: import("@playwright/test").Page,
+  url: string,
+): Promise<void> {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.getByText("Load from S3").first().click();
+  await page.getByLabel("Dataset Folder URL").fill(url);
+  await page.getByRole("button", { name: "Load Dataset" }).click();
+}
+
+test("@quick Load from S3: a folder holding a store opens overlaid", async ({
+  page,
+}) => {
+  const parts = { cells: true, molecules: true, image: true };
+
+  // Only the folder is given; its mapping.json names the store inside it
+  await loadFromS3(page, storeFolderUrl(server, parts));
+  await page.waitForURL(/\/spatialdata-viewer\/from-s3\?url=/, {
+    timeout: 60_000,
+  });
+  await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount).toBe(CELLS);
+  await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
+  await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible();
+
+  await test.step("the link reopens all of it", async () => {
+    await page.reload();
+    await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+      timeout: 120_000,
+    });
+    await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
+    await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible();
+  });
+});
+
+test("@quick Load from S3: a store and an image open in their viewers", async ({
+  page,
+}) => {
+  await loadFromS3(page, storeUrl(server, { cells: true }));
+  await page.waitForURL(/\/spatialdata-viewer\/from-s3\?url=/, {
+    timeout: 60_000,
+  });
+  await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+    timeout: 120_000,
+  });
+
+  await loadFromS3(page, imageUrl(server, 50));
+  await page.waitForURL(/\/image-viewer\/from-s3\?url=/, { timeout: 60_000 });
+  await expect(page.locator(SELECTORS.imageCanvas)).toBeVisible({
+    timeout: 120_000,
+  });
+});
+
+test("@quick Load from S3: says so when there is nothing to open", async ({
+  page,
+}) => {
+  await loadFromS3(page, `${server.url}/nothing-here`);
+  await expect(page.getByText(/Nothing to open at that URL/)).toBeVisible({
+    timeout: 60_000,
+  });
+});
+
+test("@quick image settings are kept in the link", async ({ page }) => {
+  await page.goto(
+    `/image-viewer/from-s3?url=${encodeURIComponent(imageUrl(server, 50))}`,
+  );
+  await expect(page.locator(SELECTORS.imageCanvas)).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.locator(SELECTORS.imageButton).click();
+
+  const colour = page.getByLabel(/colour$/).first();
+  const maximum = page.getByLabel(/maximum$/).first();
+
+  // An untouched image leaves the link alone
+  expect(new URL(page.url()).searchParams.has("img")).toBe(false);
+
+  await colour.fill("#ff8800");
+  await maximum.fill("120");
+  await expect
+    .poll(() => new URL(page.url()).searchParams.has("img"))
+    .toBe(true);
+
+  await page.reload();
+  await page.locator(SELECTORS.imageButton).click();
+  await expect(colour).toHaveValue("#ff8800");
+  await expect(maximum).toHaveValue("120");
 });
 
 test("@quick image viewer explains a URL it can't read", async ({ page }) => {

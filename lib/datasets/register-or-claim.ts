@@ -40,7 +40,7 @@ export async function ensureDatasetForS3Url(
      * What the caller opened the URL as. Only used when the server can't tell
      * for itself — it won't fetch from a non-public host, e.g. in local tests.
      */
-    kind?: "image";
+    kind?: "image" | "spatialdata";
   },
 ): Promise<RegisterOrClaimResult> {
   const s3BaseUrl = normalizeS3Url(url);
@@ -101,6 +101,41 @@ export async function ensureDatasetForS3Url(
           numCells: 0,
           numGenes: 0,
           datasetType: "image",
+          formatVersion: "zarr",
+          status: "COMPLETE",
+          ownerId: owner.ownerId,
+          adminOwned: owner.adminOwned,
+          ingestSource: "s3_registered",
+          s3BaseUrl,
+          manifestUrl: s3BaseUrl,
+        },
+      });
+
+      return { dataset, claimed: true, ownedByOther: false };
+    }
+
+    // So is a SpatialData store, known by its root attributes. Its table's
+    // size is in the consolidated metadata the viewer lists the store by.
+    if (
+      zarrRoot?.attributes?.spatialdata_attrs ||
+      (!zarrRoot && kind === "spatialdata")
+    ) {
+      const nodes: Record<string, { shape?: number[] }> =
+        zarrRoot?.consolidated_metadata?.metadata ?? {};
+      const count = (axis: "obs" | "var") =>
+        Object.entries(nodes).find(([path]) =>
+          new RegExp(`^tables/[^/]+/${axis}/_index$`).test(path),
+        )?.[1].shape?.[0] ?? 0;
+      const dataset = await prisma.dataset.create({
+        data: {
+          id: `s3_${nanoid(10)}`,
+          fingerprint: createHash("sha256").update(s3BaseUrl).digest("hex"),
+          title: decodeURIComponent(
+            new URL(base).pathname.split("/").filter(Boolean).pop() ?? "",
+          ).replace(/\.zarr$/, ""),
+          numCells: count("obs"),
+          numGenes: count("var"),
+          datasetType: "spatialdata",
           formatVersion: "zarr",
           status: "COMPLETE",
           ownerId: owner.ownerId,

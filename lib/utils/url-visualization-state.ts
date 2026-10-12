@@ -55,7 +55,7 @@ export interface SMVizUrlState {
 
 // --- Base64URL helpers (Unicode-safe) ---
 
-function toBase64Url(obj: object): string {
+export function toBase64Url(obj: object): string {
   const json = JSON.stringify(obj);
   const bytes = new TextEncoder().encode(json);
   const binary = String.fromCharCode(...bytes);
@@ -64,7 +64,7 @@ function toBase64Url(obj: object): string {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function fromBase64Url<T>(encoded: string): T | null {
+export function fromBase64Url<T>(encoded: string): T | null {
   try {
     let b64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
     const pad = b64.length % 4;
