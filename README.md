@@ -10,6 +10,14 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 
 MERFISHEYES reads the **raw outputs** of the common spatial platforms — you don't need to pre-format anything. Below is exactly which files each type needs and what they should look like. Drop a whole folder or a single file on the homepage; the app figures out the format from the file names.
 
+There are three kinds of data, and they can be shown together: **cells**, **molecules**, and an **image** (e.g. a DAPI mosaic) drawn under them.
+
+| I have… | Go to |
+|---|---|
+| Raw platform output (H5AD, Xenium, MERSCOPE, a transcripts file) | [Single cell](#single-cell), [Single molecule](#single-molecule), [Combined upload](#combined-single-cell--single-molecule--image-raw-data) |
+| An image | [Image](#image) |
+| Data that is already in a format the viewer reads — a SpatialData store, or merfisheyes' own output folders | [Already-processed data](#already-processed-data-opens-as-it-is) |
+
 ### Single cell
 
 <table>
@@ -63,9 +71,98 @@ Default column names are auto-detected per platform, and you can remap them at u
 
 Parquet is strongly preferred for millions of molecules (columnar, far less memory than CSV).
 
-### Combined single-cell + single-molecule
+### Image
 
-Drop a **single-cell folder that also contains a transcripts file** (a typical Xenium export) and MERFISHEYES offers to upload **both** at once: the cells and the molecules become two datasets grouped into one project, with the molecules overlaid on the cells.
+An image is drawn under the cells or the molecules, or opened on its own. It must be an **OME-Zarr multiscale image**:
+
+| | Requirement |
+|---|---|
+| **Format** | OME-Zarr 0.5 on **Zarr v3** (a folder with a `zarr.json` at its root). Zarr v2 and TIFF are not read. |
+| **Axes** | Exactly `c, y, x` — one or more channels, no z and no time. |
+| **Pixels** | `uint8` or `uint16`. |
+| **Pyramid** | Several resolution levels, each half the one before. The coarsest should fit in a chunk or two: it is loaded whole as the backdrop. |
+| **Placement** | Each level's `scale` and `translation` must put the image in the **same coordinates as the cells** (usually microns). Rotations and flips are not applied, so they must already be in the pixels. |
+| **Channel names** | Optional, from `omero.channels[].label`. |
+
+```
+dapi.zarr/
+├── zarr.json        the multiscale metadata (axes, scale + translation per level)
+├── 0/               full resolution: zarr.json + c/<channel>/<row>/<column> chunks
+├── 1/               half resolution
+└── …
+```
+
+`docs/spatialdata/README.md` has a [short Python recipe](docs/spatialdata/README.md#writing-an-image) for writing one from a stitched array.
+
+**Where an image can come from:**
+
+- **A folder on your computer** — drop it on the single-cell **Folder** card ("Preview in browser"). Tiles are read from disk as you zoom; nothing is uploaded.
+- **A public URL** — `/image-viewer/from-s3?url=<the .zarr folder's URL>`. The bucket must allow the site in CORS.
+- **Beside your cells**, in a [combined upload](#combined-single-cell--single-molecule--image-raw-data) or an [already-processed folder](#already-processed-data-opens-as-it-is).
+
+An image is only drawn under cells that kept their **original coordinates**. Folders written by older versions of the Python scripts normalized them to [-1, 1]; those load fine, but an image cannot be placed under them.
+
+### Combined single-cell + single-molecule + image (raw data)
+
+With **Upload & process on server**, drop a **single-cell folder that also contains a transcripts file** (a typical Xenium export) and/or an **OME-Zarr image folder** (any name ending `.zarr`), and MERFISHEYES offers to upload them together: each becomes its own dataset, grouped into one project, and the cells open with the molecules over them and the image under them.
+
+```
+sample/
+├── cells.h5ad            or a Xenium / MERSCOPE export
+├── transcripts.parquet   (optional) the molecules
+└── dapi.zarr/            (optional) the image
+```
+
+In **Preview in browser**, raw cells are shown on their own: overlaying needs the other parts to be [already processed](#already-processed-data-opens-as-it-is).
+
+### Already-processed data (opens as it is)
+
+If your data is already in a format the viewer reads, nothing needs converting. Drop the folder on the single-cell **Folder** card in **Preview in browser** and it opens at once, whatever its size — each part is read from disk a piece at a time, as you look at it. Cells, molecules and an image in the same folder are overlaid.
+
+Two layouts are accepted. **Folder names don't matter**: each part is recognised by what is inside it.
+
+**A. A SpatialData store, with the molecules beside it**
+
+```
+sample/
+├── anything.zarr/     SpatialData store (Zarr v3): cells in tables/, the image in images/
+├── anything/          merfisheyes molecule folder: manifest.json.gz + genes/
+└── annotations/       (optional) clusters + DEGs from scripts/spatialdata_cluster.py
+```
+
+**B. merfisheyes' own output folders**
+
+```
+sample/
+├── anything/          cells: manifest.json + expr/ + coords/ (+ obs/, palettes/)
+│                      from scripts/process_spatial_data.py
+├── anything/          molecules: manifest.json.gz + genes/
+│                      from scripts/process_single_molecule.py
+└── anything.zarr/     the image: an OME-Zarr image (see above)
+```
+
+| Part | Recognised by |
+|---|---|
+| Cells (SpatialData) | a `zarr.json` plus `tables/`, `images/` or another SpatialData element group |
+| Cells (merfisheyes) | `manifest.json`, `expr/index.json` and `coords/spatial.bin.gz` |
+| Molecules | `manifest.json.gz` (or `manifest.json`) and `genes/*.bin.gz` |
+| Image | a `zarr.json` describing an OME-Zarr image with axes `c, y, x` |
+
+- **Any part may be missing.** Cells + image, cells + molecules, molecules + image, or a single part on its own all open. Without cells the molecules are the scene, with the image under them; an image alone opens in the image viewer.
+- **A part is a folder directly inside the one you drop**, or the dropped folder itself.
+- **With several candidates for one part** (two images, say) the first by name is used, and a message says which were skipped.
+- **A SpatialData store's molecules** are not read from its `points/`; convert them once with `scripts/spatialdata_points_to_sm.py` and put the result beside the store.
+- **Upload & Save** from this preview uploads every part exactly as it is — nothing is processed — each as its own dataset in one project, and the saved cells open with the same overlays. (Molecules and an image saved without cells are grouped in a project but not overlaid.) Signing in is required; no single file may exceed 5 GB.
+
+What is and isn't converted:
+
+| You drop | Preview in browser | Upload & process on server |
+|---|---|---|
+| Raw cells (H5AD, Xenium, MERSCOPE) | Parsed in your browser | Converted by a worker |
+| Raw molecules (Parquet / CSV) | Parsed in your browser | Converted by a worker |
+| Raw cells + transcripts and/or an image | Cells only | All converted or uploaded, and overlaid |
+| Already-processed cells, molecules, image | **Opened as they are, overlaid** | — (use Upload & Save from the preview) |
+| An OME-Zarr image | **Opened as it is** | Uploaded as it is, beside raw cells |
 
 ---
 

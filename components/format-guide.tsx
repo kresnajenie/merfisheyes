@@ -245,6 +245,122 @@ const FORMATS: Format[] = [
     ],
   },
   {
+    key: "image",
+    group: "cell",
+    title: "Image",
+    drop: "An OME-Zarr image folder → Folder (Preview in browser)",
+    summary:
+      "A microscopy image, such as a stitched DAPI mosaic. It opens on its own, or under the cells and molecules it is dropped with. Tiles are read from disk as you zoom; nothing is converted.",
+    tree: {
+      name: "dapi.zarr/",
+      children: [
+        {
+          name: "zarr.json",
+          req: "required",
+          note: "OME-Zarr 0.5 multiscale metadata: axes c, y, x; scale and translation per level.",
+        },
+        {
+          name: "0/",
+          req: "required",
+          note: "Full resolution.",
+          children: [
+            { name: "zarr.json", req: "required" },
+            { name: "c/<channel>/<row>/<column>", note: "The chunks." },
+          ],
+        },
+        { name: "1/, 2/, …", req: "optional", note: "Each half the one before." },
+      ],
+    },
+    notes: [
+      "Zarr v3 only, with axes exactly c, y, x (channels, no z, no time) and uint8 or uint16 pixels. Zarr v2 and TIFF are not read.",
+      "Each level's scale and translation must put the image in the cells' coordinates (usually microns). Rotations and flips are not applied, so they must already be in the pixels.",
+      "It is drawn only under cells that kept their original coordinates; folders from older versions of the Python script normalized them.",
+      "Give it several resolution levels, the coarsest small enough to fit in a chunk or two.",
+    ],
+  },
+  {
+    key: "processed",
+    group: "cell",
+    title: "Processed folder",
+    drop: "One folder holding the parts → Folder (Preview in browser)",
+    summary:
+      "Cells, molecules and an image that are already in a format the viewer reads open as they are, overlaid — nothing is converted, so the size does not matter. Any of the three may be missing.",
+    tree: {
+      name: "sample/",
+      children: [
+        {
+          name: "<cells folder>/",
+          req: "optional",
+          note: "The output folder of process_spatial_data.py (manifest.json, expr/, coords/).",
+        },
+        {
+          name: "<molecules folder>/",
+          req: "optional",
+          note: "The output folder of process_single_molecule.py (manifest.json.gz, genes/).",
+        },
+        {
+          name: "<image>.zarr/",
+          req: "optional",
+          note: "An OME-Zarr image (see the Image tab).",
+        },
+      ],
+    },
+    notes: [
+      "The parts are recognised by what is inside them, not by their names. Each must be a folder directly inside the one you drop.",
+      "With cells, the molecules are drawn over them and the image under them. Without cells the molecules are the scene; an image alone opens in the image viewer.",
+      "With two candidates for one part, the first by name is used and a message says which was skipped.",
+      "Upload & Save from this preview uploads every part as it is and keeps them overlaid.",
+      "Raw cells (H5AD, Xenium, MERSCOPE) beside processed parts are shown on their own here; use “Upload & process on server” to combine those.",
+    ],
+  },
+  {
+    key: "spatialdata",
+    group: "cell",
+    title: "SpatialData",
+    drop: "The store, or a folder holding it → Folder (Preview in browser)",
+    summary:
+      "A SpatialData store is read as it was written: cells from its table, the image from inside the store. Molecules come from a merfisheyes molecule folder beside it.",
+    tree: {
+      name: "sample/",
+      children: [
+        {
+          name: "<store>.zarr/",
+          req: "required",
+          note: "The SpatialData store (Zarr v3).",
+          children: [
+            { name: "zarr.json", req: "required" },
+            {
+              name: "tables/<table>/",
+              req: "optional",
+              note: "The cells: obsm/spatial, X, obs columns.",
+            },
+            {
+              name: "images/<image>/",
+              req: "optional",
+              note: "The image: axes c, y, x.",
+            },
+          ],
+        },
+        {
+          name: "<molecules folder>/",
+          req: "optional",
+          note: "manifest.json.gz and genes/, from spatialdata_points_to_sm.py.",
+        },
+        {
+          name: "annotations/",
+          req: "optional",
+          note: "Leiden clusters and DEGs, from spatialdata_cluster.py.",
+        },
+      ],
+    },
+    notes: [
+      "Zarr v3 stores only. Tables written by current anndata (sharded arrays, nullable strings) are read.",
+      "Expression is read one gene at a time when the table has a CSC copy of X (layers/X_csc), or a dense or CSC X.",
+      "The store's own points/ are not read as molecules: convert them once with scripts/spatialdata_points_to_sm.py and put the result beside the store.",
+      "Upload & Save uploads the store as it is; it then opens in the SpatialData viewer with the same overlays.",
+    ],
+  },
+  {
     key: "molecules",
     group: "molecule",
     title: "Parquet / CSV",

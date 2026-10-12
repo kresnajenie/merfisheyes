@@ -380,14 +380,29 @@ the h5ad-zarr path:
 - [lib/storage/fetchRange.ts](lib/storage/fetchRange.ts) — byte-range reads
   for sharded arrays (`getRange` on both stores)
 
+**Already-processed data from disk**: the single-cell Folder card (browser
+mode) recognises, by content, a folder holding any of a SpatialData store or
+merfisheyes cell folder, a merfisheyes molecule folder and an OME-Zarr image
+([lib/local/classify-bundle.ts](lib/local/classify-bundle.ts)), opens each
+lazily from the dropped `File`s (`lib/local/open-bundle.ts`,
+`lib/spatialdata/localStore.ts`) and shows them overlaid in the ordinary
+`from-local` viewers; the extras travel in `lib/stores/localBundleStore.ts`.
+*Upload & Save* there uploads every part as it is and links them
+(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`). A saved
+store has `datasetType: "spatialdata"`: single cell in every respect except
+that it opens in `/spatialdata-viewer` (`viewerBase`, `entryType` in
+`lib/datasets/kind.ts`). Raw cells beside processed parts are still shown
+alone — see the backlog in `docs/spatialdata/README.md`.
+
 Zarr v3 here uses the `zarrita-v3` alias (0.7.x); the h5ad-zarr path stays on
 the pinned `zarrita` 0.5.1. Do not point `lib/spatialdata/` at the old one or
 bump the shared one.
 
 **Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
 `e2e/tests/viewer/spatialdata.spec.ts` (`@quick`),
-`e2e/tests/upload/image-overlay.spec.ts` and `combined-upload.spec.ts`
-(`@upload`) open them in a browser
+`e2e/tests/viewer/local-bundle.spec.ts` (`@quick`), and
+`e2e/tests/upload/image-overlay.spec.ts`, `combined-upload.spec.ts` and
+`local-bundle-save.spec.ts` (`@upload`) open them in a browser
 through `e2e/helpers/fixture-server.ts`, a local stand-in for a public bucket.
 
 ### Python Preprocessing Scripts

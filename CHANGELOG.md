@@ -8,7 +8,27 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Drop an OME-Zarr image to look at it.** An image folder dropped on the
+  single-cell Folder card (Preview in browser) opens in the image viewer,
+  read from disk as you zoom. Nothing is uploaded.
+- **Already-processed cells, molecules and an image open together, as they
+  are.** A folder holding a SpatialData store or a merfisheyes cell folder,
+  a merfisheyes molecule folder and an OME-Zarr image — any of them, in any
+  combination, recognised by content — opens overlaid without converting
+  anything, so its size does not matter.
+- **Upload & Save keeps the overlays.** Saving such a preview uploads every
+  part as it is, each as its own dataset in one project, and the saved link
+  opens with the molecules over the cells and the image under them. A
+  SpatialData store can now be uploaded this way.
+- **The upload guide covers images and processed folders**, on the site and
+  in the README.
+
+### Changed
+
+- A single file in a zarr-folder upload may now be up to 5 GB (was 200 MB):
+  a sharded array is one file however large it is.
 
 ## [0.9.0] - 2026-10-11
 
