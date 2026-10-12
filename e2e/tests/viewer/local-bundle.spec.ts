@@ -106,6 +106,8 @@ for (const { name, parts, cells } of WITH_CELLS) {
 
     if (parts.molecules) {
       await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible();
+      // Some genes are picked to start with, so the molecules are on screen
+      await expect(page.getByText(/Selected Genes \(\d+\)/)).toBeVisible();
     } else {
       await expect(page.locator(SELECTORS.smLayerButton)).toHaveCount(0);
     }

@@ -68,7 +68,7 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
                   }}
                 />
                 <span className="truncate">{channel.label}</span>
-                <span className="ml-auto text-xs text-default-500">
+                <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-default-500">
                   {channel.min} – {channel.max}
                 </span>
               </div>
