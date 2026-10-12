@@ -41,6 +41,9 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- An image written by the `spatialdata` library is placed correctly: its
+  scale-then-translation is stored as a "sequence" transform, which was
+  ignored, drawing the image at one pixel per unit.
 - Load from S3 now says why a URL could not be opened; the message was never
   shown.
 

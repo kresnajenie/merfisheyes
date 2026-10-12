@@ -80,6 +80,42 @@ describe("openOmeZarrImage", () => {
     expect(image.levels[1]).toMatchObject({ pixelWidth: 1, pixelHeight: 1 });
   });
 
+  it("follows a sequence of transforms, as spatialdata writes them", async () => {
+    // Levels in pixels of the full image; the image placed by scale then shift
+    const root = group(["c", "y", "x"]);
+    const multiscale: any = root.attributes.ome.multiscales[0];
+
+    multiscale.datasets = [0, 1].map((l) => ({
+      path: `s${l}`,
+      coordinateTransformations: [
+        { type: "scale", scale: [1, 2 ** l, 2 ** l] },
+        { type: "translation", translation: [0, l * 0.5, l * 0.5] },
+      ],
+    }));
+    multiscale.coordinateTransformations = [
+      {
+        type: "sequence",
+        transformations: [
+          { type: "scale", scale: [1, 0.1, 0.1] },
+          { type: "translation", translation: [0, -11, -12] },
+        ],
+      },
+    ];
+    serve({
+      "/zarr.json": root,
+      "/s0/zarr.json": level(8, 12),
+      "/s1/zarr.json": level(4, 6),
+    });
+
+    const { levels } = await openOmeZarrImage(BASE);
+
+    expect(levels[0].pixelWidth).toBeCloseTo(0.1);
+    expect(levels[0].originX).toBeCloseTo(-12);
+    expect(levels[0].originY).toBeCloseTo(-11);
+    expect(levels[1].pixelWidth).toBeCloseTo(0.2);
+    expect(levels[1].originX).toBeCloseTo(-11.95);
+  });
+
   it("rejects axes other than c, y, x", async () => {
     serve({ "/zarr.json": group(["c", "z", "y", "x"]) });
 
