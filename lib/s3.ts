@@ -94,6 +94,11 @@ export async function generatePresignedUploadUrl(
 // S3 rejects a single POST upload above 5 GB (larger objects need multipart).
 export const S3_POST_MAX_OBJECT_BYTES = 5 * 1024 ** 3;
 
+// Largest single file a zarr-folder upload may hold: well above any sensible
+// chunk. Zarr uploads register no per-file sizes, so this is their cap both
+// when the upload starts and when its policy is re-signed.
+export const ZARR_UPLOAD_MAX_FILE_BYTES = 200 * 1024 ** 2;
+
 /**
  * Sign ONE presigned-POST policy that authorizes uploads of any key under
  * `keyPrefix` until it expires — one signature for a whole folder instead of

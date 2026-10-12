@@ -5,7 +5,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { generatePrefixUploadPolicy } from "@/lib/s3";
+import {
+  generatePrefixUploadPolicy,
+  ZARR_UPLOAD_MAX_FILE_BYTES,
+} from "@/lib/s3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -78,7 +81,11 @@ export async function POST(
       where: { uploadSessionId: uploadId },
       _max: { fileSize: true },
     });
-    const maxFileSize = Math.max(1, Number(_max.fileSize ?? 0));
+    // A zarr-folder upload registers no per-file rows to take the cap from.
+    const maxFileSize =
+      _max.fileSize == null
+        ? ZARR_UPLOAD_MAX_FILE_BYTES
+        : Math.max(1, Number(_max.fileSize));
 
     const policy = await generatePrefixUploadPolicy(
       `datasets/${datasetId}/`,

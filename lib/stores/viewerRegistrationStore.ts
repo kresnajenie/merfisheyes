@@ -18,6 +18,8 @@ interface ViewerRegistrationState {
   registered: boolean;
   viewerConfig: ViewerConfig | null;
   s3Url: string | null; // set for from-s3 viewers (needed to register/claim)
+  /** Set by the image viewer, so a claim registers the URL as an image. */
+  kind: "image" | null;
   set: (patch: Partial<Omit<ViewerRegistrationState, "set" | "reset">>) => void;
   reset: () => void;
 }
@@ -29,6 +31,7 @@ const initial = {
   registered: false,
   viewerConfig: null,
   s3Url: null,
+  kind: null,
 };
 
 export const useViewerRegistrationStore = create<ViewerRegistrationState>(

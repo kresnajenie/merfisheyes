@@ -10,6 +10,67 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 _Nothing yet._
 
+## [0.9.0] - 2026-10-11
+
+Images join cells and molecules: an image is a dataset you can own, draw
+under your cells, and upload in the same folder. SpatialData stores open
+without conversion, and you can delete what you uploaded.
+
+### Added
+
+- **SpatialData stores open as they are.** `/spatialdata-viewer` reads a
+  SpatialData zarr (v3) store straight from S3 — by dataset id or by the public
+  URL of the store — without converting it: cells from its table, expression
+  per gene on demand, and its image under the cells at the resolution the zoom
+  needs. Molecules and Leiden clusters with DEGs come from sidecars written
+  beside the store by two scripts. See `docs/spatialdata/README.md`.
+- **A store may hold any of cells, molecules and an image.** Cells give the
+  single cell scene with the others layered on it; molecules without cells
+  give the single molecule scene; an image alone is shown on its own.
+- **Tables written by current anndata are read.** anndata ≥ 0.12 shards its
+  arrays and stores strings as nullable by default; both are now read (shards
+  by byte range, so the bucket's CORS must allow the `Range` header).
+- **Images are datasets.** An OME-Zarr image opened by URL at
+  `/image-viewer/from-s3?url=…` can be added to your account like any other
+  dataset opened by URL, and then appears under Your datasets. Each channel
+  has a lower and an upper display bound. The viewer is not linked from the
+  homepage yet.
+- **An image under any single cell dataset.** A dataset's owner picks one of
+  their images in the overlay dialog — e.g. a stitched DAPI mosaic — and it
+  is drawn under the cells, alongside the molecule overlay. An image not in
+  the account yet can be added by URL from the same dialog.
+- **Cells, molecules and an image from one folder.** A folder uploaded for
+  server processing may hold a transcripts file and an OME-Zarr image folder
+  beside the cells. Each becomes its own dataset in one project, and the
+  link you get opens the cells with the molecules over them and the image
+  under them.
+- **Delete your datasets.** From a dataset's card menu or its page, an owner
+  can permanently delete an upload: its files, its row, and any job still
+  processing it. A dataset shown on Explore has to be withdrawn first.
+  Deleting molecules or an image unlinks them from the cells that overlaid
+  them; deleting cells can take their molecule overlay along.
+- **What can I upload?** A button on the homepage opens a guide to every
+  accepted format — one tab each, with the expected file or folder structure
+  and the rules that trip people up. The same guide replaces the empty
+  `/docs` page.
+
+### Fixed
+
+- **Each side of a split view has its own molecule overlay.** With two cell
+  datasets side by side, the right panel drew the left panel's molecule
+  genes, had no legend, and its controls changed nothing. Each panel now
+  reads its own overlay, the right one has its own slot in shared links, and
+  the sync toggle decides whether they follow each other.
+- **Large molecule CSVs upload for server processing.** On a file of a few
+  hundred million rows the "Confirm columns" dialog could open with no
+  columns in it, leaving its button disabled and the upload impossible to
+  start. Server processing detects the columns itself, so it no longer asks;
+  the in-browser dialog falls back to reading just the header.
+- **A failed upload can be retried.** The row left behind by a failed or
+  interrupted upload kept its fingerprint, so uploading the same file again
+  was refused as a duplicate while the duplicate check said it was safe.
+  Fingerprints are still computed and stored, but no longer block an upload.
+
 ## [0.8.0] - 2026-09-29
 
 Explore ranks what people actually open, every card explains itself, and large
@@ -357,7 +418,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.5.1...v0.6.0

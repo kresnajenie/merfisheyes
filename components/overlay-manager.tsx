@@ -6,6 +6,8 @@ import { Spinner } from "@heroui/spinner";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
+import { ImageOverlayPicker } from "@/components/image-overlay-picker";
+
 interface SmItem {
   id: string;
   title: string | null;
@@ -22,9 +24,11 @@ function fmtCount(n: number | null): string {
 }
 
 /**
- * Attach / change / remove a single-molecule overlay on a single-cell dataset
- * the user owns. Searchable + paginated so it scales to large libraries (it
- * fetches one page of the user's own single-molecule datasets at a time).
+ * Attach / change / remove the overlays on a single-cell dataset the user
+ * owns: a single-molecule dataset drawn over the cells (searchable +
+ * paginated so it scales to large libraries — it fetches one page of the
+ * user's own single-molecule datasets at a time), and one of their images
+ * drawn under them (see ImageOverlayPicker).
  */
 export function OverlayManager({
   scDatasetId,
@@ -42,13 +46,16 @@ export function OverlayManager({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  // Current overlay (once).
+  // Current overlays (once).
   useEffect(() => {
     let cancelled = false;
 
     fetch(`/api/datasets/${scDatasetId}/overlay`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => !cancelled && setCurrent(d?.smDatasetId ?? null))
+      .then((d) => {
+        if (cancelled) return;
+        setCurrent(d?.smDatasetId ?? null);
+      })
       .catch(() => {});
 
     return () => {
@@ -274,6 +281,10 @@ export function OverlayManager({
           </Button>
         </div>
       ) : null}
+
+      <div className="mt-2 border-t border-default-200 pt-4">
+        <ImageOverlayPicker scDatasetId={scDatasetId} />
+      </div>
     </div>
   );
 }

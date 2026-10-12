@@ -5,6 +5,8 @@ import * as THREE from "three";
 import { Spinner } from "@heroui/react";
 import { toast } from "react-toastify";
 
+import type { SceneHandle } from "@/components/three-scene";
+
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   appendToSmPointCloud,
@@ -62,7 +64,18 @@ function geneFromKey(key: string): string {
   return key;
 }
 
-export function SingleMoleculeThreeScene() {
+export function SingleMoleculeThreeScene({
+  onSceneReady,
+}: {
+  /**
+   * Called each time the scene is (re)built, to add extra layers to it.
+   * The returned function is called before that scene is torn down.
+   */
+  onSceneReady?: (scene: SceneHandle) => (() => void) | void;
+} = {}) {
+  const onSceneReadyRef = useRef(onSceneReady);
+
+  onSceneReadyRef.current = onSceneReady;
   const containerRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -261,9 +274,15 @@ export function SingleMoleculeThreeScene() {
     // Start custom animation loop
     customAnimate();
     markSceneReady();
+    const removeExtraLayers = onSceneReadyRef.current?.({
+      group: innerGroup,
+      camera,
+      renderer,
+    });
 
     // Cleanup
     return () => {
+      removeExtraLayers?.();
       console.log("[SingleMoleculeThreeScene] Cleaning up scene", {
         lastDatasetId: lastDatasetIdRef.current,
         reason: "Effect cleanup triggered - dataset dependency changed",

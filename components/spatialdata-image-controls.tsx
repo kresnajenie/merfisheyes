@@ -1,0 +1,113 @@
+"use client";
+
+import type { ImageLayer } from "@/lib/spatialdata/ImageLayer";
+
+import { useEffect, useReducer, useState } from "react";
+
+import { glassButton, glassPanel } from "@/components/primitives";
+
+/**
+ * Image button + channel panel for the SpatialData viewer: show/hide the
+ * image, and per channel its visibility, colour and display window.
+ */
+export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
+  const [open, setOpen] = useState(false);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+
+  // The layer sets each channel's window itself once it has seen the data
+  useEffect(() => {
+    layer.onChange = rerender;
+
+    return () => {
+      layer.onChange = undefined;
+    };
+  }, [layer]);
+
+  return (
+    // Sits between the brand pill and the control rail's first button
+    <div className="absolute top-[4.25rem] left-4 z-[var(--z-panel)] flex flex-row items-start gap-2">
+      <button
+        className={`${glassButton()} h-10 w-14 rounded-full text-xs`}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+      >
+        Image
+      </button>
+      {open && (
+        <div className={`${glassPanel()} p-4 w-80 flex flex-col gap-3`}>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              checked={layer.visible}
+              type="checkbox"
+              onChange={(e) => {
+                layer.visible = e.target.checked;
+                rerender();
+              }}
+            />
+            Show image
+          </label>
+          {layer.channels.map((channel, i) => (
+            <div key={i} className="flex flex-col gap-1">
+              <div className="flex items-center gap-2 text-sm">
+                <input
+                  checked={channel.visible}
+                  type="checkbox"
+                  onChange={(e) => {
+                    layer.setChannel(i, { visible: e.target.checked });
+                    rerender();
+                  }}
+                />
+                <input
+                  aria-label={`${channel.label} colour`}
+                  className="w-6 h-6 p-0 border-0 bg-transparent"
+                  type="color"
+                  value={channel.color}
+                  onChange={(e) => {
+                    layer.setChannel(i, { color: e.target.value });
+                    rerender();
+                  }}
+                />
+                <span className="truncate">{channel.label}</span>
+                <span className="ml-auto text-xs text-default-500">
+                  {channel.min} – {channel.max}
+                </span>
+              </div>
+              {/* Display window: values at or below the lower bound draw
+                  black, at or above the upper one full colour. */}
+              {(["min", "max"] as const).map((bound) => (
+                <label
+                  key={bound}
+                  className="flex items-center gap-2 text-xs text-default-500"
+                >
+                  <span className="w-7">{bound}</span>
+                  <input
+                    aria-label={`${channel.label} ${bound === "min" ? "minimum" : "maximum"}`}
+                    className="flex-1"
+                    disabled={!channel.visible}
+                    max={layer.maxValue}
+                    min={0}
+                    type="range"
+                    value={channel[bound]}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+
+                      // The bounds can't cross: the one being dragged stops
+                      // one short of the other.
+                      layer.setChannel(
+                        i,
+                        bound === "min"
+                          ? { min: Math.min(value, channel.max - 1) }
+                          : { max: Math.max(value, channel.min + 1) },
+                      );
+                      rerender();
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

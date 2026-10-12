@@ -9,7 +9,8 @@ import { prisma } from "@/lib/prisma";
 // Source of truth is the stored datasets/{id}/mapping.json (written by the
 // ingest finalize step). If that file isn't there yet, we fall back to
 // synthesizing the "__all__" config from the dataset's own
-// processingParams.linkedSmDatasetId — set when the two were uploaded together.
+// processingParams.linkedSmDatasetId / linkedImageDatasetId — set when they
+// were uploaded together.
 // That makes the overlay work as soon as both datasets exist, without depending
 // on the finalize file write having landed. 404 only when neither is present.
 export async function GET(
@@ -18,14 +19,22 @@ export async function GET(
 ) {
   const { datasetId } = await params;
   const obj = await getObjectBytes(`datasets/${datasetId}/mapping.json`);
+  // A stored file that only names an image overlay (no molecule link) must
+  // not hide the combined-upload fallback below, so its image is merged in.
+  let imageOnly: Record<string, unknown> = {};
 
   if (obj) {
-    return new Response(new Uint8Array(obj.body), {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=60",
-      },
-    });
+    const stored = JSON.parse(Buffer.from(obj.body).toString("utf8"));
+
+    if (stored.links) {
+      return new Response(new Uint8Array(obj.body), {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=60",
+        },
+      });
+    }
+    imageOnly = stored;
   }
 
   // Fallback: derive the mapping from the combined-upload link on the row.
@@ -33,9 +42,24 @@ export async function GET(
     where: { id: datasetId },
     select: { processingParams: true },
   });
-  const linkedSmId = (
-    dataset?.processingParams as { linkedSmDatasetId?: unknown } | null
-  )?.linkedSmDatasetId;
+  const linked = dataset?.processingParams as {
+    linkedSmDatasetId?: unknown;
+    linkedImageDatasetId?: unknown;
+  } | null;
+  const linkedSmId = linked?.linkedSmDatasetId;
+
+  // Same fallback for an image uploaded together with the cells
+  if (
+    !imageOnly.image &&
+    typeof linked?.linkedImageDatasetId === "string" &&
+    linked.linkedImageDatasetId
+  ) {
+    imageOnly = {
+      image: linked.linkedImageDatasetId,
+      imageSource: "app",
+      imageDatasetId: linked.linkedImageDatasetId,
+    };
+  }
 
   if (typeof linkedSmId === "string" && linkedSmId) {
     return NextResponse.json(
@@ -43,9 +67,15 @@ export async function GET(
         linkColumn: "__all__",
         links: { __all__: linkedSmId },
         source: "app",
+        ...imageOnly,
       },
       { headers: { "Cache-Control": "public, max-age=60" } },
     );
+  }
+  if (imageOnly.image) {
+    return NextResponse.json(imageOnly, {
+      headers: { "Cache-Control": "public, max-age=60" },
+    });
   }
 
   return NextResponse.json({ error: "Not found" }, { status: 404 });

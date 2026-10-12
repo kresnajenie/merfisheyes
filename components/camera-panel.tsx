@@ -21,8 +21,6 @@ import {
   usePanelId,
 } from "@/lib/hooks/usePanelStores";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import {
   extractViewerConfig,
   type ViewerConfig,
@@ -423,13 +421,13 @@ function OwnerDefaultsSection() {
 
   const dataset = getCurrentDataset() as StandardizedDataset | null;
 
-  // SM overlay (combined SC+SM viewer) — from the GLOBAL SM stores, matching
-  // how three-scene renders the overlay. Present only when a mapping.json
+  // SM overlay (combined SC+SM viewer) — this panel's SM stores, the ones
+  // three-scene renders the overlay from. Present only when a mapping.json
   // "__all__" overlay has loaded.
-  const smOverlay = useSingleMoleculeStore((s) =>
+  const smOverlay = usePanelSingleMoleculeStore((s) =>
     s.currentDatasetId ? s.datasets.get(s.currentDatasetId) ?? null : null,
   );
-  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+  const smSelectedGenes = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
   const overlayUniqueGenes = smOverlay?.uniqueGenes ?? [];

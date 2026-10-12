@@ -14,3 +14,4 @@ export * from "../helpers/viewer";
 export * from "../helpers/upload";
 export * from "../helpers/perf";
 export * from "../helpers/assert";
+export * from "../helpers/spatialdata";

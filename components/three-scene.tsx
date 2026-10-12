@@ -10,8 +10,8 @@ import { toast } from "react-toastify";
 import gsap from "gsap";
 
 import { getClusterValue } from "@/lib/StandardizedDataset";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { initializeScene } from "@/lib/webgl/scene-manager";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import {
   createPointCloudFromBuffers,
   createSmPointCloud,
@@ -32,6 +32,9 @@ import {
 import {
   usePanelVisualizationStore,
   usePanelId,
+  usePanelSingleMoleculeApi,
+  usePanelSingleMoleculeVisualizationApi,
+  usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import {
@@ -62,12 +65,63 @@ import {
 } from "@/lib/utils/sample-transforms";
 import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
 import { useTourStore } from "@/lib/stores/tourStore";
+import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
+import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
+import {
+  openImageRef,
+  type SpatialDataImage,
+} from "@/lib/spatialdata/image";
+
+export interface SceneHandle {
+  /** Holds the point clouds; children share their coordinates and transforms. */
+  group: THREE.Group;
+  camera: THREE.PerspectiveCamera;
+  renderer: THREE.WebGLRenderer;
+}
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
+  /**
+   * Called each time the scene is (re)built, to add extra layers to it.
+   * The returned function is called before that scene is torn down.
+   */
+  onSceneReady?: (scene: SceneHandle) => (() => void) | void;
 }
 
-export function ThreeScene({ dataset }: ThreeSceneProps) {
+export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
+  const onSceneReadyRef = useRef(onSceneReady);
+
+  onSceneReadyRef.current = onSceneReady;
+
+  // Image named by the dataset's mapping.json (`image`), drawn under the
+  // cells. The scene is rebuilt on view changes and the image arrives on its
+  // own schedule, so the layer is attached whenever both exist.
+  const sceneHandleRef = useRef<SceneHandle | null>(null);
+  const overlayImageRef = useRef<SpatialDataImage | null>(null);
+  const overlayImageLayerRef = useRef<ImageLayer | null>(null);
+  const [overlayImageLayer, setOverlayImageLayer] = useState<ImageLayer | null>(
+    null,
+  );
+  const detachOverlayImage = () => {
+    overlayImageLayerRef.current?.dispose();
+    overlayImageLayerRef.current = null;
+    setOverlayImageLayer(null);
+  };
+  const attachOverlayImage = () => {
+    const scene = sceneHandleRef.current;
+    const image = overlayImageRef.current;
+
+    if (!scene || !image || overlayImageLayerRef.current) return;
+    const layer = new ImageLayer(
+      image,
+      scene.group,
+      scene.camera,
+      scene.renderer,
+    );
+
+    overlayImageLayerRef.current = layer;
+    setOverlayImageLayer(layer);
+  };
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
@@ -142,22 +196,26 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     y: number;
     z: number;
   } | null>(null);
-  const smSelectedGenes = useSingleMoleculeVisualizationStore(
+  // The overlay's stores are the panel's own, like the gene picker and the
+  // legends that drive them — so each side of a split has its own overlay.
+  const smStoreApi = usePanelSingleMoleculeApi();
+  const smVizApi = usePanelSingleMoleculeVisualizationApi();
+  const smSelectedGenes = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
-  const smSelectedGenesLegend = useSingleMoleculeVisualizationStore(
+  const smSelectedGenesLegend = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenesLegend,
   );
-  const smGlobalScale = useSingleMoleculeVisualizationStore(
+  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
     (s) => s.globalScale,
   );
-  const smShowAssigned = useSingleMoleculeVisualizationStore(
+  const smShowAssigned = usePanelSingleMoleculeVisualizationStore(
     (s) => s.showAssigned,
   );
-  const smShowUnassigned = useSingleMoleculeVisualizationStore(
+  const smShowUnassigned = usePanelSingleMoleculeVisualizationStore(
     (s) => s.showUnassigned,
   );
-  const smLayerVisible = useSingleMoleculeVisualizationStore(
+  const smLayerVisible = usePanelSingleMoleculeVisualizationStore(
     (s) => s.smLayerVisible,
   );
 
@@ -322,16 +380,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       setSmDataset(null);
       // Also wipe the SM viz selection so the gene picker + legends (gated on
       // selectedGenesLegend, not on the dataset) disappear with the overlay.
-      useSingleMoleculeVisualizationStore.getState().clearGenes();
-      import("@/lib/stores/singleMoleculeStore").then(
-        ({ useSingleMoleculeStore }) => {
-          useSingleMoleculeStore.getState().removeDataset(prev.id);
-        },
-      );
+      smVizApi.getState().clearGenes();
+      smStoreApi.getState().removeDataset(prev.id);
     };
 
     // Load the single shared SM dataset for an "__all__" mapping and push it
-    // into the overlay + global SM store. `source` decides how it's loaded:
+    // into the overlay + this panel's SM store. `source` decides how it's loaded:
     //   - "s3": smRef is a PUBLIC S3 base URL → fromCustomS3()
     //   - "app": smRef is an app dataset id (sm_…) → fromS3() (presigned API),
     //            which is how app-uploaded overlays (no public bucket) load.
@@ -350,14 +404,11 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         smDatasetRef.current = smDs;
         setSmDataset(smDs);
 
-        const { useSingleMoleculeStore } = await import(
-          "@/lib/stores/singleMoleculeStore"
-        );
-
-        useSingleMoleculeStore.getState().addDataset(smDs);
+        smStoreApi.getState().addDataset(smDs);
         // The saved-default-genes fallback keys off a public URL, so it's only
-        // meaningful for the "s3" source.
-        if (source === "s3") {
+        // meaningful for the "s3" source — and only the main (left) viewer's
+        // page reads it, from the global store.
+        if (source === "s3" && smStoreApi === useSingleMoleculeStore) {
           useSingleMoleculeStore.getState().setOverlaySourceUrl(smRef);
         }
       } catch (error) {
@@ -368,12 +419,39 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     };
 
     clearSmOverlay();
+    overlayImageRef.current = null;
+    detachOverlayImage();
 
     if (!dataset) {
       linkConfigRef.current = null;
 
       return;
     }
+
+    let stale = false;
+    const loadOverlayImage = async (
+      mapping?: Pick<DatasetLinkConfig, "image" | "imageSource"> | null,
+    ) => {
+      if (!mapping?.image) return;
+      // The image is placed in raw coordinates; a normalized scene has none.
+      if (dataset.normalized !== false) {
+        console.warn("mapping.json image skipped: dataset is normalized");
+
+        return;
+      }
+      try {
+        const image = await openImageRef({
+          image: mapping.image,
+          source: mapping.imageSource,
+        });
+
+        if (stale) return;
+        overlayImageRef.current = image;
+        attachOverlayImage();
+      } catch (error) {
+        console.warn("Failed to load overlay image:", error);
+      }
+    };
 
     // Check hardcoded registry first
     const registryConfig = getDatasetLinkConfig(dataset);
@@ -385,6 +463,9 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       fetchMappingConfig(dataset).then(async (mappingConfig) => {
         if (!mappingConfig) return;
 
+        void loadOverlayImage(mappingConfig);
+        // A mapping that only names an image links no molecules
+        if (!mappingConfig.links) return;
         linkConfigRef.current = mappingConfig;
 
         // "__all__" means every cell links to the same SM dataset — load overlay
@@ -446,9 +527,12 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
     // above skips them. Try our own mapping.json proxy instead — currently only
     // the "__all__" overlay is produced this way (the combined SC+SM upload).
     if (!registryConfig && !dataset.metadata?.customS3BaseUrl && dataset.id) {
-      fetch(`/api/datasets/${dataset.id}/mapping`)
+      // Revalidate: the route is cached for a minute, which would hide an
+      // overlay that was just attached or removed until the cache expired.
+      fetch(`/api/datasets/${dataset.id}/mapping`, { cache: "no-cache" })
         .then((r) => (r.ok ? r.json() : null))
         .then((mc: DatasetLinkConfig | null) => {
+          void loadOverlayImage(mc);
           if (mc && mc.linkColumn === "__all__" && mc.links) {
             linkConfigRef.current = mc;
             void loadAllOverlay(mc.links["__all__"], mc.source ?? "s3");
@@ -456,6 +540,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
         })
         .catch(() => {});
     }
+
+    return () => {
+      stale = true;
+    };
   }, [dataset, incrementClusterVersion]);
 
   // Store current mode and selection in refs to avoid closure issues
@@ -1030,9 +1118,17 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       // Start animation
       animate();
       markSceneReady();
+      const sceneHandle = { group: innerGroup, camera, renderer };
+      const removeExtraLayers = onSceneReadyRef.current?.(sceneHandle);
+
+      sceneHandleRef.current = sceneHandle;
+      attachOverlayImage();
 
       // Cleanup on unmount
       return () => {
+        removeExtraLayers?.();
+        detachOverlayImage();
+        sceneHandleRef.current = null;
         // Remove event listeners
         renderer.domElement.removeEventListener("mousemove", handleMouseMove);
         renderer.domElement.removeEventListener("dblclick", handleDoubleClick);
@@ -1978,6 +2074,10 @@ export function ThreeScene({ dataset }: ThreeSceneProps) {
       />
 
       {webglFailed && <WebGLErrorOverlay />}
+
+      {overlayImageLayer && (
+        <SpatialDataImageControls layer={overlayImageLayer} />
+      )}
 
       {/* SM loading indicator */}
       {smLoading && (

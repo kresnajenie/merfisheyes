@@ -112,7 +112,9 @@ function UploadCard({ upload: u }: { upload: Upload }) {
           </p>
           <p className="mt-0.5 text-sm text-default-500">
             {u.status === "COMPLETE"
-              ? `${u.numCells.toLocaleString()} ${countLabel} · ${u.numGenes.toLocaleString()} genes`
+              ? u.datasetType === "image"
+                ? "Image"
+                : `${u.numCells.toLocaleString()} ${countLabel} · ${u.numGenes.toLocaleString()} genes`
               : u.status === "FAILED"
                 ? "Failed"
                 : u.progress?.stage || statusLabel(u.status)}

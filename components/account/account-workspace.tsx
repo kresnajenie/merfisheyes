@@ -17,6 +17,7 @@ import { AccountDatasetCard } from "./account-dataset-card";
 import { AccountProjectCard } from "./account-project-card";
 import { MetadataEditModal } from "./metadata-edit-modal";
 import { AddToProjectModal } from "./add-to-project-modal";
+import { DeleteDatasetModal } from "./delete-dataset-modal";
 import { AccountFilterBar } from "./account-filter-bar";
 
 type EditTarget =
@@ -76,6 +77,7 @@ export function AccountWorkspace() {
   const [loading, setLoading] = useState(true);
 
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DatasetRow | null>(null);
   const [addToProjectFor, setAddToProjectFor] = useState<DatasetRow | null>(
     null,
   );
@@ -534,6 +536,7 @@ export function AccountWorkspace() {
                       geneHighlight={debouncedGeneSearch || undefined}
                       projectNames={d.projectNames ?? []}
                       onAddToProject={setAddToProjectFor}
+                      onDelete={setDeleteTarget}
                       onEdit={(data) =>
                         setEditTarget({ kind: "dataset", data })
                       }
@@ -616,6 +619,20 @@ export function AccountWorkspace() {
         onSave={handleSave}
       />
 
+      <DeleteDatasetModal
+        dataset={
+          deleteTarget && {
+            ...deleteTarget,
+            onExplore: deleteTarget.submission !== null,
+          }
+        }
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={() => {
+          // Counts and thumbnails in the projects tab change too
+          loadDatasets();
+          loadProjects();
+        }}
+      />
       <AddToProjectModal
         dataset={addToProjectFor}
         isOpen={addToProjectFor !== null}

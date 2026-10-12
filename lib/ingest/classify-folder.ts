@@ -1,6 +1,7 @@
 /**
  * Decide which files in a picked folder are worth uploading, and whether the
- * folder holds single-cell data, single-molecule data, or both.
+ * folder holds single-cell data, single-molecule data, an image, or several
+ * of them.
  *
  * Server-side ingestion uploads raw bytes, so an unfiltered folder means
  * sending gigabytes the processor will never open — a Xenium export is mostly
@@ -27,6 +28,13 @@ export interface ClassifiedFile {
 export interface FolderClassification {
   singleCell?: { format: SingleCellFormat; files: ClassifiedFile[] };
   singleMolecule?: { files: ClassifiedFile[] };
+  /**
+   * Zarr v3 folders at the top level (`<name>.zarr/zarr.json`), each a
+   * candidate image. Whether one really is an OME-Zarr image is in its root
+   * `zarr.json`, which the caller has to read (see isOmeZarrImage). File keys
+   * are relative to the zarr folder, so its root metadata is "zarr.json".
+   */
+  images: { name: string; files: ClassifiedFile[] }[];
   /** Everything not selected, so the UI can say what it is leaving behind. */
   ignored: ClassifiedFile[];
 }
@@ -245,9 +253,23 @@ export function classifyFolder(files: File[]): FolderClassification {
     singleMolecule = { files: claim([best]) };
   }
 
+  // Zarr folders: everything under a top-level `<name>.zarr/` that has a
+  // root zarr.json.
+  const zarrRoots = usable
+    .map((e) => /^([^/]+\.zarr)\/zarr\.json$/i.exec(e.key)?.[1])
+    .filter((root): root is string => root !== undefined)
+    .sort();
+  const images = zarrRoots.map((root) => ({
+    name: root,
+    files: claim(usable.filter((e) => e.key.startsWith(`${root}/`))).map(
+      (e) => ({ key: e.key.slice(root.length + 1), file: e.file }),
+    ),
+  }));
+
   return {
     singleCell,
     singleMolecule,
+    images,
     ignored: entries.filter((e) => !claimed.has(e)),
   };
 }
