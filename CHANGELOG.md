@@ -8,6 +8,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-12
+
+Data that is already processed opens as it is: drop a folder of cells,
+molecules and an image, or paste the URL of one on a public bucket, and they
+open overlaid with nothing converted.
+
 ### Added
 
 - **Drop an OME-Zarr image to look at it.** An image folder dropped on the
@@ -460,7 +466,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.6.0...v0.7.0
