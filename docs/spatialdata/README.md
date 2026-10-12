@@ -203,7 +203,8 @@ Clusters are numbered, not named, and no UMAP is written.
   through S3 instead.
 - **An image** (optional) with axes `c, y, x` and `uint8` or `uint16`
   pixels. Its transforms and those of the shapes/points element may be
-  `identity`, `scale` and `translation`; others are ignored with a console
+  `identity`, `scale`, `translation` and a `sequence` of those (how the
+  `spatialdata` library writes scale-then-translation); others are ignored with a console
   warning.
 - **CORS** on the bucket for the origin the app is served from, allowing
   `GET`. A store with sharded arrays (anndata ≥ 0.12 writes them by default)

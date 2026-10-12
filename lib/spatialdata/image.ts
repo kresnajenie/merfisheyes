@@ -36,14 +36,28 @@ export interface SpatialDataImage {
   levels: ImageLevel[];
 }
 
-type Transform = { type: string; scale?: number[]; translation?: number[] };
+type Transform = {
+  type: string;
+  scale?: number[];
+  translation?: number[];
+  /** Of a "sequence": its steps, applied in order. */
+  transformations?: Transform[];
+};
 
-/** Per-axis scale and offset of a chain of scale / translation / identity. */
+/**
+ * Per-axis scale and offset of a chain of scale / translation / identity. A
+ * sequence (how spatialdata writes a scale followed by a translation) counts
+ * as its steps.
+ */
 function composeTransforms(transforms: Transform[] | undefined, axes: number) {
   const scale = new Array(axes).fill(1);
   const offset = new Array(axes).fill(0);
+  const steps = (list: Transform[]): Transform[] =>
+    list.flatMap((t) =>
+      t.type === "sequence" ? steps(t.transformations ?? []) : [t],
+    );
 
-  for (const t of transforms ?? []) {
+  for (const t of steps(transforms ?? [])) {
     if (t.type === "scale" && t.scale) {
       for (let i = 0; i < axes; i++) {
         scale[i] *= t.scale[i];
