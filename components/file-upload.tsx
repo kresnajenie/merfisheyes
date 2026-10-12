@@ -38,6 +38,13 @@ import {
   fallbackSingleMoleculeFile,
 } from "@/lib/ingest/classify-folder";
 import { useUploadStore } from "@/lib/stores/uploadStore";
+import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
+import {
+  classifyBundle,
+  hasParts,
+  type LocalBundle,
+} from "@/lib/local/classify-bundle";
+import { openLocalBundle } from "@/lib/local/open-bundle";
 import {
   isOmeZarrImage,
   type ImageUploadFile,
@@ -651,6 +658,53 @@ export function FileUpload({
     router.push("/explore");
   };
 
+  // Open a folder of already-processed parts and go to the viewer for what
+  // it holds: the cells if any (molecules over them, image under), else the
+  // molecules (image under), else the image on its own.
+  const openBundle = async (
+    bundle: LocalBundle,
+    onProgress: (progress: number, message: string) => void,
+  ) => {
+    const opened = await openLocalBundle(bundle, onProgress);
+    const anchor = opened.cells ?? opened.molecules;
+
+    if (bundle.skipped.length > 0) {
+      toast.info(
+        `More than one candidate found; used the first. Skipped: ${bundle.skipped.join(", ")}.`,
+        { autoClose: 12000 },
+      );
+    }
+    useLocalBundleStore.getState().set({
+      bundle,
+      anchorId: anchor?.id ?? null,
+      // Over cells the scene adds the molecules itself; alone they are the dataset
+      molecules: opened.cells ? (opened.molecules ?? null) : null,
+      image: opened.image ?? null,
+    });
+
+    if (opened.cells) {
+      cellStore.addDataset(opened.cells);
+      markDatasetLoaded({
+        pointCount: opened.cells.getPointCount(),
+        geneCount: opened.cells.genes.length,
+        dimensions: opened.cells.spatial.dimensions,
+        dataType: "single_cell",
+      });
+      router.push("/viewer/from-local");
+    } else if (opened.molecules) {
+      smStore.addDataset(opened.molecules);
+      markDatasetLoaded({
+        geneCount: opened.molecules.uniqueGenes.length,
+        dimensions: opened.molecules.dimensions,
+        dataType: "single_molecule",
+      });
+      router.push("/sm-viewer/from-local");
+    } else {
+      router.push("/image-viewer/from-local");
+    }
+    setLoading(false);
+  };
+
   const handleFiles = async (files: File[]) => {
     if (files.length === 0) return;
 
@@ -672,6 +726,38 @@ export function FileUpload({
         setProgress(prog);
         setProgressMessage(msg);
       };
+
+      // Whatever a previous drop overlaid does not belong to this one
+      useLocalBundleStore.getState().reset();
+
+      // A folder of already-processed parts (cells, molecules, an image, in
+      // any combination) opens as it is, each part read lazily. The dropped
+      // folder being nothing but a merfisheyes cell folder is the pre-chunked
+      // path further down, unchanged.
+      if (!singleMolecule && type === "folder") {
+        const bundle = await classifyBundle(files);
+        const onlyChunkedCells =
+          bundle.cells?.kind === "chunked" && bundle.cells.root === "";
+
+        if (hasParts(bundle) && !onlyChunkedCells) {
+          const rawCells =
+            isXeniumFolder(files) ||
+            isMerscopeFolder(files) ||
+            findH5adFile(files) !== null;
+
+          if (!rawCells || bundle.cells) {
+            await openBundle(bundle, onProgress);
+
+            return;
+          }
+          // Raw cells have to be parsed first; overlaying processed parts on
+          // them in the browser is not done yet.
+          toast.info(
+            "Found processed molecules or an image beside raw cells. The browser preview shows the cells only; use “Upload & process on server” to combine them.",
+            { autoClose: 12000 },
+          );
+        }
+      }
 
       let dataset: StandardizedDataset | SingleMoleculeDataset;
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { datasetKind } from "@/lib/datasets/kind";
 import {
   getOverlaySmId,
   getOverlayImage,
@@ -98,7 +99,7 @@ export async function PATCH(
   if (!sc) {
     return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
   }
-  if (sc.datasetType !== "single_cell") {
+  if (datasetKind(sc.datasetType) !== "single_cell") {
     return NextResponse.json(
       { error: "Overlays attach to single-cell datasets" },
       { status: 400 },
@@ -138,7 +139,7 @@ export async function POST(
   if (!sc) {
     return NextResponse.json({ error: "Dataset not found" }, { status: 404 });
   }
-  if (sc.datasetType !== "single_cell") {
+  if (datasetKind(sc.datasetType) !== "single_cell") {
     return NextResponse.json(
       { error: "Overlays attach to single-cell datasets" },
       { status: 400 },

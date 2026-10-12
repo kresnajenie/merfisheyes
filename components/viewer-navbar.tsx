@@ -31,7 +31,8 @@ export const ViewerNavbar = ({ onUploadClick }: ViewerNavbarProps) => {
   const pathname = usePathname();
   const showUpload =
     (pathname === "/viewer/from-local" ||
-      pathname === "/sm-viewer/from-local") &&
+      pathname === "/sm-viewer/from-local" ||
+      pathname === "/image-viewer/from-local") &&
     !!onUploadClick;
 
   return (

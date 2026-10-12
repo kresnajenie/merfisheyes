@@ -12,7 +12,13 @@ import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
-import { useCellVizUrlSync } from "@/lib/hooks/useUrlVizSync";
+import {
+  useCellVizUrlSync,
+  useSMOverlayUrlSync,
+} from "@/lib/hooks/useUrlVizSync";
+import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
+import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
 
 function ViewerFromLocalContent() {
@@ -24,6 +30,22 @@ function ViewerFromLocalContent() {
 
   // URL visualization state sync
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
+
+  // Molecules dropped in the same folder as these cells are drawn over them
+  // by the scene; this picks their default genes, as the saved viewers do.
+  const overlayMolecules = useLocalBundleStore((s) =>
+    dataset && s.anchorId === dataset.id ? s.molecules : null,
+  );
+  const overlayLoaded = useSingleMoleculeStore(
+    (s) => !!overlayMolecules && s.datasets.has(overlayMolecules.id),
+  );
+  const smVizStore = useSingleMoleculeVisualizationStore();
+
+  useSMOverlayUrlSync(
+    overlayLoaded,
+    overlayLoaded ? overlayMolecules : null,
+    smVizStore,
+  );
 
 
   useEffect(() => {

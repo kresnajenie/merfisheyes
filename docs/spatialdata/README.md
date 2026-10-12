@@ -43,6 +43,21 @@ not read directly.
 /spatialdata-viewer/from-s3?url=https://<bucket>.s3.<region>.amazonaws.com/<folder>/<name>.zarr
 ```
 
+The URL may also be the **folder that holds the store**
+(`…/<folder>/`). A public URL can't be listed, so the store is found by
+name: the `cells` entry of the folder's `mapping.json`, else a store named
+after the folder (`<folder>/<folder>.zarr`). Either way everything beside the
+store is overlaid, and the link reopens all of it.
+
+The homepage's **Load from S3** box takes the same URLs — a store, the folder
+holding one, or an OME-Zarr image — as well as merfisheyes folders.
+
+A store opened by URL that nobody owns shows the **Add to my account**
+banner, like any other dataset opened by URL. Nothing is copied: the row
+(`datasetType: "spatialdata"`, `ingestSource: "s3_registered"`) remembers the
+store's URL, it is listed under **Your datasets**, and it opens at the same
+`from-s3` link.
+
 **By dataset id** — a store under `datasets/{id}/` in the app's own bucket,
 with a `Dataset` row (`COMPLETE`):
 
@@ -52,6 +67,54 @@ with a `Dataset` row (`COMPLETE`):
 
 The store is found by its root `zarr.json`, so it can sit at
 `datasets/{id}/` or in a subfolder such as `datasets/{id}/data.zarr/`.
+
+**From your computer** — drop the store, or a folder that holds it, on the
+homepage's single-cell **Folder** card in *Preview in browser*. See the next
+section.
+
+## Opening already-processed data from disk
+
+A folder whose parts are already in a format the viewer reads opens as it is:
+nothing is converted, and each part is read from the dropped files a piece at
+a time — a table column, one gene, the image tiles in view — so its size does
+not matter. Two layouts are accepted, and any part may be missing:
+
+```
+sample/                          sample/
+├── <store>.zarr/   cells+image  ├── <folder>/        cells (merfisheyes output)
+├── <folder>/       molecules    ├── <folder>/        molecules (merfisheyes output)
+└── annotations/    optional     └── <image>.zarr/    an OME-Zarr image
+```
+
+| Part | Recognised by |
+| --- | --- |
+| Cells (SpatialData) | a `zarr.json` plus `tables/`, `images/` or another element group |
+| Cells (table alone) | a `zarr.json` with `obs/` and `var/` beside it: `tables/<table>/` or `tables/` out of a store, or any AnnData written to Zarr v3 |
+| Cells (merfisheyes) | `manifest.json`, `expr/index.json`, `coords/spatial.bin.gz` |
+| Molecules | `manifest.json.gz` (or `manifest.json`) and `genes/*.bin.gz` |
+| Image | a `zarr.json` describing an OME-Zarr image with axes `c, y, x` |
+
+- Names don't matter, except `annotations/`. A part is a folder directly
+  inside the dropped one, or the dropped folder itself (an image folder
+  dropped alone opens in the image viewer).
+- With cells, the molecules go over them and the image under them (a store's
+  own image, else the standalone one). Without cells the molecules are the
+  scene, image under them. With several candidates for a part the first by
+  name is used and a message names the rest.
+- The preview runs in the ordinary viewers — `/viewer/from-local`,
+  `/sm-viewer/from-local`, `/image-viewer/from-local` — with the extras handed
+  over through `lib/stores/localBundleStore.ts`.
+- Raw cells (H5AD, Xenium, MERSCOPE) beside processed parts are shown on
+  their own, with a note: they have to be parsed first.
+
+**Upload & Save** from such a preview sends every part as it is, each as its
+own dataset in one project: a merfisheyes cell folder through the pre-chunked
+upload, the molecules through the pre-chunked molecule upload, an image as an
+image dataset, and a SpatialData store whole (`datasetType: "spatialdata"`,
+its `annotations/` beside it), which then opens at `/spatialdata-viewer/{id}`.
+The cells' `mapping.json` is written with both links, so the saved link opens
+overlaid. Molecules and an image saved without cells are grouped in a project
+but not overlaid: only cells carry overlays.
 
 ## Layout on S3
 
@@ -65,7 +128,7 @@ The store is found by its root `zarr.json`, so it can sit at
 │   ├── annotations.json
 │   ├── leiden.bin
 │   └── de/leiden.bin.gz
-└── mapping.json          links the cells to molecules/
+└── mapping.json          names the store ("cells") and links it to molecules/
 ```
 
 `molecules/`, `annotations/` and `mapping.json` are all optional; without
@@ -88,8 +151,10 @@ aws s3 sync $STORE $DEST/name.zarr/ --exclude '*.DS_Store'
 python scripts/spatialdata_points_to_sm.py $STORE molecules/ --workers 16 --drop-z
 aws s3 sync molecules/ $DEST/molecules/
 
-# 3. Link the cells to the molecules
-echo "{\"linkColumn\":\"__all__\",\"links\":{\"__all__\":\"$URL/molecules\"}}" > mapping.json
+# 3. Name the store and link its cells to the molecules. "cells" is what lets
+#    the folder URL be opened on its own; it is not needed when the store is
+#    named after the folder.
+echo "{\"cells\":\"name.zarr\",\"linkColumn\":\"__all__\",\"links\":{\"__all__\":\"$URL/molecules\"}}" > mapping.json
 aws s3 cp mapping.json $DEST/mapping.json
 
 # 4. Clusters and DEGs (112k cells: ~1 min)
@@ -294,7 +359,8 @@ them with no further step.
 A `.zarr` folder is only offered when its root `zarr.json` describes an image
 the viewer can draw (axes `c, y, x`). The image is uploaded under one
 refreshable POST policy, eight files at a time, so a multi-gigabyte image is
-not cut off when a signature expires; no single file may exceed 200 MB.
+not cut off when a signature expires; no single file may exceed 5 GB (what
+S3 accepts in one POST — a sharded array is one file however large it is).
 
 ### Writing an image
 
@@ -363,7 +429,20 @@ SpatialData store (`…/<name>.zarr/images/<image>`).
 - Reading transcripts straight from the store's spatially tiled Parquet
   (they are converted to per-gene files instead).
 - Labels, multiple images, multiple coordinate systems.
-- Uploading a store through the app; stores are synced to S3 by hand.
+- Uploading a store by itself from the homepage's server mode; a store is
+  uploaded with *Upload & Save* from its local preview, or synced to S3 by
+  hand.
+
+## Backlog
+
+- **View the parts that are ready while the rest convert.** Today, raw cells
+  (H5AD, Xenium, MERSCOPE) dropped beside an already-processed image or
+  molecule folder are previewed on their own. The aim: open the processed
+  parts at once — the image, the molecules — and add the cells to the same
+  scene when their conversion finishes, in the browser or on the server,
+  instead of making the whole folder wait for its slowest part.
+- An image under a saved molecule dataset that has no cells (only cells carry
+  overlays today).
 
 ## Code
 
@@ -374,15 +453,20 @@ SpatialData store (`…/<name>.zarr/images/<image>`).
 | `components/spatialdata-image-controls.tsx` | Image button and channel panel |
 | `components/image-viewer.tsx`, `app/image-viewer/` | An image on its own, by URL |
 | `lib/spatialdata/store.ts` | Opening a store by dataset id or URL |
+| `lib/spatialdata/localStore.ts` | A zarr store over dropped files; opening a store from them |
+| `lib/local/classify-bundle.ts`, `open-bundle.ts`, `save-bundle.ts` | Recognising, opening and saving a dropped folder of processed parts |
+| `components/bundle-upload-modal.tsx` | *Upload & Save* for such a folder |
 | `lib/storage/fetchRange.ts` | Byte-range reads, for sharded arrays |
 | `lib/spatialdata/SpatialDataTableAdapter.ts` | Table → cells, genes, columns, annotations, DE stats |
 | `lib/spatialdata/loadSpatialDataMolecules.ts` | The linked molecules of a store that has no cells |
 | `lib/spatialdata/image.ts` | OME-Zarr multiscale metadata and placement |
 | `lib/spatialdata/ImageLayer.ts` | Tiled image layer in the Three.js scene |
+| `lib/spatialdata/imageUrlState.ts` | An image's display settings in the link (`img=`) |
+| `lib/spatialdata/resolveUrl.ts` | What a URL is: a store, an image, or a folder holding a store |
 | `components/three-scene.tsx` | Draws a dataset's `mapping.json` image under its cells |
 | `components/overlay-manager.tsx`, `components/image-overlay-picker.tsx` | The owner's overlay dialog: molecules, and the image browser |
 | `lib/datasets/kind.ts` | The three dataset kinds and which viewer each opens in |
-| `lib/datasets/register-or-claim.ts` | Registering a URL as a dataset; recognises an OME-Zarr image |
+| `lib/datasets/register-or-claim.ts` | Registering a URL as a dataset; recognises an OME-Zarr image and a SpatialData store |
 | `lib/upload/uploadImageToS3.ts` | Uploading an image folder as an image dataset |
 | `lib/ingest/classify-folder.ts` | Finding cells, molecules and image folders in a picked folder |
 | `app/api/datasets/[datasetId]/overlay/`, `lib/ingest/overlay.ts` | Overlay API and the `mapping.json` it writes |
@@ -400,6 +484,9 @@ SpatialData store (`…/<name>.zarr/images/<image>`).
 | `e2e/tests/upload/image-overlay.spec.ts` | Adding an image to an account by URL, picking it in the overlay dialog, the channel bounds, who may change it, deleting it | E2E upload (`@upload`) |
 | `e2e/tests/upload/combined-upload.spec.ts` | One folder of cells, molecules and an image becoming three linked datasets in a project; the uploaded image opening by id | E2E upload (`@upload`) |
 | `tests/unit/classify-folder.test.ts`, `tests/unit/image-dataset.test.ts` | Image-folder detection, dataset kinds, recognising an OME-Zarr image | Unit tests |
+| `tests/unit/local-bundle.test.ts` | Recognising the parts of a dropped folder; reading zarr from local files | Unit tests |
+| `e2e/tests/viewer/local-bundle.spec.ts` | Dropping an image, both layouts and their subsets; duplicates; raw cells beside processed parts; normalized cells | E2E quick (`@quick`) |
+| `e2e/tests/upload/local-bundle-save.spec.ts` | Saving each layout and an image from its preview, and reopening the saved link overlaid | E2E upload (`@upload`) |
 
 The browser tests serve the committed fixtures from a local stand-in for a
 public bucket (`e2e/helpers/fixture-server.ts`), which answers CORS

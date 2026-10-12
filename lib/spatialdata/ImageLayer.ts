@@ -134,6 +134,11 @@ export class ImageLayer {
     this.tick();
   }
 
+  /** Whether a channel's window has been set, by the data or by hand. */
+  hasWindow(index: number): boolean {
+    return this.windowed[index];
+  }
+
   setChannel(index: number, patch: Partial<ImageChannel>) {
     const channel = Object.assign(this.channels[index], patch);
 

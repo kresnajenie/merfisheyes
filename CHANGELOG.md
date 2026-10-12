@@ -8,7 +8,46 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Drop an OME-Zarr image to look at it.** An image folder dropped on the
+  single-cell Folder card (Preview in browser) opens in the image viewer,
+  read from disk as you zoom. Nothing is uploaded.
+- **Already-processed cells, molecules and an image open together, as they
+  are.** A folder holding a SpatialData store or a merfisheyes cell folder,
+  a merfisheyes molecule folder and an OME-Zarr image — any of them, in any
+  combination, recognised by content — opens overlaid without converting
+  anything, so its size does not matter.
+- **Upload & Save keeps the overlays.** Saving such a preview uploads every
+  part as it is, each as its own dataset in one project, and the saved link
+  opens with the molecules over the cells and the image under them. A
+  SpatialData store can now be uploaded this way.
+- **A Zarr v3 table opens on its own.** An AnnData written to Zarr v3, or
+  the table copied out of a SpatialData store (`tables/<table>/`, or
+  `tables/` itself), previews and saves without the store around it. Zarr v2
+  AnnData folders open as before.
+- **Load from S3 opens stores, images and whole folders.** The homepage box
+  takes a SpatialData store, an OME-Zarr image, or the folder holding a store
+  with its molecules beside it, which opens with everything overlaid. The
+  folder's `mapping.json` names the store (`cells`); a store named after its
+  folder is found without it.
+- **A SpatialData store opened by URL can be added to your account**, like
+  cells, molecules and images opened by URL.
+- **Image settings are kept in the link.** Channels on or off, their colours
+  and their lower and upper bounds go into the URL as they are changed, so a
+  shared link looks the same.
+- **The upload guide covers images and processed folders**, on the site and
+  in the README.
+
+### Fixed
+
+- Load from S3 now says why a URL could not be opened; the message was never
+  shown.
+
+### Changed
+
+- A single file in a zarr-folder upload may now be up to 5 GB (was 200 MB):
+  a sharded array is one file however large it is.
 
 ## [0.9.0] - 2026-10-11
 

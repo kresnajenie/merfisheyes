@@ -14,6 +14,7 @@ import {
 import { useRouter } from "next/navigation";
 import { ungzip } from "pako";
 
+import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 import { parseS3Url, testManifestAccess } from "@/lib/utils/s3-url-parser";
 
 interface LoadFromS3ModalProps {
@@ -51,13 +52,30 @@ export function LoadFromS3Modal({
       const manifestTest = await testManifestAccess(parsed.baseUrl);
 
       if (!manifestTest.exists) {
-        throw new Error(
-          `Cannot access manifest. Please ensure:\n` +
-            `1. The folder URL is correct\n` +
-            `2. manifest.json or manifest.json.gz exists in the folder\n` +
-            `3. The S3 bucket/folder has public read access\n` +
-            `4. CORS is configured to allow requests from ${window.location.origin}`,
+        // Not a merfisheyes folder: a SpatialData store, an OME-Zarr image,
+        // or a folder holding a store. Each is read as it is by its viewer.
+        setValidationStep("Looking for a SpatialData store or an image...");
+        const target = await resolveZarrUrl(parsed.baseUrl);
+
+        if (!target) {
+          throw new Error(
+            `Nothing to open at that URL. Please ensure:\n` +
+              `1. The URL is a merfisheyes folder (manifest.json or manifest.json.gz), a SpatialData store or an OME-Zarr image (zarr.json), or a folder holding a store\n` +
+              `2. A folder names its store in mapping.json ("cells"), or the store is named after the folder (sample/sample.zarr)\n` +
+              `3. The S3 bucket/folder has public read access\n` +
+              `4. CORS is configured to allow requests from ${window.location.origin}`,
+          );
+        }
+        // A store's link keeps the URL as entered: the viewer finds the
+        // store in a folder the same way.
+        router.push(
+          target.kind === "image"
+            ? `/image-viewer/from-s3?url=${encodeURIComponent(target.url)}`
+            : `/spatialdata-viewer/from-s3?url=${encodeURIComponent(parsed.baseUrl)}`,
         );
+        onClose();
+
+        return;
       }
 
       setValidationStep("Downloading and parsing manifest...");
@@ -187,12 +205,17 @@ export function LoadFromS3Modal({
         <ModalBody>
           <div className="flex flex-col gap-4">
             <p className="text-sm text-default-600">
-              Enter the S3 URL to your dataset folder. The folder should contain
-              a{" "}
+              Enter the S3 URL to your dataset folder: a merfisheyes folder
+              (with a{" "}
               <code className="text-xs bg-default-100 px-1 py-0.5 rounded">
                 manifest.json.gz
+              </code>
+              ), a SpatialData{" "}
+              <code className="text-xs bg-default-100 px-1 py-0.5 rounded">
+                .zarr
               </code>{" "}
-              file and associated data files.
+              store, an OME-Zarr image, or a folder holding a store with its
+              molecules beside it — those open overlaid.
             </p>
 
             <Input
@@ -201,7 +224,7 @@ export function LoadFromS3Modal({
               value={s3Url}
               variant="bordered"
               onValueChange={setS3Url}
-              description="S3 URL or any public HTTP URL containing a manifest file"
+              description="S3 URL or any public HTTP URL of a dataset folder, store or image"
             />
 
             {isLoading && (
@@ -209,6 +232,12 @@ export function LoadFromS3Modal({
                 <Spinner size="sm" />
                 <p className="text-sm text-default-600">{validationStep}</p>
               </div>
+            )}
+
+            {error && (
+              <p className="whitespace-pre-line rounded-lg bg-danger-50 p-3 text-sm text-danger">
+                {error}
+              </p>
             )}
 
             <div className="text-xs text-default-500 space-y-3">
@@ -221,8 +250,8 @@ export function LoadFromS3Modal({
                   </li>
                   <li>CORS must be configured (see below)</li>
                   <li>
-                    Dataset must be processed using the MERFISHeyes Python
-                    scripts
+                    A merfisheyes folder (from the MERFISHeyes Python scripts),
+                    a SpatialData store or an OME-Zarr image, on Zarr v3
                   </li>
                 </ul>
               </div>

@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { SubmissionBadge } from "./submission-badge";
 
 import { ExploreDatasetCard } from "@/components/explore/explore-dataset-card";
-import { datasetKind } from "@/lib/datasets/kind";
+import { entryType } from "@/lib/datasets/kind";
 
 interface AccountProjectCardProps {
   project: ProjectRow;
@@ -54,7 +54,7 @@ function toItem(p: ProjectRow): CatalogDatasetItem {
       label: d.title ?? "Dataset",
       // Legacy rows store raw formats ("h5ad", "merscope") here; those
       // render as single cell.
-      datasetType: datasetKind(d.datasetType),
+      datasetType: entryType(d.datasetType),
       s3BaseUrl: null,
       datasetId: d.id,
       thumbnailUrl: d.thumbnailUrl,

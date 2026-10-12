@@ -24,7 +24,7 @@ import { MetadataEditModal } from "./metadata-edit-modal";
 import { SubmissionBadge } from "./submission-badge";
 
 import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
-import { datasetKind, KIND_BADGE } from "@/lib/datasets/kind";
+import { datasetKind, entryType, KIND_BADGE } from "@/lib/datasets/kind";
 
 interface MemberDataset {
   id: string;
@@ -88,7 +88,7 @@ function toItem(project: ProjectData, members: MemberDataset[]): CatalogDatasetI
       label: d.title ?? "Untitled dataset",
       // Legacy rows store raw formats ("h5ad", "merscope") here; the app-wide
       // convention is that those render as single cell.
-      datasetType: datasetKind(d.datasetType),
+      datasetType: entryType(d.datasetType),
       // s3-registered datasets open via from-s3; everything else by id. A
       // non-COMPLETE member gets no link (entry renders inert).
       s3BaseUrl:
