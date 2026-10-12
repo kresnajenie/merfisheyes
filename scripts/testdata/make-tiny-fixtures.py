@@ -13,7 +13,7 @@ Outputs into tests/data/tiny/:
   xenium/tiny/...
   merscope/tiny/...
   single-molecule/tiny.parquet
-  chunked/tiny/...            (produced from the h5ad via process_spatial_data.py)
+  chunked/raw/...             (produced from the h5ad via process_spatial_data.py)
   single-molecule/chunked/... (produced from the parquet via process_single_molecule.py)
 """
 
@@ -53,7 +53,10 @@ def main():
          "--out", TINY / "single-molecule" / "tiny.parquet"])
 
     # Chunked folder: reuse the production preprocessing pipeline on the h5ad.
-    chunked_out = TINY / "chunked" / "tiny"
+    # chunked/tiny is NOT regenerated: it is a frozen output of the older
+    # processor, which normalized coordinates, kept to test that such folders
+    # still load (and that an image is not drawn under them).
+    chunked_out = TINY / "chunked" / "raw"
     if PROCESS.exists():
         try:
             run([PROCESS, TINY / "h5ad" / "tiny.h5ad", chunked_out, "--format", "h5ad"])

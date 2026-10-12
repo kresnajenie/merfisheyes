@@ -15,3 +15,4 @@ export * from "../helpers/upload";
 export * from "../helpers/perf";
 export * from "../helpers/assert";
 export * from "../helpers/spatialdata";
+export * from "../helpers/local-bundle";

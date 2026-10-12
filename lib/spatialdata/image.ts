@@ -4,6 +4,7 @@ import type { SpatialDataStore } from "./store";
 import * as zarr from "zarrita-v3";
 
 import { elementNames, publicUrlStore } from "./store";
+import { fileStore } from "./localStore";
 
 import {
   fetchDatasetKeyList,
@@ -134,6 +135,24 @@ export async function openOmeZarrImageDataset(
   const name = prefix.replace(/\/$/, "").replace(/\.zarr$/, "") || datasetId;
 
   return readMultiscale(name, group, { scale: [1, 1], offset: [0, 0] });
+}
+
+/**
+ * Open an OME-Zarr image from files picked or dropped in the browser, keyed
+ * by their path inside the image folder. Tiles are read from disk as the
+ * view asks for them.
+ */
+export async function openOmeZarrImageFromFiles(
+  files: Map<string, File>,
+  name: string,
+): Promise<SpatialDataImage> {
+  const root = zarr.root(fileStore(files) as zarr.Readable);
+  const group = await zarr.open.v3(root, { kind: "group" });
+
+  return readMultiscale(name.replace(/\.zarr$/, ""), group, {
+    scale: [1, 1],
+    offset: [0, 0],
+  });
 }
 
 /**
