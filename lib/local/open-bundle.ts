@@ -3,7 +3,7 @@ import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SpatialDataImage } from "@/lib/spatialdata/image";
 
-import { partFileMap, partFiles } from "./classify-bundle";
+import { partFileMap, partFiles, storeFileMap } from "./classify-bundle";
 
 import {
   openOmeZarrImageFromFiles,
@@ -39,9 +39,10 @@ export async function openLocalBundle(
       (p, m) => onProgress(p * 0.6, m),
     );
   } else if (bundle.cells) {
+    // What sits beside the store; nothing, when the store is all there is
     const store = openSpatialDataStoreFromFiles(
-      bundle.files,
-      bundle.cells.root,
+      storeFileMap(bundle, bundle.cells),
+      bundle.cells.root ? bundle.files : undefined,
     );
     const name = (bundle.cells.root || bundle.name).replace(/\.zarr$/, "");
 

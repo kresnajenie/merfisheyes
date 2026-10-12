@@ -144,12 +144,14 @@ sample/
 | Part | Recognised by |
 |---|---|
 | Cells (SpatialData) | a `zarr.json` plus `tables/`, `images/` or another SpatialData element group |
+| Cells (AnnData table, Zarr v3) | a `zarr.json` with `obs/` and `var/` beside it — a table written by `write_zarr`, or copied out of a store's `tables/` |
 | Cells (merfisheyes) | `manifest.json`, `expr/index.json` and `coords/spatial.bin.gz` |
 | Molecules | `manifest.json.gz` (or `manifest.json`) and `genes/*.bin.gz` |
 | Image | a `zarr.json` describing an OME-Zarr image with axes `c, y, x` |
 
 - **Any part may be missing.** Cells + image, cells + molecules, molecules + image, or a single part on its own all open. Without cells the molecules are the scene, with the image under them; an image alone opens in the image viewer.
 - **A part is a folder directly inside the one you drop**, or the dropped folder itself.
+- **A table on its own works in either Zarr version.** A Zarr v2 AnnData folder (`.zgroup`) opens as before; a Zarr v3 one (`zarr.json`), including `tables/<table>/` or `tables/` taken out of a SpatialData store, opens with the same reader a store uses.
 - **With several candidates for one part** (two images, say) the first by name is used, and a message says which were skipped.
 - **A SpatialData store's molecules** are not read from its `points/`; convert them once with `scripts/spatialdata_points_to_sm.py` and put the result beside the store.
 - **Upload & Save** from this preview uploads every part exactly as it is — nothing is processed — each as its own dataset in one project, and the saved cells open with the same overlays. (Molecules and an image saved without cells are grouped in a project but not overlaid.) Signing in is required; no single file may exceed 5 GB.

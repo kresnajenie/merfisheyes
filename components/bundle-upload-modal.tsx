@@ -53,7 +53,9 @@ export function BundleUploadModal({
     bundle.cells &&
       (bundle.cells.kind === "spatialdata"
         ? "Cells and their image (SpatialData store)"
-        : "Cells"),
+        : bundle.cells.kind === "table"
+          ? "Cells (SpatialData table)"
+          : "Cells"),
     bundle.molecules !== undefined && "Molecules",
     bundle.image !== undefined && "Image",
   ].filter((p): p is string => !!p);

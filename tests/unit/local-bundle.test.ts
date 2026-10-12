@@ -5,6 +5,7 @@ import {
   hasParts,
   partFileMap,
   partFiles,
+  storeFileMap,
 } from "@/lib/local/classify-bundle";
 import {
   fileStore,
@@ -94,6 +95,72 @@ describe("classifyBundle", () => {
       kind: "chunked",
       root: "",
     });
+  });
+
+  it("takes a store's table on its own as cells", async () => {
+    // AnnData written as Zarr v3, with no store around it: the table folder
+    // itself, or the tables/ folder that holds it
+    const table = (folder: string) => [
+      picked(`${folder}/zarr.json`, "{}"),
+      picked(`${folder}/obs/zarr.json`, "{}"),
+      picked(`${folder}/var/zarr.json`, "{}"),
+      picked(`${folder}/obsm/spatial/zarr.json`, "{}"),
+    ];
+
+    expect((await classifyBundle(table("table"))).cells).toEqual({
+      kind: "table",
+      root: "",
+    });
+    expect(
+      (
+        await classifyBundle([
+          picked("tables/zarr.json", "{}"),
+          ...table("tables/table"),
+        ])
+      ).cells,
+    ).toEqual({ kind: "table", root: "table" });
+  });
+
+  it("knows a store by its element folders, even without its root metadata", async () => {
+    // tables/ copied out of a store into a folder of its own
+    const bundle = await classifyBundle([
+      picked("s/tables/zarr.json", "{}"),
+      picked("s/tables/table/zarr.json", "{}"),
+      picked("s/tables/table/obs/zarr.json", "{}"),
+    ]);
+
+    expect(bundle.cells).toEqual({ kind: "spatialdata", root: "" });
+  });
+
+  it("lays a lone table out the way a store keeps it", async () => {
+    const bundle = await classifyBundle([
+      picked("table/zarr.json", "{}"),
+      picked("table/obs/zarr.json", "{}"),
+      picked("table/var/zarr.json", "{}"),
+    ]);
+
+    expect(
+      Array.from(
+        storeFileMap(bundle, { kind: "table", root: "" }).keys(),
+      ).sort(),
+    ).toEqual([
+      "tables/table/obs/zarr.json",
+      "tables/table/var/zarr.json",
+      "tables/table/zarr.json",
+      // the group metadata a store has above its table, supplied
+      "tables/zarr.json",
+      "zarr.json",
+    ]);
+  });
+
+  it("leaves a whole store's files exactly as they are", async () => {
+    const bundle = await classifyBundle(store("skin.zarr"));
+    const files = storeFileMap(bundle, bundle.cells as any);
+
+    expect(Array.from(files.keys()).sort()).toEqual(
+      [...bundle.files.keys(), "tables/zarr.json"].sort(),
+    );
+    expect(files.get("zarr.json")).toBe(bundle.files.get("zarr.json"));
   });
 
   it("accepts any subset of the parts", async () => {
@@ -208,7 +275,12 @@ describe("openSpatialDataStoreFromFiles", () => {
       ["skin.zarr/tables/table/zarr.json", new File(["t"], "zarr.json")],
       ["annotations/annotations.json", new File(["ann"], "annotations.json")],
     ]);
-    const opened = openSpatialDataStoreFromFiles(folder, "skin.zarr");
+    const inStore = new Map(
+      Array.from(folder)
+        .filter(([key]) => key.startsWith("skin.zarr/"))
+        .map(([key, file]) => [key.slice("skin.zarr/".length), file]),
+    );
+    const opened = openSpatialDataStoreFromFiles(inStore, folder);
 
     expect(opened.keys.sort()).toEqual(["tables/table/zarr.json", "zarr.json"]);
     expect(new TextDecoder().decode(await opened.store.get("/zarr.json"))).toBe(

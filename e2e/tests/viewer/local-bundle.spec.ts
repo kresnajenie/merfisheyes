@@ -5,6 +5,7 @@ import {
   litFraction,
   makeBundle,
   makeImageFolder,
+  makeTableFolder,
   SELECTORS,
   type BundleParts,
 } from "../../fixtures/merfish-fixtures";
@@ -111,6 +112,17 @@ for (const { name, parts, cells } of WITH_CELLS) {
     } else {
       await expect(page.locator(SELECTORS.smLayerButton)).toHaveCount(0);
     }
+  });
+}
+
+// The table copied out of a store has none of the store's metadata above it
+for (const which of ["table", "tables"] as const) {
+  test(`@quick local preview: a SpatialData ${which} folder on its own`, async ({
+    page,
+  }) => {
+    await drop(page, makeTableFolder(which));
+    expect((await cellsRendered(page)).pointCount).toBe(30);
+    await expect(page.locator(SELECTORS.imageButton)).toHaveCount(0);
   });
 }
 

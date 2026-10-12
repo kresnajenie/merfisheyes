@@ -22,6 +22,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   part as it is, each as its own dataset in one project, and the saved link
   opens with the molecules over the cells and the image under them. A
   SpatialData store can now be uploaded this way.
+- **A Zarr v3 table opens on its own.** An AnnData written to Zarr v3, or
+  the table copied out of a SpatialData store (`tables/<table>/`, or
+  `tables/` itself), previews and saves without the store around it. Zarr v2
+  AnnData folders open as before.
 - **The upload guide covers images and processed folders**, on the site and
   in the README.
 

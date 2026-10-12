@@ -170,9 +170,9 @@ const FORMATS: Format[] = [
       name: "data.zarr/",
       children: [
         {
-          name: ".zgroup",
+          name: ".zgroup or zarr.json",
           req: "required",
-          note: "The Zarr marker at the top of the folder — how it is recognised.",
+          note: "The Zarr marker at the top of the folder — how it is recognised. Zarr v2 writes .zgroup, Zarr v3 writes zarr.json.",
         },
         {
           name: "obsm/X_spatial/",
@@ -194,7 +194,7 @@ const FORMATS: Format[] = [
     },
     notes: [
       "A dense or CSC matrix loads one gene at a time. A CSR matrix is expanded in the browser first, which is slow for large datasets — save X as CSC if you can.",
-      "Zarr v2 stores are supported; Zarr v3 stores are not read yet.",
+      "Zarr v2 and Zarr v3 are both read. That includes the table copied out of a SpatialData store (its tables/<table>/ folder, or tables/ itself) dropped on its own.",
     ],
   },
   {

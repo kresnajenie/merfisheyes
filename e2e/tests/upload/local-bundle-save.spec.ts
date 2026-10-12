@@ -4,6 +4,7 @@ import {
   litFraction,
   makeBundle,
   makeImageFolder,
+  makeTableFolder,
   SELECTORS,
 } from "../../fixtures/merfish-fixtures";
 import { signInDev } from "../../helpers/auth";
@@ -115,6 +116,29 @@ test.describe("@upload save a local preview as it is", () => {
     const [store] = await mine(page, "spatialdata", name);
 
     expect(store.viewerUrl).toBe(`/spatialdata-viewer/${store.id}`);
+  });
+
+  test("a table on its own is saved as a store", async ({ page }) => {
+    const name = `e2e-table-${Date.now()}`;
+
+    await signInDev(page, `e2e-table-${Date.now()}@example.com`);
+    await previewAndSave(
+      page,
+      makeTableFolder("table"),
+      name,
+      /\/viewer\/from-local/,
+    );
+
+    // Saved where a store keeps its table, with the root metadata it lacked
+    await page.waitForURL(/\/spatialdata-viewer\/ds_/, { timeout: 60_000 });
+    await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+      timeout: 120_000,
+    });
+    await page.waitForFunction(
+      () => (window as any).__merfish?.stats?.pointCount === 30,
+      undefined,
+      { timeout: 120_000 },
+    );
   });
 
   test("an image on its own", async ({ page }) => {

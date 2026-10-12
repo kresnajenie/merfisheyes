@@ -3,7 +3,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { gzip, ungzip } from "pako";
 
-import { partFileMap } from "./classify-bundle";
+import { partFileMap, storeFileMap, type BundleCells } from "./classify-bundle";
 
 import { uploadChunkedToS3 } from "@/lib/upload/uploadChunkedToS3";
 import { uploadImageToS3 } from "@/lib/upload/uploadImageToS3";
@@ -98,18 +98,28 @@ async function saveChunkedCells(
   return datasetId;
 }
 
-/** A SpatialData store, with the annotations folder beside it if there is one. */
+/**
+ * A SpatialData store, with the annotations folder beside it if there is
+ * one. A table dropped on its own is saved where a store keeps its table, so
+ * the SpatialData viewer finds it (see storeFileMap).
+ */
 async function saveSpatialDataStore(
   bundle: LocalBundle,
-  root: string,
+  cellsPart: Exclude<BundleCells, { kind: "chunked" }>,
   cells: StandardizedDataset,
   title: string,
   onProgress: Progress,
 ): Promise<string> {
   // Keys under the dataset: the store keeps its folder name ("store.zarr/…")
   // and its sidecar sits beside it, the same layout the viewer reads from S3.
-  const folder = root || `${bundle.name.replace(/\.zarr$/, "")}.zarr`;
-  const files = Array.from(partFileMap(bundle, root), ([key, file]) => ({
+  const root = cellsPart.root;
+  const folder =
+    cellsPart.kind === "spatialdata" && root
+      ? root
+      : `${(root || bundle.name).replace(/\.zarr$/, "")}.zarr`;
+  const store = storeFileMap(bundle, cellsPart);
+
+  const files = Array.from(store, ([key, file]) => ({
     key: `${folder}/${key}`,
     file,
   }));
@@ -278,7 +288,7 @@ export async function saveLocalBundle({
         ? await saveChunkedCells(cellFiles, titled("cells"), stage(2, "Cells"))
         : await saveSpatialDataStore(
             bundle,
-            bundle.cells.root,
+            bundle.cells,
             cells!,
             titled("cells"),
             stage(2, "Cells"),
@@ -321,7 +331,7 @@ export async function saveLocalBundle({
   }
 
   saved.viewerUrl = saved.cellsId
-    ? `${bundle.cells!.kind === "spatialdata" ? "/spatialdata-viewer" : "/viewer"}/${saved.cellsId}`
+    ? `${bundle.cells!.kind === "chunked" ? "/viewer" : "/spatialdata-viewer"}/${saved.cellsId}`
     : saved.moleculesId
       ? `/sm-viewer/${saved.moleculesId}`
       : `/image-viewer/${saved.imageId}`;

@@ -32,25 +32,17 @@ export function fileStore(files: Map<string, File>) {
 }
 
 /**
- * A SpatialData store among dropped files. `folder` holds everything that was
- * dropped (keyed from the dropped folder); the store is its subfolder `root`
- * ("" when the dropped folder is the store itself), and the rest is where its
- * sidecars — annotations/ — are looked for.
+ * A SpatialData store from dropped files. `files` is the store, keyed from
+ * its root; `beside` is whatever was dropped around it (keyed from the
+ * dropped folder), where its sidecars — annotations/ — are looked for.
  */
 export function openSpatialDataStoreFromFiles(
-  folder: Map<string, File>,
-  root: string,
+  files: Map<string, File>,
+  beside: Map<string, File> = new Map(),
 ): SpatialDataStore {
-  const prefix = root ? `${root}/` : "";
-  const inStore = new Map<string, File>();
-
-  for (const [key, file] of folder) {
-    if (key.startsWith(prefix)) inStore.set(key.slice(prefix.length), file);
-  }
-
   return {
-    store: fileStore(inStore),
-    keys: Array.from(inStore.keys()),
-    sidecar: fileStore(root ? folder : new Map()),
+    store: fileStore(files),
+    keys: Array.from(files.keys()),
+    sidecar: fileStore(beside),
   };
 }

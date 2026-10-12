@@ -74,6 +74,7 @@ sample/                          sample/
 | Part | Recognised by |
 | --- | --- |
 | Cells (SpatialData) | a `zarr.json` plus `tables/`, `images/` or another element group |
+| Cells (table alone) | a `zarr.json` with `obs/` and `var/` beside it: `tables/<table>/` or `tables/` out of a store, or any AnnData written to Zarr v3 |
 | Cells (merfisheyes) | `manifest.json`, `expr/index.json`, `coords/spatial.bin.gz` |
 | Molecules | `manifest.json.gz` (or `manifest.json`) and `genes/*.bin.gz` |
 | Image | a `zarr.json` describing an OME-Zarr image with axes `c, y, x` |

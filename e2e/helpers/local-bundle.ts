@@ -59,6 +59,31 @@ export function makeImageFolder(name = "dapi.zarr"): string {
   return folder;
 }
 
+/**
+ * Only the table out of the tiny SpatialData store: the table folder itself
+ * ("table"), or the tables/ folder that holds it ("tables"). Neither has the
+ * store's root metadata above it.
+ */
+export function makeTableFolder(which: "table" | "tables"): string {
+  const folder = path.join(
+    fs.mkdtempSync(path.join(os.tmpdir(), "table-")),
+    which,
+  );
+
+  fs.cpSync(
+    path.join(
+      TINY,
+      "zarr",
+      "spatialdata_v3.zarr",
+      which === "table" ? "tables/table" : "tables",
+    ),
+    folder,
+    { recursive: true },
+  );
+
+  return folder;
+}
+
 function writeImage(to: string, extent = 1000): void {
   fs.cpSync(
     path.join(TINY, "zarr", "spatialdata_v3.zarr", "images", "dapi"),

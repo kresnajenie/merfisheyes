@@ -8,7 +8,8 @@ import { isOmeZarrImage } from "@/lib/upload/uploadImageToS3";
  *
  * Parts are recognised by what is in them, not by their names:
  *
- *   cells      a SpatialData zarr store (zarr.json + tables/ or images/), or
+ *   cells      a SpatialData zarr store (tables/ or images/ inside it), the
+ *              table of one on its own (an AnnData zarr v3: obs/, var/), or
  *              a merfisheyes cell folder (manifest.json, expr/, coords/)
  *   molecules  a merfisheyes molecule folder (manifest.json[.gz] + genes/)
  *   image      an OME-Zarr multiscale image (zarr.json naming axes c, y, x)
@@ -20,7 +21,9 @@ import { isOmeZarrImage } from "@/lib/upload/uploadImageToS3";
 
 export type BundleCells =
   | { kind: "chunked"; root: string }
-  | { kind: "spatialdata"; root: string };
+  | { kind: "spatialdata"; root: string }
+  /** An AnnData table (Zarr v3) with no store around it. */
+  | { kind: "table"; root: string };
 
 export interface LocalBundle {
   /** The dropped folder's own name. */
@@ -87,10 +90,25 @@ export async function classifyBundle(files: File[]): Promise<LocalBundle> {
   const partAt = async (
     prefix: string,
   ): Promise<
-    "cells-chunked" | "cells-spatialdata" | "molecules" | "image" | null
+    | "cells-chunked"
+    | "cells-spatialdata"
+    | "cells-table"
+    | "molecules"
+    | "image"
+    | null
   > => {
+    // A store is known by its element folders; its own root metadata may be
+    // missing when someone copied just tables/ or images/ into a folder.
+    if (hasSpatialDataElements(keys, prefix)) return "cells-spatialdata";
     if (keys.has(`${prefix}zarr.json`)) {
-      if (hasSpatialDataElements(keys, prefix)) return "cells-spatialdata";
+      // The table of a store dropped on its own: AnnData written as Zarr v3.
+      // (A Zarr v2 AnnData has no zarr.json and takes the older path.)
+      if (
+        keys.has(`${prefix}obs/zarr.json`) &&
+        keys.has(`${prefix}var/zarr.json`)
+      ) {
+        return "cells-table";
+      }
 
       return (await isImage(prefix)) ? "image" : null;
     }
@@ -111,6 +129,9 @@ export async function classifyBundle(files: File[]): Promise<LocalBundle> {
   if (whole === "cells-spatialdata") {
     return { ...bundle, cells: { kind: "spatialdata", root: "" } };
   }
+  if (whole === "cells-table") {
+    return { ...bundle, cells: { kind: "table", root: "" } };
+  }
 
   // ...or hold them as folders directly inside it.
   const folders = Array.from(
@@ -124,11 +145,16 @@ export async function classifyBundle(files: File[]): Promise<LocalBundle> {
   for (const folder of folders) {
     const part = await partAt(`${folder}/`);
 
-    if (part === "cells-chunked" || part === "cells-spatialdata") {
+    if (part?.startsWith("cells-")) {
       if (bundle.cells) bundle.skipped.push(`cells ${folder}`);
       else {
         bundle.cells = {
-          kind: part === "cells-chunked" ? "chunked" : "spatialdata",
+          kind:
+            part === "cells-chunked"
+              ? "chunked"
+              : part === "cells-table"
+                ? "table"
+                : "spatialdata",
           root: folder,
         };
       }
@@ -173,6 +199,51 @@ export function partFiles(bundle: LocalBundle, root: string): File[] {
   }
 
   return out;
+}
+
+/** Group metadata for a folder that has none of its own. */
+const groupFile = (attributes: Record<string, unknown> = {}) =>
+  new File(
+    [JSON.stringify({ zarr_format: 3, node_type: "group", attributes })],
+    "zarr.json",
+    { type: "application/json" },
+  );
+
+/**
+ * The cells' zarr files laid out as a SpatialData store, which is what the
+ * reader and the saved viewer expect: a store as it is, or a lone table put
+ * where a store keeps its table.
+ *
+ * A lone table, or tables/ copied out of a store, has no group metadata
+ * above it, and a store is known by its root's. Those two small files are
+ * supplied; nothing else is added or changed.
+ */
+export function storeFileMap(
+  bundle: LocalBundle,
+  cells: Exclude<BundleCells, { kind: "chunked" }>,
+): Map<string, File> {
+  const part = partFileMap(bundle, cells.root);
+  const files =
+    cells.kind === "spatialdata"
+      ? part
+      : new Map(
+          Array.from(part, ([key, file]) => [`tables/table/${key}`, file]),
+        );
+
+  if (!files.has("zarr.json")) {
+    files.set(
+      "zarr.json",
+      groupFile({ spatialdata_attrs: { version: "0.2" } }),
+    );
+  }
+  if (
+    !files.has("tables/zarr.json") &&
+    Array.from(files.keys()).some((k) => k.startsWith("tables/"))
+  ) {
+    files.set("tables/zarr.json", groupFile());
+  }
+
+  return files;
 }
 
 /** The files of one part keyed by their path inside it (zarr keys). */
