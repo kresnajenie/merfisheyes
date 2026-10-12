@@ -2,7 +2,8 @@
  * The three kinds of dataset, and where each one opens.
  *
  * `Dataset.datasetType` is free text: older rows hold the raw format ("h5ad",
- * "merscope", ...) or nothing, and all of those are single cell.
+ * "merscope", ...) or nothing, and all of those are single cell. So is
+ * "spatialdata", which only differs in the viewer it opens in.
  */
 export type DatasetKind = "single_cell" | "single_molecule" | "image";
 
@@ -10,6 +11,20 @@ export function datasetKind(datasetType?: string | null): DatasetKind {
   return datasetType === "single_molecule" || datasetType === "image"
     ? datasetType
     : "single_cell";
+}
+
+/**
+ * A SpatialData store saved as it is: cells like any other single cell
+ * dataset (it takes overlays, is badged the same), but read by its own viewer.
+ */
+const SPATIALDATA = "spatialdata";
+
+/**
+ * The type to put on a card entry: the kind, except that what routing needs
+ * to know is kept.
+ */
+export function entryType(datasetType?: string | null): string {
+  return datasetType === SPATIALDATA ? SPATIALDATA : datasetKind(datasetType);
 }
 
 const VIEWER: Record<DatasetKind, string> = {
@@ -20,7 +35,9 @@ const VIEWER: Record<DatasetKind, string> = {
 
 /** `/viewer`, `/sm-viewer` or `/image-viewer`. */
 export function viewerBase(datasetType?: string | null): string {
-  return VIEWER[datasetKind(datasetType)];
+  return datasetType === SPATIALDATA
+    ? "/spatialdata-viewer"
+    : VIEWER[datasetKind(datasetType)];
 }
 
 /**

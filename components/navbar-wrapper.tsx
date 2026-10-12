@@ -9,6 +9,8 @@ import { Navbar } from "@/components/navbar";
 import { ViewerNavbar } from "@/components/viewer-navbar";
 import { UploadSettingsModal } from "@/components/upload-settings-modal";
 import { SingleMoleculeUploadModal } from "@/components/single-molecule-upload-modal";
+import { BundleUploadModal } from "@/components/bundle-upload-modal";
+import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
@@ -39,6 +41,19 @@ export function NavbarWrapper() {
   );
 
   const currentDatasetId = isSingleMolecule ? smDatasetId : cellDatasetId;
+
+  // A folder of already-processed parts opened as a local preview is saved
+  // as it is, all parts together — not through the per-dataset dialogs, which
+  // process what they are given.
+  const bundleAnchorId = useLocalBundleStore((s) =>
+    s.bundle ? s.anchorId : undefined,
+  );
+  const isBundle =
+    pathname === "/image-viewer/from-local"
+      ? bundleAnchorId !== undefined
+      : !!pathname?.endsWith("/from-local") &&
+        bundleAnchorId != null &&
+        bundleAnchorId === currentDatasetId;
   const hasDataset = currentDatasetId !== null;
 
   // Helper to ensure we only pass StandardizedDataset to UploadSettingsModal
@@ -66,7 +81,13 @@ export function NavbarWrapper() {
           <Navbar onUploadClick={() => setIsUploadModalOpen(true)} />
         )}
       </div>
-      {isSingleMolecule ? (
+      {isBundle ? (
+        <BundleUploadModal
+          cells={isSingleMolecule ? null : getCellDatasetAsStandardized()}
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+        />
+      ) : isSingleMolecule ? (
         <SingleMoleculeUploadModal
           dataset={getSmDataset()}
           isOpen={isUploadModalOpen}
