@@ -58,8 +58,7 @@ export async function POST(request: NextRequest) {
       );
     }
     // An image dataset (an OME-Zarr folder uploaded as it is) has no cells or
-    // genes to count, and its upload may run past one policy's lifetime, so it
-    // gets the refreshable kind (see /upload-policy).
+    // genes to count.
     const isImage = metadata.platform === "image";
 
     if (!isImage && (!metadata.numCells || !metadata.numGenes)) {
@@ -150,11 +149,10 @@ export async function POST(request: NextRequest) {
         keyPrefix,
         url,
         fields,
-        ...(isImage
-          ? {
-              policy: await generatePrefixUploadPolicy(keyPrefix, maxFileSize),
-            }
-          : {}),
+        // The refreshable kind of policy, for uploads that may outlast one
+        // signature (see /upload-policy); `url` + `fields` above is the
+        // original, one-hour kind.
+        policy: await generatePrefixUploadPolicy(keyPrefix, maxFileSize),
         expiresIn: 3600,
         expiresAt: expiresAt.toISOString(),
       },

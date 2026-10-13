@@ -4,6 +4,7 @@ import type { SpatialDataStore } from "./store";
 import * as zarr from "zarrita-v3";
 
 import { elementNames, publicUrlStore } from "./store";
+import { fileStore } from "./localStore";
 
 import {
   fetchDatasetKeyList,
@@ -35,14 +36,28 @@ export interface SpatialDataImage {
   levels: ImageLevel[];
 }
 
-type Transform = { type: string; scale?: number[]; translation?: number[] };
+type Transform = {
+  type: string;
+  scale?: number[];
+  translation?: number[];
+  /** Of a "sequence": its steps, applied in order. */
+  transformations?: Transform[];
+};
 
-/** Per-axis scale and offset of a chain of scale / translation / identity. */
+/**
+ * Per-axis scale and offset of a chain of scale / translation / identity. A
+ * sequence (how spatialdata writes a scale followed by a translation) counts
+ * as its steps.
+ */
 function composeTransforms(transforms: Transform[] | undefined, axes: number) {
   const scale = new Array(axes).fill(1);
   const offset = new Array(axes).fill(0);
+  const steps = (list: Transform[]): Transform[] =>
+    list.flatMap((t) =>
+      t.type === "sequence" ? steps(t.transformations ?? []) : [t],
+    );
 
-  for (const t of transforms ?? []) {
+  for (const t of steps(transforms ?? [])) {
     if (t.type === "scale" && t.scale) {
       for (let i = 0; i < axes; i++) {
         scale[i] *= t.scale[i];
@@ -134,6 +149,24 @@ export async function openOmeZarrImageDataset(
   const name = prefix.replace(/\/$/, "").replace(/\.zarr$/, "") || datasetId;
 
   return readMultiscale(name, group, { scale: [1, 1], offset: [0, 0] });
+}
+
+/**
+ * Open an OME-Zarr image from files picked or dropped in the browser, keyed
+ * by their path inside the image folder. Tiles are read from disk as the
+ * view asks for them.
+ */
+export async function openOmeZarrImageFromFiles(
+  files: Map<string, File>,
+  name: string,
+): Promise<SpatialDataImage> {
+  const root = zarr.root(fileStore(files) as zarr.Readable);
+  const group = await zarr.open.v3(root, { kind: "group" });
+
+  return readMultiscale(name.replace(/\.zarr$/, ""), group, {
+    scale: [1, 1],
+    offset: [0, 0],
+  });
 }
 
 /**

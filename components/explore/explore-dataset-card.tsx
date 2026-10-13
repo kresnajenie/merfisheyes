@@ -57,14 +57,12 @@ function getCardHref(
 }
 
 /** Badge for an entry's type: cells, an image, or (anything else) molecules. */
+const isCells = (type: string) =>
+  type === "single_cell" || type === "spatialdata";
 const typeBadge = (type: string) =>
-  type === "single_cell" ? "SC" : type === "image" ? "IMG" : "SM";
+  isCells(type) ? "SC" : type === "image" ? "IMG" : "SM";
 const typeColor = (type: string) =>
-  type === "single_cell"
-    ? "primary"
-    : type === "image"
-      ? "success"
-      : "secondary";
+  isCells(type) ? "primary" : type === "image" ? "success" : "secondary";
 
 interface ExploreDatasetCardProps {
   dataset: CatalogDatasetItem;

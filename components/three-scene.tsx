@@ -12,6 +12,7 @@ import gsap from "gsap";
 import { getClusterValue } from "@/lib/StandardizedDataset";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import {
   createPointCloudFromBuffers,
   createSmPointCloud,
@@ -452,6 +453,31 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
         console.warn("Failed to load overlay image:", error);
       }
     };
+
+    // A folder dropped for a local preview brings its overlays with it,
+    // already open: there is nothing to look up or fetch.
+    const local = useLocalBundleStore.getState();
+
+    if (local.anchorId === dataset.id) {
+      if (local.image && dataset.normalized !== false) {
+        toast.warn(
+          "The image is not drawn: these cells were saved with normalized coordinates, and an image is placed in the original ones.",
+          { autoClose: 12000, toastId: "local-image-normalized" },
+        );
+      } else if (local.image) {
+        overlayImageRef.current = local.image;
+        attachOverlayImage();
+      }
+      if (local.molecules) {
+        smDatasetRef.current = local.molecules;
+        setSmDataset(local.molecules);
+        smStoreApi.getState().addDataset(local.molecules);
+      }
+
+      return () => {
+        stale = true;
+      };
+    }
 
     // Check hardcoded registry first
     const registryConfig = getDatasetLinkConfig(dataset);

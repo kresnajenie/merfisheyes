@@ -5,23 +5,55 @@ import type { ImageLayer } from "@/lib/spatialdata/ImageLayer";
 import { useEffect, useReducer, useState } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { usePanelId } from "@/lib/hooks/usePanelStores";
+import {
+  applyImageState,
+  encodeImageState,
+} from "@/lib/spatialdata/imageUrlState";
+import {
+  readUrlVizState,
+  scheduleUrlUpdate,
+} from "@/lib/utils/url-state-writer";
 
 /**
  * Image button + channel panel for the SpatialData viewer: show/hide the
- * image, and per channel its visibility, colour and display window.
+ * image, and per channel its visibility, colour and display window. What is
+ * set here is kept in the link (img=, or rimg= in the right split panel), so
+ * a shared link looks the same.
  */
 export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
   const [open, setOpen] = useState(false);
   const [, rerender] = useReducer((n: number) => n + 1, 0);
 
-  // The layer sets each channel's window itself once it has seen the data
+  const slot = usePanelId() === "right" ? "rightImage" : "image";
+
+  // Settings in the link are applied to a new layer; a window set there is
+  // kept, any other the layer sets itself once it has seen the data.
   useEffect(() => {
+    const fromUrl = readUrlVizState()[slot];
+
+    if (fromUrl) applyImageState(layer, fromUrl);
     layer.onChange = rerender;
+    rerender();
 
     return () => {
       layer.onChange = undefined;
     };
-  }, [layer]);
+  }, [layer, slot]);
+
+  // The right panel's slot goes away with the panel.
+  useEffect(() => {
+    if (slot !== "rightImage") return;
+
+    return () => scheduleUrlUpdate(slot, null);
+  }, [slot]);
+
+  // Only what someone set goes in the link, so an untouched image leaves it
+  // as it was.
+  const changed = () => {
+    scheduleUrlUpdate(slot, encodeImageState(layer));
+    rerender();
+  };
 
   return (
     // Sits between the brand pill and the control rail's first button
@@ -41,7 +73,7 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
               type="checkbox"
               onChange={(e) => {
                 layer.visible = e.target.checked;
-                rerender();
+                changed();
               }}
             />
             Show image
@@ -54,7 +86,7 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
                   type="checkbox"
                   onChange={(e) => {
                     layer.setChannel(i, { visible: e.target.checked });
-                    rerender();
+                    changed();
                   }}
                 />
                 <input
@@ -64,11 +96,11 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
                   value={channel.color}
                   onChange={(e) => {
                     layer.setChannel(i, { color: e.target.value });
-                    rerender();
+                    changed();
                   }}
                 />
                 <span className="truncate">{channel.label}</span>
-                <span className="ml-auto text-xs text-default-500">
+                <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-default-500">
                   {channel.min} – {channel.max}
                 </span>
               </div>
@@ -99,7 +131,7 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
                           ? { min: Math.min(value, channel.max - 1) }
                           : { max: Math.max(value, channel.min + 1) },
                       );
-                      rerender();
+                      changed();
                     }}
                   />
                 </label>

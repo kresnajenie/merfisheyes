@@ -8,6 +8,7 @@ import {
   openSavedDataset,
   startSpatialDataServer,
   imageUrl,
+  storeUrl,
   SELECTORS,
 } from "../../fixtures/merfish-fixtures";
 import { signInDev } from "../../helpers/auth";
@@ -35,6 +36,32 @@ test.describe("@upload image overlay", () => {
     server = await startSpatialDataServer();
   });
   test.afterAll(() => server?.close());
+
+  test("a SpatialData store opened by URL can be added to the account", async ({
+    page,
+  }) => {
+    const store = storeUrl(server, { cells: true, image: true });
+
+    await signInDev(page, `e2e-store-url-${Date.now()}@example.com`);
+    await page.goto(
+      `/spatialdata-viewer/from-s3?url=${encodeURIComponent(store)}`,
+    );
+    await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+      timeout: 120_000,
+    });
+    await page.getByRole("button", { name: "Add to my account" }).click();
+    await expect(page.getByText("Dataset added to your account")).toBeVisible();
+
+    const mine = (
+      await (await page.request.get("/api/ingest/mine?type=spatialdata")).json()
+    ).datasets as { title: string; viewerUrl: string }[];
+
+    // Listed with the user's datasets, and opened by the same link
+    expect(mine.map((d) => d.title)).toEqual(["store"]);
+    expect(mine[0].viewerUrl).toBe(
+      `/spatialdata-viewer/from-s3?url=${encodeURIComponent(store)}`,
+    );
+  });
 
   test("owner adds an image to their account and draws it under the cells", async ({
     page,

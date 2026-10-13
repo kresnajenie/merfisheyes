@@ -20,7 +20,8 @@ export interface StoreParts {
  * Serve the tiny SpatialData fixtures the way a public bucket would:
  *
  *   /store/<layout>/<parts>/store.zarr   a store holding only `<parts>`
- *   /store/<layout>/<parts>/mapping.json its link to the molecules, if any
+ *   /store/<layout>/<parts>/mapping.json names the store, and its link to
+ *                                        the molecules, if any
  *   /molecules                           the processed molecules it links to
  *   /image/<extent>.zarr                 the image on its own, `<extent>` wide
  *
@@ -74,14 +75,15 @@ export function startSpatialDataServer(): Promise<FixtureServer> {
     const [layout, parts, file, ...inside] = rest;
 
     if (file === "mapping.json") {
-      return parts.includes("m")
-        ? {
-            body: JSON.stringify({
-              linkColumn: "__all__",
-              links: { __all__: `${server.url}/molecules` },
-            }),
-          }
-        : undefined;
+      return {
+        body: JSON.stringify({
+          cells: "store.zarr",
+          ...(parts.includes("m") && {
+            linkColumn: "__all__",
+            links: { __all__: `${server.url}/molecules` },
+          }),
+        }),
+      };
     }
 
     const onDisk = path.join(TINY, "zarr", `${layout}.zarr`, ...inside);
@@ -116,6 +118,15 @@ export function storeUrl(
     (parts.image ? "i" : "");
 
   return `${server.url}/store/${layout}/${letters || "none"}/store.zarr`;
+}
+
+/** URL of the folder that holds that store, and names it in mapping.json. */
+export function storeFolderUrl(
+  server: FixtureServer,
+  parts: StoreParts,
+  layout: StoreLayout = "spatialdata_v3",
+): string {
+  return storeUrl(server, parts, layout).replace(/\/store\.zarr$/, "/");
 }
 
 /**

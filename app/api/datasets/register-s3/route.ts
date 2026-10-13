@@ -37,7 +37,10 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         isAdmin,
         asAdmin: !!body.asAdmin,
-        kind: body.kind === "image" ? "image" : undefined,
+        kind:
+          body.kind === "image" || body.kind === "spatialdata"
+            ? body.kind
+            : undefined,
       },
     );
 

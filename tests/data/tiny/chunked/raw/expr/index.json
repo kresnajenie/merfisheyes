@@ -1,0 +1,207 @@
+{
+  "total_genes": 40,
+  "num_chunks": 40,
+  "chunk_size": 1,
+  "genes": [
+    {
+      "name": "gene_0",
+      "chunk_id": 0,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_1",
+      "chunk_id": 1,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_2",
+      "chunk_id": 2,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_3",
+      "chunk_id": 3,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_4",
+      "chunk_id": 4,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_5",
+      "chunk_id": 5,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_6",
+      "chunk_id": 6,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_7",
+      "chunk_id": 7,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_8",
+      "chunk_id": 8,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_9",
+      "chunk_id": 9,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_10",
+      "chunk_id": 10,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_11",
+      "chunk_id": 11,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_12",
+      "chunk_id": 12,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_13",
+      "chunk_id": 13,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_14",
+      "chunk_id": 14,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_15",
+      "chunk_id": 15,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_16",
+      "chunk_id": 16,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_17",
+      "chunk_id": 17,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_18",
+      "chunk_id": 18,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_19",
+      "chunk_id": 19,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_20",
+      "chunk_id": 20,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_21",
+      "chunk_id": 21,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_22",
+      "chunk_id": 22,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_23",
+      "chunk_id": 23,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_24",
+      "chunk_id": 24,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_25",
+      "chunk_id": 25,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_26",
+      "chunk_id": 26,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_27",
+      "chunk_id": 27,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_28",
+      "chunk_id": 28,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_29",
+      "chunk_id": 29,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_30",
+      "chunk_id": 30,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_31",
+      "chunk_id": 31,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_32",
+      "chunk_id": 32,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_33",
+      "chunk_id": 33,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_34",
+      "chunk_id": 34,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_35",
+      "chunk_id": 35,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_36",
+      "chunk_id": 36,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_37",
+      "chunk_id": 37,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_38",
+      "chunk_id": 38,
+      "position_in_chunk": 0
+    },
+    {
+      "name": "gene_39",
+      "chunk_id": 39,
+      "position_in_chunk": 0
+    }
+  ]
+}
