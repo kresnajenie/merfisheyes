@@ -8,7 +8,29 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
-## [0.10.0] - 2026-10-14
+## [0.11.0] - 2026-10-14
+
+A user guide and a new About page.
+
+### Added
+
+- **A user guide at /docs, in the navbar.** Getting started, data formats
+  (with a Python example for writing each one yourself), loading data, using
+  the viewer, expression and DEGs (where values come from, raw vs log, and how
+  DEGs are ranked), and sharing on Explore — with diagrams, and links that
+  land on the exact section.
+- **A new About page**: the team and principal investigators with photos,
+  the Cleveland and Bintu Labs at UC San Diego, funding, and how to cite the
+  bioRxiv preprint.
+
+### Changed
+
+- README, CLAUDE.md, TESTING.md and docs/spatialdata describe v0.10.0's
+  features: Load from S3 for stores, images and folders; adding a store opened
+  by URL to an account; image settings in the link; a Zarr v3 table on its
+  own; images written by the spatialdata library.
+
+## [0.10.0] - 2026-10-12
 
 Data that is already processed opens as it is: drop a folder of cells,
 molecules and an image, or paste the URL of one on a public bucket, and they
@@ -42,14 +64,6 @@ open overlaid with nothing converted.
 - **Image settings are kept in the link.** Channels on or off, their colours
   and their lower and upper bounds go into the URL as they are changed, so a
   shared link looks the same.
-- **A user guide at /docs, in the navbar.** Getting started, data formats
-  (with a Python example for writing each one yourself), loading data, using
-  the viewer, expression and DEGs (where values come from, raw vs log, and how
-  DEGs are ranked), and sharing on Explore — with diagrams, and links that
-  land on the exact section.
-- **A new About page**: the team and principal investigators with photos,
-  the Cleveland and Bintu Labs at UC San Diego, funding, and how to cite the
-  bioRxiv preprint.
 - **The upload guide covers images and processed folders**, on the site and
   in the README.
 
@@ -474,7 +488,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.7.0...v0.8.0
