@@ -8,7 +8,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
-## [0.10.0] - 2026-10-12
+## [0.10.0] - 2026-10-14
 
 Data that is already processed opens as it is: drop a folder of cells,
 molecules and an image, or paste the URL of one on a public bucket, and they
@@ -42,6 +42,14 @@ open overlaid with nothing converted.
 - **Image settings are kept in the link.** Channels on or off, their colours
   and their lower and upper bounds go into the URL as they are changed, so a
   shared link looks the same.
+- **A user guide at /docs, in the navbar.** Getting started, data formats
+  (with a Python example for writing each one yourself), loading data, using
+  the viewer, expression and DEGs (where values come from, raw vs log, and how
+  DEGs are ranked), and sharing on Explore — with diagrams, and links that
+  land on the exact section.
+- **A new About page**: the team and principal investigators with photos,
+  the Cleveland and Bintu Labs at UC San Diego, funding, and how to cite the
+  bioRxiv preprint.
 - **The upload guide covers images and processed folders**, on the site and
   in the README.
 
