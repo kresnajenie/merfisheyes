@@ -18,12 +18,19 @@ const EMAIL = "ijenie@ucsd.edu";
 
 interface Member {
   name: string;
+  /** Other names the person goes by. */
+  aka?: string[];
   role: string;
   photo: string;
 }
 
 const TEAM: Member[] = [
-  { name: "Kresna Jenie", role: "Founder", photo: "/about/jenie.webp" },
+  {
+    name: "Ignatius Kresnathan Sjahnir Jenie",
+    aka: ["KJ", "Jenie", "Kresna"],
+    role: "Founder",
+    photo: "/about/jenie.webp",
+  },
   {
     name: "Evan Mishkin",
     role: "Lead Developer",
@@ -82,7 +89,7 @@ function Section({
 }
 
 /** A square photo, the name large, the role small beneath it. */
-function Person({ name, role, photo }: Member) {
+function Person({ name, aka, role, photo }: Member) {
   return (
     <a
       className="group flex flex-col gap-3"
@@ -100,7 +107,14 @@ function Person({ name, role, photo }: Member) {
         width={600}
       />
       <span className="flex flex-col gap-1">
-        <span className="text-xl font-medium tracking-tight md:text-2xl">{name}</span>
+        <span className="text-xl font-medium tracking-tight md:text-2xl">
+          {name}
+        </span>
+        {aka && (
+          <span className="text-sm text-default-500">
+            a.k.a. {aka.map((a) => `"${a}"`).join(", ")}
+          </span>
+        )}
         <span className="font-mono text-xs uppercase tracking-wider text-primary">
           {role}
         </span>
