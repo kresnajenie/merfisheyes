@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import NextLink from "next/link";
 import {
   Modal,
@@ -36,7 +36,15 @@ interface Format {
   summary: string;
   tree?: TreeNode;
   table?: ColumnTable;
+  /** How to write the format yourself, e.g. from a DataFrame or an AnnData. */
+  code?: CodeSample[];
   notes: string[];
+}
+
+interface CodeSample {
+  caption: string;
+  lang: "python" | "shell";
+  snippet: string;
 }
 
 // Mirrors what the adapters accept (lib/adapters/*, components/file-upload.tsx,
@@ -85,6 +93,26 @@ const FORMATS: Format[] = [
         },
       ],
     },
+    code: [
+      {
+        caption: "From an AnnData (e.g. from Scanpy), or built from arrays",
+        lang: "python",
+        snippet: `import anndata as ad
+import pandas as pd
+
+# counts: cells × genes (NumPy array or SciPy sparse matrix)
+# xy: cells × 2 (or × 3) coordinates, e.g. in microns
+adata = ad.AnnData(
+    X=counts,
+    obs=pd.DataFrame({"celltype": celltypes}, index=cell_ids),
+    var=pd.DataFrame(index=gene_names),
+)
+adata.obsm["X_spatial"] = xy      # required
+adata.obsm["X_umap"] = umap       # optional
+
+adata.write_h5ad("data.h5ad")`,
+      },
+    ],
     notes: [
       "No coordinates in obsm? obs columns named center_x / center_y, x / y or centroid_x / centroid_y are used instead.",
       "A column with few distinct values is shown as categories; one with many numeric values as a gradient. Columns named leiden or louvain are always categories.",
@@ -192,6 +220,18 @@ const FORMATS: Format[] = [
         },
       ],
     },
+    code: [
+      {
+        caption: "The same AnnData, written as a Zarr folder",
+        lang: "python",
+        snippet: `import anndata as ad
+
+adata = ad.read_h5ad("data.h5ad")   # or the AnnData you already have
+adata.X = adata.X.tocsc()           # optional, sparse X only: genes then load one at a time
+
+adata.write_zarr("data.zarr")       # Zarr v2 and v3 both open`,
+      },
+    ],
     notes: [
       "A dense or CSC matrix loads one gene at a time. A CSR matrix is expanded in the browser first, which is slow for large datasets — save X as CSC if you can.",
       "Zarr v2 and Zarr v3 are both read. That includes the table copied out of a SpatialData store (its tables/<table>/ folder, or tables/ itself) dropped on its own.",
@@ -239,6 +279,15 @@ const FORMATS: Format[] = [
         },
       ],
     },
+    code: [
+      {
+        caption: "From the command line, with the script in the repository's scripts/ folder",
+        lang: "shell",
+        snippet: `python scripts/process_spatial_data.py data.h5ad output_folder/
+# or a Xenium / MERSCOPE output folder:
+python scripts/process_spatial_data.py xenium_output/ output_folder/`,
+      },
+    ],
     notes: [
       "Made with: python scripts/process_spatial_data.py <h5ad | Xenium folder | MERSCOPE folder> output_folder",
       "The script is in the project's GitHub repository, under scripts/.",
@@ -271,11 +320,37 @@ const FORMATS: Format[] = [
         { name: "1/, 2/, …", req: "optional", note: "Each half the one before." },
       ],
     },
+    code: [
+      {
+        caption: "From a NumPy array, with the spatialdata library (pip install spatialdata)",
+        lang: "python",
+        snippet: `import spatialdata as sd
+from spatialdata.models import Image2DModel
+from spatialdata.transformations import Scale, Sequence, Translation
+
+# img: NumPy array shaped (channels, y, x), uint8 or uint16
+image = Image2DModel.parse(
+    img,
+    dims=("c", "y", "x"),
+    c_coords=["DAPI"],            # one name per channel
+    scale_factors=[2, 2, 2, 2],   # coarser levels for zooming out
+    chunks=(1, 1024, 1024),
+    transformations={"global": Sequence([
+        Scale([0.108, 0.108], axes=("y", "x")),  # microns per pixel
+        Translation([y0, x0], axes=("y", "x")),  # where pixel (0, 0) sits
+    ])},
+)
+sd.SpatialData(images={"dapi": image}).write("sample.zarr")
+
+# Drop sample.zarr, or just its image folder sample.zarr/images/dapi`,
+      },
+    ],
     notes: [
       "Zarr v3 only, with axes exactly c, y, x (channels, no z, no time) and uint8 or uint16 pixels. Zarr v2 and TIFF are not read.",
       "Each level's scale and translation must put the image in the cells' coordinates (usually microns). Rotations and flips are not applied, so they must already be in the pixels.",
       "It is drawn only under cells that kept their original coordinates; folders from older versions of the Python script normalized them.",
       "Give it several resolution levels, the coarsest small enough to fit in a chunk or two.",
+      "On a public bucket, paste the image's URL into Load from S3 instead; any settings you change are kept in the link.",
     ],
   },
   {
@@ -353,11 +428,43 @@ const FORMATS: Format[] = [
         },
       ],
     },
+    code: [
+      {
+        caption: "From a platform's output, with spatialdata-io (pip install spatialdata-io)",
+        lang: "python",
+        snippet: `import spatialdata_io
+
+sdata = spatialdata_io.xenium("xenium_output/")   # or spatialdata_io.merscope(...)
+sdata.write("sample.zarr")`,
+      },
+      {
+        caption: "Or put together from an AnnData and an image (see the Image tab)",
+        lang: "python",
+        snippet: `import spatialdata as sd
+from spatialdata.models import TableModel
+
+# adata: an AnnData with the cells' coordinates in obsm["spatial"],
+#        in the same units as the image's "global" coordinates
+adata.layers["X_csc"] = adata.X.tocsc()   # optional, sparse X only: faster genes
+
+sdata = sd.SpatialData(
+    images={"dapi": image},
+    tables={"table": TableModel.parse(adata)},
+)
+sdata.write("sample.zarr")`,
+      },
+      {
+        caption: "Molecules: turn the store's points into a molecule folder beside it",
+        lang: "shell",
+        snippet: `python scripts/spatialdata_points_to_sm.py sample.zarr molecules/`,
+      },
+    ],
     notes: [
       "Zarr v3 stores only. Tables written by current anndata (sharded arrays, nullable strings) are read.",
       "Expression is read one gene at a time when the table has a CSC copy of X (layers/X_csc), or a dense or CSC X.",
       "The store's own points/ are not read as molecules: convert them once with scripts/spatialdata_points_to_sm.py and put the result beside the store.",
       "Upload & Save uploads the store as it is; it then opens in the SpatialData viewer with the same overlays.",
+      'On a public bucket, paste the folder\'s URL into Load from S3: everything in it opens overlaid. Name the store in the folder\'s mapping.json ("cells": "<store>.zarr"), or name it after the folder.',
     ],
   },
   {
@@ -381,6 +488,26 @@ const FORMATS: Format[] = [
         ],
       ],
     },
+    code: [
+      {
+        caption: "From a pandas DataFrame, one row per molecule",
+        lang: "python",
+        snippet: `import pandas as pd
+
+df = pd.DataFrame({
+    "feature_name": genes,   # the gene of each molecule
+    "x_location": x,
+    "y_location": y,
+    "z_location": z,         # leave out for 2D data
+    "cell_id": cell_ids,     # optional
+})
+
+df.to_parquet("transcripts.parquet", index=False)   # needs pyarrow
+# or: df.to_csv("transcripts.csv", index=False)
+
+# Other column names are fine: you pick them when you upload.`,
+      },
+    ],
     notes: [
       "Xenium (transcripts.parquet) and MERSCOPE (detected_transcripts.csv) files are recognised by their column names. For other column names, process the file in the browser and you are asked which columns to use.",
       "Without a Z column the molecules are shown in 2D.",
@@ -405,6 +532,15 @@ const FORMATS: Format[] = [
         },
       ],
     },
+    code: [
+      {
+        caption: "From the command line, with the script in the repository's scripts/ folder",
+        lang: "shell",
+        snippet: `python scripts/process_single_molecule.py transcripts.parquet output_folder/ --dataset-type xenium
+# --dataset-type merscope (the default), or name the columns yourself:
+#   --gene-col gene --x-col x --y-col y --z-col z`,
+      },
+    ],
     notes: [
       "Made with: python scripts/process_single_molecule.py transcripts.parquet output_folder",
       "The script is in the project's GitHub repository, under scripts/.",
@@ -500,6 +636,22 @@ function FormatDetail({ format }: { format: Format }) {
         </div>
       )}
 
+      {format.code && (
+        <div className="flex flex-col gap-3">
+          <p className="text-xs font-semibold text-default-600">
+            Making it yourself
+          </p>
+          {format.code.map((sample) => (
+            <div key={sample.caption} className="flex flex-col gap-1">
+              <p className="text-xs text-default-500">{sample.caption}</p>
+              <pre className="overflow-x-auto rounded-xl border border-default-200 bg-default-50/40 px-4 py-3 text-xs leading-relaxed">
+                <code>{sample.snippet}</code>
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
+
       <ul className="flex list-disc flex-col gap-1 pl-5 text-xs text-default-500">
         {format.notes.map((note) => (
           <li key={note}>{note}</li>
@@ -513,11 +665,31 @@ function FormatDetail({ format }: { format: Format }) {
  * What can be uploaded, format by format, with the expected structure of
  * each. `group` limits it to single cell or single molecule formats.
  */
-export function FormatGuide({ group }: { group?: Format["group"] }) {
+export function FormatGuide({
+  group,
+  initialKey,
+}: {
+  group?: Format["group"];
+  /** The tab to open on, e.g. from a link to one format. */
+  initialKey?: string | null;
+}) {
   const formats = group ? FORMATS.filter((f) => f.group === group) : FORMATS;
+  const known = (key?: string | null) =>
+    key && formats.some((f) => f.key === key) ? key : formats[0].key;
+  const [selected, setSelected] = useState(known(initialKey));
+
+  // A link to another format on the same page changes the key without
+  // remounting the guide
+  useEffect(() => setSelected(known(initialKey)), [initialKey]);
 
   return (
-    <Tabs aria-label="Data formats" variant="underlined">
+    <Tabs
+      aria-label="Data formats"
+      classNames={{ tabList: "flex-wrap gap-x-1", tab: "w-auto flex-none" }}
+      selectedKey={selected}
+      variant="underlined"
+      onSelectionChange={(key) => setSelected(String(key))}
+    >
       {formats.map((format) => (
         <Tab
           key={format.key}
@@ -574,7 +746,7 @@ export function FormatGuideButton({ group }: { group: Format["group"] }) {
             <FormatGuide group={group} />
           </ModalBody>
           <ModalFooter>
-            <Button as={NextLink} href="/docs" variant="light">
+            <Button as={NextLink} href="/docs/formats" variant="light">
               All formats
             </Button>
             <Button color="primary" onPress={() => setOpen(false)}>

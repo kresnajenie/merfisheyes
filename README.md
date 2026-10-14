@@ -2,7 +2,7 @@
 
 Web-based 3D visualization platform for spatial transcriptomics data. Supports both **single cell** and **single molecule** datasets, viewable directly in the browser or processed on the server for datasets too large for a browser to handle.
 
-> Live at **[merfisheyes.com](https://www.merfisheyes.com)**.
+> Live at **[merfisheyes.com](https://www.merfisheyes.com)** — user guide at **[merfisheyes.com/docs](https://www.merfisheyes.com/docs)**.
 
 ---
 
@@ -172,12 +172,14 @@ What is and isn't converted:
 
 ---
 
-## Two ways to load a dataset
+## Ways to load a dataset
 
 On the homepage, pick **Single Cell** or **Single Molecule**, then choose one of:
 
 ### 1. Preview in browser
 The file is parsed **entirely in your browser** (h5wasm / hyparquet in web workers) and opens instantly — nothing leaves your computer. Best for quick looks and datasets that fit in browser memory (roughly < 500K cells / tens of millions of molecules).
+
+Data that is [already processed](#already-processed-data-opens-as-it-is) — merfisheyes output folders, a SpatialData store, an AnnData table in Zarr, an OME-Zarr image — is not parsed at all: it is read from disk as the view needs it, so it opens at once whatever its size.
 
 ### 2. Upload & process on server
 For large datasets, upload the **raw bytes** and let a background worker do the processing. Requires signing in (so we know where to email you). The flow:
@@ -188,6 +190,9 @@ For large datasets, upload the **raw bytes** and let a background worker do the 
 4. An AWS worker runs the same Python processors used for pre-chunking, writes the result to S3, and **emails you a link** to the viewer when it's done.
 
 This path has no browser memory limits and produces the exact same chunked format as everything else. See **[docs/server-side-ingestion/](docs/server-side-ingestion/README.md)** for the full architecture.
+
+### 3. Load from S3
+Data already on a public bucket opens straight from it: click **Load from S3** and paste the URL of a merfisheyes folder, a SpatialData store, an OME-Zarr image, or the folder holding a store with its molecules beside it (which opens with everything overlaid). Nothing is copied. The bucket must allow the site in CORS. A dataset opened this way that nobody owns yet can be **added to your account**, and its link reopens it — including the image settings you chose.
 
 ---
 
@@ -205,7 +210,7 @@ Explore (`/explore`) lists curated and community datasets with a persistent **Fe
 
 ## Viewer
 
-Datasets open at `/viewer/[id]` (single cell) or `/sm-viewer/[id]` (single molecule). You can also open local or S3 data directly via `/viewer/from-local`, `/viewer/from-s3`, and the `sm-viewer` equivalents.
+Datasets open at `/viewer/[id]` (single cell) or `/sm-viewer/[id]` (single molecule). You can also open local or S3 data directly via `/viewer/from-local`, `/viewer/from-s3`, and the `sm-viewer` equivalents. SpatialData stores open at `/spatialdata-viewer/[id]` or `/spatialdata-viewer/from-s3?url=…` (the store, or the folder holding it), and an image on its own at `/image-viewer/[id]`, `/image-viewer/from-s3?url=…` or `/image-viewer/from-local` — see [docs/spatialdata](docs/spatialdata/README.md).
 
 ### Single cell viewer
 
@@ -346,6 +351,8 @@ Two options for datasets too big to parse in a browser:
 │   │   ├── projects/          #   projects (grouping)
 │   │   └── admin/             #   admin: processing dashboard, community review, users
 │   ├── viewer/ , sm-viewer/   # viewers (+ [id], from-local, from-s3)
+│   ├── spatialdata-viewer/    # SpatialData stores (+ [id], from-s3)
+│   ├── image-viewer/          # an OME-Zarr image on its own (+ [id], from-local, from-s3)
 │   ├── explore/               # curated + community catalog (+ [id], bil/[bilCode])
 │   ├── account/               # your datasets & projects (+ edit)
 │   ├── admin/                 # admin dashboard & catalog
@@ -354,6 +361,8 @@ Two options for datasets too big to parse in a browser:
 ├── lib/
 │   ├── adapters/              # H5ad / Xenium / Merscope / ChunkedData adapters
 │   ├── ingest/                # server-ingestion helpers (classify-folder, error classification, …)
+│   ├── spatialdata/           # Zarr v3 stores, tables and OME-Zarr images, read lazily
+│   ├── local/                 # already-processed folders: recognise, open, save as they are
 │   ├── stores/                # Zustand stores (+ per-panel factories for split screen)
 │   ├── workers/               # web workers for parsing
 │   ├── webgl/                 # Three.js / shader utilities
