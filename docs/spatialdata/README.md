@@ -185,6 +185,16 @@ enough that the panel would mistake their means for log values.)
 
 Clusters are numbered, not named, and no UMAP is written.
 
+The sidecar can also carry DEG stats for columns the table already has
+(e.g. its own `leiden` or cell type labels): list them in `de_stats`, leave
+them out of `columns`, and write `de/<column>.bin.gz` in the same format —
+per group, each gene's mean of the log-normalized matrix and the fraction of
+cells expressing it, with the groups named as the column's values.
+
+```json
+{ "num_cells": 147402, "num_genes": 275, "columns": {}, "de_stats": ["leiden", "celltype"] }
+```
+
 ## What a store needs
 
 - **Zarr v3** (`zarr.json`). Zarr v2 SpatialData stores are not read.
@@ -195,8 +205,10 @@ Clusters are numbered, not named, and no UMAP is written.
   reads as empty).
 - **Expression that can be sliced by gene.** `X` is CSR in these stores, so
   genes are read from a CSC copy in `layers/` (e.g. `layers/X_csc`): one gene
-  is ~17 small chunk reads. A dense or CSC `X` also works. A CSR `X` with no
-  CSC copy still works but reads the whole matrix for every gene.
+  is ~17 small chunk reads. A dense or CSC `X` also works; a dense `X` written
+  one gene per chunk (`chunks=(n_cells, 1)`) is read in one request per gene.
+  A CSR `X` with no CSC copy still works but reads the whole matrix for every
+  gene.
 - **Consolidated metadata** in the root `zarr.json`, for stores opened by
   URL: a plain URL can't be listed, so this is how the viewer finds the
   store's elements and columns. Stores opened by dataset id are listed
@@ -246,6 +258,9 @@ transform to the shared coordinate system (for Xenium, pixels = microns ×
   values at or below it draw black) and an upper bound (`max`, values at or
   above it draw full colour). Only the first channel is on to start with;
   its window starts at 0 to the 99.9th percentile of the coarsest level.
+- What is set there is kept in the link (`img=`, or `rimg=` in the right
+  split panel) once something is changed, so a copied link opens looking the
+  same. An untouched image leaves the link alone.
 - Chunks are whatever the store was written with. The test store uses
   4096 × 4096 chunks of ~19 MB at full resolution, and a zoomed-in view
   needs two to four per visible channel, so that is the slow step on a
@@ -257,7 +272,8 @@ An OME-Zarr image is a dataset of its own (`datasetType: "image"`), owned,
 listed and deleted like a single cell or single molecule one. There are two
 ways to have one:
 
-- **By URL.** Open a public image at `/image-viewer/from-s3?url=…`. If nobody
+- **By URL.** Paste its URL into the homepage's **Load from S3**, or open
+  `/image-viewer/from-s3?url=…`. If nobody
   owns it yet a banner offers **Add to my account** — the same banner the
   other viewers show for a dataset opened by URL. Nothing is copied; the row
   remembers the URL (`ingestSource: "s3_registered"`).
@@ -420,9 +436,10 @@ uploaded — by dataset id:
 ```
 
 It is drawn in its own coordinates with the same layer and **Image** button,
-so it looks the same here as it does under a dataset's cells. These routes
-are not linked from the homepage yet. The URL may also be an image inside a
-SpatialData store (`…/<name>.zarr/images/<image>`).
+so it looks the same here as it does under a dataset's cells. From the
+homepage, drop the image folder on the single-cell **Folder** card (*Preview
+in browser*) or paste its URL into **Load from S3**. The URL may also be an
+image inside a SpatialData store (`…/<name>.zarr/images/<image>`).
 
 ## Not supported yet
 
@@ -480,14 +497,15 @@ SpatialData store (`…/<name>.zarr/images/<image>`).
 | --- | --- | --- |
 | `tests/unit/spatialdata-table-adapter.test.ts` | The table adapter, on both tiny stores (plain, and sharded with nullable strings) | Unit tests |
 | `tests/unit/fetch-range.test.ts` | Byte-range reads, including a server that ignores `Range` | Unit tests |
-| `tests/unit/ome-zarr-image.test.ts` | Image metadata and placement | Unit tests |
-| `e2e/tests/viewer/spatialdata.spec.ts` | Every combination of cells, molecules and image in a store opened by URL; the sharded store; an image on its own | E2E quick (`@quick`) |
-| `e2e/tests/upload/image-overlay.spec.ts` | Adding an image to an account by URL, picking it in the overlay dialog, the channel bounds, who may change it, deleting it | E2E upload (`@upload`) |
+| `tests/unit/ome-zarr-image.test.ts` | Image metadata and placement, including a `sequence` transform | Unit tests |
+| `tests/unit/spatialdata-url.test.ts` | What a URL is (store, image, folder by `mapping.json` or by name); image settings in a link | Unit tests |
+| `e2e/tests/viewer/spatialdata.spec.ts` | Every combination of cells, molecules and image in a store opened by URL; the sharded store; an image on its own; **Load from S3** with a folder, a store and an image; image settings kept in the link | E2E quick (`@quick`) |
+| `e2e/tests/upload/image-overlay.spec.ts` | Adding an image, and a store, to an account by URL; picking the image in the overlay dialog, the channel bounds, who may change it, deleting it | E2E upload (`@upload`) |
 | `e2e/tests/upload/combined-upload.spec.ts` | One folder of cells, molecules and an image becoming three linked datasets in a project; the uploaded image opening by id | E2E upload (`@upload`) |
 | `tests/unit/classify-folder.test.ts`, `tests/unit/image-dataset.test.ts` | Image-folder detection, dataset kinds, recognising an OME-Zarr image | Unit tests |
-| `tests/unit/local-bundle.test.ts` | Recognising the parts of a dropped folder; reading zarr from local files | Unit tests |
-| `e2e/tests/viewer/local-bundle.spec.ts` | Dropping an image, both layouts and their subsets; duplicates; raw cells beside processed parts; normalized cells | E2E quick (`@quick`) |
-| `e2e/tests/upload/local-bundle-save.spec.ts` | Saving each layout and an image from its preview, and reopening the saved link overlaid | E2E upload (`@upload`) |
+| `tests/unit/local-bundle.test.ts` | Recognising the parts of a dropped folder, including a table on its own; reading zarr from local files | Unit tests |
+| `e2e/tests/viewer/local-bundle.spec.ts` | Dropping an image, both layouts and their subsets, a table on its own; duplicates; raw cells beside processed parts; normalized cells | E2E quick (`@quick`) |
+| `e2e/tests/upload/local-bundle-save.spec.ts` | Saving each layout, a table on its own and an image from its preview, and reopening the saved link overlaid | E2E upload (`@upload`) |
 
 The browser tests serve the committed fixtures from a local stand-in for a
 public bucket (`e2e/helpers/fixture-server.ts`), which answers CORS

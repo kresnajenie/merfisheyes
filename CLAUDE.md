@@ -342,13 +342,15 @@ converted or uploaded through the app:
   `ThreeScene`; molecules without cells → `SingleMoleculeThreeScene`; an image
   alone → `ImageScene`.
 - `/image-viewer/from-s3?url=…` — an OME-Zarr image on its own
-  (`components/image-viewer.tsx`). Not linked from the homepage yet.
+  (`components/image-viewer.tsx`). Reached from the homepage by dropping an
+  image folder (*Preview in browser*) or pasting its URL into **Load from S3**.
 
 **An image is a dataset** (`datasetType: "image"`; helpers in
 [lib/datasets/kind.ts](lib/datasets/kind.ts) — never test
 `=== "single_molecule" ? … : …` for routing, an image is neither). It is
 either registered from a public URL (the claim banner in the image viewer,
-`lib/datasets/register-or-claim.ts`) or uploaded as it is into the app's
+`lib/datasets/register-or-claim.ts`; a SpatialData store opened by URL is
+registered the same way, as `datasetType: "spatialdata"`) or uploaded as it is into the app's
 bucket (`lib/upload/uploadImageToS3.ts`, ids `ds_…`, `formatVersion: "zarr"`).
 
 **Image under any dataset**: `mapping.json` names it next to the molecule link
@@ -359,6 +361,20 @@ bucket (`lib/upload/uploadImageToS3.ts`, ids `ds_…`, `formatVersion: "zarr"`).
 overlay dialog (`components/image-overlay-picker.tsx` →
 `PATCH /api/datasets/[datasetId]/overlay` → `lib/ingest/overlay.ts`, which
 keeps the molecule link and the image independent).
+
+**Opening by URL**: the homepage's **Load from S3** dialog
+(`components/load-from-s3-modal.tsx`) routes a merfisheyes folder by its
+manifest as before; anything else goes through
+[lib/spatialdata/resolveUrl.ts](lib/spatialdata/resolveUrl.ts) — a store, an
+image, or a folder holding a store. A public URL can't be listed, so a
+folder's store is named by the `cells` entry of its `mapping.json`, else
+`<folder>/<folder>.zarr` is tried. `/spatialdata-viewer/from-s3` accepts the
+folder URL too and resolves it the same way.
+
+**Image settings in the link**: an image layer's display settings (channels,
+colours, bounds) go into the URL as `img=` (`rimg=` in the right split panel)
+once changed — `lib/spatialdata/imageUrlState.ts`, written through
+`lib/utils/url-state-writer.ts` by `components/spatialdata-image-controls.tsx`.
 
 **Combined upload**: in server mode a picked folder may hold cells, a
 transcripts file and an OME-Zarr image folder
@@ -375,15 +391,18 @@ the h5ad-zarr path:
 - `SpatialDataTableAdapter.ts` — table → cells, genes, columns; reads plain and
   sharded arrays, plain and nullable strings
 - `image.ts` / `ImageLayer.ts` — OME-Zarr multiscale metadata (axes `c, y, x`,
-  `uint8`/`uint16`, scale + translation only) and the tiled Three.js layer
-  shared by all three viewers
+  `uint8`/`uint16`, scale + translation, or a `sequence` of them as the
+  `spatialdata` library writes it) and the tiled Three.js layer shared by all
+  three viewers
 - [lib/storage/fetchRange.ts](lib/storage/fetchRange.ts) — byte-range reads
   for sharded arrays (`getRange` on both stores)
 
 **Already-processed data from disk**: the single-cell Folder card (browser
 mode) recognises, by content, a folder holding any of a SpatialData store or
 merfisheyes cell folder, a merfisheyes molecule folder and an OME-Zarr image
-([lib/local/classify-bundle.ts](lib/local/classify-bundle.ts)), opens each
+([lib/local/classify-bundle.ts](lib/local/classify-bundle.ts); an AnnData
+table in Zarr v3 on its own counts as cells and is laid out as a store by
+`storeFileMap`), opens each
 lazily from the dropped `File`s (`lib/local/open-bundle.ts`,
 `lib/spatialdata/localStore.ts`) and shows them overlaid in the ordinary
 `from-local` viewers; the extras travel in `lib/stores/localBundleStore.ts`.
@@ -557,6 +576,12 @@ output_folder/
 - `components/single-molecule-controls.tsx` - Gene selection UI with search, checkboxes, and colored chips
 - `components/view-mode-toggle.tsx` - Toggle button for 2D/3D camera views
 - `components/single-molecule-upload-modal.tsx` - Upload settings for molecule datasets (shows molecule count, genes, dimensions, handles S3 upload)
+
+#### User docs (`/docs`)
+
+- `app/docs/` — the site's user guide, linked from the navbar: Getting started (`/docs`), Data formats (`/docs/formats`, the same `FormatGuide` tabs as the homepage's "What can I upload?"), Loading data, Using the viewer, Sharing on Explore. `app/docs/layout.tsx` adds the sidebar and previous/next links (`components/docs/docs-nav.tsx`, page list in `DOC_PAGES`)
+- `components/docs/doc-ui.tsx` — the pages' building blocks: `Flow` (short pipelines), `Steps` (numbered timeline), `Decision` (yes/no chain), `CompareTable`, `Callout`, `Status` (the app's own review chips)
+- These pages restate the user-facing parts of `README.md`; when a feature changes what users do, update both
 
 #### File Upload
 
