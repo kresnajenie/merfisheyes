@@ -276,6 +276,7 @@ const FORMATS: Format[] = [
       "Each level's scale and translation must put the image in the cells' coordinates (usually microns). Rotations and flips are not applied, so they must already be in the pixels.",
       "It is drawn only under cells that kept their original coordinates; folders from older versions of the Python script normalized them.",
       "Give it several resolution levels, the coarsest small enough to fit in a chunk or two.",
+      "On a public bucket, paste the image's URL into Load from S3 instead; any settings you change are kept in the link.",
     ],
   },
   {
@@ -358,6 +359,7 @@ const FORMATS: Format[] = [
       "Expression is read one gene at a time when the table has a CSC copy of X (layers/X_csc), or a dense or CSC X.",
       "The store's own points/ are not read as molecules: convert them once with scripts/spatialdata_points_to_sm.py and put the result beside the store.",
       "Upload & Save uploads the store as it is; it then opens in the SpatialData viewer with the same overlays.",
+      'On a public bucket, paste the folder\'s URL into Load from S3: everything in it opens overlaid. Name the store in the folder\'s mapping.json ("cells": "<store>.zarr"), or name it after the folder.',
     ],
   },
   {
@@ -574,7 +576,7 @@ export function FormatGuideButton({ group }: { group: Format["group"] }) {
             <FormatGuide group={group} />
           </ModalBody>
           <ModalFooter>
-            <Button as={NextLink} href="/docs" variant="light">
+            <Button as={NextLink} href="/docs/formats" variant="light">
               All formats
             </Button>
             <Button color="primary" onPress={() => setOpen(false)}>

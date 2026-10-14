@@ -139,12 +139,17 @@ stores and images **by URL**, the way they are read from a public bucket:
 - a store whose table is sharded and uses nullable strings (anndata's current
   defaults) is read by byte range;
 - an image on its own is drawn at `/image-viewer/from-s3`, and a URL with no
-  image behind it is explained.
+  image behind it is explained;
+- the homepage's **Load from S3** opens a folder holding a store (named in its
+  `mapping.json`) overlaid, opens a store and an image in their viewers, and
+  says so when there is nothing at a URL;
+- an image's settings are written into the link and come back on reload.
 
 `e2e/tests/viewer/local-bundle.spec.ts` (also `@quick`) drops folders of
 already-processed data on the homepage — an OME-Zarr image on its own, and
-cells, molecules and an image together in both accepted layouts — and checks
-they open overlaid with nothing converted. The folders are assembled in a temp
+cells, molecules and an image together in both accepted layouts, and a
+SpatialData table on its own — and checks they open overlaid with nothing
+converted. The folders are assembled in a temp
 dir from the tiny fixtures by `e2e/helpers/local-bundle.ts`.
 
 Nothing here needs S3: `e2e/helpers/fixture-server.ts` starts a small HTTP
@@ -180,7 +185,8 @@ metadata and counts.
 `e2e/tests/upload/image-overlay.spec.ts` (also `@upload`) saves a dataset,
 adds an image to the account from the image viewer's banner, picks it in the
 overlay dialog, checks the viewer draws it under the cells, checks that
-nobody else can change it, and deletes it.
+nobody else can change it, and deletes it. It also adds a SpatialData store
+opened by URL to an account and checks it is listed with the same link.
 
 `e2e/tests/upload/combined-upload.spec.ts` (also `@upload`) picks one folder
 holding cells, molecules and an image in server mode and checks it becomes
@@ -191,7 +197,8 @@ queued; the image needs none and is opened from the app's own storage.
 `e2e/tests/upload/local-bundle-save.spec.ts` (also `@upload`) previews a
 folder of already-processed data, presses *Upload & Save*, and checks the
 saved link opens with the same overlays — for merfisheyes output folders, a
-SpatialData store, and an image on its own.
+SpatialData store, a table on its own (saved as a store), and an image on its
+own.
 
 ---
 
