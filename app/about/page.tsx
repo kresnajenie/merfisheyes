@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
 
-import NextLink from "next/link";
-
-import { title } from "@/components/primitives";
 import { siteConfig } from "@/config/site";
-import { publicCatalogWhere } from "@/lib/explore/public-filter";
-import { prisma } from "@/lib/prisma";
 import packageJson from "@/package.json";
 
 import { AboutRays } from "./about-rays";
@@ -15,24 +10,43 @@ export const metadata: Metadata = {
   description: "Who makes MERFISHEYES, how it is funded, and how to cite it.",
 };
 
-// The numbers are re-counted at most once an hour
-export const revalidate = 3600;
-
 const LAB_URL = "https://b.bintulab.com";
 const PEOPLE_URL = "https://b.bintulab.com/people/";
 const PREPRINT_URL =
   "https://www.biorxiv.org/content/10.64898/2026.09.20.753029v2";
 const EMAIL = "ijenie@ucsd.edu";
 
-const PIS = [
-  { name: "Don W. Cleveland", role: "Principal Investigator" },
-  { name: "Bogdan Bintu", role: "Principal Investigator" },
+interface Member {
+  name: string;
+  role: string;
+  photo: string;
+}
+
+const TEAM: Member[] = [
+  { name: "Kresna Jenie", role: "Founder", photo: "/about/jenie.webp" },
+  {
+    name: "Evan Mishkin",
+    role: "Lead Developer",
+    photo: "/about/mishkin.webp",
+  },
+  {
+    name: "Elvis Smith",
+    role: "Lead Data Analyst",
+    photo: "/about/smith.webp",
+  },
 ];
 
-const TEAM = [
-  { name: "Kresna Jenie", role: "Founder" },
-  { name: "Evan Mishkin", role: "Lead Developer" },
-  { name: "Elvis Smith", role: "Lead Data Analyst" },
+const PIS: Member[] = [
+  {
+    name: "Don W. Cleveland",
+    role: "Principal Investigator",
+    photo: "/about/cleveland.webp",
+  },
+  {
+    name: "Bogdan Bintu",
+    role: "Principal Investigator",
+    photo: "/about/bintu.webp",
+  },
 ];
 
 const CITATION =
@@ -49,39 +63,8 @@ const BIBTEX = `@article{jenie2026merfisheyes,
   doi     = {10.64898/2026.09.20.753029},
 }`;
 
-/** What Explore holds right now. Null when the database can't be reached. */
-async function exploreNumbers() {
-  try {
-    const distinct = (field: "species" | "tissue" | "platform") =>
-      prisma.catalogDataset
-        .findMany({
-          where: { ...publicCatalogWhere, [field]: { not: null } },
-          select: { [field]: true },
-          distinct: [field],
-        })
-        .then((rows) => rows.length);
-    const [datasets, species, tissues, platforms] = await Promise.all([
-      prisma.catalogDataset.count({ where: publicCatalogWhere }),
-      distinct("species"),
-      distinct("tissue"),
-      distinct("platform"),
-    ]);
-
-    // An empty catalog (a fresh database) has nothing worth showing
-    if (datasets === 0) return null;
-
-    return [
-      { value: datasets, label: "datasets on Explore" },
-      { value: species, label: "species" },
-      { value: tissues, label: "tissues" },
-      { value: platforms, label: "platforms" },
-    ];
-  } catch {
-    return null;
-  }
-}
-
 const card = "rounded-2xl border border-default-200 bg-default-50/40";
+const link = "text-primary hover:underline";
 
 function Section({
   heading,
@@ -92,144 +75,86 @@ function Section({
 }) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold tracking-tight">{heading}</h2>
+      <h2 className="text-2xl font-semibold tracking-tight">{heading}</h2>
       {children}
     </section>
   );
 }
 
-function Person({ name, role }: { name: string; role: string }) {
-  // First and last name, so "Don W. Cleveland" is DC
-  const words = name.split(" ");
-  const initials = `${words[0][0]}${words[words.length - 1][0]}`;
-
+/** A square photo, the name large, the role small beneath it. */
+function Person({ name, role, photo }: Member) {
   return (
     <a
-      className={`${card} flex items-center gap-4 p-4 transition-colors hover:border-primary/50`}
+      className="group flex flex-col gap-3"
       href={PEOPLE_URL}
       rel="noreferrer"
       target="_blank"
     >
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-        {initials}
-      </span>
-      <span className="flex flex-col">
-        <span className="font-semibold">{name}</span>
-        <span className="text-sm text-default-500">{role}</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={name}
+        className="aspect-square w-full rounded-xl object-cover transition-opacity group-hover:opacity-90"
+        height={600}
+        loading="lazy"
+        src={photo}
+        width={600}
+      />
+      <span className="flex flex-col gap-1">
+        <span className="text-xl font-medium tracking-tight md:text-2xl">{name}</span>
+        <span className="font-mono text-xs uppercase tracking-wider text-primary">
+          {role}
+        </span>
       </span>
     </a>
   );
 }
 
-const link = "text-primary hover:underline";
-
-export default async function AboutPage() {
-  const numbers = await exploreNumbers();
-
+export default function AboutPage() {
   return (
     <div>
       <div className="pointer-events-none fixed inset-0 z-0 h-full w-full opacity-40">
         <AboutRays />
       </div>
 
-      <div className="relative z-10 mx-auto flex max-w-4xl flex-col gap-14 px-4 py-12 md:px-8 md:py-16">
-        <header className="flex flex-col items-center gap-5 text-center">
-          <h1 className={title({ size: "md" })}>
-            <span className={title({ color: "green", size: "md" })}>About</span>{" "}
-            MERFISHEYES
-          </h1>
-          <p className="max-w-2xl text-lg text-default-600">
-            MERFISHEYES shows spatial transcriptomics data in 3D, right in the
-            browser: cells, the molecules inside them, and the tissue image
-            underneath. There is nothing to install, it is free, and anything
-            you load can be shared as a link.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <NextLink
-              className="rounded-full bg-primary px-5 py-2 text-sm font-medium text-white hover:opacity-90"
-              href="/explore"
-            >
-              Explore datasets
-            </NextLink>
-            <NextLink
-              className="rounded-full border border-default-300 px-5 py-2 text-sm font-medium hover:border-primary/50"
-              href="/docs"
-            >
-              Read the docs
-            </NextLink>
-          </div>
-        </header>
-
-        {numbers && (
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {numbers.map((n) => (
-              <div
-                key={n.label}
-                className={`${card} flex flex-col items-center gap-1 px-3 py-5 text-center`}
+      <div className="relative z-10 mx-auto flex max-w-5xl flex-col gap-16 px-4 py-12 md:px-8 md:py-16">
+        <section className="flex flex-col gap-10">
+          <div className="grid gap-4 md:grid-cols-2 md:gap-10">
+            <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
+              Team
+            </h1>
+            <p className="text-lg text-default-600">
+              MERFISHEYES is made at the{" "}
+              <a
+                className={link}
+                href={LAB_URL}
+                rel="noreferrer"
+                target="_blank"
               >
-                <dt className="order-2 text-xs text-default-500">{n.label}</dt>
-                <dd className="order-1 text-3xl font-semibold tabular-nums">
-                  {n.value.toLocaleString("en-US")}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-
-        <figure className="flex flex-col gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            alt="A skin section in MERFISHEYES: its four-channel stain underneath, the cells, and three genes' molecules on top"
-            className="w-full rounded-2xl border border-default-200"
-            height={900}
-            src="/docs/viewer-overview.webp"
-            width={1440}
-          />
-          <figcaption className="text-center text-xs text-default-500">
-            A skin section at 50 µm: the tissue image, the cells and the
-            molecules of three genes, together in one view.
-          </figcaption>
-        </figure>
-
-        <Section heading="Why it exists">
-          <div className="flex flex-col gap-3 text-default-700">
-            <p>
-              Spatial transcriptomics experiments produce millions of cells and
-              hundreds of millions of molecules, and looking at them usually
-              means a workstation, a Python environment and a lot of memory.
-              Sharing them is harder still.
-            </p>
-            <p>
-              MERFISHEYES opens them in any browser, reads only what the view
-              needs, and turns what you are looking at into a link — for a
-              collaborator, a reviewer, or anyone on{" "}
-              <NextLink className={link} href="/explore">
-                Explore
-              </NextLink>
-              .
+                Bintu Lab
+              </a>{" "}
+              at UC San Diego: a browser-based viewer for spatial
+              transcriptomics, with cells, molecules and the tissue image in one
+              shareable view.
             </p>
           </div>
-        </Section>
 
-        <Section heading="The team">
-          <p className="text-default-600">
-            MERFISHEYES is made at the{" "}
-            <a className={link} href={LAB_URL} rel="noreferrer" target="_blank">
-              Bintu Lab
-            </a>{" "}
-            at UC San Diego.
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {PIS.map((p) => (
-              <Person key={p.name} {...p} />
-            ))}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-3">
             {TEAM.map((p) => (
               <Person key={p.name} {...p} />
             ))}
           </div>
-        </Section>
+
+          <div className="flex flex-col gap-6">
+            <h2 className="text-sm font-medium uppercase tracking-widest text-default-500">
+              Principal Investigators
+            </h2>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-3">
+              {PIS.map((p) => (
+                <Person key={p.name} {...p} />
+              ))}
+            </div>
+          </div>
+        </section>
 
         <section
           className={`${card} flex flex-col items-center gap-2 border-primary/30 bg-primary/5 px-6 py-10 text-center`}
@@ -279,11 +204,7 @@ export default async function AboutPage() {
         <Section heading="Get in touch">
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              {
-                label: "Email",
-                detail: EMAIL,
-                href: `mailto:${EMAIL}`,
-              },
+              { label: "Email", detail: EMAIL, href: `mailto:${EMAIL}` },
               {
                 label: "Discord",
                 detail: "Questions and feedback",
@@ -314,17 +235,40 @@ export default async function AboutPage() {
           </div>
         </Section>
 
-        <p className="text-center text-sm text-default-500">
-          Version {packageJson.version} ·{" "}
-          <a
-            className={link}
-            href={`${siteConfig.links.github}/releases`}
-            rel="noreferrer"
-            target="_blank"
-          >
-            What&apos;s new
-          </a>
-        </p>
+        <div className="flex flex-col items-center gap-2 text-center text-xs text-default-500">
+          <p className="text-sm">
+            Version {packageJson.version} ·{" "}
+            <a
+              className={link}
+              href={`${siteConfig.links.github}/releases`}
+              rel="noreferrer"
+              target="_blank"
+            >
+              What&apos;s new
+            </a>
+          </p>
+          <p>
+            Photo of Don W. Cleveland by Flynn Larsen,{" "}
+            <a
+              className={link}
+              href="https://commons.wikimedia.org/wiki/File:Cleveland_Don.jpg"
+              rel="noreferrer"
+              target="_blank"
+            >
+              CC BY-SA 4.0
+            </a>
+            , cropped. Other photos from the{" "}
+            <a
+              className={link}
+              href={PEOPLE_URL}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Bintu Lab
+            </a>
+            .
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 
 import { prisma } from "@/lib/prisma";
-import { publicCatalogWhere } from "@/lib/explore/public-filter";
 import { CARD_ORDER_BY, CARD_SELECT } from "@/lib/explore/query";
 import { title } from "@/components/primitives";
 import { ExplorePageClient } from "@/components/explore/explore-page-client";
@@ -15,7 +14,22 @@ import { ExploreBackground } from "@/components/explore/explore-background";
 export const revalidate = 60;
 
 // The main "All" grid: curated content PLUS approved community submissions.
-const allBase = publicCatalogWhere;
+// Community datasets are viewable by datasetId (no public s3BaseUrl), so the
+// viewable-entry check accepts either.
+const hasViewableEntryAny = {
+  entries: {
+    some: { OR: [{ s3BaseUrl: { not: null } }, { datasetId: { not: null } }] },
+  },
+};
+const allBase = {
+  isPublished: true,
+  isInternal: false,
+  OR: [
+    { isCommunity: false },
+    { AND: [{ isCommunity: true }, { reviewStatus: "APPROVED" as const }] },
+  ],
+  ...hasViewableEntryAny,
+};
 
 // Fetch all initial public data in a single DB round-trip. Card-slim rows
 // only (CARD_SELECT — no genes arrays): this payload is embedded in the
