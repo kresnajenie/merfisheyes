@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import NextLink from "next/link";
 import {
   Modal,
@@ -515,11 +515,30 @@ function FormatDetail({ format }: { format: Format }) {
  * What can be uploaded, format by format, with the expected structure of
  * each. `group` limits it to single cell or single molecule formats.
  */
-export function FormatGuide({ group }: { group?: Format["group"] }) {
+export function FormatGuide({
+  group,
+  initialKey,
+}: {
+  group?: Format["group"];
+  /** The tab to open on, e.g. from a link to one format. */
+  initialKey?: string | null;
+}) {
   const formats = group ? FORMATS.filter((f) => f.group === group) : FORMATS;
+  const known = (key?: string | null) =>
+    key && formats.some((f) => f.key === key) ? key : formats[0].key;
+  const [selected, setSelected] = useState(known(initialKey));
+
+  // A link to another format on the same page changes the key without
+  // remounting the guide
+  useEffect(() => setSelected(known(initialKey)), [initialKey]);
 
   return (
-    <Tabs aria-label="Data formats" variant="underlined">
+    <Tabs
+      aria-label="Data formats"
+      selectedKey={selected}
+      variant="underlined"
+      onSelectionChange={(key) => setSelected(String(key))}
+    >
       {formats.map((format) => (
         <Tab
           key={format.key}

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { Suspense } from "react";
+
 import {
   Callout,
   CompareTable,
@@ -7,6 +9,7 @@ import {
   DocSection,
   Prose,
 } from "@/components/docs/doc-ui";
+import { FormatGuideFromLink } from "@/components/docs/format-guide-from-link";
 import { FormatGuide } from "@/components/format-guide";
 
 export const metadata: Metadata = {
@@ -76,7 +79,9 @@ export default function FormatsPage() {
             <b>What can I upload?</b> on the homepage.
           </p>
         </Prose>
-        <FormatGuide />
+        <Suspense fallback={<FormatGuide />}>
+          <FormatGuideFromLink />
+        </Suspense>
       </DocSection>
 
       <DocSection heading="Molecule columns" id="molecule-columns">

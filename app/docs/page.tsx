@@ -6,8 +6,12 @@ import {
   DocSection,
   Flow,
   LinkCards,
+  LinkList,
   Prose,
 } from "@/components/docs/doc-ui";
+
+/** A tab of the format guide. */
+const format = (key: string) => `/docs/formats?format=${key}#formats`;
 
 export const metadata: Metadata = {
   title: "Docs — MERFISHEYES",
@@ -73,9 +77,30 @@ export default function DocsPage() {
             ],
             [
               "Typical files",
-              ".h5ad, a Xenium or MERSCOPE folder, a SpatialData store",
-              "transcripts .parquet or .csv",
-              "An OME-Zarr folder (.zarr)",
+              <LinkList
+                key="cells"
+                links={[
+                  { label: ".h5ad", href: format("h5ad") },
+                  { label: "Xenium", href: format("xenium") },
+                  { label: "MERSCOPE", href: format("merscope") },
+                  { label: "SpatialData", href: format("spatialdata") },
+                  { label: "Zarr", href: format("zarr") },
+                ]}
+              />,
+              <LinkList
+                key="molecules"
+                links={[
+                  { label: "Parquet / CSV", href: format("molecules") },
+                  {
+                    label: "column names",
+                    href: "/docs/formats#molecule-columns",
+                  },
+                ]}
+              />,
+              <LinkList
+                key="image"
+                links={[{ label: "OME-Zarr (.zarr)", href: format("image") }]}
+              />,
             ],
             [
               "On the homepage",
@@ -90,23 +115,196 @@ export default function DocsPage() {
       <DocSection heading="Where to go next" id="next">
         <CompareTable
           headers={["Go to"]}
-          labelHeader="I have…"
+          labelHeader="I have… / I want to…"
           rows={[
             [
-              "Raw platform output",
-              "Data formats — exactly which files each platform needs",
+              "Raw cells from a platform",
+              <LinkList
+                key="raw"
+                links={[
+                  { label: "H5AD", href: format("h5ad") },
+                  { label: "Xenium", href: format("xenium") },
+                  { label: "MERSCOPE", href: format("merscope") },
+                  { label: "Preview it", href: "/docs/loading#preview" },
+                  {
+                    label: "or process it on our servers",
+                    href: "/docs/loading#server",
+                  },
+                ]}
+              />,
             ],
-            ["An image", "Data formats → Image"],
+            [
+              "A transcripts file",
+              <LinkList
+                key="molecules"
+                links={[
+                  { label: "Parquet / CSV", href: format("molecules") },
+                  {
+                    label: "column names",
+                    href: "/docs/formats#molecule-columns",
+                  },
+                  {
+                    label: "the single molecule viewer",
+                    href: "/docs/viewer#single-molecule",
+                  },
+                ]}
+              />,
+            ],
+            [
+              "An image",
+              <LinkList
+                key="image"
+                links={[
+                  { label: "Image format", href: format("image") },
+                  {
+                    label: "drawing it under cells",
+                    href: "/docs/viewer#overlays",
+                  },
+                ]}
+              />,
+            ],
+            [
+              "Cells, molecules and an image of one sample",
+              <LinkList
+                key="together"
+                links={[
+                  {
+                    label: "Upload them in one go",
+                    href: "/docs/loading#combined",
+                  },
+                  {
+                    label: "overlays in the viewer",
+                    href: "/docs/viewer#overlays",
+                  },
+                ]}
+              />,
+            ],
             [
               "Data that is already processed",
-              "Loading data — it opens as it is, whatever its size",
+              <LinkList
+                key="processed"
+                links={[
+                  {
+                    label: "How it opens as it is",
+                    href: "/docs/loading#processed",
+                  },
+                  { label: "processed folders", href: format("processed") },
+                  { label: "SpatialData", href: format("spatialdata") },
+                  { label: "Zarr table", href: format("zarr") },
+                ]}
+              />,
             ],
             [
-              "A dataset too big for your browser",
-              "Loading data → Upload & process on server",
+              "A dataset too big for my browser",
+              <LinkList
+                key="big"
+                links={[
+                  {
+                    label: "Upload & process on server",
+                    href: "/docs/loading#server",
+                  },
+                  {
+                    label: "or the Python scripts",
+                    href: "/docs/loading#scripts",
+                  },
+                ]}
+              />,
             ],
-            ["Data on a public S3 bucket", "Loading data → Load from S3"],
-            ["Putting your dataset on Explore", "Sharing on Explore"],
+            [
+              "Data on a public S3 bucket",
+              <LinkList
+                key="s3"
+                links={[{ label: "Load from S3", href: "/docs/loading#s3" }]}
+              />,
+            ],
+            [
+              "Not sure how to load it",
+              <LinkList
+                key="choose"
+                links={[
+                  {
+                    label: "Which way should I load my data?",
+                    href: "/docs/loading#choose",
+                  },
+                  {
+                    label: "the three ways side by side",
+                    href: "/docs/loading#compare",
+                  },
+                ]}
+              />,
+            ],
+            [
+              "My own cell type labels",
+              <LinkList
+                key="labels"
+                links={[
+                  {
+                    label: "Cell types you assigned yourself",
+                    href: "/docs/formats#annotations",
+                  },
+                ]}
+              />,
+            ],
+            [
+              "Find my way around the viewer",
+              <LinkList
+                key="viewer"
+                links={[
+                  { label: "What is where", href: "/docs/viewer#layout" },
+                  {
+                    label: "colouring and plots",
+                    href: "/docs/viewer#single-cell",
+                  },
+                  {
+                    label: "two datasets side by side",
+                    href: "/docs/viewer#split",
+                  },
+                ]}
+              />,
+            ],
+            [
+              "Understand the expression values and DEGs",
+              <LinkList
+                key="expression"
+                links={[
+                  {
+                    label: "Where expression comes from",
+                    href: "/docs/expression#source",
+                  },
+                  {
+                    label: "raw counts or log",
+                    href: "/docs/expression#raw-log",
+                  },
+                  {
+                    label: "how DEGs are calculated",
+                    href: "/docs/expression#deg",
+                  },
+                ]}
+              />,
+            ],
+            [
+              "Share what I am looking at",
+              <LinkList
+                key="link"
+                links={[
+                  { label: "Links keep your view", href: "/docs/viewer#links" },
+                ]}
+              />,
+            ],
+            [
+              "Put my dataset on Explore",
+              <LinkList
+                key="explore"
+                links={[
+                  { label: "Step by step", href: "/docs/sharing#steps" },
+                  {
+                    label: "what happens after I submit",
+                    href: "/docs/sharing#review",
+                  },
+                  { label: "projects", href: "/docs/sharing#projects" },
+                ]}
+              />,
+            ],
           ]}
         />
         <LinkCards
@@ -125,6 +323,12 @@ export default function DocsPage() {
               title: "Using the viewer",
               detail: "Colouring, plots, overlays, images and links.",
               href: "/docs/viewer",
+            },
+            {
+              title: "Expression & DEGs",
+              detail:
+                "Where values come from, raw vs log, and how DEGs are ranked.",
+              href: "/docs/expression",
             },
             {
               title: "Sharing on Explore",

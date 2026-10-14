@@ -161,7 +161,7 @@ export default function LoadingPage() {
             },
           ]}
         />
-        <Callout>
+        <Callout id="combined">
           <b>Cells, molecules and an image in one go.</b> Drop a single cell
           folder that also holds a transcripts file (a typical Xenium export)
           and/or an OME-Zarr image folder. Each becomes its own dataset, grouped

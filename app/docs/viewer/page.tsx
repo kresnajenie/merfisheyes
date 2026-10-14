@@ -4,6 +4,7 @@ import {
   Callout,
   CompareTable,
   DocHeader,
+  DocLink,
   DocSection,
   Prose,
 } from "@/components/docs/doc-ui";
@@ -14,74 +15,150 @@ export const metadata: Metadata = {
     "Colouring by gene or cell type, plots, molecule and image overlays, split screen, and links that keep your view.",
 };
 
-/** Where things are on screen, as a labelled sketch of the viewer. */
+/**
+ * The controls in the screenshot below, numbered where they sit. Positions
+ * are pixels of the 1440 × 900 capture, measured from the page itself.
+ */
+const CONTROLS: { x: number; y: number; name: string; what: string }[] = [
+  {
+    x: 72,
+    y: 112,
+    name: "Celltype",
+    what: "Colour by a cell type, cluster or any other column; tick types to highlight them.",
+  },
+  {
+    x: 72,
+    y: 176,
+    name: "Gene",
+    what: "Colour the cells by one gene's expression. With molecules shown, it also picks molecule genes.",
+  },
+  {
+    x: 72,
+    y: 240,
+    name: "DEG",
+    what: "The genes that set one cell type apart from the rest, or from another type.",
+  },
+  {
+    x: 72,
+    y: 304,
+    name: "Plot",
+    what: "Boxplots, histograms and cell counts in a panel you can move and resize.",
+  },
+  {
+    x: 72,
+    y: 368,
+    name: "Split screen",
+    what: "Open a second dataset beside this one.",
+  },
+  { x: 30, y: 440, name: "Point size", what: "How big the dots are drawn." },
+  {
+    x: 103,
+    y: 433,
+    name: "Cells / molecules",
+    what: "Whether the size slider and the gene picker act on the cells or the molecules. Shown when molecules are overlaid.",
+  },
+  {
+    x: 72,
+    y: 600,
+    name: "SC · SM",
+    what: "Show or hide the cells (SC) and the molecules (SM).",
+  },
+  {
+    x: 1176,
+    y: 72,
+    name: "Camera controls",
+    what: "2D or 3D, rotation, flips, reset the view, and a screenshot or thumbnail.",
+  },
+  {
+    x: 1240,
+    y: 72,
+    name: "Hide UI",
+    what: "Hide every control for a clean screenshot. Press H to toggle.",
+  },
+  {
+    x: 1304,
+    y: 72,
+    name: "Advanced settings",
+    what: "Further display options.",
+  },
+  {
+    x: 1368,
+    y: 72,
+    name: "Copy link to this view",
+    what: "A link that opens exactly what you see.",
+  },
+  {
+    x: 1268,
+    y: 124,
+    name: "Selected genes",
+    what: "The molecule genes on screen. The eye hides one (⌘-click shows only it), × removes it, Clear All removes all.",
+  },
+  {
+    x: 137,
+    y: 806,
+    name: "Scale bar",
+    what: "The length shown, in the data's units.",
+  },
+  {
+    x: 1350,
+    y: 810,
+    name: "UMAP",
+    what: "Open the cells' UMAP (or another embedding) beside the tissue.",
+  },
+];
+
+/** The viewer as it looks, with its controls numbered. */
 function ViewerMap() {
-  const label =
-    "rounded-md border border-default-300 bg-background/90 px-2 py-1 text-[11px] leading-tight text-default-700";
-
   return (
-    <figure className="flex flex-col gap-2">
-      <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-default-200 bg-black">
-        {/* Cells, sketched as dots */}
-        <svg
-          aria-hidden
-          className="absolute inset-0 h-full w-full opacity-70"
-          preserveAspectRatio="none"
-          viewBox="0 0 160 100"
-        >
-          {Array.from({ length: 220 }, (_, i) => {
-            // A fixed scatter, so the sketch is the same on every render
-            const rand = (n: number) => {
-              const v = Math.sin(n * 12.9898) * 43758.5453;
-
-              return v - Math.floor(v);
-            };
-            const hues = [
-              "#5EA2EF",
-              "#17c964",
-              "#f5a524",
-              "#FF72E1",
-              "#00b7fa",
-            ];
-
-            return (
-              <circle
-                key={i}
-                cx={45 + rand(i + 1) * 80}
-                cy={20 + rand(i + 501) * 65}
-                fill={hues[Math.floor(rand(i + 901) * hues.length)]}
-                r={0.8}
-              />
-            );
-          })}
-        </svg>
-
-        <div className="absolute left-2 top-2 flex flex-col gap-1 sm:left-3 sm:top-3">
-          <span className={label}>Image — show/hide, channels, bounds</span>
-          <span className={label}>Celltype — colour by a column</span>
-          <span className={label}>Gene — colour by expression</span>
-          <span className={label}>DEG — top genes of a group</span>
-          <span className={label}>Plot — boxplots, histograms</span>
-          <span className={label}>Split screen</span>
-          <span className={label}>Point size · SC / SM layers</span>
-        </div>
-
-        <div className="absolute right-2 top-2 flex max-w-[45%] flex-col items-end gap-1 sm:right-3 sm:top-3">
-          <span className={label}>
-            Camera · Hide UI · Settings · Copy link to this view
+    <figure className="flex flex-col gap-4">
+      <div className="relative w-full overflow-hidden rounded-xl border border-default-200">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt="The single cell viewer showing a coronal mouse brain section coloured by MapMyCells class, with the molecules of Igfbpl1, Drd1 and Th overlaid"
+          className="block h-auto w-full"
+          height={900}
+          src="/docs/viewer-overview.webp"
+          width={1440}
+        />
+        {CONTROLS.map((c, i) => (
+          <span
+            key={c.name}
+            aria-hidden
+            className="absolute flex h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-white shadow ring-1 ring-black sm:h-6 sm:w-6 sm:text-xs sm:ring-2"
+            style={{
+              left: `${(c.x / 1440) * 100}%`,
+              top: `${(c.y / 900) * 100}%`,
+            }}
+          >
+            {i + 1}
           </span>
-          <span className={label}>Legends — gene, scale bar, cell types</span>
-        </div>
-
-        <div className="absolute bottom-2 left-2 sm:bottom-3 sm:left-3">
-          <span className={label}>Scale bar</span>
-        </div>
-        <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3">
-          <span className={label}>Overlays — molecules and image</span>
-        </div>
+        ))}
       </div>
+      <ol className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+        {CONTROLS.map((c, i) => (
+          <li key={c.name} className="flex gap-2">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+              {i + 1}
+            </span>
+            <span>
+              <b>{c.name}</b>{" "}
+              <span className="text-default-500">— {c.what}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
       <figcaption className="text-xs text-default-500">
-        The single cell viewer. Hover a button in the app for its name.
+        A coronal mouse brain section (140,542 cells) coloured by MapMyCells
+        class, with three molecule genes overlaid.{" "}
+        <a
+          className="text-primary hover:underline"
+          href="https://www.merfisheyes.com/viewer/from-s3?url=https%3A%2F%2Fmerfisheyes-bil.s3.us-west-2.amazonaws.com%2Fbil-psc-data2%2Face-low-bag%2Fmeyes_output&v=eyJjIjoiY2xhc3NfbmFtZSIsInZtIjoiM0QifQ&ov=eyJnZW5lcyI6W1siSWdmYnBsMSIsIiMwMEZGRkYiLDEsdHJ1ZV0sWyJEcmQxIiwiI0ZGMDBGRiIsMSx0cnVlXSxbIlRoIiwiI0ZGRkYwMCIsMSx0cnVlXV19"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Open this view
+        </a>
+        .
       </figcaption>
     </figure>
   );
@@ -120,7 +197,11 @@ export default function ViewerPage() {
             <li>
               <b>Colour by gene</b> — a blue-white-red gradient, scaled to the
               95th percentile. Drag the numbers on the scale bar to change its
-              range.
+              range, and switch it between <b>Raw</b> and <b>Log</b> (see{" "}
+              <DocLink href="/docs/expression#raw-log">
+                raw counts or log values
+              </DocLink>
+              ).
             </li>
             <li>
               <b>Colour by a column</b> — cell types, clusters or any metadata.
@@ -133,7 +214,11 @@ export default function ViewerPage() {
             </li>
             <li>
               <b>DEG</b> — the genes that set one cell type apart from the rest,
-              or from another cell type, ranked by fold change.
+              or from another cell type, ranked by fold change. See{" "}
+              <DocLink href="/docs/expression#deg">
+                how DEGs are calculated
+              </DocLink>
+              .
             </li>
             <li>
               <b>Plot panel</b> — boxplots and histograms of a gene per cell

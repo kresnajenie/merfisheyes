@@ -52,17 +52,58 @@ export function Prose({ children }: { children: ReactNode }) {
   );
 }
 
+/** A link to another place in the docs, styled as a link. */
+export function DocLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <NextLink className="text-primary hover:underline" href={href}>
+      {children}
+    </NextLink>
+  );
+}
+
+/** Several links in a row, separated by dots. */
+export function LinkList({
+  links,
+}: {
+  links: { label: string; href: string }[];
+}) {
+  return (
+    <span className="flex flex-wrap gap-x-2 gap-y-1">
+      {links.map((l, i) => (
+        <span key={l.href} className="flex gap-2">
+          {i > 0 && (
+            <span aria-hidden className="text-default-400">
+              ·
+            </span>
+          )}
+          <DocLink href={l.href}>{l.label}</DocLink>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** A highlighted aside: a tip, or something to watch out for. */
 export function Callout({
   kind = "tip",
+  id,
   children,
 }: {
   kind?: "tip" | "note";
+  /** To link straight to it. */
+  id?: string;
   children: ReactNode;
 }) {
   return (
     <div
-      className={`rounded-xl border px-4 py-3 text-sm leading-relaxed ${
+      id={id}
+      className={`scroll-mt-28 rounded-xl border px-4 py-3 text-sm leading-relaxed ${
         kind === "tip"
           ? "border-primary/30 bg-primary/5"
           : "border-warning/30 bg-warning/5"
