@@ -141,6 +141,16 @@ export default function FormatsPage() {
             labels stay yours.
           </p>
         </Prose>
+        <Prose>
+          <p>
+            The CSV has one row per cell, in the same order as the cells in your
+            data, with a <code>cell_id</code> column first and one column per
+            label. From an AnnData:
+          </p>
+        </Prose>
+        <pre className="overflow-x-auto rounded-xl border border-default-200 bg-default-50/40 px-4 py-3 text-xs leading-relaxed">
+          <code>{`adata.obs[["my_celltype"]].to_csv("celltypes.csv", index_label="cell_id")`}</code>
+        </pre>
       </DocSection>
 
       <Callout>
