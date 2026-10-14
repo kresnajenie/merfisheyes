@@ -11,6 +11,8 @@ export const metadata: Metadata = {
 };
 
 const LAB_URL = "https://b.bintulab.com";
+const CLEVELAND_LAB_URL =
+  "https://cmm.ucsd.edu/research/labs/don-cleveland/index.html";
 const PEOPLE_URL = "https://b.bintulab.com/people/";
 const PREPRINT_URL =
   "https://www.biorxiv.org/content/10.64898/2026.09.20.753029v2";
@@ -18,6 +20,8 @@ const EMAIL = "ijenie@ucsd.edu";
 
 interface Member {
   name: string;
+  /** Where the card leads: a team member's LinkedIn, a PI's lab page. */
+  href?: string;
   /** Other names the person goes by. */
   aka?: string[];
   role: string;
@@ -27,17 +31,20 @@ interface Member {
 const TEAM: Member[] = [
   {
     name: "Ignatius Kresnathan Sjahnir Jenie",
+    href: "https://www.linkedin.com/in/ignatius-jenie-1023521b3/",
     aka: ["KJ", "Jenie", "Kresna"],
     role: "Founder",
     photo: "/about/jenie.webp",
   },
   {
     name: "Evan Mishkin",
+    href: "https://www.linkedin.com/in/evan-mishkin-1a76a4190/",
     role: "Lead Developer",
     photo: "/about/mishkin.webp",
   },
   {
     name: "Elvis Smith",
+    href: "https://www.linkedin.com/in/hire-elvis-smith/",
     role: "Lead Data Analyst",
     photo: "/about/smith.webp",
   },
@@ -46,11 +53,13 @@ const TEAM: Member[] = [
 const PIS: Member[] = [
   {
     name: "Don W. Cleveland",
+    href: CLEVELAND_LAB_URL,
     role: "Principal Investigator",
     photo: "/about/cleveland.webp",
   },
   {
     name: "Bogdan Bintu",
+    href: LAB_URL,
     role: "Principal Investigator",
     photo: "/about/bintu.webp",
   },
@@ -89,14 +98,9 @@ function Section({
 }
 
 /** A square photo, the name large, the role small beneath it. */
-function Person({ name, aka, role, photo }: Member) {
-  return (
-    <a
-      className="group flex flex-col gap-3"
-      href={PEOPLE_URL}
-      rel="noreferrer"
-      target="_blank"
-    >
+function Person({ name, aka, href, role, photo }: Member) {
+  const body = (
+    <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         alt={name}
@@ -119,7 +123,20 @@ function Person({ name, aka, role, photo }: Member) {
           {role}
         </span>
       </span>
+    </>
+  );
+
+  return href ? (
+    <a
+      className="group flex flex-col gap-3"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+    >
+      {body}
     </a>
+  ) : (
+    <div className="flex flex-col gap-3">{body}</div>
   );
 }
 
@@ -138,6 +155,15 @@ export default function AboutPage() {
             </h1>
             <p className="text-lg text-default-600">
               MERFISHEYES is made at the{" "}
+              <a
+                className={link}
+                href={CLEVELAND_LAB_URL}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Cleveland Lab
+              </a>{" "}
+              and the{" "}
               <a
                 className={link}
                 href={LAB_URL}
