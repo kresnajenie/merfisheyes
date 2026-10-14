@@ -22,6 +22,12 @@ export const metadata: Metadata = {
 const CONTROLS: { x: number; y: number; name: string; what: string }[] = [
   {
     x: 72,
+    y: 68,
+    name: "Image",
+    what: "Show or hide the image, and for each channel whether it is on, its colour, and its lower and upper bound.",
+  },
+  {
+    x: 72,
     y: 112,
     name: "Celltype",
     what: "Colour by a cell type, cluster or any other column; tick types to highlight them.",
@@ -85,7 +91,7 @@ const CONTROLS: { x: number; y: number; name: string; what: string }[] = [
     x: 1368,
     y: 72,
     name: "Copy link to this view",
-    what: "A link that opens exactly what you see.",
+    what: "A link that opens exactly what you see, image settings included.",
   },
   {
     x: 1268,
@@ -94,16 +100,10 @@ const CONTROLS: { x: number; y: number; name: string; what: string }[] = [
     what: "The molecule genes on screen. The eye hides one (⌘-click shows only it), × removes it, Clear All removes all.",
   },
   {
-    x: 137,
+    x: 111,
     y: 806,
     name: "Scale bar",
     what: "The length shown, in the data's units.",
-  },
-  {
-    x: 1350,
-    y: 810,
-    name: "UMAP",
-    what: "Open the cells' UMAP (or another embedding) beside the tissue.",
   },
 ];
 
@@ -114,7 +114,7 @@ function ViewerMap() {
       <div className="relative w-full overflow-hidden rounded-xl border border-default-200">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          alt="The single cell viewer showing a coronal mouse brain section coloured by MapMyCells class, with the molecules of Igfbpl1, Drd1 and Th overlaid"
+          alt="The SpatialData viewer zoomed into a skin section: the four-channel fluorescence stain underneath, cells coloured by cluster, and the molecules of DRD1, TH and A2ML1 on top"
           className="block h-auto w-full"
           height={900}
           src="/docs/viewer-overview.webp"
@@ -148,15 +148,16 @@ function ViewerMap() {
         ))}
       </ol>
       <figcaption className="text-xs text-default-500">
-        A coronal mouse brain section (140,542 cells) coloured by MapMyCells
-        class, with three molecule genes overlaid.{" "}
+        A skin section (112,551 cells, a SpatialData store) at 50 µm scale: its
+        four-channel image underneath, the cells, and three molecule genes on
+        top.{" "}
         <a
           className="text-primary hover:underline"
-          href="https://www.merfisheyes.com/viewer/from-s3?url=https%3A%2F%2Fmerfisheyes-bil.s3.us-west-2.amazonaws.com%2Fbil-psc-data2%2Face-low-bag%2Fmeyes_output&v=eyJjIjoiY2xhc3NfbmFtZSIsInZtIjoiM0QifQ&ov=eyJnZW5lcyI6W1siSWdmYnBsMSIsIiMwMEZGRkYiLDEsdHJ1ZV0sWyJEcmQxIiwiI0ZGMDBGRiIsMSx0cnVlXSxbIlRoIiwiI0ZGRkYwMCIsMSx0cnVlXV19"
+          href="https://www.merfisheyes.com/spatialdata-viewer/from-s3?url=https%3A%2F%2Fmerfisheyes-bil.s3.us-west-2.amazonaws.com%2Fspatialdata%2Fskin_adapt_v2&img=eyJjIjpbWzEsIiMzZDdkZmYiLDAsMzA4M10sWzEsIiMwMGUwNjAiLDAsNTY4M10sWzEsIiNmZjQwZDAiLDAsMjMyNV0sWzEsIiNmZmQwMDAiLDAsOTUwNV1dfQ&ov=eyJnZW5lcyI6W1siRFJEMSIsIiMwMEZGRkYiLDEsdHJ1ZV0sWyJUSCIsIiNGRjAwRkYiLDEsdHJ1ZV0sWyJBMk1MMSIsIiNGRkZGMDAiLDEsdHJ1ZV1dfQ"
           rel="noreferrer"
           target="_blank"
         >
-          Open this view
+          Open this dataset
         </a>
         .
       </figcaption>
