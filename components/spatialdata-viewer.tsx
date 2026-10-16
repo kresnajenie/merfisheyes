@@ -4,10 +4,12 @@ import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Progress, Spinner } from "@heroui/react";
 
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import { ImageScene } from "@/components/image-viewer";
+import { PointsFilmStrip } from "@/components/points-film-strip";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
@@ -42,6 +44,7 @@ import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { applyCellOpenState } from "@/lib/viewer/open-dataset";
 import { normalizeS3Url } from "@/lib/utils/viewer-config";
+import { STAGE_RAIL_HEIGHT } from "@/lib/ui/stage-rail-geometry";
 
 /**
  * Viewer for a SpatialData zarr store, read lazily and as written — either a
@@ -82,6 +85,9 @@ export function SpatialDataViewer({
   const [message, setMessage] = useState("Initializing...");
   // The store's own URL, once a folder URL has been resolved to it
   const [storeUrl, setStoreUrl] = useState<string | null>(null);
+  // The project the store belongs to, if any: drives the film strip
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const router = useRouter();
   const setRegistration = useViewerRegistrationStore((s) => s.set);
   const resetRegistration = useViewerRegistrationStore((s) => s.reset);
 
@@ -219,6 +225,7 @@ export function SpatialDataViewer({
       .catch(() => null)
       .then((reg) => {
         if (cancelled) return;
+        setProjectId(reg?.projectId ?? null);
         setRegistration({
           dbId: reg?.registered ? reg.id : null,
           ownerId: reg?.ownerId ?? null,
@@ -294,11 +301,27 @@ export function SpatialDataViewer({
         {storeUrl && <ClaimDatasetBanner />}
         <VisualizationControls />
         <ThreeScene
+          bottomInset={projectId && cellMolecules ? STAGE_RAIL_HEIGHT : 0}
           dataset={dataset}
           molecules={cellMolecules}
           onSceneReady={addImageLayer}
         />
         {imageLayer && <SpatialDataImageControls layer={imageLayer} />}
+        {projectId && cellMolecules && (
+          <PointsFilmStrip
+            currentUrl={storeUrl}
+            projectId={projectId}
+            onOpen={(d) => {
+              // Same viewer, another section; the molecule genes come along
+              const ov = new URLSearchParams(window.location.search).get("ov");
+
+              router.push(
+                `/spatialdata-viewer/from-s3?url=${encodeURIComponent(d.s3BaseUrl)}` +
+                  (ov ? `&ov=${encodeURIComponent(ov)}` : ""),
+              );
+            }}
+          />
+        )}
       </SplitScreenContainer>
     );
   }

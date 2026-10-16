@@ -3,16 +3,18 @@
 import { Link } from "@heroui/link";
 import { usePathname } from "next/navigation";
 
+import { useFilmStripStore } from "@/lib/stores/filmStripStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { STAGE_RAIL_HEIGHT } from "@/lib/ui/stage-rail-geometry";
 
 export function Footer() {
   const isSplitMode = useSplitScreenStore((s) => s.isSplitMode);
   const pathname = usePathname();
-  // The labelled-molecule viewer is the only page whose bottom edge is taken
-  // by something — the stage rail — so it is the only one that moves the
-  // credit. Every other page keeps the footer in normal flow.
-  const overRail = pathname?.startsWith("/lm-viewer") ?? false;
+  const filmStrip = useFilmStripStore((s) => s.shown);
+  // Pages whose bottom edge is taken by a strip of datasets — the
+  // labelled-molecule viewer's stage rail, or a project's film strip — move
+  // the credit above it. Every other page keeps the footer in normal flow.
+  const overRail = (pathname?.startsWith("/lm-viewer") ?? false) || filmStrip;
 
   return (
     <footer

@@ -1,7 +1,8 @@
+import type { Dataset } from "@prisma/client";
+
 import { createHash } from "crypto";
 
 import { nanoid } from "nanoid";
-import type { Dataset } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { normalizeS3Url } from "@/lib/utils/viewer-config";
@@ -120,12 +121,25 @@ export async function ensureDatasetForS3Url(
       zarrRoot?.attributes?.spatialdata_attrs ||
       (!zarrRoot && kind === "spatialdata")
     ) {
-      const nodes: Record<string, { shape?: number[] }> =
-        zarrRoot?.consolidated_metadata?.metadata ?? {};
-      const count = (axis: "obs" | "var") =>
-        Object.entries(nodes).find(([path]) =>
-          new RegExp(`^tables/[^/]+/${axis}/_index$`).test(path),
-        )?.[1].shape?.[0] ?? 0;
+      const nodes: Record<
+        string,
+        { shape?: number[]; attributes?: { _index?: string } }
+      > = zarrRoot?.consolidated_metadata?.metadata ?? {};
+      // The dataframe names its index column (`_index` by default); that is
+      // an array, or — nullable strings, as current anndata writes them — a
+      // group whose `values` array has the length.
+      const count = (axis: "obs" | "var") => {
+        const frame = Object.keys(nodes).find((path) =>
+          new RegExp(`^tables/[^/]+/${axis}$`).test(path),
+        );
+
+        if (!frame) return 0;
+        const index = `${frame}/${nodes[frame].attributes?._index ?? "_index"}`;
+
+        return (
+          nodes[index]?.shape?.[0] ?? nodes[`${index}/values`]?.shape?.[0] ?? 0
+        );
+      };
       const dataset = await prisma.dataset.create({
         data: {
           id: `s3_${nanoid(10)}`,

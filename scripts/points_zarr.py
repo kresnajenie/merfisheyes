@@ -368,11 +368,18 @@ class PointsWriter:
             for p in parts:
                 p.unlink()
             tile, _ = self.tiles(rec["x"], rec["y"], k)
-            key = (tile.astype(np.uint64) << np.uint64(fbits + 32 - rshift)) | (
-                rec["f"].astype(np.uint64) << np.uint64(32 - rshift)
-            ) | (rec["r"].astype(np.uint64) >> np.uint64(rshift))
-            order = np.argsort(key)
-            del key
+            if k == 0:
+                # Within a (tile, feature) run by r, so any prefix of a run is
+                # a uniform sample; the order here is what defines the ids
+                key = (tile.astype(np.uint64) << np.uint64(fbits + 32 - rshift)) | (
+                    rec["f"].astype(np.uint64) << np.uint64(32 - rshift)
+                ) | (rec["r"].astype(np.uint64) >> np.uint64(rshift))
+                order = np.argsort(key)
+                del key
+            else:
+                # Coarser levels are samples already; by id within a run, so
+                # the ids rise and delta-code to almost nothing
+                order = np.lexsort((rec["id"], rec["f"], tile))
             rec, tile = rec[order], tile[order]
             del order
             m = len(rec)

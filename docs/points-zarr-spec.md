@@ -116,9 +116,11 @@ names and members `column_0` … `column_{n-1}`, all of length
 
 **Row order.**
 
-- `tile_major` MUST be sorted by (tile, feature code), and SHOULD then be
-  sorted by `r`, so any prefix of a (tile, feature) run is itself a uniform
-  sample.
+- `tile_major` MUST be sorted by (tile, feature code). Within a (tile,
+  feature) run, level 0 SHOULD be sorted by `r`, so any prefix of a run is
+  itself a uniform sample; levels above 0 SHOULD be sorted by `id`, so the
+  ids rise and delta-code to almost nothing (those levels are samples
+  already).
 - `feature_major` MUST be sorted by (feature code, tile), then in the same
   order as `tile_major` within each (tile, feature) run.
 

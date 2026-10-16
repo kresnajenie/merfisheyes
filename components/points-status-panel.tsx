@@ -45,7 +45,14 @@ function Spinner() {
  * whether its view is still loading; a progress bar for the view as a whole;
  * how much to draw (Auto, More, All); and what has been read so far.
  */
-export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
+export function PointsStatusPanel({
+  layer,
+  bottomInset = 0,
+}: {
+  layer: PointsLayer;
+  /** Height taken at the bottom of the page; the panel sits above it. */
+  bottomInset?: number;
+}) {
   const [status, setStatus] = useState<PointsStatus>(() => layer.status());
   const selected = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
@@ -87,8 +94,9 @@ export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
   return (
     <div
       data-ui-overlay
-      className="glass-panel absolute bottom-16 right-6 z-[var(--z-legends)] w-96 rounded-xl p-3 text-xs text-white"
+      className="glass-panel absolute right-6 z-[var(--z-legends)] w-96 rounded-xl p-3 text-xs text-white"
       data-testid="points-status"
+      style={{ bottom: bottomInset + 64 }}
     >
       <div className="flex items-center gap-2">
         {loading ? (
