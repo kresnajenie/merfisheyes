@@ -538,7 +538,7 @@ function OwnerDefaultsSection() {
         Save current view as default
       </Button>
       <p className="text-[10px] text-default-400 mt-1">
-        Saves rotation, colors, alignment, and the{" "}
+        Saves rotation, 2D/3D view, colors, alignment, and the{" "}
         <span className="text-default-300">
           {store.selectedColumn ?? "current"}
         </span>{" "}

@@ -8,6 +8,8 @@
 // ETag is read from the response — this requires the bucket CORS to expose
 // the ETag header (ExposeHeaders: ["ETag"]).
 
+import type { ViewerConfig } from "@/lib/utils/viewer-config";
+
 export type RawUploadKind = "single_cell" | "single_molecule";
 
 export interface RawUploadFile {
@@ -30,6 +32,8 @@ export interface UploadRawParams {
   kind: RawUploadKind;
   title?: string;
   processingParams: Record<string, unknown>;
+  /** Owner defaults the new dataset starts with, e.g. { viewMode: "3D" }. */
+  viewerConfig?: ViewerConfig;
   files: RawUploadFile[];
   signal?: AbortSignal;
   onProgress?: (p: RawUploadProgress) => void;
@@ -171,6 +175,7 @@ export async function uploadRawToS3(
     kind,
     title,
     processingParams,
+    viewerConfig,
     files,
     signal,
     onProgress,
@@ -200,6 +205,7 @@ export async function uploadRawToS3(
     body: JSON.stringify({
       metadata: { title },
       processingParams: { ...processingParams, kind },
+      viewerConfig,
       files: files.map((f) => ({
         key: f.key,
         size: f.file.size,

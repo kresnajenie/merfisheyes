@@ -8,6 +8,8 @@
  * requires XMLHttpRequest, which we don't need for v1).
  */
 
+import type { ViewerConfig } from "@/lib/utils/viewer-config";
+
 const MAX_CONCURRENCY = 8;
 const MAX_RETRIES = 3;
 const PROGRESS_BATCH_SIZE = 25; // flush completedFiles to server every N files
@@ -45,6 +47,8 @@ export interface ZarrUploadOptions {
   onProgress?: (progress: number, message: string) => void;
   /** Admins only: true → collective "admin" ownership instead of personal. */
   asAdmin?: boolean;
+  /** Owner defaults the new dataset starts with, e.g. { viewMode: "3D" }. */
+  viewerConfig?: ViewerConfig;
 }
 
 export interface ZarrUploadResult {
@@ -69,6 +73,7 @@ export async function uploadZarrToS3(
     datasetName,
     onProgress,
     asAdmin = false,
+    viewerConfig,
   } = opts;
 
   if (fileMap.size === 0) {
@@ -87,6 +92,7 @@ export async function uploadZarrToS3(
       // +1 for manifest.json at the dataset root (alongside data.zarr/).
       totalFiles: fileMap.size + 1,
       asAdmin,
+      viewerConfig,
     }),
   });
 

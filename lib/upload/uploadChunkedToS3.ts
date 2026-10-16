@@ -14,6 +14,8 @@
  * /api/datasets/{id}/complete.
  */
 
+import type { ViewerConfig } from "@/lib/utils/viewer-config";
+
 const MAX_CONCURRENCY = 8;
 const MAX_RETRIES = 3;
 const COMPLETE_BATCH_SIZE = 100; // UploadFile rows marked COMPLETE per request
@@ -45,6 +47,8 @@ export interface ChunkedUploadOptions {
   };
   files: ChunkedUploadFile[];
   asAdmin?: boolean;
+  /** Owner defaults the new dataset starts with, e.g. { viewMode: "3D" }. */
+  viewerConfig?: ViewerConfig;
   onProgress?: (progress: number, message: string) => void;
 }
 
@@ -72,7 +76,14 @@ async function withRetries<T>(label: string, fn: () => Promise<T>): Promise<T> {
 export async function uploadChunkedToS3(
   opts: ChunkedUploadOptions,
 ): Promise<ChunkedUploadResult> {
-  const { fingerprint, metadata, files, asAdmin = false, onProgress } = opts;
+  const {
+    fingerprint,
+    metadata,
+    files,
+    asAdmin = false,
+    viewerConfig,
+    onProgress,
+  } = opts;
 
   const manifest = files.find((f) => f.key === MANIFEST_KEY);
 
@@ -94,6 +105,7 @@ export async function uploadChunkedToS3(
         contentType: f.contentType,
       })),
       asAdmin,
+      viewerConfig,
       uploadMode: "post-policy",
     }),
   });

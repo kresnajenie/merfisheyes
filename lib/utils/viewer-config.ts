@@ -17,7 +17,7 @@ export interface ViewerConfig {
   sceneRotation?: number; // degrees
   flipX?: boolean;
   flipY?: boolean;
-  viewMode?: "2D" | "3D"; // camera view mode (used by the single-molecule viewer)
+  viewMode?: "2D" | "3D"; // camera view mode on load (both viewers)
   priorityColumn?: string | null; // default cluster column on load
   defaultGenes?: string[]; // single-molecule: genes auto-shown on load
   transformColumn?: string | null; // sample column for per-sample align
@@ -220,6 +220,7 @@ export function applyViewerConfig(
     store.setSceneRotation(config.sceneRotation);
   if (config.flipX !== undefined) store.setFlipX(config.flipX);
   if (config.flipY !== undefined) store.setFlipY(config.flipY);
+  if (config.viewMode) store.setViewMode(config.viewMode);
 
   if (config.transformColumn !== undefined) {
     store.setTransformColumn(config.transformColumn);
@@ -233,8 +234,9 @@ export function applyViewerConfig(
 
 /**
  * Client-only. Read the current store + dataset into a ViewerConfig for saving.
- * Captures rotation/flips, the active cluster column as the priority column,
- * per-sample transforms, and per-column custom colors (from localStorage).
+ * Captures rotation/flips, the 2D/3D view mode, the active cluster column as
+ * the priority column, per-sample transforms, and per-column custom colors
+ * (from localStorage).
  */
 export function extractViewerConfig(
   store: VisualizationState,
@@ -245,6 +247,7 @@ export function extractViewerConfig(
     sceneRotation: store.sceneRotation,
     flipX: store.flipX,
     flipY: store.flipY,
+    viewMode: store.viewMode,
     priorityColumn: store.selectedColumn ?? null,
   };
 
