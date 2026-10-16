@@ -93,12 +93,35 @@ export interface MerfishMemoryStats {
   at: number | null;
 }
 
+/**
+ * One molecule gene file's journey through `MoleculeLayer`, keyed by gene
+ * (assigned) or `${gene}:unassigned`. Lets a browser test prove a gene was
+ * streamed (several batches) rather than loaded whole, or was cancelled.
+ */
+export interface MerfishGeneLoad {
+  /** Distinguishes this load from one that replaced it (scene rebuilt). */
+  id: number;
+  /** Streamed into the scene as it downloaded, or loaded whole first. */
+  mode: "stream" | "whole";
+  /** Batches appended so far (1 for a whole load once it lands). */
+  batches: number;
+  /** Molecules drawn so far. */
+  loaded: number;
+  /** Molecules the file holds, when known before the download. */
+  expected: number | null;
+  done: boolean;
+  aborted: boolean;
+  failed: boolean;
+}
+
 export interface MerfishTestHooks {
   enabled: true;
   /** Per element kind: "table", "points", "shapes", "image", "molecules-legacy". */
   layers: Record<string, MerfishLayerStats>;
   frames: MerfishFrameStats;
   memory: MerfishMemoryStats;
+  /** Molecule gene loads of the current scene(s); see MerfishGeneLoad. */
+  geneLoads: Record<string, MerfishGeneLoad>;
   /** performance.now() when the Three.js scene finished initializing. */
   sceneReady: number | null;
   /** performance.now() of the most recent point-cloud attribute update. */
@@ -148,6 +171,7 @@ function getHooks(): MerfishTestHooks | null {
         triangles: 0,
         at: null,
       },
+      geneLoads: {},
       sceneReady: null,
       renderComplete: null,
       renderCount: 0,
@@ -196,6 +220,7 @@ export function resetHooks(): void {
   if (!h) return;
   h.layers = {};
   h.frames = freshFrames();
+  h.geneLoads = {};
   h.sceneReady = null;
   h.renderComplete = null;
   h.renderCount = 0;
@@ -359,6 +384,70 @@ export function markMemory(info: {
 /** True when the hooks are live (NEXT_PUBLIC_E2E=1), for callers that pay to compute a stat. */
 export function hooksEnabled(): boolean {
   return getHooks() !== null;
+}
+
+/** Key of a gene load in `geneLoads`. */
+export function geneLoadKey(
+  gene: string,
+  kind: "assigned" | "unassigned",
+): string {
+  return kind === "assigned" ? gene : `${gene}:unassigned`;
+}
+
+let nextGeneLoadId = 1;
+
+/**
+ * Record that a molecule gene file started loading, and how. Returns the id
+ * the load passes back with its progress and end, so a load that was
+ * replaced (its scene rebuilt, a new layer started the same gene) can no
+ * longer write over the entry of the load that replaced it.
+ */
+export function markGeneLoadStart(
+  key: string,
+  mode: MerfishGeneLoad["mode"],
+  expected: number | null,
+): number {
+  const h = getHooks();
+  if (!h) return 0;
+  const id = nextGeneLoadId++;
+  h.geneLoads[key] = {
+    id,
+    mode,
+    batches: 0,
+    loaded: 0,
+    expected,
+    done: false,
+    aborted: false,
+    failed: false,
+  };
+  return id;
+}
+
+/** Record molecules drawn so far for a gene load (one call per batch). */
+export function markGeneLoadProgress(
+  key: string,
+  id: number,
+  loaded: number,
+): void {
+  const h = getHooks();
+  const load = h?.geneLoads[key];
+  if (!load || load.id !== id) return;
+  load.batches += 1;
+  load.loaded = loaded;
+}
+
+/** Record how a gene load ended. */
+export function markGeneLoadEnd(
+  key: string,
+  id: number,
+  outcome: "done" | "aborted" | "failed",
+): void {
+  const h = getHooks();
+  const load = h?.geneLoads[key];
+  if (!load || load.id !== id) return;
+  load.done = true;
+  load.aborted = outcome === "aborted";
+  load.failed = outcome === "failed";
 }
 
 /** Record that DE stats for a cluster column have finished computing/loading. */

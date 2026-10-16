@@ -298,18 +298,46 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### Single Molecule Visualization
 
-**Three.js Point Clouds** ([components/single-molecule-three-scene.tsx](components/single-molecule-three-scene.tsx)):
+**One render path for molecules** ([lib/webgl/MoleculeLayer.ts](lib/webgl/MoleculeLayer.ts)):
 
-- One point cloud per gene for independent control (easier alpha/visibility management)
-- **Circular Point Rendering**: Uses radial gradient texture for smooth, anti-aliased circles
-  - `createCircleTexture()` generates 64x64 canvas texture with radial gradient
-  - Texture reused across all point clouds for memory efficiency
-  - `alphaTest: 0.5` for transparency, `map` property applies texture
-- **Color Assignment**: Random HSL colors per gene (70-100% saturation, 50-70% lightness for visibility on black background)
-- Coordinates pre-scaled by 100x (from normalized [-1,1] to [-100,100] range)
-- Point size: `localScale × globalScale × SINGLE_MOLECULE_POINT_BASE_SIZE` (configurable in VISUALIZATION_CONFIG)
-- **Async lazy loading**: `getCoordinatesByGene()` is async to support on-demand S3 loading
-- **Gene caching**: Once loaded from S3, genes remain in memory for instant re-selection
+`MoleculeLayer` is a non-React class, in the pattern of `ImageLayer`, that owns
+every molecule point cloud of one `SingleMoleculeDataset` inside a Three.js
+group. Every surface that draws molecules drives it the same way, so loading,
+streaming and cancelling behave identically everywhere:
+
+- `components/single-molecule-three-scene.tsx` (the standalone molecule scene:
+  `/sm-viewer`, a SpatialData store without cells, a split panel, local files)
+  creates one on its inner group when the scene is built
+- `components/three-scene.tsx` (molecules over cells: `/viewer` with an
+  `__all__` mapping, a SpatialData store with cells, a split panel, a local
+  folder with cells + molecules) creates one per overlay dataset on its inner
+  group, rebuilt with the scene
+- both call `layer.sync(selection)` through `lib/hooks/useMoleculeLayerSync.ts`
+  whenever the panel's SM viz store changes, and `layer.dispose()` with the scene
+
+What the layer does (do not reimplement any of this in a scene):
+
+- one cloud per gene for assigned molecules (`${gene}:assigned`) and one for
+  unassigned (`${gene}:unassigned`), built with `createSmPointCloud` /
+  `createStreamingSmPointCloud` from `lib/webgl/point-cloud.ts`, sharing the
+  single-cell shader; render order from the legend (later-selected on top,
+  assigned above unassigned, all below the cell cloud)
+- **streams** a gene whose count (`resolveMoleculeCount`) is at or above
+  `VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD` when the dataset
+  streams (S3 factories install `streamCoordinatesByGene` as own properties);
+  a smaller gene, or any gene of a local dataset, loads whole with byte
+  progress. Downloads outlive `sync()` calls and stop only on deselect/hide,
+  toast close or dispose; appearance changes never refetch
+- one blue progress toast per gene (`loading-gene-{gene}`), updated per batch
+  or per MB; closing it aborts the download and calls `onCancelGene`, which
+  the scenes wire to `removeGene`
+- `onFirstData` fires on the first drawn molecules (the standalone scene fits
+  its camera there); `bounds` gives the filled extent; `setTargetFilter` pushes
+  the distance-filter uniforms the cell scene shares with its own cloud
+- reports every load to the E2E hooks (`window.__merfish.geneLoads`, see
+  `lib/utils/test-hooks.ts`) so browser tests can prove a gene streamed
+- gene coordinates are cached by the dataset after the first load, so
+  re-selection is instant
 
 **View Modes**:
 
@@ -318,18 +346,22 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - **3D Mode**: Perspective view, camera at (150, 150, 150), rotation enabled
   - Uses TrackballControls for full 3D rotation
 - **Mode Switching**: Scene reinitializes when viewMode changes to swap control types
-  - Proper cleanup of point clouds and WebGL resources during reinitialization
-  - Point cloud effect includes `viewMode` dependency to recreate clouds in new scene
+  - The layer is disposed and recreated with the scene, so clouds and in-flight
+    streams are torn down and the selection is re-synced into the new scene
 
 **Rendering Strategy**:
 
 - Uses `fixed inset-0` positioning to fill entire viewport below navbar
 - Black background for high contrast with bright gene colors
-- Multiple point clouds rendered simultaneously (one per selected gene)
-- Point cloud update loop wrapped in async function to handle lazy S3 loading
-- **Toast notifications**: Only shown when first loading a new gene, not when updating existing genes (color/size changes)
-  - Prevents notification spam during visualization adjustments
-  - Silent updates for existing point clouds
+- Point size: `localScale × globalScale × SINGLE_MOLECULE_POINT_BASE_SIZE × SM_DOT_SIZE_FACTOR`,
+  set on sync; the shader scales it with the camera, so nothing runs per frame
+
+**Tests**: `tests/unit/molecule-layer.test.ts` (the layer against a fake
+dataset: whole and streamed loads, abort, toast cancel, restyle without
+refetch, order, dispose) and `e2e/tests/viewer/molecule-streaming.spec.ts`
+(`@quick`: every surface on a generated folder with two genes above the
+threshold, served throttled by `e2e/helpers/spatialdata.ts`, plus cancel
+mid-stream).
 
 ### SpatialData Stores and Images
 
@@ -574,7 +606,7 @@ output_folder/
 
 - `app/sm-viewer/page.tsx` - Single molecule viewer page (local file upload, auto-selects 5 random genes on load)
 - `app/sm-viewer/[id]/page.tsx` - Single molecule viewer page with S3 lazy loading (auto-selects first 3 genes)
-- `components/single-molecule-three-scene.tsx` - Three.js scene for molecule visualization with multiple point clouds
+- `components/single-molecule-three-scene.tsx` - Three.js scene for a molecule dataset on its own; the genes are drawn by `MoleculeLayer` (see Single Molecule Visualization)
 - `components/single-molecule-controls.tsx` - Gene selection UI with search, checkboxes, and colored chips
 - `components/view-mode-toggle.tsx` - Toggle button for 2D/3D camera views
 - `components/single-molecule-upload-modal.tsx` - Upload settings for molecule datasets (shows molecule count, genes, dimensions, handles S3 upload)

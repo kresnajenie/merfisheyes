@@ -109,6 +109,21 @@ for (const { name, parts, cells } of WITH_CELLS) {
       await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible();
       // Some genes are picked to start with, so the molecules are on screen
       await expect(page.getByText(/Selected Genes \(\d+\)/)).toBeVisible();
+      // Drawn by the shared molecule layer; read from disk whole, never
+      // streamed (nothing to wait for)
+      await expect
+        .poll(
+          () =>
+            page.evaluate(() =>
+              Object.values((window as any).__merfish?.geneLoads ?? {}),
+            ),
+          { timeout: 60_000 },
+        )
+        .toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ mode: "whole", done: true, failed: false }),
+          ]),
+        );
     } else {
       await expect(page.locator(SELECTORS.smLayerButton)).toHaveCount(0);
     }

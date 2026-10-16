@@ -64,8 +64,8 @@ of the next power of two, dropping out-of-range"). Implemented once per language
 - Colour/size/visibility updates during a stream must not restart it (they mutate
   the material only — already the case).
 - SC viewer overlay (`components/three-scene.tsx` loads linked SM genes via the same
-  dataset API): adopt `streamCoordinatesByGene` there too, or leave one-shot for v1 (decide
-  during implementation; overlay genes are usually smaller).
+  dataset API): DONE 2026-10-16 — both scenes now draw through one
+  `MoleculeLayer` (see "One layer for every surface" below).
 
 ## 3. API / infra
 - No new endpoint: presigned GET URLs work with streaming fetch. Confirm S3 objects
@@ -102,7 +102,7 @@ of the next power of two, dropping out-of-range"). Implemented once per language
   `streamableMolecules`, an `AbortController` per effect run (deselecting
   stops the download), progress in the existing toast, and a camera re-fit
   when a stream finishes *if* the user hasn't moved the camera.
-- Config: `VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD = 2_000_000`.
+- Config: `VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD` (2 000 000 at first; lowered to 100 000 since).
 - Tests: `tests/unit/stream-float32.test.ts` (8),
   `tests/unit/streaming-point-cloud.test.ts` (4).
 
@@ -160,3 +160,23 @@ the gene simply loads the old way.
    merges (Fargate pulls `:latest` per job, no job-definition change needed).
    Existing gene files keep working: they stream in file order.
 3. Optional later: LOD/tiles (spatial streaming) — separate design.
+
+## One layer for every surface, 2026-10-16
+
+The gene loop above lived inside `components/single-molecule-three-scene.tsx`,
+and the molecule overlay on cells (`components/three-scene.tsx`: `/viewer` with
+an `__all__` mapping, a SpatialData store with cells, a split panel, a local
+folder) had its own older copy — whole-file loads, no abort, a plain toast. Both
+are now `lib/webgl/MoleculeLayer.ts`, a class in the pattern of
+`lib/spatialdata/ImageLayer.ts`: constructed on the group that holds a scene's
+points, `sync(selection)` on every SM viz store change (through
+`lib/hooks/useMoleculeLayerSync.ts`), `dispose()` with the scene. Streaming,
+whole loads with byte progress, the per-gene toast whose close cancels and
+deselects, abort on deselect/hide/dispose, restyle without refetch and the
+legend render order are decided once, there. Downloads outlive a sync, so a
+colour change no longer restarts a whole load either.
+
+Covered by `tests/unit/molecule-layer.test.ts` and
+`e2e/tests/viewer/molecule-streaming.spec.ts` (`@quick`, every surface on a
+generated folder with genes above the threshold, trickled out by the fixture
+server so a cancel mid-stream is reachable).
