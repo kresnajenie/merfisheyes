@@ -68,10 +68,9 @@ import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
 import { useTourStore } from "@/lib/stores/tourStore";
 import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
 import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
-import {
-  openImageRef,
-  type SpatialDataImage,
-} from "@/lib/spatialdata/image";
+import { type GeneStyle, PointsLayer } from "@/lib/spatialdata/PointsLayer";
+import { pointsElementOf } from "@/lib/spatialdata/pointsMolecules";
+import { openImageRef, type SpatialDataImage } from "@/lib/spatialdata/image";
 
 export interface SceneHandle {
   /** Holds the point clouds; children share their coordinates and transforms. */
@@ -87,12 +86,23 @@ interface ThreeSceneProps {
    * The returned function is called before that scene is torn down.
    */
   onSceneReady?: (scene: SceneHandle) => (() => void) | void;
+  /**
+   * Molecules that come with the cells (a SpatialData store's points), drawn
+   * over them in place of any linked by a mapping.json.
+   */
+  molecules?: SingleMoleculeDataset | null;
 }
 
-export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
+export function ThreeScene({
+  dataset,
+  onSceneReady,
+  molecules,
+}: ThreeSceneProps) {
   const onSceneReadyRef = useRef(onSceneReady);
+  const moleculesRef = useRef(molecules);
 
   onSceneReadyRef.current = onSceneReady;
+  moleculesRef.current = molecules;
 
   // Image named by the dataset's mapping.json (`image`), drawn under the
   // cells. The scene is rebuilt on view changes and the image arrives on its
@@ -453,6 +463,17 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
         console.warn("Failed to load overlay image:", error);
       }
     };
+
+    // Molecules handed over with the cells take the place of a linked set
+    if (moleculesRef.current) {
+      smDatasetRef.current = moleculesRef.current;
+      setSmDataset(moleculesRef.current);
+      smStoreApi.getState().addDataset(moleculesRef.current);
+
+      return () => {
+        stale = true;
+      };
+    }
 
     // A folder dropped for a local preview brings its overlays with it,
     // already open: there is nothing to look up or fetch.
@@ -1806,6 +1827,66 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
     group.scale.y = flipY ? -1 : 1;
   }, [sceneRotation, flipX, flipY]);
 
+  // Effect 5a: molecules of a Zarr points element are read a view at a time
+  // by a PointsLayer, instead of whole per gene by Effect 5.
+  const pointsLayerRef = useRef<PointsLayer | null>(null);
+
+  useEffect(() => {
+    const element = pointsElementOf(smDataset);
+    const parent = innerGroupRef.current;
+    const handle = sceneHandleRef.current;
+
+    if (!element || !parent || !handle) return;
+    const layer = new PointsLayer(
+      element,
+      parent,
+      handle.camera,
+      handle.renderer,
+    );
+
+    pointsLayerRef.current = layer;
+
+    return () => {
+      layer.dispose();
+      pointsLayerRef.current = null;
+    };
+  }, [smDataset, pointCloudVersion]);
+
+  useEffect(() => {
+    const layer = pointsLayerRef.current;
+
+    if (!layer) return;
+    const legendOrder = new Map<string, number>();
+    let i = 0;
+
+    for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
+    const genes = new Map<string, GeneStyle>();
+
+    for (const [gene, viz] of smSelectedGenes) {
+      if (!viz.showAssigned) continue;
+      genes.set(gene, {
+        color: viz.color,
+        shape: viz.assignedShape,
+        dotSize:
+          VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
+          smGlobalScale *
+          viz.localScale *
+          SM_DOT_SIZE_FACTOR,
+        renderOrder: smRenderOrderFor(legendOrder.get(gene) ?? 0, true),
+      });
+    }
+    layer.visible = smLayerVisible && smShowAssigned;
+    layer.setGenes(genes);
+  }, [
+    smDataset,
+    pointCloudVersion,
+    smSelectedGenes,
+    smSelectedGenesLegend,
+    smGlobalScale,
+    smLayerVisible,
+    smShowAssigned,
+  ]);
+
   // Effect 5: Manage SM overlay point clouds.
   // Keys are composite: `${gene}:a` for assigned and `${gene}:u` for unassigned.
   // Visibility per gene = (global flag) AND (per-gene flag) AND (dataset has it).
@@ -1815,7 +1896,12 @@ export function ThreeScene({ dataset, onSceneReady }: ThreeSceneProps) {
     const parent = innerGroupRef.current ?? sceneRef.current;
     const smDs = smDatasetRef.current;
 
-    if (!parent || !smDs || smSelectedGenes.size === 0) {
+    if (
+      !parent ||
+      !smDs ||
+      smSelectedGenes.size === 0 ||
+      pointsElementOf(smDs)
+    ) {
       smPointCloudsRef.current.forEach((pc) => {
         pc.parent?.remove(pc);
         pc.geometry.dispose();
