@@ -1,4 +1,4 @@
-import type { FeatureTiles, PointsElement } from "./points";
+import type { FeatureTiles, NetworkStats, PointsElement } from "./points";
 
 import * as THREE from "three";
 
@@ -8,6 +8,28 @@ import {
   updatePointCloudColor,
   updatePointCloudShape,
 } from "@/lib/webgl/point-cloud";
+
+/** What the layer is drawing, gene by gene, and what it is fetching. */
+export interface PointsStatus {
+  genes: {
+    gene: string;
+    /** Level of what is on screen (and of the view being fetched). */
+    level: number;
+    wantedLevel: number;
+    levels: number;
+    /** Share of the gene's molecules in that level: 1 is every molecule. */
+    fraction: number;
+    /** Molecules on screen. */
+    drawn: number;
+    /** The gene's molecules in level 0. */
+    total: number;
+    /** On screen is the current view, nothing left to fetch. */
+    ready: boolean;
+  }[];
+  /** Pieces queued or being read. */
+  loading: number;
+  network: NetworkStats;
+}
 
 export interface GeneStyle {
   color: string;
@@ -47,6 +69,8 @@ interface Piece {
 
 interface GenePlan {
   level: number;
+  /** The gene's molecules in each level. */
+  totals: number[];
   wanted: Piece[];
   /** What is on screen: the last plan whose pieces had all arrived. */
   shown: Piece[];
@@ -161,6 +185,37 @@ export class PointsLayer {
     }
   };
 
+  /** A snapshot of what is drawn and fetched, for a status display. */
+  status(): PointsStatus {
+    const genes: PointsStatus["genes"] = [];
+
+    for (const gene of this.genes.keys()) {
+      const plan = this.plans.get(gene);
+
+      if (!plan) continue;
+      const level = plan.shown[0]?.level ?? plan.level;
+      let drawn = 0;
+
+      for (const p of plan.shown) drawn += p.count;
+      genes.push({
+        gene,
+        level,
+        wantedLevel: plan.level,
+        levels: plan.totals.length,
+        fraction: plan.totals[0] ? plan.totals[level] / plan.totals[0] : 1,
+        drawn,
+        total: plan.totals[0] ?? 0,
+        ready: plan.wanted === plan.shown,
+      });
+    }
+
+    return {
+      genes,
+      loading: this.queue.length + this.activeLoads,
+      network: this.element.network(),
+    };
+  }
+
   /** Raise dot sizes to at least MIN_PX on screen, as the camera moves. */
   private keepVisible() {
     this.root.updateWorldMatrix(true, false);
@@ -218,7 +273,15 @@ export class PointsLayer {
           this.queue.push(p);
         }
       }
-      const plan = this.plans.get(gene) ?? { level, wanted: [], shown: [] };
+      const totals = runs.map((r) => r.cum[r.cum.length - 1]);
+      const plan = this.plans.get(gene) ?? {
+        level,
+        totals,
+        wanted: [],
+        shown: [],
+      };
+
+      plan.totals = totals;
 
       plan.level = level;
       plan.wanted = wanted;

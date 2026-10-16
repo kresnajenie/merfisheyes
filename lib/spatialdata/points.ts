@@ -32,14 +32,26 @@ export interface FeatureTiles {
   starts: Float64Array;
 }
 
+/** What the element has read: from the server, and from its own cache. */
+export interface NetworkStats {
+  /** Reads sent to the store (the server, or the dropped files). */
+  requests: number;
+  bytes: number;
+  inFlight: number;
+  /** Reads answered from the cache. */
+  cacheHits: number;
+}
+
 export interface PointsElement {
   name: string;
   features: string[];
   featureKey: string;
   dims: 2 | 3;
   levels: PointsLevel[];
-  /** Points per feature in level 0. */
-  featureCounts(): Promise<Float64Array>;
+  /** Points per feature in a level (level 0 by default). */
+  featureCounts(level?: number): Promise<Float64Array>;
+  /** Totals of what has been read so far. */
+  network(): NetworkStats;
   featureTiles(level: number, feature: number): Promise<FeatureTiles>;
   /** x, y(, z) of feature_major rows [lo, hi) at a level, interleaved xyz. */
   readXyz(level: number, lo: number, hi: number): Promise<Float32Array>;
@@ -55,7 +67,16 @@ const CACHE_BYTES = 256 * 1024 * 1024;
  * identical reads in flight shared, so a chunk is fetched once however many
  * tiles it holds.
  */
-function cachedStore(store: SpatialDataStore["store"]): zarr.Readable {
+function cachedStore(store: SpatialDataStore["store"]): {
+  readable: zarr.Readable;
+  stats: NetworkStats;
+} {
+  const stats: NetworkStats = {
+    requests: 0,
+    bytes: 0,
+    inFlight: 0,
+    cacheHits: 0,
+  };
   const cache = new Map<string, Promise<Uint8Array | undefined>>();
   const sizes = new Map<string, number>();
   let held = 0;
@@ -66,6 +87,7 @@ function cachedStore(store: SpatialDataStore["store"]): zarr.Readable {
     const hit = cache.get(key);
 
     if (hit) {
+      stats.cacheHits++;
       cache.delete(key);
       cache.set(key, hit);
 
@@ -73,11 +95,15 @@ function cachedStore(store: SpatialDataStore["store"]): zarr.Readable {
     }
     const p = load();
 
+    stats.requests++;
+    stats.inFlight++;
     cache.set(key, p);
+    p.finally(() => stats.inFlight--).catch(() => {});
     p.then(
       (b) => {
         const n = b?.byteLength ?? 0;
 
+        stats.bytes += n;
         sizes.set(key, n);
         held += n;
         for (const k of cache.keys()) {
@@ -95,12 +121,15 @@ function cachedStore(store: SpatialDataStore["store"]): zarr.Readable {
   };
 
   return {
-    get: (key: string) => remember(key, () => store.get(key)),
-    getRange: (key: string, range: any) =>
-      remember(`${key}#${JSON.stringify(range)}`, () =>
-        store.getRange!(key, range),
-      ),
-  } as zarr.Readable;
+    readable: {
+      get: (key: string) => remember(key, () => store.get(key)),
+      getRange: (key: string, range: any) =>
+        remember(`${key}#${JSON.stringify(range)}`, () =>
+          store.getRange!(key, range),
+        ),
+    } as zarr.Readable,
+    stats,
+  };
 }
 
 /** Names of points elements in this format (by `points:version`). */
@@ -129,7 +158,7 @@ export async function openPointsElement(
   sd: SpatialDataStore,
   name: string,
 ): Promise<PointsElement> {
-  const store = cachedStore(sd.store);
+  const { readable: store, stats } = cachedStore(sd.store);
   const root = zarr.root(store).resolve(`points/${name}`);
   const meta = await sd.store.get(`/points/${name}/zarr.json`);
 
@@ -224,8 +253,9 @@ export async function openPointsElement(
     featureKey,
     dims,
     levels,
-    async featureCounts() {
-      const [rows] = await featureIndex(0);
+    network: () => ({ ...stats }),
+    async featureCounts(level = 0) {
+      const [rows] = await featureIndex(level);
 
       return rows.subarray(1).map((v, i) => v - rows[i]);
     },

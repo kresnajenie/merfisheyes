@@ -45,6 +45,7 @@ import {
 } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
+import { PointsStatusPanel } from "@/components/points-status-panel";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import {
   detectExpressionKind,
@@ -1830,6 +1831,7 @@ export function ThreeScene({
   // Effect 5a: molecules of a Zarr points element are read a view at a time
   // by a PointsLayer, instead of whole per gene by Effect 5.
   const pointsLayerRef = useRef<PointsLayer | null>(null);
+  const [pointsLayer, setPointsLayer] = useState<PointsLayer | null>(null);
 
   useEffect(() => {
     const element = pointsElementOf(smDataset);
@@ -1845,10 +1847,12 @@ export function ThreeScene({
     );
 
     pointsLayerRef.current = layer;
+    setPointsLayer(layer);
 
     return () => {
       layer.dispose();
       pointsLayerRef.current = null;
+      setPointsLayer(null);
     };
   }, [smDataset, pointCloudVersion]);
 
@@ -2198,6 +2202,8 @@ export function ThreeScene({
           Loading molecules...
         </div>
       )}
+
+      {pointsLayer && <PointsStatusPanel layer={pointsLayer} />}
 
       {/* Last cmd/ctrl+click coordinates. */}
       {lastClickCoords && (
