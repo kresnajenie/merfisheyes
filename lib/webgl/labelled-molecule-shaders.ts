@@ -86,7 +86,9 @@ export const labelledMoleculeVertexShader = `
             gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
             return;
         }
-        gl_PointSize = min(gl_PointSize, 200.0);
+        // 1px floor, as in the single-cell shader (some GPUs drop sub-pixel
+        // points instead of rounding them up).
+        gl_PointSize = clamp(gl_PointSize, 1.0, 200.0);
 
         gl_Position = projectionMatrix * mvPosition;
     }
