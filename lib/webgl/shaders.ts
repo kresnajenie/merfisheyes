@@ -47,7 +47,11 @@ export const vertexShader = `
             gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
             return;
         }
-        gl_PointSize = min(gl_PointSize, 200.0);
+        // Floor at 1px. Many GPUs already round sub-pixel points up to their
+        // 1px minimum, but some draw nothing at all, so the default ~0.1px
+        // dots left the canvas empty (issue #147). Points
+        // below the cull above still drop out; everything else stays visible.
+        gl_PointSize = clamp(gl_PointSize, 1.0, 200.0);
 
         gl_Position = projectionMatrix * mvPosition;
     }

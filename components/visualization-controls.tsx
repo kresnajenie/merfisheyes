@@ -819,15 +819,21 @@ function DotSizeSlider({
   setScSizeScale: (n: number) => void;
   scSmMode: ScSmMode;
 }) {
-  // SC: editable range via right-click popover. SM: static range from config.
+  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.globalScale,
+  );
+  // Both ranges are editable via the right-click popover, each kept separately.
   const sc = useSliderRange(
     "sizeScale",
     VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN,
     VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX,
     scSizeScale,
   );
-  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.globalScale,
+  const sm = useSliderRange(
+    "smGlobalScale",
+    VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MIN,
+    VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MAX,
+    smGlobalScale,
   );
   const setSmGlobalScale = usePanelSingleMoleculeVisualizationStore(
     (s) => s.setGlobalScale,
@@ -836,12 +842,8 @@ function DotSizeSlider({
   const isSc = scSmMode === "sc";
   const value = isSc ? scSizeScale : smGlobalScale;
   const setValue = isSc ? setScSizeScale : setSmGlobalScale;
-  const min = isSc
-    ? sc.min
-    : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MIN;
-  const max = isSc
-    ? sc.max
-    : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MAX;
+  const range = isSc ? sc : sm;
+  const { min, max } = range;
   const step = isSc
     ? VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP
     : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_STEP;
@@ -854,13 +856,13 @@ function DotSizeSlider({
       content={
         isSc
           ? "Change dotsize (right-click to edit range)"
-          : "Change SM molecule size"
+          : "Change SM molecule size (right-click to edit range)"
       }
       placement="right"
     >
       <div
         className={`w-14 h-32 rounded-full border-2 p-2 flex flex-col items-center justify-center transition-colors transition-shadow ${borderColor} ${glassButton()}`}
-        onContextMenu={isSc ? sc.onContextMenu : undefined}
+        onContextMenu={range.onContextMenu}
       >
         <Slider
           aria-label="Dot size"
@@ -873,7 +875,7 @@ function DotSizeSlider({
           value={value}
           onChange={(v) => setValue(v as number)}
         />
-        {isSc && sc.popover}
+        {range.popover}
       </div>
     </Tooltip>
   );
