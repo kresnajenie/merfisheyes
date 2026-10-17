@@ -23,8 +23,8 @@ const bytes = (n: number) =>
   n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : `${(n / 1e6).toFixed(1)} MB`;
 
 const DETAILS: { key: PointsDetail; label: string; hint: string }[] = [
-  { key: "auto", label: "Auto", hint: "Up to 4 M molecules on screen" },
-  { key: "more", label: "More", hint: "Up to 16 M molecules on screen" },
+  { key: "auto", label: "Auto", hint: "Up to 15 M molecules on screen" },
+  { key: "more", label: "More", hint: "Up to 30 M molecules on screen" },
   {
     key: "all",
     label: "All",
@@ -156,12 +156,12 @@ export function PointsStatusPanel({
         </span>
         <button
           aria-label="Minimize"
-          className="rounded px-1 text-white/60 hover:bg-white/10 hover:text-white"
-          title="Minimize"
+          className="flex items-center gap-1 rounded-md border border-white/15 px-1.5 py-0.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white"
+          title="Minimize this panel"
           type="button"
           onClick={() => collapse(true)}
         >
-          ▾
+          <span aria-hidden>–</span> Minimize
         </button>
       </div>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">

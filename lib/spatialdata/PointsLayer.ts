@@ -12,8 +12,8 @@ import { createSmPointCloud } from "@/lib/webgl/point-cloud";
 export type PointsDetail = "auto" | "more" | "all";
 
 export const DETAIL_BUDGET: Record<PointsDetail, number> = {
-  auto: 4_000_000,
-  more: 16_000_000,
+  auto: 15_000_000,
+  more: 30_000_000,
   all: 64_000_000,
 };
 
