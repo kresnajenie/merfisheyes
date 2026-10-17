@@ -298,6 +298,25 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### Single Molecule Visualization
 
+**Scene and layer contract** ([lib/scene/](lib/scene/), spec [docs/specs/LAYER-CONTRACT.md](docs/specs/LAYER-CONTRACT.md)):
+
+Every element drawn in a scene (image, points element, shapes, legacy
+molecules) is a `Layer` with one lifecycle: `attach(scene)`, `tick(frame)`,
+`status()`, `subscribe()`, `setBudget()`, `abort()`, `dispose()`. Layers extend
+`BaseLayer` (root group, coalesced push notifications, `changed()` which asks
+the scene for a frame). A scene owns the only `requestAnimationFrame` loop
+(`initializeScene({ onFrame, idleFps })`, on demand: a still scene draws
+nothing) and a `LayerHost`, which builds the `SceneHandle` (`group`, `camera`,
+`renderer`, `view()` computed once per frame for all layers, `invalidate()`,
+`attach()`, `cellColors?`) and ticks the layers before each render. Viewers
+attach layers in `onSceneReady` with `handle.attach(layer)`; controls re-render
+through `useLayerStatus(layer)`, never by polling. What a layer draws stays
+typed per layer (`setChannel`, `setGenes`/`setDetail`/`pointsStatus()`,
+`mode`/`opacity`/`shapesStatus`, `sync`). Adding a kind: the five steps in the
+spec, plus a case in `tests/unit/layer-contract.test.ts`, which every layer
+must pass. Never give a layer its own loop, its own view-rectangle code or a
+poll.
+
 **One render path for molecules** ([lib/webgl/MoleculeLayer.ts](lib/webgl/MoleculeLayer.ts)):
 
 `MoleculeLayer` is a non-React class, in the pattern of `ImageLayer`, that owns

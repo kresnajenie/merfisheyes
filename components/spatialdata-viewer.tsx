@@ -282,13 +282,15 @@ export function SpatialDataViewer({
 
   // The scene is rebuilt on view changes; the layer lives and dies with it.
   const addImageLayer = useCallback(
-    ({ group, camera, renderer }: SceneHandle) => {
+    (handle: SceneHandle) => {
       if (!image) return;
-      const layer = new ImageLayer(image, group, camera, renderer);
+      const layer = new ImageLayer(image);
+      const detach = handle.attach(layer);
 
       setImageLayer(layer);
 
       return () => {
+        detach();
         layer.dispose();
         setImageLayer(null);
       };
@@ -302,12 +304,7 @@ export function SpatialDataViewer({
       const removeImage = addImageLayer(handle);
 
       if (!loadShapes || !handle.cellColors) return removeImage;
-      const layer = new ShapesLayer(
-        loadShapes,
-        handle.group,
-        handle.camera,
-        handle.cellColors,
-      );
+      const layer = new ShapesLayer(loadShapes);
       const saved = shapesSettings.current;
 
       if (saved) {
@@ -315,6 +312,8 @@ export function SpatialDataViewer({
         layer.mode = saved.mode;
         layer.opacity = saved.opacity;
       }
+      const detach = handle.attach(layer);
+
       setShapesLayer(layer);
 
       return () => {
@@ -323,6 +322,7 @@ export function SpatialDataViewer({
           mode: layer.mode,
           opacity: layer.opacity,
         };
+        detach();
         layer.dispose();
         setShapesLayer(null);
         removeImage?.();

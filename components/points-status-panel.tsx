@@ -6,9 +6,9 @@ import {
   DETAIL_BUDGET,
   type PointsDetail,
   type PointsLayer,
-  type PointsStatus,
 } from "@/lib/spatialdata/PointsLayer";
 import { usePanelSingleMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
+import { useLayerStatus } from "@/lib/scene/useLayerStatus";
 
 const count = (n: number) =>
   n >= 1e9
@@ -47,7 +47,9 @@ function Spinner() {
  * how much to draw (Auto, More, All); and what has been read so far.
  */
 export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
-  const [status, setStatus] = useState<PointsStatus>(() => layer.status());
+  // Re-rendered whenever the layer reports a change (push, no polling)
+  useLayerStatus(layer);
+  const status = layer.pointsStatus();
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSED_KEY) === "1";
@@ -77,14 +79,10 @@ export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
     } catch {
       // No storage: the default stays
     }
-    const id = setInterval(() => setStatus(layer.status()), 200);
-
-    return () => clearInterval(id);
   }, [layer]);
 
   const choose = (detail: PointsDetail) => {
     layer.setDetail(detail);
-    setStatus(layer.status());
     try {
       localStorage.setItem(DETAIL_KEY, detail);
     } catch {

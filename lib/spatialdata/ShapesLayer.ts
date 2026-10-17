@@ -1,7 +1,14 @@
 import type { CellPolygons } from "./shapes";
+import type {
+  FrameInfo,
+  LayerStatus,
+  SceneHandle,
+  ViewRect,
+} from "@/lib/scene/contract";
 
 import * as THREE from "three";
 
+import { BaseLayer } from "@/lib/scene/BaseLayer";
 import {
   markLayerChanged,
   markLayerContent,
@@ -34,7 +41,8 @@ const idOf = (o: object) => {
  * under them, at a chosen opacity. The polygons are loaded the first time
  * they would be drawn, and only those in view are built.
  */
-export class ShapesLayer {
+export class ShapesLayer extends BaseLayer {
+  readonly kind = "shapes" as const;
   /** Called when status or settings change, for controls to re-render. */
   onChange?: () => void;
 
@@ -52,7 +60,6 @@ export class ShapesLayer {
     cells: Map<number, number[]>;
   } | null = null;
   private triangles = new Map<number, number[]>();
-  private root = new THREE.Group();
   private outline: THREE.LineSegments | null = null;
   private fill: THREE.Mesh | null = null;
   private lineMaterial = new THREE.LineBasicMaterial({
@@ -70,19 +77,34 @@ export class ShapesLayer {
   });
   private lastKey = "";
   private lastBuild = 0;
-  private rafId = 0;
-  private disposed = false;
+  private shown = 0;
+  /** The cell dots' colour attribute (rgb per cell, in table order). */
+  private cellColors: () => THREE.BufferAttribute | null = () => null;
 
-  constructor(
-    private load: () => Promise<CellPolygons>,
-    parent: THREE.Object3D,
-    private camera: THREE.PerspectiveCamera,
-    /** The cell dots' colour attribute (rgb per cell, in table order). */
-    private cellColors: () => THREE.BufferAttribute | null,
-  ) {
+  constructor(private load: () => Promise<CellPolygons>) {
+    super();
     this.applyOpacity();
-    parent.add(this.root);
-    this.tick();
+  }
+
+  protected onAttach(scene: SceneHandle) {
+    this.cellColors = scene.cellColors ?? (() => null);
+    this.lastKey = "";
+  }
+
+  status(): LayerStatus {
+    return {
+      phase: this._status,
+      progress: this._status === "ready" ? 1 : null,
+      drawn: this.root.visible ? this.shown : 0,
+      wanted: this.shown,
+      resident: this.polygons ? this.polygons.starts.length - 1 : 0,
+      bytes: 0,
+      requests: 0,
+      message:
+        this._status === "ready" && !this._zoomedIn
+          ? `Zoom in to under ${SHAPES_SHOW_WIDTH / 1000} mm across to see them.`
+          : undefined,
+    };
   }
 
   get visible() {
@@ -90,14 +112,14 @@ export class ShapesLayer {
   }
   set visible(v: boolean) {
     this._visible = v;
-    this.changed();
+    this.settingsChanged();
   }
   get mode() {
     return this._mode;
   }
   set mode(m: ShapesMode) {
     this._mode = m;
-    this.changed();
+    this.settingsChanged();
   }
   get opacity() {
     return this._opacity;
@@ -105,9 +127,10 @@ export class ShapesLayer {
   set opacity(o: number) {
     this._opacity = o;
     this.applyOpacity();
-    this.changed();
+    this.settingsChanged();
   }
-  get status() {
+  /** idle until first drawn, then loading, ready or error. */
+  get shapesStatus() {
     return this._status;
   }
   /** Whether the view is narrow enough for polygons to be drawn. */
@@ -116,18 +139,17 @@ export class ShapesLayer {
   }
 
   dispose() {
-    this.disposed = true;
-    cancelAnimationFrame(this.rafId);
-    this.root.removeFromParent();
+    super.dispose();
     this.outline?.geometry.dispose();
     this.fill?.geometry.dispose();
     this.lineMaterial.dispose();
     this.fillMaterial.dispose();
   }
 
-  private changed() {
+  private settingsChanged() {
     this.lastKey = "";
     this.onChange?.();
+    this.changed();
   }
 
   private applyOpacity() {
@@ -135,15 +157,15 @@ export class ShapesLayer {
     this.fillMaterial.opacity = this._opacity;
   }
 
-  private tick = () => {
-    if (this.disposed) return;
-    this.rafId = requestAnimationFrame(this.tick);
-    const rect = this.visibleRect();
+  tick(frame: FrameInfo) {
+    if (this.disposed || !this.scene) return;
+    const rect = frame.view;
     const zoomedIn = !!rect && rect.maxX - rect.minX <= SHAPES_SHOW_WIDTH;
 
     if (zoomedIn !== this._zoomedIn) {
       this._zoomedIn = zoomedIn;
       this.onChange?.();
+      this.changed();
     }
     this.root.visible = this._visible && zoomedIn && !!this.polygons;
     if (!this._visible || !zoomedIn || !rect) return;
@@ -171,24 +193,27 @@ export class ShapesLayer {
       // A build is synchronous: the view is settled as soon as it returns
       markLayerContent("shapes", { resident: this.polygons.starts.length - 1 });
       markLayerSettled("shapes");
+      this.changed();
     }
-  };
+  }
 
   private fetch() {
     this._status = "loading";
     this.onChange?.();
+    this.changed();
     this.load()
       .then((p) => {
         if (this.disposed) return;
         this.polygons = p;
         this.index(p);
         this._status = "ready";
-        this.changed();
+        this.settingsChanged();
       })
       .catch((e) => {
         console.warn("Failed to load cell shapes:", e);
         this._status = "error";
         this.onChange?.();
+        this.changed();
       });
   }
 
@@ -256,6 +281,8 @@ export class ShapesLayer {
   private build(rect: Rect, colors: THREE.BufferAttribute | null) {
     const { coords, starts, cell } = this.polygons!;
     const shown = this.inView(rect);
+
+    this.shown = shown.length;
     const rgb = colors?.array as ArrayLike<number> | undefined;
     const colorOf = (p: number, out: number[]) => {
       const c = cell[p];
@@ -374,48 +401,6 @@ export class ShapesLayer {
       this.root.add(this.outline);
     }
   }
-
-  /**
-   * The part of the z = 0 plane (in the parent's frame) on screen. Null when
-   * the camera doesn't look onto the plane.
-   */
-  private visibleRect(): Rect | null {
-    this.root.updateWorldMatrix(true, false);
-    const toLocal = this.root.matrixWorld.clone().invert();
-    const origin = this.camera.position.clone().applyMatrix4(toLocal);
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    for (const [nx, ny] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ]) {
-      const p = new THREE.Vector3(nx, ny, 0.5)
-        .unproject(this.camera)
-        .applyMatrix4(toLocal);
-      const t = -origin.z / (p.z - origin.z);
-
-      if (!(t > 0) || !isFinite(t)) return null;
-      const x = origin.x + t * (p.x - origin.x);
-      const y = origin.y + t * (p.y - origin.y);
-
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-    }
-
-    return { minX, minY, maxX, maxY };
-  }
 }
 
-interface Rect {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
+type Rect = Pick<ViewRect, "minX" | "minY" | "maxX" | "maxY">;

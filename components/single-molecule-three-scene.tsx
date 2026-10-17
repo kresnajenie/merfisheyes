@@ -8,6 +8,7 @@ import { Spinner } from "@heroui/react";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
+import { LayerHost } from "@/lib/scene/LayerHost";
 import { useMoleculeLayerSync } from "@/lib/hooks/useMoleculeLayerSync";
 import {
   usePanelSingleMoleculeStore,
@@ -49,8 +50,8 @@ export function SingleMoleculeThreeScene({
   const lastDatasetIdRef = useRef<string | null>(null);
   const lastViewModeRef = useRef<string | null>(null);
   const baselineCameraDistanceRef = useRef<number | null>(null);
-  const animationFrameIdRef = useRef<number | null>(null);
   const hasAutoFittedRef = useRef<boolean>(false);
+  const invalidateRef = useRef<() => void>(() => {});
   const sceneGroupRef = useRef<THREE.Group | null>(null); // outer: rotation/flip
   const innerGroupRef = useRef<THREE.Group | null>(null); // inner: offset by -center
   const dataCenterRef = useRef<THREE.Vector3>(new THREE.Vector3());
@@ -175,10 +176,15 @@ export function SingleMoleculeThreeScene({
     // WebGL context creation can fail (GPU blocklist, stale browser update,
     // software GL) — surface that instead of leaving a silently blank canvas.
     let init: ReturnType<typeof initializeScene> | null = null;
+    let host: LayerHost | null = null;
 
     try {
       init = initializeScene(containerRef.current, {
         is2D: viewMode === "2D",
+        onFrame: (now) => host?.tick(now),
+        // On demand: the layer and the controls ask for frames; 10 fps is
+        // the safety net for anything that forgets to
+        idleFps: 10,
       });
       setWebglFailed(false);
     } catch (e) {
@@ -210,43 +216,32 @@ export function SingleMoleculeThreeScene({
       );
     }
 
-    // The genes. Point sizes follow the camera inside the shader (dotSize *
-    // proj11 / -z), so nothing has to be updated per frame.
-    const moleculeLayer = new MoleculeLayer(dataset, innerGroup, {
+    // The layers join through the host, which ticks them from the scene
+    // loop. The genes: point sizes follow the camera inside the shader
+    // (dotSize * proj11 / -z), so nothing has to be updated per frame.
+    host = new LayerHost(innerGroup, camera, renderer, init.invalidate);
+    invalidateRef.current = init.invalidate;
+    const moleculeLayer = new MoleculeLayer(dataset, {
       onFirstData: () => tryAutoFitCamera(moleculeLayer),
       onCancelGene: removeGene,
       onGeneRendered: markGeneRendered,
     });
 
+    host.attach(moleculeLayer);
     setLayer(moleculeLayer);
 
-    const animate = () => {
-      animationFrameIdRef.current = requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    };
-
-    animate();
+    init.animate();
     markSceneReady();
-    const removeExtraLayers = onSceneReadyRef.current?.({
-      group: innerGroup,
-      camera,
-      renderer,
-    });
+    const removeExtraLayers = onSceneReadyRef.current?.(host.handle);
+    const { dispose } = init;
 
     // Cleanup
     return () => {
       removeExtraLayers?.();
       moleculeLayer.dispose();
       setLayer((current) => (current === moleculeLayer ? null : current));
+      host?.dispose();
 
-      if (animationFrameIdRef.current !== null) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-        animationFrameIdRef.current = null;
-      }
-
-      // Properly dispose of Three.js resources
-      controls.dispose();
       // Force lose WebGL context before disposing
       const gl = renderer.getContext();
 
@@ -255,12 +250,8 @@ export function SingleMoleculeThreeScene({
 
         if (loseContextExt) loseContextExt.loseContext();
       }
-      renderer.dispose();
-
-      // Remove canvas from DOM
-      if (containerRef.current?.contains(renderer.domElement)) {
-        containerRef.current.removeChild(renderer.domElement);
-      }
+      // The loop, the controls, the renderer, the resize observer, the canvas
+      dispose();
 
       rendererRef.current = null;
       sceneRef.current = null;
@@ -295,6 +286,7 @@ export function SingleMoleculeThreeScene({
     group.rotation.z = (sceneRotation * Math.PI) / 180;
     group.scale.x = flipX ? -1 : 1;
     group.scale.y = flipY ? -1 : 1;
+    invalidateRef.current();
   }, [sceneRotation, flipX, flipY]);
 
   if (!dataset) {

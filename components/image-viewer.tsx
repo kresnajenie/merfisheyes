@@ -9,6 +9,7 @@ import { SpatialDataImageControls } from "@/components/spatialdata-image-control
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { WebGLErrorOverlay } from "@/components/webgl-error-overlay";
 import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
+import { LayerHost } from "@/lib/scene/LayerHost";
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import {
   openOmeZarrImage,
@@ -168,6 +169,7 @@ export function ImageScene({
       (1.05 * Math.max(height, width / aspect)) /
       (2 * Math.tan(THREE.MathUtils.degToRad(75) / 2));
     let init: ReturnType<typeof initializeScene>;
+    let host: LayerHost | null = null;
 
     try {
       init = initializeScene(container, {
@@ -176,6 +178,7 @@ export function ImageScene({
         lookAtPosition: centre,
         near: distance / 1e5,
         far: distance * 10,
+        onFrame: (now) => host?.tick(now),
       });
     } catch (e) {
       console.error("[ImageViewer] WebGL init failed:", e);
@@ -186,12 +189,13 @@ export function ImageScene({
     // Past the far plane the image would vanish
     init.controls.maxDistance = distance * 5;
 
-    const imageLayer = new ImageLayer(
-      image,
-      init.scene,
-      init.camera,
-      init.renderer,
-    );
+    const group = new THREE.Group();
+
+    init.scene.add(group);
+    host = new LayerHost(group, init.camera, init.renderer, init.invalidate);
+    const imageLayer = new ImageLayer(image);
+
+    host.attach(imageLayer);
 
     cameraRef.current = init.camera;
     rendererRef.current = init.renderer;
@@ -200,6 +204,7 @@ export function ImageScene({
     init.animate();
 
     return () => {
+      host?.dispose();
       imageLayer.dispose();
       setLayer(null);
       init.dispose();

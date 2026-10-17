@@ -1,7 +1,14 @@
 import type { ImageLevel, SpatialDataImage } from "./image";
+import type {
+  FrameInfo,
+  LayerStatus,
+  SceneHandle,
+  ViewRect,
+} from "@/lib/scene/contract";
 
 import * as THREE from "three";
 
+import { BaseLayer } from "@/lib/scene/BaseLayer";
 import {
   hooksEnabled,
   markLayer,
@@ -57,16 +64,18 @@ interface Tile {
  * through its own colour and display window. The coarsest level stays loaded
  * as a backdrop while finer chunks stream in on top of it.
  */
-export class ImageLayer {
+export class ImageLayer extends BaseLayer {
+  readonly kind = "image" as const;
   readonly channels: ImageChannel[];
   readonly maxValue: number;
-  visible = true;
   /** Called when channel settings change on their own (auto contrast). */
   onChange?: () => void;
 
+  private _visible = true;
+  private camera!: THREE.PerspectiveCamera;
+  private renderer!: THREE.WebGLRenderer;
   private levels: ImageLevel[];
   private tiles = new Map<string, Tile>();
-  private root = new THREE.Group();
   private blank: THREE.DataTexture;
   private sharedUniforms: {
     uColor: { value: THREE.Color[] };
@@ -77,16 +86,12 @@ export class ImageLayer {
   private queue: { tile: Tile; channel: number }[] = [];
   private activeLoads = 0;
   private frame = 0;
-  private rafId = 0;
-  private disposed = false;
   private windowed: boolean[];
+  private lastDrawn = 0;
+  private lastWanted = 0;
 
-  constructor(
-    image: SpatialDataImage,
-    parent: THREE.Object3D,
-    private camera: THREE.PerspectiveCamera,
-    private renderer: THREE.WebGLRenderer,
-  ) {
+  constructor(image: SpatialDataImage) {
+    super();
     this.levels = image.levels;
     this.maxValue = image.maxValue;
     const count = image.levels[0].array.shape[0];
@@ -138,8 +143,41 @@ export class ImageLayer {
     );
 
     this.root.renderOrder = -1000;
-    parent.add(this.root);
-    this.tick();
+  }
+
+  get visible() {
+    return this._visible;
+  }
+  set visible(v: boolean) {
+    this._visible = v;
+    this.changed();
+  }
+
+  protected onAttach(scene: SceneHandle) {
+    this.camera = scene.camera;
+    this.renderer = scene.renderer;
+  }
+
+  status(): LayerStatus {
+    const loading = this.activeLoads > 0 || this.queue.length > 0;
+
+    return {
+      phase: loading ? "loading" : "ready",
+      progress: this.lastWanted
+        ? Math.min(1, this.lastDrawn / this.lastWanted)
+        : null,
+      drawn: this.lastDrawn,
+      wanted: this.lastWanted,
+      resident: this.tiles.size,
+      bytes: 0,
+      requests: 0,
+    };
+  }
+
+  /** Drop what is queued; chunks already requested finish and are kept. */
+  abort() {
+    for (const { tile, channel } of this.queue) tile.loading[channel] = false;
+    this.queue = [];
   }
 
   /** Whether a channel's window has been set, by the data or by hand. */
@@ -156,30 +194,27 @@ export class ImageLayer {
     this.sharedUniforms.uColor.value[index].set(channel.color);
     this.sharedUniforms.uWindow.value[index].set(channel.min, channel.max);
     this.sharedUniforms.uOn.value[index] = channel.visible;
+    this.changed();
   }
 
   dispose() {
-    this.disposed = true;
-    cancelAnimationFrame(this.rafId);
-    this.root.removeFromParent();
+    super.dispose();
     for (const tile of this.tiles.values()) this.disposeTile(tile);
     this.tiles.clear();
     this.blank.dispose();
   }
 
-  private tick = () => {
-    if (this.disposed) return;
-    this.rafId = requestAnimationFrame(this.tick);
-    this.update();
-  };
+  tick(frame: FrameInfo) {
+    if (this.disposed || !this.scene) return;
+    this.update(frame.view);
+  }
 
   /** Choose the level and chunks for the current view, and show what's loaded. */
-  private update() {
+  private update(view: ViewRect | null) {
     this.frame++;
-    this.root.visible = this.visible && this.channels.some((c) => c.visible);
+    this.root.visible = this._visible && this.channels.some((c) => c.visible);
     if (!this.root.visible) return;
 
-    const view = this.visibleRect();
     const base = this.levels.length - 1;
     let level = base;
 
@@ -215,10 +250,20 @@ export class ImageLayer {
 
     // A tile is drawn once every visible channel has arrived. Coarser tiles
     // stay up underneath, so the view refines instead of blanking.
+    let drawn = 0;
+
     for (const tile of this.tiles.values()) {
       tile.mesh.visible =
         tile.level >= level &&
         this.channels.every((ch, c) => !ch.visible || tile.textures[c]);
+      if (tile.mesh.visible) drawn++;
+    }
+    const wantedAtLevel = [...wanted].filter((t) => t.level === level).length;
+
+    if (drawn !== this.lastDrawn || wantedAtLevel !== this.lastWanted) {
+      this.lastDrawn = drawn;
+      this.lastWanted = wantedAtLevel;
+      this.changed();
     }
 
     this.report(level, wanted);
@@ -256,55 +301,6 @@ export class ImageLayer {
     if (atLevel.length > 0 && atLevel.every((t) => t.mesh.visible)) {
       markLayerSettled("image");
     }
-  }
-
-  /**
-   * The part of the image plane (z = 0 in the parent's frame) on screen, and
-   * how many scene units one screen pixel covers there. Null when the camera
-   * doesn't look onto the plane.
-   */
-  private visibleRect() {
-    this.root.updateWorldMatrix(true, false);
-    const toLocal = this.root.matrixWorld.clone().invert();
-    const origin = this.camera.position.clone().applyMatrix4(toLocal);
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    for (const [nx, ny] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ]) {
-      const p = new THREE.Vector3(nx, ny, 0.5)
-        .unproject(this.camera)
-        .applyMatrix4(toLocal);
-      const t = -origin.z / (p.z - origin.z);
-
-      if (!(t > 0) || !isFinite(t)) return null;
-      const x = origin.x + t * (p.x - origin.x);
-      const y = origin.y + t * (p.y - origin.y);
-
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-    }
-
-    const canvas = this.renderer.domElement;
-
-    return {
-      minX,
-      minY,
-      maxX,
-      maxY,
-      unitsPerPixel: Math.min(
-        (maxX - minX) / canvas.width,
-        (maxY - minY) / canvas.height,
-      ),
-    };
   }
 
   /** Chunk indices [x, y] of a level overlapping the view (all, if null). */
@@ -456,12 +452,14 @@ export class ImageLayer {
       this.windowed[channel] = true;
       this.setChannel(channel, { min: 0, max: percentile(data, 0.999) });
       this.onChange?.();
+      this.changed();
     }
 
     const texture = this.makeTexture(data, lv.chunkWidth, lv.chunkHeight);
 
     tile.textures[channel] = texture;
     tile.mesh.material.uniforms[`uTex${channel}`].value = texture;
+    this.changed();
   }
 
   private makeTexture(

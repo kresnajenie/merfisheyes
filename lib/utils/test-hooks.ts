@@ -63,11 +63,18 @@ export interface MerfishLayerStats {
   settledCount: number;
 }
 
-/** Frame timing since the last `resetFrames()`. */
+/**
+ * Frame timing since the last `resetFrames()`. Intervals are between ticks
+ * of the scene loop (every animation frame, drawn or not), so they measure
+ * main-thread jank; an on-demand scene that skips a draw while still is
+ * not a slow frame.
+ */
 export interface MerfishFrameStats {
-  /** Frames drawn (not skipped by an on-demand loop). */
+  /** Loop ticks (animation frames). */
   count: number;
-  /** Frames whose interval to the previous frame exceeded 20 ms (a dropped 60 Hz frame). */
+  /** Of those, frames actually drawn. */
+  drawn: number;
+  /** Ticks whose interval to the previous tick exceeded 20 ms (a dropped 60 Hz frame). */
   over16ms: number;
   /** ... exceeded 34 ms (two dropped frames). */
   over33ms: number;
@@ -190,6 +197,7 @@ function getHooks(): MerfishTestHooks | null {
 function freshFrames(): MerfishFrameStats {
   return {
     count: 0,
+    drawn: 0,
     over16ms: 0,
     over33ms: 0,
     worstMs: 0,
@@ -341,11 +349,12 @@ export function resetFrames(): void {
 }
 
 /**
- * One frame drawn: `intervalMs` since the previous drawn frame, `renderMs`
- * spent inside renderer.render. Called by the scene loop; a no-op in
- * production builds like everything here.
+ * One tick of the scene loop: `intervalMs` since the previous tick,
+ * `renderMs` spent inside renderer.render (null when nothing was drawn).
+ * Called by the scene loop; a no-op in production builds like everything
+ * here.
  */
-export function markFrame(intervalMs: number, renderMs: number): void {
+export function markFrame(intervalMs: number, renderMs: number | null): void {
   const h = getHooks();
 
   if (!h) return;
@@ -355,8 +364,11 @@ export function markFrame(intervalMs: number, renderMs: number): void {
   if (intervalMs > 20) f.over16ms += 1;
   if (intervalMs > 34) f.over33ms += 1;
   if (intervalMs > f.worstMs) f.worstMs = intervalMs;
-  if (renderMs > f.worstRenderMs) f.worstRenderMs = renderMs;
-  f.renderMs += renderMs;
+  if (renderMs !== null) {
+    f.drawn += 1;
+    if (renderMs > f.worstRenderMs) f.worstRenderMs = renderMs;
+    f.renderMs += renderMs;
+  }
 }
 
 /** Sample memory and draw counts from a renderer (about once a second). */

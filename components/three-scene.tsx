@@ -2,6 +2,7 @@
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { SceneHandle } from "@/lib/scene/contract";
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
@@ -19,6 +20,7 @@ import {
   SM_DOT_SIZE_FACTOR,
 } from "@/lib/webgl/point-cloud";
 import { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
+import { LayerHost } from "@/lib/scene/LayerHost";
 import { useMoleculeLayerSync } from "@/lib/hooks/useMoleculeLayerSync";
 import {
   updateGeneVisualization,
@@ -71,17 +73,12 @@ import { type GeneStyle, PointsLayer } from "@/lib/spatialdata/PointsLayer";
 import { pointsElementOf } from "@/lib/spatialdata/pointsMolecules";
 import { openImageRef, type SpatialDataImage } from "@/lib/spatialdata/image";
 
-export interface SceneHandle {
-  /** Holds the point clouds; children share their coordinates and transforms. */
-  group: THREE.Group;
-  camera: THREE.PerspectiveCamera;
-  renderer: THREE.WebGLRenderer;
-  /**
-   * The cell dots' colour attribute (rgb per cell), as currently drawn.
-   * Absent in a scene without cells.
-   */
-  cellColors?: () => THREE.BufferAttribute | null;
-}
+export type { SceneHandle } from "@/lib/scene/contract";
+
+// On-demand rendering: a frame is drawn when the controls move, a layer
+// changes or an effect here mutates what is drawn (invalidateRef); this is
+// the safety-net rate for anything that forgets to say so.
+const IDLE_FPS = 10;
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
@@ -112,6 +109,12 @@ export function ThreeScene({
   // cells. The scene is rebuilt on view changes and the image arrives on its
   // own schedule, so the layer is attached whenever both exist.
   const sceneHandleRef = useRef<SceneHandle | null>(null);
+  // The scene's side of the layer contract: layers join and leave through
+  // it, and it ticks them from the scene loop (lib/scene/LayerHost.ts).
+  const hostRef = useRef<LayerHost | null>(null);
+  // Ask the scene loop for a frame (on-demand rendering): called after every
+  // mutation of what is drawn. Layers do it themselves through `changed()`.
+  const invalidateRef = useRef<() => void>(() => {});
   const overlayImageRef = useRef<SpatialDataImage | null>(null);
   const overlayImageLayerRef = useRef<ImageLayer | null>(null);
   const [overlayImageLayer, setOverlayImageLayer] = useState<ImageLayer | null>(
@@ -127,13 +130,9 @@ export function ThreeScene({
     const image = overlayImageRef.current;
 
     if (!scene || !image || overlayImageLayerRef.current) return;
-    const layer = new ImageLayer(
-      image,
-      scene.group,
-      scene.camera,
-      scene.renderer,
-    );
+    const layer = new ImageLayer(image);
 
+    scene.attach(layer);
     overlayImageLayerRef.current = layer;
     setOverlayImageLayer(layer);
   };
@@ -334,6 +333,7 @@ export function ThreeScene({
     scLayerVisibleRef.current = scLayerVisible;
     if (pointCloudRef.current) {
       pointCloudRef.current.visible = scLayerVisible;
+      invalidateRef.current();
     }
   }, [scLayerVisible]);
 
@@ -910,6 +910,8 @@ export function ThreeScene({
           lookAtPosition: center,
           near,
           far,
+          onFrame: (now) => hostRef.current?.tick(now),
+          idleFps: IDLE_FPS,
         });
         setWebglFailed(false);
       } catch (e) {
@@ -917,7 +919,10 @@ export function ThreeScene({
         setWebglFailed(true);
       }
       if (!init) return;
-      const { scene, camera, renderer, controls, animate, dispose } = init;
+      const { scene, camera, renderer, controls, animate, dispose, invalidate } =
+        init;
+
+      invalidateRef.current = invalidate;
 
       // Store camera, renderer, and controls refs for raycasting + scale bar
       cameraRef.current = camera;
@@ -1159,15 +1164,14 @@ export function ThreeScene({
       // Start animation
       animate();
       markSceneReady();
-      const sceneHandle = {
-        group: innerGroup,
-        camera,
-        renderer,
-        cellColors: () =>
-          (pointCloudRef.current?.geometry.getAttribute("color") as
-            | THREE.BufferAttribute
-            | undefined) ?? null,
-      };
+      const host = new LayerHost(innerGroup, camera, renderer, invalidate, () =>
+        (pointCloudRef.current?.geometry.getAttribute("color") as
+          | THREE.BufferAttribute
+          | undefined) ?? null,
+      );
+      const sceneHandle = host.handle;
+
+      hostRef.current = host;
       const removeExtraLayers = onSceneReadyRef.current?.(sceneHandle);
 
       sceneHandleRef.current = sceneHandle;
@@ -1177,6 +1181,9 @@ export function ThreeScene({
       return () => {
         removeExtraLayers?.();
         detachOverlayImage();
+        host.dispose();
+        hostRef.current = null;
+        invalidateRef.current = () => {};
         sceneHandleRef.current = null;
         // Remove event listeners
         renderer.domElement.removeEventListener("mousemove", handleMouseMove);
@@ -1210,7 +1217,7 @@ export function ThreeScene({
       let init: ReturnType<typeof initializeScene> | null = null;
 
       try {
-        init = initializeScene(containerRef.current);
+        init = initializeScene(containerRef.current, { idleFps: IDLE_FPS });
         setWebglFailed(false);
       } catch (e) {
         console.error("[ThreeScene] WebGL init failed:", e);
@@ -1408,6 +1415,7 @@ export function ThreeScene({
     if (!transformColumn || sampleTransforms.size === 0) {
       out.set(base);
       positionAttr.needsUpdate = true;
+      invalidateRef.current();
 
       return;
     }
@@ -1419,6 +1427,7 @@ export function ThreeScene({
       // Column not loaded yet — fall back to base positions.
       out.set(base);
       positionAttr.needsUpdate = true;
+      invalidateRef.current();
 
       return;
     }
@@ -1440,6 +1449,7 @@ export function ThreeScene({
       sceneScaleRef.current,
     );
     positionAttr.needsUpdate = true;
+    invalidateRef.current();
   }, [
     dataset,
     pointCloudVersion,
@@ -1750,6 +1760,7 @@ export function ThreeScene({
           pointCloudRef.current,
           baseDotSizeRef.current * sizeScale,
         );
+        invalidateRef.current();
       }
 
       // E2E timing hook: mark this render complete (covers initial render and
@@ -1815,6 +1826,7 @@ export function ThreeScene({
 
       baseDotSizeRef.current = newBaseDotSize;
       updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
+      invalidateRef.current();
     }
   }, [sizeScale, targetPx]);
 
@@ -1827,6 +1839,7 @@ export function ThreeScene({
     group.rotation.z = (sceneRotation * Math.PI) / 180;
     group.scale.x = flipX ? -1 : 1;
     group.scale.y = flipY ? -1 : 1;
+    invalidateRef.current();
   }, [sceneRotation, flipX, flipY]);
 
   // Effect 5a: molecules of a Zarr points element are read a view at a time
@@ -1836,17 +1849,12 @@ export function ThreeScene({
 
   useEffect(() => {
     const element = pointsElementOf(smDataset);
-    const parent = innerGroupRef.current;
     const handle = sceneHandleRef.current;
 
-    if (!element || !parent || !handle) return;
-    const layer = new PointsLayer(
-      element,
-      parent,
-      handle.camera,
-      handle.renderer,
-    );
+    if (!element || !handle) return;
+    const layer = new PointsLayer(element);
 
+    handle.attach(layer);
     pointsLayerRef.current = layer;
     setPointsLayer(layer);
 
@@ -1904,16 +1912,17 @@ export function ThreeScene({
   // centred space (and rotate/flip about the data center). The scene is
   // rebuilt on view changes (pointCloudVersion), and the layer with it.
   useEffect(() => {
-    const parent = innerGroupRef.current;
+    const handle = sceneHandleRef.current;
 
     // A points element is drawn a view at a time by Effect 5a instead
-    if (!parent || !smDataset || pointsElementOf(smDataset)) return;
-    const layer = new MoleculeLayer(smDataset, parent, {
+    if (!handle || !smDataset || pointsElementOf(smDataset)) return;
+    const layer = new MoleculeLayer(smDataset, {
       // Closing a gene's loading toast cancels its download; take it out of
       // the selection so nothing restarts it.
-      onCancelGene: (gene) => smVizApi.getState().removeGene(gene),
+      onCancelGene: (gene: string) => smVizApi.getState().removeGene(gene),
     });
 
+    handle.attach(layer);
     setSmLayer(layer);
 
     return () => {
@@ -1929,6 +1938,7 @@ export function ThreeScene({
   // mutates outside React (cmd+click pan, mouse drag, R reset, orbit). Cost
   // is a handful of Vector3 copies per frame — negligible.
   useEffect(() => {
+    const last = { x: NaN, y: NaN, z: NaN, radius: NaN, enabled: NaN };
     const pushFilterUniforms = () => {
       const ctrls = controlsRef.current;
       const pc = pointCloudRef.current;
@@ -1938,6 +1948,21 @@ export function ThreeScene({
       const radius = targetFilterRadiusRef.current;
       const feather = Math.max(1.0, radius * 0.1);
       const center = ctrls.target;
+
+      if (
+        center.x === last.x &&
+        center.y === last.y &&
+        center.z === last.z &&
+        radius === last.radius &&
+        enabled === last.enabled
+      ) {
+        return;
+      }
+      last.x = center.x;
+      last.y = center.y;
+      last.z = center.z;
+      last.radius = radius;
+      last.enabled = enabled;
 
       if (pc) {
         const mat = pc.material as THREE.ShaderMaterial;
@@ -1956,6 +1981,7 @@ export function ThreeScene({
         feather,
         targetFilterEnabledRef.current,
       );
+      invalidateRef.current();
     };
 
     gsap.ticker.add(pushFilterUniforms);

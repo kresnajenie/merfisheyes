@@ -4,9 +4,10 @@ import type { ShapesLayer, ShapesMode } from "@/lib/spatialdata/ShapesLayer";
 
 import { Button } from "@heroui/button";
 import { Tooltip } from "@heroui/react";
-import { useEffect, useReducer, useState } from "react";
+import { useState } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { useLayerStatus } from "@/lib/scene/useLayerStatus";
 import { SHAPES_SHOW_WIDTH } from "@/lib/spatialdata/ShapesLayer";
 
 /**
@@ -16,24 +17,17 @@ import { SHAPES_SHOW_WIDTH } from "@/lib/spatialdata/ShapesLayer";
  */
 export function SpatialDataShapesControls({ layer }: { layer: ShapesLayer }) {
   const [open, setOpen] = useState(false);
-  const [, rerender] = useReducer((n: number) => n + 1, 0);
 
-  useEffect(() => {
-    layer.onChange = rerender;
-
-    return () => {
-      layer.onChange = undefined;
-    };
-  }, [layer]);
+  useLayerStatus(layer);
 
   const modes: { key: ShapesMode; label: string }[] = [
     { key: "outline", label: "Outline" },
     { key: "filled", label: "Filled" },
   ];
   const note =
-    layer.status === "loading"
+    layer.shapesStatus === "loading"
       ? "Loading cell shapes…"
-      : layer.status === "error"
+      : layer.shapesStatus === "error"
         ? "Couldn't load the cell shapes."
         : !layer.zoomedIn
           ? `Zoom in to under ${SHAPES_SHOW_WIDTH / 1000} mm across to see them.`

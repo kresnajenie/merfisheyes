@@ -25,6 +25,11 @@ export interface SceneOptions {
   near?: number;
   far?: number;
   /**
+   * Called every animation frame before the scene is rendered — where a
+   * scene ticks its layers (lib/scene/LayerHost.ts).
+   */
+  onFrame?: (now: number) => void;
+  /**
    * Redraw on demand instead of every frame, falling back to this rate when
    * nothing has changed.
    *
@@ -51,6 +56,7 @@ export function initializeScene(
     near,
     far,
     idleFps,
+    onFrame,
   } = options;
 
   // Scene setup
@@ -150,8 +156,15 @@ export function initializeScene(
   // interval between drawn frames and the CPU time inside render. A no-op
   // outside NEXT_PUBLIC_E2E=1 — the check is one boolean per frame.
   const instrumented = hooksEnabled();
-  let lastFrameAt = 0;
+  let lastTickAt = 0;
   let lastMemoryAt = 0;
+  // Every loop tick reports its interval (main-thread jank); a tick that
+  // draws reports its render time too.
+  const tick = (now: number, drew: boolean, renderMs: number) => {
+    if (!instrumented) return;
+    markFrame(lastTickAt ? now - lastTickAt : 0, drew ? renderMs : null);
+    lastTickAt = now;
+  };
   const draw = () => {
     if (!instrumented) {
       renderer.render(scene, camera);
@@ -163,8 +176,7 @@ export function initializeScene(
     renderer.render(scene, camera);
     const t1 = performance.now();
 
-    markFrame(lastFrameAt ? t0 - lastFrameAt : 0, t1 - t0);
-    lastFrameAt = t0;
+    tick(t0, true, t1 - t0);
     if (t1 - lastMemoryAt > 1000) {
       lastMemoryAt = t1;
       markMemory({
@@ -180,6 +192,9 @@ export function initializeScene(
   const animate = () => {
     animationId = requestAnimationFrame(animate);
     controls.update();
+    const now = performance.now();
+
+    onFrame?.(now);
 
     if (idleFps === undefined) {
       draw();
@@ -187,9 +202,11 @@ export function initializeScene(
       return;
     }
 
-    const now = performance.now();
+    if (!dirty && now - lastDraw < 1000 / idleFps) {
+      tick(now, false, 0);
 
-    if (!dirty && now - lastDraw < 1000 / idleFps) return;
+      return;
+    }
 
     dirty = false;
     lastDraw = now;

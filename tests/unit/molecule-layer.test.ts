@@ -19,7 +19,13 @@ const toastMock = vi.hoisted(() => ({
 
 vi.mock("react-toastify", () => ({ toast: toastMock }));
 
-import { MoleculeLayer, type MoleculeLayerSelection } from "@/lib/webgl/MoleculeLayer";
+import type { SceneHandle } from "@/lib/scene/contract";
+
+import {
+  MoleculeLayer,
+  type MoleculeLayerOptions,
+  type MoleculeLayerSelection,
+} from "@/lib/webgl/MoleculeLayer";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { SM_DOT_SIZE_FACTOR } from "@/lib/webgl/point-cloud";
 
@@ -236,6 +242,31 @@ function selection(
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+/** A layer attached to a scene stub whose group is `parent`. */
+function mount(
+  dataset: SingleMoleculeDataset,
+  parent: THREE.Group,
+  options?: MoleculeLayerOptions,
+): MoleculeLayer {
+  const layer = new MoleculeLayer(dataset, options);
+  const scene: SceneHandle = {
+    group: parent,
+    camera: new THREE.PerspectiveCamera(),
+    renderer: {} as THREE.WebGLRenderer,
+    view: () => null,
+    invalidate: () => {},
+    attach: (l) => {
+      l.attach(scene);
+
+      return () => l.detach();
+    },
+  };
+
+  layer.attach(scene);
+
+  return layer;
+}
+
 /** The onClose handler the layer gave a gene's loading toast. */
 function toastClose(gene: string): (reason?: boolean) => void {
   const call = [...toastMock.loading.mock.calls]
@@ -256,14 +287,14 @@ describe("MoleculeLayer: whole loads", () => {
   it("draws a small gene from one download and removes it on deselect", async () => {
     const ds = new FakeDataset({ a: { assigned: 10 } }, { streaming: true });
     const parent = new THREE.Group();
-    const layer = new MoleculeLayer(ds.asDataset(), parent);
+    const layer = mount(ds.asDataset(), parent);
 
     await layer.sync(selection([viz("a")]));
 
     const cloud = layer.pointClouds.get("a:assigned")!;
 
     expect(cloud).toBeDefined();
-    expect(cloud.parent).toBe(parent);
+    expect(cloud.parent?.parent).toBe(parent);
     expect(cloud.geometry.getAttribute("position").count).toBe(10);
     expect(ds.streams["a:assigned"]).toBeUndefined();
     expect(ds.fetches["a:assigned"]).toBe(1);
@@ -284,7 +315,7 @@ describe("MoleculeLayer: whole loads", () => {
 
   it("never refetches for an appearance change, but applies it", async () => {
     const ds = new FakeDataset({ a: { assigned: 4 } }, { streaming: true });
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     await layer.sync(selection([viz("a")]));
     await layer.sync(
@@ -316,7 +347,7 @@ describe("MoleculeLayer: whole loads", () => {
       { a: { assigned: 3, unassigned: 2 } },
       { streaming: true, hasUnassigned: true },
     );
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     await layer.sync(selection([viz("a")]));
     expect([...layer.pointClouds.keys()].sort()).toEqual(["a:assigned", "a:unassigned"]);
@@ -336,7 +367,7 @@ describe("MoleculeLayer: whole loads", () => {
       { a: { assigned: 1, unassigned: 1 }, b: { assigned: 1, unassigned: 1 } },
       { streaming: true, hasUnassigned: true },
     );
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     await layer.sync(selection([viz("a"), viz("b")]));
     const order = (key: string) => layer.pointClouds.get(key)!.renderOrder;
@@ -352,7 +383,7 @@ describe("MoleculeLayer: whole loads", () => {
 
   it("hides and shows every cloud with the layer switch", async () => {
     const ds = new FakeDataset({ a: { assigned: 1 } }, { streaming: true });
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     await layer.sync(selection([viz("a")], { visible: false }));
     expect(layer.pointClouds.get("a:assigned")!.visible).toBe(false);
@@ -362,7 +393,7 @@ describe("MoleculeLayer: whole loads", () => {
 
   it("reports a failed download and tries again on the next sync", async () => {
     const ds = new FakeDataset({ a: { assigned: 5 } }, { streaming: true });
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     ds.failing.add("a:assigned");
     await layer.sync(selection([viz("a")]));
@@ -381,7 +412,7 @@ describe("MoleculeLayer: whole loads", () => {
 
   it("loads whole when the dataset cannot stream, however big the gene", async () => {
     const ds = new FakeDataset({ a: { assigned: BIG * 2 } }, { streaming: false });
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     await layer.sync(selection([viz("a")]));
     expect(ds.fetches["a:assigned"]).toBe(1);
@@ -394,7 +425,7 @@ describe("MoleculeLayer: whole loads", () => {
   it("cancels a whole download when its toast is closed, and says so", async () => {
     const ds = new FakeDataset({ a: { assigned: 5 } }, { streaming: true });
     const onCancelGene = vi.fn();
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group(), { onCancelGene });
+    const layer = mount(ds.asDataset(), new THREE.Group(), { onCancelGene });
     const held = deferred<Float32Array>();
 
     ds.holdWhole.set("a:assigned", held);
@@ -420,7 +451,7 @@ describe("MoleculeLayer: streamed loads", () => {
     const ds = new FakeDataset({ a: { assigned: BIG } }, { streaming: true });
     const onFirstData = vi.fn();
     const onGeneRendered = vi.fn();
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group(), {
+    const layer = mount(ds.asDataset(), new THREE.Group(), {
       onFirstData,
       onGeneRendered,
     });
@@ -459,7 +490,7 @@ describe("MoleculeLayer: streamed loads", () => {
 
   it("keeps a stream running across syncs and restyles the partial cloud", async () => {
     const ds = new FakeDataset({ a: { assigned: BIG }, b: { assigned: 2 } }, { streaming: true });
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     await layer.sync(selection([viz("a")]));
     await ds.pushBatch("a", 10);
@@ -479,7 +510,7 @@ describe("MoleculeLayer: streamed loads", () => {
   it("aborts a stream on deselect, drops the partial cloud and ignores a late batch", async () => {
     const ds = new FakeDataset({ a: { assigned: BIG } }, { streaming: true });
     const parent = new THREE.Group();
-    const layer = new MoleculeLayer(ds.asDataset(), parent);
+    const layer = mount(ds.asDataset(), parent);
 
     await layer.sync(selection([viz("a")]));
     await ds.pushBatch("a", 10);
@@ -494,14 +525,14 @@ describe("MoleculeLayer: streamed loads", () => {
 
     // A batch that was already in flight: nothing to draw into, no throw.
     await ds.pushBatch("a", 10);
-    expect(parent.children.length).toBe(0);
+    expect((parent.children[0] as THREE.Group).children.length).toBe(0);
     expect(cloud.geometry.drawRange.count).toBe(10);
   });
 
   it("cancels a stream from its toast and takes the gene out of the selection", async () => {
     const ds = new FakeDataset({ a: { assigned: BIG } }, { streaming: true });
     const onCancelGene = vi.fn();
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group(), { onCancelGene });
+    const layer = mount(ds.asDataset(), new THREE.Group(), { onCancelGene });
 
     await layer.sync(selection([viz("a")]));
     await ds.pushBatch("a", 5);
@@ -517,7 +548,7 @@ describe("MoleculeLayer: streamed loads", () => {
       { a: { assigned: 3, unassigned: BIG } },
       { streaming: true, hasUnassigned: true },
     );
-    const layer = new MoleculeLayer(ds.asDataset(), new THREE.Group());
+    const layer = mount(ds.asDataset(), new THREE.Group());
 
     await layer.sync(selection([viz("a")]));
     expect(ds.fetches["a:assigned"]).toBe(1);
@@ -536,7 +567,7 @@ describe("MoleculeLayer: streamed loads", () => {
   it("stops everything on dispose", async () => {
     const ds = new FakeDataset({ a: { assigned: BIG }, b: { assigned: 3 } }, { streaming: true });
     const parent = new THREE.Group();
-    const layer = new MoleculeLayer(ds.asDataset(), parent);
+    const layer = mount(ds.asDataset(), parent);
     const held = deferred<Float32Array>();
 
     ds.holdWhole.set("b:assigned", held);

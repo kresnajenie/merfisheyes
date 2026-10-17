@@ -1,7 +1,14 @@
 import type { FeatureTiles, NetworkStats, PointsElement } from "./points";
+import type {
+  FrameInfo,
+  LayerStatus,
+  SceneHandle,
+  ViewRect,
+} from "@/lib/scene/contract";
 
 import * as THREE from "three";
 
+import { BaseLayer } from "@/lib/scene/BaseLayer";
 import {
   hooksEnabled,
   markLayer,
@@ -128,18 +135,17 @@ const done = (p: Piece) => p.loaded >= p.count;
  * drawn larger, until the new one has fully arrived; since a coarser level
  * is a subset of a finer one, the two overlap without doubling.
  */
-export class PointsLayer {
-  visible = true;
+export class PointsLayer extends BaseLayer {
+  readonly kind = "points" as const;
 
-  private root = new THREE.Group();
+  private _visible = true;
+  private camera!: THREE.PerspectiveCamera;
   private genes = new Map<string, GeneStyle>();
   private plans = new Map<string, GenePlan>();
   private pieces = new Map<string, Piece>();
   private queue: Piece[] = [];
   private activeLoads = 0;
   private frame = 0;
-  private rafId = 0;
-  private disposed = false;
   private lastRect = "";
   private lastPlan = 0;
   private planning = false;
@@ -153,15 +159,61 @@ export class PointsLayer {
   /** Chunks read and waiting for their turn to be uploaded. */
   private uploads: { piece: Piece; points: THREE.Points }[] = [];
 
-  constructor(
-    private element: PointsElement,
-    parent: THREE.Object3D,
-    private camera: THREE.PerspectiveCamera,
-    private renderer: THREE.WebGLRenderer,
-  ) {
+  constructor(private element: PointsElement) {
+    super();
     this.featureIndex = new Map(element.features.map((f, i) => [f, i]));
-    parent.add(this.root);
-    this.tick();
+  }
+
+  get visible() {
+    return this._visible;
+  }
+  set visible(v: boolean) {
+    if (v === this._visible) return;
+    this._visible = v;
+    this.changed();
+  }
+
+  protected onAttach(scene: SceneHandle) {
+    this.camera = scene.camera;
+    this.lastRect = "";
+    this.dirty = true;
+  }
+
+  /** The contract's view of the layer; `pointsStatus()` has the detail. */
+  status(): LayerStatus {
+    const ps = this.pointsStatus();
+    let drawn = 0;
+    let wanted = 0;
+    let loaded = 0;
+
+    for (const g of ps.genes) {
+      drawn += g.drawn;
+      wanted += g.wanted;
+      loaded += g.loaded;
+    }
+    let resident = 0;
+
+    for (const p of this.pieces.values()) if (p.points) resident += p.loaded;
+
+    return {
+      phase:
+        ps.genes.length === 0 ? "idle" : loaded < wanted ? "loading" : "ready",
+      progress: wanted ? Math.min(1, loaded / wanted) : null,
+      drawn,
+      wanted,
+      resident,
+      bytes: ps.network.bytes,
+      requests: ps.network.requests,
+    };
+  }
+
+  /**
+   * Drop what is queued but not yet requested; reads in flight finish (they
+   * cannot be cancelled yet — docs/specs/AUDIT-2026-10-17.md §1).
+   */
+  abort() {
+    for (const p of this.queue) p.loading = false;
+    this.queue = [];
   }
 
   /** The genes to draw and how. Genes not in the map are removed. */
@@ -199,6 +251,7 @@ export class PointsLayer {
     // Shown or hidden at once, from what is loaded
     for (const gene of toggled) this.refresh(gene);
     this.dirty = true;
+    this.changed();
   }
 
   /** How much to draw per view (see DETAIL_BUDGET). */
@@ -206,19 +259,18 @@ export class PointsLayer {
     if (detail === this.detail) return;
     this.detail = detail;
     this.dirty = true;
+    this.changed();
   }
 
   dispose() {
-    this.disposed = true;
-    cancelAnimationFrame(this.rafId);
-    this.root.removeFromParent();
+    super.dispose();
     for (const p of this.pieces.values()) this.drop(p);
     this.pieces.clear();
     this.template?.dispose();
   }
 
-  /** A snapshot of what is drawn and fetched, for a status display. */
-  status(): PointsStatus {
+  /** A snapshot of what is drawn and fetched, gene by gene, for the panel. */
+  pointsStatus(): PointsStatus {
     const genes: PointsStatus["genes"] = [];
 
     for (const [gene, style] of this.genes) {
@@ -252,15 +304,14 @@ export class PointsLayer {
     return { genes, detail: this.detail, network: this.element.network() };
   }
 
-  private tick = () => {
-    if (this.disposed) return;
-    this.rafId = requestAnimationFrame(this.tick);
+  tick(frame: FrameInfo) {
+    if (this.disposed || !this.scene) return;
     this.frame++;
-    this.root.visible = this.visible;
-    if (!this.visible || this.genes.size === 0) return;
+    this.root.visible = this._visible;
+    if (!this._visible || this.genes.size === 0) return;
     this.keepVisible();
     this.uploadSome();
-    const rect = this.visibleRect();
+    const rect = frame.view;
     const sig = rect
       ? [rect.minX, rect.minY, rect.maxX, rect.maxY]
           .map((v) => Math.round(v))
@@ -279,7 +330,7 @@ export class PointsLayer {
       this.planning = true;
       this.plan(rect).finally(() => (this.planning = false));
     }
-  };
+  }
 
   /** Raise dot sizes to at least MIN_PX on screen, as the camera moves. */
   private keepVisible() {
@@ -389,6 +440,7 @@ export class PointsLayer {
       this.refresh(gene);
     }
     this.report(true);
+    this.changed();
     this.pump();
     this.evict();
   }
@@ -694,6 +746,7 @@ export class PointsLayer {
       console.warn(`Failed to load molecules ${p.key}:`, e);
     } finally {
       p.loading = false;
+      this.changed();
     }
   }
 
@@ -718,6 +771,7 @@ export class PointsLayer {
       touched.add(this.element.features[piece.feature]);
     }
     for (const gene of touched) this.refresh(gene);
+    if (touched.size) this.changed();
   }
 
   private restyle(gene: string) {
@@ -779,51 +833,9 @@ export class PointsLayer {
     p.material = null;
     p.loaded = 0;
   }
-
-  /**
-   * The part of the z = 0 plane (in the parent's frame) on screen. Null when
-   * the camera doesn't look onto the plane.
-   */
-  private visibleRect(): Rect | null {
-    this.root.updateWorldMatrix(true, false);
-    const toLocal = this.root.matrixWorld.clone().invert();
-    const origin = this.camera.position.clone().applyMatrix4(toLocal);
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    for (const [nx, ny] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ]) {
-      const p = new THREE.Vector3(nx, ny, 0.5)
-        .unproject(this.camera)
-        .applyMatrix4(toLocal);
-      const t = -origin.z / (p.z - origin.z);
-
-      if (!(t > 0) || !isFinite(t)) return null;
-      const x = origin.x + t * (p.x - origin.x);
-      const y = origin.y + t * (p.y - origin.y);
-
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-    }
-
-    return { minX, minY, maxX, maxY };
-  }
 }
 
-interface Rect {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
+type Rect = Pick<ViewRect, "minX" | "minY" | "maxX" | "maxY">;
 
 /** First index of a sorted array whose value is >= x. */
 function lowerBound(a: Uint32Array, x: number): number {

@@ -5,6 +5,17 @@ import { type DatasetEntry, absPath } from "./databank";
 import { SELECTORS, fileInputSelector } from "./selectors";
 
 /** One molecule gene file's load, as MoleculeLayer reports it. */
+export interface MerfishFrameStats {
+  count: number;
+  drawn: number;
+  over16ms: number;
+  over33ms: number;
+  worstMs: number;
+  worstRenderMs: number;
+  renderMs: number;
+  since: number;
+}
+
 export interface MerfishGeneLoad {
   id: number;
   mode: "stream" | "whole";

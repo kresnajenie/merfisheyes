@@ -3,6 +3,7 @@ import type {
   MoleculeShape,
 } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { FrameInfo, LayerStatus } from "@/lib/scene/contract";
 
 import * as THREE from "three";
 import { toast } from "react-toastify";
@@ -17,6 +18,7 @@ import {
   updatePointCloudShape,
 } from "./point-cloud";
 
+import { BaseLayer } from "@/lib/scene/BaseLayer";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import {
   geneLoadKey,
@@ -115,20 +117,69 @@ function disposeCloud(cloud: THREE.Points): void {
  * A download stops only when its gene is deselected or hidden, its toast is
  * closed, or the layer is disposed.
  */
-export class MoleculeLayer {
+export class MoleculeLayer extends BaseLayer {
+  readonly kind = "molecules" as const;
+
   private clouds = new Map<string, THREE.Points>();
   private loads = new Map<string, Load>();
   /** Genes with a loading toast on screen. */
   private toasts = new Set<string>();
   private selection: MoleculeLayerSelection | null = null;
   private hadData = false;
-  private disposed = false;
+  private failedGenes = new Set<string>();
 
   constructor(
     readonly dataset: SingleMoleculeDataset,
-    private parent: THREE.Object3D,
     private options: MoleculeLayerOptions = {},
-  ) {}
+  ) {
+    super();
+  }
+
+  /** Streams push their own batches; nothing is done per frame. */
+  tick(_frame: FrameInfo) {}
+
+  status(): LayerStatus {
+    let drawn = 0;
+
+    for (const cloud of this.clouds.values()) {
+      const n = cloud.geometry.drawRange.count;
+
+      drawn += Number.isFinite(n)
+        ? n
+        : cloud.geometry.getAttribute("position").count;
+    }
+    const loading = this.loads.size > 0;
+
+    return {
+      phase: this.failedGenes.size
+        ? "error"
+        : loading
+          ? "loading"
+          : this.clouds.size
+            ? "ready"
+            : "idle",
+      progress: loading ? null : this.clouds.size ? 1 : null,
+      drawn,
+      wanted: drawn + this.loads.size,
+      resident: drawn,
+      bytes: 0,
+      requests: 0,
+      error: this.failedGenes.size
+        ? `Failed to load ${[...this.failedGenes].join(", ")}`
+        : undefined,
+    };
+  }
+
+  /** Cancel every download; clouds already drawn (or partly streamed) stay. */
+  abort() {
+    for (const [key, load] of this.loads) {
+      this.loads.delete(key);
+      load.controller.abort("keep");
+    }
+    for (const gene of this.toasts) toast.dismiss(this.toastId(gene));
+    this.toasts.clear();
+    this.changed();
+  }
 
   /** The clouds on screen, keyed `${gene}:assigned` / `${gene}:unassigned`. */
   get pointClouds(): ReadonlyMap<string, THREE.Points> {
@@ -196,6 +247,8 @@ export class MoleculeLayer {
         pending.push(load.settled);
       }
     }
+    // Whatever changed above (styles, removals, loads started) is one change
+    this.changed();
 
     await Promise.all(pending);
   }
@@ -221,12 +274,12 @@ export class MoleculeLayer {
   /** Stop every download, drop every cloud and toast. */
   dispose(): void {
     if (this.disposed) return;
-    this.disposed = true;
     for (const key of [...this.clouds.keys(), ...this.loads.keys()]) {
       this.remove(key);
     }
     for (const gene of this.toasts) toast.dismiss(this.toastId(gene));
     this.toasts.clear();
+    super.dispose();
   }
 
   // ── keys ──────────────────────────────────────────────────────────────
@@ -260,6 +313,7 @@ export class MoleculeLayer {
     if (cloud) {
       this.clouds.delete(key);
       disposeCloud(cloud);
+      this.changed();
     }
   }
 
@@ -323,7 +377,7 @@ export class MoleculeLayer {
    * Put a cloud on screen with the appearance the selection has NOW — a
    * download may finish long after the sync that started it.
    */
-  private attach(key: string, cloud: THREE.Points): void {
+  private place(key: string, cloud: THREE.Points): void {
     const { gene, kind } = this.parse(key);
     const viz = this.selection?.selectedGenes.get(gene);
     const legendIndex = new Map<string, number>();
@@ -331,8 +385,9 @@ export class MoleculeLayer {
 
     for (const g of this.selection?.legendOrder ?? []) legendIndex.set(g, i++);
     if (viz) this.style(cloud, gene, kind, viz, legendIndex);
-    this.parent.add(cloud);
+    this.root.add(cloud);
     this.clouds.set(key, cloud);
+    this.changed();
   }
 
   private noteData(): void {
@@ -418,7 +473,9 @@ export class MoleculeLayer {
       .then(() => {
         if (this.loads.get(key) === load) this.loads.delete(key);
         load.markSettled();
+        this.failedGenes.delete(gene);
         this.settleToast(gene, key);
+        this.changed();
       })
       .catch((error: unknown) => {
         if (this.loads.get(key) === load) this.loads.delete(key);
@@ -430,17 +487,20 @@ export class MoleculeLayer {
           controller.signal.aborted
         ) {
           // Deselected, hidden, or cancelled from the toast: drop whatever
-          // was drawn so far, quietly.
+          // was drawn so far, quietly. `abort()` (the contract) keeps it.
           markGeneLoadEnd(hookKey, load.hook, "aborted");
-          this.remove(key);
+          if (controller.signal.reason !== "keep") this.remove(key);
           this.dismissToastIfIdle(gene);
+          this.changed();
 
           return;
         }
         console.error(`[MoleculeLayer] Loading ${key} failed:`, error);
         markGeneLoadEnd(hookKey, load.hook, "failed");
+        this.failedGenes.add(gene);
         this.remove(key);
         this.failToast(gene, kind);
+        this.changed();
       });
 
     return load;
@@ -463,7 +523,7 @@ export class MoleculeLayer {
     );
 
     load.cloud = cloud;
-    this.attach(key, cloud);
+    this.place(key, cloud);
     load.hook = markGeneLoadStart(hookKey, "stream", expected);
     // From here the cloud fills on its own; a sync need not wait for it.
     load.markSettled();
@@ -482,6 +542,7 @@ export class MoleculeLayer {
         appendToSmPointCloud(cloud, coords);
         markGeneLoadProgress(hookKey, load.hook, loadedMolecules);
         this.noteData();
+        this.changed();
         this.updateToast(
           gene,
           `${label}: ${loadedMolecules.toLocaleString()} / ${expected.toLocaleString()} molecules`,
@@ -542,7 +603,7 @@ export class MoleculeLayer {
         this.shapeOf(viz, kind),
       );
 
-      this.attach(key, cloud);
+      this.place(key, cloud);
       this.noteData();
     }
     markGeneLoadProgress(hookKey, load.hook, count);
