@@ -32,6 +32,7 @@ const DETAILS: { key: PointsDetail; label: string; hint: string }[] = [
   },
 ];
 const DETAIL_KEY = "merfisheyes.points.detail";
+const COLLAPSED_KEY = "merfisheyes.points.collapsed";
 
 function Spinner() {
   return (
@@ -54,6 +55,21 @@ export function PointsStatusPanel({
   bottomInset?: number;
 }) {
   const [status, setStatus] = useState<PointsStatus>(() => layer.status());
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(COLLAPSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const collapse = (value: boolean) => {
+    setCollapsed(value);
+    try {
+      localStorage.setItem(COLLAPSED_KEY, value ? "1" : "0");
+    } catch {
+      // Not remembered, still applied
+    }
+  };
   const selected = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
@@ -91,6 +107,34 @@ export function PointsStatusPanel({
   const loading = loaded < wanted;
   const pct = wanted ? Math.floor((loaded / wanted) * 100) : 100;
 
+  if (collapsed) {
+    // One line: still says whether it is loading, and how far along
+    return (
+      <button
+        data-ui-overlay
+        className="glass-panel absolute right-6 z-[var(--z-legends)] flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-white"
+        data-testid="points-status"
+        style={{ bottom: bottomInset + 64 }}
+        title="Show molecule details"
+        type="button"
+        onClick={() => collapse(false)}
+      >
+        {loading ? (
+          <Spinner />
+        ) : (
+          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+        )}
+        <span className="font-medium">
+          {loading ? `Loading · ${pct}%` : "Molecules loaded"}
+        </span>
+        <span className="tabular-nums text-white/60">{count(drawn)}</span>
+        <span aria-hidden className="text-white/60">
+          ▴
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div
       data-ui-overlay
@@ -110,6 +154,15 @@ export function PointsStatusPanel({
         <span className="ml-auto tabular-nums text-white/60">
           {count(drawn)} drawn
         </span>
+        <button
+          aria-label="Minimize"
+          className="rounded px-1 text-white/60 hover:bg-white/10 hover:text-white"
+          title="Minimize"
+          type="button"
+          onClick={() => collapse(true)}
+        >
+          ▾
+        </button>
       </div>
       <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
         <div

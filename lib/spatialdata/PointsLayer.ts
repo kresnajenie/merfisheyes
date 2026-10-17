@@ -2,11 +2,7 @@ import type { FeatureTiles, NetworkStats, PointsElement } from "./points";
 
 import * as THREE from "three";
 
-import {
-  createSmPointCloud,
-  updateDotSize,
-  updatePointCloudShape,
-} from "@/lib/webgl/point-cloud";
+import { createSmPointCloud } from "@/lib/webgl/point-cloud";
 
 /**
  * How much to draw: a point budget per view, shared by the selected genes.
@@ -66,6 +62,11 @@ const MAX_CONCURRENT_LOADS = 6;
 const REPLAN_MS = 120;
 // Rows read at a time within a piece, each drawn as it arrives: one chunk.
 const STREAM_ROWS = 65_536;
+// Molecules handed to the GPU per frame. Arrived chunks join the scene at
+// this pace, so a burst of them never stalls drawing.
+const UPLOAD_PER_FRAME = 1_000_000;
+// Size and alpha are 1 for every molecule: one buffer, shared by all chunks.
+const ONES = new Uint8Array(STREAM_ROWS).fill(255);
 // Zoomed out, molecules would shrink below a pixel and vanish; the layer
 // samples each view anyway, so they're kept at least this big on screen.
 const MIN_PX = 1;
@@ -85,7 +86,9 @@ interface Piece {
   level: number;
   start: number;
   count: number;
-  points: THREE.Points | null;
+  /** One small point cloud per chunk read, sharing `material`. */
+  points: THREE.Group | null;
+  material: THREE.ShaderMaterial | null;
   /** Rows read so far; the piece is drawn up to here. */
   loaded: number;
   loading: boolean;
@@ -140,6 +143,8 @@ export class PointsLayer {
   /** Dot size that is MIN_PX on screen at the current distance. */
   private minDot = 0;
   private template: THREE.ShaderMaterial | null = null;
+  /** Chunks read and waiting for their turn to be uploaded. */
+  private uploads: { piece: Piece; points: THREE.Points }[] = [];
 
   constructor(
     private element: PointsElement,
@@ -247,6 +252,7 @@ export class PointsLayer {
     this.root.visible = this.visible;
     if (!this.visible || this.genes.size === 0) return;
     this.keepVisible();
+    this.uploadSome();
     const rect = this.visibleRect();
     const sig = rect
       ? [rect.minX, rect.minY, rect.maxX, rect.maxY]
@@ -285,8 +291,9 @@ export class PointsLayer {
   private applySize(p: Piece) {
     const style = this.genes.get(this.element.features[p.feature]);
 
-    if (p.points && style) {
-      updateDotSize(p.points, Math.max(style.dotSize, this.minDot) * p.growth);
+    if (p.material && style) {
+      p.material.uniforms.dotSize.value =
+        Math.max(style.dotSize, this.minDot) * p.growth;
     }
   }
 
@@ -299,10 +306,13 @@ export class PointsLayer {
       counts: number[];
     }[] = [];
 
-    for (const gene of this.genes.keys()) {
+    // Hidden genes (the eye, or another gene's solo) are left as they are:
+    // no share of the budget, no new reads, and what they have loaded stays,
+    // ready to stand in when they are shown again
+    for (const [gene, style] of this.genes) {
       const f = this.featureIndex.get(gene);
 
-      if (f === undefined) continue;
+      if (f === undefined || !style.visible) continue;
       const perLevel = await Promise.all(
         this.element.levels.map((_, l) => this.element.featureTiles(l, f)),
       );
@@ -317,7 +327,7 @@ export class PointsLayer {
         counts: runs.map((r, l) => this.countInView(r, l, rect)),
       });
     }
-    // The budget is shared by the selected genes. Smallest first: each takes
+    // The budget is shared by the genes on screen. Smallest first: each takes
     // the finest level that fits an equal share of what is left, so what a
     // small gene doesn't need goes to the bigger ones.
     views.sort((a, b) => a.counts[0] - b.counts[0]);
@@ -345,16 +355,19 @@ export class PointsLayer {
       };
       const next = new Set(wanted);
 
-      // What is on screen and not part of the new view stands in for it
+      // What was loaded for the gene's last view stands in for the new one
+      // until it has arrived — also when the gene was hidden meanwhile, so
+      // a gene shown again (e.g. soloed, now with the whole budget) keeps
+      // its coarser molecules up while the finer ones stream in
       for (const p of [...plan.wanted, ...plan.standIns]) {
         if (next.has(p)) continue;
-        if (p.points?.visible) plan.standIns.add(p);
+        if (p.points && p.loaded > 0) plan.standIns.add(p);
         else plan.standIns.delete(p);
       }
       for (const p of wanted) {
         plan.standIns.delete(p);
         p.lastWanted = this.frame;
-        if (!p.points && !p.loading && this.genes.get(gene)?.visible) {
+        if (!p.points && !p.loading) {
           p.loading = true;
           this.queue.push(p);
         }
@@ -515,6 +528,7 @@ export class PointsLayer {
         start,
         count,
         points: null,
+        material: null,
         loaded: 0,
         loading: false,
         lastWanted: 0,
@@ -563,7 +577,11 @@ export class PointsLayer {
     return m;
   }
 
-  /** Read a piece a chunk at a time, drawing each chunk as it arrives. */
+  /**
+   * Read a piece a chunk at a time. Each chunk becomes its own small point
+   * cloud, uploaded once and already filled, and joins the scene when
+   * uploadSome() gets to it.
+   */
   private async load(p: Piece) {
     const gene = this.element.features[p.feature];
 
@@ -575,38 +593,13 @@ export class PointsLayer {
         renderOrder: 0,
         visible: true,
       };
-      const positions = new Float32Array(p.count * 3);
-      const geometry = new THREE.BufferGeometry();
-      const attr = new THREE.BufferAttribute(positions, 3);
+      const group = new THREE.Group();
 
-      geometry.setAttribute("position", attr);
-      // The point shader's per-point colour, size and alpha, as normalized
-      // bytes: 5 bytes a molecule instead of 20 as floats
-      geometry.setAttribute(
-        "color",
-        new THREE.BufferAttribute(
-          fillColor(new Uint8Array(p.count * 3), style.color),
-          3,
-          true,
-        ),
-      );
-      geometry.setAttribute(
-        "size",
-        new THREE.BufferAttribute(new Uint8Array(p.count).fill(255), 1, true),
-      );
-      geometry.setAttribute(
-        "alpha",
-        new THREE.BufferAttribute(new Uint8Array(p.count).fill(255), 1, true),
-      );
-      const pc = new THREE.Points(geometry, this.material(style));
-
-      pc.visible = false;
-      pc.renderOrder = style.renderOrder;
-      // Bounds aren't known until every chunk is in
-      pc.frustumCulled = false;
-      pc.geometry.setDrawRange(0, 0);
-      this.root.add(pc);
-      p.points = pc;
+      group.visible = false;
+      this.root.add(group);
+      p.points = group;
+      p.material = this.material(style);
+      p.growth = 1;
 
       const end = p.start + p.count;
 
@@ -617,13 +610,34 @@ export class PointsLayer {
         );
         const xyz = await this.element.readXyz(p.level, lo, hi);
 
-        if (this.disposed || !p.points) return;
-        positions.set(xyz, (lo - p.start) * 3);
-        attr.addUpdateRange((lo - p.start) * 3, xyz.length);
-        attr.needsUpdate = true;
-        p.loaded = hi - p.start;
-        pc.geometry.setDrawRange(0, p.loaded);
-        this.refresh(gene);
+        if (this.disposed || p.points !== group) return;
+        const n = hi - lo;
+        const geometry = new THREE.BufferGeometry();
+
+        geometry.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
+        // The point shader's per-point colour, size and alpha, as normalized
+        // bytes; size and alpha are the same shared buffer of ones
+        geometry.setAttribute(
+          "color",
+          new THREE.BufferAttribute(
+            fillColor(new Uint8Array(n * 3), style.color),
+            3,
+            true,
+          ),
+        );
+        geometry.setAttribute(
+          "size",
+          new THREE.BufferAttribute(ONES.subarray(0, n), 1, true),
+        );
+        geometry.setAttribute(
+          "alpha",
+          new THREE.BufferAttribute(ONES.subarray(0, n), 1, true),
+        );
+        geometry.computeBoundingSphere();
+        const points = new THREE.Points(geometry, p.material);
+
+        points.renderOrder = this.genes.get(gene)?.renderOrder ?? 0;
+        this.uploads.push({ piece: p, points });
         lo = hi;
       }
     } catch (e) {
@@ -633,21 +647,49 @@ export class PointsLayer {
     }
   }
 
+  /** Put arrived chunks into the scene, up to UPLOAD_PER_FRAME molecules. */
+  private uploadSome() {
+    let budget = UPLOAD_PER_FRAME;
+    const touched = new Set<string>();
+
+    while (this.uploads.length && budget > 0) {
+      const { piece, points } = this.uploads.shift()!;
+
+      if (!piece.points) {
+        points.geometry.dispose(); // the piece was let go meanwhile
+
+        continue;
+      }
+      const n = points.geometry.getAttribute("position").count;
+
+      piece.points.add(points);
+      piece.loaded += n;
+      budget -= n;
+      touched.add(this.element.features[piece.feature]);
+    }
+    for (const gene of touched) this.refresh(gene);
+  }
+
   private restyle(gene: string) {
     const f = this.featureIndex.get(gene);
     const style = this.genes.get(gene)!;
 
     for (const p of this.pieces.values()) {
       if (p.feature !== f || !p.points) continue;
-      const color = p.points.geometry.getAttribute(
-        "color",
-      ) as THREE.BufferAttribute;
+      for (const child of p.points.children) {
+        const pts = child as THREE.Points;
+        const color = pts.geometry.getAttribute(
+          "color",
+        ) as THREE.BufferAttribute;
 
-      fillColor(color.array as Uint8Array, style.color);
-      color.needsUpdate = true;
-      updatePointCloudShape(p.points, style.shape);
+        fillColor(color.array as Uint8Array, style.color);
+        color.needsUpdate = true;
+        pts.renderOrder = style.renderOrder;
+      }
+      if (p.material) {
+        p.material.uniforms.uShape.value = style.shape === "square" ? 1 : 0;
+      }
       this.applySize(p);
-      p.points.renderOrder = style.renderOrder;
     }
   }
 
@@ -679,9 +721,13 @@ export class PointsLayer {
   private drop(p: Piece) {
     if (!p.points) return;
     p.points.removeFromParent();
-    p.points.geometry.dispose();
-    (p.points.material as THREE.Material).dispose();
+    for (const child of p.points.children) {
+      (child as THREE.Points).geometry.dispose();
+    }
+    p.material?.dispose();
     p.points = null;
+    p.material = null;
+    p.loaded = 0;
   }
 
   /**
