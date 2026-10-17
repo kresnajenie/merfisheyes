@@ -50,22 +50,53 @@ export function calculateGenePercentile(
   arr: number[],
   percentile: number,
 ): number {
-  // Filter out NaN values and create a sorted copy
-  const sortedArr = arr
-    .filter((value) => !isNaN(value) && value !== null)
-    .sort((a, b) => a - b);
+  // The non-NaN values, in a typed array to select in place
+  const values = new Float64Array(arr.length);
+  let n = 0;
 
-  if (sortedArr.length === 0) {
+  for (const value of arr) {
+    if (value !== null && !isNaN(value)) values[n++] = value;
+  }
+
+  if (n === 0) {
     return NaN; // Return NaN if all values are NaN
   }
 
-  // Calculate the index for the xth percentile
-  const index = Math.floor(sortedArr.length * percentile);
+  // The value that sorting would put at this index: found by selection, so
+  // a million cells cost milliseconds rather than a full sort
+  const index = Math.min(Math.max(0, Math.floor(n * percentile)), n - 1);
 
-  // Ensure index is within bounds
-  const boundedIndex = Math.min(Math.max(0, index), sortedArr.length - 1);
+  return selectKth(values.subarray(0, n), index);
+}
 
-  return sortedArr[boundedIndex];
+/** The k-th smallest value of `a` (0-based), reordering `a` in place. */
+function selectKth(a: Float64Array, k: number): number {
+  let lo = 0;
+  let hi = a.length - 1;
+
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >>> 1];
+    let i = lo;
+    let j = hi;
+
+    while (i <= j) {
+      while (a[i] < pivot) i++;
+      while (a[j] > pivot) j--;
+      if (i <= j) {
+        const t = a[i];
+
+        a[i] = a[j];
+        a[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return a[k];
+  }
+
+  return a[k];
 }
 
 /**

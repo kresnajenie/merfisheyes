@@ -11,6 +11,11 @@ import {
 } from "@/lib/spatialdata/image";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
 import { openSpatialDataStoreFromFiles } from "@/lib/spatialdata/localStore";
+import {
+  findPointsElements,
+  openPointsElement,
+} from "@/lib/spatialdata/points";
+import { pointsMoleculeDataset } from "@/lib/spatialdata/pointsMolecules";
 import { elementNames } from "@/lib/spatialdata/store";
 
 export interface OpenedBundle {
@@ -53,6 +58,18 @@ export async function openLocalBundle(
       );
     }
     opened.image = (await openSpatialDataImage(store)) ?? undefined;
+    // Molecules stored in the store itself (the Zarr points format), unless
+    // a molecule folder was dropped beside it
+    const [pointsName] = await findPointsElements(store);
+
+    if (pointsName && opened.cells && bundle.molecules === undefined) {
+      onProgress(65, "Opening molecules...");
+      opened.molecules = await pointsMoleculeDataset(
+        await openPointsElement(store, pointsName),
+        `${id}_${pointsName}`,
+        `${name} — ${pointsName}`,
+      );
+    }
   }
 
   if (bundle.molecules !== undefined) {

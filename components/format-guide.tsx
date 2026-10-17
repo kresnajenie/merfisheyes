@@ -281,7 +281,8 @@ adata.write_zarr("data.zarr")       # Zarr v2 and v3 both open`,
     },
     code: [
       {
-        caption: "From the command line, with the script in the repository's scripts/ folder",
+        caption:
+          "From the command line, with the script in the repository's scripts/ folder",
         lang: "shell",
         snippet: `python scripts/process_spatial_data.py data.h5ad output_folder/
 # or a Xenium / MERSCOPE output folder:
@@ -317,12 +318,17 @@ python scripts/process_spatial_data.py xenium_output/ output_folder/`,
             { name: "c/<channel>/<row>/<column>", note: "The chunks." },
           ],
         },
-        { name: "1/, 2/, …", req: "optional", note: "Each half the one before." },
+        {
+          name: "1/, 2/, …",
+          req: "optional",
+          note: "Each half the one before.",
+        },
       ],
     },
     code: [
       {
-        caption: "From a NumPy array, with the spatialdata library (pip install spatialdata)",
+        caption:
+          "From a NumPy array, with the spatialdata library (pip install spatialdata)",
         lang: "python",
         snippet: `import spatialdata as sd
 from spatialdata.models import Image2DModel
@@ -430,7 +436,8 @@ sd.SpatialData(images={"dapi": image}).write("sample.zarr")
     },
     code: [
       {
-        caption: "From a platform's output, with spatialdata-io (pip install spatialdata-io)",
+        caption:
+          "From a platform's output, with spatialdata-io (pip install spatialdata-io)",
         lang: "python",
         snippet: `import spatialdata_io
 
@@ -438,7 +445,8 @@ sdata = spatialdata_io.xenium("xenium_output/")   # or spatialdata_io.merscope(.
 sdata.write("sample.zarr")`,
       },
       {
-        caption: "Or put together from an AnnData and an image (see the Image tab)",
+        caption:
+          "Or put together from an AnnData and an image (see the Image tab)",
         lang: "python",
         snippet: `import spatialdata as sd
 from spatialdata.models import TableModel
@@ -454,7 +462,8 @@ sdata = sd.SpatialData(
 sdata.write("sample.zarr")`,
       },
       {
-        caption: "Molecules: turn the store's points into a molecule folder beside it",
+        caption:
+          "Molecules: turn the store's points into a molecule folder beside it",
         lang: "shell",
         snippet: `python scripts/spatialdata_points_to_sm.py sample.zarr molecules/`,
       },
@@ -462,7 +471,7 @@ sdata.write("sample.zarr")`,
     notes: [
       "Zarr v3 stores only. Tables written by current anndata (sharded arrays, nullable strings) are read.",
       "Expression is read one gene at a time when the table has a CSC copy of X (layers/X_csc), or a dense or CSC X.",
-      "The store's own points/ are not read as molecules: convert them once with scripts/spatialdata_points_to_sm.py and put the result beside the store.",
+      "The store's own points/ are drawn as molecules when written in the multiscale Zarr points format (docs/points-zarr-spec.md, scripts/points_zarr.py). Points stored as Parquet are not: convert them once with scripts/spatialdata_points_to_sm.py and put the result beside the store.",
       "Upload & Save uploads the store as it is; it then opens in the SpatialData viewer with the same overlays.",
       'On a public bucket, paste the folder\'s URL into Load from S3: everything in it opens overlaid. Name the store in the folder\'s mapping.json ("cells": "<store>.zarr"), or name it after the folder.',
     ],
@@ -534,7 +543,8 @@ df.to_parquet("transcripts.parquet", index=False)   # needs pyarrow
     },
     code: [
       {
-        caption: "From the command line, with the script in the repository's scripts/ folder",
+        caption:
+          "From the command line, with the script in the repository's scripts/ folder",
         lang: "shell",
         snippet: `python scripts/process_single_molecule.py transcripts.parquet output_folder/ --dataset-type xenium
 # --dataset-type merscope (the default), or name the columns yourself:

@@ -23,6 +23,11 @@ import {
 } from "@/lib/spatialdata/image";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
 import { loadSpatialDataMolecules } from "@/lib/spatialdata/loadSpatialDataMolecules";
+import {
+  findPointsElements,
+  openPointsElement,
+} from "@/lib/spatialdata/points";
+import { pointsMoleculeDataset } from "@/lib/spatialdata/pointsMolecules";
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 import {
   elementNames,
@@ -65,6 +70,10 @@ export function SpatialDataViewer({
   const [molecules, setMolecules] = useState<SingleMoleculeDataset | null>(
     null,
   );
+  // Molecules stored in the store itself (points in the Zarr points format),
+  // drawn over the cells
+  const [cellMolecules, setCellMolecules] =
+    useState<SingleMoleculeDataset | null>(null);
   const [image, setImage] = useState<SpatialDataImage | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [imageLayer, setImageLayer] = useState<ImageLayer | null>(null);
@@ -128,6 +137,7 @@ export function SpatialDataViewer({
 
         let cells: StandardizedDataset | null = null;
         let ownMolecules: SingleMoleculeDataset | null = null;
+        let storeMolecules: SingleMoleculeDataset | null = null;
 
         if (elementNames(store.keys, "tables").length > 0) {
           cells = await loadSpatialDataCells(
@@ -143,6 +153,19 @@ export function SpatialDataViewer({
             config: null,
             store: vizStore,
           });
+          const [pointsName] = await findPointsElements(store);
+
+          if (pointsName) {
+            setMessage("Opening molecules...");
+            const element = await openPointsElement(store, pointsName);
+
+            storeMolecules = await pointsMoleculeDataset(
+              element,
+              `${id}_${pointsName}`,
+              `${name} — ${pointsName}`,
+            );
+          }
+          if (cancelled) return;
         } else {
           setMessage("Loading molecules...");
           ownMolecules = await loadSpatialDataMolecules(store);
@@ -163,6 +186,7 @@ export function SpatialDataViewer({
         setImage(img);
         if (cells) {
           addDataset(cells);
+          setCellMolecules(storeMolecules);
           setDataset(cells);
         }
         if (ownMolecules) {
@@ -269,7 +293,11 @@ export function SpatialDataViewer({
       <SplitScreenContainer>
         {storeUrl && <ClaimDatasetBanner />}
         <VisualizationControls />
-        <ThreeScene dataset={dataset} onSceneReady={addImageLayer} />
+        <ThreeScene
+          dataset={dataset}
+          molecules={cellMolecules}
+          onSceneReady={addImageLayer}
+        />
         {imageLayer && <SpatialDataImageControls layer={imageLayer} />}
       </SplitScreenContainer>
     );
