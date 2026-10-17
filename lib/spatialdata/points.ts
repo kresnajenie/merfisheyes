@@ -5,9 +5,12 @@
  * slices of the selected features, then their rows in the tiles on screen.
  */
 import type { SpatialDataStore } from "./store";
+import type { ReadOptions } from "@/lib/storage/ElementStore";
 
 // Zarr v3 string arrays need a newer zarrita than the h5ad-zarr path's.
 import * as zarr from "zarrita-v3";
+
+import { hint, hinted } from "@/lib/storage/ElementStore";
 
 type Arr = zarr.Array<zarr.DataType, zarr.Readable>;
 
@@ -53,84 +56,28 @@ export interface PointsElement {
   /** Totals of what has been read so far. */
   network(): NetworkStats;
   featureTiles(level: number, feature: number): Promise<FeatureTiles>;
-  /** x, y(, z) of feature_major rows [lo, hi) at a level, interleaved xyz. */
-  readXyz(level: number, lo: number, hi: number): Promise<Float32Array>;
+  /**
+   * x, y(, z) of feature_major rows [lo, hi) at a level, interleaved xyz.
+   * The signal cancels the read and carries its priority (`hint`).
+   */
+  readXyz(
+    level: number,
+    lo: number,
+    hi: number,
+    opts?: ReadOptions,
+  ): Promise<Float32Array>;
+  /** Compressed bytes read per row at a level so far (a prior before any). */
+  bytesPerRow(level: number): number;
 }
 
 const decode = (b: Uint8Array) => JSON.parse(new TextDecoder().decode(b));
 
-// Neighbouring tiles often share a chunk; keep recent reads.
-const CACHE_BYTES = 512 * 1024 * 1024;
+/** Index reads: small, needed before anything else can be planned. */
+const INDEX = () => hinted({ tag: "points", priority: Infinity });
 
-/**
- * The store with recent reads kept (least recently used out first) and
- * identical reads in flight shared, so a chunk is fetched once however many
- * tiles it holds.
- */
-function cachedStore(store: SpatialDataStore["store"]): {
-  readable: zarr.Readable;
-  stats: NetworkStats;
-} {
-  const stats: NetworkStats = {
-    requests: 0,
-    bytes: 0,
-    inFlight: 0,
-    cacheHits: 0,
-  };
-  const cache = new Map<string, Promise<Uint8Array | undefined>>();
-  const sizes = new Map<string, number>();
-  let held = 0;
-  const remember = (
-    key: string,
-    load: () => Promise<Uint8Array | undefined>,
-  ) => {
-    const hit = cache.get(key);
-
-    if (hit) {
-      stats.cacheHits++;
-      cache.delete(key);
-      cache.set(key, hit);
-
-      return hit;
-    }
-    const p = load();
-
-    stats.requests++;
-    stats.inFlight++;
-    cache.set(key, p);
-    p.finally(() => stats.inFlight--).catch(() => {});
-    p.then(
-      (b) => {
-        const n = b?.byteLength ?? 0;
-
-        stats.bytes += n;
-        sizes.set(key, n);
-        held += n;
-        for (const k of cache.keys()) {
-          if (held <= CACHE_BYTES) break;
-          if (!sizes.has(k)) continue;
-          held -= sizes.get(k)!;
-          sizes.delete(k);
-          cache.delete(k);
-        }
-      },
-      () => cache.delete(key),
-    );
-
-    return p;
-  };
-
-  return {
-    readable: {
-      get: (key: string) => remember(key, () => store.get(key)),
-      getRange: (key: string, range: any) =>
-        remember(`${key}#${JSON.stringify(range)}`, () =>
-          store.getRange!(key, range),
-        ),
-    } as zarr.Readable,
-    stats,
-  };
-}
+// Compressed bytes a row costs before any has been read: x and y as
+// float32 with blosc zstd come to 2–3 bytes on the real stores.
+const BYTES_PER_ROW_PRIOR = 3;
 
 /** Names of points elements in this format (by `points:version`). */
 export async function findPointsElements(
@@ -158,9 +105,9 @@ export async function openPointsElement(
   sd: SpatialDataStore,
   name: string,
 ): Promise<PointsElement> {
-  const { readable: store, stats } = cachedStore(sd.store);
-  const root = zarr.root(store).resolve(`points/${name}`);
-  const meta = await sd.store.get(`/points/${name}/zarr.json`);
+  const store = sd.store;
+  const root = zarr.root(store as zarr.Readable).resolve(`points/${name}`);
+  const meta = await store.get(`/points/${name}/zarr.json`);
 
   if (!meta) throw new Error(`No points element "${name}"`);
   const attrs = decode(meta).attributes;
@@ -190,11 +137,28 @@ export async function openPointsElement(
 
     return a;
   };
-  const read = async (path: string, lo?: number, hi?: number) => {
+  const read = async (
+    path: string,
+    lo?: number,
+    hi?: number,
+    signal: AbortSignal = INDEX(),
+  ) => {
     const a = await open(path);
     const sel = lo === undefined ? [null] : [zarr.slice(lo, hi!)];
 
-    return (await zarr.get(a, sel)).data as ArrayLike<number | bigint>;
+    return (await zarr.get(a, sel, { signal })).data as ArrayLike<
+      number | bigint
+    >;
+  };
+  // Bytes per row per level, from what the store has read for each
+  const rowsRead: number[] = [];
+  const levelTag = (level: number) => `points:${level}`;
+  const bytesPerRow = (level: number) => {
+    const b = store.stats().byTag[levelTag(level)]?.bytes ?? 0;
+    const r = rowsRead[level] ?? 0;
+
+    // Weighted with the prior until a few chunks have been read
+    return (b + BYTES_PER_ROW_PRIOR * 200_000) / (r + 200_000);
   };
 
   // Column names → member names, per level and order
@@ -251,12 +215,18 @@ export async function openPointsElement(
     order: string,
     lo: number,
     hi: number,
+    signal?: AbortSignal,
   ) => {
     const cols = await columns(level, order);
     const axes = ["x", "y", "z"].slice(0, dims);
+    const sig = signal ?? new AbortController().signal;
+
+    hint(sig, { tag: levelTag(level) });
     const parts = await Promise.all(
-      axes.map((a) => read(cols.get(a)!, lo, hi) as Promise<Float32Array>),
+      axes.map((a) => read(cols.get(a)!, lo, hi, sig) as Promise<Float32Array>),
     );
+
+    rowsRead[level] = (rowsRead[level] ?? 0) + (hi - lo);
     const n = hi - lo;
     const out = new Float32Array(n * 3);
 
@@ -275,7 +245,26 @@ export async function openPointsElement(
     featureKey,
     dims,
     levels,
-    network: () => ({ ...stats }),
+    network: () => {
+      const st = store.stats();
+      let requests = 0;
+      let bytes = 0;
+
+      for (const [tag, t] of Object.entries(st.byTag)) {
+        if (tag === "points" || tag.startsWith("points:")) {
+          requests += t.requests;
+          bytes += t.bytes;
+        }
+      }
+
+      return {
+        requests,
+        bytes,
+        inFlight: st.inFlight,
+        cacheHits: st.cacheHits,
+      };
+    },
+    bytesPerRow,
     async featureCounts(level = 0) {
       const [rows] = await featureIndex(level);
 
@@ -322,6 +311,7 @@ export async function openPointsElement(
 
       return p;
     },
-    readXyz: (level, lo, hi) => interleave(level, "feature_major", lo, hi),
+    readXyz: (level, lo, hi, opts) =>
+      interleave(level, "feature_major", lo, hi, opts?.signal),
   };
 }

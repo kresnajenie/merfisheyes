@@ -23,8 +23,8 @@ const bytes = (n: number) =>
   n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : `${(n / 1e6).toFixed(1)} MB`;
 
 const DETAILS: { key: PointsDetail; label: string; hint: string }[] = [
-  { key: "auto", label: "Auto", hint: "Up to 15 M molecules on screen" },
-  { key: "more", label: "More", hint: "Up to 30 M molecules on screen" },
+  { key: "auto", label: "Auto", hint: "Up to 8 M molecules and 12 MB a view" },
+  { key: "more", label: "More", hint: "Up to 16 M molecules and 36 MB a view" },
   {
     key: "all",
     label: "All",

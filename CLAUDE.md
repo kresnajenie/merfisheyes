@@ -476,8 +476,21 @@ the h5ad-zarr path:
   `uint8`/`uint16`, scale + translation, or a `sequence` of them as the
   `spatialdata` library writes it) and the tiled Three.js layer shared by all
   three viewers
+- [lib/storage/ElementStore.ts](lib/storage/ElementStore.ts) — **the one
+  store every reader reads through** (spec [docs/specs/LOADING.md](docs/specs/LOADING.md)):
+  a zarrita `AsyncReadable` over a `Backend` (`lib/storage/backends.ts`: a
+  public URL, an app dataset by presigned URL, dropped files) with one byte
+  cache, reads in flight shared, every read cancellable by `AbortSignal` all
+  the way to `fetch`, neighbouring ranged reads merged into one request, a
+  priority queue bounding requests in flight, and the consolidated metadata
+  seeded so opening a node costs no request. zarrita forwards only the
+  signal, so a reader's priority and name ride on it (`hint(signal, {…})`).
+  Never fetch, cache, queue or cancel in a reader; the legacy molecule folder
+  reads through it too (`lib/molecules/storeLoading.ts`, both `fromS3` and
+  `fromCustomS3`). `PointsLayer` keeps a byte budget per view beside its
+  point budget (`DETAIL_BYTES`) and asks for a gene's coarsest level first.
 - [lib/storage/fetchRange.ts](lib/storage/fetchRange.ts) — byte-range reads
-  for sharded arrays (`getRange` on both stores)
+  for sharded arrays, used by the URL and dataset backends
 
 **Already-processed data from disk**: the single-cell Folder card (browser
 mode) recognises, by content, a folder holding any of a SpatialData store or

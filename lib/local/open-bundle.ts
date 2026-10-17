@@ -41,7 +41,7 @@ export async function openLocalBundle(
     );
   } else if (bundle.cells) {
     // What sits beside the store; nothing, when the store is all there is
-    const store = openSpatialDataStoreFromFiles(
+    const store = await openSpatialDataStoreFromFiles(
       storeFileMap(bundle, bundle.cells),
       bundle.cells.root ? bundle.files : undefined,
     );

@@ -13,6 +13,8 @@ import * as Comlink from "comlink";
 
 import { elementNames } from "./store";
 
+import { hinted } from "@/lib/storage/ElementStore";
+
 export interface CellPolygons {
   /** x, y of every vertex, polygon after polygon. */
   coords: Float32Array;
@@ -37,7 +39,9 @@ export async function loadCellPolygons(
   name: string,
   instanceIds: string[],
 ): Promise<CellPolygons> {
-  const bytes = await sd.store.get(`/shapes/${name}/shapes.parquet`);
+  const bytes = await sd.store.get(`/shapes/${name}/shapes.parquet`, {
+    signal: hinted({ tag: "shapes" }),
+  });
 
   if (!bytes) throw new Error(`shapes/${name} has no shapes.parquet`);
   // A copy the worker can own; the store may hold on to its bytes

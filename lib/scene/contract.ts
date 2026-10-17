@@ -66,6 +66,8 @@ export interface LayerStatus {
   wanted: number;
   /** Kept in memory for the layer, in the same unit. */
   resident: number;
+  /** What that costs, GPU and CPU, when the layer can say. */
+  residentBytes?: number;
   /** Network reads the layer counts itself, when it can. */
   bytes: number;
   requests: number;

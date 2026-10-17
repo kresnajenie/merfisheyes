@@ -3,13 +3,8 @@ import type { SpatialDataStore } from "./store";
 // Zarr v3 needs a newer zarrita than the one the h5ad-zarr path is pinned to.
 import * as zarr from "zarrita-v3";
 
-import { elementNames, publicUrlStore } from "./store";
+import { elementNames, findZarrRoot, publicUrlStore } from "./store";
 import { fileStore } from "./localStore";
-
-import {
-  fetchDatasetKeyList,
-  PresignedFetchStore,
-} from "@/lib/storage/PresignedFetchStore";
 
 type PixelArray = zarr.Array<"uint8" | "uint16", zarr.Readable>;
 
@@ -136,15 +131,9 @@ export async function openOmeZarrImage(url: string): Promise<SpatialDataImage> {
 export async function openOmeZarrImageDataset(
   datasetId: string,
 ): Promise<SpatialDataImage> {
-  const marker = (await fetchDatasetKeyList(datasetId))
-    .filter((k) => k === "zarr.json" || k.endsWith("/zarr.json"))
-    .sort((a, b) => a.length - b.length)[0];
+  const { prefix, store, rootBytes } = await findZarrRoot(datasetId);
 
-  if (marker === undefined) {
-    throw new Error("No zarr v3 image found for this dataset");
-  }
-  const prefix = marker.slice(0, -"zarr.json".length);
-  const store = new PresignedFetchStore(datasetId, { keyPrefix: prefix });
+  store.seed("/zarr.json", rootBytes);
   const group = await zarr.open.v3(zarr.root(store), { kind: "group" });
   const name = prefix.replace(/\/$/, "").replace(/\.zarr$/, "") || datasetId;
 
