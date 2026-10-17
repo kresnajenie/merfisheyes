@@ -11,6 +11,7 @@ import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { VisualizationState } from "@/lib/stores/createVisualizationStore";
 import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import type { OpenedElements } from "@/lib/scene/registry";
+import type { DatasetLinkConfig } from "@/lib/config/dataset-links";
 
 import { applyCellOpenState, applySMOpenState } from "./open-dataset";
 
@@ -52,6 +53,8 @@ export interface LoadedDataset {
   molecules: SingleMoleculeDataset | null;
   /** What else the scene draws (an image, polygons, molecules over cells). */
   elements: OpenedElements;
+  /** Which molecules the cells link to per cell (the right-click split). */
+  linkConfig?: DatasetLinkConfig | null;
   registration: DatasetRegistration;
   /** A SpatialData store's own URL, once a folder URL has been resolved. */
   storeUrl: string | null;

@@ -2,8 +2,9 @@
 
 import type { DatasetSource, LoadedDataset } from "@/lib/viewer/load-dataset";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { useOverlays } from "./useOverlays";
 import {
   usePanelDatasetStore,
   usePanelId,
@@ -20,6 +21,8 @@ import { loadDataset } from "@/lib/viewer/load-dataset";
 export interface DatasetLoader {
   loaded: LoadedDataset | null;
   loading: boolean;
+  /** The linked molecules of a cell dataset are still being read. */
+  overlaysLoading: boolean;
   progress: number;
   message: string;
   error: string | null;
@@ -49,6 +52,22 @@ export function useDatasetLoader(
   const [message, setMessage] = useState("Initializing...");
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // A cell dataset's overlays (a mapping.json, a dropped folder) are
+  // resolved once it is open and join its elements as they arrive
+  const overlays = useOverlays(
+    source?.kind === "cell" ? (loaded?.cells ?? null) : null,
+  );
+  const withOverlays = useMemo(
+    () =>
+      loaded && source?.kind === "cell"
+        ? {
+            ...loaded,
+            elements: overlays.elements,
+            linkConfig: overlays.linkConfig,
+          }
+        : loaded,
+    [loaded, overlays.elements, overlays.linkConfig, source?.kind],
+  );
   const key = source
     ? `${source.kind}|${source.datasetId ?? ""}|${source.s3Url ?? ""}`
     : null;
@@ -92,6 +111,11 @@ export function useDatasetLoader(
         if (cancelled || !result) return;
         if (result.cells) addCells(result.cells);
         if (result.molecules) addMolecules(result.molecules);
+        // A store's own molecules over its cells: the gene picker and the
+        // legends read them from the panel's molecule store
+        const over = result.elements.points ?? result.elements.molecules;
+
+        if (over) addMolecules(over);
         if (panel === "left") setRegistration(result.registration);
         setLoaded(result);
         setLoading(false);
@@ -123,8 +147,9 @@ export function useDatasetLoader(
   );
 
   return {
-    loaded,
+    loaded: withOverlays,
     loading,
+    overlaysLoading: overlays.loading,
     progress,
     message,
     error,

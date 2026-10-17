@@ -94,8 +94,11 @@ Everything above the entries is generic:
   every `Bind`.
 
 A viewer therefore only decides which scene to show and passes
-`elements={…}` to it; `three-scene.tsx` adds the overlays it still resolves
-itself (a `mapping.json`, a dropped folder) to the same record.
+`elements={…}` to it. A cell dataset's overlays — the parts dropped beside
+it, the link registry, a `mapping.json`, the app's mapping route — are
+resolved by `lib/viewer/resolve-overlays.ts` (pure, tested with fakes)
+through `useOverlays`, which the dataset loader calls, so the scene only
+draws what it is given.
 
 ## Adding an element kind, in five steps
 

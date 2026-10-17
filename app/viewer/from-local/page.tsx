@@ -17,6 +17,7 @@ import {
   useSMOverlayUrlSync,
 } from "@/lib/hooks/useUrlVizSync";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
+import { useOverlays } from "@/lib/hooks/useOverlays";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
@@ -27,6 +28,8 @@ function ViewerFromLocalContent() {
   const { datasets, currentDatasetId, getCurrentDataset } = useDatasetStore();
   const vizStore = useVisualizationStore();
   const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
+  // The parts dropped beside the cells, drawn with them
+  const overlays = useOverlays(dataset);
 
   // URL visualization state sync
   const { hasUrlStateRef } = useCellVizUrlSync(!!dataset, dataset, vizStore);
@@ -103,7 +106,7 @@ function ViewerFromLocalContent() {
   return (
     <SplitScreenContainer>
       <VisualizationControls />
-      <ThreeScene dataset={dataset} />
+      <ThreeScene dataset={dataset} elements={overlays.elements} />
       <UMAPPanel />
     </SplitScreenContainer>
   );
