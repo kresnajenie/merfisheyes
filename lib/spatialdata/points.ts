@@ -48,8 +48,6 @@ export interface PointsElement {
   featureKey: string;
   dims: 2 | 3;
   levels: PointsLevel[];
-  /** [[xmin, ymin], [xmax, ymax]] of every point, when the element says. */
-  extent: [[number, number], [number, number]] | null;
   /** Points per feature in a level (level 0 by default). */
   featureCounts(level?: number): Promise<Float64Array>;
   /** Totals of what has been read so far. */
@@ -57,8 +55,6 @@ export interface PointsElement {
   featureTiles(level: number, feature: number): Promise<FeatureTiles>;
   /** x, y(, z) of feature_major rows [lo, hi) at a level, interleaved xyz. */
   readXyz(level: number, lo: number, hi: number): Promise<Float32Array>;
-  /** Every point of a level, all features (tile_major), interleaved xyz. */
-  readLevel(level: number): Promise<Float32Array>;
 }
 
 const decode = (b: Uint8Array) => JSON.parse(new TextDecoder().decode(b));
@@ -272,7 +268,6 @@ export async function openPointsElement(
 
     return out;
   };
-  const ext = attrs["points:extent"];
 
   return {
     name,
@@ -280,12 +275,6 @@ export async function openPointsElement(
     featureKey,
     dims,
     levels,
-    extent: ext
-      ? [
-          [ext[0][0], ext[0][1]],
-          [ext[1][0], ext[1][1]],
-        ]
-      : null,
     network: () => ({ ...stats }),
     async featureCounts(level = 0) {
       const [rows] = await featureIndex(level);
@@ -334,7 +323,5 @@ export async function openPointsElement(
       return p;
     },
     readXyz: (level, lo, hi) => interleave(level, "feature_major", lo, hi),
-    readLevel: (level) =>
-      interleave(level, "tile_major", 0, levels[level].nPoints),
   };
 }
