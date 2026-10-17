@@ -78,6 +78,11 @@ export interface SceneHandle {
   group: THREE.Group;
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
+  /**
+   * The cell dots' colour attribute (rgb per cell), as currently drawn.
+   * Absent in a scene without cells.
+   */
+  cellColors?: () => THREE.BufferAttribute | null;
 }
 
 interface ThreeSceneProps {
@@ -1169,7 +1174,15 @@ export function ThreeScene({
       // Start animation
       animate();
       markSceneReady();
-      const sceneHandle = { group: innerGroup, camera, renderer };
+      const sceneHandle = {
+        group: innerGroup,
+        camera,
+        renderer,
+        cellColors: () =>
+          (pointCloudRef.current?.geometry.getAttribute("color") as
+            | THREE.BufferAttribute
+            | undefined) ?? null,
+      };
       const removeExtraLayers = onSceneReadyRef.current?.(sceneHandle);
 
       sceneHandleRef.current = sceneHandle;

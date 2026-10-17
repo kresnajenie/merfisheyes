@@ -3,7 +3,7 @@
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Progress, Spinner } from "@heroui/react";
 
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
@@ -12,6 +12,7 @@ import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
+import { SpatialDataShapesControls } from "@/components/spatialdata-shapes-controls";
 import { type SceneHandle, ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import { SplitScreenContainer } from "@/components/split-screen-container";
@@ -28,6 +29,12 @@ import {
   openPointsElement,
 } from "@/lib/spatialdata/points";
 import { pointsMoleculeDataset } from "@/lib/spatialdata/pointsMolecules";
+import {
+  type CellPolygons,
+  cellShapesName,
+  loadCellPolygons,
+} from "@/lib/spatialdata/shapes";
+import { type ShapesMode, ShapesLayer } from "@/lib/spatialdata/ShapesLayer";
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 import {
   elementNames,
@@ -77,6 +84,17 @@ export function SpatialDataViewer({
   const [image, setImage] = useState<SpatialDataImage | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [imageLayer, setImageLayer] = useState<ImageLayer | null>(null);
+  // Cell polygons (a shapes element): loaded the first time they're drawn,
+  // and kept, with their settings, across scene rebuilds
+  const [loadShapes, setLoadShapes] = useState<
+    (() => Promise<CellPolygons>) | null
+  >(null);
+  const [shapesLayer, setShapesLayer] = useState<ShapesLayer | null>(null);
+  const shapesSettings = useRef<{
+    visible: boolean;
+    mode: ShapesMode;
+    opacity: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("Initializing...");
@@ -164,6 +182,27 @@ export function SpatialDataViewer({
               `${id}_${pointsName}`,
               `${name} — ${pointsName}`,
             );
+          }
+          const shapesName = cellShapesName(store);
+
+          if (shapesName) {
+            const cellsWithShapes = cells;
+            let polygons: Promise<CellPolygons> | null = null;
+
+            setLoadShapes(() => () => {
+              polygons ??= (async () => {
+                const ids = await cellsWithShapes.adapter?.readInstanceIds?.();
+
+                if (!ids) throw new Error("The table names no cell ids");
+
+                return loadCellPolygons(store, shapesName, ids);
+              })();
+              polygons.catch(() => {
+                polygons = null; // a failure can be retried
+              });
+
+              return polygons;
+            });
           }
           if (cancelled) return;
         } else {
@@ -257,6 +296,41 @@ export function SpatialDataViewer({
     [image],
   );
 
+  // The cells' scene: the image under them, their polygons with them
+  const addCellLayers = useCallback(
+    (handle: SceneHandle) => {
+      const removeImage = addImageLayer(handle);
+
+      if (!loadShapes || !handle.cellColors) return removeImage;
+      const layer = new ShapesLayer(
+        loadShapes,
+        handle.group,
+        handle.camera,
+        handle.cellColors,
+      );
+      const saved = shapesSettings.current;
+
+      if (saved) {
+        layer.visible = saved.visible;
+        layer.mode = saved.mode;
+        layer.opacity = saved.opacity;
+      }
+      setShapesLayer(layer);
+
+      return () => {
+        shapesSettings.current = {
+          visible: layer.visible,
+          mode: layer.mode,
+          opacity: layer.opacity,
+        };
+        layer.dispose();
+        setShapesLayer(null);
+        removeImage?.();
+      };
+    },
+    [addImageLayer, loadShapes],
+  );
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
@@ -292,11 +366,15 @@ export function SpatialDataViewer({
     return (
       <SplitScreenContainer>
         {storeUrl && <ClaimDatasetBanner />}
-        <VisualizationControls />
+        <VisualizationControls
+          extraButtons={
+            shapesLayer && <SpatialDataShapesControls layer={shapesLayer} />
+          }
+        />
         <ThreeScene
           dataset={dataset}
           molecules={cellMolecules}
-          onSceneReady={addImageLayer}
+          onSceneReady={addCellLayers}
         />
         {imageLayer && <SpatialDataImageControls layer={imageLayer} />}
       </SplitScreenContainer>

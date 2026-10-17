@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { VisualizationMode } from "@/lib/stores/createVisualizationStore";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
@@ -38,7 +39,12 @@ import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore
 import { OverlayManager } from "@/components/overlay-manager";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
-export function VisualizationControls() {
+export function VisualizationControls({
+  extraButtons,
+}: {
+  /** More buttons for the rail, after DEG (e.g. a viewer's own layers). */
+  extraButtons?: ReactNode;
+} = {}) {
   const {
     panelMode,
     setPanelMode,
@@ -460,6 +466,8 @@ export function VisualizationControls() {
           </Button>
         </Tooltip>
       )}
+
+      {extraButtons}
 
       {/* Plot Panel Button */}
       <Tooltip content="Plot panel" placement="right">

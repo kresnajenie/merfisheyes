@@ -517,6 +517,19 @@ export class SpatialDataTableAdapter {
    * Read a dataframe column (`obs/<name>`, `var/<name>`) as strings,
    * resolving categoricals to their labels.
    */
+  /**
+   * Each cell's instance id (the table's `instance_key` column, e.g.
+   * `cell_id`), in table order — what links a cell to its shapes. Null when
+   * the table names none.
+   */
+  async readInstanceIds(): Promise<string[] | null> {
+    const key = this.root?.attrs.instance_key;
+
+    if (typeof key !== "string" || !key) return null;
+
+    return this.readColumn(`obs/${key}`).catch(() => null);
+  }
+
   private async readColumn(path: string): Promise<string[]> {
     const node = await zarr.open.v3(this.root!.resolve(path));
 
@@ -548,9 +561,7 @@ export class SpatialDataTableAdapter {
    * the value is missing. Missing values read as "".
    */
   private async readValues(
-    node:
-      | zarr.Array<zarr.DataType, zarr.Readable>
-      | zarr.Group<zarr.Readable>,
+    node: zarr.Array<zarr.DataType, zarr.Readable> | zarr.Group<zarr.Readable>,
   ): Promise<string[]> {
     if (node instanceof zarr.Array) {
       return arrayToStringArray((await zarr.get(node, [null])).data);
