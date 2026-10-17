@@ -124,6 +124,22 @@ describe("uploadChunkedToS3", () => {
     expect(server.refreshes).toBe(0);
   });
 
+  it("sends the uploader's viewer defaults with initiate", async () => {
+    const server = stubServer({});
+
+    await uploadChunkedToS3({
+      fingerprint: "fp",
+      metadata: META,
+      files: [file("manifest.json")],
+      viewerConfig: { version: 1, viewMode: "3D" },
+    });
+
+    expect(server.initBody.viewerConfig).toEqual({
+      version: 1,
+      viewMode: "3D",
+    });
+  });
+
   it("re-signs the policy on a 403 and retries the file", async () => {
     const server = stubServer({ s3Status: (n) => (n === 0 ? 403 : 204) });
 

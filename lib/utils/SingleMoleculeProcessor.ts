@@ -1,6 +1,7 @@
 import { gzip } from "pako";
 
 import { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
+import type { ViewerConfig } from "@/lib/utils/viewer-config";
 
 const UNASSIGNED_SUFFIX = "_uuuuuuuuuu";
 
@@ -239,6 +240,7 @@ export class SingleMoleculeProcessor {
     onProgress?: (progress: number, message: string) => void,
     onUploadProgress?: (progress: number, message: string) => void,
     asAdmin: boolean = false,
+    viewerConfig?: ViewerConfig,
   ): Promise<{ datasetId: string; uploadId: string }> {
     // Step 1: Create manifest (5%) - use temporary ID, will be replaced by API
     await onProgress?.(5, "Creating manifest...");
@@ -305,6 +307,7 @@ export class SingleMoleculeProcessor {
           contentType: f.contentType,
         })),
         asAdmin,
+        viewerConfig,
       }),
     });
 

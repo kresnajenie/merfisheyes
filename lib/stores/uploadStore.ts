@@ -11,6 +11,7 @@ import {
   uploadImageToS3,
   type ImageUploadFile,
 } from "@/lib/upload/uploadImageToS3";
+import type { ViewerConfig } from "@/lib/utils/viewer-config";
 
 /**
  * Global raw-upload state.
@@ -41,6 +42,8 @@ interface StartOpts {
   title: string;
   files: RawUploadFile[];
   processingParams: Record<string, unknown>;
+  /** Owner defaults the new dataset starts with, e.g. { viewMode: "3D" }. */
+  viewerConfig?: ViewerConfig;
   /** Called with the dataset id as soon as the upload is initiated. */
   onInitiated?: (datasetId: string) => void;
 }
@@ -100,7 +103,14 @@ let jobSeq = 0;
 export const useUploadStore = create<UploadStore>((set, get) => ({
   jobs: [],
 
-  async start({ kind, title, files, processingParams, onInitiated }) {
+  async start({
+    kind,
+    title,
+    files,
+    processingParams,
+    viewerConfig,
+    onInitiated,
+  }) {
     const id = `up_local_${++jobSeq}`;
     const controller = new AbortController();
 
@@ -143,6 +153,7 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
         kind,
         title,
         processingParams,
+        viewerConfig,
         files,
         signal: controller.signal,
         // Surface the id early (before bytes finish) and record it on the job.

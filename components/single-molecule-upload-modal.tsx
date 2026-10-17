@@ -19,6 +19,10 @@ import { SingleMoleculeProcessor } from "@/lib/utils/SingleMoleculeProcessor";
 import { generateSingleMoleculeFingerprint } from "@/lib/utils/fingerprint";
 import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
 import { AuthModal } from "@/components/auth-modal";
+import {
+  UploadAdvancedOptions,
+  uploadViewerConfig,
+} from "@/components/upload-advanced-options";
 
 interface SingleMoleculeUploadModalProps {
   isOpen: boolean;
@@ -38,6 +42,7 @@ export function SingleMoleculeUploadModal({
     dataset?.name || "dataset",
   );
   const [owner, setOwner] = useState<OwnerValue>("me");
+  const [open3D, setOpen3D] = useState(false);
   const [email, setEmail] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -181,6 +186,7 @@ export function SingleMoleculeUploadModal({
           manifest,
           files: filesList,
           asAdmin: owner === "admin",
+          viewerConfig: uploadViewerConfig(open3D),
         };
 
         const initiateResponse = await fetch("/api/single-molecule/initiate", {
@@ -269,6 +275,7 @@ export function SingleMoleculeUploadModal({
             setUploadMessage(msg);
           },
           owner === "admin",
+          uploadViewerConfig(open3D),
         );
 
         datasetId = result.datasetId;
@@ -368,6 +375,11 @@ export function SingleMoleculeUploadModal({
             )}
 
             <OwnerChoice value={owner} onChange={setOwner} />
+
+            <UploadAdvancedOptions
+              open3D={open3D}
+              onOpen3DChange={setOpen3D}
+            />
 
             {!isSignedIn && (
               <div className="bg-warning-50 border border-warning-200 p-3 rounded-lg flex items-center justify-between gap-3">
