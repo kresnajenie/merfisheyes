@@ -68,9 +68,15 @@ export class ShapesLayer extends BaseLayer {
     depthTest: false,
     depthWrite: false,
   });
+  // Blended but drawn in the opaque pass, in render order, so the molecules
+  // (opaque, later in that order) go over it; a transparent material would
+  // be drawn after every opaque one, over the molecules
   private fillMaterial = new THREE.MeshBasicMaterial({
     vertexColors: true,
-    transparent: true,
+    transparent: false,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.SrcAlphaFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
     side: THREE.DoubleSide,
     depthTest: false,
     depthWrite: false,

@@ -18,7 +18,7 @@ import {
   markLayerContent,
   markLayerSettled,
 } from "@/lib/utils/test-hooks";
-import { createSmPointCloud } from "@/lib/webgl/point-cloud";
+import { createMoleculeMaterial } from "@/lib/webgl/point-cloud";
 
 /**
  * How much to draw: a point budget and a byte budget per view, shared by
@@ -41,8 +41,8 @@ export const DETAIL_BYTES: Record<PointsDetail, number> = {
   all: Infinity,
 };
 
-/** GPU bytes per resident molecule: xyz float32, colour, size, alpha. */
-export const BYTES_PER_POINT = 17;
+/** GPU bytes per resident molecule: xyz as float32. */
+export const BYTES_PER_POINT = 12;
 
 /** What the layer is drawing, gene by gene, and what it is fetching. */
 export interface PointsStatus {
@@ -92,14 +92,12 @@ const STREAM_ROWS = 65_536;
 // Molecules handed to the GPU per frame. Arrived chunks join the scene at
 // this pace, so a burst of them never stalls drawing.
 const UPLOAD_PER_FRAME = 1_000_000;
-// Size and alpha are 1 for every molecule: one buffer, shared by all chunks.
-const ONES = new Uint8Array(STREAM_ROWS).fill(255);
 // Zoomed out, molecules would shrink below a pixel and vanish; the layer
 // samples each view anyway, so they're kept at least this big on screen.
 const MIN_PX = 1;
 // Coarser molecules standing in for a view still loading are drawn larger,
 // so the area reads as filled rather than sparse, up to this factor.
-const STAND_IN_GROWTH = 3;
+const STAND_IN_GROWTH = 2;
 
 /** A feature's tiles at a level, with running counts for range sums. */
 interface TileRuns extends FeatureTiles {
@@ -170,7 +168,6 @@ export class PointsLayer extends BaseLayer {
   private runCache = new Map<string, TileRuns>();
   /** Dot size that is MIN_PX on screen at the current distance. */
   private minDot = 0;
-  private template: THREE.ShaderMaterial | null = null;
   /** Chunks read and waiting for their turn to be uploaded. */
   private uploads: { piece: Piece; points: THREE.Points }[] = [];
 
@@ -290,7 +287,6 @@ export class PointsLayer extends BaseLayer {
     super.dispose();
     for (const p of this.pieces.values()) this.drop(p);
     this.pieces.clear();
-    this.template?.dispose();
   }
 
   /** A snapshot of what is drawn and fetched, gene by gene, for the panel. */
@@ -740,25 +736,11 @@ export class PointsLayer extends BaseLayer {
 
   /** The molecule shader's material, for a gene's style. */
   private material(style: GeneStyle) {
-    if (!this.template) {
-      // createSmPointCloud's material, taken from a one-point cloud
-      const one = createSmPointCloud(
-        new Float32Array(3),
-        1,
-        "#fff",
-        1,
-        "circle",
-      );
-
-      one.geometry.dispose();
-      this.template = one.material as THREE.ShaderMaterial;
-    }
-    const m = this.template.clone();
-
-    m.uniforms.dotSize.value = Math.max(style.dotSize, this.minDot);
-    m.uniforms.uShape.value = style.shape === "square" ? 1 : 0;
-
-    return m;
+    return createMoleculeMaterial(
+      style.color,
+      Math.max(style.dotSize, this.minDot),
+      style.shape,
+    );
   }
 
   /**
@@ -802,28 +784,10 @@ export class PointsLayer extends BaseLayer {
         });
 
         if (this.disposed || p.points !== group) return;
-        const n = hi - lo;
         const geometry = new THREE.BufferGeometry();
 
+        // Positions only: colour, size and shape are the material's uniforms
         geometry.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
-        // The point shader's per-point colour, size and alpha, as normalized
-        // bytes; size and alpha are the same shared buffer of ones
-        geometry.setAttribute(
-          "color",
-          new THREE.BufferAttribute(
-            fillColor(new Uint8Array(n * 3), style.color),
-            3,
-            true,
-          ),
-        );
-        geometry.setAttribute(
-          "size",
-          new THREE.BufferAttribute(ONES.subarray(0, n), 1, true),
-        );
-        geometry.setAttribute(
-          "alpha",
-          new THREE.BufferAttribute(ONES.subarray(0, n), 1, true),
-        );
         geometry.computeBoundingSphere();
         const points = new THREE.Points(geometry, p.material);
 
@@ -870,19 +834,14 @@ export class PointsLayer extends BaseLayer {
     const f = this.featureIndex.get(gene);
     const style = this.genes.get(gene)!;
 
+    // Uniforms only: nothing is uploaded for a new colour, shape or size
     for (const p of this.pieces.values()) {
       if (p.feature !== f || !p.points) continue;
       for (const child of p.points.children) {
-        const pts = child as THREE.Points;
-        const color = pts.geometry.getAttribute(
-          "color",
-        ) as THREE.BufferAttribute;
-
-        fillColor(color.array as Uint8Array, style.color);
-        color.needsUpdate = true;
-        pts.renderOrder = style.renderOrder;
+        (child as THREE.Points).renderOrder = style.renderOrder;
       }
       if (p.material) {
+        (p.material.uniforms.uColor.value as THREE.Color).set(style.color);
         p.material.uniforms.uShape.value = style.shape === "square" ? 1 : 0;
       }
       this.applySize(p);
@@ -949,20 +908,4 @@ function lowerBound(a: Uint32Array, x: number): number {
   }
 
   return lo;
-}
-
-/** Fill an RGB byte array with one colour. */
-function fillColor(bytes: Uint8Array, hex: string): Uint8Array {
-  const c = new THREE.Color(hex);
-  const r = Math.round(c.r * 255);
-  const g = Math.round(c.g * 255);
-  const b = Math.round(c.b * 255);
-
-  for (let i = 0; i < bytes.length; i += 3) {
-    bytes[i] = r;
-    bytes[i + 1] = g;
-    bytes[i + 2] = b;
-  }
-
-  return bytes;
 }

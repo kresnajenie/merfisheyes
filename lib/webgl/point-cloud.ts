@@ -2,7 +2,54 @@ import type { PointData, PointCloudConfig } from "./types";
 
 import * as THREE from "three";
 
-import { vertexShader, fragmentShader } from "./shaders";
+import {
+  fragmentShader,
+  moleculeFragmentShader,
+  moleculeVertexShader,
+  vertexShader,
+} from "./shaders";
+
+/** The renderer's pixel ratio, as scene-manager caps it. */
+export function pixelRatio(): number {
+  return typeof window === "undefined"
+    ? 1
+    : Math.min(window.devicePixelRatio || 1, 2);
+}
+
+/** The distance-filter uniforms every point material shares. */
+function filterUniforms() {
+  return {
+    uPixelRatio: { value: pixelRatio() },
+    uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
+    uTargetRadius: { value: 1.0 },
+    uTargetFeather: { value: 0.1 },
+    uTargetFilterEnabled: { value: 0.0 },
+  };
+}
+
+/**
+ * The material of a molecule cloud: one colour, size, alpha and shape for
+ * the whole cloud, as uniforms, so restyling it uploads nothing. Opaque:
+ * the depth test rejects molecules hidden behind closer ones.
+ */
+export function createMoleculeMaterial(
+  colorHex: string,
+  dotSize: number,
+  shape: "circle" | "square" = "circle",
+): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      ...filterUniforms(),
+      dotSize: { value: dotSize },
+      uColor: { value: new THREE.Color(colorHex) },
+      uAlpha: { value: 1.0 },
+      uShape: { value: shape === "square" ? 1.0 : 0.0 },
+    },
+    vertexShader: moleculeVertexShader,
+    fragmentShader: moleculeFragmentShader,
+    transparent: false,
+  });
+}
 
 /**
  * Generates random point data for visualization
@@ -59,11 +106,8 @@ export function createPointCloudFromBuffers(
 
   const material = new THREE.ShaderMaterial({
     uniforms: {
+      ...filterUniforms(),
       dotSize: { value: dotSize },
-      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
-      uTargetRadius: { value: 1.0 },
-      uTargetFeather: { value: 0.1 },
-      uTargetFilterEnabled: { value: 0.0 },
       uShape: { value: 0.0 }, // circle
     },
     vertexShader,
@@ -86,14 +130,9 @@ export function createPointCloudFromBuffers(
 export const SM_DOT_SIZE_FACTOR = 300;
 
 /**
- * Creates an opaque, single-color point cloud using the shared shader.
- * Built for single-molecule clouds where every point in a cloud shares one
- * color and one shape, but we still want the shared sub-pixel cull,
- * distance-from-target fade, and consistent sizing math.
- *
- * Opaque + alphaTest lets the GPU depth-test reject points hidden behind
- * closer ones — the big perf win vs THREE.PointsMaterial with transparent:
- * true (which forces alpha blending and disables early-z).
+ * Creates an opaque, single-color point cloud: positions only (12 bytes a
+ * molecule), colour and shape as uniforms of its material, with the shared
+ * sub-pixel cull, distance-from-target fade and sizing math.
  */
 export function createSmPointCloud(
   positions: Float32Array,
@@ -104,40 +143,15 @@ export function createSmPointCloud(
 ): THREE.Points {
   const geometry = new THREE.BufferGeometry();
 
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(positions.subarray(0, count * 3), 3),
+  );
 
-  // Fill the per-vertex color buffer with the single cloud color so the
-  // shared shader's `attribute vec3 color` path works without modification.
-  const c = new THREE.Color(colorHex);
-  const colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
-  }
-  const sizes = new Float32Array(count).fill(1.0);
-  const alphas = new Float32Array(count).fill(1.0);
-
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
-  geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
-
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      dotSize: { value: dotSize },
-      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
-      uTargetRadius: { value: 1.0 },
-      uTargetFeather: { value: 0.1 },
-      uTargetFilterEnabled: { value: 0.0 },
-      uShape: { value: shape === "square" ? 1.0 : 0.0 },
-    },
-    vertexShader,
-    fragmentShader,
-    transparent: false,
-    alphaTest: 0.5,
-  });
-
-  return new THREE.Points(geometry, material);
+  return new THREE.Points(
+    geometry,
+    createMoleculeMaterial(colorHex, dotSize, shape),
+  );
 }
 
 /**
@@ -163,44 +177,14 @@ export function createStreamingSmPointCloud(
   positionAttr.setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute("position", positionAttr);
 
-  const c = new THREE.Color(colorHex);
-  const colors = new Float32Array(capacity * 3);
-
-  for (let i = 0; i < capacity; i++) {
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
-  }
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  geometry.setAttribute(
-    "size",
-    new THREE.BufferAttribute(new Float32Array(capacity).fill(1.0), 1),
-  );
-  geometry.setAttribute(
-    "alpha",
-    new THREE.BufferAttribute(new Float32Array(capacity).fill(1.0), 1),
-  );
-
   geometry.setDrawRange(0, 0);
   geometry.boundingBox = new THREE.Box3();
   geometry.boundingSphere = new THREE.Sphere();
 
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      dotSize: { value: dotSize },
-      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
-      uTargetRadius: { value: 1.0 },
-      uTargetFeather: { value: 0.1 },
-      uTargetFilterEnabled: { value: 0.0 },
-      uShape: { value: shape === "square" ? 1.0 : 0.0 },
-    },
-    vertexShader,
-    fragmentShader,
-    transparent: false,
-    alphaTest: 0.5,
-  });
-
-  const points = new THREE.Points(geometry, material);
+  const points = new THREE.Points(
+    geometry,
+    createMoleculeMaterial(colorHex, dotSize, shape),
+  );
 
   // Only the filled prefix is drawn, so let three skip frustum culling until
   // the bounds are meaningful (they are updated on every append).
@@ -223,10 +207,13 @@ export function appendToSmPointCloud(
   coords: Float32Array,
 ): number {
   const geometry = points.geometry;
-  const positionAttr = geometry.getAttribute("position") as THREE.BufferAttribute;
+  const positionAttr = geometry.getAttribute(
+    "position",
+  ) as THREE.BufferAttribute;
   const positions = positionAttr.array as Float32Array;
   const offsetMolecules = (points.userData.streamedMolecules as number) ?? 0;
-  const capacity = (points.userData.streamCapacity as number) ?? positions.length / 3;
+  const capacity =
+    (points.userData.streamCapacity as number) ?? positions.length / 3;
 
   const incoming = Math.min(coords.length / 3, capacity - offsetMolecules);
 
@@ -273,16 +260,25 @@ export function streamedMoleculeCount(points: THREE.Points): number {
 }
 
 /**
- * Repaints every vertex of an existing point cloud to a new uniform color.
- * Cheaper than recreating the cloud — just rewrites the color buffer.
+ * Recolours a molecule cloud: one uniform, nothing uploaded. A cloud with
+ * a per-vertex colour attribute (the cells) is repainted instead.
  */
 export function updatePointCloudColor(
   pointsMesh: THREE.Points,
   colorHex: string,
 ): void {
+  const material = pointsMesh.material as THREE.ShaderMaterial;
+
+  if (material.uniforms?.uColor) {
+    (material.uniforms.uColor.value as THREE.Color).set(colorHex);
+
+    return;
+  }
   const colorAttr = pointsMesh.geometry.getAttribute(
     "color",
   ) as THREE.BufferAttribute;
+
+  if (!colorAttr) return;
   const colors = colorAttr.array as Float32Array;
   const c = new THREE.Color(colorHex);
   const count = colors.length / 3;
@@ -351,11 +347,8 @@ export function createPointCloud(
   // Create custom shader material
   const material = new THREE.ShaderMaterial({
     uniforms: {
+      ...filterUniforms(),
       dotSize: { value: dotSize },
-      uTargetCenter: { value: new THREE.Vector3(0, 0, 0) },
-      uTargetRadius: { value: 1.0 },
-      uTargetFeather: { value: 0.1 },
-      uTargetFilterEnabled: { value: 0.0 },
       uShape: { value: 0.0 }, // circle
     },
     vertexShader,
@@ -384,8 +377,10 @@ export function updateDotSize(
 }
 
 /**
- * Updates point cloud buffer attributes (colors, sizes, alphas) without recreating geometry
- * This is much more performant than recreating the entire point cloud
+ * Updates point cloud buffer attributes (colors, sizes, alphas) without
+ * recreating geometry. The new values are copied into the attribute's own
+ * array and re-uploaded in place, so a tick allocates no GPU buffer and
+ * leaves none for the garbage collector; only a size change replaces one.
  */
 export function updatePointCloudAttributes(
   pointsMesh: THREE.Points,
@@ -394,16 +389,20 @@ export function updatePointCloudAttributes(
   alphas?: Float32Array,
 ): void {
   const geometry = pointsMesh.geometry;
+  const put = (name: string, values: Float32Array, itemSize: number) => {
+    const attr = geometry.getAttribute(name) as
+      | THREE.BufferAttribute
+      | undefined;
 
-  if (colors) {
-    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  }
+    if (attr && attr.array.length === values.length) {
+      (attr.array as Float32Array).set(values);
+      attr.needsUpdate = true;
+    } else {
+      geometry.setAttribute(name, new THREE.BufferAttribute(values, itemSize));
+    }
+  };
 
-  if (sizes) {
-    geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
-  }
-
-  if (alphas) {
-    geometry.setAttribute("alpha", new THREE.BufferAttribute(alphas, 1));
-  }
+  if (colors) put("color", colors, 3);
+  if (sizes) put("size", sizes, 1);
+  if (alphas) put("alpha", alphas, 1);
 }

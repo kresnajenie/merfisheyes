@@ -46,10 +46,25 @@ function calcSizeMultiplier(
  * @param percentile - The percentile to calculate (between 0 and 1).
  * @returns The value at the specified percentile.
  */
+// Once per array and percentile: a slider tick asks again for the same gene
+const percentileCache = new WeakMap<object, Map<number, number>>();
+
 export function calculateGenePercentile(
   arr: number[],
   percentile: number,
 ): number {
+  let known = percentileCache.get(arr);
+
+  if (known?.has(percentile)) return known.get(percentile)!;
+  const result = percentileOf(arr, percentile);
+
+  if (!known) percentileCache.set(arr, (known = new Map()));
+  known.set(percentile, result);
+
+  return result;
+}
+
+function percentileOf(arr: number[], percentile: number): number {
   // The non-NaN values, in a typed array to select in place
   const values = new Float64Array(arr.length);
   let n = 0;

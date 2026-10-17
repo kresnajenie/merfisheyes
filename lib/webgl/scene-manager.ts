@@ -90,10 +90,13 @@ export function initializeScene(
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
     preserveDrawingBuffer: true,
+    powerPreference: "high-performance",
   });
 
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
+  // Capped: a 3× display would cost nine fragments per CSS pixel for no
+  // visible gain on point clouds; the shaders size points in CSS pixels
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   container.appendChild(renderer.domElement);
 
   // Controls setup based on dimensionality
