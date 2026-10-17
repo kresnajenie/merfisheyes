@@ -221,6 +221,9 @@ export function ThreeScene({
   const smSelectedGenesLegend = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenesLegend,
   );
+  const smGeneDataCache = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.geneDataCache,
+  );
   const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
     (s) => s.globalScale,
   );
@@ -1869,9 +1872,15 @@ export function ThreeScene({
     for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
     const genes = new Map<string, GeneStyle>();
 
-    for (const [gene, viz] of smSelectedGenes) {
-      if (!viz.showAssigned) continue;
+    // Every gene in the legend, hidden ones (the eye, or another gene's
+    // cmd+click solo) included: they keep their share of the budget and what
+    // they have loaded, so showing them again is instant
+    for (const gene of smSelectedGenesLegend) {
+      const viz = smSelectedGenes.get(gene) ?? smGeneDataCache.get(gene);
+
+      if (!viz) continue;
       genes.set(gene, {
+        visible: smSelectedGenes.has(gene) && viz.showAssigned,
         color: viz.color,
         shape: viz.assignedShape,
         dotSize:
@@ -1889,6 +1898,7 @@ export function ThreeScene({
     pointCloudVersion,
     smSelectedGenes,
     smSelectedGenesLegend,
+    smGeneDataCache,
     smGlobalScale,
     smLayerVisible,
     smShowAssigned,

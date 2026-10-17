@@ -72,6 +72,12 @@ export function PointsFilmStrip({
   const selected = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
+  const legend = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.selectedGenesLegend,
+  );
+  const geneCache = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.geneDataCache,
+  );
   const setShown = useFilmStripStore((s) => s.setShown);
 
   useEffect(() => {
@@ -174,10 +180,17 @@ export function PointsFilmStrip({
 
   // ── The selected genes, in every tile, from a sparse level
   useEffect(() => {
+    // Hidden genes keep their points, just not drawn, so showing them again
+    // fetches nothing; a gene is let go only when it is deselected
+    // The legend's genes: a hidden one (eye, or another gene's solo) is out
+    // of the selection but still in the legend
+    const viz = (g: string) => selected.get(g) ?? geneCache.get(g);
+    const shown = (g: string) =>
+      selected.has(g) && !!selected.get(g)?.showAssigned;
     const wanted = new Map(
-      Array.from(selected.entries())
-        .filter(([, v]) => v.showAssigned)
-        .map(([g, v]) => [g, v.color]),
+      Array.from(legend)
+        .filter((g) => viz(g))
+        .map((g) => [g, viz(g)!.color]),
     );
 
     for (const [url, tile] of tilesRef.current) {
@@ -191,9 +204,11 @@ export function PointsFilmStrip({
           tile.genes.delete(gene);
         } else {
           (entry.points.material as THREE.PointsMaterial).color.set(color);
+          entry.points.visible = shown(gene);
         }
       }
       for (const gene of wanted.keys()) {
+        if (!shown(gene)) continue;
         if (tile.genes.has(gene) || tile.loading.has(gene)) continue;
         const f = tile.element.features.indexOf(gene);
 
@@ -202,7 +217,7 @@ export function PointsFilmStrip({
         setBusy((prev) => new Set(prev).add(url));
         loadGene(tile, f)
           .then((got) => {
-            const color = selected.get(gene)?.color;
+            const color = viz(gene)?.color;
 
             if (
               !got ||
@@ -242,7 +257,7 @@ export function PointsFilmStrip({
       }
     }
     dirtyRef.current = true;
-  }, [selected, ready]);
+  }, [selected, legend, geneCache, ready]);
 
   // ── One renderer for every tile, redrawn when something changed
   useEffect(() => {

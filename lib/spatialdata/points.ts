@@ -64,7 +64,7 @@ export interface PointsElement {
 const decode = (b: Uint8Array) => JSON.parse(new TextDecoder().decode(b));
 
 // Neighbouring tiles often share a chunk; keep recent reads.
-const CACHE_BYTES = 256 * 1024 * 1024;
+const CACHE_BYTES = 512 * 1024 * 1024;
 
 /**
  * The store with recent reads kept (least recently used out first) and

@@ -5,7 +5,6 @@ import * as THREE from "three";
 import {
   createSmPointCloud,
   updateDotSize,
-  updatePointCloudColor,
   updatePointCloudShape,
 } from "@/lib/webgl/point-cloud";
 
@@ -52,10 +51,17 @@ export interface GeneStyle {
   shape: "circle" | "square";
   /** THREE renderOrder of the gene's points. */
   renderOrder: number;
+  /**
+   * Hidden genes (the legend's eye, or cmd+click to show one alone) still
+   * count towards the budget and keep what they have loaded, so showing
+   * them again is instant and doesn't change anyone's level.
+   */
+  visible: boolean;
 }
 
-// Points kept in memory for tiles that have scrolled out of view.
-const CACHE_POINTS = 24_000_000;
+// Points kept in memory for tiles that have scrolled out of view: about 17
+// bytes each (positions, plus a byte each of colour, size and alpha).
+const CACHE_POINTS = 40_000_000;
 const MAX_CONCURRENT_LOADS = 6;
 const REPLAN_MS = 120;
 // Rows read at a time within a piece, each drawn as it arrives: one chunk.
@@ -133,6 +139,7 @@ export class PointsLayer {
   private runCache = new Map<string, TileRuns>();
   /** Dot size that is MIN_PX on screen at the current distance. */
   private minDot = 0;
+  private template: THREE.ShaderMaterial | null = null;
 
   constructor(
     private element: PointsElement,
@@ -171,7 +178,14 @@ export class PointsLayer {
         this.restyle(gene);
       }
     }
+    const shown = (g: string) => this.genes.get(g)?.visible;
+    const toggled = Array.from(genes.keys()).filter(
+      (g) => this.genes.has(g) && shown(g) !== genes.get(g)!.visible,
+    );
+
     this.genes = new Map(genes);
+    // Shown or hidden at once, from what is loaded
+    for (const gene of toggled) this.refresh(gene);
     this.dirty = true;
   }
 
@@ -188,16 +202,17 @@ export class PointsLayer {
     this.root.removeFromParent();
     for (const p of this.pieces.values()) this.drop(p);
     this.pieces.clear();
+    this.template?.dispose();
   }
 
   /** A snapshot of what is drawn and fetched, for a status display. */
   status(): PointsStatus {
     const genes: PointsStatus["genes"] = [];
 
-    for (const gene of this.genes.keys()) {
+    for (const [gene, style] of this.genes) {
       const plan = this.plans.get(gene);
 
-      if (!plan) continue;
+      if (!plan || !style.visible) continue;
       let drawn = 0;
       let wanted = 0;
       let loaded = 0;
@@ -339,7 +354,7 @@ export class PointsLayer {
       for (const p of wanted) {
         plan.standIns.delete(p);
         p.lastWanted = this.frame;
-        if (!p.points && !p.loading) {
+        if (!p.points && !p.loading && this.genes.get(gene)?.visible) {
           p.loading = true;
           this.queue.push(p);
         }
@@ -363,6 +378,11 @@ export class PointsLayer {
     const plan = this.plans.get(gene);
 
     if (!plan) return;
+    if (!this.genes.get(gene)?.visible) {
+      for (const p of [...plan.wanted, ...plan.standIns]) this.hide(p);
+
+      return;
+    }
     for (const p of plan.wanted) {
       if (p.points) p.points.visible = p.loaded > 0;
       this.setGrowth(p, 1);
@@ -520,6 +540,29 @@ export class PointsLayer {
     }
   }
 
+  /** The molecule shader's material, for a gene's style. */
+  private material(style: GeneStyle) {
+    if (!this.template) {
+      // createSmPointCloud's material, taken from a one-point cloud
+      const one = createSmPointCloud(
+        new Float32Array(3),
+        1,
+        "#fff",
+        1,
+        "circle",
+      );
+
+      one.geometry.dispose();
+      this.template = one.material as THREE.ShaderMaterial;
+    }
+    const m = this.template.clone();
+
+    m.uniforms.dotSize.value = Math.max(style.dotSize, this.minDot);
+    m.uniforms.uShape.value = style.shape === "square" ? 1 : 0;
+
+    return m;
+  }
+
   /** Read a piece a chunk at a time, drawing each chunk as it arrives. */
   private async load(p: Piece) {
     const gene = this.element.features[p.feature];
@@ -530,18 +573,32 @@ export class PointsLayer {
         dotSize: 1,
         shape: "circle" as const,
         renderOrder: 0,
+        visible: true,
       };
       const positions = new Float32Array(p.count * 3);
-      const pc = createSmPointCloud(
-        positions,
-        p.count,
-        style.color,
-        Math.max(style.dotSize, this.minDot),
-        style.shape,
+      const geometry = new THREE.BufferGeometry();
+      const attr = new THREE.BufferAttribute(positions, 3);
+
+      geometry.setAttribute("position", attr);
+      // The point shader's per-point colour, size and alpha, as normalized
+      // bytes: 5 bytes a molecule instead of 20 as floats
+      geometry.setAttribute(
+        "color",
+        new THREE.BufferAttribute(
+          fillColor(new Uint8Array(p.count * 3), style.color),
+          3,
+          true,
+        ),
       );
-      const attr = pc.geometry.getAttribute(
-        "position",
-      ) as THREE.BufferAttribute;
+      geometry.setAttribute(
+        "size",
+        new THREE.BufferAttribute(new Uint8Array(p.count).fill(255), 1, true),
+      );
+      geometry.setAttribute(
+        "alpha",
+        new THREE.BufferAttribute(new Uint8Array(p.count).fill(255), 1, true),
+      );
+      const pc = new THREE.Points(geometry, this.material(style));
 
       pc.visible = false;
       pc.renderOrder = style.renderOrder;
@@ -582,7 +639,12 @@ export class PointsLayer {
 
     for (const p of this.pieces.values()) {
       if (p.feature !== f || !p.points) continue;
-      updatePointCloudColor(p.points, style.color);
+      const color = p.points.geometry.getAttribute(
+        "color",
+      ) as THREE.BufferAttribute;
+
+      fillColor(color.array as Uint8Array, style.color);
+      color.needsUpdate = true;
       updatePointCloudShape(p.points, style.shape);
       this.applySize(p);
       p.points.renderOrder = style.renderOrder;
@@ -680,4 +742,20 @@ function lowerBound(a: Uint32Array, x: number): number {
   }
 
   return lo;
+}
+
+/** Fill an RGB byte array with one colour. */
+function fillColor(bytes: Uint8Array, hex: string): Uint8Array {
+  const c = new THREE.Color(hex);
+  const r = Math.round(c.r * 255);
+  const g = Math.round(c.g * 255);
+  const b = Math.round(c.b * 255);
+
+  for (let i = 0; i < bytes.length; i += 3) {
+    bytes[i] = r;
+    bytes[i + 1] = g;
+    bytes[i + 2] = b;
+  }
+
+  return bytes;
 }
