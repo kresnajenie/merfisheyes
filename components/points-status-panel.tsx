@@ -46,7 +46,14 @@ function Spinner() {
  * whether its view is still loading; a progress bar for the view as a whole;
  * how much to draw (Auto, More, All); and what has been read so far.
  */
-export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
+export function PointsStatusPanel({
+  layer,
+  bottomInset = 0,
+}: {
+  layer: PointsLayer;
+  /** Height taken at the bottom of the page; the panel sits above it. */
+  bottomInset?: number;
+}) {
   const [status, setStatus] = useState<PointsStatus>(() => layer.status());
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -107,7 +114,7 @@ export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
         data-ui-overlay
         className="glass-panel absolute right-6 z-[var(--z-legends)] flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-white"
         data-testid="points-status"
-        style={{ bottom: 64 }}
+        style={{ bottom: bottomInset + 64 }}
         title="Show molecule details"
         type="button"
         onClick={() => collapse(false)}
@@ -133,7 +140,7 @@ export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
       data-ui-overlay
       className="glass-panel absolute right-6 z-[var(--z-legends)] w-96 rounded-xl p-3 text-xs text-white"
       data-testid="points-status"
-      style={{ bottom: 64 }}
+      style={{ bottom: bottomInset + 64 }}
     >
       <div className="flex items-center gap-2">
         {loading ? (

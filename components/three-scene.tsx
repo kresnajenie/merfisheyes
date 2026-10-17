@@ -92,12 +92,15 @@ interface ThreeSceneProps {
    * over them in place of any linked by a mapping.json.
    */
   molecules?: SingleMoleculeDataset | null;
+  /** Height taken at the bottom of the page (a film strip); chrome sits above it. */
+  bottomInset?: number;
 }
 
 export function ThreeScene({
   dataset,
   onSceneReady,
   molecules,
+  bottomInset = 0,
 }: ThreeSceneProps) {
   const onSceneReadyRef = useRef(onSceneReady);
   const moleculesRef = useRef(molecules);
@@ -2213,7 +2216,9 @@ export function ThreeScene({
         </div>
       )}
 
-      {pointsLayer && <PointsStatusPanel layer={pointsLayer} />}
+      {pointsLayer && (
+        <PointsStatusPanel bottomInset={bottomInset} layer={pointsLayer} />
+      )}
 
       {/* Last cmd/ctrl+click coordinates. */}
       {lastClickCoords && (
@@ -2234,6 +2239,7 @@ export function ThreeScene({
       {/* Spatial scale bar — only for datasets with reliable raw coordinates */}
       {dataset && !dataset.metadata?.wasNormalized && (
         <SpatialScaleBar
+          bottomOffset={bottomInset ? `${bottomInset + 64}px` : undefined}
           cameraRef={
             cameraRef as React.RefObject<THREE.PerspectiveCamera | null>
           }
