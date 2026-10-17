@@ -191,7 +191,11 @@ export class ShapesLayer extends BaseLayer {
       markLayerChanged("shapes");
       this.build(rect, colors);
       // A build is synchronous: the view is settled as soon as it returns
-      markLayerContent("shapes", { resident: this.polygons.starts.length - 1 });
+      markLayerContent("shapes", {
+        drawn: this.shown,
+        wanted: this.shown,
+        resident: this.polygons.starts.length - 1,
+      });
       markLayerSettled("shapes");
       this.changed();
     }

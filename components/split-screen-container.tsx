@@ -12,6 +12,7 @@ import { createDatasetStoreInstance } from "@/lib/stores/createDatasetStore";
 import { createSingleMoleculeStoreInstance } from "@/lib/stores/createSingleMoleculeStore";
 import { createSingleMoleculeVisualizationStoreInstance } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import { createLabelledMoleculeVisualizationStoreInstance } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
+import { createLayersStoreInstance } from "@/lib/stores/createLayersStore";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useSyncVisualization } from "@/lib/hooks/useSyncVisualization";
 import { useSyncSingleMoleculeVisualization } from "@/lib/hooks/useSyncSingleMoleculeVisualization";
@@ -42,6 +43,7 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
         createSingleMoleculeVisualizationStoreInstance(),
       labelledMoleculeVisualizationStore:
         createLabelledMoleculeVisualizationStoreInstance(),
+      layersStore: createLayersStoreInstance(),
     }),
     [],
   );

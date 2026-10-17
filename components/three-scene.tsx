@@ -3,8 +3,10 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { SceneHandle } from "@/lib/scene/contract";
+import type { LayerContext, OpenedElements } from "@/lib/scene/registry";
+import type { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { toast } from "react-toastify";
 import gsap from "gsap";
@@ -17,11 +19,11 @@ import {
   createPointCloudFromBuffers,
   updatePointCloudAttributes,
   updateDotSize,
-  SM_DOT_SIZE_FACTOR,
 } from "@/lib/webgl/point-cloud";
-import { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
 import { LayerHost } from "@/lib/scene/LayerHost";
-import { useMoleculeLayerSync } from "@/lib/hooks/useMoleculeLayerSync";
+import { moleculeElements } from "@/lib/scene/registry";
+import { useLayers } from "@/lib/scene/useLayers";
+import { LayerBindings, LayerControls } from "@/components/layer-controls";
 import {
   updateGeneVisualization,
   updateCelltypeVisualization,
@@ -35,7 +37,6 @@ import {
   usePanelId,
   usePanelSingleMoleculeApi,
   usePanelSingleMoleculeVisualizationApi,
-  usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import {
@@ -45,7 +46,6 @@ import {
 } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
-import { PointsStatusPanel } from "@/components/points-status-panel";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import {
   detectExpressionKind,
@@ -67,10 +67,6 @@ import {
 } from "@/lib/utils/sample-transforms";
 import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
 import { useTourStore } from "@/lib/stores/tourStore";
-import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
-import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
-import { type GeneStyle, PointsLayer } from "@/lib/spatialdata/PointsLayer";
-import { pointsElementOf } from "@/lib/spatialdata/pointsMolecules";
 import { openImageRef, type SpatialDataImage } from "@/lib/spatialdata/image";
 
 export type { SceneHandle } from "@/lib/scene/contract";
@@ -83,31 +79,19 @@ const IDLE_FPS = 10;
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
   /**
-   * Called each time the scene is (re)built, to add extra layers to it.
-   * The returned function is called before that scene is torn down.
+   * What is drawn with the cells, opened by the viewer (a SpatialData
+   * store's image, polygons and points). Molecules given here take the
+   * place of any linked by a mapping.json.
    */
-  onSceneReady?: (scene: SceneHandle) => (() => void) | void;
-  /**
-   * Molecules that come with the cells (a SpatialData store's points), drawn
-   * over them in place of any linked by a mapping.json.
-   */
-  molecules?: SingleMoleculeDataset | null;
+  elements?: OpenedElements;
 }
 
-export function ThreeScene({
-  dataset,
-  onSceneReady,
-  molecules,
-}: ThreeSceneProps) {
-  const onSceneReadyRef = useRef(onSceneReady);
+export function ThreeScene({ dataset, elements }: ThreeSceneProps) {
+  const molecules = elements?.points ?? elements?.molecules ?? null;
   const moleculesRef = useRef(molecules);
 
-  onSceneReadyRef.current = onSceneReady;
   moleculesRef.current = molecules;
 
-  // Image named by the dataset's mapping.json (`image`), drawn under the
-  // cells. The scene is rebuilt on view changes and the image arrives on its
-  // own schedule, so the layer is attached whenever both exist.
   const sceneHandleRef = useRef<SceneHandle | null>(null);
   // The scene's side of the layer contract: layers join and leave through
   // it, and it ticks them from the scene loop (lib/scene/LayerHost.ts).
@@ -115,27 +99,15 @@ export function ThreeScene({
   // Ask the scene loop for a frame (on-demand rendering): called after every
   // mutation of what is drawn. Layers do it themselves through `changed()`.
   const invalidateRef = useRef<() => void>(() => {});
-  const overlayImageRef = useRef<SpatialDataImage | null>(null);
-  const overlayImageLayerRef = useRef<ImageLayer | null>(null);
-  const [overlayImageLayer, setOverlayImageLayer] = useState<ImageLayer | null>(
+  // Image named by the dataset's mapping.json (`image`) or dropped beside
+  // it, drawn under the cells; one given in `elements` takes precedence.
+  const [overlayImage, setOverlayImage] = useState<SpatialDataImage | null>(
     null,
   );
-  const detachOverlayImage = () => {
-    overlayImageLayerRef.current?.dispose();
-    overlayImageLayerRef.current = null;
-    setOverlayImageLayer(null);
-  };
-  const attachOverlayImage = () => {
-    const scene = sceneHandleRef.current;
-    const image = overlayImageRef.current;
-
-    if (!scene || !image || overlayImageLayerRef.current) return;
-    const layer = new ImageLayer(image);
-
-    scene.attach(layer);
-    overlayImageLayerRef.current = layer;
-    setOverlayImageLayer(layer);
-  };
+  // Cell polygons dropped with the cells for a preview
+  const [overlayShapes, setOverlayShapes] = useState<
+    OpenedElements["shapes"] | null
+  >(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
@@ -201,13 +173,6 @@ export function ThreeScene({
   const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(
     null,
   );
-  // The overlay's molecule clouds, drawn by the shared layer inside the
-  // inner group (so they share the cells' centred space and transforms).
-  // Rebuilt with the scene; the ref is for the per-frame uniform push.
-  const [smLayer, setSmLayer] = useState<MoleculeLayer | null>(null);
-  const smLayerRef = useRef<MoleculeLayer | null>(null);
-
-  smLayerRef.current = smLayer;
   const [smLoading, setSmLoading] = useState(false);
   // Last cmd/ctrl+click world coordinates; rendered as a small overlay chip
   // so the user can read them directly without opening devtools.
@@ -220,30 +185,33 @@ export function ThreeScene({
   // legends that drive them — so each side of a split has its own overlay.
   const smStoreApi = usePanelSingleMoleculeApi();
   const smVizApi = usePanelSingleMoleculeVisualizationApi();
-  const smSelectedGenes = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.selectedGenes,
-  );
-  const smSelectedGenesLegend = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.selectedGenesLegend,
-  );
-  const smGeneDataCache = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.geneDataCache,
-  );
-  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.globalScale,
-  );
-  const smShowAssigned = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.showAssigned,
-  );
-  const smLayerVisible = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.smLayerVisible,
-  );
 
-  // Render-order helper: later in selectedGenesLegend → higher renderOrder.
-  // Assigned cloud sits on top of its own unassigned. All values stay below
-  // the SC point cloud (which uses the default renderOrder of 0).
-  const smRenderOrderFor = (legendIndex: number, isAssigned: boolean): number =>
-    -1000 + legendIndex * 2 + (isAssigned ? 1 : 0);
+  // What the scene draws besides the cells, as layers of the contract: the
+  // elements the viewer opened, and the overlays this scene resolves itself
+  // (a mapping.json, a folder dropped for a preview). The layers outlive
+  // scene rebuilds; `onSceneReady` attaches them to each new scene.
+  const handedImage = elements?.image;
+  const handedShapes = elements?.shapes;
+  const layerElements = useMemo<OpenedElements>(
+    () => ({
+      image: handedImage ?? overlayImage ?? undefined,
+      shapes: handedShapes ?? overlayShapes ?? undefined,
+      ...moleculeElements(smDataset),
+    }),
+    [handedImage, handedShapes, overlayImage, overlayShapes, smDataset],
+  );
+  const layerCtx: LayerContext = {
+    molecules: {
+      // Closing a gene's loading toast cancels its download; take it out of
+      // the selection so nothing restarts it.
+      onCancelGene: (gene: string) => smVizApi.getState().removeGene(gene),
+    },
+  };
+  const { onSceneReady, layers } = useLayers(layerElements, layerCtx);
+  // The overlay's molecule layer, for the per-frame uniform push
+  const smLayerRef = useRef<MoleculeLayer | null>(null);
+
+  smLayerRef.current = (layers.molecules as MoleculeLayer | undefined) ?? null;
 
   // Get visualization settings from store
   const {
@@ -424,8 +392,8 @@ export function ThreeScene({
     };
 
     clearSmOverlay();
-    overlayImageRef.current = null;
-    detachOverlayImage();
+    setOverlayImage(null);
+    setOverlayShapes(null);
 
     if (!dataset) {
       linkConfigRef.current = null;
@@ -451,8 +419,7 @@ export function ThreeScene({
         });
 
         if (stale) return;
-        overlayImageRef.current = image;
-        attachOverlayImage();
+        setOverlayImage(image);
       } catch (error) {
         console.warn("Failed to load overlay image:", error);
       }
@@ -480,9 +447,9 @@ export function ThreeScene({
           { autoClose: 12000, toastId: "local-image-normalized" },
         );
       } else if (local.image) {
-        overlayImageRef.current = local.image;
-        attachOverlayImage();
+        setOverlayImage(local.image);
       }
+      if (local.shapes) setOverlayShapes(() => local.shapes);
       if (local.molecules) {
         smDatasetRef.current = local.molecules;
         setSmDataset(local.molecules);
@@ -919,8 +886,15 @@ export function ThreeScene({
         setWebglFailed(true);
       }
       if (!init) return;
-      const { scene, camera, renderer, controls, animate, dispose, invalidate } =
-        init;
+      const {
+        scene,
+        camera,
+        renderer,
+        controls,
+        animate,
+        dispose,
+        invalidate,
+      } = init;
 
       invalidateRef.current = invalidate;
 
@@ -1164,23 +1138,26 @@ export function ThreeScene({
       // Start animation
       animate();
       markSceneReady();
-      const host = new LayerHost(innerGroup, camera, renderer, invalidate, () =>
-        (pointCloudRef.current?.geometry.getAttribute("color") as
-          | THREE.BufferAttribute
-          | undefined) ?? null,
+      const host = new LayerHost(
+        innerGroup,
+        camera,
+        renderer,
+        invalidate,
+        () =>
+          (pointCloudRef.current?.geometry.getAttribute("color") as
+            | THREE.BufferAttribute
+            | undefined) ?? null,
       );
       const sceneHandle = host.handle;
 
       hostRef.current = host;
-      const removeExtraLayers = onSceneReadyRef.current?.(sceneHandle);
+      const removeLayers = onSceneReady(sceneHandle);
 
       sceneHandleRef.current = sceneHandle;
-      attachOverlayImage();
 
       // Cleanup on unmount
       return () => {
-        removeExtraLayers?.();
-        detachOverlayImage();
+        removeLayers();
         host.dispose();
         hostRef.current = null;
         invalidateRef.current = () => {};
@@ -1842,98 +1819,6 @@ export function ThreeScene({
     invalidateRef.current();
   }, [sceneRotation, flipX, flipY]);
 
-  // Effect 5a: molecules of a Zarr points element are read a view at a time
-  // by a PointsLayer, instead of whole per gene by Effect 5.
-  const pointsLayerRef = useRef<PointsLayer | null>(null);
-  const [pointsLayer, setPointsLayer] = useState<PointsLayer | null>(null);
-
-  useEffect(() => {
-    const element = pointsElementOf(smDataset);
-    const handle = sceneHandleRef.current;
-
-    if (!element || !handle) return;
-    const layer = new PointsLayer(element);
-
-    handle.attach(layer);
-    pointsLayerRef.current = layer;
-    setPointsLayer(layer);
-
-    return () => {
-      layer.dispose();
-      pointsLayerRef.current = null;
-      setPointsLayer(null);
-    };
-  }, [smDataset, pointCloudVersion]);
-
-  useEffect(() => {
-    const layer = pointsLayerRef.current;
-
-    if (!layer) return;
-    const legendOrder = new Map<string, number>();
-    let i = 0;
-
-    for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
-    const genes = new Map<string, GeneStyle>();
-
-    // Every gene in the legend, hidden ones (the eye, or another gene's
-    // cmd+click solo) included: they keep their share of the budget and what
-    // they have loaded, so showing them again is instant
-    for (const gene of smSelectedGenesLegend) {
-      const viz = smSelectedGenes.get(gene) ?? smGeneDataCache.get(gene);
-
-      if (!viz) continue;
-      genes.set(gene, {
-        visible: smSelectedGenes.has(gene) && viz.showAssigned,
-        color: viz.color,
-        shape: viz.assignedShape,
-        dotSize:
-          VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
-          smGlobalScale *
-          viz.localScale *
-          SM_DOT_SIZE_FACTOR,
-        renderOrder: smRenderOrderFor(legendOrder.get(gene) ?? 0, true),
-      });
-    }
-    layer.visible = smLayerVisible && smShowAssigned;
-    layer.setGenes(genes);
-  }, [
-    smDataset,
-    pointCloudVersion,
-    smSelectedGenes,
-    smSelectedGenesLegend,
-    smGeneDataCache,
-    smGlobalScale,
-    smLayerVisible,
-    smShowAssigned,
-  ]);
-
-  // Effect 5: the molecule overlay. One MoleculeLayer per overlay dataset,
-  // parented to the inner group so its clouds share the SC point cloud's
-  // centred space (and rotate/flip about the data center). The scene is
-  // rebuilt on view changes (pointCloudVersion), and the layer with it.
-  useEffect(() => {
-    const handle = sceneHandleRef.current;
-
-    // A points element is drawn a view at a time by Effect 5a instead
-    if (!handle || !smDataset || pointsElementOf(smDataset)) return;
-    const layer = new MoleculeLayer(smDataset, {
-      // Closing a gene's loading toast cancels its download; take it out of
-      // the selection so nothing restarts it.
-      onCancelGene: (gene: string) => smVizApi.getState().removeGene(gene),
-    });
-
-    handle.attach(layer);
-    setSmLayer(layer);
-
-    return () => {
-      layer.dispose();
-      setSmLayer((current) => (current === layer ? null : current));
-    };
-  }, [smDataset, pointCloudVersion]);
-
-  // The selected overlay genes → the layer, from this panel's SM viz store.
-  useMoleculeLayerSync(smLayer);
-
   // Distance-filter uniforms: pushed every frame because controls.target
   // mutates outside React (cmd+click pan, mouse drag, R reset, orbit). Cost
   // is a handful of Vector3 copies per frame — negligible.
@@ -2000,9 +1885,8 @@ export function ThreeScene({
 
       {webglFailed && <WebGLErrorOverlay />}
 
-      {overlayImageLayer && (
-        <SpatialDataImageControls layer={overlayImageLayer} />
-      )}
+      <LayerControls slot="panel" />
+      <LayerBindings ctx={layerCtx} />
 
       {/* SM loading indicator */}
       {smLoading && (
@@ -2011,8 +1895,6 @@ export function ThreeScene({
           Loading molecules...
         </div>
       )}
-
-      {pointsLayer && <PointsStatusPanel layer={pointsLayer} />}
 
       {/* Last cmd/ctrl+click coordinates. */}
       {lastClickCoords && (

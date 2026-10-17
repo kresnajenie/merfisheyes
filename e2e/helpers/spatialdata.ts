@@ -270,7 +270,8 @@ export function startSpatialDataServer(
       return { file: path.join(ZARR, "points_v1.zarr", ...inside) };
     }
     if (key.startsWith("shapes/cell_boundaries/")) {
-      return { file: path.join(ZARR, "shapes_v1", ...inside) };
+      // shapes_v1 holds the element folder itself (cell_boundaries/…)
+      return { file: path.join(ZARR, "shapes_v1", ...inside.slice(1)) };
     }
 
     const onDisk = path.join(ZARR, `${layout}.zarr`, ...inside);

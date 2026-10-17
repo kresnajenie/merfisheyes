@@ -308,14 +308,43 @@ the scene for a frame). A scene owns the only `requestAnimationFrame` loop
 (`initializeScene({ onFrame, idleFps })`, on demand: a still scene draws
 nothing) and a `LayerHost`, which builds the `SceneHandle` (`group`, `camera`,
 `renderer`, `view()` computed once per frame for all layers, `invalidate()`,
-`attach()`, `cellColors?`) and ticks the layers before each render. Viewers
-attach layers in `onSceneReady` with `handle.attach(layer)`; controls re-render
-through `useLayerStatus(layer)`, never by polling. What a layer draws stays
-typed per layer (`setChannel`, `setGenes`/`setDetail`/`pointsStatus()`,
-`mode`/`opacity`/`shapesStatus`, `sync`). Adding a kind: the five steps in the
-spec, plus a case in `tests/unit/layer-contract.test.ts`, which every layer
-must pass. Never give a layer its own loop, its own view-rectangle code or a
-poll.
+`attach()`, `cellColors?`) and ticks the layers before each render. Controls
+re-render through `useLayerStatus(layer)`, never by polling. What a layer
+draws stays typed per layer (`setChannel`, `setGenes`/`setDetail`/
+`pointsStatus()`, `mode`/`opacity`/`shapesStatus`, `sync`). Never give a layer
+its own loop, its own view-rectangle code or a poll.
+
+**Element registry** ([lib/scene/registry.tsx](lib/scene/registry.tsx)): one
+`ElementDefinition` per kind in draw order (`ELEMENTS`): `detect` / `open`
+(metadata only) / `createLayer` / `canAttach` / `Bind` (keeps the layer in
+step with the panel's stores) / `Controls` + `slot` (`"rail"` in
+`VisualizationControls`, `"panel"` inside the scene). `openElements(store,
+ctx)` returns an `OpenedElements` record (`image`, `shapes`, `points`,
+`molecules`; a store's own points stand in for a linked molecule folder);
+`moleculeElements(ds)` classifies a molecule dataset. Scenes call
+`useLayers(elements, ctx)` ([lib/scene/useLayers.ts](lib/scene/useLayers.ts)),
+which creates the layers, keeps them across scene rebuilds (attach/detach
+only) and publishes them to the panel's layers store
+(`usePanelLayers`); `<LayerControls slot>` and `<LayerBindings ctx>`
+([components/layer-controls.tsx](components/layer-controls.tsx)) render what
+the registry says. Viewers pass `elements={…}` to `ThreeScene` /
+`SingleMoleculeThreeScene`; nothing in a viewer names a kind. Adding a kind
+is one registry entry plus the cases in `tests/unit/layer-contract.test.ts`
+and `tests/unit/registry.test.ts`; the five steps are in the spec.
+
+**One dataset loader** ([lib/viewer/load-dataset.ts](lib/viewer/load-dataset.ts),
+[lib/hooks/useDatasetLoader.ts](lib/hooks/useDatasetLoader.ts)): every page
+and split panel opens a dataset through `useDatasetLoader({ kind: "cell" |
+"sm" | "spatialdata", datasetId?, s3Url? })`, which looks the dataset up
+(registration, owner config, 202 = not ready), reuses one already open,
+reads it, applies its open state (`open-dataset.ts`), adds it to the panel's
+stores, publishes the registration (left panel) and counts the view. It
+returns `{ cells, molecules, elements, registration, storeUrl }`; a
+SpatialData store's elements come from `openElements`. The screens are
+`DatasetLoadingScreen` / `DatasetErrorScreen`
+([components/dataset-loading-screen.tsx](components/dataset-loading-screen.tsx),
+`variant="panel"` inside a split) and the split URL params are
+`useSplitUrlParams()`. Do not add a loading path to a page.
 
 **One render path for molecules** ([lib/webgl/MoleculeLayer.ts](lib/webgl/MoleculeLayer.ts)):
 

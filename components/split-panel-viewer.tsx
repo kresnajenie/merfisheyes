@@ -1,11 +1,6 @@
 "use client";
 
-import type { StandardizedDataset } from "@/lib/StandardizedDataset";
-import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
-
-import { Spinner, Progress } from "@heroui/react";
-import { useEffect, useState } from "react";
 
 import { ThreeScene } from "./three-scene";
 import { VisualizationControls } from "./visualization-controls";
@@ -14,23 +9,18 @@ import { SingleMoleculeThreeScene } from "./single-molecule-three-scene";
 import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 import LabelledMoleculeViewerPage from "./labelled-molecule-viewer";
+import {
+  DatasetErrorScreen,
+  DatasetLoadingScreen,
+} from "./dataset-loading-screen";
 
 import {
   useCellVizUrlSync,
   useSMOverlayUrlSync,
   useSMVizUrlSync,
 } from "@/lib/hooks/useUrlVizSync";
+import { useDatasetLoader } from "@/lib/hooks/useDatasetLoader";
 import {
-  applyCellOpenState,
-  applySMOpenState,
-  fetchViewerConfig,
-} from "@/lib/viewer/open-dataset";
-import { tryReadCellVizFromUrl } from "@/lib/hooks/useUrlVizSync";
-import { normalizeS3Url } from "@/lib/utils/viewer-config";
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { useDatasetStore } from "@/lib/stores/datasetStore";
-import {
-  usePanelDatasetStore,
   usePanelVisualizationStore,
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
@@ -50,7 +40,6 @@ export function SplitPanelViewer({
   if (type === "cell") {
     return <CellViewer datasetId={datasetId} s3Url={s3Url} />;
   }
-
   if (type === "lm") {
     // The LM viewer already owns its loader, and inside a PanelProvider its
     // hooks resolve to this panel's stores, so it needs no separate copy —
@@ -68,17 +57,17 @@ function CellViewer({
   datasetId: string | null;
   s3Url: string | null;
 }) {
-  const { addDataset } = usePanelDatasetStore();
   const vizStore = usePanelVisualizationStore();
-  const [dataset, setDataset] = useState<StandardizedDataset | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [message, setMessage] = useState("Initializing...");
-  const [datasetReady, setDatasetReady] = useState(false);
+  // The same opener as the full page, into this panel's stores; a split
+  // panel does not count as a view of the dataset
+  const { loaded, loading, progress, message, error } = useDatasetLoader(
+    { kind: "cell", datasetId, s3Url },
+    { countViews: false },
+  );
+  const dataset = loaded?.cells ?? null;
 
-  // URL sync hook (handles reading after datasetReady + writing)
-  useCellVizUrlSync(datasetReady, dataset, vizStore);
+  // URL sync hook (handles reading after the dataset is ready + writing)
+  useCellVizUrlSync(!!dataset, dataset, vizStore);
 
   // SM overlay of this panel: three-scene loads the linked molecule dataset
   // into the panel's SM store; this restores / seeds its genes (rov=).
@@ -89,150 +78,16 @@ function CellViewer({
 
   useSMOverlayUrlSync(!!smOverlayDataset, smOverlayDataset, smOverlayVizStore);
 
-  // Use a stable key to track which source to load
-  const sourceKey = s3Url || datasetId;
-
-  useEffect(() => {
-    if (!sourceKey) return;
-    let cancelled = false;
-    // Registered URLs are stored normalized; a picker/share link may carry a
-    // trailing slash that would otherwise miss the config lookup.
-    const cleanS3Url = s3Url ? normalizeS3Url(s3Url) : null;
-
-    async function resolveDataset() {
-      // Owner-saved viewer defaults (rotation, per-sample align, priority
-      // column) — fetched up front so the priority column can steer loading.
-      const cfg = await fetchViewerConfig({
-        s3Url: cleanS3Url,
-        datasetId,
-        kind: "cell",
-      });
-
-      // If no S3 URL, check store first
-      if (!s3Url && datasetId) {
-        const storeDataset = useDatasetStore.getState().datasets.get(datasetId);
-
-        if (storeDataset && "spatial" in storeDataset) {
-          const ds = storeDataset as StandardizedDataset;
-
-          setDataset(ds);
-          addDataset(ds);
-          // Shared open pipeline (reset → config → heuristic); awaited so the
-          // loader only clears once per-sample transforms are in place. The
-          // URL sync hook overlays any rv= state after datasetReady flips.
-          await applyCellOpenState({
-            dataset: ds,
-            config: cfg,
-            store: vizStore,
-          });
-          setDatasetReady(true);
-          setIsLoading(false);
-
-          return;
-        }
-      }
-
-      // Load from S3
-      try {
-        setIsLoading(true);
-        setError(null);
-        setProgress(0);
-
-        const { StandardizedDataset } = await import(
-          "@/lib/StandardizedDataset"
-        );
-
-        // Priority column precedence: URL state > owner config > loader default
-        const urlColumnHint =
-          tryReadCellVizFromUrl("right")?.c || cfg?.priorityColumn || undefined;
-
-        let ds: StandardizedDataset;
-
-        if (cleanS3Url) {
-          ds = await StandardizedDataset.fromCustomS3(
-            cleanS3Url,
-            (p, msg) => {
-              if (!cancelled) {
-                setProgress(p);
-                setMessage(msg);
-              }
-            },
-            urlColumnHint,
-          );
-        } else {
-          ds = await StandardizedDataset.fromS3(
-            datasetId!,
-            (p, msg) => {
-              if (!cancelled) {
-                setProgress(p);
-                setMessage(msg);
-              }
-            },
-            urlColumnHint,
-          );
-        }
-
-        if (!cancelled) {
-          setDataset(ds);
-          addDataset(ds);
-          // Shared open pipeline (reset → config → heuristic); awaited so the
-          // loader only clears once per-sample transforms are in place. The
-          // URL sync hook overlays any rv= state after datasetReady flips.
-          setMessage("Applying alignment...");
-          await applyCellOpenState({
-            dataset: ds,
-            config: cfg,
-            store: vizStore,
-          });
-          setDatasetReady(true);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load dataset",
-          );
-          setIsLoading(false);
-        }
-      }
-    }
-
-    resolveDataset();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sourceKey]);
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black">
-        <div className="flex flex-col items-center gap-4 w-full max-w-xs px-4">
-          <Spinner color="primary" size="lg" />
-          <p className="text-sm text-white/70">Loading dataset...</p>
-          <Progress
-            aria-label="Loading progress"
-            className="w-full"
-            color="primary"
-            size="sm"
-            value={progress}
-          />
-          <p className="text-xs text-white/50">{message}</p>
-        </div>
-      </div>
+      <DatasetLoadingScreen
+        message={message}
+        progress={progress}
+        variant="panel"
+      />
     );
   }
-
-  if (error) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black">
-        <div className="text-center px-4">
-          <p className="text-sm text-danger">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
+  if (error) return <DatasetErrorScreen error={error} variant="panel" />;
   if (!dataset) return null;
 
   return (
@@ -251,148 +106,27 @@ function SingleMoleculeViewer({
   datasetId: string | null;
   s3Url: string | null;
 }) {
-  const { addDataset } = usePanelSingleMoleculeStore();
   const smVizStore = usePanelSingleMoleculeVisualizationStore();
-  const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(
-    null,
+  const { loaded, loading, progress, message, error } = useDatasetLoader(
+    { kind: "sm", datasetId, s3Url },
+    { countViews: false },
   );
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [message, setMessage] = useState("Initializing...");
-  const [datasetReady, setDatasetReady] = useState(false);
+  const smDataset = loaded?.molecules ?? null;
 
-  // URL sync hook (handles reading after datasetReady + writing)
-  useSMVizUrlSync(datasetReady, smDataset, smVizStore);
+  // URL sync hook (handles reading after the dataset is ready + writing)
+  useSMVizUrlSync(!!smDataset, smDataset, smVizStore);
 
-  const sourceKey = s3Url || datasetId;
-
-  useEffect(() => {
-    if (!sourceKey) return;
-    let cancelled = false;
-    const cleanS3Url = s3Url ? normalizeS3Url(s3Url) : null;
-
-    async function resolveDataset() {
-      const cfg = await fetchViewerConfig({
-        s3Url: cleanS3Url,
-        datasetId,
-        kind: "sm",
-      });
-
-      // If no S3 URL, check store first
-      if (!s3Url && datasetId) {
-        const storeDataset = useSingleMoleculeStore
-          .getState()
-          .datasets.get(datasetId);
-
-        if (storeDataset && "uniqueGenes" in storeDataset) {
-          const ds = storeDataset as SingleMoleculeDataset;
-
-          addDataset(ds);
-          setSmDataset(ds);
-          applySMOpenState({
-            dataset: ds,
-            config: cfg,
-            store: smVizStore,
-            panel: "right",
-          });
-          setDatasetReady(true);
-          setIsLoading(false);
-
-          return;
-        }
-      }
-
-      // Load from S3
-      try {
-        setIsLoading(true);
-        setError(null);
-        setProgress(0);
-
-        const { SingleMoleculeDataset } = await import(
-          "@/lib/SingleMoleculeDataset"
-        );
-
-        let ds;
-
-        if (cleanS3Url) {
-          ds = await SingleMoleculeDataset.fromCustomS3(
-            cleanS3Url,
-            (p, msg) => {
-              if (!cancelled) {
-                setProgress(p);
-                setMessage(msg);
-              }
-            },
-          );
-        } else {
-          ds = await SingleMoleculeDataset.fromS3(datasetId!, (p, msg) => {
-            if (!cancelled) {
-              setProgress(p);
-              setMessage(msg);
-            }
-          });
-        }
-
-        if (!cancelled) {
-          addDataset(ds);
-          setSmDataset(ds);
-          applySMOpenState({
-            dataset: ds,
-            config: cfg,
-            store: smVizStore,
-            panel: "right",
-          });
-          setDatasetReady(true);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load dataset",
-          );
-          setIsLoading(false);
-        }
-      }
-    }
-
-    resolveDataset();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [sourceKey]);
-
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black">
-        <div className="flex flex-col items-center gap-4 w-full max-w-xs px-4">
-          <Spinner color="primary" size="lg" />
-          <p className="text-sm text-white/70">Loading dataset...</p>
-          <Progress
-            aria-label="Loading progress"
-            className="w-full"
-            color="primary"
-            size="sm"
-            value={progress}
-          />
-          <p className="text-xs text-white/50">{message}</p>
-        </div>
-      </div>
+      <DatasetLoadingScreen
+        message={message}
+        progress={progress}
+        variant="panel"
+      />
     );
   }
-
-  if (error) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black">
-        <div className="text-center px-4">
-          <p className="text-sm text-danger">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!datasetReady) return null;
+  if (error) return <DatasetErrorScreen error={error} variant="panel" />;
+  if (!smDataset) return null;
 
   return (
     <>

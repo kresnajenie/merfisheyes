@@ -1,15 +1,17 @@
 "use client";
 
-import type { SceneHandle } from "@/components/three-scene";
+import type { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
+import type { LayerContext, OpenedElements } from "@/lib/scene/registry";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Spinner } from "@heroui/react";
 
 import { initializeScene } from "@/lib/webgl/scene-manager";
-import { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
 import { LayerHost } from "@/lib/scene/LayerHost";
-import { useMoleculeLayerSync } from "@/lib/hooks/useMoleculeLayerSync";
+import { moleculeElements } from "@/lib/scene/registry";
+import { useLayers } from "@/lib/scene/useLayers";
+import { LayerBindings, LayerControls } from "@/components/layer-controls";
 import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
@@ -30,17 +32,11 @@ import { SpatialScaleBar } from "@/components/spatial-scale-bar";
  * same everywhere.
  */
 export function SingleMoleculeThreeScene({
-  onSceneReady,
+  elements,
 }: {
-  /**
-   * Called each time the scene is (re)built, to add extra layers to it.
-   * The returned function is called before that scene is torn down.
-   */
-  onSceneReady?: (scene: SceneHandle) => (() => void) | void;
+  /** What is drawn under the molecules, opened by the viewer (an image). */
+  elements?: OpenedElements;
 } = {}) {
-  const onSceneReadyRef = useRef(onSceneReady);
-
-  onSceneReadyRef.current = onSceneReady;
   const containerRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -55,8 +51,6 @@ export function SingleMoleculeThreeScene({
   const sceneGroupRef = useRef<THREE.Group | null>(null); // outer: rotation/flip
   const innerGroupRef = useRef<THREE.Group | null>(null); // inner: offset by -center
   const dataCenterRef = useRef<THREE.Vector3>(new THREE.Vector3());
-  // The layer lives and dies with the scene it draws into.
-  const [layer, setLayer] = useState<MoleculeLayer | null>(null);
 
   // Get dataset from store - using stable selector to prevent re-renders
   const currentDatasetId = usePanelSingleMoleculeStore(
@@ -143,6 +137,40 @@ export function SingleMoleculeThreeScene({
     );
   };
 
+  // The molecules and whatever the viewer opened under them, as layers of
+  // the contract. They outlive scene rebuilds (a view-mode switch);
+  // `onSceneReady` attaches them to each new scene.
+  const handedImage = elements?.image;
+  const layerElements = useMemo<OpenedElements>(
+    () => ({ image: handedImage, ...moleculeElements(dataset ?? null) }),
+    [handedImage, dataset],
+  );
+  const layerCtx: LayerContext = {
+    molecules: {
+      // Fit the camera as soon as the first data exists
+      onFirstData: tryAutoFitCamera,
+      // Closing a gene's loading toast cancels its download; take it out of
+      // the selection so nothing restarts it
+      onCancelGene: removeGene,
+      onGeneRendered: markGeneRendered,
+      // Whole loads finish before this; streams keep filling in the background
+      onSynced: (moleculeLayer) => {
+        if (!dataset) return;
+        // E2E timing hook: all selected genes' point clouds are now built.
+        markRenderComplete({
+          geneCount: dataset.uniqueGenes.length,
+          dimensions: dataset.dimensions,
+          dataType: "single_molecule",
+          pointClouds: moleculeLayer.pointClouds.size,
+        });
+        // Fallback fit for whatever data exists once the loop finishes (no-op
+        // when the first gene/batch already fitted the camera).
+        tryAutoFitCamera(moleculeLayer);
+      },
+    },
+  };
+  const { onSceneReady, layers } = useLayers(layerElements, layerCtx);
+
   // Effect 1: Scene initialization
   useEffect(() => {
     if (!containerRef.current || !dataset) return;
@@ -221,25 +249,15 @@ export function SingleMoleculeThreeScene({
     // (dotSize * proj11 / -z), so nothing has to be updated per frame.
     host = new LayerHost(innerGroup, camera, renderer, init.invalidate);
     invalidateRef.current = init.invalidate;
-    const moleculeLayer = new MoleculeLayer(dataset, {
-      onFirstData: () => tryAutoFitCamera(moleculeLayer),
-      onCancelGene: removeGene,
-      onGeneRendered: markGeneRendered,
-    });
-
-    host.attach(moleculeLayer);
-    setLayer(moleculeLayer);
 
     init.animate();
     markSceneReady();
-    const removeExtraLayers = onSceneReadyRef.current?.(host.handle);
+    const removeLayers = onSceneReady(host.handle);
     const { dispose } = init;
 
     // Cleanup
     return () => {
-      removeExtraLayers?.();
-      moleculeLayer.dispose();
-      setLayer((current) => (current === moleculeLayer ? null : current));
+      removeLayers();
       host?.dispose();
 
       // Force lose WebGL context before disposing
@@ -260,22 +278,6 @@ export function SingleMoleculeThreeScene({
     // Re-initialize scene when viewMode changes to get the right controls
     // (TrackballControls for 3D, OrbitControls for 2D).
   }, [dataset, viewMode]);
-
-  // Effect 2: the selected genes → the layer. Whole loads finish before
-  // `onSynced`; streams keep filling in the background.
-  useMoleculeLayerSync(layer, (moleculeLayer) => {
-    if (!dataset) return;
-    // E2E timing hook: all selected genes' point clouds are now built.
-    markRenderComplete({
-      geneCount: dataset.uniqueGenes.length,
-      dimensions: dataset.dimensions,
-      dataType: "single_molecule",
-      pointClouds: moleculeLayer.pointClouds.size,
-    });
-    // Fallback fit for whatever data exists once the loop finishes (no-op
-    // when the first gene/batch already fitted the camera).
-    tryAutoFitCamera(moleculeLayer);
-  });
 
   // Apply scene transforms (rotation, flip) — pivot around data center (via group)
   useEffect(() => {
@@ -309,6 +311,8 @@ export function SingleMoleculeThreeScene({
         style={{ margin: 0, padding: 0 }}
       />
       {webglFailed && <WebGLErrorOverlay />}
+      <LayerControls slot="panel" />
+      <LayerBindings ctx={layerCtx} />
       <SpatialScaleBar
         cameraRef={cameraRef as React.RefObject<THREE.PerspectiveCamera | null>}
         controlsRef={controlsRef}

@@ -48,7 +48,7 @@ export interface MoleculeLayerOptions {
    * whole-loaded gene or the first streamed batch. A scene with nothing else
    * in it fits its camera here, so a slow download is visible as it fills.
    */
-  onFirstData?: () => void;
+  onFirstData?: (layer: MoleculeLayer) => void;
   /**
    * Called when the user closes a gene's loading toast, which cancels its
    * download. The caller takes the gene out of the selection so nothing
@@ -393,7 +393,7 @@ export class MoleculeLayer extends BaseLayer {
   private noteData(): void {
     if (this.hadData) return;
     this.hadData = true;
-    this.options.onFirstData?.();
+    this.options.onFirstData?.(this);
   }
 
   // ── loading ───────────────────────────────────────────────────────────

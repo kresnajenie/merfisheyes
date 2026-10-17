@@ -64,8 +64,38 @@ in kind:
 | `ShapesLayer` | `visible`, `mode`, `opacity`; `shapesStatus`, `zoomedIn` | the shapes controls |
 | `MoleculeLayer` | `sync(selection)` | the SM viz store (`useMoleculeLayerSync`) |
 
-A registry entry (step 2b) maps the stores to these calls, so a viewer does
-not know them.
+The registry entry's `Bind` component maps the panel's stores to these
+calls, so a viewer does not know them.
+
+## The registry
+
+`lib/scene/registry.tsx` holds one `ElementDefinition` per kind, in draw
+order (`ELEMENTS`): how the kind is found in a store (`detect`), opened
+(`open`, metadata only), drawn (`createLayer`), what a scene must offer
+(`canAttach`, e.g. the cells' colours for the polygons), the component that
+keeps the layer in step with the panel's stores (`Bind`) and its controls
+(`Controls`, in the viewer's button rail or as a floating panel: `slot`).
+
+Everything above the entries is generic:
+
+- `openElements(store, ctx)` iterates the registry and returns an
+  `OpenedElements` record. The one dataset loader
+  (`lib/viewer/load-dataset.ts`) calls it for a SpatialData store;
+  `lib/local/open-bundle.ts` for a folder dropped for a preview.
+- `useLayers(elements, ctx)` (`lib/scene/useLayers.ts`), called by the
+  scene component, creates one layer per opened element, publishes them to
+  the panel's layers store (`lib/stores/createLayersStore.ts`) and returns
+  the `onSceneReady` that attaches them to each (re)built scene. Layers
+  outlive scene rebuilds: a view-mode switch detaches and re-attaches them,
+  so what they loaded and how they were set stay.
+- `LayerControls slot` (`components/layer-controls.tsx`) renders the
+  controls of every layer the panel's scene is drawing, in the viewer's rail
+  (`VisualizationControls`) or inside the scene; `LayerBindings` renders
+  every `Bind`.
+
+A viewer therefore only decides which scene to show and passes
+`elements={…}` to it; `three-scene.tsx` adds the overlays it still resolves
+itself (a `mapping.json`, a dropped folder) to the same record.
 
 ## Adding an element kind, in five steps
 
@@ -76,20 +106,24 @@ not know them.
 2. **Draw it.** `class XLayer extends BaseLayer` with `kind`, a typed API for
    what to draw, `tick(frame)` reading `frame.view`, `status()`, `abort()`,
    `dispose()` (calling `super`). Call `this.changed()` whenever what is drawn
-   or reported changes, and never run a loop of your own.
-3. **Report it.** Write the E2E hooks (`markLayerChanged/Content/Settled`,
-   `markLayer`) so the budgets can be measured on it.
-4. **Prove it.** Add a fake and a "change" to `CASES` in
-   `tests/unit/layer-contract.test.ts`; add the kind's own unit tests; add a
-   `@quick` browser case on a fixture (`e2e/helpers/spatialdata.ts` serves
-   stores with any combination of parts).
-5. **Control it.** A controls component that uses `useLayerStatus(layer)`
-   to re-render, mutates the layer through its typed API, and keeps its
-   settings in a URL slot through `lib/utils/url-state-writer.ts`.
-
-Nothing in a viewer or a scene changes for a new kind once the registry
-(step 2b) is in place; until then the layer is attached in the viewer's
-`onSceneReady` callback with `handle.attach(layer)`.
+   or reported changes, and never run a loop of your own. Write the E2E
+   hooks (`markLayerChanged/Content/Settled`, `markLayer`) so the budgets
+   can be measured on it.
+3. **Register it.** Add the kind to `ElementKind` and `OpenedElements`
+   (`lib/scene/contract.ts`, `registry.tsx`) and one `ElementDefinition` to
+   `ELEMENTS`: `detect`, `open`, `createLayer`, and a `Bind` component when
+   the layer follows a store. No viewer or scene changes.
+4. **Control it.** A `Controls` component on the entry that uses
+   `useLayerStatus(layer)` to re-render, mutates the layer through its typed
+   API, and keeps its settings in a URL slot through
+   `lib/utils/url-state-writer.ts`; `slot: "rail"` for a button in the
+   viewer's rail, `"panel"` for a floating panel.
+5. **Prove it.** Add a fake and a "change" to `CASES` in
+   `tests/unit/layer-contract.test.ts`; a case to `tests/unit/registry.test.ts`
+   (what `openElements` finds); the kind's own unit tests; and a `@quick`
+   browser case on a fixture (`e2e/helpers/spatialdata.ts` serves stores
+   with any combination of parts; `e2e/tests/viewer/elements.spec.ts` asserts
+   every kind reaches its layer).
 
 ## Rules the suite enforces
 
