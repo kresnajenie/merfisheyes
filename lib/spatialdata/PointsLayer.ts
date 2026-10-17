@@ -2,6 +2,13 @@ import type { FeatureTiles, NetworkStats, PointsElement } from "./points";
 
 import * as THREE from "three";
 
+import {
+  hooksEnabled,
+  markLayer,
+  markLayerChanged,
+  markLayerContent,
+  markLayerSettled,
+} from "@/lib/utils/test-hooks";
 import { createSmPointCloud } from "@/lib/webgl/point-cloud";
 
 /**
@@ -331,6 +338,8 @@ export class PointsLayer {
     // the finest level that fits an equal share of what is left, so what a
     // small gene doesn't need goes to the bigger ones.
     views.sort((a, b) => a.counts[0] - b.counts[0]);
+    // A new plan is a new view for the budget hooks: the clock restarts
+    markLayerChanged("points");
     let budget = DETAIL_BUDGET[this.detail];
 
     for (const [i, { gene, f, runs, counts }] of views.entries()) {
@@ -379,6 +388,7 @@ export class PointsLayer {
       this.plans.set(gene, plan);
       this.refresh(gene);
     }
+    this.report(true);
     this.pump();
     this.evict();
   }
@@ -400,6 +410,7 @@ export class PointsLayer {
       if (p.points) p.points.visible = p.loaded > 0;
       this.setGrowth(p, 1);
     }
+    this.report();
     if (plan.wanted.every(done)) {
       for (const p of plan.standIns) this.hide(p);
       plan.standIns.clear();
@@ -414,6 +425,45 @@ export class PointsLayer {
           : 1,
       );
     }
+  }
+
+  /**
+   * The E2E budget hooks (docs/specs/BUDGETS.md): what is drawn and wanted
+   * across the visible genes, first content, and a settled view. A no-op
+   * outside NEXT_PUBLIC_E2E=1.
+   */
+  private report(afterPlan = false) {
+    if (!hooksEnabled()) return;
+    // While a plan is being built gene by gene, the other genes still hold
+    // their old (complete) views, so "settled" is only trustworthy once the
+    // whole plan is in place
+    const maySettle = afterPlan || !this.planning;
+    let drawn = 0;
+    let wanted = 0;
+    let settled = this.plans.size > 0;
+
+    for (const [gene, plan] of this.plans) {
+      if (!this.genes.get(gene)?.visible) continue;
+      for (const p of plan.wanted) wanted += p.count;
+      for (const p of [...plan.wanted, ...plan.standIns]) {
+        if (p.points?.visible) drawn += p.loaded;
+      }
+      if (!plan.wanted.every(done)) settled = false;
+    }
+    let resident = 0;
+
+    for (const p of this.pieces.values()) if (p.points) resident += p.loaded;
+    const net = this.element.network();
+
+    markLayer("points", {
+      drawn,
+      wanted,
+      resident,
+      requests: net.requests,
+      bytes: net.bytes,
+    });
+    if (drawn > 0) markLayerContent("points");
+    if (maySettle && settled && wanted > 0) markLayerSettled("points");
   }
 
   private setGrowth(p: Piece, growth: number) {

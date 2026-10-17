@@ -38,8 +38,67 @@ export interface MerfishGeneRender {
   at: number;
 }
 
+/**
+ * What one layer (an element kind drawn in the scene) has done so far. The
+ * budgets in docs/specs/BUDGETS.md are read off these: time to first content,
+ * time to a settled view, what is drawn and what is held.
+ */
+export interface MerfishLayerStats {
+  /** performance.now() when the layer first had content on screen. */
+  firstContentAt: number | null;
+  /** performance.now() when everything the current view wants was drawn. */
+  settledAt: number | null;
+  /** performance.now() of the last change to what the view wants. */
+  changedAt: number | null;
+  /** Molecules / tiles / polygons on screen now. */
+  drawn: number;
+  /** What the current view asks for, in the same unit as `drawn`. */
+  wanted: number;
+  /** Kept in memory for this layer, in the same unit as `drawn`. */
+  resident: number;
+  /** Network reads the layer itself counts, when it does (points element). */
+  requests: number;
+  bytes: number;
+  /** Monotonic; bumps on every settled view. */
+  settledCount: number;
+}
+
+/** Frame timing since the last `resetFrames()`. */
+export interface MerfishFrameStats {
+  /** Frames drawn (not skipped by an on-demand loop). */
+  count: number;
+  /** Frames whose interval to the previous frame exceeded 20 ms (a dropped 60 Hz frame). */
+  over16ms: number;
+  /** ... exceeded 34 ms (two dropped frames). */
+  over33ms: number;
+  /** Longest interval, ms. */
+  worstMs: number;
+  /** Longest CPU time inside renderer.render, ms. */
+  worstRenderMs: number;
+  /** Sum of CPU time inside renderer.render, ms. */
+  renderMs: number;
+  since: number;
+}
+
+export interface MerfishMemoryStats {
+  /** Chrome only: performance.memory.usedJSHeapSize, bytes. */
+  jsHeap: number | null;
+  /** three.js renderer.info.memory. */
+  geometries: number;
+  textures: number;
+  /** three.js renderer.info.render of the last frame. */
+  drawCalls: number;
+  points: number;
+  triangles: number;
+  at: number | null;
+}
+
 export interface MerfishTestHooks {
   enabled: true;
+  /** Per element kind: "table", "points", "shapes", "image", "molecules-legacy". */
+  layers: Record<string, MerfishLayerStats>;
+  frames: MerfishFrameStats;
+  memory: MerfishMemoryStats;
   /** performance.now() when the Three.js scene finished initializing. */
   sceneReady: number | null;
   /** performance.now() of the most recent point-cloud attribute update. */
@@ -64,7 +123,8 @@ const E2E_ENABLED =
   typeof process !== "undefined" && process.env.NEXT_PUBLIC_E2E === "1";
 
 function nowMs(): number {
-  return typeof performance !== "undefined" && typeof performance.now === "function"
+  return typeof performance !== "undefined" &&
+    typeof performance.now === "function"
     ? performance.now()
     : Date.now();
 }
@@ -73,9 +133,21 @@ function nowMs(): number {
 function getHooks(): MerfishTestHooks | null {
   if (!E2E_ENABLED || typeof window === "undefined") return null;
   const w = window as unknown as { __merfish?: MerfishTestHooks };
+
   if (!w.__merfish) {
     w.__merfish = {
       enabled: true,
+      layers: {},
+      frames: freshFrames(),
+      memory: {
+        jsHeap: null,
+        geometries: 0,
+        textures: 0,
+        drawCalls: 0,
+        points: 0,
+        triangles: 0,
+        at: null,
+      },
       sceneReady: null,
       renderComplete: null,
       renderCount: 0,
@@ -87,13 +159,43 @@ function getHooks(): MerfishTestHooks | null {
       deStatsCount: 0,
     };
   }
+
   return w.__merfish;
+}
+
+function freshFrames(): MerfishFrameStats {
+  return {
+    count: 0,
+    over16ms: 0,
+    over33ms: 0,
+    worstMs: 0,
+    worstRenderMs: 0,
+    renderMs: 0,
+    since: nowMs(),
+  };
+}
+
+function freshLayer(): MerfishLayerStats {
+  return {
+    firstContentAt: null,
+    settledAt: null,
+    changedAt: null,
+    drawn: 0,
+    wanted: 0,
+    resident: 0,
+    requests: 0,
+    bytes: 0,
+    settledCount: 0,
+  };
 }
 
 /** Clear all markers — call when a brand-new dataset starts loading. */
 export function resetHooks(): void {
   const h = getHooks();
+
   if (!h) return;
+  h.layers = {};
+  h.frames = freshFrames();
   h.sceneReady = null;
   h.renderComplete = null;
   h.renderCount = 0;
@@ -108,6 +210,7 @@ export function resetHooks(): void {
 /** Record that a dataset has been parsed and added to the store. */
 export function markDatasetLoaded(stats?: MerfishRenderStats): void {
   const h = getHooks();
+
   if (!h) return;
   h.datasetLoadedAt = nowMs();
   if (stats) h.stats = { ...(h.stats ?? {}), ...stats };
@@ -116,6 +219,7 @@ export function markDatasetLoaded(stats?: MerfishRenderStats): void {
 /** Record that the Three.js scene has been initialized and is animating. */
 export function markSceneReady(): void {
   const h = getHooks();
+
   if (!h) return;
   h.sceneReady = nowMs();
 }
@@ -123,22 +227,144 @@ export function markSceneReady(): void {
 /** Record that point-cloud attributes have been (re)applied to the GPU. */
 export function markRenderComplete(stats?: MerfishRenderStats): void {
   const h = getHooks();
+
   if (!h) return;
   h.renderComplete = nowMs();
   h.renderCount += 1;
   if (stats) h.stats = { ...(h.stats ?? {}), ...stats };
+  // The cells are a layer like the others: content when first drawn.
+  if (stats?.dataType === "single_cell" && stats.pointCount) {
+    markLayerContent("table", {
+      drawn: stats.pointCount,
+      wanted: stats.pointCount,
+    });
+    markLayerSettled("table");
+  }
 }
 
 /** Record that a specific gene finished rendering. */
 export function markGeneRendered(gene: string, count: number): void {
   const h = getHooks();
+
   if (!h) return;
   h.lastGene = { gene, count, at: nowMs() };
+  markLayerContent("molecules-legacy");
+}
+
+// ── layers, frames, memory ───────────────────────────────────────────────
+
+/** The stats slot of a layer kind, created on first use. */
+export function layerStats(kind: string): MerfishLayerStats | null {
+  const h = getHooks();
+
+  if (!h) return null;
+
+  return (h.layers[kind] ??= freshLayer());
+}
+
+/** Update a layer's counters (drawn, wanted, resident, bytes, requests). */
+export function markLayer(
+  kind: string,
+  patch: Partial<
+    Omit<MerfishLayerStats, "firstContentAt" | "settledAt" | "settledCount">
+  >,
+): void {
+  const l = layerStats(kind);
+
+  if (!l) return;
+  Object.assign(l, patch);
+}
+
+/** The view wants something new (a pan, a zoom, a gene): the clock restarts. */
+export function markLayerChanged(kind: string, wanted?: number): void {
+  const l = layerStats(kind);
+
+  if (!l) return;
+  l.changedAt = nowMs();
+  l.settledAt = null;
+  if (wanted !== undefined) l.wanted = wanted;
+}
+
+/** The layer has content on screen (first time only is recorded). */
+export function markLayerContent(
+  kind: string,
+  patch?: Partial<Pick<MerfishLayerStats, "drawn" | "wanted" | "resident">>,
+): void {
+  const l = layerStats(kind);
+
+  if (!l) return;
+  if (patch) Object.assign(l, patch);
+  if (l.firstContentAt === null) l.firstContentAt = nowMs();
+}
+
+/** Everything the current view wants is drawn. */
+export function markLayerSettled(kind: string): void {
+  const l = layerStats(kind);
+
+  if (!l) return;
+  if (l.settledAt !== null) return;
+  l.settledAt = nowMs();
+  l.settledCount += 1;
+}
+
+/** Start a fresh frame window (a test calls this before a scripted pan). */
+export function resetFrames(): void {
+  const h = getHooks();
+
+  if (!h) return;
+  h.frames = freshFrames();
+}
+
+/**
+ * One frame drawn: `intervalMs` since the previous drawn frame, `renderMs`
+ * spent inside renderer.render. Called by the scene loop; a no-op in
+ * production builds like everything here.
+ */
+export function markFrame(intervalMs: number, renderMs: number): void {
+  const h = getHooks();
+
+  if (!h) return;
+  const f = h.frames;
+
+  f.count += 1;
+  if (intervalMs > 20) f.over16ms += 1;
+  if (intervalMs > 34) f.over33ms += 1;
+  if (intervalMs > f.worstMs) f.worstMs = intervalMs;
+  if (renderMs > f.worstRenderMs) f.worstRenderMs = renderMs;
+  f.renderMs += renderMs;
+}
+
+/** Sample memory and draw counts from a renderer (about once a second). */
+export function markMemory(info: {
+  geometries: number;
+  textures: number;
+  drawCalls: number;
+  points: number;
+  triangles: number;
+}): void {
+  const h = getHooks();
+
+  if (!h) return;
+  const perf = performance as Performance & {
+    memory?: { usedJSHeapSize: number };
+  };
+
+  h.memory = {
+    jsHeap: perf.memory?.usedJSHeapSize ?? null,
+    ...info,
+    at: nowMs(),
+  };
+}
+
+/** True when the hooks are live (NEXT_PUBLIC_E2E=1), for callers that pay to compute a stat. */
+export function hooksEnabled(): boolean {
+  return getHooks() !== null;
 }
 
 /** Record that DE stats for a cluster column have finished computing/loading. */
 export function markDeStatsReady(column: string): void {
   const h = getHooks();
+
   if (!h) return;
   h.deStatsReadyAt = nowMs();
   h.deStatsColumn = column;

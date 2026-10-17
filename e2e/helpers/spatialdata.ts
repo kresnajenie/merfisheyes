@@ -1,19 +1,139 @@
 import fs from "node:fs";
 import path from "node:path";
+import { gzipSync } from "node:zlib";
 
 import { REPO_ROOT } from "./databank";
-import { type FixtureServer, startFixtureServer } from "./fixture-server";
+import {
+  type FixtureServer,
+  type FixtureServerOptions,
+  type Resolved,
+  startFixtureServer,
+} from "./fixture-server";
 
 const TINY = path.join(REPO_ROOT, "tests", "data", "tiny");
+const ZARR = path.join(TINY, "zarr");
+const MEDIUM = path.join(
+  REPO_ROOT,
+  "tests",
+  "data",
+  "generated",
+  "medium",
+  "points-store",
+);
 
 /** The two committed stores: the same cells and image, laid out differently. */
 export type StoreLayout = "spatialdata_v3" | "spatialdata_v3_sharded";
 
-/** Which of cells, molecules and an image a store is served with. */
+/**
+ * Which of cells, molecules, points, shapes and an image a store is served
+ * with. Molecules are the tiny committed per-gene folder, or (`"large"`) a
+ * generated one whose biggest genes are streamed — see `LARGE_MOLECULES`.
+ * Points is the committed points element (`points_v1.zarr`) merged into the
+ * store; shapes the committed polygons (`shapes_v1`).
+ */
 export interface StoreParts {
   cells?: boolean;
-  molecules?: boolean;
+  molecules?: boolean | "large";
+  points?: boolean;
+  shapes?: boolean;
   image?: boolean;
+}
+
+/**
+ * The generated molecule folder served at `/molecules-large/<tag>`: four
+ * genes, two of them past the streaming threshold. `<tag>` is appended to
+ * every gene name, so two panels on one page can show two such folders
+ * without their genes' test hooks colliding. The default genes picked on
+ * open are the first three: both large ones and one small one.
+ */
+export const LARGE_MOLECULES = {
+  /** Molecules in each of the two streamed genes. */
+  large: 150_000,
+  /** Molecules in each of the two whole-loaded genes. */
+  small: 200,
+  genes: (tag: string) => [
+    `Big_${tag}`,
+    `Huge_${tag}`,
+    `Small_${tag}`,
+    `Tiny_${tag}`,
+  ],
+  /**
+   * Gene files are trickled out so a download is observably in progress:
+   * a large gene (1.8 MB) takes about 2 s.
+   */
+  throttle: { chunkBytes: 32 * 1024, delayMs: 40 },
+};
+
+/** Gene files and the manifest of one generated folder, gzipped. */
+function largeMoleculeFolder(tag: string): Map<string, Buffer> {
+  const genes = LARGE_MOLECULES.genes(tag);
+  const files = new Map<string, Buffer>();
+  const counts: Record<string, { assigned: number }> = {};
+  // Deterministic: the same folder on every run.
+  let seed = 12345;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+
+    return seed / 2 ** 32;
+  };
+
+  genes.forEach((gene, i) => {
+    const n = i < 2 ? LARGE_MOLECULES.large : LARGE_MOLECULES.small;
+    const coords = new Float32Array(n * 3);
+
+    for (let m = 0; m < n; m++) {
+      coords[m * 3] = random() * 2000 - 1000;
+      coords[m * 3 + 1] = random() * 2000 - 1000;
+      coords[m * 3 + 2] = random() * 10;
+    }
+    counts[gene] = { assigned: n };
+    files.set(`genes/${gene}.bin.gz`, gzipSync(Buffer.from(coords.buffer)));
+  });
+
+  const total = Object.values(counts).reduce((a, c) => a + c.assigned, 0);
+
+  files.set(
+    "manifest.json.gz",
+    gzipSync(
+      JSON.stringify({
+        version: "1.0",
+        dataset_id: `large_${tag}`,
+        name: `large_${tag}`,
+        type: "xenium",
+        statistics: {
+          total_molecules: total,
+          unique_genes: genes.length,
+          spatial_dimensions: 3,
+        },
+        genes: { unique_gene_names: genes, molecule_counts: counts },
+        has_unassigned: false,
+        processing: {
+          compression: "gzip",
+          coordinate_format: "float32_flat_array",
+          coordinate_range: "raw_rounded_2dp",
+          scaling_factor: 1,
+        },
+      }),
+    ),
+  );
+
+  return files;
+}
+
+/** Consolidated metadata of a store on disk, as `{ path: node }`. */
+function consolidated(store: string): Record<string, unknown> {
+  return JSON.parse(fs.readFileSync(path.join(store, "zarr.json"), "utf8"))
+    .consolidated_metadata.metadata;
+}
+
+/** The shapes group as a consolidated node. */
+function shapesNode(): unknown {
+  return JSON.parse(
+    fs.readFileSync(
+      path.join(ZARR, "shapes_v1", "cell_boundaries", "zarr.json"),
+      "utf8",
+    ),
+  );
 }
 
 /**
@@ -23,14 +143,44 @@ export interface StoreParts {
  *   /store/<layout>/<parts>/mapping.json names the store, and its link to
  *                                        the molecules, if any
  *   /molecules                           the processed molecules it links to
+ *   /molecules-large/<tag>               a generated molecule folder with
+ *                                        genes big enough to be streamed
+ *   /cells/<tag>                         the tiny merfisheyes cell folder,
+ *                                        with a mapping.json linking it to
+ *                                        /molecules-large/<tag>
  *   /image/<extent>.zarr                 the image on its own, `<extent>` wide
+ *   /medium/store.zarr                   the generated medium store, when
+ *                                        it is on disk (make-medium-store.py)
  *
- * `<parts>` is any of the letters c, m, i (or `none`). The viewer only knows
- * a store by the consolidated metadata in its root `zarr.json`, so one store
- * on disk stands in for every combination by trimming that listing.
+ * `<parts>` is any of the letters c, m (M for the large molecules), p
+ * (the points element), s (shapes), i (or `none`). The viewer only knows a
+ * store by the consolidated metadata in its root `zarr.json`, so one store
+ * on disk stands in for every combination by trimming that listing — and
+ * the points and shapes fixtures, which live in their own folders, are
+ * merged into it and routed to their files.
+ *
+ * `options.bytesPerSecond` caps the server's send rate (see fixture-server).
  */
-export function startSpatialDataServer(): Promise<FixtureServer> {
+export function startSpatialDataServer(
+  options: FixtureServerOptions = {},
+): Promise<FixtureServer> {
   let server: FixtureServer;
+  const largeFolders = new Map<string, Map<string, Buffer>>();
+  const largeMolecules = (tag: string, file: string): Resolved => {
+    let folder = largeFolders.get(tag);
+
+    if (!folder) {
+      folder = largeMoleculeFolder(tag);
+      largeFolders.set(tag, folder);
+    }
+    const bytes = folder.get(file);
+
+    if (!bytes) return undefined;
+
+    return file.startsWith("genes/")
+      ? { bytes, throttle: LARGE_MOLECULES.throttle }
+      : { bytes };
+  };
 
   return startFixtureServer((urlPath) => {
     const [, kind, ...rest] = urlPath.split("/");
@@ -38,11 +188,32 @@ export function startSpatialDataServer(): Promise<FixtureServer> {
     if (kind === "molecules") {
       return { file: path.join(TINY, "single-molecule", "chunked", ...rest) };
     }
+    if (kind === "molecules-large") {
+      const [tag, ...inside] = rest;
+
+      return largeMolecules(tag, inside.join("/"));
+    }
+    if (kind === "cells") {
+      const [tag, ...inside] = rest;
+
+      if (inside.join("/") === "mapping.json") {
+        return {
+          body: JSON.stringify({
+            linkColumn: "__all__",
+            links: { __all__: `${server.url}/molecules-large/${tag}` },
+          }),
+        };
+      }
+
+      return { file: path.join(TINY, "chunked", "raw", ...inside) };
+    }
+    if (kind === "medium") {
+      return { file: path.join(MEDIUM, ...rest) };
+    }
     if (kind === "image") {
       const [name, ...inside] = rest;
       const file = path.join(
-        TINY,
-        "zarr",
+        ZARR,
         "spatialdata_v3.zarr",
         "images",
         "dapi",
@@ -75,35 +246,74 @@ export function startSpatialDataServer(): Promise<FixtureServer> {
     const [layout, parts, file, ...inside] = rest;
 
     if (file === "mapping.json") {
+      const molecules = parts.includes("M")
+        ? `${server.url}/molecules-large/store`
+        : parts.includes("m")
+          ? `${server.url}/molecules`
+          : null;
+
       return {
         body: JSON.stringify({
           cells: "store.zarr",
-          ...(parts.includes("m") && {
+          ...(molecules && {
             linkColumn: "__all__",
-            links: { __all__: `${server.url}/molecules` },
+            links: { __all__: molecules },
           }),
         }),
       };
     }
 
-    const onDisk = path.join(TINY, "zarr", `${layout}.zarr`, ...inside);
+    const key = inside.join("/");
 
-    if (inside.join("/") !== "zarr.json") return { file: onDisk };
+    // The points element and the shapes live in their own fixture folders
+    if (key.startsWith("points/")) {
+      return { file: path.join(ZARR, "points_v1.zarr", ...inside) };
+    }
+    if (key.startsWith("shapes/cell_boundaries/")) {
+      return { file: path.join(ZARR, "shapes_v1", ...inside) };
+    }
+
+    const onDisk = path.join(ZARR, `${layout}.zarr`, ...inside);
+
+    if (key !== "zarr.json") return { file: onDisk };
 
     const root = JSON.parse(fs.readFileSync(onDisk, "utf8"));
     const keep = [
       ...(parts.includes("c") ? ["tables"] : []),
       ...(parts.includes("i") ? ["images"] : []),
     ];
-
-    root.consolidated_metadata.metadata = Object.fromEntries(
-      Object.entries(root.consolidated_metadata.metadata).filter(([key]) =>
-        keep.includes(key.split("/")[0]),
+    const nodes: Record<string, unknown> = Object.fromEntries(
+      Object.entries(root.consolidated_metadata.metadata).filter(([k]) =>
+        keep.includes(k.split("/")[0]),
       ),
     );
 
+    if (parts.includes("p")) {
+      for (const [k, node] of Object.entries(
+        consolidated(path.join(ZARR, "points_v1.zarr")),
+      )) {
+        if (k === "points" || k.startsWith("points/")) nodes[k] = node;
+      }
+    }
+    if (parts.includes("s")) {
+      nodes["shapes"] = { zarr_format: 3, node_type: "group" };
+      nodes["shapes/cell_boundaries"] = shapesNode();
+    }
+    root.consolidated_metadata.metadata = nodes;
+
     return { body: JSON.stringify(root) };
-  }).then((started) => (server = started));
+  }, options).then((started) => (server = started));
+}
+
+/** The letters of a parts spec, in the order the paths use. */
+function letters(parts: StoreParts): string {
+  return (
+    (parts.cells ? "c" : "") +
+    (parts.molecules === "large" ? "M" : parts.molecules ? "m" : "") +
+    (parts.points ? "p" : "") +
+    (parts.shapes ? "s" : "") +
+    (parts.image ? "i" : "")
+  );
 }
 
 /** URL of the tiny store served with only the given parts. */
@@ -112,12 +322,7 @@ export function storeUrl(
   parts: StoreParts,
   layout: StoreLayout = "spatialdata_v3",
 ): string {
-  const letters =
-    (parts.cells ? "c" : "") +
-    (parts.molecules ? "m" : "") +
-    (parts.image ? "i" : "");
-
-  return `${server.url}/store/${layout}/${letters || "none"}/store.zarr`;
+  return `${server.url}/store/${layout}/${letters(parts) || "none"}/store.zarr`;
 }
 
 /** URL of the folder that holds that store, and names it in mapping.json. */
@@ -127,6 +332,16 @@ export function storeFolderUrl(
   layout: StoreLayout = "spatialdata_v3",
 ): string {
   return storeUrl(server, parts, layout).replace(/\/store\.zarr$/, "/");
+}
+
+/** URL of the generated molecule folder tagged `tag` (see LARGE_MOLECULES). */
+export function largeMoleculesUrl(server: FixtureServer, tag: string): string {
+  return `${server.url}/molecules-large/${tag}`;
+}
+
+/** URL of the tiny cell folder whose mapping.json links `/molecules-large/<tag>`. */
+export function cellsUrl(server: FixtureServer, tag: string): string {
+  return `${server.url}/cells/${tag}`;
 }
 
 /**

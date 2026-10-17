@@ -1,0 +1,41 @@
+{
+ "zarr_format": 3,
+ "node_type": "group",
+ "attributes": {
+  "encoding-type": "ngff:shapes",
+  "spatialdata_attrs": {
+   "version": "0.2"
+  },
+  "coordinateTransformations": [
+   {
+    "type": "identity",
+    "input": {
+     "name": "xy",
+     "axes": [
+      {
+       "name": "x",
+       "type": "space"
+      },
+      {
+       "name": "y",
+       "type": "space"
+      }
+     ]
+    },
+    "output": {
+     "name": "global",
+     "axes": [
+      {
+       "name": "x",
+       "type": "space"
+      },
+      {
+       "name": "y",
+       "type": "space"
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

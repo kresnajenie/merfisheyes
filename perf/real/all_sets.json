@@ -1,0 +1,42 @@
+{
+  "store": "all_sets",
+  "folder": "spatialdata/12_16_2025_all_sets/",
+  "app": "http://localhost:3002",
+  "measuredAt": "2026-10-17T19:09:47.747Z",
+  "median": {
+    "openToCells": 3360.9000000953674,
+    "openBytesKB": 14407.568359375,
+    "openRequests": 77,
+    "geneToFirstMolecules": 3774.5,
+    "geneToSettled": 509364.19999980927,
+    "geneBytesKB": 53746.5224609375,
+    "viewSettled": 265791.59999990463,
+    "bytesPerViewKB": 86827.720703125,
+    "requestsPerView": 640,
+    "frameOver16Pct": 100,
+    "worstFrameMs": 5021.300000190735,
+    "jsHeapMB": 242.2332763671875,
+    "drawCalls": 421,
+    "moleculesDrawn": 18552010,
+    "moleculesResident": 30032534
+  },
+  "samples": [
+    {
+      "openToCells": 3360.9000000953674,
+      "openBytesKB": 14407.568359375,
+      "openRequests": 77,
+      "geneToFirstMolecules": 3774.5,
+      "geneToSettled": 509364.19999980927,
+      "geneBytesKB": 53746.5224609375,
+      "viewSettled": 265791.59999990463,
+      "bytesPerViewKB": 86827.720703125,
+      "requestsPerView": 640,
+      "frameOver16Pct": 100,
+      "worstFrameMs": 5021.300000190735,
+      "jsHeapMB": 242.2332763671875,
+      "drawCalls": 421,
+      "moleculesDrawn": 18552010,
+      "moleculesResident": 30032534
+    }
+  ]
+}
