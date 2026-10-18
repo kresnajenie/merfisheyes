@@ -380,7 +380,10 @@ Two options for datasets too big to parse in a browser:
 
 ## Contributing
 
-Pull requests welcome. PRs target the `develop` branch.
+Pull requests welcome. PRs target the `develop` branch. Read
+[docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) first: it states the rules a
+change is judged by, and [docs/specs/](docs/specs/) holds the budgets,
+contracts and format profiles behind them.
 
 ## Acknowledgments
 

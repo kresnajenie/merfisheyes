@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 
+import { hooksEnabled, markFrame, markMemory } from "@/lib/utils/test-hooks";
+
 export interface SceneSetup {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
@@ -144,12 +146,43 @@ export function initializeScene(
   // themselves are what tell us a frame is still worth drawing.
   controls.addEventListener("change", invalidate);
 
+  // Frame instrumentation for the E2E budgets (docs/specs/BUDGETS.md): the
+  // interval between drawn frames and the CPU time inside render. A no-op
+  // outside NEXT_PUBLIC_E2E=1 — the check is one boolean per frame.
+  const instrumented = hooksEnabled();
+  let lastFrameAt = 0;
+  let lastMemoryAt = 0;
+  const draw = () => {
+    if (!instrumented) {
+      renderer.render(scene, camera);
+
+      return;
+    }
+    const t0 = performance.now();
+
+    renderer.render(scene, camera);
+    const t1 = performance.now();
+
+    markFrame(lastFrameAt ? t0 - lastFrameAt : 0, t1 - t0);
+    lastFrameAt = t0;
+    if (t1 - lastMemoryAt > 1000) {
+      lastMemoryAt = t1;
+      markMemory({
+        geometries: renderer.info.memory.geometries,
+        textures: renderer.info.memory.textures,
+        drawCalls: renderer.info.render.calls,
+        points: renderer.info.render.points,
+        triangles: renderer.info.render.triangles,
+      });
+    }
+  };
+
   const animate = () => {
     animationId = requestAnimationFrame(animate);
     controls.update();
 
     if (idleFps === undefined) {
-      renderer.render(scene, camera);
+      draw();
 
       return;
     }
@@ -160,7 +193,7 @@ export function initializeScene(
 
     dirty = false;
     lastDraw = now;
-    renderer.render(scene, camera);
+    draw();
   };
 
   // Handle container resize via ResizeObserver (supports split screen panels)

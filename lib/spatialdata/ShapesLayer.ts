@@ -2,6 +2,12 @@ import type { CellPolygons } from "./shapes";
 
 import * as THREE from "three";
 
+import {
+  markLayerChanged,
+  markLayerContent,
+  markLayerSettled,
+} from "@/lib/utils/test-hooks";
+
 export type ShapesMode = "outline" | "filled";
 export type ShapesStatus = "idle" | "loading" | "ready" | "error";
 
@@ -160,7 +166,11 @@ export class ShapesLayer {
     if (key !== this.lastKey && now - this.lastBuild > REBUILD_MS) {
       this.lastKey = key;
       this.lastBuild = now;
+      markLayerChanged("shapes");
       this.build(rect, colors);
+      // A build is synchronous: the view is settled as soon as it returns
+      markLayerContent("shapes", { resident: this.polygons.starts.length - 1 });
+      markLayerSettled("shapes");
     }
   };
 

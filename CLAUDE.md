@@ -11,6 +11,8 @@ MERFISH Eyes is a web-based 3D visualization platform for spatial transcriptomic
 
 The platform provides interactive 3D visualization using Three.js with gene expression analysis capabilities.
 
+**How it is built:** [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) states the rules every change is judged by (one implementation per concern, an element kind is a contract, the format is the product, read the view not the dataset, human time is the budget, correctness shown from outside). The budgets and audits behind them live in [docs/specs/](docs/specs/). Read the philosophy before adding a format, a layer or a viewer.
+
 ## Development Commands
 
 ### Basic Commands

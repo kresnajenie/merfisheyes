@@ -2,6 +2,14 @@ import type { ImageLevel, SpatialDataImage } from "./image";
 
 import * as THREE from "three";
 
+import {
+  hooksEnabled,
+  markLayer,
+  markLayerChanged,
+  markLayerContent,
+  markLayerSettled,
+} from "@/lib/utils/test-hooks";
+
 export interface ImageChannel {
   label: string;
   color: string;
@@ -213,8 +221,41 @@ export class ImageLayer {
         this.channels.every((ch, c) => !ch.visible || tile.textures[c]);
     }
 
+    this.report(level, wanted);
     this.pump();
     this.evict(wanted);
+  }
+
+  private lastWantedKey = "";
+
+  /**
+   * The E2E budget hooks (docs/specs/BUDGETS.md): tiles drawn and wanted at
+   * the chosen level, first content, a settled view. No-op in production.
+   */
+  private report(level: number, wanted: Set<Tile>) {
+    if (!hooksEnabled()) return;
+    let drawn = 0;
+
+    for (const tile of this.tiles.values()) if (tile.mesh.visible) drawn++;
+    const atLevel = [...wanted].filter((t) => t.level === level);
+    const key = atLevel
+      .map((t) => this.keyOf(t))
+      .sort()
+      .join("|");
+
+    if (key !== this.lastWantedKey) {
+      this.lastWantedKey = key;
+      markLayerChanged("image", atLevel.length);
+    }
+    markLayer("image", {
+      drawn,
+      wanted: atLevel.length,
+      resident: this.tiles.size,
+    });
+    if (drawn > 0) markLayerContent("image");
+    if (atLevel.length > 0 && atLevel.every((t) => t.mesh.visible)) {
+      markLayerSettled("image");
+    }
   }
 
   /**
