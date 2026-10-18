@@ -339,8 +339,13 @@ and split panel opens a dataset through `useDatasetLoader({ kind: "cell" |
 (registration, owner config, 202 = not ready), reuses one already open,
 reads it, applies its open state (`open-dataset.ts`), adds it to the panel's
 stores, publishes the registration (left panel) and counts the view. It
-returns `{ cells, molecules, elements, registration, storeUrl }`; a
-SpatialData store's elements come from `openElements`. The screens are
+returns `{ cells, molecules, elements, linkConfig, registration, storeUrl }`;
+a SpatialData store's elements come from `openElements`, a cell dataset's
+overlays (a dropped folder's parts, the link registry, `mapping.json`, the
+app's mapping route) from `lib/viewer/resolve-overlays.ts` through
+`useOverlays` (`lib/hooks/useOverlays.ts`), which also keeps the linked
+molecules in the panel's molecule store. `ThreeScene` takes `elements`,
+`linkConfig` and `loadingOverlay`; it resolves nothing itself. The screens are
 `DatasetLoadingScreen` / `DatasetErrorScreen`
 ([components/dataset-loading-screen.tsx](components/dataset-loading-screen.tsx),
 `variant="panel"` inside a split) and the split URL params are

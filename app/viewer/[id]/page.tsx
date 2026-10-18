@@ -27,9 +27,8 @@ import { overlayDefaultGenes } from "@/lib/viewer/overlay-default-genes";
 function ViewerByIdContent() {
   const datasetId = useParams().id as string;
   const vizStore = useVisualizationStore();
-  const { loaded, loading, progress, message, error, retry } = useDatasetLoader(
-    { kind: "cell", datasetId },
-  );
+  const { loaded, loading, overlaysLoading, progress, message, error, retry } =
+    useDatasetLoader({ kind: "cell", datasetId });
   const dataset = loaded?.cells ?? null;
   const viewerConfig = useViewerRegistrationStore((s) => s.viewerConfig);
 
@@ -68,7 +67,12 @@ function ViewerByIdContent() {
   return (
     <SplitScreenContainer>
       <VisualizationControls />
-      <ThreeScene dataset={dataset} />
+      <ThreeScene
+        dataset={dataset}
+        elements={loaded?.elements}
+        linkConfig={loaded?.linkConfig}
+        loadingOverlay={overlaysLoading}
+      />
       <UMAPPanel />
     </SplitScreenContainer>
   );

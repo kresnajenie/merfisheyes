@@ -60,10 +60,8 @@ function CellViewer({
   const vizStore = usePanelVisualizationStore();
   // The same opener as the full page, into this panel's stores; a split
   // panel does not count as a view of the dataset
-  const { loaded, loading, progress, message, error } = useDatasetLoader(
-    { kind: "cell", datasetId, s3Url },
-    { countViews: false },
-  );
+  const { loaded, loading, overlaysLoading, progress, message, error } =
+    useDatasetLoader({ kind: "cell", datasetId, s3Url }, { countViews: false });
   const dataset = loaded?.cells ?? null;
 
   // URL sync hook (handles reading after the dataset is ready + writing)
@@ -93,7 +91,12 @@ function CellViewer({
   return (
     <>
       <VisualizationControls />
-      <ThreeScene dataset={dataset} />
+      <ThreeScene
+        dataset={dataset}
+        elements={loaded?.elements}
+        linkConfig={loaded?.linkConfig}
+        loadingOverlay={overlaysLoading}
+      />
       <UMAPPanel />
     </>
   );

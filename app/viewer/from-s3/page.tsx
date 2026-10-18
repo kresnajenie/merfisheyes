@@ -28,12 +28,11 @@ import { overlayDefaultGenes } from "@/lib/viewer/overlay-default-genes";
 function ViewerFromS3Content() {
   const s3Url = useSearchParams().get("url");
   const vizStore = useVisualizationStore();
-  const { loaded, loading, progress, message, error, retry } = useDatasetLoader(
-    {
+  const { loaded, loading, overlaysLoading, progress, message, error, retry } =
+    useDatasetLoader({
       kind: "cell",
       s3Url: s3Url ? decodeURIComponent(s3Url) : null,
-    },
-  );
+    });
   const dataset = loaded?.cells ?? null;
   const viewerConfig = useViewerRegistrationStore((s) => s.viewerConfig);
 
@@ -84,7 +83,12 @@ function ViewerFromS3Content() {
     <SplitScreenContainer>
       <ClaimDatasetBanner />
       <VisualizationControls />
-      <ThreeScene dataset={dataset} />
+      <ThreeScene
+        dataset={dataset}
+        elements={loaded?.elements}
+        linkConfig={loaded?.linkConfig}
+        loadingOverlay={overlaysLoading}
+      />
       <UMAPPanel />
     </SplitScreenContainer>
   );
