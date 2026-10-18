@@ -41,8 +41,9 @@ that changes a fact or a decision edits this file in the same commit.
   `canonical_key`, `converted_at`), `spatialdata_io_reader`, and a
   per-technology block (`metadata_visium`, `metadata_xenium`, …).
 - Technologies: Visium 912, spatial transcriptomics 552, Xenium 180,
-  Visium HD 132, Atera 2. Tiers: silver 1,435, bronze 262. NonCommercial
-  1,090, commercial use allowed 591, unknown 97.
+  Visium HD 132, Atera 2. Tiers: silver 1,435, bronze 262, which leaves
+  81 stores with no tier the website shows (the census says what they
+  are). NonCommercial 1,090, commercial use allowed 591, unknown 97.
 
 ### Elements, one store per technology, against our profiles
 
@@ -76,26 +77,62 @@ Xenium use `global` with the points and shapes scaled by 4.70588 and the
 image identity.) The table's `obsm/spatial` is in `<sample>` (full-image
 pixels); `uns/spatial/<sample>/scalefactors` holds `spot_diameter_fullres`.
 
-What our reader does today: `lib/spatialdata/image.ts` takes the **first**
-transform of the shapes (else points) element and undoes it to place every
-image, assuming one target system. On a Visium store that places the
-full image right (identity) and the two downscaled images wrong (they are
-in other systems), and the spots are not drawn at all (circles).
+An element's `coordinateTransformations` list holds **alternatives**,
+one per output system; it is not a sequence to chain.
+
+What our reader does today (measured 2026-10-18 on develop `978a844`,
+`openSpatialDataImage` run on the live stores through the proxy):
+
+- It opens **one** image, the first by name (`elementNames(keys,
+  "images")[0]`): on Visium the `…_full_image`. The hires and lowres
+  images are never opened.
+- It places that image by undoing the shapes (else points) element's
+  transforms, and `composeTransforms` **multiplies every entry of the
+  list**: on the cerebellum store 1 × 0.150015 × 0.0450045 ≈ 0.00675. The
+  full image's level-0 pixel comes out **148.1** scene units wide where
+  the spots need 1, so the image is drawn 148× too large; on the Visium
+  HD ovary store 197.8× (1 × 0.224837 × 0.0224837).
+- Atera and Xenium are placed right only because each element declares a
+  single transform: Atera's `morphology_focus` gets 0.2125 = 1 / 4.70588.
+- The spots are not drawn at all (circles), nor the Visium HD bins
+  (squares).
+
+| Store | Image opened | Level-0 pixel today | Right |
+|---|---|---|---|
+| Visium `fJSOO03VzCTYtD1o` | `…_full_image` | 148.1 | 1 |
+| Visium HD `haOzFbJ7Bc9x7NW6` | `…_full_image` | 197.8 | 1 |
+| Atera `jCLxdY1tWKmbfWOB` | `morphology_focus` | 0.2125 | 0.2125 |
+
+None of the five downloaded roots uses `affine`; Xenium stores with an
+aligned H&E may (the census counts them).
 
 ## 2. Decisions
 
 - **Visium coordinate transformations are in scope now.** A store names
   no single system, so the viewer chooses one target: `global` when every
-  element reaches it, else the system the full-resolution image declares
-  identity into (the one the table's coordinates are in). Every element
-  is composed into that target; an element that cannot reach it is not
-  drawn and is reported in the layer status, not silently skipped. The
-  downscaled Visium images are not drawn (they are the full image's own
-  pyramid levels, worse).
+  element reaches it, else the system the table's region (its shapes
+  element) declares identity into, which is the system the table's
+  coordinates are in. This rule does not depend on a full-resolution
+  image existing. Each element takes **the one entry of its list whose
+  output is the target** (or a path through the graph to it), never the
+  product of the list. An element that cannot reach the target is not
+  drawn and is reported in the layer status, not silently skipped.
+- **One image per sample**: the full image when the store has one; the
+  downscaled Visium images are not drawn beside it (they are the full
+  image's own pyramid levels, worse). A store without a full image draws
+  its hires image, mapped through its scale into the target.
+- **A store with several samples** (several systems, none common) opens
+  one sample at a time, chosen in the viewer; no sample is placed in
+  another's system.
 - **Visium spots and Visium HD bins are drawn**: circles and squares as
   shapes kinds, instanced, coloured like polygons from the cells' colours.
   This is what "Visium support" means on screen; without it a Visium store
-  shows an H&E image and dots.
+  shows an H&E image and dots. Spots are the data, so they do **not**
+  follow the polygons' 1 mm zoom rule: circles and squares are drawn at
+  any zoom while the view holds no more than the per-view cap, and above
+  the cap the cell dots stand in (as polygons do today). A cheaper first
+  cut, if it looks the same, is the existing cell dots sized from
+  `spot_diameter_fullres`.
 - **Molecules from parquet points come afterwards.** The Xenium stores'
   `points.parquet` directories are not read in this plan; the conversion
   path (`scripts/points_zarr.py`, `legacy_to_points.py`) and a parquet
@@ -131,6 +168,15 @@ unless asked.
   count where cheap, points layout, CSC layer per table, coordinate
   systems and which elements reach which, `metadata_general`, license.
   Output `perf/sddb/census.json` and a Markdown summary committed.
+- Count what the later steps depend on: stores with no full-resolution
+  image, stores with more than one sample (systems with no common one),
+  stores using `affine` or any transform other than `identity`, `scale`,
+  `translation`, `sequence`, spots or bins per store (against the 60,000
+  per-view cap), and the 81 stores with no silver or bronze tier.
+- Send a browser `User-Agent` (Python's default gets 403) and throttle
+  (a few requests in flight, back off on 429 or 5xx): the rate limit is
+  unknown until §6 question 6 is answered. Cache the roots on disk so a
+  re-run fetches nothing.
 - Run `scripts/validate_store.py` logic over the same roots (a `--root-json`
   mode that checks what the root alone can show).
 - Deliverable: `docs/specs/sddb-profile.md` (ADR): their stores against
@@ -146,18 +192,23 @@ Gate: every one of 1,778 roots classified, none "unknown".
 ### Step 2: coordinate systems (`feat/sddb-coordinate-systems`)
 
 - `lib/spatialdata/coordinates.ts`: read every element's
-  `coordinateTransformations`, build the graph of named systems, choose
-  the target as decided above, and give each element its composed
-  transform to the target (`scale`, `translation`, `sequence`, `identity`;
-  reject `affine` with a reported error until needed). Replace the
-  "first transform of the shapes element" rule in `image.ts` and the
-  per-element transform reads in `points.ts` and `shapes.ts` with it.
+  `coordinateTransformations` as a list of alternatives keyed by output
+  system, build the graph of named systems, choose the target as decided
+  above, and give each element its composed transform to the target
+  (`scale`, `translation`, `sequence`, `identity`; reject `affine` with a
+  reported error until the census says it is needed). Replace the
+  multiply-the-whole-list rule (`composeTransforms` over the shapes
+  element's list in `image.ts`) and the "first image by name" pick, and
+  the per-element transform reads in `points.ts` and `shapes.ts`, with it.
+  `composeTransforms` stays for a `sequence`, which is a chain.
 - The table's coordinates are the scene; an image in another system is
   mapped through the graph; an image that cannot reach the target is not
   opened and `openElements` reports why.
-- Unit tests on the five downloaded roots (commit them under
+- Unit tests on the five downloaded roots (already under
   `tests/data/sddb/roots/`): the chosen target per store, each element's
-  composed transform, the rejected ones. The conformance suite unchanged.
+  composed transform, the rejected ones. The full image's level-0 pixel
+  is **1** on the cerebellum and ovary stores (148.1 and 197.8 today) and
+  stays **0.2125** on Atera. The conformance suite unchanged.
 - `@quick`: a tiny Visium-shaped fixture (three images in three systems,
   spots as circles) added to `e2e/helpers/spatialdata.ts`, asserting the
   full image is placed and the downscaled ones are not opened.
@@ -172,16 +223,23 @@ Vitessce (same store, their viewer button).
   Point + `radius` (circles) and the square polygons as instanced
   geometry (one instanced mesh, not a polygon each), coloured from the
   cells' colours like polygons, with the same visibility and opacity.
-  Visium HD at 2 µm (7.5 M bins) is bounded by the existing 60,000-per-view
-  cap and the 1 mm zoom rule; the 8 and 16 µm tables are the ones with a
+  Drawn at any zoom while the view holds no more than the per-view cap
+  (§2), not only below 1 mm. The 8 and 16 µm tables are the ones with a
   CSC layer and are the default.
+- Visium HD at 2 µm (7.5 M bins) overruns the cap even at 1 mm across
+  (about 250,000 bins in view against 60,000). It must not truncate
+  silently: either the cap is raised for instanced squares (one instance
+  is a few bytes, not a triangulated polygon) after measuring it, or the
+  status says the bins are hidden until the view is narrower.
 - A `shapesStatus` that says the geometry kind; the validator checks the
   geometry column's types.
 - Unit tests on a generated circle and square parquet; `@quick` on the
   Visium-shaped fixture.
 
 Gate: `sliderToFrame` and `hoverFrameMs` unchanged within noise on the
-medium store; the ovary 16 µm table draws its bins at 1 mm.
+medium store; the cerebellum spots draw at the default (whole-section)
+view; the ovary 16 µm table draws its bins at 1 mm; the ovary 2 µm table
+at 1 mm either draws every bin in view or says why not.
 
 ### Step 4: the Lamin backend and the catalog (`feat/sddb-catalog`)
 
@@ -197,7 +255,9 @@ medium store; the ovary 16 µm table draws its bins at 1 mm.
   NonCommercial) and upserts our dataset records with provenance; the
   explore page shows them with license and source; re-run is idempotent.
 - Nightly: one real store per technology opened through the proxy by the
-  perf script, numbers into `docs/specs/BUDGETS.md`.
+  perf script, numbers into `docs/specs/BUDGETS.md`. Check once that the
+  proxy accepts the user agent the nightly runner sends (Node's `fetch`,
+  Playwright's browser); only Python's default is known to get 403.
 
 Gate: the five stores of §1 open by uid; the explore page lists the
 synced catalog with the same counts as the website.
