@@ -1,0 +1,123 @@
+{
+  "attributes": {
+    "encoding-type": "ngff:shapes",
+    "axes": [
+      "x",
+      "y"
+    ],
+    "coordinateTransformations": [
+      {
+        "type": "identity",
+        "input": {
+          "name": "xy",
+          "axes": [
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "unit"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "unit"
+            }
+          ]
+        },
+        "output": {
+          "name": "tiny",
+          "axes": [
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "unit"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "unit"
+            }
+          ]
+        }
+      },
+      {
+        "type": "scale",
+        "scale": [
+          0.25,
+          0.25
+        ],
+        "input": {
+          "name": "xy",
+          "axes": [
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "unit"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "unit"
+            }
+          ]
+        },
+        "output": {
+          "name": "tiny_downscaled_hires",
+          "axes": [
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "unit"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "unit"
+            }
+          ]
+        }
+      },
+      {
+        "type": "scale",
+        "scale": [
+          0.0625,
+          0.0625
+        ],
+        "input": {
+          "name": "xy",
+          "axes": [
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "unit"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "unit"
+            }
+          ]
+        },
+        "output": {
+          "name": "tiny_downscaled_lowres",
+          "axes": [
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "unit"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "unit"
+            }
+          ]
+        }
+      }
+    ],
+    "spatialdata_attrs": {
+      "version": "0.3"
+    }
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

@@ -340,23 +340,42 @@ export async function dragDropFile(page: Page, ds: DatasetEntry): Promise<number
  * Share of a canvas's pixels that are not near-black, read from a screenshot
  * (a WebGL canvas can't be read back from the page once it has presented).
  */
-export async function litFraction(page: Page, canvasSelector: string): Promise<number> {
+export async function litFraction(
+  page: Page,
+  canvasSelector: string,
+  /** Only this part of the canvas, as fractions of its width and height. */
+  region: { x0: number; y0: number; x1: number; y1: number } = {
+    x0: 0,
+    y0: 0,
+    x1: 1,
+    y1: 1,
+  },
+): Promise<number> {
   const shot = await page.locator(canvasSelector).first().screenshot();
 
-  return page.evaluate(async (png) => {
-    const image = await createImageBitmap(
-      await (await fetch(`data:image/png;base64,${png}`)).blob(),
-    );
-    const context = new OffscreenCanvas(image.width, image.height).getContext("2d")!;
+  return page.evaluate(
+    async ({ png, region }) => {
+      const image = await createImageBitmap(
+        await (await fetch(`data:image/png;base64,${png}`)).blob(),
+      );
+      const context = new OffscreenCanvas(image.width, image.height).getContext(
+        "2d",
+      )!;
 
-    context.drawImage(image, 0, 0);
-    const { data } = context.getImageData(0, 0, image.width, image.height);
-    let lit = 0;
+      context.drawImage(image, 0, 0);
+      const x = Math.floor(region.x0 * image.width);
+      const y = Math.floor(region.y0 * image.height);
+      const w = Math.max(1, Math.floor((region.x1 - region.x0) * image.width));
+      const h = Math.max(1, Math.floor((region.y1 - region.y0) * image.height));
+      const { data } = context.getImageData(x, y, w, h);
+      let lit = 0;
 
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] + data[i + 1] + data[i + 2] > 60) lit++;
-    }
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] + data[i + 1] + data[i + 2] > 60) lit++;
+      }
 
-    return lit / (data.length / 4);
-  }, shot.toString("base64"));
+      return lit / (data.length / 4);
+    },
+    { png: shot.toString("base64"), region },
+  );
 }

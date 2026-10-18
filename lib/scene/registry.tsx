@@ -34,6 +34,10 @@ import {
   pointsElementOf,
   pointsMoleculeDataset,
 } from "@/lib/spatialdata/pointsMolecules";
+import {
+  placesAsWritten,
+  readCoordinateSystems,
+} from "@/lib/spatialdata/coordinates";
 import { cellShapesName, loadCellPolygons } from "@/lib/spatialdata/shapes";
 import { ShapesLayer } from "@/lib/spatialdata/ShapesLayer";
 import { elementNames } from "@/lib/spatialdata/store";
@@ -53,6 +57,8 @@ export interface OpenedElements {
   points?: SingleMoleculeDataset;
   /** Molecules as per-gene files (the legacy folder), drawn whole per gene. */
   molecules?: SingleMoleculeDataset;
+  /** Elements the store has that are not drawn, and why. */
+  problems?: string[];
 }
 
 export interface OpenContext {
@@ -94,6 +100,23 @@ export interface ElementDefinition<K extends ElementKind = ElementKind> {
   slot?: "rail" | "panel";
 }
 
+/**
+ * Points and polygons are drawn as written, in the cells' coordinates; one
+ * whose transforms put it elsewhere is left out rather than drawn wrong
+ * (every SpatialData-DB store's sit in the cells' frame: sddb-profile.md).
+ */
+async function assertInCellsFrame(store: SpatialDataStore, path: string) {
+  const placed = (await readCoordinateSystems(store)).place(path);
+
+  if (!placesAsWritten(placed)) {
+    throw new Error(
+      placed.ok
+        ? `${path} is not in the cells' frame (scale ${placed.map.scale}, offset ${placed.map.offset})`
+        : `${path}: ${placed.reason}`,
+    );
+  }
+}
+
 const image: ElementDefinition<"image"> = {
   kind: "image",
   detect: async (store) => elementNames(store.keys, "images"),
@@ -113,6 +136,7 @@ const shapes: ElementDefinition<"shapes"> = {
   // Read the first time they are drawn, and kept; a failure can be retried
   open: async (store, name, { cells }) => {
     if (!cells) return null;
+    await assertInCellsFrame(store, `shapes/${name}`);
     let polygons: Promise<CellPolygons> | null = null;
 
     return () => {
@@ -146,12 +170,15 @@ function PointsBinding({ layer }: { layer: Layer }) {
 const points: ElementDefinition<"points"> = {
   kind: "points",
   detect: (store) => findPointsElements(store),
-  open: async (store, name, { id, name: datasetName }) =>
-    pointsMoleculeDataset(
+  open: async (store, name, { id, name: datasetName }) => {
+    await assertInCellsFrame(store, `points/${name}`);
+
+    return pointsMoleculeDataset(
       await openPointsElement(store, name),
       `${id}_${name}`,
       `${datasetName} — ${name}`,
-    ),
+    );
+  },
   createLayer: (opened) => new PointsLayer(pointsElementOf(opened)!),
   Bind: PointsBinding,
   Controls: PointsStatusPanel as ComponentType<{ layer: Layer }>,
@@ -220,6 +247,9 @@ export async function openElements(
       if (element) (opened as Record<string, unknown>)[def.kind] = element;
     } catch (error) {
       console.error(`Error opening ${def.kind}:`, error);
+      (opened.problems ??= []).push(
+        `${def.kind}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

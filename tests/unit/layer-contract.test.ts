@@ -48,6 +48,7 @@ function fakeImage(): SpatialDataImage {
   const level = (width: number, height: number, pixel: number) => ({
     array: {
       shape: [1, height, width],
+      chunks: [1, 64, 64],
       getChunk: async () => ({
         data: new Uint16Array(64 * 64).fill(100),
       }),

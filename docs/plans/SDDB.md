@@ -234,6 +234,24 @@ Gate: on the cerebellum store (`fJSOO03VzCTYtD1o`) and the ovary store
 (`haOzFbJ7Bc9x7NW6`) the H&E image sits under the spots exactly as in
 Vitessce (same store, their viewer button).
 
+Result (2026-10-18): built as above, except that `points.ts` and
+`shapes.ts` read no transforms to replace — the census shows every points
+and shapes element in the cells' frame, so the registry checks that and
+leaves out (in `OpenedElements.problems`) one that is not. The table is the
+curated default (`defaultTableName`). Unit: the Visium full image's
+level-0 pixel is 1 on both stores, Atera 0.2125; `@quick`: the
+`spatialdata` library's own Visium-shaped store
+(`scripts/testdata/make-tiny-visium.py`), whose test fails on the old
+placement (the image ran off the view) and passes now; perf unchanged
+(`BUDGETS.md`). On the two real stores, opened through the proxy, the
+H&E lies under the spots and the ovary's bins follow the tissue and its
+holes. **Not done: the side-by-side with Vitessce.** Seen on the way, not
+placement: an H&E image showed as one blue channel — fixed in this step
+(`isRgb` in `ImageLayer.ts`; channels sharing a chunk were read as if each
+had its own, so only the first could load: 2,718 images in the census) —
+and the ovary's default colouring is a positional obs column (stripes),
+not fixed.
+
 ### Step 3: circles and squares (`feat/sddb-spot-shapes`)
 
 - `lib/spatialdata/shapes.ts` and `lib/workers/shapes.worker.ts`: read

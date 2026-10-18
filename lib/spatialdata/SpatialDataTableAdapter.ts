@@ -27,6 +27,8 @@ import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 import { type DeStats, parseDeStatsBuffer } from "../utils/de-stats";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
 
+import { defaultTableName } from "./store";
+
 export type XFormat = "dense" | "csr" | "csc" | "missing";
 
 interface ClusterColumn {
@@ -683,9 +685,8 @@ function spatialDataTablePrefix(
   if (tables.length === 0) {
     throw new Error("SpatialData store has no table under tables/");
   }
-  const table = tables.includes("table") ? "table" : tables[0];
 
-  return `tables/${table}/`;
+  return `tables/${defaultTableName(rootAttrs, tables)}/`;
 }
 
 function hasNode(storeKeys: string[], path: string): boolean {
