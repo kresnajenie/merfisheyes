@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kresnajenie/merfisheyes/blob/develop/docs/specs/schemas/mapping.schema.json",
+  "title": "mapping.json",
+  "description": "What is drawn with a cell dataset: molecules linked per cell, an image under them (docs/specs/mapping.md).",
+  "type": "object",
+  "properties": {
+    "cells": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The store in this folder: a name inside it, or a full URL."
+    },
+    "linkColumn": {
+      "type": "string",
+      "minLength": 1,
+      "description": "\"__all__\", or the cluster column whose value picks the link."
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "description": "Column value -> a molecule folder URL (source s3) or an app dataset id (source app)."
+    },
+    "source": { "enum": ["s3", "app"] },
+    "image": { "type": "string", "minLength": 1 },
+    "imageSource": { "enum": ["s3", "app"] },
+    "imageDatasetId": { "type": "string" }
+  },
+  "dependentRequired": {
+    "links": ["linkColumn"],
+    "linkColumn": ["links"]
+  },
+  "additionalProperties": true
+}

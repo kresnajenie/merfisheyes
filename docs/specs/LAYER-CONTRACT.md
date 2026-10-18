@@ -138,3 +138,27 @@ draws what it is given.
 - `setBudget` is accepted; `abort()` leaves the layer in a valid phase;
   `dispose()` empties the group, drops subscribers, and a later attach
   throws.
+
+## What a second implementer found
+
+On 2026-10-17 an agent given only these documents added a `labels` kind
+(an OME-NGFF label image) and reported where they fell short:
+[SECOND-IMPLEMENTER-2026-10-17.md](SECOND-IMPLEMENTER-2026-10-17.md). The
+kind passed the conformance suite; the gaps are the backlog for this
+contract, the largest first:
+
+1. `ImageLayer`'s tile machinery cannot be reused by composition (all
+   private, per-channel); a second tiled kind re-derives ~200 lines. Extract
+   a `TileLayer` base (level choice, tiles in view, queue, eviction, hooks).
+2. Two hidden enumerations of kinds: `useLayers`' effect dependencies and
+   the `ELEMENTS` order assertion in `registry.test.ts`; the fixture
+   composers in `registry.test.ts` and `e2e/helpers/spatialdata.ts`; the
+   kind list in `e2e/tests/viewer/elements.spec.ts`; the scene choice in
+   `spatialdata-viewer.tsx`. Derive them from `ELEMENTS` or name them here.
+3. The URL slot needs a generic writer (`url-state-writer.ts` has six
+   hard-coded slots), so step 4 cannot be completed for a new kind.
+4. The five steps say nothing about the format side (a profile, a validator
+   check, a Python spec test), the transform helper to call
+   (`cellsToShared`), the opaque-pass blending recipe, a render-order rule
+   for new kinds, the E2E hook obligations, or where a `"panel"` control
+   goes on screen.

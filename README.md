@@ -264,7 +264,7 @@ Compare two datasets side by side (single-cell or single-molecule, in any combin
 
 ## Getting Started (development)
 
-Requires Node.js 18+.
+Requires Node.js 20 (`.nvmrc`; the browser test runner breaks on newer majors).
 
 ```bash
 git clone <repository-url>

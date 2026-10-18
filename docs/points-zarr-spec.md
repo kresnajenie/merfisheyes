@@ -230,3 +230,29 @@ Until this spec has a home, the element's `zarr_conventions` lists it as:
   `lib/spatialdata/PointsLayer.ts` (drawing a view).
 - Tiny example: `tests/data/tiny/zarr/points_v1.zarr`, made by
   `scripts/testdata/make-tiny-points.py`.
+
+## 12. Proposals for 0.2
+
+Kept apart from 0.1, which every store on the bucket is written in. A
+reader of 0.1 must ignore what it does not know; a writer of 0.2 sets
+`points:version` to `"0.2"`. The JSON Schema for the metadata of both is
+[specs/schemas/points.schema.json](specs/schemas/points.schema.json).
+
+- **`points:bytes_per_row` per level** (`multiscales.layout[k]`): the
+  compressed bytes one `feature_major` row costs at that level, measured by
+  the writer (2.1–3.2 B on the stores measured in
+  [specs/AUDIT-2026-10-17.md](specs/AUDIT-2026-10-17.md)). A viewer with a
+  byte budget per view ([specs/BUDGETS.md](specs/BUDGETS.md)) can then pick
+  a level before reading anything; today it learns the figure from its own
+  reads and assumes 3 B before the first.
+- **Tile-relative `uint16` coordinates**: `x`, `y` as `uint16` offsets
+  within the tile, in units of `tile_size / 65536`, with the tile known
+  from the index. Halves the bytes on the wire against `float32` and
+  compresses better; the viewer adds the tile origin on upload. Level 0 of
+  a 100 µm tile resolves 1.5 nm.
+- **`id` optional at level 0**: level 0 is every point in `tile_major`
+  order, so its row number is its identity; `id` there costs 0.1–0.7 B a
+  row and is only needed to join another column written later.
+- **Index chunking**: `feature_tile` and `feature_tile_count` chunked by
+  feature (`feature_tile_ptr` gives the boundaries), so one gene's slice is
+  one or two reads on a store with 23.9 M pairs.

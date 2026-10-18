@@ -529,6 +529,21 @@ Zarr v3 here uses the `zarrita-v3` alias (0.7.x); the h5ad-zarr path stays on
 the pinned `zarrita` 0.5.1. Do not point `lib/spatialdata/` at the old one or
 bump the shared one.
 
+**Formats as specs** ([docs/specs/store-layout.md](docs/specs/store-layout.md),
+[table-profile.md](docs/specs/table-profile.md), [shapes-profile.md](docs/specs/shapes-profile.md),
+[image-profile.md](docs/specs/image-profile.md), [mapping.md](docs/specs/mapping.md),
+[docs/points-zarr-spec.md](docs/points-zarr-spec.md) with its 0.2 proposals;
+JSON Schemas in `docs/specs/schemas/`): what a store must be, checked by
+`python scripts/validate_store.py <store.zarr>` (consolidated metadata
+naming every node, CSC `X` or a `layers/X_csc` copy, one GeoParquet file per
+shapes element, OME-NGFF `c, y, x` images, the points invariants, the
+mapping schema). `scripts/legacy_to_points.py` converts a legacy molecule
+folder into a points element. `tests/python/test_specs.py` (CI job
+`format-specs`, `pip install -r tests/python/requirements.txt`) validates the
+composed tiny fixtures, each violation, the converter molecule for molecule,
+and a store the `spatialdata` library writes. Change a format by changing
+its spec, schema and validator together.
+
 **Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
 `e2e/tests/viewer/spatialdata.spec.ts` (`@quick`),
 `e2e/tests/viewer/local-bundle.spec.ts` (`@quick`), and
