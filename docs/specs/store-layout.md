@@ -75,4 +75,14 @@ store at its root or in one folder under it.
 `python scripts/validate_store.py <store.zarr> [--mapping]` reads the store
 from disk and reports, per element, the profile's checks; it exits non-zero
 on the first failure of a MUST. It is run in CI on the tiny fixtures
-(`tests/python/`) and by hand on the real stores.
+(`tests/python/`) and by hand on the real stores; `--root-json <zarr.json>`
+checks a store known only by its root (one read through a URL).
+
+Requirement 8 is checked by the same rule the viewer applies
+(`coordinate_systems` there, `lib/spatialdata/coordinates.ts` here): the
+target, an image that cannot reach it (WARN), and a points or shapes
+element whose transforms put it outside the cells' frame (FAIL: it would
+be left out). A store whose molecules were converted to the points format
+keeps the source element's transforms (`PointsWriter(transformations=…)`);
+declaring identity beside cells that declare a scale is the mistake this
+catches.

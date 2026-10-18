@@ -111,7 +111,7 @@ async function assertInCellsFrame(store: SpatialDataStore, path: string) {
   if (!placesAsWritten(placed)) {
     throw new Error(
       placed.ok
-        ? `${path} is not in the cells' frame (scale ${placed.map.scale}, offset ${placed.map.offset})`
+        ? `${path} declares a different coordinate frame from the cells (scale ${placed.map.scale.join(" × ")}); the store's transforms need fixing`
         : `${path}: ${placed.reason}`,
     );
   }

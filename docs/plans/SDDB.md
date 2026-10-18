@@ -245,8 +245,14 @@ level-0 pixel is 1 on both stores, Atera 0.2125; `@quick`: the
 placement (the image ran off the view) and passes now; perf unchanged
 (`BUDGETS.md`). On the two real stores, opened through the proxy, the
 H&E lies under the spots and the ovary's bins follow the tissue and its
-holes. **Not done: the side-by-side with Vitessce.** Seen on the way, not
-placement: an H&E image showed as one blue channel — fixed in this step
+holes. **Against Vitessce** (SpatialData-DB's own config, rendered from
+the same stores): their config places the spots and the full image in
+the same system the viewer now targets, and the spots and bins sit on the
+same parts of the tissue in both. Our view is the vertical mirror of
+theirs (image and cells together): the scene draws y upward for every
+dataset, so an image's first row is at the bottom — not a placement error,
+but every H&E reads upside down next to Vitessce; left for a decision.
+Seen on the way, not placement: an H&E image showed as one blue channel — fixed in this step
 (`isRgb` in `ImageLayer.ts`; channels sharing a chunk were read as if each
 had its own, so only the first could load: 2,718 images in the census) —
 and the ovary's default colouring is a positional obs column (stripes),

@@ -5,6 +5,7 @@ import type { LayerContext, OpenedElements } from "./registry";
 import type { Layers } from "@/lib/stores/createLayersStore";
 
 import { useCallback, useEffect, useRef } from "react";
+import { toast } from "react-toastify";
 import { useStore } from "zustand";
 
 import { ELEMENTS } from "./registry";
@@ -85,6 +86,16 @@ export function useLayers(
     },
     [],
   );
+
+  // What the store holds but cannot be drawn is said, not just left out
+  useEffect(() => {
+    for (const problem of elements.problems ?? []) {
+      toast.warning(`Not drawn — ${problem}`, {
+        toastId: `element-problem:${problem}`,
+        autoClose: 12_000,
+      });
+    }
+  }, [elements.problems]);
 
   const onSceneReady = useCallback((scene: SceneHandle) => {
     sceneRef.current = scene;

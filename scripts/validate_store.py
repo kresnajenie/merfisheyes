@@ -295,6 +295,174 @@ def check_image(store, name: str, r: Report):
             r.ok(where, f"{a.get('data_type')} {a.get('shape')}, chunks {cs}, {len(ms.get('datasets', []))} levels")
 
 
+# ── coordinate systems (store-layout.md §8; lib/spatialdata/coordinates.ts) ─
+
+ELEMENT_KINDS = ("images", "labels", "shapes", "points")
+
+
+def output_name(t: dict) -> str | None:
+    o = t.get("output")
+    return o if isinstance(o, str) else (o or {}).get("name")
+
+
+def element_transforms(kind: str, attrs: dict) -> tuple[list[dict], list[str]]:
+    """An element's transforms and the names of its intrinsic axes."""
+    if kind in ("images", "labels"):
+        ms = ((attrs.get("ome") or attrs).get("multiscales") or [{}])[0]
+        axes = [a if isinstance(a, str) else a.get("name") for a in ms.get("axes", [])]
+        return ms.get("coordinateTransformations") or [], axes
+    default = ["x", "y", "z"] if kind == "points" else ["x", "y"]
+    return attrs.get("coordinateTransformations") or [], attrs.get("axes") or default
+
+
+def chain(transforms: list[dict], axes: list[str]) -> tuple[float, float, float, float]:
+    """(sx, sy, ox, oy) of scale / translation / identity steps applied in
+    order (a sequence counts as its steps); ValueError on any other step."""
+    sx, sy, ox, oy = 1.0, 1.0, 0.0, 0.0
+    for t in transforms:
+        names = [a.get("name") for a in (t.get("input") or {}).get("axes", [])] if isinstance(t.get("input"), dict) else []
+        names = names or axes
+
+        def pick(v, fill):
+            return [v[names.index(a)] if a in names and names.index(a) < len(v) else fill for a in ("x", "y")]
+
+        kind = t.get("type")
+        if kind == "identity":
+            continue
+        if kind == "sequence":
+            a, b, c, d = chain(t.get("transformations") or [], names)
+            sx, sy, ox, oy = sx * a, sy * b, ox * a + c, oy * b + d
+        elif kind == "scale" and t.get("scale"):
+            a, b = pick(t["scale"], 1.0)
+            sx, sy, ox, oy = sx * a, sy * b, ox * a, oy * b
+        elif kind == "translation" and t.get("translation"):
+            a, b = pick(t["translation"], 0.0)
+            ox, oy = ox + a, oy + b
+        else:
+            raise ValueError(f'unsupported transform "{kind}"')
+    return sx, sy, ox, oy
+
+
+def to_system(el: tuple[list[dict], list[str]], system: str | None):
+    """The element's map into `system`, or the reason there is none."""
+    transforms, axes = el
+    if not any(output_name(t) for t in transforms):
+        try:
+            return chain(transforms, axes), None
+        except ValueError as e:
+            return None, str(e)
+    entry = next((t for t in transforms if output_name(t) == system), None)
+    if entry is None:
+        return None, f'no transform into "{system}"'
+    try:
+        return chain([entry], axes), None
+    except ValueError as e:
+        return None, f'{e} into "{system}"'
+
+
+def is_identity(m) -> bool:
+    return abs(m[0] - 1) < 1e-9 and abs(m[1] - 1) < 1e-9 and abs(m[2]) < 1e-9 and abs(m[3]) < 1e-9
+
+
+def default_table(root_attrs: dict, tables: list[str]) -> str | None:
+    """The curated default, else `table`, else the first by name."""
+    curated = (root_attrs.get("metadata_general") or {}).get("Default Table")
+    if curated in tables:
+        return curated
+    if "table" in tables:
+        return "table"
+    return sorted(tables)[0] if tables else None
+
+
+def coordinate_systems(store) -> dict:
+    """The target system the viewer chooses and each element's placement in
+    the cells' coordinates, as lib/spatialdata/coordinates.ts computes them:
+    {systems, target, rule, region, elements, place(path) -> (map, reason)}."""
+    elements = {}
+    for kind in ELEMENT_KINDS:
+        for name in children(store, kind):
+            node_ = node(store, f"{kind}/{name}") or {}
+            elements[f"{kind}/{name}"] = element_transforms(kind, node_.get("attributes", {}))
+
+    root_attrs = (node(store, "") or {}).get("attributes", {})
+    table = default_table(root_attrs, children(store, "tables"))
+    region = None
+    if table:
+        reg = (node(store, f"tables/{table}") or {}).get("attributes", {}).get("region")
+        names = reg if isinstance(reg, list) else [reg] if reg else []
+        for kind in ("shapes", "points"):
+            hit = next((n for n in names if f"{kind}/{n}" in elements), None)
+            if hit:
+                region = f"{kind}/{hit}"
+                break
+    if region is None:
+        first = next((p for p in elements if p.startswith("shapes/")), None) or next(
+            (p for p in elements if p.startswith("points/")), None
+        )
+        region = first
+
+    outs = {p: {output_name(t) for t in el[0]} - {None} for p, el in elements.items()}
+    systems = sorted(set().union(*outs.values())) if outs else []
+    every = set.intersection(*outs.values()) if outs else set()
+    region_identity = (
+        sorted(s for s in outs[region] if (m := to_system(elements[region], s)[0]) and is_identity(m)) if region else []
+    )
+    target, rule = None, "none"
+    if "global" in every:
+        target, rule = "global", "global"
+    elif region_identity:
+        target, rule = region_identity[0], "region identity"
+    elif region is None and len(every) == 1:
+        target, rule = next(iter(every)), "only common system"
+    elif not systems:
+        rule = "only common system"
+    region_map, region_reason = to_system(elements[region], target) if region else ((1.0, 1.0, 0.0, 0.0), None)
+
+    def place(path: str):
+        if path not in elements:
+            return None, f"{path} is not in the store"
+        if systems and target is None:
+            return None, "the store's elements share no system"
+        if region_map is None:
+            return None, f"the cells: {region_reason}"
+        m, reason = to_system(elements[path], target)
+        if m is None:
+            return None, reason
+        a, b, c, d = region_map
+        return (m[0] / a, m[1] / b, (m[2] - c) / a, (m[3] - d) / b), None
+
+    return {"systems": systems, "target": target, "rule": rule, "region": region, "elements": elements, "place": place}
+
+
+def check_coordinates(store, r: Report):
+    """store-layout.md §8: one target; images reach it; points and shapes are
+    in the cells' frame (they are drawn as written); no affine."""
+    cs = coordinate_systems(store)
+    if not cs["elements"]:
+        return
+    if cs["systems"] and cs["target"] is None:
+        r.fail("coordinates", f"no target system: the elements share none of {cs['systems']}")
+        return
+    r.ok("coordinates", f"target {cs['target']!r} ({cs['rule']}), the cells' coordinates are {cs['region']}'s")
+    images = [p for p in cs["elements"] if p.startswith("images/")]
+    placed = []
+    for path in cs["elements"]:
+        m, reason = cs["place"](path)
+        kind = path.split("/")[0]
+        if kind in ("points", "shapes"):
+            if m is None:
+                r.fail(path, f"not placed with the cells: {reason}")
+            elif not is_identity(m):
+                r.fail(path, f"declares a frame other than the cells' (scale {m[0]:g}, {m[1]:g}; offset {m[2]:g}, {m[3]:g}): it is drawn as written, so its transforms must match theirs")
+        elif kind == "images":
+            if m is None:
+                r.warn(path, f"not drawn: {reason}")
+            else:
+                placed.append(path)
+    if images and not placed:
+        r.fail("coordinates", "no image can be placed with the cells")
+
+
 def check_mapping(path: Path, r: Report):
     try:
         mapping = read_json(path)
@@ -337,6 +505,7 @@ def _validate(store, r: Report, mapping: Path | None, sample: int) -> Report:
         check_shapes(store, name, r)
     for name in children(store, "images"):
         check_image(store, name, r)
+    check_coordinates(store, r)
     if not (children(store, "tables") or children(store, "points") or children(store, "images")):
         r.fail("store", "no table, points element or image to show")
     if mapping:

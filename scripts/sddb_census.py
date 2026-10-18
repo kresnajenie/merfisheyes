@@ -214,20 +214,6 @@ def output(t: dict) -> str | None:
     return o.get("name") if isinstance(o, dict) else o
 
 
-def is_identity(t: dict) -> bool:
-    """identity, a unit scale, a zero translation, or a sequence of those."""
-    kind = t.get("type")
-    if kind == "identity":
-        return True
-    if kind == "scale":
-        return all(abs(v - 1) < 1e-9 for v in t.get("scale", [])[-2:])
-    if kind == "translation":
-        return all(abs(v) < 1e-9 for v in t.get("translation", [])[-2:])
-    if kind == "sequence":
-        return all(is_identity(s) for s in t.get("transformations") or [])
-    return False
-
-
 FOLDERS = {"visium": "Visium", "visiumhd": "Visium HD", "xenium": "Xenium", "atera": "Atera", "spatialtranscriptomics": "spatial transcriptomics"}
 
 
@@ -355,47 +341,33 @@ def survey(a: dict, got: dict) -> dict:
             "spatial": spatial.get("data_type"),
         })
 
-    # coordinate systems, and the target the viewer would choose (plan §2)
-    outputs = {el: {output(t) for t in ts} for el, ts in elements.items()}
-    systems = sorted({s for o in outputs.values() for s in o if s})
+    # coordinate systems: the validator's rule, which the viewer shares
+    # (validate_store.coordinate_systems ↔ lib/spatialdata/coordinates.ts)
+    cs = vs.coordinate_systems(rs)
+    target = cs["target"]
     types = set().union(*(types_in(ts) for ts in elements.values())) if elements else set()
+    placed = {p for p in elements if cs["place"](p)[0] is not None}
+    images = [p for p in placed if p.startswith("images/")]
+    # A full image is its target's own pixels (identity); others are scaled
+    full = [p for p in images if (m := vs.to_system(cs["elements"][p], target)[0]) and vs.is_identity(m)]
     tables = {t["name"]: t for t in rec["tables"]}
-    # The curated default, else a table named "table", else the only one
-    default = tables.get(rec["default_table"]) or tables.get("table") or (rec["tables"][0] if len(rec["tables"]) == 1 else None)
-    regions = [f"shapes/{r}" for r in (default or {}).get("region", []) if f"shapes/{r}" in elements] or [
-        f"points/{r}" for r in (default or {}).get("region", []) if f"points/{r}" in elements
+    default = tables.get(vs.default_table(attrs, list(tables)) or "")
+    regions = [f"{k}/{r}" for r in (default or {}).get("region", []) for k in ("shapes", "points") if f"{k}/{r}" in elements]
+    region_systems = [
+        frozenset(s for s in {output(t) for t in elements[r]} - {None}
+                  if (m := vs.to_system(cs["elements"][r], s)[0]) and vs.is_identity(m))
+        for r in regions
     ]
-    region_systems = [{output(t) for t in elements[r] if is_identity(t)} for r in regions]
-    every = set.intersection(*outputs.values()) if outputs else set()
-    if "global" in every:
-        target, rule = "global", "global"
-    elif region_systems and set.intersection(*region_systems):
-        common = set.intersection(*region_systems)
-        target, rule = sorted(common)[0], "region identity"
-    elif region_systems:
-        target, rule = None, "regions in different systems"
-    elif len(every) == 1:
-        target, rule = next(iter(every)), "only common system"
-    elif "global" in systems:
-        target, rule = "global", "global (not every element)"
-    else:
-        target, rule = None, "no table region"
-    reach = {el for el, o in outputs.items() if target in o}
-    full = [
-        el for el in reach
-        if el.startswith("images/") and any(output(t) == target and is_identity(t) for t in elements[el])
-    ]
-    downscaled = [el for el in reach if el.startswith("images/") and el not in full]
-    samples = len({frozenset(s) for s in region_systems}) if region_systems else 0
     rec["coords"] = {
-        "systems": systems,
-        "has_global": "global" in systems,
+        "systems": cs["systems"],
+        "has_global": "global" in cs["systems"],
         "target": target,
-        "rule": rule,
-        "unreachable": sorted(set(elements) - reach) if target else sorted(elements),
+        "rule": cs["rule"],
+        "region": cs["region"],
+        "unreachable": sorted(set(elements) - placed),
         "full_images": sorted(full),
-        "downscaled_images": sorted(downscaled),
-        "samples": samples,
+        "downscaled_images": sorted(set(images) - set(full)),
+        "samples": len(set(region_systems)),
         "regions": len(regions),
         "transform_types": sorted(t for t in types if t),
         "unsupported": sorted(t for t in types if t and t not in SUPPORTED),
