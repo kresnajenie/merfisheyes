@@ -1,0 +1,3028 @@
+{
+  "attributes": {
+    "spatialdata_attrs": {
+      "version": "0.2",
+      "spatialdata_software_version": "0.8.0"
+    },
+    "spatialdata_io_software_version": "0.7.1",
+    "spatialdata_io_reader": "visium",
+    "sddb_provenance": {
+      "sddb_id": "sddb_n74n52c6gs",
+      "canonical_key": "10x:human-cerebellum-targeted-neuroscience-panel-1-standard",
+      "study_id": "10x:human-cerebellum-targeted-neuroscience-panel-1-standard",
+      "container_version": "unknown",
+      "converted_at": "2026-10-04T15:02:32Z"
+    },
+    "metadata_general": {
+      "Product": "Spatial Gene Expression",
+      "Assay": "Visium Spatial Gene Expression",
+      "Biomaterial Type": "Specimen from Organism",
+      "Organism": "human",
+      "Tissue": "cerebellum",
+      "Modality": "RNA",
+      "Dataset Url": "https://www.10xgenomics.com/datasets/human-cerebellum-targeted-neuroscience-panel-1-standard",
+      "Publication Date": "2022-07-12",
+      "Sample ID at Source": "human-cerebellum-targeted-neuroscience-panel-1-standard",
+      "Disease": "unknown",
+      "Default Table": "table",
+      "Chemistry Version": "Visium v1",
+      "Software": "Space Ranger v2.0.0",
+      "Preservation Method": "Fresh Frozen",
+      "HnE Image Available": true,
+      "IF Image Available": false,
+      "FTU Annotation Available": false,
+      "SpatialData-IO Version": "0.7.1",
+      "Database Version": "0.0.11",
+      "General Metadata Version": "0.3.0"
+    },
+    "metadata_visium": {
+      "Visium Metadata Version": "0.2.0"
+    }
+  },
+  "zarr_format": 3,
+  "consolidated_metadata": {
+    "kind": "inline",
+    "must_understand": false,
+    "metadata": {
+      "images": {
+        "attributes": {},
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "shapes": {
+        "attributes": {},
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables": {
+        "attributes": {},
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_full_image": {
+        "attributes": {
+          "ome": {
+            "version": "0.5-dev-spatialdata",
+            "multiscales": [
+              {
+                "datasets": [
+                  {
+                    "path": "s0",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          1.0,
+                          1.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          0.0,
+                          0.0
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s1",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          2.0,
+                          2.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          0.5,
+                          0.5
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s2",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          4.0,
+                          4.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          1.5,
+                          1.5
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s3",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          8.002400960384154,
+                          8.002400960384154
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          3.501200480192077,
+                          3.501200480192077
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s4",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          16.00480192076831,
+                          16.00480192076831
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          7.502400960384154,
+                          7.502400960384154
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "name": "/images/Targeted_Visium_Human_Cerebellum_Neuroscience_full_image",
+                "axes": [
+                  {
+                    "name": "c",
+                    "type": "channel"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space"
+                  },
+                  {
+                    "name": "x",
+                    "type": "space"
+                  }
+                ],
+                "coordinateTransformations": [
+                  {
+                    "type": "identity",
+                    "input": {
+                      "name": "cyx",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    },
+                    "output": {
+                      "name": "Targeted_Visium_Human_Cerebellum_Neuroscience",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "omero": {
+              "channels": [
+                {
+                  "label": "r"
+                },
+                {
+                  "label": "g"
+                },
+                {
+                  "label": "b"
+                }
+              ]
+            }
+          },
+          "spatialdata_attrs": {
+            "version": "0.3"
+          }
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_hires_image": {
+        "attributes": {
+          "ome": {
+            "version": "0.5-dev-spatialdata",
+            "multiscales": [
+              {
+                "axes": [
+                  {
+                    "name": "c",
+                    "type": "channel"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space"
+                  },
+                  {
+                    "name": "x",
+                    "type": "space"
+                  }
+                ],
+                "datasets": [
+                  {
+                    "path": "s0",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          1.0,
+                          1.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          0.0,
+                          0.0
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "name": "image",
+                "coordinateTransformations": [
+                  {
+                    "type": "identity",
+                    "input": {
+                      "name": "cyx",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    },
+                    "output": {
+                      "name": "Targeted_Visium_Human_Cerebellum_Neuroscience_downscaled_hires",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "scale",
+                    "scale": [
+                      1.0,
+                      6.6660000666600006,
+                      6.6660000666600006
+                    ],
+                    "input": {
+                      "name": "cyx",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    },
+                    "output": {
+                      "name": "Targeted_Visium_Human_Cerebellum_Neuroscience",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "omero": {
+              "channels": [
+                {
+                  "label": "r"
+                },
+                {
+                  "label": "g"
+                },
+                {
+                  "label": "b"
+                }
+              ]
+            }
+          },
+          "spatialdata_attrs": {
+            "version": "0.3"
+          }
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_lowres_image": {
+        "attributes": {
+          "ome": {
+            "version": "0.5-dev-spatialdata",
+            "multiscales": [
+              {
+                "axes": [
+                  {
+                    "name": "c",
+                    "type": "channel"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space"
+                  },
+                  {
+                    "name": "x",
+                    "type": "space"
+                  }
+                ],
+                "datasets": [
+                  {
+                    "path": "s0",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          1.0,
+                          1.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          0.0,
+                          0.0
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "name": "image",
+                "coordinateTransformations": [
+                  {
+                    "type": "identity",
+                    "input": {
+                      "name": "cyx",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    },
+                    "output": {
+                      "name": "Targeted_Visium_Human_Cerebellum_Neuroscience_downscaled_lowres",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "scale",
+                    "scale": [
+                      1.0,
+                      22.219999234743227,
+                      22.219999234743227
+                    ],
+                    "input": {
+                      "name": "cyx",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    },
+                    "output": {
+                      "name": "Targeted_Visium_Human_Cerebellum_Neuroscience",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "omero": {
+              "channels": [
+                {
+                  "label": "r"
+                },
+                {
+                  "label": "g"
+                },
+                {
+                  "label": "b"
+                }
+              ]
+            }
+          },
+          "spatialdata_attrs": {
+            "version": "0.3"
+          }
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "shapes/Targeted_Visium_Human_Cerebellum_Neuroscience": {
+        "attributes": {
+          "encoding-type": "ngff:shapes",
+          "axes": [
+            "x",
+            "y"
+          ],
+          "coordinateTransformations": [
+            {
+              "type": "identity",
+              "input": {
+                "name": "xy",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              },
+              "output": {
+                "name": "Targeted_Visium_Human_Cerebellum_Neuroscience",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "scale",
+              "scale": [
+                0.150015,
+                0.150015
+              ],
+              "input": {
+                "name": "xy",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              },
+              "output": {
+                "name": "Targeted_Visium_Human_Cerebellum_Neuroscience_downscaled_hires",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              }
+            },
+            {
+              "type": "scale",
+              "scale": [
+                0.045004502,
+                0.045004502
+              ],
+              "input": {
+                "name": "xy",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              },
+              "output": {
+                "name": "Targeted_Visium_Human_Cerebellum_Neuroscience_downscaled_lowres",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              }
+            }
+          ],
+          "spatialdata_attrs": {
+            "version": "0.3"
+          }
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table": {
+        "attributes": {
+          "encoding-type": "anndata",
+          "encoding-version": "0.1.0",
+          "spatialdata-encoding-type": "ngff:regions_table",
+          "region": "Targeted_Visium_Human_Cerebellum_Neuroscience",
+          "region_key": "region",
+          "instance_key": "spot_id",
+          "version": "0.2"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_full_image/s0": {
+        "shape": [
+          3,
+          13332,
+          13332
+        ],
+        "data_type": "uint8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3,
+              1024,
+              1024
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_full_image/s1": {
+        "shape": [
+          3,
+          6666,
+          6666
+        ],
+        "data_type": "uint8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3,
+              1024,
+              1024
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_full_image/s2": {
+        "shape": [
+          3,
+          3333,
+          3333
+        ],
+        "data_type": "uint8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3,
+              1024,
+              1024
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_full_image/s3": {
+        "shape": [
+          3,
+          1666,
+          1666
+        ],
+        "data_type": "uint8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3,
+              1024,
+              1024
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_full_image/s4": {
+        "shape": [
+          3,
+          833,
+          833
+        ],
+        "data_type": "uint8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3,
+              833,
+              833
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_hires_image/s0": {
+        "shape": [
+          3,
+          2000,
+          2000
+        ],
+        "data_type": "uint8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3,
+              1024,
+              1024
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/Targeted_Visium_Human_Cerebellum_Neuroscience_lowres_image/s0": {
+        "shape": [
+          3,
+          600,
+          600
+        ],
+        "data_type": "uint8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3,
+              600,
+              600
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs": {
+        "attributes": {
+          "column-order": [
+            "in_tissue",
+            "array_row",
+            "array_col",
+            "spot_id",
+            "region"
+          ],
+          "_index": "_index",
+          "encoding-type": "dataframe",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obsm": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obsp": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/raw": {
+        "shape": [],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "null",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var": {
+        "attributes": {
+          "column-order": [
+            "gene_ids",
+            "feature_types",
+            "genome"
+          ],
+          "_index": "_index",
+          "encoding-type": "dataframe",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/varm": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/varp": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/X": {
+        "attributes": {
+          "shape": [
+            4992,
+            1186
+          ],
+          "encoding-type": "csr_matrix",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/layers/csc_counts": {
+        "attributes": {
+          "shape": [
+            4992,
+            1186
+          ],
+          "encoding-type": "csc_matrix",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs/_index": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs/array_col": {
+        "shape": [
+          4992
+        ],
+        "data_type": "int64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/array_row": {
+        "shape": [
+          4992
+        ],
+        "data_type": "int64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/in_tissue": {
+        "shape": [
+          4992
+        ],
+        "data_type": "int64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/region": {
+        "attributes": {
+          "ordered": false,
+          "encoding-type": "categorical",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs/spot_id": {
+        "shape": [
+          4992
+        ],
+        "data_type": "int64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obsm/spatial": {
+        "shape": [
+          4992,
+          2
+        ],
+        "data_type": "int64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992,
+              2
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992,
+                2
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatial": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/uns/spatialdata_attrs": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/_index": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/feature_types": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/gene_ids": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/genome": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/X/data": {
+        "shape": [
+          1391986
+        ],
+        "data_type": "float32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1305000
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                87000
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/X/indices": {
+        "shape": [
+          1391986
+        ],
+        "data_type": "int32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1305000
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                87000
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/X/indptr": {
+        "shape": [
+          4993
+        ],
+        "data_type": "int32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4993
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4993
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers/csc_counts/data": {
+        "shape": [
+          1391986
+        ],
+        "data_type": "float32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1305000
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                87000
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers/csc_counts/indices": {
+        "shape": [
+          1391986
+        ],
+        "data_type": "int32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1305000
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                87000
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers/csc_counts/indptr": {
+        "shape": [
+          1187
+        ],
+        "data_type": "int32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1187
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1187
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/_index/mask": {
+        "shape": [
+          4992
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/_index/values": {
+        "shape": [
+          4992
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/region/categories": {
+        "shape": [
+          1
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/region/codes": {
+        "shape": [
+          4992
+        ],
+        "data_type": "int8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4992
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                4992
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatial/Targeted_Visium_Human_Cerebellum_Neuroscience": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/uns/spatialdata_attrs/instance_key": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatialdata_attrs/region": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatialdata_attrs/region_key": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/_index/mask": {
+        "shape": [
+          1186
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/_index/values": {
+        "shape": [
+          1186
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/feature_types/mask": {
+        "shape": [
+          1186
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/feature_types/values": {
+        "shape": [
+          1186
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/gene_ids/mask": {
+        "shape": [
+          1186
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/gene_ids/values": {
+        "shape": [
+          1186
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/genome/mask": {
+        "shape": [
+          1186
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/genome/values": {
+        "shape": [
+          1186
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1186
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1186
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatial/Targeted_Visium_Human_Cerebellum_Neuroscience/metadata": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/uns/spatial/Targeted_Visium_Human_Cerebellum_Neuroscience/metadata/chemistry_description": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatial/Targeted_Visium_Human_Cerebellum_Neuroscience/metadata/software_version": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      }
+    }
+  },
+  "node_type": "group"
+}
