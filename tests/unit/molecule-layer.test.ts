@@ -326,10 +326,11 @@ describe("MoleculeLayer: whole loads", () => {
 
     const cloud = layer.pointClouds.get("a:assigned")!;
     const material = cloud.material as THREE.ShaderMaterial;
-    const colors = cloud.geometry.getAttribute("color").array as Float32Array;
 
     expect(ds.fetches["a:assigned"]).toBe(1);
-    expect(Array.from(colors.subarray(0, 3))).toEqual([0, 0, 1]);
+    // Colour is a uniform: a restyle uploads nothing
+    expect(cloud.geometry.getAttribute("color")).toBeUndefined();
+    expect((material.uniforms.uColor.value as THREE.Color).getHex()).toBe(0x0000ff);
     expect(material.uniforms.uShape.value).toBe(1);
     expect(material.uniforms.dotSize.value).toBeCloseTo(
       2 *
@@ -500,10 +501,10 @@ describe("MoleculeLayer: streamed loads", () => {
     expect(ds.streams["a:assigned"]).toBe(1);
     expect(ds.streamSignal("a")!.aborted).toBe(false);
 
-    const colors = layer.pointClouds.get("a:assigned")!.geometry.getAttribute("color")
-      .array as Float32Array;
+    const material = layer.pointClouds.get("a:assigned")!
+      .material as THREE.ShaderMaterial;
 
-    expect(Array.from(colors.subarray(0, 3))).toEqual([0, 0, 1]);
+    expect((material.uniforms.uColor.value as THREE.Color).getHex()).toBe(0x0000ff);
     expect(layer.pointClouds.get("b:assigned")).toBeDefined();
   });
 

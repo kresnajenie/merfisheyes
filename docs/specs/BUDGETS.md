@@ -160,6 +160,28 @@ is latency-bound: its table is 1,092 ranged reads of 36 bytes (the
 generator's sharding), and the store's queue of 32 in flight is what
 keeps it near the unbounded number.
 
+## After step 4 (2026-10-17, rendering)
+
+Same fixtures and server. Molecule clouds now carry positions only, a
+cell tick reuses its buffers, hover picks through a grid.
+
+| Metric | spatialdata-tiny | spatialdata-medium | after step 3 |
+|---|---|---|---|
+| sliderToFrame (light) | 64 ms | 95 ms | 104 ms |
+| sliderToFrameHeavy | — | 2.6 s | 3.0 s |
+| hoverFrameMs | 50 ms | 49 ms | 50 ms |
+| avgRenderMs | 0.2 ms | 1.1 ms | 1.1 ms |
+| jsHeapMB | 58 | 61 | 82 |
+| geneToSettled / viewSettled / stepped | — | 2.9 s / 16.1 s / 22.5 s | 2.7 / 13.5 / 22.6 s |
+| drawCalls | 10 | 79 | 79 |
+
+The heavy slider step is no longer a repaint of every molecule's colour
+(nothing is uploaded now: `jsHeapMB` fell by a quarter) but the time
+SwiftShader takes to draw 8 M molecules once; on a GPU that frame is the
+16 ms budget's concern, measured by `scripts/perf/real-store.ts` on a
+machine with one. The medium store's `hoverFrameMs` is the same because
+the pointer sweep's worst frame is a draw, not the pick.
+
 ## How the numbers are read
 
 - Layer hooks (`window.__merfish.layers[kind]`, `lib/utils/test-hooks.ts`):

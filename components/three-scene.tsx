@@ -21,6 +21,7 @@ import {
   updateDotSize,
 } from "@/lib/webgl/point-cloud";
 import { LayerHost } from "@/lib/scene/LayerHost";
+import { PickingGrid } from "@/lib/webgl/picking-grid";
 import { moleculeElements } from "@/lib/scene/registry";
 import { useLayers } from "@/lib/scene/useLayers";
 import { LayerBindings, LayerControls } from "@/components/layer-controls";
@@ -146,8 +147,6 @@ export function ThreeScene({ dataset, elements }: ThreeSceneProps) {
   const controlsRef = useRef<any>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoveredPointRef = useRef<number | null>(null);
-  const lastCameraPositionRef = useRef<THREE.Vector3>(new THREE.Vector3());
-
   // Store current visualization data for tooltips
   const geneExpressionRef = useRef<number[] | null>(null);
   // Tracks the last applied raw/log display mode so a toggle re-auto-scales the
@@ -712,65 +711,103 @@ export function ThreeScene({ dataset, elements }: ThreeSceneProps) {
     }
   };
 
-  // Helper function: Check intersections with adaptive threshold
+  // A grid over the cells' positions as drawn, for hover picking in
+  // constant time; rebuilt when the positions change (per-sample transforms)
+  const pickingGridRef = useRef<{
+    grid: PickingGrid;
+    version: number;
+    count: number;
+  } | null>(null);
+
+  // Helper function: the cell under the pointer, within a few pixels
   const checkIntersections = () => {
     if (!pointCloudRef.current || !cameraRef.current || !rendererRef.current)
       return;
+    const points = pointCloudRef.current;
+    let index: number | null = null;
+    let position: THREE.Vector3 | null = null;
 
-    // Get current camera position to check if we've moved
-    const currentCameraPosition = cameraRef.current.position.clone();
-    const cameraHasMoved = !currentCameraPosition.equals(
-      lastCameraPositionRef.current,
-    );
+    // Hidden cells cannot be hovered
+    if (scLayerVisibleRef.current) {
+      // Screen-space pixel threshold: convert a fixed pixel radius to world
+      // units. This adapts automatically to any coordinate range and zoom.
+      const PIXEL_RADIUS = 5; // hover within 5 pixels of a point
+      const camera = cameraRef.current as THREE.PerspectiveCamera;
+      const target = controlsRef.current?.target;
+      const cameraDistance = target
+        ? camera.position.distanceTo(target)
+        : camera.position.length();
+      const canvasHeight = rendererRef.current.domElement.clientHeight;
+      const fovRad = (camera.fov / 2) * (Math.PI / 180);
+      const pixelSize = (2 * cameraDistance * Math.tan(fovRad)) / canvasHeight;
+      const radius = pixelSize * PIXEL_RADIUS;
+      const positionAttr = points.geometry.getAttribute(
+        "position",
+      ) as THREE.BufferAttribute;
+      let g = pickingGridRef.current;
 
-    lastCameraPositionRef.current.copy(currentCameraPosition);
-
-    // Screen-space pixel threshold: convert a fixed pixel radius to world units
-    // This adapts automatically to any coordinate range and zoom level
-    const PIXEL_RADIUS = 5; // hover within 5 pixels of a point
-    const camera = cameraRef.current as THREE.PerspectiveCamera;
-    const target = controlsRef.current?.target;
-    const cameraDistance = target
-      ? camera.position.distanceTo(target)
-      : camera.position.length();
-    const canvasHeight = rendererRef.current.domElement.clientHeight;
-    const fovRad = (camera.fov / 2) * (Math.PI / 180);
-    const pixelSize = (2 * cameraDistance * Math.tan(fovRad)) / canvasHeight;
-    const threshold = pixelSize * PIXEL_RADIUS;
-
-    raycasterRef.current.params.Points!.threshold = threshold;
-
-    // Update the raycaster with the current mouse position and camera
-    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
-
-    // Check for intersections with the points mesh
-    const intersects = raycasterRef.current.intersectObject(
-      pointCloudRef.current,
-    );
-
-    // If we found an intersection
-    if (intersects.length > 0) {
-      // Sort intersections by distance if there are multiple
-      if (intersects.length > 1) {
-        intersects.sort((a, b) => a.distance - b.distance);
+      if (
+        !g ||
+        g.version !== positionAttr.version ||
+        g.count !== positionAttr.count
+      ) {
+        g = {
+          grid: new PickingGrid(
+            positionAttr.array as Float32Array,
+            positionAttr.count,
+          ),
+          version: positionAttr.version,
+          count: positionAttr.count,
+        };
+        pickingGridRef.current = g;
       }
 
-      // Get the index of the closest point that was intersected
-      const index = intersects[0].index!;
+      // The pointer's ray in the cloud's own frame, where it meets the data
+      // plane z = 0; a 3D dataset is picked by screen distance among the
+      // cells around that spot
+      const ray = raycasterRef.current;
 
-      // If this is a different point than the one we were previously hovering over
+      ray.setFromCamera(mouseRef.current, camera);
+      const toLocal = new THREE.Matrix4().copy(points.matrixWorld).invert();
+      const local = ray.ray.clone().applyMatrix4(toLocal);
+
+      if (Math.abs(local.direction.z) > 1e-9) {
+        const t = -local.origin.z / local.direction.z;
+        const hit = local.origin.clone().addScaledVector(local.direction, t);
+        const is3D = dataset?.spatial.dimensions === 3;
+        const probe = new THREE.Vector3();
+        const screen = (i: number) =>
+          probe
+            .fromBufferAttribute(positionAttr, i)
+            .applyMatrix4(points.matrixWorld)
+            .project(camera)
+            .sub(mouseRef.current as unknown as THREE.Vector3)
+            .setZ(0)
+            .length() *
+          (canvasHeight / 2);
+
+        index = g.grid.nearest(
+          hit.x,
+          hit.y,
+          is3D ? radius * 8 : radius,
+          is3D ? (i) => (screen(i) <= PIXEL_RADIUS ? screen(i) : Infinity) : undefined,
+        );
+        if (index !== null) {
+          position = new THREE.Vector3()
+            .fromBufferAttribute(positionAttr, index)
+            .applyMatrix4(points.matrixWorld);
+        }
+      }
+    }
+
+    if (index !== null && position) {
       if (hoveredPointRef.current !== index) {
         hoveredPointRef.current = index;
-        const position = intersects[0].point;
-
         showTooltip(position, index);
       }
-    } else {
-      // If we're not hovering over any point, hide the tooltip
-      if (hoveredPointRef.current !== null) {
-        hoveredPointRef.current = null;
-        hideTooltip();
-      }
+    } else if (hoveredPointRef.current !== null) {
+      hoveredPointRef.current = null;
+      hideTooltip();
     }
   };
 

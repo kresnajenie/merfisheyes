@@ -346,6 +346,16 @@ SpatialData store's elements come from `openElements`. The screens are
 `variant="panel"` inside a split) and the split URL params are
 `useSplitUrlParams()`. Do not add a loading path to a page.
 
+**Rendering rules** ([docs/specs/RENDERING.md](docs/specs/RENDERING.md)): a
+still scene draws nothing; a molecule cloud is positions only with its
+colour, size and shape as uniforms (`createMoleculeMaterial`); a cell tick
+copies into the existing attributes (`updatePointCloudAttributes`) and the
+gene percentile is cached; hover picks through `lib/webgl/picking-grid.ts`,
+never a pass over every cell; sizes are CSS pixels (`uPixelRatio`, renderer
+pixel ratio capped at 2); draw order is render order (image, polygon fill in
+the opaque pass, molecules, cells, outline). Never add a per-vertex constant,
+a per-frame allocation or an O(N) pass on hover.
+
 **One render path for molecules** ([lib/webgl/MoleculeLayer.ts](lib/webgl/MoleculeLayer.ts)):
 
 `MoleculeLayer` is a non-React class, in the pattern of `ImageLayer`, that owns
@@ -367,8 +377,10 @@ What the layer does (do not reimplement any of this in a scene):
 
 - one cloud per gene for assigned molecules (`${gene}:assigned`) and one for
   unassigned (`${gene}:unassigned`), built with `createSmPointCloud` /
-  `createStreamingSmPointCloud` from `lib/webgl/point-cloud.ts`, sharing the
-  single-cell shader; render order from the legend (later-selected on top,
+  `createStreamingSmPointCloud` from `lib/webgl/point-cloud.ts`: positions
+  only, with colour, size, alpha and shape as uniforms of the molecule
+  shader (`moleculeVertexShader` in `lib/webgl/shaders.ts`), so a restyle
+  uploads nothing; render order from the legend (later-selected on top,
   assigned above unassigned, all below the cell cloud)
 - **streams** a gene whose count (`resolveMoleculeCount`) is at or above
   `VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD` when the dataset
