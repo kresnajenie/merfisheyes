@@ -2,9 +2,11 @@
 
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
-import type { MoleculeShape } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+import type { SceneHandle } from "@/lib/scene/contract";
+import type { LayerContext, OpenedElements } from "@/lib/scene/registry";
+import type { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { toast } from "react-toastify";
 import gsap from "gsap";
@@ -15,13 +17,13 @@ import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import {
   createPointCloudFromBuffers,
-  createSmPointCloud,
   updatePointCloudAttributes,
-  updatePointCloudColor,
-  updatePointCloudShape,
   updateDotSize,
-  SM_DOT_SIZE_FACTOR,
 } from "@/lib/webgl/point-cloud";
+import { LayerHost } from "@/lib/scene/LayerHost";
+import { moleculeElements } from "@/lib/scene/registry";
+import { useLayers } from "@/lib/scene/useLayers";
+import { LayerBindings, LayerControls } from "@/components/layer-controls";
 import {
   updateGeneVisualization,
   updateCelltypeVisualization,
@@ -35,7 +37,6 @@ import {
   usePanelId,
   usePanelSingleMoleculeApi,
   usePanelSingleMoleculeVisualizationApi,
-  usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import {
@@ -45,7 +46,6 @@ import {
 } from "@/lib/config/dataset-links";
 import { VisualizationLegends } from "@/components/visualization-legends";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
-import { PointsStatusPanel } from "@/components/points-status-panel";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import {
   detectExpressionKind,
@@ -67,78 +67,47 @@ import {
 } from "@/lib/utils/sample-transforms";
 import { useTourPlayer } from "@/lib/hooks/useTourPlayer";
 import { useTourStore } from "@/lib/stores/tourStore";
-import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
-import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
-import { type GeneStyle, PointsLayer } from "@/lib/spatialdata/PointsLayer";
-import { pointsElementOf } from "@/lib/spatialdata/pointsMolecules";
 import { openImageRef, type SpatialDataImage } from "@/lib/spatialdata/image";
 
-export interface SceneHandle {
-  /** Holds the point clouds; children share their coordinates and transforms. */
-  group: THREE.Group;
-  camera: THREE.PerspectiveCamera;
-  renderer: THREE.WebGLRenderer;
-  /**
-   * The cell dots' colour attribute (rgb per cell), as currently drawn.
-   * Absent in a scene without cells.
-   */
-  cellColors?: () => THREE.BufferAttribute | null;
-}
+export type { SceneHandle } from "@/lib/scene/contract";
+
+// On-demand rendering: a frame is drawn when the controls move, a layer
+// changes or an effect here mutates what is drawn (invalidateRef); this is
+// the safety-net rate for anything that forgets to say so.
+const IDLE_FPS = 10;
 
 interface ThreeSceneProps {
   dataset?: StandardizedDataset | null;
   /**
-   * Called each time the scene is (re)built, to add extra layers to it.
-   * The returned function is called before that scene is torn down.
+   * What is drawn with the cells, opened by the viewer (a SpatialData
+   * store's image, polygons and points). Molecules given here take the
+   * place of any linked by a mapping.json.
    */
-  onSceneReady?: (scene: SceneHandle) => (() => void) | void;
-  /**
-   * Molecules that come with the cells (a SpatialData store's points), drawn
-   * over them in place of any linked by a mapping.json.
-   */
-  molecules?: SingleMoleculeDataset | null;
+  elements?: OpenedElements;
 }
 
-export function ThreeScene({
-  dataset,
-  onSceneReady,
-  molecules,
-}: ThreeSceneProps) {
-  const onSceneReadyRef = useRef(onSceneReady);
+export function ThreeScene({ dataset, elements }: ThreeSceneProps) {
+  const molecules = elements?.points ?? elements?.molecules ?? null;
   const moleculesRef = useRef(molecules);
 
-  onSceneReadyRef.current = onSceneReady;
   moleculesRef.current = molecules;
 
-  // Image named by the dataset's mapping.json (`image`), drawn under the
-  // cells. The scene is rebuilt on view changes and the image arrives on its
-  // own schedule, so the layer is attached whenever both exist.
   const sceneHandleRef = useRef<SceneHandle | null>(null);
-  const overlayImageRef = useRef<SpatialDataImage | null>(null);
-  const overlayImageLayerRef = useRef<ImageLayer | null>(null);
-  const [overlayImageLayer, setOverlayImageLayer] = useState<ImageLayer | null>(
+  // The scene's side of the layer contract: layers join and leave through
+  // it, and it ticks them from the scene loop (lib/scene/LayerHost.ts).
+  const hostRef = useRef<LayerHost | null>(null);
+  // Ask the scene loop for a frame (on-demand rendering): called after every
+  // mutation of what is drawn. Layers do it themselves through `changed()`.
+  const invalidateRef = useRef<() => void>(() => {});
+  // Image named by the dataset's mapping.json (`image`) or dropped beside
+  // it, drawn under the cells; one given in `elements` takes precedence.
+  const [overlayImage, setOverlayImage] = useState<SpatialDataImage | null>(
     null,
   );
-  const detachOverlayImage = () => {
-    overlayImageLayerRef.current?.dispose();
-    overlayImageLayerRef.current = null;
-    setOverlayImageLayer(null);
-  };
-  const attachOverlayImage = () => {
-    const scene = sceneHandleRef.current;
-    const image = overlayImageRef.current;
-
-    if (!scene || !image || overlayImageLayerRef.current) return;
-    const layer = new ImageLayer(
-      image,
-      scene.group,
-      scene.camera,
-      scene.renderer,
-    );
-
-    overlayImageLayerRef.current = layer;
-    setOverlayImageLayer(layer);
-  };
+  // Cell polygons dropped with the cells for a preview
+  const [overlayShapes, setOverlayShapes] = useState<
+    OpenedElements["shapes"] | null
+  >(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pointCloudRef = useRef<THREE.Points | null>(null);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
@@ -201,7 +170,6 @@ export function ThreeScene({
   // SM overlay state (for __all__ mapping). Gene selection lives in the
   // global SM viz store so the picker + legends drive what's rendered.
   const smDatasetRef = useRef<SingleMoleculeDataset | null>(null);
-  const smPointCloudsRef = useRef<Map<string, THREE.Points>>(new Map());
   const [smDataset, setSmDataset] = useState<SingleMoleculeDataset | null>(
     null,
   );
@@ -217,53 +185,33 @@ export function ThreeScene({
   // legends that drive them — so each side of a split has its own overlay.
   const smStoreApi = usePanelSingleMoleculeApi();
   const smVizApi = usePanelSingleMoleculeVisualizationApi();
-  const smSelectedGenes = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.selectedGenes,
-  );
-  const smSelectedGenesLegend = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.selectedGenesLegend,
-  );
-  const smGeneDataCache = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.geneDataCache,
-  );
-  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.globalScale,
-  );
-  const smShowAssigned = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.showAssigned,
-  );
-  const smShowUnassigned = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.showUnassigned,
-  );
-  const smLayerVisible = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.smLayerVisible,
-  );
 
-  // Render-order helper: later in selectedGenesLegend → higher renderOrder.
-  // Assigned cloud sits on top of its own unassigned. All values stay below
-  // the SC point cloud (which uses the default renderOrder of 0).
-  const smRenderOrderFor = (legendIndex: number, isAssigned: boolean): number =>
-    -1000 + legendIndex * 2 + (isAssigned ? 1 : 0);
-  // Mirror globalScale into a ref so Effect 5 can read the current value when
-  // creating new point clouds without depending on globalScale (which would
-  // re-create all clouds on every slider tick).
-  const smGlobalScaleRef = useRef(smGlobalScale);
+  // What the scene draws besides the cells, as layers of the contract: the
+  // elements the viewer opened, and the overlays this scene resolves itself
+  // (a mapping.json, a folder dropped for a preview). The layers outlive
+  // scene rebuilds; `onSceneReady` attaches them to each new scene.
+  const handedImage = elements?.image;
+  const handedShapes = elements?.shapes;
+  const layerElements = useMemo<OpenedElements>(
+    () => ({
+      image: handedImage ?? overlayImage ?? undefined,
+      shapes: handedShapes ?? overlayShapes ?? undefined,
+      ...moleculeElements(smDataset),
+    }),
+    [handedImage, handedShapes, overlayImage, overlayShapes, smDataset],
+  );
+  const layerCtx: LayerContext = {
+    molecules: {
+      // Closing a gene's loading toast cancels its download; take it out of
+      // the selection so nothing restarts it.
+      onCancelGene: (gene: string) => smVizApi.getState().removeGene(gene),
+    },
+  };
+  const { onSceneReady, layers } = useLayers(layerElements, layerCtx);
+  // The overlay's molecule layer, for the per-frame uniform push
+  const smLayerRef = useRef<MoleculeLayer | null>(null);
 
-  useEffect(() => {
-    smGlobalScaleRef.current = smGlobalScale;
-  }, [smGlobalScale]);
-
-  // Mirror the SM layer-visibility flag into a ref so Effect 5 can stamp it
-  // onto freshly created clouds without re-running when it toggles (the live
-  // toggle is handled by a dedicated effect below).
-  const smLayerVisibleRef = useRef(smLayerVisible);
-
-  useEffect(() => {
-    smLayerVisibleRef.current = smLayerVisible;
-    for (const [, pc] of smPointCloudsRef.current) {
-      pc.visible = smLayerVisible;
-    }
-  }, [smLayerVisible]);
+  smLayerRef.current = (layers.molecules as MoleculeLayer | undefined) ?? null;
 
   // Get visualization settings from store
   const {
@@ -353,6 +301,7 @@ export function ThreeScene({
     scLayerVisibleRef.current = scLayerVisible;
     if (pointCloudRef.current) {
       pointCloudRef.current.visible = scLayerVisible;
+      invalidateRef.current();
     }
   }, [scLayerVisible]);
 
@@ -421,6 +370,10 @@ export function ThreeScene({
             ? await SMDataset.fromS3(smRef)
             : await SMDataset.fromCustomS3(smRef);
 
+        // This effect runs twice under StrictMode and on every dataset
+        // change; only the latest run may install its overlay, or two layers
+        // would be built and every gene downloaded twice.
+        if (stale) return;
         smDatasetRef.current = smDs;
         setSmDataset(smDs);
 
@@ -439,8 +392,8 @@ export function ThreeScene({
     };
 
     clearSmOverlay();
-    overlayImageRef.current = null;
-    detachOverlayImage();
+    setOverlayImage(null);
+    setOverlayShapes(null);
 
     if (!dataset) {
       linkConfigRef.current = null;
@@ -466,8 +419,7 @@ export function ThreeScene({
         });
 
         if (stale) return;
-        overlayImageRef.current = image;
-        attachOverlayImage();
+        setOverlayImage(image);
       } catch (error) {
         console.warn("Failed to load overlay image:", error);
       }
@@ -495,9 +447,9 @@ export function ThreeScene({
           { autoClose: 12000, toastId: "local-image-normalized" },
         );
       } else if (local.image) {
-        overlayImageRef.current = local.image;
-        attachOverlayImage();
+        setOverlayImage(local.image);
       }
+      if (local.shapes) setOverlayShapes(() => local.shapes);
       if (local.molecules) {
         smDatasetRef.current = local.molecules;
         setSmDataset(local.molecules);
@@ -925,6 +877,8 @@ export function ThreeScene({
           lookAtPosition: center,
           near,
           far,
+          onFrame: (now) => hostRef.current?.tick(now),
+          idleFps: IDLE_FPS,
         });
         setWebglFailed(false);
       } catch (e) {
@@ -932,7 +886,17 @@ export function ThreeScene({
         setWebglFailed(true);
       }
       if (!init) return;
-      const { scene, camera, renderer, controls, animate, dispose } = init;
+      const {
+        scene,
+        camera,
+        renderer,
+        controls,
+        animate,
+        dispose,
+        invalidate,
+      } = init;
+
+      invalidateRef.current = invalidate;
 
       // Store camera, renderer, and controls refs for raycasting + scale bar
       cameraRef.current = camera;
@@ -1174,24 +1138,29 @@ export function ThreeScene({
       // Start animation
       animate();
       markSceneReady();
-      const sceneHandle = {
-        group: innerGroup,
+      const host = new LayerHost(
+        innerGroup,
         camera,
         renderer,
-        cellColors: () =>
+        invalidate,
+        () =>
           (pointCloudRef.current?.geometry.getAttribute("color") as
             | THREE.BufferAttribute
             | undefined) ?? null,
-      };
-      const removeExtraLayers = onSceneReadyRef.current?.(sceneHandle);
+      );
+      const sceneHandle = host.handle;
+
+      hostRef.current = host;
+      const removeLayers = onSceneReady(sceneHandle);
 
       sceneHandleRef.current = sceneHandle;
-      attachOverlayImage();
 
       // Cleanup on unmount
       return () => {
-        removeExtraLayers?.();
-        detachOverlayImage();
+        removeLayers();
+        host.dispose();
+        hostRef.current = null;
+        invalidateRef.current = () => {};
         sceneHandleRef.current = null;
         // Remove event listeners
         renderer.domElement.removeEventListener("mousemove", handleMouseMove);
@@ -1225,7 +1194,7 @@ export function ThreeScene({
       let init: ReturnType<typeof initializeScene> | null = null;
 
       try {
-        init = initializeScene(containerRef.current);
+        init = initializeScene(containerRef.current, { idleFps: IDLE_FPS });
         setWebglFailed(false);
       } catch (e) {
         console.error("[ThreeScene] WebGL init failed:", e);
@@ -1423,6 +1392,7 @@ export function ThreeScene({
     if (!transformColumn || sampleTransforms.size === 0) {
       out.set(base);
       positionAttr.needsUpdate = true;
+      invalidateRef.current();
 
       return;
     }
@@ -1434,6 +1404,7 @@ export function ThreeScene({
       // Column not loaded yet — fall back to base positions.
       out.set(base);
       positionAttr.needsUpdate = true;
+      invalidateRef.current();
 
       return;
     }
@@ -1455,6 +1426,7 @@ export function ThreeScene({
       sceneScaleRef.current,
     );
     positionAttr.needsUpdate = true;
+    invalidateRef.current();
   }, [
     dataset,
     pointCloudVersion,
@@ -1765,6 +1737,7 @@ export function ThreeScene({
           pointCloudRef.current,
           baseDotSizeRef.current * sizeScale,
         );
+        invalidateRef.current();
       }
 
       // E2E timing hook: mark this render complete (covers initial render and
@@ -1830,6 +1803,7 @@ export function ThreeScene({
 
       baseDotSizeRef.current = newBaseDotSize;
       updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
+      invalidateRef.current();
     }
   }, [sizeScale, targetPx]);
 
@@ -1842,311 +1816,14 @@ export function ThreeScene({
     group.rotation.z = (sceneRotation * Math.PI) / 180;
     group.scale.x = flipX ? -1 : 1;
     group.scale.y = flipY ? -1 : 1;
+    invalidateRef.current();
   }, [sceneRotation, flipX, flipY]);
-
-  // Effect 5a: molecules of a Zarr points element are read a view at a time
-  // by a PointsLayer, instead of whole per gene by Effect 5.
-  const pointsLayerRef = useRef<PointsLayer | null>(null);
-  const [pointsLayer, setPointsLayer] = useState<PointsLayer | null>(null);
-
-  useEffect(() => {
-    const element = pointsElementOf(smDataset);
-    const parent = innerGroupRef.current;
-    const handle = sceneHandleRef.current;
-
-    if (!element || !parent || !handle) return;
-    const layer = new PointsLayer(
-      element,
-      parent,
-      handle.camera,
-      handle.renderer,
-    );
-
-    pointsLayerRef.current = layer;
-    setPointsLayer(layer);
-
-    return () => {
-      layer.dispose();
-      pointsLayerRef.current = null;
-      setPointsLayer(null);
-    };
-  }, [smDataset, pointCloudVersion]);
-
-  useEffect(() => {
-    const layer = pointsLayerRef.current;
-
-    if (!layer) return;
-    const legendOrder = new Map<string, number>();
-    let i = 0;
-
-    for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
-    const genes = new Map<string, GeneStyle>();
-
-    // Every gene in the legend, hidden ones (the eye, or another gene's
-    // cmd+click solo) included: they keep their share of the budget and what
-    // they have loaded, so showing them again is instant
-    for (const gene of smSelectedGenesLegend) {
-      const viz = smSelectedGenes.get(gene) ?? smGeneDataCache.get(gene);
-
-      if (!viz) continue;
-      genes.set(gene, {
-        visible: smSelectedGenes.has(gene) && viz.showAssigned,
-        color: viz.color,
-        shape: viz.assignedShape,
-        dotSize:
-          VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
-          smGlobalScale *
-          viz.localScale *
-          SM_DOT_SIZE_FACTOR,
-        renderOrder: smRenderOrderFor(legendOrder.get(gene) ?? 0, true),
-      });
-    }
-    layer.visible = smLayerVisible && smShowAssigned;
-    layer.setGenes(genes);
-  }, [
-    smDataset,
-    pointCloudVersion,
-    smSelectedGenes,
-    smSelectedGenesLegend,
-    smGeneDataCache,
-    smGlobalScale,
-    smLayerVisible,
-    smShowAssigned,
-  ]);
-
-  // Effect 5: Manage SM overlay point clouds.
-  // Keys are composite: `${gene}:a` for assigned and `${gene}:u` for unassigned.
-  // Visibility per gene = (global flag) AND (per-gene flag) AND (dataset has it).
-  useEffect(() => {
-    // Parent SM overlay clouds to the inner group so they share the SC
-    // point cloud's centered space (and rotate/flip about the data center).
-    const parent = innerGroupRef.current ?? sceneRef.current;
-    const smDs = smDatasetRef.current;
-
-    if (
-      !parent ||
-      !smDs ||
-      smSelectedGenes.size === 0 ||
-      pointsElementOf(smDs)
-    ) {
-      smPointCloudsRef.current.forEach((pc) => {
-        pc.parent?.remove(pc);
-        pc.geometry.dispose();
-        (pc.material as THREE.ShaderMaterial).dispose();
-      });
-      smPointCloudsRef.current.clear();
-
-      return;
-    }
-
-    const currentClouds = smPointCloudsRef.current;
-
-    // Drop orphaned clouds whose parent group was disposed (e.g. on a 2D↔3D
-    // view-mode switch, which rebuilds the scene). They'll get recreated
-    // below under the fresh sceneGroupRef.
-    for (const [key, pc] of currentClouds) {
-      if (pc.parent !== parent) {
-        pc.geometry.dispose();
-        (pc.material as THREE.ShaderMaterial).dispose();
-        currentClouds.delete(key);
-      }
-    }
-
-    // Remove clouds for deselected genes (both keys).
-    for (const [key, pc] of currentClouds) {
-      const gene = key.slice(0, -2);
-
-      if (!smSelectedGenes.has(gene)) {
-        pc.parent?.remove(pc);
-        pc.geometry.dispose();
-        (pc.material as THREE.ShaderMaterial).dispose();
-        currentClouds.delete(key);
-      }
-    }
-
-    // Snapshot legend order so each cloud's renderOrder is set deterministically
-    // from the user's legend (later-inserted gene renders on top).
-    const legendOrder = new Map<string, number>();
-
-    {
-      let i = 0;
-
-      for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
-    }
-
-    const makeCloud = (
-      coords: Float32Array,
-      colorHex: string,
-      localScale: number,
-      shape: MoleculeShape,
-      gene: string,
-      isAssigned: boolean,
-    ): THREE.Points => {
-      const userSize =
-        VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
-        smGlobalScaleRef.current *
-        localScale;
-      const pc = createSmPointCloud(
-        coords,
-        coords.length / 3,
-        colorHex,
-        userSize * SM_DOT_SIZE_FACTOR,
-        shape,
-      );
-
-      pc.renderOrder = smRenderOrderFor(legendOrder.get(gene) ?? 0, isAssigned);
-      pc.visible = smLayerVisibleRef.current;
-
-      return pc;
-    };
-
-    const removeKey = (key: string) => {
-      const pc = currentClouds.get(key);
-
-      if (!pc) return;
-      pc.parent?.remove(pc);
-      pc.geometry.dispose();
-      (pc.material as THREE.ShaderMaterial).dispose();
-      currentClouds.delete(key);
-    };
-
-    // Per-invocation cancellation. If deps change while async loads are in
-    // flight (typical during auto-select when addGene fires three times back
-    // to back), the previous invocation's awaits would otherwise resolve and
-    // attach duplicate clouds to the scene. Cleanup flips this so post-await
-    // code exits without doing work.
-    let cancelled = false;
-
-    const work = async () => {
-      for (const [gene, viz] of smSelectedGenes) {
-        if (cancelled) return;
-        const aKey = `${gene}:a`;
-        const uKey = `${gene}:u`;
-        const wantAssigned = smShowAssigned && viz.showAssigned;
-        const wantUnassigned =
-          smDs.hasUnassigned && smShowUnassigned && viz.showUnassigned;
-        const toastId = `loading-sm-${gene}`;
-        const needsAssigned = wantAssigned && !currentClouds.has(aKey);
-        const needsUnassigned = wantUnassigned && !currentClouds.has(uKey);
-
-        if (needsAssigned || needsUnassigned) {
-          toast.loading(`Loading ${gene}...`, {
-            toastId,
-            position: "bottom-left",
-            autoClose: false,
-          });
-        }
-
-        try {
-          // Assigned
-          if (needsAssigned) {
-            const coords = await smDs.getCoordinatesByGene(gene);
-
-            if (cancelled) return;
-            if (coords && coords.length > 0 && !currentClouds.has(aKey)) {
-              const pc = makeCloud(
-                coords,
-                viz.color,
-                viz.localScale,
-                viz.assignedShape,
-                gene,
-                true,
-              );
-
-              parent.add(pc);
-              currentClouds.set(aKey, pc);
-            }
-          } else if (!wantAssigned && currentClouds.has(aKey)) {
-            removeKey(aKey);
-          }
-
-          if (cancelled) return;
-
-          // Unassigned
-          if (needsUnassigned) {
-            const uCoords = await smDs.getUnassignedCoordinatesByGene(gene);
-
-            if (cancelled) return;
-            if (uCoords && uCoords.length > 0 && !currentClouds.has(uKey)) {
-              const pc = makeCloud(
-                uCoords,
-                viz.unassignedColor,
-                viz.unassignedLocalScale,
-                viz.unassignedShape,
-                gene,
-                false,
-              );
-
-              parent.add(pc);
-              currentClouds.set(uKey, pc);
-            }
-          } else if (!wantUnassigned && currentClouds.has(uKey)) {
-            removeKey(uKey);
-          }
-        } catch (error) {
-          console.warn(`Failed to load SM gene ${gene}:`, error);
-        } finally {
-          if (needsAssigned || needsUnassigned) {
-            toast.dismiss(toastId);
-          }
-        }
-      }
-    };
-
-    work();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    smDataset,
-    smSelectedGenes,
-    smShowAssigned,
-    smShowUnassigned,
-    pointCloudVersion,
-  ]);
-
-  // Effect 6: live-update SM material sizes when globalScale or per-gene
-  // localScale changes — avoids tearing down/rebuilding the point clouds.
-  useEffect(() => {
-    for (const [key, pc] of smPointCloudsRef.current) {
-      const gene = key.slice(0, -2);
-      const isAssigned = key.endsWith(":a");
-      const viz = smSelectedGenes.get(gene);
-
-      if (!viz) continue;
-      const localScale = isAssigned ? viz.localScale : viz.unassignedLocalScale;
-      const userSize =
-        VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
-        smGlobalScale *
-        localScale;
-
-      updateDotSize(pc, userSize * SM_DOT_SIZE_FACTOR);
-    }
-  }, [smGlobalScale, smSelectedGenes]);
-
-  // Effect 7: live-update SM cloud colors + shapes from the SM viz store.
-  // Runs whenever the selectedGenes Map changes (color/shape edits create a
-  // new Map ref in the store).
-  useEffect(() => {
-    for (const [key, pc] of smPointCloudsRef.current) {
-      const gene = key.slice(0, -2);
-      const isAssigned = key.endsWith(":a");
-      const viz = smSelectedGenes.get(gene);
-
-      if (!viz) continue;
-      const colorHex = isAssigned ? viz.color : viz.unassignedColor;
-      const shape = isAssigned ? viz.assignedShape : viz.unassignedShape;
-
-      updatePointCloudColor(pc, colorHex);
-      updatePointCloudShape(pc, shape);
-    }
-  }, [smSelectedGenes]);
 
   // Distance-filter uniforms: pushed every frame because controls.target
   // mutates outside React (cmd+click pan, mouse drag, R reset, orbit). Cost
   // is a handful of Vector3 copies per frame — negligible.
   useEffect(() => {
+    const last = { x: NaN, y: NaN, z: NaN, radius: NaN, enabled: NaN };
     const pushFilterUniforms = () => {
       const ctrls = controlsRef.current;
       const pc = pointCloudRef.current;
@@ -2156,6 +1833,21 @@ export function ThreeScene({
       const radius = targetFilterRadiusRef.current;
       const feather = Math.max(1.0, radius * 0.1);
       const center = ctrls.target;
+
+      if (
+        center.x === last.x &&
+        center.y === last.y &&
+        center.z === last.z &&
+        radius === last.radius &&
+        enabled === last.enabled
+      ) {
+        return;
+      }
+      last.x = center.x;
+      last.y = center.y;
+      last.z = center.z;
+      last.radius = radius;
+      last.enabled = enabled;
 
       if (pc) {
         const mat = pc.material as THREE.ShaderMaterial;
@@ -2168,40 +1860,19 @@ export function ThreeScene({
         }
       }
 
-      for (const [, smPc] of smPointCloudsRef.current) {
-        const mat = smPc.material as THREE.ShaderMaterial;
-
-        if (!mat.uniforms?.uTargetCenter) continue;
-        (mat.uniforms.uTargetCenter.value as THREE.Vector3).copy(center);
-        mat.uniforms.uTargetRadius.value = radius;
-        mat.uniforms.uTargetFeather.value = feather;
-        mat.uniforms.uTargetFilterEnabled.value = enabled;
-      }
+      smLayerRef.current?.setTargetFilter(
+        center,
+        radius,
+        feather,
+        targetFilterEnabledRef.current,
+      );
+      invalidateRef.current();
     };
 
     gsap.ticker.add(pushFilterUniforms);
 
     return () => gsap.ticker.remove(pushFilterUniforms);
   }, []);
-
-  // Effect 8: live-update SM cloud render order from selectedGenesLegend.
-  // Later-inserted genes get higher renderOrder → render on top. Deselect +
-  // reactivate from the gene picker pushes the gene to the end of the Set,
-  // so it comes to the front.
-  useEffect(() => {
-    const legendOrder = new Map<string, number>();
-    let i = 0;
-
-    for (const gene of smSelectedGenesLegend) legendOrder.set(gene, i++);
-
-    for (const [key, pc] of smPointCloudsRef.current) {
-      const gene = key.slice(0, -2);
-      const isAssigned = key.endsWith(":a");
-      const idx = legendOrder.get(gene) ?? 0;
-
-      pc.renderOrder = smRenderOrderFor(idx, isAssigned);
-    }
-  }, [smSelectedGenesLegend]);
 
   return (
     <>
@@ -2214,9 +1885,8 @@ export function ThreeScene({
 
       {webglFailed && <WebGLErrorOverlay />}
 
-      {overlayImageLayer && (
-        <SpatialDataImageControls layer={overlayImageLayer} />
-      )}
+      <LayerControls slot="panel" />
+      <LayerBindings ctx={layerCtx} />
 
       {/* SM loading indicator */}
       {smLoading && (
@@ -2225,8 +1895,6 @@ export function ThreeScene({
           Loading molecules...
         </div>
       )}
-
-      {pointsLayer && <PointsStatusPanel layer={pointsLayer} />}
 
       {/* Last cmd/ctrl+click coordinates. */}
       {lastClickCoords && (

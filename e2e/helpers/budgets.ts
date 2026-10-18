@@ -119,6 +119,7 @@ export async function resetFrames(page: Page): Promise<void> {
     if (!h) return;
     h.frames = {
       count: 0,
+      drawn: 0,
       over16ms: 0,
       over33ms: 0,
       worstMs: 0,

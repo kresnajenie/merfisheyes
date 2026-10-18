@@ -6,6 +6,7 @@ import { useEffect, useReducer, useState } from "react";
 
 import { glassButton, glassPanel } from "@/components/primitives";
 import { usePanelId } from "@/lib/hooks/usePanelStores";
+import { useLayerStatus } from "@/lib/scene/useLayerStatus";
 import {
   applyImageState,
   encodeImageState,
@@ -27,18 +28,16 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
 
   const slot = usePanelId() === "right" ? "rightImage" : "image";
 
+  // The layer pushes its changes (auto contrast once it has seen the data)
+  useLayerStatus(layer);
+
   // Settings in the link are applied to a new layer; a window set there is
   // kept, any other the layer sets itself once it has seen the data.
   useEffect(() => {
     const fromUrl = readUrlVizState()[slot];
 
     if (fromUrl) applyImageState(layer, fromUrl);
-    layer.onChange = rerender;
     rerender();
-
-    return () => {
-      layer.onChange = undefined;
-    };
   }, [layer, slot]);
 
   // The right panel's slot goes away with the panel.

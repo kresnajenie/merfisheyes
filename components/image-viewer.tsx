@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@heroui/react";
 import * as THREE from "three";
 
 import { subtitle, title } from "@/components/primitives";
-import { SpatialDataImageControls } from "@/components/spatialdata-image-controls";
+import { LayerControls } from "@/components/layer-controls";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { WebGLErrorOverlay } from "@/components/webgl-error-overlay";
-import { ImageLayer } from "@/lib/spatialdata/ImageLayer";
+import { LayerHost } from "@/lib/scene/LayerHost";
+import { useLayers } from "@/lib/scene/useLayers";
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import {
   openOmeZarrImage,
@@ -146,8 +147,11 @@ export function ImageScene({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<any>(null);
-  const [layer, setLayer] = useState<ImageLayer | null>(null);
   const [webglFailed, setWebglFailed] = useState(false);
+  // The image as the one layer of the contract, through the registry
+  const { onSceneReady, layers } = useLayers(
+    useMemo(() => ({ image }), [image]),
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -168,6 +172,7 @@ export function ImageScene({
       (1.05 * Math.max(height, width / aspect)) /
       (2 * Math.tan(THREE.MathUtils.degToRad(75) / 2));
     let init: ReturnType<typeof initializeScene>;
+    let host: LayerHost | null = null;
 
     try {
       init = initializeScene(container, {
@@ -176,6 +181,7 @@ export function ImageScene({
         lookAtPosition: centre,
         near: distance / 1e5,
         far: distance * 10,
+        onFrame: (now) => host?.tick(now),
       });
     } catch (e) {
       console.error("[ImageViewer] WebGL init failed:", e);
@@ -186,22 +192,20 @@ export function ImageScene({
     // Past the far plane the image would vanish
     init.controls.maxDistance = distance * 5;
 
-    const imageLayer = new ImageLayer(
-      image,
-      init.scene,
-      init.camera,
-      init.renderer,
-    );
+    const group = new THREE.Group();
+
+    init.scene.add(group);
+    host = new LayerHost(group, init.camera, init.renderer, init.invalidate);
+    const removeLayers = onSceneReady(host.handle);
 
     cameraRef.current = init.camera;
     rendererRef.current = init.renderer;
     controlsRef.current = init.controls;
-    setLayer(imageLayer);
     init.animate();
 
     return () => {
-      imageLayer.dispose();
-      setLayer(null);
+      removeLayers();
+      host?.dispose();
       init.dispose();
       cameraRef.current = null;
       rendererRef.current = null;
@@ -218,8 +222,8 @@ export function ImageScene({
       />
       {webglFailed && <WebGLErrorOverlay />}
       {children}
-      {layer && <SpatialDataImageControls layer={layer} />}
-      {layer && (
+      <LayerControls slot="panel" />
+      {layers.image && (
         <SpatialScaleBar
           cameraRef={cameraRef}
           controlsRef={controlsRef}

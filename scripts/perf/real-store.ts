@@ -159,7 +159,7 @@ async function sample(store: { folder: string; gene: string }) {
     await page.evaluate(() => {
       const h = (window as unknown as { __merfish?: Hooks }).__merfish;
 
-      if (h) h.frames = { count: 0, over16ms: 0, over33ms: 0, worstMs: 0 } as Hooks["frames"];
+      if (h) h.frames = { count: 0, drawn: 0, over16ms: 0, over33ms: 0, worstMs: 0 } as Hooks["frames"];
     });
     const x0 = box.x + box.width * 0.35;
     const y = box.y + box.height / 2;

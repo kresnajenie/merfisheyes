@@ -233,7 +233,7 @@ for (const store of stores) {
     // a software GPU (headless Chromium), where the frame interval is not
     await record(
       "avgRenderMs",
-      panned.count ? panned.renderMs / panned.count : 0,
+      panned.drawn ? panned.renderMs / panned.drawn : 0,
     );
 
     // The dot-size step again, now with the heavy gene drawn

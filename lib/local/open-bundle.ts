@@ -2,26 +2,22 @@ import type { LocalBundle } from "./classify-bundle";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SpatialDataImage } from "@/lib/spatialdata/image";
+import type { CellPolygons } from "@/lib/spatialdata/shapes";
 
 import { partFileMap, partFiles, storeFileMap } from "./classify-bundle";
 
-import {
-  openOmeZarrImageFromFiles,
-  openSpatialDataImage,
-} from "@/lib/spatialdata/image";
+import { openElements } from "@/lib/scene/registry";
+import { openOmeZarrImageFromFiles } from "@/lib/spatialdata/image";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
 import { openSpatialDataStoreFromFiles } from "@/lib/spatialdata/localStore";
-import {
-  findPointsElements,
-  openPointsElement,
-} from "@/lib/spatialdata/points";
-import { pointsMoleculeDataset } from "@/lib/spatialdata/pointsMolecules";
 import { elementNames } from "@/lib/spatialdata/store";
 
 export interface OpenedBundle {
   cells?: StandardizedDataset;
   molecules?: SingleMoleculeDataset;
   image?: SpatialDataImage;
+  /** The cells' polygons, read when first drawn. */
+  shapes?: () => Promise<CellPolygons>;
 }
 
 /**
@@ -57,18 +53,20 @@ export async function openLocalBundle(
         onProgress(p * 0.6, m),
       );
     }
-    opened.image = (await openSpatialDataImage(store)) ?? undefined;
-    // Molecules stored in the store itself (the Zarr points format), unless
-    // a molecule folder was dropped beside it
-    const [pointsName] = await findPointsElements(store);
+    // What else the store holds, as the registry finds it: its image, the
+    // cells' polygons, and molecules in the store itself (the Zarr points
+    // format), unless a molecule folder was dropped beside it
+    const elements = await openElements(store, {
+      id,
+      name,
+      cells: opened.cells,
+      onProgress: (p, m) => onProgress(65, m),
+    });
 
-    if (pointsName && opened.cells && bundle.molecules === undefined) {
-      onProgress(65, "Opening molecules...");
-      opened.molecules = await pointsMoleculeDataset(
-        await openPointsElement(store, pointsName),
-        `${id}_${pointsName}`,
-        `${name} — ${pointsName}`,
-      );
+    opened.image = elements.image;
+    opened.shapes = elements.shapes;
+    if (opened.cells && bundle.molecules === undefined) {
+      opened.molecules = elements.points ?? elements.molecules;
     }
   }
 

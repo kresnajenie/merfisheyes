@@ -63,11 +63,18 @@ export interface MerfishLayerStats {
   settledCount: number;
 }
 
-/** Frame timing since the last `resetFrames()`. */
+/**
+ * Frame timing since the last `resetFrames()`. Intervals are between ticks
+ * of the scene loop (every animation frame, drawn or not), so they measure
+ * main-thread jank; an on-demand scene that skips a draw while still is
+ * not a slow frame.
+ */
 export interface MerfishFrameStats {
-  /** Frames drawn (not skipped by an on-demand loop). */
+  /** Loop ticks (animation frames). */
   count: number;
-  /** Frames whose interval to the previous frame exceeded 20 ms (a dropped 60 Hz frame). */
+  /** Of those, frames actually drawn. */
+  drawn: number;
+  /** Ticks whose interval to the previous tick exceeded 20 ms (a dropped 60 Hz frame). */
   over16ms: number;
   /** ... exceeded 34 ms (two dropped frames). */
   over33ms: number;
@@ -93,12 +100,35 @@ export interface MerfishMemoryStats {
   at: number | null;
 }
 
+/**
+ * One molecule gene file's journey through `MoleculeLayer`, keyed by gene
+ * (assigned) or `${gene}:unassigned`. Lets a browser test prove a gene was
+ * streamed (several batches) rather than loaded whole, or was cancelled.
+ */
+export interface MerfishGeneLoad {
+  /** Distinguishes this load from one that replaced it (scene rebuilt). */
+  id: number;
+  /** Streamed into the scene as it downloaded, or loaded whole first. */
+  mode: "stream" | "whole";
+  /** Batches appended so far (1 for a whole load once it lands). */
+  batches: number;
+  /** Molecules drawn so far. */
+  loaded: number;
+  /** Molecules the file holds, when known before the download. */
+  expected: number | null;
+  done: boolean;
+  aborted: boolean;
+  failed: boolean;
+}
+
 export interface MerfishTestHooks {
   enabled: true;
   /** Per element kind: "table", "points", "shapes", "image", "molecules-legacy". */
   layers: Record<string, MerfishLayerStats>;
   frames: MerfishFrameStats;
   memory: MerfishMemoryStats;
+  /** Molecule gene loads of the current scene(s); see MerfishGeneLoad. */
+  geneLoads: Record<string, MerfishGeneLoad>;
   /** performance.now() when the Three.js scene finished initializing. */
   sceneReady: number | null;
   /** performance.now() of the most recent point-cloud attribute update. */
@@ -148,6 +178,7 @@ function getHooks(): MerfishTestHooks | null {
         triangles: 0,
         at: null,
       },
+      geneLoads: {},
       sceneReady: null,
       renderComplete: null,
       renderCount: 0,
@@ -166,6 +197,7 @@ function getHooks(): MerfishTestHooks | null {
 function freshFrames(): MerfishFrameStats {
   return {
     count: 0,
+    drawn: 0,
     over16ms: 0,
     over33ms: 0,
     worstMs: 0,
@@ -196,6 +228,7 @@ export function resetHooks(): void {
   if (!h) return;
   h.layers = {};
   h.frames = freshFrames();
+  h.geneLoads = {};
   h.sceneReady = null;
   h.renderComplete = null;
   h.renderCount = 0;
@@ -316,11 +349,12 @@ export function resetFrames(): void {
 }
 
 /**
- * One frame drawn: `intervalMs` since the previous drawn frame, `renderMs`
- * spent inside renderer.render. Called by the scene loop; a no-op in
- * production builds like everything here.
+ * One tick of the scene loop: `intervalMs` since the previous tick,
+ * `renderMs` spent inside renderer.render (null when nothing was drawn).
+ * Called by the scene loop; a no-op in production builds like everything
+ * here.
  */
-export function markFrame(intervalMs: number, renderMs: number): void {
+export function markFrame(intervalMs: number, renderMs: number | null): void {
   const h = getHooks();
 
   if (!h) return;
@@ -330,8 +364,11 @@ export function markFrame(intervalMs: number, renderMs: number): void {
   if (intervalMs > 20) f.over16ms += 1;
   if (intervalMs > 34) f.over33ms += 1;
   if (intervalMs > f.worstMs) f.worstMs = intervalMs;
-  if (renderMs > f.worstRenderMs) f.worstRenderMs = renderMs;
-  f.renderMs += renderMs;
+  if (renderMs !== null) {
+    f.drawn += 1;
+    if (renderMs > f.worstRenderMs) f.worstRenderMs = renderMs;
+    f.renderMs += renderMs;
+  }
 }
 
 /** Sample memory and draw counts from a renderer (about once a second). */
@@ -359,6 +396,70 @@ export function markMemory(info: {
 /** True when the hooks are live (NEXT_PUBLIC_E2E=1), for callers that pay to compute a stat. */
 export function hooksEnabled(): boolean {
   return getHooks() !== null;
+}
+
+/** Key of a gene load in `geneLoads`. */
+export function geneLoadKey(
+  gene: string,
+  kind: "assigned" | "unassigned",
+): string {
+  return kind === "assigned" ? gene : `${gene}:unassigned`;
+}
+
+let nextGeneLoadId = 1;
+
+/**
+ * Record that a molecule gene file started loading, and how. Returns the id
+ * the load passes back with its progress and end, so a load that was
+ * replaced (its scene rebuilt, a new layer started the same gene) can no
+ * longer write over the entry of the load that replaced it.
+ */
+export function markGeneLoadStart(
+  key: string,
+  mode: MerfishGeneLoad["mode"],
+  expected: number | null,
+): number {
+  const h = getHooks();
+  if (!h) return 0;
+  const id = nextGeneLoadId++;
+  h.geneLoads[key] = {
+    id,
+    mode,
+    batches: 0,
+    loaded: 0,
+    expected,
+    done: false,
+    aborted: false,
+    failed: false,
+  };
+  return id;
+}
+
+/** Record molecules drawn so far for a gene load (one call per batch). */
+export function markGeneLoadProgress(
+  key: string,
+  id: number,
+  loaded: number,
+): void {
+  const h = getHooks();
+  const load = h?.geneLoads[key];
+  if (!load || load.id !== id) return;
+  load.batches += 1;
+  load.loaded = loaded;
+}
+
+/** Record how a gene load ended. */
+export function markGeneLoadEnd(
+  key: string,
+  id: number,
+  outcome: "done" | "aborted" | "failed",
+): void {
+  const h = getHooks();
+  const load = h?.geneLoads[key];
+  if (!load || load.id !== id) return;
+  load.done = true;
+  load.aborted = outcome === "aborted";
+  load.failed = outcome === "failed";
 }
 
 /** Record that DE stats for a cluster column have finished computing/loading. */

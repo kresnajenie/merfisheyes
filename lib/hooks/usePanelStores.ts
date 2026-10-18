@@ -14,6 +14,7 @@ import type {
   LabelledMoleculeVisualizationState,
   LabelledMoleculeVisualizationStore,
 } from "../stores/createLabelledMoleculeVisualizationStore";
+import type { Layers, LayersStore } from "../stores/createLayersStore";
 
 import { useContext } from "react";
 import { useStore } from "zustand";
@@ -27,6 +28,7 @@ import {
   labelledMoleculeVisualizationStore,
   useLabelledMoleculeVisualizationStore,
 } from "../stores/labelledMoleculeVisualizationStore";
+import { layersStore } from "../stores/layersStore";
 
 // Overloads: with selector returns T, without selector returns full state
 export function usePanelVisualizationStore(): VisualizationState;
@@ -101,7 +103,9 @@ export function usePanelSingleMoleculeVisualizationStore<T>(
 export function usePanelSingleMoleculeApi():
   | SingleMoleculeStore
   | typeof useSingleMoleculeStore {
-  return useContext(PanelContext)?.singleMoleculeStore ?? useSingleMoleculeStore;
+  return (
+    useContext(PanelContext)?.singleMoleculeStore ?? useSingleMoleculeStore
+  );
 }
 
 export function usePanelSingleMoleculeVisualizationApi():
@@ -143,6 +147,15 @@ export function usePanelLabelledMoleculeApi(): LabelledMoleculeVisualizationStor
     ctx?.labelledMoleculeVisualizationStore ??
     labelledMoleculeVisualizationStore
   );
+}
+
+/** The layers the panel's scene draws (written by `useLayers`). */
+export function usePanelLayersApi(): LayersStore {
+  return useContext(PanelContext)?.layersStore ?? layersStore;
+}
+
+export function usePanelLayers(): Layers {
+  return useStore(usePanelLayersApi(), (s) => s.layers);
 }
 
 export function usePanelId(): string | null {

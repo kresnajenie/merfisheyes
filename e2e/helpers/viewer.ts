@@ -4,6 +4,29 @@ import { type Page, expect } from "@playwright/test";
 import { type DatasetEntry, absPath } from "./databank";
 import { SELECTORS, fileInputSelector } from "./selectors";
 
+/** One molecule gene file's load, as MoleculeLayer reports it. */
+export interface MerfishFrameStats {
+  count: number;
+  drawn: number;
+  over16ms: number;
+  over33ms: number;
+  worstMs: number;
+  worstRenderMs: number;
+  renderMs: number;
+  since: number;
+}
+
+export interface MerfishGeneLoad {
+  id: number;
+  mode: "stream" | "whole";
+  batches: number;
+  loaded: number;
+  expected: number | null;
+  done: boolean;
+  aborted: boolean;
+  failed: boolean;
+}
+
 /** Shape of the window.__merfish test hook (mirror of lib/utils/test-hooks.ts). */
 export interface MerfishHooks {
   enabled: boolean;
@@ -19,6 +42,8 @@ export interface MerfishHooks {
     pointClouds?: number;
   } | null;
   lastGene: { gene: string; count: number; at: number } | null;
+  /** Molecule gene loads by gene (`${gene}:unassigned` for unassigned). */
+  geneLoads: Record<string, MerfishGeneLoad>;
   deStatsReadyAt: number | null;
   deStatsColumn: string | null;
   deStatsCount: number;

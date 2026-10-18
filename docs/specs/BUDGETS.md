@@ -131,8 +131,10 @@ At 12 MB/s those views settle in 2.4 s, 4.8 s and 4.6 s. The target is 1 s.
 - Layer hooks (`window.__merfish.layers[kind]`, `lib/utils/test-hooks.ts`):
   `firstContentAt`, `changedAt` (the view asked for something new),
   `settledAt` (everything wanted is drawn), `drawn`, `wanted`, `resident`.
-- Frames (`__merfish.frames`): intervals between drawn frames over a window;
-  `over16ms` counts intervals above 20 ms (one dropped 60 Hz frame).
+- Frames (`__merfish.frames`): intervals between ticks of the scene loop
+  (every animation frame, drawn or not, so a still on-demand scene is not a
+  slow one); `over16ms` counts intervals above 20 ms (one dropped 60 Hz
+  frame); `drawn` and `renderMs` cover only the frames actually drawn.
 - Bytes: the Resource Timing API when the server sends
   `Timing-Allow-Origin` (the fixture server does); the proxy's log for the
   real bucket.

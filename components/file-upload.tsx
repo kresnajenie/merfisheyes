@@ -690,6 +690,7 @@ export function FileUpload({
       // Over cells the scene adds the molecules itself; alone they are the dataset
       molecules: opened.cells ? (opened.molecules ?? null) : null,
       image: opened.image ?? null,
+      shapes: opened.shapes ?? null,
     });
 
     if (opened.cells) {
