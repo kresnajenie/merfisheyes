@@ -40,19 +40,25 @@ that changes a fact or a decision edits this file in the same commit.
   Method, H&E / IF available, …), `sddb_provenance` (`sddb_id`,
   `canonical_key`, `converted_at`), `spatialdata_io_reader`, and a
   per-technology block (`metadata_visium`, `metadata_xenium`, …).
-- Technologies: Visium 912, spatial transcriptomics 552, Xenium 180,
-  Visium HD 132, Atera 2. Tiers: silver 1,435, bronze 262, which leaves
-  81 stores with no tier the website shows (the census says what they
-  are). NonCommercial 1,090, commercial use allowed 591, unknown 97.
+- Technologies (website): Visium 912, spatial transcriptomics 552, Xenium
+  180, Visium HD 132, Atera 2. Tiers: silver 1,435, bronze 262, which
+  leaves 81 stores with no tier the website shows. NonCommercial 1,090,
+  commercial use allowed 591, unknown 97.
+- **The census (step 1, done) supersedes these counts**:
+  [`docs/specs/sddb-profile.md`](../specs/sddb-profile.md),
+  [`perf/sddb/CENSUS.md`](../../perf/sddb/CENSUS.md). The instance holds
+  1,884 latest SpatialData artifacts: 1,761 converted by SDDB and 123
+  older stores at the bucket's top level (65 Visium, 44 Xenium, 12 earlier
+  Visium HD versions, 2 tests). Licence is a Lamin label, not in the store.
 
 ### Elements, one store per technology, against our profiles
 
 | Element | In their stores | Our reader today |
 |---|---|---|
-| table | `X` is CSR with 250 M-row chunks (unusable per gene); `layers/csc_counts` CSC, sharded (inner chunks 150–250 k), on the **default table only**. Visium HD 2 µm and 8 µm tables (7.5 M bins, 343 M non-zeros) have no CSC layer. `instance_key`, `region_key`, `region` set; `obsm/spatial` float64 or int64 | reads; finds any CSC layer under `layers/`; a table without one scans the matrix per gene |
-| image | `c,y,x`, uint8 (H&E, 3 channels) or uint16 (IF, 1–4 channels), 1–5 levels, chunks 256² (Visium HD), 1024² (most), 4096² (Xenium: 32 MB a tile); Visium stores hold three images (`full_image`, `hires_image`, `lowres_image`) in three coordinate systems | reads; 4096² tiles break the 300 ms budget |
-| shapes | one `shapes.parquet` each, `ngff:shapes` v0.3: polygons (`cell_boundaries`, `nucleus_boundaries`), circles (`cell_circles`, Visium spots: Point + `radius`), squares (Visium HD bins at 2, 8, 16 µm, up to 7.5 M) | polygons only; circles and squares are not drawn |
-| points | `ngff:points` v0.2: a parquet **directory** (`points.parquet/part.N.parquet`), not our tiled points format | not read: no molecule streaming for the 180 Xenium stores |
+| table | `X` is CSR with 250 M-row chunks (unusable per gene); `layers/csc_counts` CSC, sharded (inner chunks 150–250 k), in 1,845 of 2,085 tables. None in any Visium HD `square_002um` (7.5 M bins, 343 M non-zeros), nor in the **default `square_008um` of 82 Visium HD stores** (45 have one). `instance_key`, `region_key`, `region` set; `obsm/spatial` float64 or int64 (654 tables) | reads; finds any CSC layer under `layers/`; a table without one scans the matrix per gene. Reads the **first table by name**, which in 90 Visium HD stores is `square_002um`, not the default |
+| image | `c,y,x`, uint8 (H&E, 3 channels) or uint16 (IF, 1–4 channels), 1–5 levels, chunks 256² (Visium HD), 1024² (most, every SDDB Xenium store); 4096² (32 MB a tile) only in the 44 older top-level Xenium stores, 6000² single-chunk hires images in 13 Visium HD stores; Visium stores hold three images (`full_image`, `hires_image`, `lowres_image`) in three coordinate systems, and 77 have no full image | reads; 4096² and 6000² tiles break the 300 ms budget |
+| shapes | one `shapes.parquet` each, `ngff:shapes` v0.3: polygons (`cell_boundaries`, `nucleus_boundaries`), circles (`cell_circles`, Visium spots: Point + `radius`), squares (Visium HD bins at 2, 8, 16 µm, up to 28 M); circles in every store, 313 elements over 60,000 rows (35 of them 2 µm bins filed under `visium/`) | polygons only; circles and squares are not drawn |
+| points | `ngff:points` v0.2: a parquet **directory** (`points.parquet/part.N.parquet`), not our tiled points format; 193 elements, about 20.5 B molecules, up to 2.8 B in one store | not read: no molecule streaming for the Xenium and Atera stores |
 | labels | `cell_labels`, `nucleus_labels`: uint32, `y,x`, 4096² chunks, 5 levels | not read (a `LabelsLayer` exists uncommitted in the second-implementer worktree) |
 
 ### Visium coordinate systems (the first thing to support)
@@ -123,7 +129,11 @@ aligned H&E may (the census counts them).
   its hires image, mapped through its scale into the target.
 - **A store with several samples** (several systems, none common) opens
   one sample at a time, chosen in the viewer; no sample is placed in
-  another's system.
+  another's system. The census found **none** among the 1,884, so this is
+  not built until a store needs it.
+- **The table is the default one**: `metadata_general["Default Table"]`
+  when the store names it, else a table named `table`, else the first by
+  name (today it is always the first by name).
 - **Visium spots and Visium HD bins are drawn**: circles and squares as
   shapes kinds, instanced, coloured like polygons from the cells' colours.
   This is what "Visium support" means on screen; without it a Visium store
@@ -158,7 +168,13 @@ and perf gates green, numbers recorded in `docs/specs/BUDGETS.md`, this
 file updated. Commit only on the user's go-ahead; never push or open PRs
 unless asked.
 
-### Step 1: the census (`chore/sddb-census`, half a day, no product code)
+### Step 1: the census (`chore/sddb-census`, half a day, no product code) — done
+
+Result: [`docs/specs/sddb-profile.md`](../specs/sddb-profile.md). All 1,884
+roots read and classified (9.5 minutes, 6 requests in flight, no 429).
+For the later steps: 601 stores need the coordinate-system rule, 77 have
+no full image, 5 use `affine` (a CytAssist image only), none has several
+samples; circles in every store, squares in the Visium HD ones.
 
 - `scripts/sddb_census.py`: list the artifacts from the hub REST (fall
   back to the website's dataset slugs, which carry the uid), fetch each
@@ -187,7 +203,8 @@ unless asked.
   `global` or a declared default system), filed as issues at
   `theislab/spatialdata-db-feedback`.
 
-Gate: every one of 1,778 roots classified, none "unknown".
+Gate: every one of 1,778 roots classified, none "unknown". (Held: 1,884 of
+1,884, the instance's full count.)
 
 ### Step 2: coordinate systems (`feat/sddb-coordinate-systems`)
 
@@ -224,8 +241,10 @@ Vitessce (same store, their viewer button).
   geometry (one instanced mesh, not a polygon each), coloured from the
   cells' colours like polygons, with the same visibility and opacity.
   Drawn at any zoom while the view holds no more than the per-view cap
-  (§2), not only below 1 mm. The 8 and 16 µm tables are the ones with a
-  CSC layer and are the default.
+  (§2), not only below 1 mm. The default table is `square_008um` in 127
+  Visium HD stores, but only 45 of those have a CSC layer on it; the
+  `square_016um` table has one in 92. Where the default has none, the
+  viewer opens the 16 µm table and says so.
 - Visium HD at 2 µm (7.5 M bins) overruns the cap even at 1 mm across
   (about 250,000 bins in view against 60,000). It must not truncate
   silently: either the cap is raised for instanced squares (one instance

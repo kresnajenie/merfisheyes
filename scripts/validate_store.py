@@ -5,6 +5,12 @@ image-profile.md, points-zarr-spec.md, mapping.md).
 
   python scripts/validate_store.py <store.zarr> [--mapping mapping.json]
                                    [--sample N] [--json]
+  python scripts/validate_store.py --root-json <zarr.json> [--json]
+
+With --root-json the store is its root `zarr.json` alone (a store read
+through a URL that cannot be listed): every check the consolidated
+metadata can answer runs; the parquet files and the points invariants are
+reported as not checked unless their footers are given (`RootStore`).
 
 Prints one line per check — OK, WARN or FAIL — and exits 1 when any MUST
 fails. Needs numpy, zarr >= 3, jsonschema; the points checks use
@@ -48,14 +54,47 @@ def read_json(path: Path):
     return json.loads(path.read_text())
 
 
-def node(store: Path, path: str) -> dict | None:
+class RootStore:
+    """A store known only by its root `zarr.json` (consolidated metadata).
+
+    `parquet` maps an element path (`shapes/<name>`, `points/<name>`) to what
+    is known of its parquet: `("file", FileMetaData)`, `("dir", FileMetaData
+    of one part or None)`, or nothing when it was not read.
+    """
+
+    def __init__(self, root: dict, parquet: dict | None = None):
+        self.root = root
+        self.nodes = (root.get("consolidated_metadata") or {}).get("metadata") or {}
+        self.parquet = parquet or {}
+
+
+def node(store, path: str) -> dict | None:
+    if isinstance(store, RootStore):
+        return store.root if not path else store.nodes.get(path)
     f = store / path / "zarr.json" if path else store / "zarr.json"
     return read_json(f) if f.is_file() else None
 
 
-def children(store: Path, path: str) -> list[str]:
+def children(store, path: str) -> list[str]:
+    if isinstance(store, RootStore):
+        prefix = f"{path}/"
+        return sorted({k[len(prefix):].split("/")[0] for k in store.nodes if k.startswith(prefix)})
     d = store / path
     return sorted(p.name for p in d.iterdir() if p.is_dir() and (p / "zarr.json").is_file()) if d.is_dir() else []
+
+
+def parquet_meta(store, where: str, filename: str):
+    """("file" | "dir" | None, FileMetaData | None) for `<where>/<filename>`."""
+    if isinstance(store, RootStore):
+        return store.parquet.get(where, (None, None))
+    f = store / where / filename
+    if f.is_dir():
+        return "dir", None
+    if not f.is_file():
+        return None, None
+    import pyarrow.parquet as pq
+
+    return "file", pq.read_metadata(f)
 
 
 def chunk_shape(meta: dict) -> list[int]:
@@ -76,7 +115,7 @@ def schema_errors(instance, schema_name: str) -> list[str]:
 
 # ── the store ───────────────────────────────────────────────────────────
 
-def check_root(store: Path, r: Report) -> dict | None:
+def check_root(store, r: Report) -> dict | None:
     root = node(store, "")
     if not root:
         r.fail("root", "no zarr.json at the store root")
@@ -92,6 +131,9 @@ def check_root(store: Path, r: Report) -> dict | None:
     if not isinstance(nodes, dict):
         r.fail("root", "no consolidated metadata: a store opened by URL cannot be listed")
         return root
+    if isinstance(store, RootStore):
+        r.ok("root", f"consolidated metadata names {len(nodes)} nodes (root only: not compared with the files)")
+        return root
     on_disk = sorted(
         str(p.parent.relative_to(store)).replace("\\", "/")
         for p in store.rglob("zarr.json")
@@ -105,7 +147,7 @@ def check_root(store: Path, r: Report) -> dict | None:
     return root
 
 
-def check_table(store: Path, name: str, r: Report):
+def check_table(store, name: str, r: Report):
     where = f"tables/{name}"
     t = node(store, where)
     attrs = t.get("attributes", {}) if t else {}
@@ -134,10 +176,17 @@ def check_table(store: Path, name: str, r: Report):
             cs = chunk_shape(node(store, f"{where}/X/data") or {"chunk_grid": {"configuration": {"chunk_shape": [0]}}})
             r.ok(where, f"X is CSC (data chunks of {cs[0]})")
         elif enc.startswith("csr"):
-            if "X_csc" in layers:
-                r.ok(where, "X is CSR with a layers/X_csc copy")
+            # The reader takes any CSC layer of X's shape (SpatialDataTableAdapter)
+            shape = x.get("attributes", {}).get("shape")
+            csc = [
+                l for l in layers
+                if str((node(store, f"{where}/layers/{l}") or {}).get("attributes", {}).get("encoding-type", "")).startswith("csc")
+                and (node(store, f"{where}/layers/{l}") or {}).get("attributes", {}).get("shape") == shape
+            ]
+            if csc:
+                r.ok(where, f"X is CSR with a CSC copy in layers/{csc[0]}")
             else:
-                r.fail(where, "X is CSR with no layers/X_csc: every gene would scan the whole matrix")
+                r.fail(where, "X is CSR with no CSC layer: every gene would scan the whole matrix")
         else:
             r.ok(where, f"X is {enc}")
     for layer in attrs.get("layers", []) if isinstance(attrs.get("layers"), list) else []:
@@ -153,12 +202,12 @@ def check_table(store: Path, name: str, r: Report):
         r.warn(where, "no instance_key: polygons cannot be matched to cells")
 
 
-def check_points(store: Path, name: str, r: Report, sample: int):
+def check_points(store, name: str, r: Report, sample: int):
     where = f"points/{name}"
     p = node(store, where)
     attrs = (p or {}).get("attributes", {})
     if "points:version" not in attrs:
-        if (store / where / "points.parquet").exists():
+        if parquet_meta(store, where, "points.parquet")[0]:
             r.warn(where, "parquet points (spatialdata's own layout): not read by the viewer; convert with scripts/points_zarr.py")
         else:
             r.warn(where, "not a multiscale points element")
@@ -169,6 +218,9 @@ def check_points(store: Path, name: str, r: Report, sample: int):
             r.fail(where, f"metadata: {e}")
         return
     r.ok(where, f"metadata valid (points:version {attrs['points:version']}, {len(attrs['multiscales']['layout'])} levels)")
+    if isinstance(store, RootStore):
+        r.warn(where, "root only: level invariants not checked")
+        return
     try:
         import points_zarr as pz
 
@@ -178,23 +230,27 @@ def check_points(store: Path, name: str, r: Report, sample: int):
         r.fail(where, f"invariants: {e}")
 
 
-def check_shapes(store: Path, name: str, r: Report):
+def check_shapes(store, name: str, r: Report):
     where = f"shapes/{name}"
     s = node(store, where)
     attrs = (s or {}).get("attributes", {})
     if not attrs.get("coordinateTransformations"):
         r.fail(where, "no coordinateTransformations")
-    f = store / where / "shapes.parquet"
-    if f.is_dir():
+    try:
+        kind, meta = parquet_meta(store, where, "shapes.parquet")
+    except Exception as e:  # noqa: BLE001
+        r.fail(where, f"unreadable: {e}")
+        return
+    if kind == "dir":
         r.fail(where, "shapes.parquet is a directory of parts: the viewer reads one file")
         return
-    if not f.is_file():
-        r.fail(where, "no shapes.parquet")
+    if kind is None:
+        if isinstance(store, RootStore):
+            r.warn(where, "root only: shapes.parquet not read")
+        else:
+            r.fail(where, "no shapes.parquet")
         return
     try:
-        import pyarrow.parquet as pq
-
-        meta = pq.read_metadata(f)
         kv = {k.decode(): v.decode() for k, v in (meta.metadata or {}).items()}
         geo = json.loads(kv["geo"]) if "geo" in kv else None
         if not geo:
@@ -212,7 +268,7 @@ def check_shapes(store: Path, name: str, r: Report):
         r.warn(where, "not a name the viewer looks for (cell_boundaries, cell_polygons, cells)")
 
 
-def check_image(store: Path, name: str, r: Report):
+def check_image(store, name: str, r: Report):
     where = f"images/{name}"
     g = node(store, where)
     ome = (g or {}).get("attributes", {}).get("ome", {})
@@ -257,12 +313,19 @@ def check_mapping(path: Path, r: Report):
         r.ok("mapping.json", ", ".join(what) or "names the store only")
 
 
-def validate(store: Path, mapping: Path | None = None, sample: int = 50_000) -> Report:
+def validate(store, mapping: Path | None = None, sample: int = 50_000) -> Report:
     r = Report()
+    if isinstance(store, RootStore):
+        return _validate(store, r, None, sample)
     store = Path(store)
     if not store.is_dir():
         r.fail("store", f"{store} is not a directory")
         return r
+    mapping = mapping or (store.parent / "mapping.json" if (store.parent / "mapping.json").is_file() else None)
+    return _validate(store, r, mapping, sample)
+
+
+def _validate(store, r: Report, mapping: Path | None, sample: int) -> Report:
     root = check_root(store, r)
     if root is None:
         return r
@@ -276,7 +339,6 @@ def validate(store: Path, mapping: Path | None = None, sample: int = 50_000) -> 
         check_image(store, name, r)
     if not (children(store, "tables") or children(store, "points") or children(store, "images")):
         r.fail("store", "no table, points element or image to show")
-    mapping = mapping or (store.parent / "mapping.json" if (store.parent / "mapping.json").is_file() else None)
     if mapping:
         check_mapping(mapping, r)
     return r
@@ -284,12 +346,18 @@ def validate(store: Path, mapping: Path | None = None, sample: int = 50_000) -> 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("store")
+    ap.add_argument("store", nargs="?")
+    ap.add_argument("--root-json", type=Path, help="check a store from its root zarr.json alone")
     ap.add_argument("--mapping", type=Path)
     ap.add_argument("--sample", type=int, default=50_000, help="rows checked per level of a points element")
     ap.add_argument("--json", action="store_true", help="the report as JSON")
     args = ap.parse_args(argv)
-    r = validate(Path(args.store), args.mapping, args.sample)
+    if args.root_json:
+        r = validate(RootStore(read_json(args.root_json)))
+    elif args.store:
+        r = validate(Path(args.store), args.mapping, args.sample)
+    else:
+        ap.error("give a store or --root-json")
     if args.json:
         print(json.dumps([{"level": lv, "where": w, "message": m} for lv, w, m in r.lines], indent=1))
     else:

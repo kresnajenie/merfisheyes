@@ -122,6 +122,28 @@ def test_csr_without_csc_copy_fails(tmp_path):
     assert any("CSR" in m for m in fails(r))
 
 
+SDDB_ROOTS = ROOT / "tests" / "data" / "sddb" / "roots"
+
+
+def test_root_json_reads_a_store_from_its_root_alone():
+    # Visium (cerebellum): CSR X with a csc_counts layer, as the reader accepts it
+    root = validate_store.read_json(SDDB_ROOTS / "fJSOO03VzCTYtD1o.json")
+    r = validate_store.validate(validate_store.RootStore(root))
+    assert not r.failed, fails(r)
+    assert any("layers/csc_counts" in m for lv, w, m in r.lines if w == "tables/table")
+    assert any("root only" in m for lv, w, m in r.lines if w.startswith("shapes/"))
+    assert validate_store.main(["--root-json", str(SDDB_ROOTS / "fJSOO03VzCTYtD1o.json")]) == 0
+
+
+def test_root_json_fails_a_csr_table_with_no_csc_layer():
+    # Visium HD (ovary): only the 16 um table has a CSC layer
+    root = validate_store.read_json(SDDB_ROOTS / "haOzFbJ7Bc9x7NW6.json")
+    r = validate_store.validate(validate_store.RootStore(root))
+    failed = {w for lv, w, _ in r.lines if lv == "FAIL"}
+    assert failed == {"tables/square_002um", "tables/square_008um", "tables/square_016um_hvg"}
+    assert ("OK", "tables/square_016um") in levels(r)
+
+
 def test_image_axes_and_dtype_are_checked(tmp_path):
     store = compose_store(tmp_path, points=False, shapes=False)
     g = store / "images" / "dapi" / "zarr.json"
