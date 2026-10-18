@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kresnajenie/merfisheyes/blob/develop/docs/specs/schemas/points.schema.json",
+  "title": "Points element metadata (points:version 0.1)",
+  "description": "The attributes of a points element group in the multiscale, doubly ordered Zarr format (docs/points-zarr-spec.md §2–3).",
+  "type": "object",
+  "required": [
+    "encoding-type",
+    "axes",
+    "coordinateTransformations",
+    "spatialdata_attrs",
+    "multiscales",
+    "points:version",
+    "points:units",
+    "points:n_points"
+  ],
+  "properties": {
+    "encoding-type": { "const": "ngff:points" },
+    "axes": {
+      "type": "array",
+      "items": { "enum": ["x", "y", "z"] },
+      "minItems": 2,
+      "maxItems": 3,
+      "uniqueItems": true
+    },
+    "coordinateTransformations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": { "type": { "type": "string" } }
+      }
+    },
+    "spatialdata_attrs": {
+      "type": "object",
+      "required": ["feature_key", "version"],
+      "properties": {
+        "feature_key": { "type": "string", "minLength": 1 },
+        "instance_key": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "zarr_conventions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": { "name": { "type": "string" } }
+      }
+    },
+    "multiscales": {
+      "type": "object",
+      "required": ["layout"],
+      "properties": {
+        "layout": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["asset", "points:n_points", "points:grid"],
+            "properties": {
+              "asset": { "type": "string", "pattern": "^[0-9]+$" },
+              "derived_from": { "type": "string" },
+              "transform": {
+                "type": "object",
+                "properties": {
+                  "scale": {
+                    "type": "array",
+                    "items": { "const": 1 },
+                    "minItems": 2,
+                    "maxItems": 3
+                  }
+                }
+              },
+              "resampling_method": { "const": "random" },
+              "points:n_points": { "type": "integer", "minimum": 0 },
+              "points:bytes_per_row": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Proposed for 0.2: compressed bytes a feature_major row costs, for byte budgets."
+              },
+              "points:grid": {
+                "type": "object",
+                "required": ["origin", "tile_size", "shape"],
+                "properties": {
+                  "origin": {
+                    "type": "array",
+                    "items": { "type": "number" },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "tile_size": { "type": "number", "exclusiveMinimum": 0 },
+                  "shape": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 1 },
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "points:version": { "enum": ["0.1", "0.2"] },
+    "points:units": { "type": "string" },
+    "points:n_points": { "type": "integer", "minimum": 0 },
+    "points:extent": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "array",
+        "items": { "type": "number" },
+        "minItems": 2,
+        "maxItems": 3
+      }
+    }
+  }
+}

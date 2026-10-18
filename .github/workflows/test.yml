@@ -29,3 +29,20 @@ jobs:
 
       - name: Run unit tests
         run: npm test
+
+  format-specs:
+    name: Format specs (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install the validators' dependencies
+        run: pip install -r tests/python/requirements.txt
+
+      - name: Validate the tiny fixtures and round-trip through spatialdata
+        run: python -m pytest tests/python -q

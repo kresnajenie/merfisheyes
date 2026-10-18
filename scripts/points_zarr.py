@@ -543,6 +543,24 @@ def feature_points(path, feature, level=0, bbox=None):
     return out[m].reset_index(drop=True)
 
 
+def _take(arr, rows):
+    """``arr[rows]`` for sorted ``rows``, reading whole chunk spans: zarr-python
+    3.1 refuses coordinate selections on sharded arrays."""
+    rows = np.asarray(rows, dtype=np.int64)
+    out = np.empty(len(rows), dtype=arr.dtype)
+    if len(rows) == 0:
+        return out
+    span = max(int(arr.chunks[0]), 1) * 64
+    i = 0
+    while i < len(rows):
+        lo = int(rows[i]) // span * span
+        hi = min(lo + span, arr.shape[0])
+        j = int(np.searchsorted(rows, hi, side="left"))
+        out[i:j] = arr[lo:hi][rows[i:j] - lo]
+        i = j
+    return out
+
+
 def validate(path, sample=200_000, seed=0) -> dict:
     """Checks the spec's invariants; returns a report, raises on failure."""
     g, attrs = open_element(path)
@@ -570,14 +588,16 @@ def validate(path, sample=200_000, seed=0) -> dict:
         # sampled rows of feature_major point at identical points in level-0 tile_major
         rows = np.sort(rng.choice(n, min(sample, n), replace=False))
         fid = _col(fm, "id")
-        ids = fid.get_coordinate_selection(rows)
+        ids = _take(fid, rows)
+        order = np.argsort(ids, kind="stable")
+        ids_sorted = ids[order]
         same = True
         for a in axes:
-            va = _col(fm, a).get_coordinate_selection(rows)
-            vb = _col(tm0, a).get_coordinate_selection(ids)
+            va = _take(_col(fm, a), rows)[order]
+            vb = _take(_col(tm0, a), ids_sorted)
             same &= bool(np.array_equal(va, vb))
-        fa = _col(fm, key)["codes"].get_coordinate_selection(rows)
-        fb = _col(tm0, key)["codes"].get_coordinate_selection(ids)
+        fa = _take(_col(fm, key)["codes"], rows)[order]
+        fb = _take(_col(tm0, key)["codes"], ids_sorted)
         same &= bool(np.array_equal(fa, fb))
         assert same, f"level {k}: feature_major rows don't match level-0 tile_major"
         # nesting: this level's ids are all in the level below (checked when
