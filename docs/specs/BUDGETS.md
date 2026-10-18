@@ -52,7 +52,7 @@ laptop GPU, on the 11.24 B-molecule, ten-section store
 5. **3D stores** cost a third more bytes per molecule, and the tile grid is
    2D; the ten-section store is 2D by decision.
 
-## Today (2026-10-17, before any change)
+## Today (2026-10-17, before any change; step 3's numbers follow below)
 
 Fixtures at 12 MB/s, headless Chromium with SwiftShader
 (`npm run test:perf`, `perf/results/latest.json`). Tiny: 30 cells, 3,000
@@ -125,6 +125,40 @@ the full store: Slc17a7 589 M, Slc1a3 286 M, Gfap 284 M):
 | zoom further, or back out | | | nothing new |
 
 At 12 MB/s those views settle in 2.4 s, 4.8 s and 4.6 s. The target is 1 s.
+
+## After step 3 (2026-10-17, one store, cancellation, byte budget)
+
+Same fixtures, same server at 12 MB/s, same headless Chromium
+(`perf/results/latest.json` at the step's commit). The Auto detail is now
+8 M molecules and 12 MB a view (was 15 M, unbounded in bytes).
+
+| Metric | spatialdata-tiny | spatialdata-medium | before |
+|---|---|---|---|
+| openToCells | 2.8 s | 4.8 s | 3.6 s |
+| firstMolecules (default genes) | 3.1 s | 5.4 s | 4.1 s |
+| geneToSettled (18 M-molecule gene) | — | **2.7 s** | 14.9 s |
+| geneBytesKB / geneRequests | — | 6.8 MB / 25 | 24 MB / 148 |
+| viewSettled (one wheel event) | 0 | **13.5 s** | 140 s |
+| bytesPerViewKB / requestsPerView | 0 | 16.6 MB / 95 | 59 MB / 364 |
+| viewSettledStepped (four wheel events) | 0.3 s | **22.6 s** | never |
+| sliderToFrame (light) | 71 ms | 104 ms | 100 ms |
+| sliderToFrameHeavy | — | **3.0 s** | 32 s |
+| avgRenderMs | 0.3 ms | 1.1 ms | 2.6 ms |
+| drawCalls | 10 | 79 | 282 |
+
+What changed the numbers: a view reads the level its byte share allows,
+so the heavy gene costs 6.8 MB instead of 24; a replan cancels every read
+the new view does not want, so a zoom in several wheel events settles at
+all; the coarsest level of a fresh gene is read first. What did not: the
+one-event zoom still reads 16.6 MB against a 12 MB target, because a
+piece covers a power-of-two span of tiles with a row of padding, so the
+molecules read exceed those in view (step 4 narrows pieces); times on
+SwiftShader include frames of hundreds of milliseconds, so the
+13.5 s to settle is mostly drawing 8 M molecules on a software rasterizer,
+not the 1.4 s the bytes take at 12 MB/s. `openToCells` on the medium store
+is latency-bound: its table is 1,092 ranged reads of 36 bytes (the
+generator's sharding), and the store's queue of 32 in flight is what
+keeps it near the unbounded number.
 
 ## How the numbers are read
 

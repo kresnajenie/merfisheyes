@@ -472,6 +472,7 @@ image inside a SpatialData store (`…/<name>.zarr/images/<image>`).
 | `components/image-viewer.tsx`, `app/image-viewer/` | An image on its own, by URL |
 | `lib/spatialdata/store.ts` | Opening a store by dataset id or URL |
 | `lib/spatialdata/localStore.ts` | A zarr store over dropped files; opening a store from them |
+| `lib/storage/ElementStore.ts`, `lib/storage/backends.ts` | The one store every reader reads through: cache, cancellation, merged ranges, a priority queue, consolidated metadata ([docs/specs/LOADING.md](../specs/LOADING.md)); the backends it reads from |
 | `lib/local/classify-bundle.ts`, `open-bundle.ts`, `save-bundle.ts` | Recognising, opening and saving a dropped folder of processed parts |
 | `components/bundle-upload-modal.tsx` | *Upload & Save* for such a folder |
 | `lib/storage/fetchRange.ts` | Byte-range reads, for sharded arrays |

@@ -1,14 +1,6 @@
 import Papa from "papaparse";
-import { ungzip } from "pako";
-
-import {
-  probeGzipMoleculeCount,
-  streamGzippedFloat32,
-  supportsStreamingDecompression,
-} from "@/lib/utils/stream-float32";
 
 import { hyparquetService } from "./services/hyparquetService";
-
 import {
   MOLECULE_COLUMN_MAPPINGS,
   MoleculeDatasetType,
@@ -18,23 +10,6 @@ import {
 import { shouldFilterGene } from "./utils/gene-filters";
 import { round2 } from "./utils/coordinates";
 import { progressiveSlots } from "./utils/progressive-order";
-
-/**
- * Denormalize coordinates from [-1,1] range back to raw microns.
- * Old datasets stored normalized coords with a scalingFactor.
- * New datasets (coordinate_range: "raw_rounded_2dp") are already raw.
- */
-function denormalizeCoords(
-  coords: Float32Array<ArrayBuffer>,
-  scalingFactor: number,
-): Float32Array<ArrayBuffer> {
-  if (scalingFactor === 1) return coords;
-  const result = new Float32Array(coords.length);
-  for (let i = 0; i < coords.length; i++) {
-    result[i] = coords[i] * scalingFactor;
-  }
-  return result;
-}
 
 /**
  * Generate a random bright color for dark background
@@ -76,7 +51,6 @@ function formatElapsedTime(ms: number): string {
  * Stores molecule coordinates with fast gene-based lookup
  */
 /** Filename suffix of the unassigned-molecules sibling of a gene file. */
-const UNASSIGNED_SUFFIX = "_uuuuuuuuuu";
 
 export interface GeneStreamBatch {
   /** Coordinates of this batch only, `[x,y,z, …]`. */
@@ -98,56 +72,6 @@ export interface GeneStreamOptions {
 export interface GeneFetchOptions {
   signal?: AbortSignal;
   onProgress?: (loadedBytes: number, totalBytes: number | null) => void;
-}
-
-/**
- * Download a URL fully, reporting byte progress per network chunk. Used by
- * the whole-file gene loads so the UI can show download progress and a
- * deselected gene's fetch can actually be cancelled instead of finishing
- * silently in the background.
- */
-async function downloadWithProgress(
-  url: string,
-  opts?: GeneFetchOptions,
-): Promise<{ ok: boolean; status: number; statusText: string; data: Uint8Array }> {
-  const res = await fetch(url, { signal: opts?.signal });
-
-  if (!res.ok) {
-    return { ok: false, status: res.status, statusText: res.statusText, data: new Uint8Array(0) };
-  }
-  if (!res.body || !opts?.onProgress) {
-    return {
-      ok: true,
-      status: res.status,
-      statusText: res.statusText,
-      data: new Uint8Array(await res.arrayBuffer()),
-    };
-  }
-
-  const totalHeader = res.headers.get("content-length");
-  const total = totalHeader ? parseInt(totalHeader, 10) : null;
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let loaded = 0;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-
-    if (done) break;
-    chunks.push(value);
-    loaded += value.byteLength;
-    opts.onProgress(loaded, total);
-  }
-
-  const data = new Uint8Array(loaded);
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    data.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return { ok: true, status: res.status, statusText: res.statusText, data };
 }
 
 /**
@@ -214,7 +138,10 @@ export class SingleMoleculeDataset {
 
   // Unassigned molecule support
   hasUnassigned: boolean;
-  moleculeCounts: Record<string, { assigned: number; unassigned?: number }> | null;
+  moleculeCounts: Record<
+    string,
+    { assigned: number; unassigned?: number }
+  > | null;
 
   constructor({
     id,
@@ -240,7 +167,10 @@ export class SingleMoleculeDataset {
     metadata?: Record<string, any>;
     rawData?: any;
     hasUnassigned?: boolean;
-    moleculeCounts?: Record<string, { assigned: number; unassigned?: number }> | null;
+    moleculeCounts?: Record<
+      string,
+      { assigned: number; unassigned?: number }
+    > | null;
     unassignedGeneIndex?: Map<string, Float32Array>;
   }) {
     this.id = id;
@@ -429,7 +359,10 @@ export class SingleMoleculeDataset {
     scalingFactor: number;
     metadata: Record<string, any>;
     hasUnassigned?: boolean;
-    moleculeCounts?: Record<string, { assigned: number; unassigned?: number }> | null;
+    moleculeCounts?: Record<
+      string,
+      { assigned: number; unassigned?: number }
+    > | null;
     unassignedGeneIndexEntries?: [string, Float32Array][] | null;
   }): SingleMoleculeDataset {
     return new SingleMoleculeDataset({
@@ -491,7 +424,8 @@ export class SingleMoleculeDataset {
 
       if (typeof n === "number") return n;
     }
-    const index = kind === "assigned" ? this.geneIndex : this.unassignedGeneIndex;
+    const index =
+      kind === "assigned" ? this.geneIndex : this.unassignedGeneIndex;
     const cached = index.get(geneName);
 
     return cached ? cached.length / 3 : null;
@@ -577,7 +511,8 @@ export class SingleMoleculeDataset {
 
     // Column mapping: an explicit user-confirmed override wins; otherwise the
     // dataset-type preset.
-    const columnMapping = mappingOverride ?? MOLECULE_COLUMN_MAPPINGS[datasetType];
+    const columnMapping =
+      mappingOverride ?? MOLECULE_COLUMN_MAPPINGS[datasetType];
     const cellIdCol = columnMapping.cellId;
 
     // Determine which columns to read
@@ -630,7 +565,9 @@ export class SingleMoleculeDataset {
     if (cellIdCol && hasCellIdColumn) {
       console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
     } else if (cellIdCol) {
-      console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found in parquet, treating all as assigned`);
+      console.log(
+        `[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found in parquet, treating all as assigned`,
+      );
     }
 
     await onProgress?.(50, "Converting to typed arrays...");
@@ -766,7 +703,10 @@ export class SingleMoleculeDataset {
 
     // Collect all gene names from both assigned and unassigned — sorted, like
     // the server pipeline's manifest.
-    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
+    const allGeneKeys = new Set([
+      ...geneIndex.keys(),
+      ...unassignedGeneIndex.keys(),
+    ]);
     const uniqueGenes = Array.from(allGeneKeys).sort();
 
     // Per-gene molecule counts are ALWAYS built (the gene picker shows and
@@ -836,13 +776,16 @@ export class SingleMoleculeDataset {
   ): Promise<SingleMoleculeDataset> {
     const startTime = performance.now();
 
-    console.log(`[SingleMoleculeDataset] Starting CSV streaming parse: ${file.name}`);
+    console.log(
+      `[SingleMoleculeDataset] Starting CSV streaming parse: ${file.name}`,
+    );
 
     await onProgress?.(10, "Preparing to stream CSV...");
 
     // Column mapping: an explicit user-confirmed override wins; otherwise the
     // dataset-type preset.
-    const columnMapping = mappingOverride ?? MOLECULE_COLUMN_MAPPINGS[datasetType];
+    const columnMapping =
+      mappingOverride ?? MOLECULE_COLUMN_MAPPINGS[datasetType];
     const cellIdCol = columnMapping.cellId;
 
     // Build gene index while streaming — accumulate as number[], convert to Float32Array at end
@@ -870,7 +813,9 @@ export class SingleMoleculeDataset {
       chunkSize = 200 * MB;
     }
 
-    console.log(`[SingleMoleculeDataset] CSV chunk size: ${(chunkSize / MB).toFixed(0)}MB for ${(fileSize / MB).toFixed(0)}MB file`);
+    console.log(
+      `[SingleMoleculeDataset] CSV chunk size: ${(chunkSize / MB).toFixed(0)}MB for ${(fileSize / MB).toFixed(0)}MB file`,
+    );
 
     let droppedMolecules = 0;
 
@@ -881,7 +826,6 @@ export class SingleMoleculeDataset {
     await new Promise<void>((resolve, reject) => {
       let lastProgressReport = 0;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (Papa.parse as any)(file, {
         chunkSize,
         header: true,
@@ -895,23 +839,33 @@ export class SingleMoleculeDataset {
 
             // Skip invalid rows
             // A missing or blank gene name drops the molecule (same as the server).
-            if (!row || row[columnMapping.gene] == null || String(row[columnMapping.gene]).trim() === "") continue;
+            if (
+              !row ||
+              row[columnMapping.gene] == null ||
+              String(row[columnMapping.gene]).trim() === ""
+            )
+              continue;
 
             // Check for cell_id column on first valid row
             if (!checkedCellIdColumn) {
               checkedCellIdColumn = true;
               if (cellIdCol && cellIdCol in row) {
                 hasCellIdColumn = true;
-                console.log(`[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`);
+                console.log(
+                  `[SingleMoleculeDataset] Found cell_id column: ${cellIdCol}`,
+                );
               } else if (cellIdCol) {
-                console.log(`[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found, treating all as assigned`);
+                console.log(
+                  `[SingleMoleculeDataset] cell_id column '${cellIdCol}' not found, treating all as assigned`,
+                );
               }
             }
 
             const gene = String(row[columnMapping.gene]);
             // An empty cell is a missing coordinate (Number("") would be 0 and
             // silently put the molecule at the origin); it is dropped below.
-            const num = (v: unknown) => (v == null || v === "" ? NaN : Number(v));
+            const num = (v: unknown) =>
+              v == null || v === "" ? NaN : Number(v);
             const xRaw = num(row[columnMapping.x]);
             const yRaw = num(row[columnMapping.y]);
             let zRaw: number | null = null;
@@ -970,7 +924,10 @@ export class SingleMoleculeDataset {
           if (totalRows - lastProgressReport >= 100000) {
             lastProgressReport = totalRows;
             const elapsed = performance.now() - startTime;
-            const progress = Math.min(85, 15 + 70 * (totalRows / (fileSize / 50)));
+            const progress = Math.min(
+              85,
+              15 + 70 * (totalRows / (fileSize / 50)),
+            );
 
             onProgress?.(
               progress,
@@ -1042,7 +999,10 @@ export class SingleMoleculeDataset {
 
     // uniqueGenes includes genes that only appear in assigned OR unassigned —
     // sorted, like the server pipeline's manifest.
-    const allGeneKeys = new Set([...geneIndex.keys(), ...unassignedGeneIndex.keys()]);
+    const allGeneKeys = new Set([
+      ...geneIndex.keys(),
+      ...unassignedGeneIndex.keys(),
+    ]);
     const uniqueGenes = Array.from(allGeneKeys).sort();
 
     // Per-gene molecule counts are ALWAYS built; `unassigned` only when the
@@ -1102,20 +1062,14 @@ export class SingleMoleculeDataset {
   }
 
   /**
-   * Create SingleMoleculeDataset from S3 with lazy loading
-   * Only loads manifest initially, gene data loaded on-demand and cached
+   * A dataset in the app's bucket, with its genes loaded on demand through
+   * the one store (lib/molecules/storeLoading.ts).
    */
   static async fromS3(
     datasetId: string,
     onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<SingleMoleculeDataset> {
-    const startTime = performance.now();
-
-    console.log(`[SingleMoleculeDataset] Loading from S3: ${datasetId}`);
-
     await onProgress?.(10, "Fetching dataset metadata...");
-
-    // Fetch dataset metadata and manifest URL from API
     const response = await fetch(`/api/single-molecule/${datasetId}`);
 
     if (!response.ok) {
@@ -1123,416 +1077,94 @@ export class SingleMoleculeDataset {
 
       throw new Error(error.error || "Failed to fetch dataset metadata");
     }
-
     const apiData = await response.json();
+    const { ElementStore } = await import("@/lib/storage/ElementStore");
+    const { appMoleculeBackend, appGeneKey } = await import(
+      "@/lib/molecules/storeLoading"
+    );
 
-    await onProgress?.(30, "Downloading manifest...");
-
-    // Download and decompress manifest from S3
-    const manifestResponse = await fetch(apiData.manifestUrl);
-
-    if (!manifestResponse.ok) {
-      throw new Error("Failed to download manifest from S3");
-    }
-
-    const manifestCompressed = await manifestResponse.arrayBuffer();
-    const manifestJson = ungzip(new Uint8Array(manifestCompressed), {
-      to: "string",
-    });
-    const manifest = JSON.parse(manifestJson);
-
-    await onProgress?.(60, "Initializing dataset...");
-
-    // Extract metadata from manifest
-    const uniqueGenes = manifest.genes.unique_gene_names;
-    const dimensions = manifest.statistics.spatial_dimensions;
-    const rawScalingFactor = manifest.processing.scaling_factor;
-    const isRawCoords = manifest.processing?.coordinate_range === "raw_rounded_2dp";
-    // For old normalized data, we'll denormalize on load. Store factor=1 since coords become raw.
-    const scalingFactor = isRawCoords ? rawScalingFactor : 1;
-    const denormFactor = isRawCoords ? 1 : rawScalingFactor;
-
-    // Create empty gene index - genes will be loaded on-demand
-    const geneIndex = new Map<string, Float32Array>();
-
-    // Extract unassigned info from manifest
-    const hasUnassigned = manifest.has_unassigned ?? false;
-    const moleculeCounts = manifest.genes?.molecule_counts ?? null;
-
-    // Create dataset with lazy-loading capability
-    const dataset = new SingleMoleculeDataset({
-      id: datasetId,
-      name: apiData.title || manifest.name,
-      type: manifest.type,
-      uniqueGenes,
-      geneIndex,
-      dimensions,
-      scalingFactor,
-      hasUnassigned,
-      moleculeCounts,
-      metadata: {
-        ...manifest,
-        loadedFrom: "s3",
-        manifestUrl: apiData.manifestUrl,
-        moleculeCount: manifest.statistics.total_molecules,
-        uniqueGeneCount: manifest.statistics.unique_genes,
+    return SingleMoleculeDataset.fromElementStore(
+      new ElementStore(appMoleculeBackend(datasetId, apiData.manifestUrl)),
+      {
+        id: datasetId,
+        name: apiData.title,
+        geneKey: appGeneKey,
+        metadata: { loadedFrom: "s3", manifestUrl: apiData.manifestUrl },
+        onProgress,
       },
-      rawData: null,
-    });
-
-    // Override getCoordinatesByGene to support lazy loading from S3
-    const originalGetCoordinates = dataset.getCoordinatesByGene.bind(dataset);
-
-    dataset.getCoordinatesByGene = async function (
-      geneName: string,
-      opts?: GeneFetchOptions,
-    ): Promise<Float32Array> {
-      // Check if already cached
-      if (geneIndex.has(geneName)) {
-        return geneIndex.get(geneName)!;
-      }
-
-      // Check if gene exists in manifest
-      if (!uniqueGenes.includes(geneName)) {
-        throw new Error(
-          `Gene '${geneName}' not found. Available genes: ${uniqueGenes.length}`,
-        );
-      }
-
-      console.log(
-        `[SingleMoleculeDataset] Lazy-loading gene '${geneName}' from S3...`,
-      );
-
-      // Get presigned URL from API
-      const urlResponse = await fetch(
-        `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}`,
-        { signal: opts?.signal },
-      );
-
-      if (!urlResponse.ok) {
-        const error = await urlResponse.json();
-
-        throw new Error(
-          error.error || `Failed to get URL for gene '${geneName}'`,
-        );
-      }
-
-      const { url: geneUrl } = await urlResponse.json();
-
-      // Download and decompress gene file
-      const geneResponse = await downloadWithProgress(geneUrl, opts);
-
-      if (!geneResponse.ok) {
-        throw new Error(`Failed to download gene file for '${geneName}'`);
-      }
-
-      const geneBuffer = ungzip(geneResponse.data);
-
-      // Keep as Float32Array directly, denormalize if old dataset
-      let float32Array = new Float32Array(geneBuffer.buffer);
-      if (denormFactor !== 1) {
-        float32Array = denormalizeCoords(float32Array, denormFactor);
-      }
-
-      // Cache for future use
-      geneIndex.set(geneName, float32Array);
-
-      console.log(
-        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules` +
-          (denormFactor !== 1 ? ` (denormalized ×${denormFactor})` : ""),
-      );
-
-      return float32Array;
-    } as any; // Type override for lazy loading
-
-    // Streamed variant: same file, consumed as it downloads.
-    const resolveGeneUrl = async (
-      geneName: string,
-      unassigned = false,
-    ): Promise<string> => {
-      const urlResponse = await fetch(
-        `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}` +
-          (unassigned ? "?unassigned=true" : ""),
-      );
-
-      if (!urlResponse.ok) {
-        const error = await urlResponse.json().catch(() => ({}));
-
-        throw new Error(
-          error.error || `Failed to get URL for gene '${geneName}'`,
-        );
-      }
-
-      return (await urlResponse.json()).url as string;
-    };
-
-    // Counts for datasets whose manifest predates `molecule_counts`: read the
-    // gzip trailer of the gene file (4 bytes) instead of the whole file.
-    const probedCounts = new Map<string, number | null>();
-
-    dataset.resolveMoleculeCount = async function (
-      geneName: string,
-      kind: "assigned" | "unassigned" = "assigned",
-    ): Promise<number | null> {
-      const known = dataset.moleculeCountFor(geneName, kind);
-
-      if (known !== null) return known;
-      if (!uniqueGenes.includes(geneName)) return null;
-
-      const key = `${kind}:${geneName}`;
-
-      if (probedCounts.has(key)) return probedCounts.get(key)!;
-
-      let count: number | null = null;
-
-      try {
-        count = await probeGzipMoleculeCount(
-          await resolveGeneUrl(geneName, kind === "unassigned"),
-        );
-      } catch {
-        count = null;
-      }
-      probedCounts.set(key, count);
-
-      return count;
-    };
-
-    dataset.streamCoordinatesByGene = async function (
-      geneName: string,
-      opts: GeneStreamOptions,
-    ): Promise<Float32Array> {
-      const cached = geneIndex.get(geneName);
-
-      if (cached) {
-        await opts.onBatch({ coords: cached, loadedMolecules: cached.length / 3 });
-
-        return cached;
-      }
-      if (!supportsStreamingDecompression()) {
-        return SingleMoleculeDataset.prototype.streamCoordinatesByGene.call(
-          dataset,
-          geneName,
-          opts,
-        );
-      }
-
-      const coords = await streamGzippedFloat32(
-        await resolveGeneUrl(geneName),
-        opts.onBatch,
-        { scale: denormFactor, signal: opts.signal },
-      );
-
-      geneIndex.set(geneName, coords);
-
-      return coords;
-    } as any;
-
-    // Override getUnassignedCoordinatesByGene for lazy loading from S3
-    if (hasUnassigned) {
-      const unassignedGeneIndex = new Map<string, Float32Array>();
-
-      (dataset as any).getUnassignedCoordinatesByGene = async function (
-        geneName: string,
-        opts?: GeneFetchOptions,
-      ): Promise<Float32Array> {
-        const empty = new Float32Array(0);
-
-        // Check cache
-        if (unassignedGeneIndex.has(geneName)) {
-          return unassignedGeneIndex.get(geneName)!;
-        }
-
-        if (!uniqueGenes.includes(geneName)) {
-          return empty;
-        }
-
-        console.log(
-          `[SingleMoleculeDataset] Lazy-loading unassigned '${geneName}' from S3...`,
-        );
-
-        try {
-          const urlResponse = await fetch(
-            `/api/single-molecule/${datasetId}/gene/${encodeURIComponent(geneName)}?unassigned=true`,
-            { signal: opts?.signal },
-          );
-
-          if (!urlResponse.ok) {
-            console.warn(
-              `[SingleMoleculeDataset] No unassigned file for gene '${geneName}'`,
-            );
-            unassignedGeneIndex.set(geneName, empty);
-
-            return empty;
-          }
-
-          const { url: geneUrl } = await urlResponse.json();
-          const geneResponse = await downloadWithProgress(geneUrl, opts);
-
-          if (!geneResponse.ok) {
-            unassignedGeneIndex.set(geneName, empty);
-
-            return empty;
-          }
-
-          const geneBuffer = ungzip(geneResponse.data);
-          let float32Array = new Float32Array(geneBuffer.buffer);
-          if (denormFactor !== 1) {
-            float32Array = denormalizeCoords(float32Array, denormFactor);
-          }
-
-          unassignedGeneIndex.set(geneName, float32Array);
-
-          console.log(
-            `[SingleMoleculeDataset] ✅ Loaded unassigned '${geneName}': ${float32Array.length / dimensions} molecules`,
-          );
-
-          return float32Array;
-        } catch (error) {
-          if ((error as Error)?.name === "AbortError") throw error;
-          console.warn(
-            `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
-            error,
-          );
-          unassignedGeneIndex.set(geneName, empty);
-
-          return empty;
-        }
-      };
-
-      (dataset as any).streamUnassignedCoordinatesByGene = async function (
-        geneName: string,
-        opts: GeneStreamOptions,
-      ): Promise<Float32Array> {
-        const cached = unassignedGeneIndex.get(geneName);
-
-        if (cached) {
-          await opts.onBatch({
-            coords: cached,
-            loadedMolecules: cached.length / 3,
-          });
-
-          return cached;
-        }
-        if (!supportsStreamingDecompression() || !uniqueGenes.includes(geneName)) {
-          return SingleMoleculeDataset.prototype.streamUnassignedCoordinatesByGene.call(
-            dataset,
-            geneName,
-            opts,
-          );
-        }
-
-        try {
-          const coords = await streamGzippedFloat32(
-            await resolveGeneUrl(geneName, true),
-            opts.onBatch,
-            { scale: denormFactor, signal: opts.signal },
-          );
-
-          unassignedGeneIndex.set(geneName, coords);
-
-          return coords;
-        } catch (error) {
-          if ((error as Error)?.name === "AbortError") throw error;
-          // A gene with no unassigned molecules has no file — not an error.
-          const empty = new Float32Array(0);
-
-          unassignedGeneIndex.set(geneName, empty);
-          await opts.onBatch({ coords: empty, loadedMolecules: 0 });
-
-          return empty;
-        }
-      };
-    }
-
-    const elapsedTime = performance.now() - startTime;
-
-    console.log(
-      `[SingleMoleculeDataset] ✅ S3 dataset initialized: ${formatElapsedTime(elapsedTime)} | ` +
-        `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
-        `${uniqueGenes.length.toLocaleString()} genes (lazy-loaded)`,
     );
-    await onProgress?.(
-      100,
-      `Dataset ready in ${formatElapsedTime(elapsedTime)}`,
-    );
-
-    return dataset;
   }
 
   /**
-   * Load dataset from custom S3 URL (user-owned bucket)
-   * Uses lazy loading - genes are loaded on-demand when accessed
-   * @param customS3BaseUrl - Base S3 URL to dataset folder (e.g., https://bucket.s3.region.amazonaws.com/path/to/folder)
-   * @param onProgress - Optional progress callback
-   * @returns SingleMoleculeDataset with lazy-loading capability
+   * A molecule folder at a public URL (a user's own bucket), with its genes
+   * loaded on demand through the one store.
    */
   static async fromCustomS3(
     customS3BaseUrl: string,
     onProgress?: (progress: number, message: string) => Promise<void> | void,
   ): Promise<SingleMoleculeDataset> {
-    const startTime = performance.now();
-
     customS3BaseUrl = customS3BaseUrl.replace(/\/+$/, "");
+    const { ElementStore } = await import("@/lib/storage/ElementStore");
+    const { urlBackend } = await import("@/lib/storage/backends");
+    const { folderGeneKey } = await import("@/lib/molecules/storeLoading");
 
-    console.log(
-      `[SingleMoleculeDataset] Loading from custom S3: ${customS3BaseUrl}`,
+    return SingleMoleculeDataset.fromElementStore(
+      new ElementStore(urlBackend(customS3BaseUrl)),
+      {
+        id: "custom",
+        geneKey: folderGeneKey,
+        metadata: { loadedFrom: "custom_s3", customS3BaseUrl },
+        onProgress,
+        missingManifest:
+          "Failed to download manifest from custom S3. Please ensure the " +
+          "bucket has public read access and CORS is configured.",
+      },
+    );
+  }
+
+  /**
+   * A molecule folder read through an ElementStore: only the manifest now;
+   * every gene when it is asked for, whole or streamed, cancellable.
+   */
+  static async fromElementStore(
+    store: import("@/lib/storage/ElementStore").ElementStore,
+    opts: {
+      id: string;
+      name?: string;
+      geneKey: (gene: string, unassigned: boolean) => string;
+      metadata?: Record<string, unknown>;
+      onProgress?: (progress: number, message: string) => Promise<void> | void;
+      missingManifest?: string;
+    },
+  ): Promise<SingleMoleculeDataset> {
+    const startTime = performance.now();
+    const { installStoreLoading, readMoleculeManifest } = await import(
+      "@/lib/molecules/storeLoading"
     );
 
-    await onProgress?.(10, "Fetching manifest from custom S3...");
+    await opts.onProgress?.(30, "Downloading manifest...");
+    const manifest = await readMoleculeManifest(store);
 
-    // Construct manifest URL
-    const manifestUrl = `${customS3BaseUrl}/manifest.json.gz`;
-
-    // Download and decompress manifest
-    const manifestResponse = await fetch(manifestUrl);
-
-    if (!manifestResponse.ok) {
-      throw new Error(
-        `Failed to download manifest from custom S3: ${manifestResponse.status} ${manifestResponse.statusText}. ` +
-          `Please ensure the bucket has public read access and CORS is configured.`,
-      );
+    if (!manifest) {
+      throw new Error(opts.missingManifest ?? "Failed to download manifest");
     }
+    await opts.onProgress?.(60, "Initializing dataset...");
 
-    await onProgress?.(30, "Parsing manifest...");
-
-    const manifestCompressed = await manifestResponse.arrayBuffer();
-    const manifestJson = ungzip(new Uint8Array(manifestCompressed), {
-      to: "string",
-    });
-    const manifest = JSON.parse(manifestJson);
-
-    await onProgress?.(60, "Initializing dataset...");
-
-    // Extract metadata from manifest
-    const uniqueGenes = manifest.genes.unique_gene_names;
+    const uniqueGenes: string[] = manifest.genes.unique_gene_names;
     const dimensions = manifest.statistics.spatial_dimensions;
     const rawScalingFactor = manifest.processing.scaling_factor;
-    const isRawCoords = manifest.processing?.coordinate_range === "raw_rounded_2dp";
+    const isRawCoords =
+      manifest.processing?.coordinate_range === "raw_rounded_2dp";
+    // Old folders hold normalized coordinates: denormalized on load, so the
+    // dataset's factor is 1 and the coordinates raw
     const scalingFactor = isRawCoords ? rawScalingFactor : 1;
     const denormFactor = isRawCoords ? 1 : rawScalingFactor;
     const hasUnassigned = manifest.has_unassigned ?? false;
     const moleculeCounts = manifest.genes?.molecule_counts ?? null;
-
-    console.log(
-      `[SingleMoleculeDataset] Custom S3 manifest parsed:`,
-      {
-        uniqueGenes: uniqueGenes.length,
-        dimensions,
-        hasUnassigned,
-        isRawCoords,
-        denormFactor,
-        hasMoleculeCounts: !!moleculeCounts,
-        moleculeCountsKeys: moleculeCounts ? Object.keys(moleculeCounts).length : 0,
-      },
-    );
-
-    // Create empty gene index - genes will be loaded on-demand
     const geneIndex = new Map<string, Float32Array>();
-
-    // Create dataset with lazy-loading capability
     const dataset = new SingleMoleculeDataset({
-      id: "custom",
-      name: manifest.name || "Custom S3 Dataset",
+      id: opts.id,
+      name: opts.name || manifest.name || "Custom S3 Dataset",
       type: manifest.type,
       uniqueGenes,
       geneIndex,
@@ -1542,272 +1174,29 @@ export class SingleMoleculeDataset {
       moleculeCounts,
       metadata: {
         ...manifest,
-        loadedFrom: "custom_s3",
-        customS3BaseUrl,
+        ...opts.metadata,
         moleculeCount: manifest.statistics.total_molecules,
         uniqueGeneCount: manifest.statistics.unique_genes,
       },
       rawData: null,
     });
 
-    console.log(
-      `[SingleMoleculeDataset] Custom S3 dataset created:`,
-      {
-        hasUnassigned: dataset.hasUnassigned,
-        moleculeCounts: dataset.moleculeCounts ? `${Object.keys(dataset.moleculeCounts).length} genes` : "null",
-      },
-    );
-
-    // Override getCoordinatesByGene to support lazy loading from custom S3
-    const originalGetCoordinates = dataset.getCoordinatesByGene.bind(dataset);
-
-    dataset.getCoordinatesByGene = async function (
-      geneName: string,
-      opts?: GeneFetchOptions,
-    ): Promise<Float32Array> {
-      // Check if already cached
-      if (geneIndex.has(geneName)) {
-        return geneIndex.get(geneName)!;
-      }
-
-      // Check if gene exists in manifest
-      if (!uniqueGenes.includes(geneName)) {
-        throw new Error(
-          `Gene '${geneName}' not found. Available genes: ${uniqueGenes.length}`,
-        );
-      }
-
-      console.log(
-        `[SingleMoleculeDataset] Lazy-loading gene '${geneName}' from custom S3...`,
-      );
-
-      // Sanitize gene name to match filename (same logic as processor)
-      const sanitizedName = geneName
-        .replace(/[^a-zA-Z0-9]/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "");
-
-      // Construct gene file URL
-      const geneFileUrl = `${customS3BaseUrl}/genes/${sanitizedName}.bin.gz`;
-
-      // Download and decompress gene file
-      const geneResponse = await downloadWithProgress(geneFileUrl, opts);
-
-      if (!geneResponse.ok) {
-        throw new Error(
-          `Failed to download gene file for '${geneName}' from custom S3: ${geneResponse.status} ${geneResponse.statusText}`,
-        );
-      }
-
-      const geneBuffer = ungzip(geneResponse.data);
-
-      // Keep as Float32Array directly, denormalize if old dataset
-      let float32Array = new Float32Array(geneBuffer.buffer);
-      if (denormFactor !== 1) {
-        float32Array = denormalizeCoords(float32Array, denormFactor);
-      }
-
-      // Cache for future use
-      geneIndex.set(geneName, float32Array);
-
-      console.log(
-        `[SingleMoleculeDataset] ✅ Loaded gene '${geneName}': ${float32Array.length / dimensions} molecules` +
-          (denormFactor !== 1 ? ` (denormalized ×${denormFactor})` : ""),
-      );
-
-      return float32Array;
-    } as any; // Type override for lazy loading
-
-    // Streamed variants: same objects, consumed as they download.
-    const customGeneUrl = (geneName: string, unassigned = false): string => {
-      const sanitizedName = geneName
-        .replace(/[^a-zA-Z0-9]/g, "_")
-        .replace(/_+/g, "_")
-        .replace(/^_|_$/g, "");
-
-      return `${customS3BaseUrl}/genes/${sanitizedName}${unassigned ? UNASSIGNED_SUFFIX : ""}.bin.gz`;
-    };
-
-    const probedCustomCounts = new Map<string, number | null>();
-
-    dataset.resolveMoleculeCount = async function (
-      geneName: string,
-      kind: "assigned" | "unassigned" = "assigned",
-    ): Promise<number | null> {
-      const known = dataset.moleculeCountFor(geneName, kind);
-
-      if (known !== null) return known;
-      if (!uniqueGenes.includes(geneName)) return null;
-
-      const key = `${kind}:${geneName}`;
-
-      if (probedCustomCounts.has(key)) return probedCustomCounts.get(key)!;
-
-      const count = await probeGzipMoleculeCount(
-        customGeneUrl(geneName, kind === "unassigned"),
-      );
-
-      probedCustomCounts.set(key, count);
-
-      return count;
-    };
-
-    dataset.streamCoordinatesByGene = async function (
-      geneName: string,
-      opts: GeneStreamOptions,
-    ): Promise<Float32Array> {
-      const cached = geneIndex.get(geneName);
-
-      if (cached) {
-        await opts.onBatch({ coords: cached, loadedMolecules: cached.length / 3 });
-
-        return cached;
-      }
-      if (!supportsStreamingDecompression()) {
-        return SingleMoleculeDataset.prototype.streamCoordinatesByGene.call(
-          dataset,
-          geneName,
-          opts,
-        );
-      }
-
-      const coords = await streamGzippedFloat32(
-        customGeneUrl(geneName),
-        opts.onBatch,
-        { scale: denormFactor, signal: opts.signal },
-      );
-
-      geneIndex.set(geneName, coords);
-
-      return coords;
-    } as any;
-
-    // Override getUnassignedCoordinatesByGene for lazy loading from custom S3
-    if (hasUnassigned) {
-      const unassignedGeneIndex = new Map<string, Float32Array>();
-
-      (dataset as any).streamUnassignedCoordinatesByGene = async function (
-        geneName: string,
-        opts: GeneStreamOptions,
-      ): Promise<Float32Array> {
-        const cached = unassignedGeneIndex.get(geneName);
-
-        if (cached) {
-          await opts.onBatch({
-            coords: cached,
-            loadedMolecules: cached.length / 3,
-          });
-
-          return cached;
-        }
-        if (!supportsStreamingDecompression()) {
-          return SingleMoleculeDataset.prototype.streamUnassignedCoordinatesByGene.call(
-            dataset,
-            geneName,
-            opts,
-          );
-        }
-
-        try {
-          const coords = await streamGzippedFloat32(
-            customGeneUrl(geneName, true),
-            opts.onBatch,
-            { scale: denormFactor, signal: opts.signal },
-          );
-
-          unassignedGeneIndex.set(geneName, coords);
-
-          return coords;
-        } catch (error) {
-          if ((error as Error)?.name === "AbortError") throw error;
-          const empty = new Float32Array(0);
-
-          unassignedGeneIndex.set(geneName, empty);
-          await opts.onBatch({ coords: empty, loadedMolecules: 0 });
-
-          return empty;
-        }
-      };
-
-      console.log(
-        `[SingleMoleculeDataset] Custom S3: enabling unassigned gene loading`,
-      );
-
-      (dataset as any).getUnassignedCoordinatesByGene = async function (
-        geneName: string,
-        opts?: GeneFetchOptions,
-      ): Promise<Float32Array> {
-        const empty = new Float32Array(0);
-
-        if (unassignedGeneIndex.has(geneName)) {
-          return unassignedGeneIndex.get(geneName)!;
-        }
-
-        if (!uniqueGenes.includes(geneName)) {
-          return empty;
-        }
-
-        const sanitizedName = geneName
-          .replace(/[^a-zA-Z0-9]/g, "_")
-          .replace(/_+/g, "_")
-          .replace(/^_|_$/g, "");
-
-        const geneFileUrl = `${customS3BaseUrl}/genes/${sanitizedName}${UNASSIGNED_SUFFIX}.bin.gz`;
-
-        console.log(
-          `[SingleMoleculeDataset] Lazy-loading unassigned '${geneName}' from custom S3: ${geneFileUrl}`,
-        );
-
-        try {
-          const geneResponse = await downloadWithProgress(geneFileUrl, opts);
-
-          if (!geneResponse.ok) {
-            console.warn(
-              `[SingleMoleculeDataset] No unassigned file for '${geneName}': ${geneResponse.status}`,
-            );
-            unassignedGeneIndex.set(geneName, empty);
-
-            return empty;
-          }
-
-          const geneBuffer = ungzip(geneResponse.data);
-          let float32Array = new Float32Array(geneBuffer.buffer);
-          if (denormFactor !== 1) {
-            float32Array = denormalizeCoords(float32Array, denormFactor);
-          }
-
-          unassignedGeneIndex.set(geneName, float32Array);
-
-          console.log(
-            `[SingleMoleculeDataset] ✅ Loaded unassigned '${geneName}': ${float32Array.length / dimensions} molecules`,
-          );
-
-          return float32Array;
-        } catch (error) {
-          if ((error as Error)?.name === "AbortError") throw error;
-          console.warn(
-            `[SingleMoleculeDataset] Failed to load unassigned '${geneName}':`,
-            error,
-          );
-          unassignedGeneIndex.set(geneName, empty);
-
-          return empty;
-        }
-      };
-    } else {
-      console.log(
-        `[SingleMoleculeDataset] Custom S3: no unassigned data in manifest (has_unassigned=${manifest.has_unassigned})`,
-      );
-    }
+    installStoreLoading(dataset, store, {
+      geneKey: opts.geneKey,
+      geneIndex,
+      uniqueGenes,
+      denormFactor,
+      hasUnassigned,
+    });
 
     const elapsedTime = performance.now() - startTime;
 
     console.log(
-      `[SingleMoleculeDataset] ✅ Custom S3 dataset initialized: ${formatElapsedTime(elapsedTime)} | ` +
+      `[SingleMoleculeDataset] ✅ Dataset initialized: ${formatElapsedTime(elapsedTime)} | ` +
         `${manifest.statistics.total_molecules.toLocaleString()} molecules | ` +
         `${uniqueGenes.length.toLocaleString()} genes (lazy-loaded)`,
     );
-    await onProgress?.(
+    await opts.onProgress?.(
       100,
       `Dataset ready in ${formatElapsedTime(elapsedTime)}`,
     );

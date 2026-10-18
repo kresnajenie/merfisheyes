@@ -286,14 +286,14 @@ async function loadStore(
   let registration: DatasetRegistration;
 
   if (s3Url) {
-    const base =
-      (await resolveZarrUrl(s3Url))?.url ?? s3Url.replace(/\/+$/, "");
+    const resolved = await resolveZarrUrl(s3Url);
+    const base = resolved?.url ?? s3Url.replace(/\/+$/, "");
 
     storeUrl = base;
     folder = base.slice(0, base.lastIndexOf("/"));
     name = base.slice(folder.length + 1).replace(/\.zarr$/, "");
     id = `spatialdata_${name}`;
-    store = await openSpatialDataStoreFromUrl(base);
+    store = await openSpatialDataStoreFromUrl(base, resolved?.root);
     // One nobody has registered still opens; the banner offers to add it
     registration = { ...(await registrationByUrl(base)), kind: "spatialdata" };
   } else if (datasetId) {

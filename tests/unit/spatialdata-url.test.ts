@@ -32,13 +32,16 @@ describe("resolveZarrUrl", () => {
       [`${base}/dapi.zarr/zarr.json`]: IMAGE,
     });
 
+    // The root read to tell what it is comes back, so it is not read twice
     expect(await resolveZarrUrl(`${base}/skin.zarr/`)).toEqual({
       kind: "spatialdata",
       url: `${base}/skin.zarr`,
+      root: STORE,
     });
     expect(await resolveZarrUrl(`${base}/dapi.zarr`)).toEqual({
       kind: "image",
       url: `${base}/dapi.zarr`,
+      root: IMAGE,
     });
   });
 
@@ -51,6 +54,7 @@ describe("resolveZarrUrl", () => {
     expect(await resolveZarrUrl(`${base}/`)).toEqual({
       kind: "spatialdata",
       url: `${base}/cells_v2.zarr`,
+      root: STORE,
     });
   });
 

@@ -75,7 +75,8 @@ export class SpatialDataTableAdapter {
   private genes: string[] | null = null;
 
   // Cache for lazy gene queries (dense/CSC path)
-  private geneExprCache = new Map<string, number[]>();
+  // Promises, so two asks for one gene share the read
+  private geneExprCache = new Map<string, Promise<number[] | null>>();
 
   // annotations/annotations.json from beside the store, if there is one
   private annotations: {
@@ -400,13 +401,23 @@ export class SpatialDataTableAdapter {
     const cached = this.geneExprCache.get(geneName);
 
     if (cached) return cached;
+    const p = this.readGeneExpression(geneName);
 
+    this.geneExprCache.set(geneName, p);
+    p.catch(() => this.geneExprCache.delete(geneName));
+
+    return p;
+  }
+
+  private async readGeneExpression(geneName: string): Promise<number[] | null> {
+    const expr = this.expr;
+
+    if (!expr) return null;
     const genes = await this.loadGenes();
     const geneIndex = genes.indexOf(geneName);
 
     if (geneIndex < 0) return null;
 
-    const expr = this.expr;
     const result: number[] = new Array(this.numCells).fill(0);
 
     if (!("format" in expr)) {
@@ -458,8 +469,6 @@ export class SpatialDataTableAdapter {
         }
       }
     }
-
-    this.geneExprCache.set(geneName, result);
 
     return result;
   }

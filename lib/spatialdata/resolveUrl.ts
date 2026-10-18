@@ -10,6 +10,8 @@ export interface ZarrTarget {
   kind: "spatialdata" | "image";
   /** The store or image itself, without a trailing slash. */
   url: string;
+  /** Its root `zarr.json`, as read to tell what it is. */
+  root: Record<string, any>;
 }
 
 async function getJson(url: string): Promise<any | null> {
@@ -22,11 +24,12 @@ async function getJson(url: string): Promise<any | null> {
   }
 }
 
-async function zarrKind(url: string): Promise<ZarrTarget["kind"] | null> {
-  const attrs = (await getJson(`${url}/zarr.json`))?.attributes;
+async function zarrKind(url: string): Promise<Omit<ZarrTarget, "url"> | null> {
+  const root = await getJson(`${url}/zarr.json`);
+  const attrs = root?.attributes;
 
-  if (attrs?.spatialdata_attrs) return "spatialdata";
-  if (attrs?.ome?.multiscales) return "image";
+  if (attrs?.spatialdata_attrs) return { kind: "spatialdata", root };
+  if (attrs?.ome?.multiscales) return { kind: "image", root };
 
   return null;
 }
@@ -37,7 +40,7 @@ export async function resolveZarrUrl(
   const base = input.trim().replace(/\/+$/, "");
   const direct = await zarrKind(base);
 
-  if (direct) return { kind: direct, url: base };
+  if (direct) return { ...direct, url: base };
 
   const cells = (await getJson(`${base}/mapping.json`))?.cells;
   const candidates = [`${base}/${base.slice(base.lastIndexOf("/") + 1)}.zarr`];
@@ -50,9 +53,9 @@ export async function resolveZarrUrl(
     );
   }
   for (const url of candidates) {
-    if ((await zarrKind(url)) === "spatialdata") {
-      return { kind: "spatialdata", url };
-    }
+    const found = await zarrKind(url);
+
+    if (found?.kind === "spatialdata") return { ...found, url };
   }
 
   return null;

@@ -22,6 +22,7 @@ import {
   settledAfter,
   sweep,
   zoom,
+  zoomSteps,
 } from "../helpers/budgets";
 import { type FixtureServer } from "../helpers/fixture-server";
 
@@ -218,6 +219,31 @@ for (const store of stores) {
     await record("viewSettled", settledAt - changed);
     await record("bytesPerViewKB", pointsTraffic(zoomFrom).bytes / 1024);
     await record("requestsPerView", pointsTraffic(zoomFrom).requests);
+
+    // A zoom as a hand does it, in several wheel events: every intermediate
+    // view's reads must be cancelled for the last one to settle at all
+    const steppedFrom = server.requests.length;
+    const steppedAt = await pageNow(page);
+
+    await zoomSteps(page, -16, 4);
+    const steppedChanged = await expect
+      .poll(async () => (await layer(page, "points"))?.changedAt ?? 0, {
+        timeout: 10_000,
+      })
+      .toBeGreaterThan(steppedAt)
+      .then(async () => (await layer(page, "points"))!.changedAt!);
+    const steppedSettled = await settledAfter(
+      page,
+      "points",
+      steppedChanged,
+      300_000,
+    );
+
+    await record("viewSettledStepped", steppedSettled - steppedAt);
+    await record(
+      "bytesPerViewSteppedKB",
+      pointsTraffic(steppedFrom).bytes / 1024,
+    );
 
     // A one-second pan: frames
     await resetFrames(page);

@@ -1,6 +1,7 @@
 import type { FeatureTiles, NetworkStats, PointsElement } from "./points";
 import type {
   FrameInfo,
+  LayerBudget,
   LayerStatus,
   SceneHandle,
   ViewRect,
@@ -9,6 +10,7 @@ import type {
 import * as THREE from "three";
 
 import { BaseLayer } from "@/lib/scene/BaseLayer";
+import { hint } from "@/lib/storage/ElementStore";
 import {
   hooksEnabled,
   markLayer,
@@ -19,17 +21,28 @@ import {
 import { createSmPointCloud } from "@/lib/webgl/point-cloud";
 
 /**
- * How much to draw: a point budget per view, shared by the selected genes.
- * "all" is every molecule in view, up to what a browser can hold — about
- * 32 bytes of GPU memory a molecule, so 64 M is some 2 GB.
+ * How much to draw: a point budget and a byte budget per view, shared by
+ * the selected genes (docs/specs/BUDGETS.md: a view settles within a second
+ * at 12 MB/s when it reads at most 12 MB). "all" is every molecule in view,
+ * up to what a browser can hold — about 17 bytes of GPU memory a molecule,
+ * so 64 M is over 1 GB — and is not bounded in bytes.
  */
 export type PointsDetail = "auto" | "more" | "all";
 
 export const DETAIL_BUDGET: Record<PointsDetail, number> = {
-  auto: 15_000_000,
-  more: 30_000_000,
+  auto: 8_000_000,
+  more: 16_000_000,
   all: 64_000_000,
 };
+
+export const DETAIL_BYTES: Record<PointsDetail, number> = {
+  auto: 12 * 1024 * 1024,
+  more: 36 * 1024 * 1024,
+  all: Infinity,
+};
+
+/** GPU bytes per resident molecule: xyz float32, colour, size, alpha. */
+export const BYTES_PER_POINT = 17;
 
 /** What the layer is drawing, gene by gene, and what it is fetching. */
 export interface PointsStatus {
@@ -69,8 +82,8 @@ export interface GeneStyle {
   visible: boolean;
 }
 
-// Points kept in memory for tiles that have scrolled out of view: about 17
-// bytes each (positions, plus a byte each of colour, size and alpha).
+// Points kept in memory for tiles that have scrolled out of view, unless
+// the scene's budget (setBudget) says less.
 const CACHE_POINTS = 40_000_000;
 const MAX_CONCURRENT_LOADS = 6;
 const REPLAN_MS = 120;
@@ -106,6 +119,8 @@ interface Piece {
   /** Rows read so far; the piece is drawn up to here. */
   loaded: number;
   loading: boolean;
+  /** Cancels the read in flight; an aborted piece is dropped. */
+  controller: AbortController | null;
   lastWanted: number;
   /** Dot size factor: 1, or larger while standing in. */
   growth: number;
@@ -202,18 +217,27 @@ export class PointsLayer extends BaseLayer {
       drawn,
       wanted,
       resident,
+      residentBytes: resident * BYTES_PER_POINT,
       bytes: ps.network.bytes,
       requests: ps.network.requests,
     };
   }
 
   /**
-   * Drop what is queued but not yet requested; reads in flight finish (they
-   * cannot be cancelled yet — docs/specs/AUDIT-2026-10-17.md §1).
+   * Cancel every read, queued or in flight. Pieces that had fully arrived
+   * stay drawn; a piece cut short is dropped, so a later view asks again.
    */
   abort() {
     for (const p of this.queue) p.loading = false;
     this.queue = [];
+    for (const p of this.pieces.values()) if (p.loading) this.cancel(p);
+  }
+
+  /** A budget from the scene: the cache and, for Auto, the bytes per view. */
+  setBudget(budget: LayerBudget) {
+    super.setBudget(budget);
+    this.dirty = true;
+    this.changed();
   }
 
   /** The genes to draw and how. Genes not in the map are removed. */
@@ -385,26 +409,37 @@ export class PointsLayer extends BaseLayer {
         counts: runs.map((r, l) => this.countInView(r, l, rect)),
       });
     }
-    // The budget is shared by the genes on screen. Smallest first: each takes
-    // the finest level that fits an equal share of what is left, so what a
-    // small gene doesn't need goes to the bigger ones.
+    // The budgets are shared by the genes on screen. Smallest first: each
+    // takes the finest level that fits an equal share of what is left, in
+    // molecules and in bytes to read, so what a small gene doesn't need
+    // goes to the bigger ones.
     views.sort((a, b) => a.counts[0] - b.counts[0]);
     // A new plan is a new view for the budget hooks: the clock restarts
     markLayerChanged("points");
     let budget = DETAIL_BUDGET[this.detail];
+    let bytes =
+      this.detail === "auto"
+        ? Math.min(DETAIL_BYTES.auto, this.budget.bytesPerView)
+        : DETAIL_BYTES[this.detail];
+    const coarsest = this.element.levels.length - 1;
 
     for (const [i, { gene, f, runs, counts }] of views.entries()) {
       if (!this.genes.has(gene)) continue;
       const share = budget / (views.length - i);
-      let level = runs.length - 1;
+      const byteShare = bytes / (views.length - i);
+      let level = coarsest;
 
       for (let l = 0; l < runs.length; l++) {
-        if (counts[l] <= share) {
+        if (
+          counts[l] <= share &&
+          counts[l] * this.element.bytesPerRow(l) <= byteShare
+        ) {
           level = l;
           break;
         }
       }
       budget -= counts[level];
+      bytes -= counts[level] * this.element.bytesPerRow(level);
       const wanted = this.piecesInView(f, level, runs[level], rect);
       const plan = this.plans.get(gene) ?? {
         level,
@@ -424,12 +459,30 @@ export class PointsLayer extends BaseLayer {
         if (p.points && p.loaded > 0) plan.standIns.add(p);
         else plan.standIns.delete(p);
       }
-      for (const p of wanted) {
-        plan.standIns.delete(p);
+      const queueUp = (p: Piece) => {
         p.lastWanted = this.frame;
         if (!p.points && !p.loading) {
           p.loading = true;
           this.queue.push(p);
+        }
+      };
+
+      for (const p of wanted) {
+        plan.standIns.delete(p);
+        queueUp(p);
+      }
+      // A gene with nothing on screen yet shows its coarsest level first:
+      // a few small reads, so something is drawn within the first moments
+      // while the chosen level streams in
+      if (
+        level < coarsest &&
+        plan.standIns.size === 0 &&
+        !wanted.some((p) => p.loaded > 0)
+      ) {
+        for (const p of this.piecesInView(f, coarsest, runs[coarsest], rect)) {
+          if (next.has(p)) continue;
+          plan.standIns.add(p);
+          queueUp(p);
         }
       }
       plan.level = level;
@@ -439,10 +492,37 @@ export class PointsLayer extends BaseLayer {
       this.plans.set(gene, plan);
       this.refresh(gene);
     }
+    // Reads for pieces no view wants any more stop here, queued or in flight
+    const inUse = this.piecesInUse();
+
+    this.queue = this.queue.filter((p) => inUse.has(p));
+    for (const p of this.pieces.values()) {
+      if (p.loading && !inUse.has(p)) this.cancel(p);
+    }
     this.report(true);
     this.changed();
     this.pump();
     this.evict();
+  }
+
+  /** Pieces some gene's current view draws or keeps as stand-ins. */
+  private piecesInUse(): Set<Piece> {
+    const inUse = new Set<Piece>();
+
+    for (const plan of this.plans.values()) {
+      plan.wanted.forEach((p) => inUse.add(p));
+      plan.standIns.forEach((p) => inUse.add(p));
+    }
+
+    return inUse;
+  }
+
+  /** Stop a piece's read; what it had is dropped, so it can be asked again. */
+  private cancel(p: Piece) {
+    p.loading = false;
+    p.controller?.abort();
+    p.controller = null;
+    this.drop(p);
   }
 
   /**
@@ -633,6 +713,7 @@ export class PointsLayer extends BaseLayer {
         material: null,
         loaded: 0,
         loading: false,
+        controller: null,
         lastWanted: 0,
         growth: 1,
       };
@@ -648,6 +729,7 @@ export class PointsLayer extends BaseLayer {
     while (this.activeLoads < MAX_CONCURRENT_LOADS && this.queue.length) {
       const p = this.queue.shift()!;
 
+      if (!p.loading) continue; // cancelled while queued
       this.activeLoads++;
       this.load(p).finally(() => {
         this.activeLoads--;
@@ -702,6 +784,11 @@ export class PointsLayer extends BaseLayer {
       p.points = group;
       p.material = this.material(style);
       p.growth = 1;
+      // Coarser levels first: they are small and stand in for the finer
+      const controller = new AbortController();
+
+      p.controller = controller;
+      hint(controller.signal, { tag: "points", priority: p.level });
 
       const end = p.start + p.count;
 
@@ -710,7 +797,9 @@ export class PointsLayer extends BaseLayer {
           end,
           (Math.floor(lo / STREAM_ROWS) + 1) * STREAM_ROWS,
         );
-        const xyz = await this.element.readXyz(p.level, lo, hi);
+        const xyz = await this.element.readXyz(p.level, lo, hi, {
+          signal: controller.signal,
+        });
 
         if (this.disposed || p.points !== group) return;
         const n = hi - lo;
@@ -743,9 +832,12 @@ export class PointsLayer extends BaseLayer {
         lo = hi;
       }
     } catch (e) {
-      console.warn(`Failed to load molecules ${p.key}:`, e);
+      if ((e as Error)?.name !== "AbortError") {
+        console.warn(`Failed to load molecules ${p.key}:`, e);
+      }
     } finally {
       p.loading = false;
+      p.controller = null;
       this.changed();
     }
   }
@@ -814,8 +906,13 @@ export class PointsLayer extends BaseLayer {
       if (!inUse.has(p) && !p.loading) idle.push(p);
     }
     idle.sort((a, b) => a.lastWanted - b.lastWanted);
+    const cap = Math.min(
+      CACHE_POINTS,
+      this.budget.residentBytes / BYTES_PER_POINT,
+    );
+
     for (const p of idle) {
-      if (held <= CACHE_POINTS) break;
+      if (held <= cap) break;
       held -= p.count;
       this.drop(p);
       this.pieces.delete(p.key);
@@ -823,6 +920,8 @@ export class PointsLayer extends BaseLayer {
   }
 
   private drop(p: Piece) {
+    p.controller?.abort();
+    p.controller = null;
     if (!p.points) return;
     p.points.removeFromParent();
     for (const child of p.points.children) {

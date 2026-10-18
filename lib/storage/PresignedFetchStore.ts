@@ -1,8 +1,4 @@
-import type {
-  AbsolutePath,
-  AsyncReadable,
-  RangeQuery,
-} from "@zarrita/storage";
+import type { AbsolutePath, AsyncReadable, RangeQuery } from "@zarrita/storage";
 
 import { fetchRange } from "./fetchRange";
 
@@ -33,7 +29,10 @@ export class PresignedFetchStore implements AsyncReadable {
   // Sub-second margin to avoid using a URL that's about to expire mid-fetch.
   private readonly safetyMarginMs = 60_000;
 
-  constructor(datasetId: string, opts: { keyPrefix?: string; apiBase?: string } = {}) {
+  constructor(
+    datasetId: string,
+    opts: { keyPrefix?: string; apiBase?: string } = {},
+  ) {
     this.datasetId = datasetId;
     this.apiBase = opts.apiBase ?? "";
     // Normalize: ensure trailing slash if non-empty, no leading slash.
@@ -55,9 +54,7 @@ export class PresignedFetchStore implements AsyncReadable {
 
     if (res.status === 404 || res.status === 403) return undefined;
     if (!res.ok) {
-      throw new Error(
-        `S3 GET ${res.status} for ${fullKey}: ${res.statusText}`,
-      );
+      throw new Error(`S3 GET ${res.status} for ${fullKey}: ${res.statusText}`);
     }
     const buf = await res.arrayBuffer();
 

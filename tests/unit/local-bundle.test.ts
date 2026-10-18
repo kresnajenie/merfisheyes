@@ -280,7 +280,7 @@ describe("openSpatialDataStoreFromFiles", () => {
         .filter(([key]) => key.startsWith("skin.zarr/"))
         .map(([key, file]) => [key.slice("skin.zarr/".length), file]),
     );
-    const opened = openSpatialDataStoreFromFiles(inStore, folder);
+    const opened = await openSpatialDataStoreFromFiles(inStore, folder);
 
     expect(opened.keys.sort()).toEqual(["tables/table/zarr.json", "zarr.json"]);
     expect(new TextDecoder().decode(await opened.store.get("/zarr.json"))).toBe(

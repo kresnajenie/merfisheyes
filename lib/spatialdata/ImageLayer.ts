@@ -1,6 +1,7 @@
 import type { ImageLevel, SpatialDataImage } from "./image";
 import type {
   FrameInfo,
+  LayerBudget,
   LayerStatus,
   SceneHandle,
   ViewRect,
@@ -9,6 +10,7 @@ import type {
 import * as THREE from "three";
 
 import { BaseLayer } from "@/lib/scene/BaseLayer";
+import { hint } from "@/lib/storage/ElementStore";
 import {
   hooksEnabled,
   markLayer,
@@ -38,7 +40,8 @@ const CHANNEL_COLORS = [
 // (a tilted 3D camera can see most of the image at once).
 const MAX_TILES_PER_VIEW = 12;
 const MAX_CONCURRENT_LOADS = 4;
-// Texture memory kept for tiles that have scrolled out of view.
+// Texture memory kept for tiles that have scrolled out of view, unless the
+// scene's budget (setBudget) says less.
 const CACHE_BYTES = 512 * 1024 * 1024;
 
 interface Tile {
@@ -53,6 +56,8 @@ interface Tile {
   y1: number;
   textures: (THREE.DataTexture | null)[];
   loading: boolean[];
+  /** Cancels the chunk read in flight, per channel. */
+  controllers: (AbortController | null)[];
   lastWanted: number;
 }
 
@@ -169,15 +174,36 @@ export class ImageLayer extends BaseLayer {
       drawn: this.lastDrawn,
       wanted: this.lastWanted,
       resident: this.tiles.size,
+      residentBytes: this.residentBytes(),
       bytes: 0,
       requests: 0,
     };
   }
 
-  /** Drop what is queued; chunks already requested finish and are kept. */
+  private residentBytes() {
+    let total = 0;
+
+    for (const tile of this.tiles.values()) total += bytesOf(tile);
+
+    return total;
+  }
+
+  setBudget(budget: LayerBudget) {
+    super.setBudget(budget);
+    this.changed();
+  }
+
+  /** Cancel every chunk read, queued or in flight; what arrived stays. */
   abort() {
     for (const { tile, channel } of this.queue) tile.loading[channel] = false;
     this.queue = [];
+    for (const tile of this.tiles.values()) {
+      tile.controllers.forEach((c, i) => {
+        c?.abort();
+        tile.controllers[i] = null;
+        tile.loading[i] = false;
+      });
+    }
   }
 
   /** Whether a channel's window has been set, by the data or by hand. */
@@ -266,6 +292,15 @@ export class ImageLayer extends BaseLayer {
       this.changed();
     }
 
+    for (const tile of this.tiles.values()) {
+      if (wanted.has(tile)) continue;
+      tile.controllers.forEach((c, i) => {
+        if (!c) return;
+        c.abort();
+        tile.controllers[i] = null;
+        tile.loading[i] = false;
+      });
+    }
     this.report(level, wanted);
     this.pump();
     this.evict(wanted);
@@ -410,6 +445,7 @@ export class ImageLayer extends BaseLayer {
       y1,
       textures: this.channels.map(() => null),
       loading: this.channels.map(() => false),
+      controllers: this.channels.map(() => null),
       lastWanted: this.frame,
     };
 
@@ -430,11 +466,14 @@ export class ImageLayer extends BaseLayer {
       }
       this.activeLoads++;
       this.loadChunk(tile, channel)
-        .catch((e) =>
-          console.error("[ImageLayer] Failed to load image chunk:", e),
-        )
+        .catch((e) => {
+          if ((e as Error)?.name !== "AbortError") {
+            console.error("[ImageLayer] Failed to load image chunk:", e);
+          }
+        })
         .finally(() => {
           tile.loading[channel] = false;
+          tile.controllers[channel] = null;
           this.activeLoads--;
         });
     }
@@ -442,7 +481,14 @@ export class ImageLayer extends BaseLayer {
 
   private async loadChunk(tile: Tile, channel: number) {
     const lv = this.levels[tile.level];
-    const chunk = await lv.array.getChunk([channel, tile.chunkY, tile.chunkX]);
+    // Coarser levels first: every tile of the coarsest is wanted at once
+    const controller = new AbortController();
+
+    tile.controllers[channel] = controller;
+    hint(controller.signal, { tag: "image", priority: tile.level });
+    const chunk = await lv.array.getChunk([channel, tile.chunkY, tile.chunkX], {
+      signal: controller.signal,
+    });
 
     if (this.disposed || !this.tiles.has(this.keyOf(tile))) return;
 
@@ -488,22 +534,17 @@ export class ImageLayer extends BaseLayer {
 
   /** Drop the textures of out-of-view tiles, oldest first, over the budget. */
   private evict(wanted: Set<Tile>) {
-    const bytesOf = (tile: Tile) =>
-      tile.textures.reduce(
-        (sum, t) => sum + (t ? (t.image.data as Uint16Array).byteLength : 0),
-        0,
-      );
-    let total = 0;
+    const cap = Math.min(CACHE_BYTES, this.budget.residentBytes);
+    let total = this.residentBytes();
 
-    for (const tile of this.tiles.values()) total += bytesOf(tile);
-    if (total <= CACHE_BYTES) return;
+    if (total <= cap) return;
 
     const idle = Array.from(this.tiles.values())
       .filter((t) => !wanted.has(t) && !t.loading.some(Boolean))
       .sort((a, b) => a.lastWanted - b.lastWanted);
 
     for (const tile of idle) {
-      if (total <= CACHE_BYTES) break;
+      if (total <= cap) break;
       total -= bytesOf(tile);
       this.disposeTile(tile);
       this.tiles.delete(this.keyOf(tile));
@@ -520,6 +561,14 @@ export class ImageLayer extends BaseLayer {
     tile.mesh.material.dispose();
     for (const texture of tile.textures) texture?.dispose();
   }
+}
+
+/** Texture bytes a tile holds. */
+function bytesOf(tile: Tile): number {
+  return tile.textures.reduce(
+    (sum, t) => sum + (t ? (t.image.data as Uint16Array).byteLength : 0),
+    0,
+  );
 }
 
 /** Value below which the given fraction of the non-zero pixels fall. */

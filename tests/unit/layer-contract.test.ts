@@ -90,6 +90,7 @@ function fakePoints(): PointsElement {
     ],
     featureCounts: async () => Float64Array.from([n]),
     network: () => ({ requests: 0, bytes: 0, inFlight: 0, cacheHits: 0 }),
+    bytesPerRow: () => 3,
     featureTiles: async () => ({
       tiles: Uint32Array.from([0, 1, 2, 3]),
       counts: Uint32Array.from([25, 25, 25, 25]),
