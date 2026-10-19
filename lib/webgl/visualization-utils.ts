@@ -427,8 +427,29 @@ export function updateCelltypeVisualization(
 } | null {
   const count = dataset.getPointCount();
 
-  if (!dataset.clusters || !selectedColumn) {
-    console.log("No cluster data or column selected");
+  // Nothing to colour by: every cell in one neutral colour, not left black
+  if (!selectedColumn) {
+    const [r, g, b] = hexToRgb(VISUALIZATION_CONFIG.NEUTRAL_POINT_COLOR);
+    const colors = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      colors[i * 3] = r;
+      colors[i * 3 + 1] = g;
+      colors[i * 3 + 2] = b;
+    }
+
+    return {
+      colors,
+      sizes: new Float32Array(count).fill(
+        VISUALIZATION_CONFIG.POINT_BASE_SIZE * adv.selectedSizeMultiplier,
+      ),
+      alphas: new Float32Array(count).fill(
+        VISUALIZATION_CONFIG.POINT_BASE_ALPHA * alphaScale,
+      ),
+    };
+  }
+  if (!dataset.clusters) {
+    console.log("No cluster data");
 
     return null;
   }
