@@ -122,6 +122,97 @@ def test_csr_without_csc_copy_fails(tmp_path):
     assert any("CSR" in m for m in fails(r))
 
 
+SDDB_ROOTS = ROOT / "tests" / "data" / "sddb" / "roots"
+
+
+def test_root_json_reads_a_store_from_its_root_alone():
+    # Visium (cerebellum): CSR X with a csc_counts layer, as the reader accepts it
+    root = validate_store.read_json(SDDB_ROOTS / "fJSOO03VzCTYtD1o.json")
+    r = validate_store.validate(validate_store.RootStore(root))
+    assert not r.failed, fails(r)
+    assert any("layers/csc_counts" in m for lv, w, m in r.lines if w == "tables/table")
+    assert any("root only" in m for lv, w, m in r.lines if w.startswith("shapes/"))
+    assert validate_store.main(["--root-json", str(SDDB_ROOTS / "fJSOO03VzCTYtD1o.json")]) == 0
+
+
+def test_root_json_fails_a_csr_table_with_no_csc_layer():
+    # Visium HD (ovary): only the 16 um table has a CSC layer
+    root = validate_store.read_json(SDDB_ROOTS / "haOzFbJ7Bc9x7NW6.json")
+    r = validate_store.validate(validate_store.RootStore(root))
+    failed = {w for lv, w, _ in r.lines if lv == "FAIL"}
+    assert failed == {"tables/square_002um", "tables/square_008um", "tables/square_016um_hvg"}
+    assert ("OK", "tables/square_016um") in levels(r)
+
+
+def _root_with(nodes: dict) -> dict:
+    return {
+        "zarr_format": 3,
+        "node_type": "group",
+        "attributes": {"spatialdata_attrs": {"version": "0.2"}},
+        "consolidated_metadata": {"kind": "inline", "must_understand": False, "metadata": nodes},
+    }
+
+
+def _scale(s, out="global", axes=("x", "y")):
+    return {"type": "scale", "scale": list(s), "input": {"name": "xy", "axes": [{"name": a} for a in axes]}, "output": {"name": out}}
+
+
+def _identity(out="global"):
+    return {"type": "identity", "output": {"name": out}}
+
+
+def test_coordinates_points_must_share_the_cells_frame():
+    # As our converted Atera store was written: cells scaled into global,
+    # the molecules declaring identity (their data is in the cells' frame)
+    cells = {"attributes": {"coordinateTransformations": [_scale([4.70588, 4.70588])], "axes": ["x", "y"]}}
+    table = {"attributes": {"region": "cell_circles", "instance_key": "cell_id"}}
+    root = _root_with({
+        "tables/table": table,
+        "shapes/cell_circles": cells,
+        "points/transcripts": {"attributes": {"coordinateTransformations": [_identity()], "axes": ["x", "y"]}},
+    })
+    r = validate_store.validate(validate_store.RootStore(root))
+    assert any(w == "points/transcripts" and "frame other than the cells'" in m for lv, w, m in r.lines if lv == "FAIL")
+    # The same transform as the cells: fine
+    root["consolidated_metadata"]["metadata"]["points/transcripts"]["attributes"]["coordinateTransformations"] = [
+        _scale([4.70588, 4.70588])
+    ]
+    r = validate_store.validate(validate_store.RootStore(root))
+    assert not any(w == "points/transcripts" for lv, w, _ in r.lines if lv == "FAIL")
+
+
+def test_coordinates_visium_targets_the_spots_and_leaves_affine_out():
+    root = validate_store.read_json(SDDB_ROOTS / "fJSOO03VzCTYtD1o.json")
+    cs = validate_store.coordinate_systems(validate_store.RootStore(root))
+    sample = "Targeted_Visium_Human_Cerebellum_Neuroscience"
+    assert (cs["target"], cs["rule"], cs["region"]) == (sample, "region identity", f"shapes/{sample}")
+    assert cs["place"](f"images/{sample}_full_image")[0] == (1.0, 1.0, 0.0, 0.0)
+    m, _ = cs["place"](f"images/{sample}_hires_image")
+    assert round(m[0], 3) == 6.666
+    # An affine image is not drawn, and says why
+    nodes = root["consolidated_metadata"]["metadata"]
+    ms = nodes[f"images/{sample}_hires_image"]["attributes"]["ome"]["multiscales"][0]
+    ms["coordinateTransformations"] = [{"type": "affine", "affine": [], "output": {"name": sample}}]
+    r = validate_store.validate(validate_store.RootStore(root))
+    assert any("affine" in m for lv, w, m in r.lines if lv == "WARN" and w.endswith("hires_image"))
+
+
+def test_points_writer_keeps_the_source_transforms(tmp_path):
+    out = tmp_path / "store.zarr" / "points" / "transcripts"
+    w = pz.PointsWriter(
+        out, tmp_path / "tmp", features=["a"], dims=2, origin=(0, 0), extent=(10, 10), n_levels=1,
+        transformations=[_scale([4.70588, 4.70588])],
+    )
+    w.spill({"x": np.array([1.0, 2.0], np.float32), "y": np.array([1.0, 2.0], np.float32), "f": np.zeros(2, np.uint16)}, seed=0, tag="t")
+    w.finish()
+    _, attrs = pz.open_element(out)
+    [t] = attrs["coordinateTransformations"]
+    assert (t["type"], t["scale"], t["output"]["name"]) == ("scale", [4.70588, 4.70588], "global")
+    with pytest.raises(ValueError):
+        pz.PointsWriter(out, tmp_path / "t2", features=["a"], dims=3, origin=(0, 0), extent=(1, 1),
+                        transformations=[_scale([1, 1])])
+
+
 def test_image_axes_and_dtype_are_checked(tmp_path):
     store = compose_store(tmp_path, points=False, shapes=False)
     g = store / "images" / "dapi" / "zarr.json"

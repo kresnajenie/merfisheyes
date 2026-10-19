@@ -36,6 +36,32 @@ const CHANNEL_COLORS = [
   "#00e0ff",
   "#ff7030",
 ];
+const RGB_COLORS = ["#ff0000", "#00ff00", "#0000ff"];
+
+/**
+ * A colour photograph (an H&E stain): channels labelled r, g, b (as
+ * spatialdata-io writes them), or three unlabelled 8-bit channels (no
+ * label, or just their index, as spatialdata names them by default). Shown as
+ * itself — red, green and blue, all on, the full 0–255 range — not as three
+ * fluorescence channels.
+ */
+export function isRgb(image: SpatialDataImage): boolean {
+  const count = image.levels[0].array.shape[0];
+  const labels = image.channelLabels.map((l) => l.toLowerCase());
+  const named = ["r", "g", "b"].every(
+    (c, i) => labels[i] === c || labels[i] === ["red", "green", "blue"][i],
+  );
+  const unlabelled =
+    count === 3 &&
+    labels.every((l, i) => !l || l === `channel ${i}` || l === String(i));
+
+  return (
+    image.maxValue === 255 &&
+    (count === 3 || count === 4) &&
+    (named || unlabelled)
+  );
+}
+
 // Finer levels are skipped while a view would need more tiles than this
 // (a tilted 3D camera can see most of the image at once).
 const MAX_TILES_PER_VIEW = 12;
@@ -100,15 +126,20 @@ export class ImageLayer extends BaseLayer {
     this.levels = image.levels;
     this.maxValue = image.maxValue;
     const count = image.levels[0].array.shape[0];
+    const rgb = isRgb(image);
 
     this.channels = Array.from({ length: count }, (_, i) => ({
       label: image.channelLabels[i] ?? `Channel ${i}`,
-      color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
-      visible: i === 0,
+      color:
+        rgb && i < 3
+          ? RGB_COLORS[i]
+          : CHANNEL_COLORS[i % CHANNEL_COLORS.length],
+      visible: rgb ? i < 3 : i === 0,
       min: 0,
       max: image.maxValue,
     }));
-    this.windowed = new Array(count).fill(false);
+    // A photograph keeps its full range; fluorescence is windowed by the data
+    this.windowed = this.channels.map((_, i) => rgb && i < 3);
 
     this.sharedUniforms = {
       uColor: { value: this.channels.map((c) => new THREE.Color(c.color)) },
@@ -267,7 +298,12 @@ export class ImageLayer extends BaseLayer {
         wanted.add(tile);
         this.channels.forEach((channel, c) => {
           if (channel.visible && !tile.textures[c] && !tile.loading[c]) {
-            tile.loading[c] = true;
+            // One read fills every channel its chunk holds
+            for (const k of this.chunkChannels(l, c)) {
+              if (this.channels[k].visible && !tile.textures[k]) {
+                tile.loading[k] = true;
+              }
+            }
             this.queue.push({ tile, channel: c });
           }
         });
@@ -461,7 +497,9 @@ export class ImageLayer extends BaseLayer {
 
       // Scrolled away (or the channel was switched off) before its turn
       if (tile.lastWanted < this.frame - 1 || !this.channels[channel].visible) {
-        tile.loading[channel] = false;
+        for (const k of this.chunkChannels(tile.level, channel)) {
+          tile.loading[k] = false;
+        }
         continue;
       }
       this.activeLoads++;
@@ -472,11 +510,26 @@ export class ImageLayer extends BaseLayer {
           }
         })
         .finally(() => {
-          tile.loading[channel] = false;
+          for (const k of this.chunkChannels(tile.level, channel)) {
+            tile.loading[k] = false;
+          }
           tile.controllers[channel] = null;
           this.activeLoads--;
         });
     }
+  }
+
+  /**
+   * The channels stored in the same chunk as `channel` at a level: itself
+   * when the image is chunked one channel at a time, all of r, g, b when a
+   * chunk holds the three planes (as an H&E image is written).
+   */
+  private chunkChannels(level: number, channel: number): number[] {
+    const per = this.levels[level].array.chunks[0];
+    const first = Math.floor(channel / per) * per;
+    const end = Math.min(first + per, this.channels.length);
+
+    return Array.from({ length: end - first }, (_, i) => first + i);
   }
 
   private async loadChunk(tile: Tile, channel: number) {
@@ -486,25 +539,36 @@ export class ImageLayer extends BaseLayer {
 
     tile.controllers[channel] = controller;
     hint(controller.signal, { tag: "image", priority: tile.level });
-    const chunk = await lv.array.getChunk([channel, tile.chunkY, tile.chunkX], {
-      signal: controller.signal,
-    });
+    const per = lv.array.chunks[0];
+    const chunk = await lv.array.getChunk(
+      [Math.floor(channel / per), tile.chunkY, tile.chunkX],
+      { signal: controller.signal },
+    );
 
     if (this.disposed || !this.tiles.has(this.keyOf(tile))) return;
 
     const data = chunk.data as Uint8Array | Uint16Array;
+    const plane = lv.chunkWidth * lv.chunkHeight;
 
-    if (tile.level === this.levels.length - 1 && !this.windowed[channel]) {
-      this.windowed[channel] = true;
-      this.setChannel(channel, { min: 0, max: percentile(data, 0.999) });
-      this.onChange?.();
-      this.changed();
+    // The chunk is (channels, y, x): one plane per channel it holds
+    for (const k of this.chunkChannels(tile.level, channel)) {
+      if (k !== channel && (!this.channels[k].visible || tile.textures[k])) {
+        continue;
+      }
+      const offset = (k % per) * plane;
+      const pixels = data.subarray(offset, offset + plane);
+
+      if (tile.level === this.levels.length - 1 && !this.windowed[k]) {
+        this.windowed[k] = true;
+        this.setChannel(k, { min: 0, max: percentile(pixels, 0.999) });
+        this.onChange?.();
+      }
+
+      const texture = this.makeTexture(pixels, lv.chunkWidth, lv.chunkHeight);
+
+      tile.textures[k] = texture;
+      tile.mesh.material.uniforms[`uTex${k}`].value = texture;
     }
-
-    const texture = this.makeTexture(data, lv.chunkWidth, lv.chunkHeight);
-
-    tile.textures[channel] = texture;
-    tile.mesh.material.uniforms[`uTex${channel}`].value = texture;
     this.changed();
   }
 

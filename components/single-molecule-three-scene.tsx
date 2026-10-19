@@ -141,9 +141,14 @@ export function SingleMoleculeThreeScene({
   // the contract. They outlive scene rebuilds (a view-mode switch);
   // `onSceneReady` attaches them to each new scene.
   const handedImage = elements?.image;
+  const handedProblems = elements?.problems;
   const layerElements = useMemo<OpenedElements>(
-    () => ({ image: handedImage, ...moleculeElements(dataset ?? null) }),
-    [handedImage, dataset],
+    () => ({
+      image: handedImage,
+      ...moleculeElements(dataset ?? null),
+      problems: handedProblems,
+    }),
+    [handedImage, dataset, handedProblems],
   );
   const layerCtx: LayerContext = {
     molecules: {

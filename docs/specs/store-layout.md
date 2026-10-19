@@ -53,17 +53,36 @@ store at its root or in one folder under it.
    `Content-Length` exposed; `Timing-Allow-Origin` lets the byte counts be
    measured. The merfisheyes-bil bucket allows the production origin and
    the standard local ports only.
-8. **Transforms**: every element declares `coordinateTransformations` into
-   one shared coordinate system (`global`). The viewer draws in the cells'
-   intrinsic coordinates (the table's `obsm/spatial`); an image is placed
-   by undoing the shapes element's transform, else the points element's
-   (`lib/spatialdata/image.ts`). Where the points and shapes declare
-   different transforms to `global` (the atera store does), the shapes'
-   wins for the image and the points are drawn as written.
+8. **Transforms**: an element's `coordinateTransformations` is a list of
+   alternatives, one per output coordinate system (each entry names its
+   `output`), as SpatialData writes it; a list whose entries name no output
+   (plain OME-NGFF) is a chain. The viewer chooses one **target** system
+   (`lib/spatialdata/coordinates.ts`): `global` when every element reaches
+   it, else the system the cells' region (the shapes element the default
+   table annotates) is identity into — a Visium store has no `global`,
+   one system per image. It draws in the region's own coordinates (the
+   table's `obsm/spatial`): each element takes its one entry into the
+   target, then the inverse of the region's. The image drawn is the finest
+   that reaches the target (a Visium full image, else its hires image).
+   Points and other shapes are drawn as written and must sit in the
+   region's frame (every SpatialData-DB store's do); one that does not, or
+   any element whose transform is not a scale, translation, identity or a
+   sequence of them (`affine`), is left out and named in
+   `openElements`' `problems`.
 
 ## What the validator checks
 
 `python scripts/validate_store.py <store.zarr> [--mapping]` reads the store
 from disk and reports, per element, the profile's checks; it exits non-zero
 on the first failure of a MUST. It is run in CI on the tiny fixtures
-(`tests/python/`) and by hand on the real stores.
+(`tests/python/`) and by hand on the real stores; `--root-json <zarr.json>`
+checks a store known only by its root (one read through a URL).
+
+Requirement 8 is checked by the same rule the viewer applies
+(`coordinate_systems` there, `lib/spatialdata/coordinates.ts` here): the
+target, an image that cannot reach it (WARN), and a points or shapes
+element whose transforms put it outside the cells' frame (FAIL: it would
+be left out). A store whose molecules were converted to the points format
+keeps the source element's transforms (`PointsWriter(transformations=…)`);
+declaring identity beside cells that declare a scale is the mistake this
+catches.

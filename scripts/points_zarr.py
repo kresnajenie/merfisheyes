@@ -126,6 +126,22 @@ class _Writer:
         return self.offset
 
 
+def _checked_transformations(transformations: list[dict] | None, dims: int) -> list[dict] | None:
+    """Transforms to write as given: each names its output system, and a
+    scale or translation has one entry per axis of the element."""
+    if not transformations:
+        return None
+    out = []
+    for t in transformations:
+        if not t.get("output"):
+            raise ValueError(f"a transformation without an output system: {t}")
+        for key in ("scale", "translation"):
+            if key in t and len(t[key]) != dims:
+                raise ValueError(f"{t['type']} {t[key]} does not have {dims} axes")
+        out.append(dict(t))
+    return out
+
+
 class PointsWriter:
     """Writes one points element. Picklable, so workers can ``spill``.
 
@@ -149,6 +165,7 @@ class PointsWriter:
         n_levels: int = 8,
         units: str = "micrometer",
         coordinate_system: str = "global",
+        transformations: list[dict] | None = None,
     ):
         self.out, self.tmp = Path(out), Path(tmp)
         self.features = list(features)
@@ -162,6 +179,11 @@ class PointsWriter:
         self.n_levels = n_levels
         self.units = units
         self.coordinate_system = coordinate_system
+        # The source element's transforms into its coordinate systems, when
+        # the molecules keep its coordinates (a converted SpatialData store):
+        # without them the element declares identity into `coordinate_system`,
+        # which places it wrongly beside cells that declare a scale.
+        self.transformations = _checked_transformations(transformations, dims)
         self.fdtype = np.dtype("u2" if len(self.features) < 2**16 else "u4")
         # leftovers of an earlier, interrupted run would be appended to
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -287,12 +309,16 @@ class PointsWriter:
                 )
             layout.append(e)
         cs = {"name": self.coordinate_system, "axes": [{"name": a, "type": "space", "unit": self.units} for a in self.axes]}
+        source = {"name": "xyz"[: self.dims], "axes": cs["axes"]}
+        transformations = (
+            [{**t, "input": source} for t in self.transformations]
+            if self.transformations
+            else [{"type": "identity", "input": source, "output": cs}]
+        )
         attrs = {
             "encoding-type": "ngff:points",
             "axes": self.axes,
-            "coordinateTransformations": [
-                {"type": "identity", "input": {"name": "xyz"[: self.dims], "axes": cs["axes"]}, "output": cs}
-            ],
+            "coordinateTransformations": transformations,
             "spatialdata_attrs": {"feature_key": self.feature_key, "version": "0.3-zarr"},
             "zarr_conventions": [MULTISCALES, POINTS],
             "multiscales": {"layout": layout},

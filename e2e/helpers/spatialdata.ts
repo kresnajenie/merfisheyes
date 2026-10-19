@@ -149,6 +149,10 @@ function shapesNode(): unknown {
  *                                        with a mapping.json linking it to
  *                                        /molecules-large/<tag>
  *   /image/<extent>.zarr                 the image on its own, `<extent>` wide
+ *   /visium/store.zarr                   the Visium-shaped store spatialdata
+ *                                        wrote (make-tiny-visium.py): three
+ *                                        images in three systems, spots as
+ *                                        circles, no `global`
  *   /medium/store.zarr                   the generated medium store, when
  *                                        it is on disk (make-medium-store.py)
  *
@@ -209,6 +213,11 @@ export function startSpatialDataServer(
     }
     if (kind === "medium") {
       return { file: path.join(MEDIUM, ...rest) };
+    }
+    if (kind === "visium") {
+      const [, ...inside] = rest;
+
+      return { file: path.join(ZARR, "visium_v3.zarr", ...inside) };
     }
     if (kind === "image") {
       const [name, ...inside] = rest;
@@ -343,6 +352,11 @@ export function largeMoleculesUrl(server: FixtureServer, tag: string): string {
 /** URL of the tiny cell folder whose mapping.json links `/molecules-large/<tag>`. */
 export function cellsUrl(server: FixtureServer, tag: string): string {
   return `${server.url}/cells/${tag}`;
+}
+
+/** URL of the Visium-shaped store (no `global` system). */
+export function visiumUrl(server: FixtureServer): string {
+  return `${server.url}/visium/store.zarr`;
 }
 
 /**

@@ -164,6 +164,48 @@ describe("openElements", () => {
       "Error opening molecules:",
       expect.any(Error),
     );
+    expect(opened.problems).toEqual([expect.stringMatching(/^molecules: /)]);
+  });
+});
+
+/** The Visium-shaped store spatialdata wrote (make-tiny-visium.py), minus `drop`. */
+function visiumStore(drop: (key: string) => boolean = () => false): SpatialDataStore {
+  const dir = path.join(ZARR, "visium_v3.zarr");
+  const keys = listFiles(dir).filter((k) => !drop(k));
+  const read = async (key: string) => {
+    const k = key.replace(/^\/+/, "");
+
+    return drop(k)
+      ? undefined
+      : readFile(path.join(dir, k)).then(
+          (b) => new Uint8Array(b),
+          () => undefined,
+        );
+  };
+
+  return { keys, store: { get: read }, sidecar: { get: async () => undefined } } as never;
+}
+
+describe("openElements on a Visium store (no global system)", () => {
+  it("draws the full image at one pixel per spot unit, not the downscaled ones", async () => {
+    const opened = await openElements(visiumStore(), { id: "v", name: "tiny", cells });
+
+    expect(opened.image?.name).toBe("tiny_full_image");
+    expect(opened.image?.levels.map((l) => [l.pixelWidth, l.pixelHeight])).toEqual([
+      [1, 1],
+      [2, 2],
+    ]);
+    expect(opened.problems).toBeUndefined();
+  });
+
+  it("draws the hires image, scaled into the spots' system, when there is no full image", async () => {
+    const opened = await openElements(
+      visiumStore((k) => k.startsWith("images/tiny_full_image")),
+      { id: "v", name: "tiny", cells },
+    );
+
+    expect(opened.image?.name).toBe("tiny_hires_image");
+    expect(opened.image?.levels[0].pixelWidth).toBe(4);
   });
 });
 

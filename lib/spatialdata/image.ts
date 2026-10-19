@@ -5,6 +5,16 @@ import * as zarr from "zarrita-v3";
 
 import { elementNames, findZarrRoot, publicUrlStore } from "./store";
 import { fileStore } from "./localStore";
+import {
+  type Map2,
+  chain,
+  chooseImage,
+  elementTransforms,
+  readCoordinateSystems,
+  compose,
+  outputName,
+  toSystem,
+} from "./coordinates";
 
 type PixelArray = zarr.Array<"uint8" | "uint16", zarr.Readable>;
 
@@ -31,82 +41,57 @@ export interface SpatialDataImage {
   levels: ImageLevel[];
 }
 
-type Transform = {
-  type: string;
-  scale?: number[];
-  translation?: number[];
-  /** Of a "sequence": its steps, applied in order. */
-  transformations?: Transform[];
-};
-
 /**
- * Per-axis scale and offset of a chain of scale / translation / identity. A
- * sequence (how spatialdata writes a scale followed by a translation) counts
- * as its steps.
+ * Open the store's multiscale image (OME-Zarr `images/<name>`, axes c/y/x),
+ * placed in the scene's units — the cells' own coordinates — through the
+ * store's coordinate systems (`coordinates.ts`): the finest image that
+ * reaches the target is drawn; one that cannot is not opened, and the error
+ * says why.
  */
-function composeTransforms(transforms: Transform[] | undefined, axes: number) {
-  const scale = new Array(axes).fill(1);
-  const offset = new Array(axes).fill(0);
-  const steps = (list: Transform[]): Transform[] =>
-    list.flatMap((t) =>
-      t.type === "sequence" ? steps(t.transformations ?? []) : [t],
-    );
+export async function openSpatialDataImage(
+  sd: SpatialDataStore,
+): Promise<SpatialDataImage | null> {
+  const names = elementNames(sd.keys, "images");
 
-  for (const t of steps(transforms ?? [])) {
-    if (t.type === "scale" && t.scale) {
-      for (let i = 0; i < axes; i++) {
-        scale[i] *= t.scale[i];
-        offset[i] *= t.scale[i];
-      }
-    } else if (t.type === "translation" && t.translation) {
-      for (let i = 0; i < axes; i++) offset[i] += t.translation[i];
-    } else if (t.type !== "identity") {
-      console.warn(`[spatialdata] Ignoring unsupported transform "${t.type}"`);
-    }
+  if (!names.length) return null;
+  const cs = await readCoordinateSystems(sd);
+  const chosen = chooseImage(cs, names);
+
+  if (chosen.name === null) {
+    throw new Error(`No image can be placed with the cells: ${chosen.reason}`);
   }
+  const placed = cs.place(`images/${chosen.name}`);
 
-  return { scale, offset };
-}
-
-/**
- * Open the store's multiscale image (OME-Zarr `images/<name>`, axes c/y/x).
- *
- * Levels are placed in the scene's units — those of the cells, i.e. the
- * intrinsic coordinates of the store's shapes (or points) element — by
- * undoing that element's transform to the shared coordinate system.
- */
-export async function openSpatialDataImage({
-  store,
-  keys,
-}: SpatialDataStore): Promise<SpatialDataImage | null> {
-  const name = elementNames(keys, "images")[0];
-
-  if (!name) return null;
-
-  const root = zarr.root(store as zarr.Readable);
-  const group = await zarr.open.v3(root.resolve(`images/${name}`), {
+  if (!placed.ok) throw new Error(placed.reason);
+  const root = zarr.root(sd.store as zarr.Readable);
+  const group = await zarr.open.v3(root.resolve(`images/${chosen.name}`), {
     kind: "group",
   });
 
-  // Scene units → shared coordinate system, from the cells' own element
-  const [shapes] = elementNames(keys, "shapes");
-  const [points] = elementNames(keys, "points");
-  const cellsPath = shapes ? `shapes/${shapes}` : points && `points/${points}`;
-  let toShared = { scale: [1, 1], offset: [0, 0] };
+  return readMultiscale(chosen.name, group, (level) =>
+    compose(level, placed.map),
+  );
+}
 
-  if (cellsPath) {
-    const cells = await zarr.open.v3(root.resolve(cellsPath), {
-      kind: "group",
-    });
+/**
+ * A standalone image's own transforms, after each level's: a plain OME-NGFF
+ * chain; or, when the entries name output systems (as `spatialdata` writes
+ * them), the one into `global`, else the first.
+ */
+function standalonePlacement(group: zarr.Group<zarr.Readable>) {
+  const el = elementTransforms("images", group.attrs as Record<string, any>);
+  const systems = el.transforms
+    .map(outputName)
+    .filter((n): n is string => n !== null);
+  const p = toSystem(
+    el,
+    systems.includes("global") ? "global" : (systems[0] ?? null),
+  );
 
-    // Axes are x, y(, z)
-    toShared = composeTransforms(
-      (cells.attrs.coordinateTransformations as Transform[]) ?? [],
-      2,
-    );
-  }
+  if (!p.ok) throw new Error(`Image transform: ${p.reason}`);
+  const placed = p.map;
 
-  return readMultiscale(name, group, toShared);
+  return (level: Map2) => compose(level, placed);
 }
 
 /**
@@ -120,7 +105,7 @@ export async function openOmeZarrImage(url: string): Promise<SpatialDataImage> {
   const group = await zarr.open.v3(root, { kind: "group" });
   const name = base.slice(base.lastIndexOf("/") + 1).replace(/\.zarr$/, "");
 
-  return readMultiscale(name, group, { scale: [1, 1], offset: [0, 0] });
+  return readMultiscale(name, group, standalonePlacement(group));
 }
 
 /**
@@ -137,7 +122,7 @@ export async function openOmeZarrImageDataset(
   const group = await zarr.open.v3(zarr.root(store), { kind: "group" });
   const name = prefix.replace(/\/$/, "").replace(/\.zarr$/, "") || datasetId;
 
-  return readMultiscale(name, group, { scale: [1, 1], offset: [0, 0] });
+  return readMultiscale(name, group, standalonePlacement(group));
 }
 
 /**
@@ -152,10 +137,11 @@ export async function openOmeZarrImageFromFiles(
   const root = zarr.root(fileStore(files) as zarr.Readable);
   const group = await zarr.open.v3(root, { kind: "group" });
 
-  return readMultiscale(name.replace(/\.zarr$/, ""), group, {
-    scale: [1, 1],
-    offset: [0, 0],
-  });
+  return readMultiscale(
+    name.replace(/\.zarr$/, ""),
+    group,
+    standalonePlacement(group),
+  );
 }
 
 /**
@@ -178,7 +164,8 @@ export function openImageRef(ref: ImageRef): Promise<SpatialDataImage> {
 async function readMultiscale(
   name: string,
   group: zarr.Group<zarr.Readable>,
-  toShared: { scale: number[]; offset: number[] },
+  /** A level's pixel → image map, to its pixel → scene map. */
+  place: (level: Map2) => Map2,
 ): Promise<SpatialDataImage> {
   const ome = group.attrs.ome as any;
   const multiscale = ome.multiscales[0];
@@ -188,7 +175,6 @@ async function readMultiscale(
     throw new Error(`Unsupported image axes: ${axisNames.join(", ")}`);
   }
 
-  const imageToShared = multiscale.coordinateTransformations as Transform[];
   const levels: ImageLevel[] = [];
 
   for (const dataset of multiscale.datasets) {
@@ -199,11 +185,8 @@ async function readMultiscale(
     if (!array.is("uint8") && !array.is("uint16")) {
       throw new Error(`Unsupported image data type: ${array.dtype}`);
     }
-    // Level pixel index → shared coordinates (axes c, y, x)
-    const t = composeTransforms(
-      [...dataset.coordinateTransformations, ...(imageToShared ?? [])],
-      3,
-    );
+    // Level pixel index → scene
+    const t = place(chain(dataset.coordinateTransformations ?? [], axisNames));
 
     levels.push({
       array,
@@ -211,17 +194,19 @@ async function readMultiscale(
       width: array.shape[2],
       chunkHeight: array.chunks[1],
       chunkWidth: array.chunks[2],
-      pixelWidth: t.scale[2] / toShared.scale[0],
-      pixelHeight: t.scale[1] / toShared.scale[1],
-      originX: (t.offset[2] - toShared.offset[0]) / toShared.scale[0],
-      originY: (t.offset[1] - toShared.offset[1]) / toShared.scale[1],
+      pixelWidth: t.scale[0],
+      pixelHeight: t.scale[1],
+      originX: t.offset[0],
+      originY: t.offset[1],
     });
   }
 
   return {
     name,
+    // A label may be written as a number (spatialdata's default: 0, 1, 2)
     channelLabels: (ome.omero?.channels ?? []).map(
-      (c: { label?: string }, i: number) => c.label ?? `Channel ${i}`,
+      (c: { label?: string | number }, i: number) =>
+        c.label != null ? String(c.label) : `Channel ${i}`,
     ),
     maxValue: levels[0].array.is("uint8") ? 255 : 65535,
     levels,

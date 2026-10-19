@@ -54,7 +54,7 @@ The element group's attributes MUST contain:
 |---|---|
 | `encoding-type` | `"ngff:points"` |
 | `axes` | `["x", "y"]` or `["x", "y", "z"]` |
-| `coordinateTransformations` | as for any SpatialData element: intrinsic → named coordinate systems |
+| `coordinateTransformations` | as for any SpatialData element: intrinsic → named coordinate systems. A converted element keeps its source's transforms (`PointsWriter(transformations=…)`); the writer's default is identity into `coordinate_system` |
 | `spatialdata_attrs` | `{"feature_key": <feature column>, "version": "0.3-zarr"}`, plus `instance_key` if a column assigns points to instances |
 | `zarr_conventions` | entries for `multiscales` and for this spec (§9) |
 | `multiscales` | the levels (§3) |

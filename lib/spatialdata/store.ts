@@ -167,6 +167,23 @@ export async function openSpatialDataStoreFromFiles(
   );
 }
 
+/**
+ * The table a store's cells are read from: the curated default
+ * (`metadata_general["Default Table"]`, as SpatialData-DB writes it), else
+ * one named `table`, else the first by name.
+ */
+export function defaultTableName(
+  rootAttrs: Record<string, any>,
+  tables: string[],
+): string | null {
+  const curated = rootAttrs?.metadata_general?.["Default Table"];
+
+  if (typeof curated === "string" && tables.includes(curated)) return curated;
+  if (tables.includes("table")) return "table";
+
+  return [...tables].sort()[0] ?? null;
+}
+
 /** Names of the elements of one type (`images`, `shapes`, `points`, ...). */
 export function elementNames(keys: string[], type: string): string[] {
   const names = new Set<string>();

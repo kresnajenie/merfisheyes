@@ -169,14 +169,16 @@ export function ThreeScene({
   const handedShapes = elements?.shapes;
   const handedPoints = elements?.points;
   const handedMolecules = elements?.molecules;
+  const handedProblems = elements?.problems;
   const layerElements = useMemo<OpenedElements>(
     () => ({
       image: handedImage,
       shapes: handedShapes,
       points: handedPoints,
       molecules: handedMolecules,
+      problems: handedProblems,
     }),
-    [handedImage, handedShapes, handedPoints, handedMolecules],
+    [handedImage, handedShapes, handedPoints, handedMolecules, handedProblems],
   );
   const layerCtx: LayerContext = {
     molecules: {

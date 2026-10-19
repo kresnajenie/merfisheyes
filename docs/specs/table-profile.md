@@ -7,8 +7,8 @@ expression on demand. A table is an AnnData group in Zarr v3
 
 | Requirement | Level |
 |---|---|
-| The store's root has `spatialdata_attrs` and exactly one `tables/<name>` is read (the first, sorted) | MUST |
-| `obsm/spatial`: a 2-D float array of `n_obs × 2` or `× 3`, the cells' coordinates in their intrinsic system (microns) | MUST |
+| The store's root has `spatialdata_attrs` and exactly one `tables/<name>` is read: the curated `metadata_general["Default Table"]` when the root names one, else `tables/table`, else the first by name (`defaultTableName` in `lib/spatialdata/store.ts`) | MUST |
+| `obsm/spatial`: a 2-D numeric array (float, or int64 as Visium writes it) of `n_obs × 2` or `× 3`, the cells' coordinates in their intrinsic system (microns, or full-image pixels for Visium) | MUST |
 | `obs/_index` (or the `_index` named in `obs` attrs): cell ids, as a string array or a `nullable-string` encoding | MUST |
 | `var/_index`: gene names, likewise | MUST for gene expression |
 | `X`: `csc_matrix` encoding (`indptr`, `indices`, `data`), so one gene is a contiguous slice; or `layers/X_csc` holding that copy when `X` is CSR | MUST for gene expression; a CSR `X` with no CSC copy reads the whole matrix per gene |

@@ -7,6 +7,7 @@ import {
   storeUrl,
   storeFolderUrl,
   imageUrl,
+  visiumUrl,
   SELECTORS,
   type StoreLayout,
   type StoreParts,
@@ -152,6 +153,54 @@ for (const { parts, layout } of STORES) {
     }
   });
 }
+
+test("@quick Visium store: the full image under the spots, not the downscaled ones", async ({
+  page,
+}) => {
+  // No `global` system: the spots' system is the target, and the full image
+  // is identity into it, so it spans the spots and no more: a square in the
+  // middle of the view framed on them. Multiplied by every transform of the
+  // spots (as before), it was drawn 64x too large and ran off the view.
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumUrl(server))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "spots").toBe(36);
+  await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
+  await expect
+    .poll(() => served(/\/images\/tiny_full_image\/s\d\/c\//), {
+      message: "the full image should be read",
+    })
+    .toBe(true);
+  await expect
+    .poll(() => litFraction(page, SCENES.cells), {
+      message: "the image should be drawn",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.08);
+  // A band along the right edge, clear of the buttons: dark beside the
+  // spots, lit when the image runs off past them
+  expect(
+    await litFraction(page, SCENES.cells, {
+      x0: 0.92,
+      y0: 0.3,
+      x1: 0.99,
+      y1: 0.7,
+    }),
+    "the image should cover the spots, not run past them",
+  ).toBeLessThan(0.05);
+  expect(
+    served(/\/images\/tiny_(hires|lowres)_image\//),
+    "the downscaled images should not be read",
+  ).toBe(false);
+});
 
 test("@quick SpatialData store with nothing to show says so", async ({
   page,

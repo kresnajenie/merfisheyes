@@ -9,8 +9,15 @@ import type { StandardizedDataset } from "../StandardizedDataset";
  * 4. Any column containing "celltype"
  * 5. First available categorical column
  * 6. First available column
- * 7. null if no clusters exist
+ * 7. null if no clusters exist, or only positional ones (NOT_DEFAULT_COLUMNS)
  */
+
+/**
+ * Positional or bookkeeping obs columns (a Visium spot's grid row and
+ * column, whether it is on tissue): offered in the picker, never chosen as
+ * the default colouring — coloured by them, a capture area is stripes.
+ */
+const NOT_DEFAULT_COLUMNS = new Set(["array_row", "array_col", "in_tissue"]);
 
 const PRIORITY_COLUMNS = [
   "class_name",
@@ -46,12 +53,13 @@ export function selectBestClusterColumn(
   if (celltype) return celltype.column;
 
   // Priority 4: Use the first categorical column
-  const categoricalColumn = clusters.find((c) => c.type === "categorical");
+  const candidates = clusters.filter((c) => !NOT_DEFAULT_COLUMNS.has(c.column));
+  const categoricalColumn = candidates.find((c) => c.type === "categorical");
 
   if (categoricalColumn) return categoricalColumn.column;
 
-  // Priority 5: Use the first available column
-  return clusters[0].column;
+  // Priority 5: Use the first available column (none: one neutral colour)
+  return candidates[0]?.column ?? null;
 }
 
 /**
@@ -73,14 +81,17 @@ export function selectBestClusterColumnByName(
   const celltype = columnNames.find((name) =>
     name.toLowerCase().includes("celltype"),
   );
+
   if (celltype) return celltype;
 
   // Priority 4: first categorical column
-  const categoricalColumn = columnNames.find(
+  const candidates = columnNames.filter((n) => !NOT_DEFAULT_COLUMNS.has(n));
+  const categoricalColumn = candidates.find(
     (name) => columnTypes[name] !== "numerical",
   );
+
   if (categoricalColumn) return categoricalColumn;
 
-  // Priority 5: first available column
-  return columnNames[0];
+  // Priority 5: first available column (none: one neutral colour)
+  return candidates[0] ?? null;
 }

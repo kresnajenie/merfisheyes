@@ -182,6 +182,26 @@ SwiftShader takes to draw 8 M molecules once; on a GPU that frame is the
 machine with one. The medium store's `hoverFrameMs` is the same because
 the pointer sweep's worst frame is a draw, not the pick.
 
+## After SDDB step 2 (2026-10-18, coordinate systems)
+
+Same fixtures and server. Images are now placed through the store's
+coordinate systems (`lib/spatialdata/coordinates.ts`); read once from the
+consolidated metadata, so nothing is fetched for it.
+
+| Metric | spatialdata-tiny | spatialdata-medium | after step 4 |
+|---|---|---|---|
+| openToCells | — | 4.7 s | 4.8 s |
+| sliderToFrame (light) | — | 109 ms | 95 ms |
+| sliderToFrameHeavy | — | 2.7 s | 2.6 s |
+| hoverFrameMs | — | 49 ms | 49 ms |
+| geneToSettled / viewSettled | — | 2.3 s / 14.4 s | 2.9 s / 16.1 s |
+| drawCalls | 10 | 79 | 79 |
+
+Unchanged within the run-to-run noise. The real Visium stores were opened
+through Lamin's proxy for the placement only (the cerebellum
+`fJSOO03VzCTYtD1o`, the ovary `haOzFbJ7Bc9x7NW6`: the image lies under the
+spots); their load times are not measured yet (step 4's nightly).
+
 ## How the numbers are read
 
 - Layer hooks (`window.__merfish.layers[kind]`, `lib/utils/test-hooks.ts`):

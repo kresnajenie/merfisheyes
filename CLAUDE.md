@@ -493,6 +493,11 @@ the h5ad-zarr path:
   `uint8`/`uint16`, scale + translation, or a `sequence` of them as the
   `spatialdata` library writes it) and the tiled Three.js layer shared by all
   three viewers
+- `coordinates.ts` — a store's coordinate systems: an element's transform
+  list is alternatives (one per output system), never multiplied; the
+  target is `global`, else the system the cells' region is identity into
+  (Visium); every element is placed in the cells' own coordinates through
+  it (`docs/specs/store-layout.md` §8)
 - [lib/storage/ElementStore.ts](lib/storage/ElementStore.ts) — **the one
   store every reader reads through** (spec [docs/specs/LOADING.md](docs/specs/LOADING.md)):
   a zarrita `AsyncReadable` over a `Backend` (`lib/storage/backends.ts`: a
