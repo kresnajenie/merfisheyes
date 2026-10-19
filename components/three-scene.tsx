@@ -86,7 +86,7 @@ interface ThreeSceneProps {
 /**
  * The dot size, in world units, that draws each cell at its real size (a
  * Visium spot's diameter, a bin's side) when the dataset knows it; null
- * otherwise. A cell at the "selected" size multiplier is drawn at that size.
+ * otherwise. The size slider still scales it.
  */
 function cellFootprintDotSize(
   dataset: StandardizedDataset | null | undefined,
@@ -94,11 +94,7 @@ function cellFootprintDotSize(
 ): number | null {
   const footprint = dataset?.cellFootprint;
 
-  return footprint
-    ? (footprint.size * sceneScale) /
-        (VISUALIZATION_CONFIG.POINT_BASE_SIZE *
-          (VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number))
-    : null;
+  return footprint ? footprint.size * sceneScale : null;
 }
 
 export function ThreeScene({

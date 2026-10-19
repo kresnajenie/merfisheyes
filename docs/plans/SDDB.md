@@ -299,9 +299,12 @@ default table), so their gate items do not arise. Two tests that fail
 without the change: a Visium HD-shaped store written by spatialdata
 (`visium_hd_v3.zarr`) whose bins cover the section, and the footprint
 reads. Perf unchanged (`BUDGETS.md`). Also: with no column to colour by,
-the tooltip no longer says "undefined". Not done: "where the default table
-has no CSC layer, open the 16 µm table" (82 Visium HD stores) — left for a
-decision; Xenium's `cell_circles` vary in radius and stay dots.
+the tooltip no longer says "undefined"; a real-size cell keeps its size in
+every mode (expression and selection show in colour and opacity, never by
+shrinking a spot). Not done: "where the default table
+has no CSC layer, open the 16 µm table" — left for a decision; the 82
+stores are listed in `perf/sddb/NO-CSC.md` (all Visium HD, default
+`square_008um`, each with a `square_016um` that has one); Xenium's `cell_circles` vary in radius and stay dots.
 
 ### Step 4: the Lamin backend and the catalog (`feat/sddb-catalog`)
 

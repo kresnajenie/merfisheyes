@@ -10,7 +10,9 @@ import {
   visiumUrl,
   visiumHdUrl,
   colourFraction,
+  selectGeneAndMeasure,
   SELECTORS,
+  type DatasetEntry,
   type StoreLayout,
   type StoreParts,
 } from "../../fixtures/merfish-fixtures";
@@ -238,6 +240,31 @@ test("@quick Visium HD store: the bins drawn as squares of their real size", asy
       },
     )
     .toBeGreaterThan(0.6);
+
+  await test.step("coloured by a gene, every bin keeps its size", async () => {
+    // Low expression shrank a dot; a bin stays a bin (colour carries the
+    // value). With the image hidden, the bins alone light the section (1 in
+    // 7 of the fixture's bins is missing: about 86% when they keep their size).
+    await selectGeneAndMeasure(
+      page,
+      { dataType: "single_cell" } as DatasetEntry,
+      "gene0",
+    );
+    await page.locator(SELECTORS.imageButton).click();
+    await page.getByLabel("Show image").uncheck();
+    await expect
+      .poll(
+        () =>
+          litFraction(page, SCENES.cells, {
+            x0: 0.45,
+            y0: 0.45,
+            x1: 0.55,
+            y1: 0.55,
+          }),
+        { message: "the bins should still tile the section", timeout: 30_000 },
+      )
+      .toBeGreaterThan(0.7);
+  });
 });
 
 test("@quick SpatialData store with nothing to show says so", async ({

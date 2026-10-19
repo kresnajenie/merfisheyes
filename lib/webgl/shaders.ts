@@ -40,8 +40,10 @@ const vertexBody = `
         // World-space sizing: dotSize is pre-scaled to account for data extent.
         // projectionMatrix[1][1] = 1/tan(fov/2), dividing by -mvPosition.z gives perspective.
         // Points naturally appear bigger when closer and smaller when farther.
-        float px = POINT_SCALE * dotSize * projectionMatrix[1][1] / -mvPosition.z;
-        if (uWorldSized > 0.5) px *= uHalfHeight;
+        // A real-size cell keeps its size: expression and selection show in
+        // its colour and opacity, not by shrinking it
+        float px = (uWorldSized > 0.5 ? uHalfHeight : POINT_SCALE) * dotSize
+            * projectionMatrix[1][1] / -mvPosition.z;
 
         // Cull sub-pixel points — without this they jam at the GPU's 1px floor
         // and pile up as overdraw when zoomed far out. Threshold sets the
