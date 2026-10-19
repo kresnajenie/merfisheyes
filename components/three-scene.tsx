@@ -15,6 +15,8 @@ import { getClusterValue } from "@/lib/StandardizedDataset";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloudFromBuffers,
+  setCellFootprint,
+  updateHalfHeight,
   updatePointCloudAttributes,
   updateDotSize,
 } from "@/lib/webgl/point-cloud";
@@ -79,6 +81,24 @@ interface ThreeSceneProps {
   linkConfig?: DatasetLinkConfig | null;
   /** The linked molecules are still being read. */
   loadingOverlay?: boolean;
+}
+
+/**
+ * The dot size, in world units, that draws each cell at its real size (a
+ * Visium spot's diameter, a bin's side) when the dataset knows it; null
+ * otherwise. A cell at the "selected" size multiplier is drawn at that size.
+ */
+function cellFootprintDotSize(
+  dataset: StandardizedDataset | null | undefined,
+  sceneScale: number,
+): number | null {
+  const footprint = dataset?.cellFootprint;
+
+  return footprint
+    ? (footprint.size * sceneScale) /
+        (VISUALIZATION_CONFIG.POINT_BASE_SIZE *
+          (VISUALIZATION_CONFIG.SELECTED_SIZE_MULTIPLIER as number))
+    : null;
 }
 
 export function ThreeScene({
@@ -402,6 +422,15 @@ export function ThreeScene({
       })
       .join("");
 
+    // The cell's category, with its colour; none without a column
+    const clusterRow = currentColumn
+      ? `<div class="flex items-center">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${
+                colorPaletteRef.current[String(clusterValue)] || "#808080"
+              }; margin-right: 6px;"></div>
+              <span>${clusterValue}</span>
+            </div>`
+      : "";
     let tooltipContent = "";
 
     if (currentMode.includes("gene") && currentGene) {
@@ -415,15 +444,9 @@ export function ThreeScene({
           </div>
         `;
       } else {
-        const clusterColor =
-          colorPaletteRef.current[String(clusterValue)] || "#808080";
-
         tooltipContent = `
           <div class="flex flex-col gap-1">
-            <div class="flex items-center">
-              <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
-              <span>${clusterValue}</span>
-            </div>
+            ${clusterRow}
             ${pinnedRows}
             <div class="flex items-center">
               <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${pointColor}; margin-right: 6px;"></div>
@@ -441,20 +464,20 @@ export function ThreeScene({
             ${pinnedRows}
           </div>
         `;
-      } else {
-        const clusterColor =
-          colorPaletteRef.current[String(clusterValue)] || "#808080";
-
+      } else if (clusterRow || pinnedRows) {
         tooltipContent = `
           <div class="flex flex-col gap-1">
-            <div class="flex items-center">
-              <div style="width: 12px; height: 12px; border-radius: 50%; background-color: ${clusterColor}; margin-right: 6px;"></div>
-              <span>${clusterValue}</span>
-            </div>
+            ${clusterRow}
             ${pinnedRows}
           </div>
         `;
       }
+    }
+    // Nothing to say about this cell (no column to colour by, none pinned)
+    if (!tooltipContent) {
+      hideTooltip();
+
+      return;
     }
 
     tooltipRef.current.innerHTML = tooltipContent;
@@ -903,6 +926,7 @@ export function ThreeScene({
 
       cameraDistanceRef.current = distance;
       const baseDotSize =
+        cellFootprintDotSize(dataset, cs) ??
         (targetPx * distance) / (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
 
       baseDotSizeRef.current = baseDotSize;
@@ -911,6 +935,9 @@ export function ThreeScene({
         ptCount,
         baseDotSize,
       );
+
+      // Visium spots and bins: each cell at its real size and shape
+      setCellFootprint(pointCloud, dataset.cellFootprint?.shape ?? null);
 
       pointCloudRef.current = pointCloud; // Store reference
       pointCloud.visible = scLayerVisibleRef.current; // honor master SC toggle
@@ -1596,8 +1623,9 @@ export function ThreeScene({
     if (pointCloudRef.current) {
       const proj11 = 1.0 / Math.tan((75 * Math.PI) / 180 / 2);
       const newBaseDotSize =
+        cellFootprintDotSize(dataset, sceneScaleRef.current) ??
         (targetPx * cameraDistanceRef.current) /
-        (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
+          (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
 
       baseDotSizeRef.current = newBaseDotSize;
       updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
@@ -1627,6 +1655,10 @@ export function ThreeScene({
       const pc = pointCloudRef.current;
 
       if (!ctrls) return;
+      // A real-size cloud turns world units into pixels by the canvas height
+      if (pc && rendererRef.current) {
+        updateHalfHeight(pc, rendererRef.current.domElement.clientHeight / 2);
+      }
       const enabled = targetFilterEnabledRef.current ? 1.0 : 0.0;
       const radius = targetFilterRadiusRef.current;
       const feather = Math.max(1.0, radius * 0.1);

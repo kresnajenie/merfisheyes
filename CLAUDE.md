@@ -493,6 +493,9 @@ the h5ad-zarr path:
   `uint8`/`uint16`, scale + translation, or a `sequence` of them as the
   `spatialdata` library writes it) and the tiled Three.js layer shared by all
   three viewers
+- `footprint.ts` — Visium spots and Visium HD bins: the cells drawn at
+  their real size and shape (radius from the shapes footer, bin side from
+  the grid's pitch), read without the shapes themselves
 - `coordinates.ts` — a store's coordinate systems: an element's transform
   list is alternatives (one per output system), never multiplied; the
   target is `global`, else the system the cells' region is identity into

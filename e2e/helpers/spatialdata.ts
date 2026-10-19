@@ -153,6 +153,8 @@ function shapesNode(): unknown {
  *                                        wrote (make-tiny-visium.py): three
  *                                        images in three systems, spots as
  *                                        circles, no `global`
+ *   /visium-hd/store.zarr                the Visium HD-shaped one: square
+ *                                        bins of side 16 tiling a grid
  *   /medium/store.zarr                   the generated medium store, when
  *                                        it is on disk (make-medium-store.py)
  *
@@ -214,10 +216,11 @@ export function startSpatialDataServer(
     if (kind === "medium") {
       return { file: path.join(MEDIUM, ...rest) };
     }
-    if (kind === "visium") {
+    if (kind === "visium" || kind === "visium-hd") {
       const [, ...inside] = rest;
+      const store = kind === "visium" ? "visium_v3.zarr" : "visium_hd_v3.zarr";
 
-      return { file: path.join(ZARR, "visium_v3.zarr", ...inside) };
+      return { file: path.join(ZARR, store, ...inside) };
     }
     if (kind === "image") {
       const [name, ...inside] = rest;
@@ -357,6 +360,11 @@ export function cellsUrl(server: FixtureServer, tag: string): string {
 /** URL of the Visium-shaped store (no `global` system). */
 export function visiumUrl(server: FixtureServer): string {
   return `${server.url}/visium/store.zarr`;
+}
+
+/** URL of the Visium HD-shaped store (square bins). */
+export function visiumHdUrl(server: FixtureServer): string {
+  return `${server.url}/visium-hd/store.zarr`;
 }
 
 /**

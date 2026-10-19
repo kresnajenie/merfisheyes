@@ -21,3 +21,21 @@ and the cell dots (`docs/specs/RENDERING.md`).
 Known stores: atera has one file (31 MB) and matches its table; the skin
 store has a directory of parts and is not drawn. `scripts/validate_store.py`
 reports both.
+
+## Spots and bins: the cells' footprint
+
+When the table's region (the shapes element it annotates) is a Visium
+spot or Visium HD bin element, the shapes are not read: each cell is drawn
+at its real size and shape by the cell cloud itself
+(`lib/spatialdata/footprint.ts`, `docs/specs/RENDERING.md`), at any zoom,
+in its own colour, picked and selected as a cell.
+
+| Requirement | Level |
+|---|---|
+| The region element's GeoParquet `geo` metadata gives one geometry type | MUST for a footprint |
+| Circles: `Point` geometry and a `radius` column whose statistics (min, max) are in the footer and equal — one radius for every spot (Visium). Xenium's `cell_circles` vary and are drawn as dots | MUST for circles |
+| Squares: `Polygon` geometry, an element name containing `square`, the bins tiling a grid; the side is taken as the grid's pitch, the median nearest-neighbour distance of the table's coordinates (a Visium HD grid is rotated by a fraction of a degree in the image's pixels, so its columns do not share an x) | MUST for squares |
+| The region in the cells' frame (`store-layout.md` §8) | MUST |
+
+Read: one suffix range of the region's `shapes.parquet` (its footer); the
+2 µm bins of a Visium HD store are 348 MB and are never fetched.

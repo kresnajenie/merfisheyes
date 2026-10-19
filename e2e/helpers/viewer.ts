@@ -340,6 +340,52 @@ export async function dragDropFile(page: Page, ds: DatasetEntry): Promise<number
  * Share of a canvas's pixels that are not near-black, read from a screenshot
  * (a WebGL canvas can't be read back from the page once it has presented).
  */
+/**
+ * Fraction of a canvas region whose pixels are within `tolerance` (per
+ * channel, 0–255) of `rgb` — e.g. how much of it a colour covers.
+ */
+export async function colourFraction(
+  page: Page,
+  canvasSelector: string,
+  rgb: [number, number, number],
+  region: { x0: number; y0: number; x1: number; y1: number },
+  tolerance = 12,
+): Promise<number> {
+  const shot = await page.locator(canvasSelector).first().screenshot();
+
+  return page.evaluate(
+    async ({ png, rgb, region, tolerance }) => {
+      const image = await createImageBitmap(
+        await (await fetch(`data:image/png;base64,${png}`)).blob(),
+      );
+      const context = new OffscreenCanvas(image.width, image.height).getContext(
+        "2d",
+      )!;
+
+      context.drawImage(image, 0, 0);
+      const x = Math.floor(region.x0 * image.width);
+      const y = Math.floor(region.y0 * image.height);
+      const w = Math.max(1, Math.floor((region.x1 - region.x0) * image.width));
+      const h = Math.max(1, Math.floor((region.y1 - region.y0) * image.height));
+      const { data } = context.getImageData(x, y, w, h);
+      let hits = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        if (
+          Math.abs(data[i] - rgb[0]) <= tolerance &&
+          Math.abs(data[i + 1] - rgb[1]) <= tolerance &&
+          Math.abs(data[i + 2] - rgb[2]) <= tolerance
+        ) {
+          hits++;
+        }
+      }
+
+      return hits / (data.length / 4);
+    },
+    { png: shot.toString("base64"), rgb, region, tolerance },
+  );
+}
+
 export async function litFraction(
   page: Page,
   canvasSelector: string,

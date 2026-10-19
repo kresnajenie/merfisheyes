@@ -8,6 +8,8 @@ import {
   storeFolderUrl,
   imageUrl,
   visiumUrl,
+  visiumHdUrl,
+  colourFraction,
   SELECTORS,
   type StoreLayout,
   type StoreParts,
@@ -200,6 +202,42 @@ test("@quick Visium store: the full image under the spots, not the downscaled on
     served(/\/images\/tiny_(hires|lowres)_image\//),
     "the downscaled images should not be read",
   ).toBe(false);
+});
+
+test("@quick Visium HD store: the bins drawn as squares of their real size", async ({
+  page,
+}) => {
+  // Square bins of side 16 on a 16 grid: at their real size they tile the
+  // section in the neutral colour (no column to colour by); as dots, the
+  // image shows between them
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumHdUrl(server))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "bins").toBe(219);
+  // VISUALIZATION_CONFIG.NEUTRAL_POINT_COLOR, #d0d0d0
+  await expect
+    .poll(
+      () =>
+        colourFraction(page, SCENES.cells, [208, 208, 208], {
+          x0: 0.4,
+          y0: 0.4,
+          x1: 0.6,
+          y1: 0.6,
+        }),
+      {
+        message: "the bins should cover the middle of the section",
+        timeout: 60_000,
+      },
+    )
+    .toBeGreaterThan(0.6);
 });
 
 test("@quick SpatialData store with nothing to show says so", async ({
