@@ -301,7 +301,9 @@ without the change: a Visium HD-shaped store written by spatialdata
 reads. Perf unchanged (`BUDGETS.md`). Also: with no column to colour by,
 the tooltip no longer says "undefined"; a real-size cell keeps its size in
 every mode (expression and selection show in colour and opacity, never by
-shrinking a spot). Not done: "where the default table
+shrinking a spot); with nothing to colour by they are translucent
+(`NEUTRAL_POINT_ALPHA`), so the H&E under spots and bins shows; the SC
+button now shows whenever something is drawn with the cells, to hide them. Not done: "where the default table
 has no CSC layer, open the 16 µm table" — left for a decision; the 82
 stores are listed in `perf/sddb/NO-CSC.md` (all Visium HD, default
 `square_008um`, each with a `square_016um` that has one); Xenium's `cell_circles` vary in radius and stay dots.

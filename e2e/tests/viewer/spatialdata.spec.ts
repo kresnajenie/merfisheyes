@@ -9,7 +9,6 @@ import {
   imageUrl,
   visiumUrl,
   visiumHdUrl,
-  colourFraction,
   selectGeneAndMeasure,
   SELECTORS,
   type DatasetEntry,
@@ -210,8 +209,8 @@ test("@quick Visium HD store: the bins drawn as squares of their real size", asy
   page,
 }) => {
   // Square bins of side 16 on a 16 grid: at their real size they tile the
-  // section in the neutral colour (no column to colour by); as dots, the
-  // image shows between them
+  // section (1 in 7 of the fixture's bins is missing: about 86% of it lit
+  // with the image hidden); as dots, almost nothing is lit
   await page.goto(
     `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumHdUrl(server))}`,
   );
@@ -224,46 +223,42 @@ test("@quick Visium HD store: the bins drawn as squares of their real size", asy
     { timeout: 120_000 },
   );
   expect((await readHooks(page))!.stats!.pointCount, "bins").toBe(219);
-  // VISUALIZATION_CONFIG.NEUTRAL_POINT_COLOR, #d0d0d0
+  const middle = { x0: 0.45, y0: 0.45, x1: 0.55, y1: 0.55 };
+  const binsLit = () => litFraction(page, SCENES.cells, middle);
+
+  // The bins alone: no column to colour by, so they are translucent
+  // neutral (NEUTRAL_POINT_ALPHA), and the image is hidden
+  await page.locator(SELECTORS.imageButton).click();
+  await page.getByLabel("Show image").uncheck();
+  // Close the image panel: it sits over the rail's buttons
+  await page.locator(SELECTORS.imageButton).click();
   await expect
-    .poll(
-      () =>
-        colourFraction(page, SCENES.cells, [208, 208, 208], {
-          x0: 0.4,
-          y0: 0.4,
-          x1: 0.6,
-          y1: 0.6,
-        }),
-      {
-        message: "the bins should cover the middle of the section",
-        timeout: 60_000,
-      },
-    )
-    .toBeGreaterThan(0.6);
+    .poll(binsLit, {
+      message: "the bins should tile the section",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.7);
 
   await test.step("coloured by a gene, every bin keeps its size", async () => {
-    // Low expression shrank a dot; a bin stays a bin (colour carries the
-    // value). With the image hidden, the bins alone light the section (1 in
-    // 7 of the fixture's bins is missing: about 86% when they keep their size).
+    // Low expression shrank a dot; a bin stays a bin (colour carries it)
     await selectGeneAndMeasure(
       page,
       { dataType: "single_cell" } as DatasetEntry,
       "gene0",
     );
-    await page.locator(SELECTORS.imageButton).click();
-    await page.getByLabel("Show image").uncheck();
     await expect
-      .poll(
-        () =>
-          litFraction(page, SCENES.cells, {
-            x0: 0.45,
-            y0: 0.45,
-            x1: 0.55,
-            y1: 0.55,
-          }),
-        { message: "the bins should still tile the section", timeout: 30_000 },
-      )
+      .poll(binsLit, {
+        message: "the bins should still tile the section",
+        timeout: 30_000,
+      })
       .toBeGreaterThan(0.7);
+  });
+
+  await test.step("the SC button hides them (an image is under them)", async () => {
+    await page.getByRole("button", { name: "SC", exact: true }).click();
+    await expect
+      .poll(binsLit, { message: "the bins should be hidden", timeout: 30_000 })
+      .toBeLessThan(0.05);
   });
 });
 

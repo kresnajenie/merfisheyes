@@ -28,6 +28,7 @@ import {
   usePanelVisualizationStore,
   usePanelDatasetStore,
   usePanelId,
+  usePanelLayers,
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
@@ -91,6 +92,10 @@ export function VisualizationControls() {
   const hasSmOverlay = usePanelSingleMoleculeStore(
     (s) => s.currentDatasetId != null,
   );
+  // Anything drawn under or beside the cells (an image, shapes, molecules):
+  // hiding the cells is how it is seen, e.g. an H&E under Visium spots
+  const layers = usePanelLayers();
+  const hasOtherLayers = Object.values(layers).some(Boolean);
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
 
@@ -532,25 +537,26 @@ export function VisualizationControls() {
       </div>
 
       {/* Layer visibility — show/hide the entire single-cell or single-molecule
-          layer. Only meaningful when an SM overlay is present, so both toggles
-          are hidden otherwise (a plain SC dataset has nothing to layer). */}
+          layer. SC whenever something else is drawn with the cells (an image,
+          shapes, molecules); SM only with molecules. A plain SC dataset has
+          nothing to layer, so neither shows. */}
+      {(hasSmOverlay || hasOtherLayers) && (
+        <LayerVisibilityButton
+          buttonBaseClass={buttonBaseClass}
+          kind="single cell"
+          label="SC"
+          visible={scLayerVisible}
+          onToggle={() => setScLayerVisible(!scLayerVisible)}
+        />
+      )}
       {hasSmOverlay && (
-        <>
-          <LayerVisibilityButton
-            buttonBaseClass={buttonBaseClass}
-            kind="single cell"
-            label="SC"
-            visible={scLayerVisible}
-            onToggle={() => setScLayerVisible(!scLayerVisible)}
-          />
-          <LayerVisibilityButton
-            buttonBaseClass={buttonBaseClass}
-            kind="single molecule"
-            label="SM"
-            visible={smLayerVisible}
-            onToggle={() => setSmLayerVisible(!smLayerVisible)}
-          />
-        </>
+        <LayerVisibilityButton
+          buttonBaseClass={buttonBaseClass}
+          kind="single molecule"
+          label="SM"
+          visible={smLayerVisible}
+          onToggle={() => setSmLayerVisible(!smLayerVisible)}
+        />
       )}
 
       {/* Visualization Panel */}
