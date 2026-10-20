@@ -392,6 +392,23 @@ not written (tens of GB; `image_to_ome_zarr.py` reads an image whole).
 Test: `tests/python/test_prepare_merscope.py` (a MERSCOPE-shaped export made
 in the test).
 
+### A Visium or Visium HD output (`prepare_visium.py`)
+
+```bash
+pip install spatialdata-io
+python scripts/prepare_visium.py outs/ sample/ --fullres image.tif     # --bins 8 16 (HD), --cluster, --url
+```
+
+Reads the Space Ranger output with `spatialdata_io.visium` (or `visium_hd`
+when `binned_outputs/` is there): the spots or bins as shapes, the tables
+(the CSC copy added), the hires and lowres images and, with `--fullres`,
+the microscope image in 1024² chunks with a pyramid. A Visium store has
+no shared `global` system; the viewer targets the spots' own. For Visium
+HD the 8 µm table is made the default (`metadata_general["Default Table"]`)
+and 2 µm bins are not read unless asked. Test:
+`tests/python/test_prepare_visium.py` (a Space Ranger-shaped output made in
+the test; the HD case runs with `MERFISHEYES_VISIUM_HD=/path/to/outs`).
+
 ### A TIFF as an OME-Zarr image (`image_to_ome_zarr.py`)
 
 ```bash

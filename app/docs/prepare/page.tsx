@@ -415,6 +415,67 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
           ]}
         />
       </DocSection>
+
+      <DocSection heading="Visium and Visium HD" id="visium">
+        <Prose>
+          <p>
+            A Space Ranger output folder: the counts h5, <code>spatial/</code>{" "}
+            with the tissue positions, the scale factors and the hires and
+            lowres images, and for Visium HD <code>binned_outputs/</code>. The
+            spots, or the bins, are the cells: they are drawn at their real
+            size, there are no molecules, and the H&amp;E lies under them.
+          </p>
+        </Prose>
+        <Steps
+          steps={[
+            {
+              title: "Install the reader",
+              children: (
+                <pre className={pre}>
+                  {`pip install -r scripts/requirements-prepare.txt spatialdata-io    # Python 3.12 or newer`}
+                </pre>
+              ),
+            },
+            {
+              title: "Run it on the output folder",
+              children: (
+                <>
+                  <pre className={pre}>
+                    {`python scripts/prepare_visium.py outs/ sample/ --fullres image.tif   # the microscope image Space Ranger was given, if you have it
+python scripts/prepare_visium.py outs/ sample/ --bins 8 16           # Visium HD: which bin sizes to read (8 and 16 µm by default)`}
+                  </pre>
+                  <pre className={pre}>
+                    {`sample/
+├── sample.zarr/       tables/table (+ layers/X_csc), shapes/sample (the spots, with their radius),
+│                      images/sample_hires_image, sample_lowres_image (+ sample_full_image with --fullres)
+└── mapping.json       { "cells": "sample.zarr" }`}
+                  </pre>
+                  <p>
+                    Coordinates are full-resolution image pixels, as Space
+                    Ranger has them. A Visium store has no shared coordinate
+                    system: the spots and each image declare their own, and the
+                    viewer targets the spots&apos; and draws the finest image
+                    that reaches it, the full-resolution one when you gave it,
+                    else the hires one. For Visium HD the 8 µm table is the one
+                    the viewer opens; the 2 µm bins are too many for a browser
+                    and are not read unless you ask.
+                  </p>
+                </>
+              ),
+            },
+            {
+              title: "Open it",
+              children: (
+                <p>
+                  As above: drop <code>sample/</code> on the single cell{" "}
+                  <b>Folder</b> card, <b>Upload &amp; Save</b>, or sync it to a
+                  bucket.
+                </p>
+              ),
+            },
+          ]}
+        />
+      </DocSection>
     </>
   );
 }

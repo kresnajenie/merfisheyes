@@ -209,6 +209,16 @@ def drop_consolidated(zarr_json: Path) -> None:
         zarr_json.write_text(json.dumps(meta, indent=2))
 
 
+def default_table_name(store: Path) -> str:
+    """The table the viewer reads (store-layout.md): the curated
+    `metadata_general["Default Table"]`, else `table`, else the first by name."""
+    root = read_json(store / "zarr.json") or {}
+    tables = sorted(p.name for p in (store / "tables").iterdir() if (p / "zarr.json").is_file()) if (store / "tables").is_dir() else []
+    if not tables:
+        raise SystemExit(f"{store.name} has no tables/")
+    return validate_store.default_table(root.get("attributes", {}), tables) or tables[0]
+
+
 def table_group(store: Path, name: str = "table"):
     import zarr
 
@@ -343,7 +353,9 @@ def prepare(
         else:
             store = folder / f"{name or folder.name}.zarr"
             write_store_from_table(cells, kind, store, log)
-        table = table_group(store)
+        table_name = default_table_name(store)
+        log(f"  table: tables/{table_name}")
+        table = table_group(store, table_name)
         ensure_spatial(table, log)
         ensure_csc(table, log)
         cells_box = table_box(table)
@@ -351,7 +363,7 @@ def prepare(
             import spatialdata_cluster
 
             log("  no categorical column: Leiden clustering ...")
-            spatialdata_cluster.cluster(store, folder / "annotations", resolution=resolution, log=log)
+            spatialdata_cluster.cluster(store, folder / "annotations", table=table_name, resolution=resolution, log=log)
         import zarr
 
         zarr.consolidate_metadata(str(store))

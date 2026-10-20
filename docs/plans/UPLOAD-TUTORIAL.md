@@ -299,6 +299,37 @@ clustering sidecar's defaults deserve a look.
 
 Gate: validator green, the H&E under the spots on a sandbox sample.
 
+Result (2026-10-20): built as `scripts/prepare_visium.py`:
+`spatialdata_io.visium` (or `visium_hd` when `binned_outputs/` is there,
+`--bins 8 16` by default, bins as squares; the 2 µm bins are not read
+unless asked), `--fullres` for the microscope image, 1024² chunks and a
+pyramid for it, then `prepare_folder.prepare` (the CSC copy, the
+mapping, the checks). For Visium HD the 8 µm table is written as
+`metadata_general["Default Table"]`, the key the viewer and
+SpatialData-DB use, since otherwise the first table by name (2 µm) would
+be opened; `prepare_folder.py` now finds the default table by the
+viewer's rule instead of assuming `tables/table`. No Space Ranger output
+exists on this machine, so the test
+(`tests/python/test_prepare_visium.py`) makes one: a 10x h5 written with
+h5py, `tissue_positions.csv`, the scale factors, the two PNGs; it checks
+the validator, the spots as the region with their radius, the CSC copy,
+the two images, the coordinate rule ("region identity": the spots' own
+system), and `spatialdata.read_zarr` reading it back. The Visium HD test
+runs only with `MERFISHEYES_VISIUM_HD` set and is otherwise skipped: a
+real HD output is needed and none is here. The synthetic folder, prepared
+with the command line, opens in the browser: 80 spots drawn at their real
+size over the hires image, no molecule layer.
+
+Cold walkthrough: the page's commands ran as printed in the fresh venv.
+Gaps closed on the page: what a Space Ranger output must hold, that the
+coordinates are full-resolution pixels and the store has no shared
+system, which image the viewer draws, what `--bins` and the default
+table mean. Not done, and needed before this chapter is judged: a real
+Visium output (the 10x public samples are a download the user has to
+allow) and a real Visium HD output; the H&E-under-spots gate holds on
+the SpatialData-DB stores (SDDB steps 2–3) but has not been run on an
+output this script wrote.
+
 ### Chapter 5: the skin reference store, re-prepared
 
 - Run chapter 2's script on the skin Xenium export (or rewrite the shapes
