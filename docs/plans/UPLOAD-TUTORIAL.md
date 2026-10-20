@@ -90,6 +90,54 @@ edits this file in the same commit.
 8. **The skin reference store is re-prepared** by the tutorial's own
    scripts, so the reference data passes the profiles it is judged by.
 
+### Amendments (user, 2026-10-20, after reading the chapters)
+
+9. **One SpatialData store is the output** when there is an image, a
+   table and molecules: the image goes inside as `images/<name>`, written
+   by the `spatialdata` library from the OME-Zarr folder; the molecules go
+   inside as `points/molecules`, the tiled points element the viewer
+   streams by view (42 M molecules in 30 s); the folders they came from
+   move to `sources/`; `mapping.json` names the store only. The expanded
+   layout (store, molecule folder and image folder side by side, named in
+   `mapping.json`) stays supported and is what `--expanded` writes.
+   Decision 1's "molecules as the `bin.gz` folder" is thereby narrowed to
+   the expanded layout and to the molecule-only case.
+10. **Clusters go into the table**: `--cluster` writes `obs/leiden` into
+    the store's table (categorical, in the dataframe's column order), so
+    every reader sees them; the `annotations/` sidecar beside the store
+    carries only the DEG stats, which SpatialData has no place for.
+    `spatialdata_cluster.py --sidecar-only` keeps the old form.
+11. **The page shows the exact folder trees**, input and output, for each
+    chapter.
+
+Done the same day. `prepare_folder.py`: `wrap_image` (spatialdata
+`Image2DModel.parse` from the OME-Zarr's finest level with its scale and
+translation as a `Sequence` into `global`, `read_zarr(selection=("tables",))`
++ `write_element`; the lone-table store now carries the table attributes
+spatialdata's reader needs, so it reads such stores back), `wrap_molecules`
+(`legacy_to_points.convert`, which gained a `transformations` argument),
+`--expanded`; `spatialdata_cluster.py`: `write_column` into the table's obs
+with the dataframe's `column-order` kept, `--sidecar-only`; the platform
+scripts pass `--expanded` through; the page rewritten with "you start
+with" and "you get" trees per chapter. Tests: 44 passed in the fresh venv,
+43 in the base env (the suites' expectations moved to the wrapped form, the
+expanded form has its own test, the clusters are checked in the table).
+
+Found by the validator on the first Xenium wrap: a tiled points element
+made from molecules in microns declared identity into `global`, which in a
+Xenium store is pixels, so it would have drawn 4.7× off. The points
+element now carries the transforms of the cells' region
+(`region_transforms`), and the store-layout rule that points must sit in
+the region's frame is what caught it. Xenium: wrapping the 42 M
+transcripts took 37 s and 1.1 GB on top of the 2:25 read; the sample
+(500 cells, 20 k molecules, a TIFF) wrapped and opened in the browser
+with the molecules streamed from the store and `leiden` from the table;
+the wrapped Xenium store opened with 130,870 cells, the polygons, the
+image and 591,900 molecules of three genes streamed in 69 requests
+(4 MB). MERSCOPE `hum_brain2` with the wrapper and `--cluster`: 3:18 and
+15.6 GB in all, 70.5 M molecules in `points/molecules`, `obs/leiden` in
+the table, `annotations/` holding `de/leiden.bin.gz` only.
+
 ## 3. Chapters
 
 Branches off `develop`, one PR each, every PR with unit, Python and

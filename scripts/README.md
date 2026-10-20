@@ -348,20 +348,25 @@ python scripts/prepare_folder.py sample/              # --cluster: Leiden + DEGs
 python scripts/prepare_folder.py sample/ --url https://<bucket>.s3.<region>.amazonaws.com/<path>/sample
 ```
 
-Writes `sample.zarr` (a Zarr v3 SpatialData store holding the table, with
-`layers/X_csc` when `X` is not CSC), `mapping.json` (names relative to the
-folder, absolute with `--url`), optionally `annotations/`, checks that the
-molecules and the image sit where the cells are (a `WARN` otherwise), and
-runs `validate_store.py`. The folder then opens by drag and drop, with
-**Upload & Save**, or from a bucket. A store that is there already is
-repaired in place where the viewer cannot read it as written: shapes
-stored as a directory of parquet parts or in the geoarrow encoding are
-rewritten as one WKB `shapes.parquet` (the original kept as
-`shapes.parquet.parts`), image levels in chunks over 1024² are rewritten
-in 1024² chunks with the same codecs, and `--molecules-from-points` writes
-the molecule folder from the store's points element. Dependencies for all
-of this: `pip install -r scripts/requirements-prepare.txt` (`geopandas`
-for the shapes rewrite). Tests: `tests/python/test_prepare_folder.py`.
+Writes one SpatialData store `sample.zarr` (Zarr v3): the table in
+`tables/table` with `layers/X_csc` when `X` is not CSC, the image as
+`images/<name>` written by the `spatialdata` library from the OME-Zarr
+folder, the molecules as `points/molecules` (a tiled points element,
+`legacy_to_points.py`); the image and molecule folders move to `sources/`;
+`mapping.json` names the store; with `--cluster` the Leiden clusters go
+into the table as `obs/leiden` and `annotations/` holds the DEG stats.
+Then `validate_store.py`. `--expanded` keeps the image and molecule
+folders beside the store, named in `mapping.json` (relative names, absolute
+with `--url`), and checks that they sit where the cells are (a `WARN`
+otherwise). A store that is there already is repaired in place where the
+viewer cannot read it as written: shapes stored as a directory of parquet
+parts or in the geoarrow encoding are rewritten as one WKB
+`shapes.parquet` (the original kept as `shapes.parquet.parts`), image
+levels in chunks over 1024² are rewritten in 1024² chunks with the same
+codecs, and `--molecules-from-points` turns the store's parquet points
+element into the tiled one. Dependencies for all of this: `pip install -r
+scripts/requirements-prepare.txt spatialdata` (`geopandas` comes with it).
+Tests: `tests/python/test_prepare_folder.py`.
 
 ### A Xenium export (`prepare_xenium.py`)
 

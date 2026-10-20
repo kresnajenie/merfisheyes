@@ -170,7 +170,19 @@ cp cells.h5ad sample/
 python scripts/prepare_folder.py sample/            # --cluster adds Leiden clusters + DEGs when the table has none
 ```
 
-It wraps the table into a Zarr v3 SpatialData store (`sample.zarr/tables/table`), adds a CSC copy of `X` in `layers/X_csc` when `X` is not CSC (the viewer reads one gene as one slice; a CSR `X` cannot be read per gene), writes `mapping.json` naming the store, the molecules and the image relative to the folder, checks that the three sit in the same place (a part in other units or another frame gets a `WARN`), and ends by running `scripts/validate_store.py`. A SpatialData store you already have is repaired where the viewer cannot read it as written: a shapes element stored as a directory of parquet parts (or in the geoarrow encoding) becomes one WKB file, image levels in chunks over 1024² are rewritten in 1024² chunks, and `--molecules-from-points` turns the store's points element into the molecule folder. The folder then opens by drag and drop, saves with **Upload & Save**, or goes to a bucket as it is (`--url` writes absolute links; relative ones are resolved against the folder they are fetched from). Full guide: [/docs/prepare](https://merfisheyes.com/docs/prepare). Layout rules: [docs/specs/](docs/specs/).
+You get one SpatialData store holding everything, which is what the viewer, spatialdata, napari and Vitessce all open:
+
+```
+sample/
+├── sample.zarr/                 tables/table (X + layers/X_csc, obsm/spatial, your columns, obs/leiden with --cluster),
+│                                images/dapi (written by the spatialdata library), points/molecules (tiled, streamed by view),
+│                                shapes/cell_boundaries when you have polygons
+├── annotations/                 (--cluster) the per-cluster DEG stats only; the clusters are in the table
+├── sources/                     the image and molecule folders the store was made from
+└── mapping.json                 { "cells": "sample.zarr" }
+```
+
+The script finds the parts by what is in them, wraps the table (Zarr v2, v3 or h5ad) into the store, adds a CSC copy of `X` when `X` is not CSC (the viewer reads one gene as one slice; a CSR `X` cannot be read per gene), writes the image into the store with the `spatialdata` library and the molecules as the tiled points element, and ends by running `scripts/validate_store.py`. With `--expanded` the image and molecule folders stay beside the store and `mapping.json` names them (relative names, resolved against the folder; `--url` for absolute ones); that layout opens the same way, and the script then checks that each part sits where the cells are (a `WARN` otherwise). A SpatialData store you already have is repaired where the viewer cannot read it as written: a shapes element stored as a directory of parquet parts (or in the geoarrow encoding) becomes one WKB file, image levels in chunks over 1024² are rewritten in 1024² chunks, and `--molecules-from-points` turns the store's parquet points element into the tiled one. The folder then opens by drag and drop, saves with **Upload & Save**, or goes to a bucket as it is. Full guide: [/docs/prepare](https://merfisheyes.com/docs/prepare). Layout rules: [docs/specs/](docs/specs/).
 
 What is and isn't converted:
 

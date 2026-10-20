@@ -16,14 +16,21 @@ The folder holds any of three parts, each recognised by what is in it:
 Afterwards the folder opens as it is — dropped on the homepage's Folder card,
 saved with Upload & Save, or synced to a public bucket — and holds:
 
-  <name>.zarr/     a SpatialData store (Zarr v3) with the table in tables/table:
-                   `layers/X_csc` added when X is not already CSC (the viewer
-                   reads one gene as one slice; a CSR X cannot be read per gene),
-                   `obsm/spatial` present, consolidated metadata written last
-  mapping.json     names the store, the molecules and the image, relative to the
-                   folder (--url BASE writes absolute URLs for a bucket)
-  annotations/     with --cluster, Leiden clusters and per-cluster DEG stats when
-                   the table has no categorical column (scripts/spatialdata_cluster.py)
+  <name>.zarr/     one SpatialData store (Zarr v3): tables/table with `layers/X_csc`
+                   added when X is not already CSC (the viewer reads one gene as
+                   one slice; a CSR X cannot be read per gene) and `obsm/spatial`;
+                   images/<image> written by the spatialdata library from the
+                   image folder; points/molecules, a tiled points element the
+                   viewer streams by view, from the molecule folder; consolidated
+                   metadata written last
+  sources/         the image and molecule folders the store was made from
+  mapping.json     names the store (--url BASE writes an absolute URL for a bucket)
+  annotations/     with --cluster, the per-cluster DEG stats; the clusters
+                   themselves go into the table as obs/leiden
+                   (scripts/spatialdata_cluster.py)
+
+With --expanded the image and the molecule folder stay beside the store and
+mapping.json names them, relative to the folder; that layout opens the same way.
 
 A SpatialData store that is there already is repaired where the viewer
 cannot read it as written: a shapes element stored as a directory of parquet
@@ -300,6 +307,88 @@ def repair_image_chunks(store: Path, log, chunk: int = CHUNK) -> list[str]:
     return repaired
 
 
+# ── the wrapper: image and molecules inside the store ─────────────────────
+
+def wrap_image(store: Path, image: Path, log) -> str:
+    """The OME-Zarr image folder becomes `images/<name>` of the store, written
+    by the spatialdata library from its finest level: the pyramid rebuilt in
+    1024² chunks, the level's scale and translation as the element's
+    transform into `global` (the cells' system)."""
+    try:
+        import dask.array as da
+        import spatialdata
+        from spatialdata.models import Image2DModel
+        from spatialdata.transformations import Scale, Sequence, Translation
+    except ImportError:
+        raise SystemExit("pip install spatialdata   (to put the image inside the store; or pass --expanded)")
+
+    name = image.name.removesuffix(".zarr")
+    root = read_json(image / "zarr.json") or {}
+    ms = (root.get("attributes", {}).get("ome", {}).get("multiscales") or [{}])[0]
+    datasets = ms.get("datasets") or []
+    if not datasets:
+        raise SystemExit(f"{image.name}: no multiscale levels")
+    sy = sx = 1.0
+    ty = tx = 0.0
+    for t in datasets[0].get("coordinateTransformations") or []:
+        if t.get("type") == "scale":
+            sy, sx = float(t["scale"][-2]), float(t["scale"][-1])
+        elif t.get("type") == "translation":
+            ty, tx = float(t["translation"][-2]), float(t["translation"][-1])
+    channels = [c.get("label") for c in root.get("attributes", {}).get("ome", {}).get("omero", {}).get("channels", [])]
+    arr = da.from_zarr(str(image / str(datasets[0]["path"])))
+    if arr.ndim == 2:
+        arr = arr[None]
+    levels = len(datasets)
+    log(f"  images/{name}: {arr.shape} from {image.name}, {levels} level(s), {sx:g} units/px at ({tx:g}, {ty:g}) ...")
+    element = Image2DModel.parse(
+        arr,
+        dims=("c", "y", "x"),
+        c_coords=channels if channels and len(channels) == arr.shape[0] and all(channels) else None,
+        transformations={"global": Sequence([Scale([sy, sx], axes=("y", "x")), Translation([ty, tx], axes=("y", "x"))])},
+        scale_factors=[2] * (levels - 1) if levels > 1 else None,
+        chunks=(1, CHUNK, CHUNK),
+    )
+    drop_consolidated(store / "zarr.json")
+    sdata = spatialdata.read_zarr(store, selection=("tables",))
+    sdata.images[name] = element
+    sdata.write_element(name)
+    return name
+
+
+def region_transforms(store: Path, dims: int = 2) -> list[dict] | None:
+    """The transforms the cells' region (the shapes element the default
+    table annotates) declares into the store's named systems. Points are
+    drawn in the cells' frame, so a points element made from molecules in
+    the cells' units must declare the same (store-layout.md §8); with no
+    region, identity into `global`."""
+    table = read_json(store / "tables" / default_table_name(store) / "zarr.json") or {}
+    region = table.get("attributes", {}).get("region")
+    if not isinstance(region, str):
+        return None
+    el = read_json(store / "shapes" / region / "zarr.json") or {}
+    out = []
+    for t in el.get("attributes", {}).get("coordinateTransformations") or []:
+        kept = {k: v for k, v in t.items() if k != "input"}
+        for key in ("scale", "translation"):
+            if key in kept and len(kept[key]) != dims:
+                kept[key] = list(kept[key])[:dims]
+        out.append(kept)
+    return out or None
+
+
+def wrap_molecules(store: Path, molecules: Path, name: str, workers: int, log) -> str:
+    """The molecule folder becomes `points/<name>`, a tiled points element
+    the viewer streams by view (docs/points-zarr-spec.md); molecules flat on
+    the cells' plane, in the cells' frame."""
+    import legacy_to_points
+
+    transforms = region_transforms(store)
+    log(f"  points/{name}: from {molecules.name}" + (f", transforms of the cells' region" if transforms else "") + " ...")
+    legacy_to_points.convert(molecules, store, name=name, drop_z=True, transformations=transforms, log=lambda *_: None)
+    return name
+
+
 # ── the table ─────────────────────────────────────────────────────────────
 
 def drop_consolidated(zarr_json: Path) -> None:
@@ -385,10 +474,17 @@ def write_store_from_table(source: Path, kind: str, store: Path, log) -> None:
     if kind == "table3":
         log(f"  moving {source.name} into {store.name}/tables/table")
         shutil.move(str(source), str(store / "tables" / "table"))
-        return
-    log(f"  reading {source.name} and writing it as Zarr v3 ...")
-    adata = ad.read_h5ad(source) if kind == "h5ad" else ad.read_zarr(source)
-    ad.io.write_elem(tables, "table", adata)
+    else:
+        log(f"  reading {source.name} and writing it as Zarr v3 ...")
+        adata = ad.read_h5ad(source) if kind == "h5ad" else ad.read_zarr(source)
+        ad.io.write_elem(tables, "table", adata)
+    # What the spatialdata library writes on a table, so it reads this one back
+    drop_consolidated(store / "tables" / "table" / "zarr.json")
+    table = zarr.open_group(store / "tables" / "table", mode="r+", use_consolidated=False)
+    table.attrs.update(
+        {"spatialdata-encoding-type": "ngff:regions_table", "region": None, "region_key": None,
+         "instance_key": None, "version": SPATIALDATA_ATTRS["version"]}
+    )
 
 
 def has_categorical_column(table) -> bool:
@@ -426,6 +522,7 @@ def prepare(
     resolution: float = 0.5,
     molecules_from_points: bool = False,
     workers: int = 1,
+    expanded: bool = False,
     log=print,
 ) -> validate_store.Report:
     folder = folder.resolve()
@@ -477,6 +574,20 @@ def prepare(
             molecules = folder / "molecules"
             log(f"  points → {molecules.name} (flat) ...")
             spatialdata_points_to_sm.convert(store, molecules, workers=workers, drop_z=True)
+        if not expanded and (image is not None or molecules is not None):
+            # One SpatialData store holding everything; the parts it was
+            # made from go to sources/, where a drop does not look
+            sources = folder / "sources"
+            sources.mkdir(exist_ok=True)
+            if image is not None:
+                wrap_image(store, image, log)
+                shutil.move(str(image), str(sources / image.name))
+                image = None
+            if molecules is not None:
+                wrap_molecules(store, molecules, "molecules", workers, log)
+                shutil.move(str(molecules), str(sources / molecules.name))
+                molecules = None
+            log(f"  the parts moved to {sources.name}/")
         import zarr
 
         zarr.consolidate_metadata(str(store))
@@ -522,6 +633,8 @@ def main(argv=None) -> int:
     ap.add_argument("--molecules-from-points", action="store_true",
                     help="no molecule folder but the store has a points element: write one from it (flat)")
     ap.add_argument("--workers", type=int, default=4, help="parallel gene-file writers for --molecules-from-points")
+    ap.add_argument("--expanded", action="store_true",
+                    help="leave the image and the molecule folder beside the store, named in mapping.json, instead of inside it")
     args = ap.parse_args(argv)
     r = prepare(
         args.folder,
@@ -534,6 +647,7 @@ def main(argv=None) -> int:
         resolution=args.resolution,
         molecules_from_points=args.molecules_from_points,
         workers=args.workers,
+        expanded=args.expanded,
     )
     return 1 if r.failed else 0
 

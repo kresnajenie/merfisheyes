@@ -5,7 +5,6 @@ import {
   CompareTable,
   DocHeader,
   DocSection,
-  Flow,
   Prose,
   Steps,
 } from "@/components/docs/doc-ui";
@@ -13,7 +12,7 @@ import {
 export const metadata: Metadata = {
   title: "Preparing data — MERFISHEYES Docs",
   description:
-    "Cells, molecules and an image you processed yourself: one folder, one script, then drop it, save it or put it on a bucket.",
+    "Cells, molecules and an image you processed yourself, or a Xenium, MERSCOPE or Visium export: one script makes one SpatialData store the viewer opens as it is.",
 };
 
 const pre =
@@ -24,89 +23,59 @@ export default function PreparePage() {
     <>
       <DocHeader
         heading="Preparing data"
-        lead="If you process your own data, this is the one layout the viewer opens as it is: cells, molecules and an image in one folder, made ready by one script."
+        lead="If you process your own data, this is the one layout the viewer opens as it is: a SpatialData store holding the cells, the image and the molecules, made by one script. Each section below shows exactly what you start with and exactly what you get."
       />
 
-      <DocSection heading="The layout" id="layout">
-        <Flow
-          steps={[
-            {
-              title: "Cells",
-              detail:
-                "An AnnData table (h5ad or Zarr) → a SpatialData store, Zarr v3, with a CSC copy of X",
-            },
-            {
-              title: "+ Molecules",
-              detail:
-                "A merfisheyes molecule folder: manifest.json.gz + genes/*.bin.gz",
-            },
-            {
-              title: "+ Image",
-              detail: "An OME-Zarr image: axes c, y, x; 1024² chunks",
-            },
-            {
-              title: "mapping.json",
-              detail: "Names the three, relative to the folder",
-            },
-          ]}
-        />
-        <pre className={pre}>
-          {`sample/
-├── sample.zarr/        the store the script writes: tables/table (+ layers/X_csc)
-├── molecules/          manifest.json.gz + genes/        (process_single_molecule.py)
-├── dapi.zarr/          OME-Zarr image                   (any tool writing OME-Zarr 0.5)
-├── annotations/        (optional) Leiden clusters + DEGs (--cluster)
-└── mapping.json        { "cells": "sample.zarr", "links": { "__all__": "molecules" }, "image": "dapi.zarr" }`}
-        </pre>
+      <DocSection heading="What you get, whatever you start from" id="layout">
         <Prose>
           <p>
-            Any part may be missing. Folder names don&apos;t matter: each part
-            is recognised by what is inside it.
+            One folder, with one SpatialData store in it. The store is written
+            by the <code>spatialdata</code> library where it can be, so the same
+            store opens in spatialdata, napari and Vitessce; the molecules are
+            the one part in our own format, a tiled points element the viewer
+            streams by view.
           </p>
         </Prose>
-      </DocSection>
-
-      <DocSection heading="What each part must be" id="parts">
-        <CompareTable
-          headers={["Part", "You have", "The viewer needs", "Who makes it so"]}
-          rows={[
-            [
-              "Cells",
-              'An AnnData table: .h5ad, or a Zarr folder from write_zarr (v2 or v3), with obsm["spatial"] in raw units and any obs columns',
-              "A SpatialData store in Zarr v3; X readable one gene at a time (CSC), consolidated metadata",
-              "The script: wraps the table, converts v2 and h5ad to v3, adds layers/X_csc when X is not CSC",
-            ],
-            [
-              "Molecules",
-              "A transcripts file (parquet / CSV) with gene, x, y (and z) columns",
-              "manifest.json.gz + genes/<gene>.bin.gz, coordinates in the cells' units",
-              "scripts/process_single_molecule.py (step 2)",
-            ],
-            [
-              "Image",
-              "A TIFF (one plane, a channel stack, or RGB), or an OME-Zarr folder",
-              "OME-Zarr 0.5 (Zarr v3), axes c, y, x, uint8 or uint16, chunks ≤ 1024², scale + translation in the cells' units",
-              "scripts/image_to_ome_zarr.py (step 2), or any OME-Zarr writer",
-            ],
-            [
-              "Clusters & DEGs",
-              "Perhaps nothing",
-              "A categorical obs column, or an annotations/ sidecar",
-              "The script with --cluster, when the table has no categorical column",
-            ],
-          ]}
-        />
-        <Callout kind="note">
-          <b>anndata 0.12 writes Zarr v2 by default</b> (0.13 writes v3). A v2
-          table opens from a drop, but a store and a bucket need v3. The script
-          converts it, reading the table whole; for a large table set{" "}
-          <code>anndata.settings.zarr_write_format = 3</code> before{" "}
-          <code>write_zarr</code> and the script moves it into the store without
-          rewriting it.
+        <pre className={pre}>
+          {`sample/
+├── sample.zarr/                   one SpatialData store (Zarr v3)
+│   ├── zarr.json                  spatialdata_attrs + consolidated metadata, written last
+│   ├── tables/table/              the cells: AnnData — obs (your columns, + obs/leiden with --cluster),
+│   │   ├── X                      obsm/spatial, var; X as written, plus
+│   │   └── layers/X_csc           a CSC copy when X is not CSC (one gene = one slice)
+│   ├── images/dapi/               the image: OME-Zarr, axes c, y, x, 1024² chunks, a pyramid,
+│   │                              placed among the cells by its scale and translation
+│   ├── points/molecules/          the molecules: tiled points element (docs/points-zarr-spec.md)
+│   └── shapes/cell_boundaries/    the polygons, when you have them: one GeoParquet file
+├── annotations/                   (--cluster) de/leiden.bin.gz: the DEG stats, which SpatialData
+│                                  has no place for; the clusters themselves are in the table
+├── sources/                       the image and molecule folders the store was made from
+└── mapping.json                   { "cells": "sample.zarr" }`}
+        </pre>
+        <Callout>
+          <b>The expanded layout works too.</b> With <code>--expanded</code> the
+          image and the molecule folder stay beside the store and{" "}
+          <code>mapping.json</code> names them: <code>sample.zarr/</code>,{" "}
+          <code>molecules/</code>, <code>dapi.zarr/</code> side by side. A
+          folder in that form, or any subset of it, opens exactly the same way.
         </Callout>
       </DocSection>
 
-      <DocSection heading="Run the script" id="run">
+      <DocSection heading="From parts you already have" id="parts">
+        <Prose>
+          <p>
+            You start with a table of cells, a table of transcripts and a
+            microscope image, in one coordinate system (microns from the same
+            corner is the usual one):
+          </p>
+        </Prose>
+        <pre className={pre}>
+          {`you have/
+├── cells.h5ad                 an AnnData table: obsm["spatial"] (x, y), X, obs columns
+│                              (or cells.zarr from adata.write_zarr, Zarr v2 or v3)
+├── transcripts.parquet        one row per molecule: gene, x, y (, z)   (or .csv)
+└── dapi.tif                   one plane, a (c, y, x) stack or RGB; uint8 or uint16`}
+        </pre>
         <Steps
           steps={[
             {
@@ -115,69 +84,75 @@ export default function PreparePage() {
                 <>
                   <pre className={pre}>
                     {`git clone https://github.com/kresnajenie/merfisheyes.git && cd merfisheyes
-python -m venv .venv && source .venv/bin/activate     # Python 3.11 or newer
-pip install -r scripts/requirements-prepare.txt`}
+python -m venv .venv && source .venv/bin/activate     # Python 3.12 or newer
+pip install -r scripts/requirements-prepare.txt spatialdata`}
                   </pre>
                   <p>
                     One environment for every script on this page. Clustering
-                    (scanpy, igraph, leidenalg) is in it too; leave those lines
-                    out of the file if you never use <code>--cluster</code>.
+                    (scanpy, igraph, leidenalg) is in the file too; leave those
+                    lines out if you never use <code>--cluster</code>.
                   </p>
                 </>
               ),
             },
             {
-              title: "Make the three parts",
+              title: "Make the two parts that need converting",
               children: (
                 <>
                   <pre className={pre}>
-                    {`# cells: an AnnData table with obsm["spatial"] (x, y in microns), written by scanpy, anndata or Seurat's converters
-#        cells.h5ad, or cells.zarr from adata.write_zarr("cells.zarr")
+                    {`mkdir sample && cp cells.h5ad sample/
 
 # molecules: a transcripts table → one file per gene
-python scripts/process_single_molecule.py transcripts.parquet molecules/ --dataset-type xenium
+python scripts/process_single_molecule.py transcripts.parquet sample/molecules/ --dataset-type xenium
 #   --dataset-type merscope for gene/global_x/global_y/global_z columns;
 #   any other names: --gene-col gene --x-col x --y-col y [--z-col z]
 
 # image: a TIFF → OME-Zarr, placed among the cells by its pixel size and origin
-python scripts/image_to_ome_zarr.py dapi.tif dapi.zarr --um-per-pixel 0.108 --origin 0 0 --channels DAPI`}
+python scripts/image_to_ome_zarr.py dapi.tif sample/dapi.zarr --um-per-pixel 0.108 --origin 0 0 --channels DAPI`}
                   </pre>
-                  <p>
-                    Put them in one folder, side by side. Two candidates for one
-                    part (two tables, say) make the script ask you to choose
-                    with <code>--cells</code>, <code>--molecules</code> or{" "}
-                    <code>--image</code>.
-                  </p>
+                  <p>Now the folder is:</p>
+                  <pre className={pre}>
+                    {`sample/
+├── cells.h5ad
+├── molecules/                 manifest.json.gz + genes/<gene>.bin.gz
+└── dapi.zarr/                 OME-Zarr: zarr.json + 0/, 1/, … (the pyramid)`}
+                  </pre>
                 </>
               ),
             },
             {
-              title: "Run it",
+              title: "Run the script",
               children: (
                 <>
                   <pre className={pre}>
                     {`python scripts/prepare_folder.py sample/              # add --cluster for Leiden clusters + DEGs`}
                   </pre>
                   <p>
-                    It writes the store, <code>mapping.json</code> and, with{" "}
-                    <code>--cluster</code>, <code>annotations/</code>, then runs
-                    the validator and prints one line per check:
+                    It finds the three parts by what is in them (names do not
+                    matter), wraps the table into the store, adds the CSC copy,
+                    writes the image into the store with the{" "}
+                    <code>spatialdata</code> library and the molecules as the
+                    tiled points element, moves the two folders into{" "}
+                    <code>sources/</code>, writes <code>mapping.json</code> and
+                    runs the validator, one line per check:
                   </p>
                   <pre className={pre}>
-                    {`OK   root: consolidated metadata names all 26 nodes
+                    {`OK   root: consolidated metadata names all 220 nodes
+OK   tables/table: obsm/spatial [500, 2]
 OK   tables/table: X is CSR with a CSC copy in layers/X_csc
-WARN tables/table: no instance_key: polygons cannot be matched to cells
-OK   images/dapi.zarr: uint16 [1, 8192, 7941], chunks [1, 1024, 1024], 4 levels
-OK   images/dapi.zarr: spans x 0–860, y 0–887, covering 100% of the cells' extent
-WARN molecules/molecules: spans x 0–7941, y 0–8192, 9.2× the cells' extent: not the same units?`}
+OK   points/molecules: metadata valid (points:version 0.1, 8 levels)
+OK   points/molecules: levels 0: 20000, 1: 5041, 2: 1219, 3: 278, …
+OK   images/dapi: uint16 [1, 800, 1000], chunks [1, 800, 1000], 1 levels
+OK   coordinates: target 'global' (global)
+OK   mapping.json: names the store only`}
                   </pre>
                   <p>
-                    A <code>FAIL</code> names what the viewer cannot read. A{" "}
-                    <code>WARN</code> on a part&apos;s extent means it does not
-                    sit where the cells are: the last line above is molecules
-                    still in pixels while the cells are in microns. Fix the
-                    source and run again; a second run changes nothing it has
-                    already done.
+                    The result is the layout at the top of this page. A{" "}
+                    <code>FAIL</code> names what the viewer cannot read. With{" "}
+                    <code>--expanded</code> the parts stay beside the store and
+                    the script also checks that each sits where the cells are: a
+                    part in other units or another frame gets a{" "}
+                    <code>WARN</code> naming both extents.
                   </p>
                 </>
               ),
@@ -186,11 +161,10 @@ WARN molecules/molecules: spans x 0–7941, y 0–8192, 9.2× the cells' extent:
               title: "Open it",
               children: (
                 <p>
-                  Drop the folder on the single cell <b>Folder</b> card in{" "}
-                  <b>Preview in browser</b>: it opens at once with the molecules
-                  over the cells and the image under them.{" "}
-                  <b>Upload &amp; Save</b> keeps it in your account, every part
-                  as it is.
+                  Drop <code>sample/</code> on the single cell <b>Folder</b>{" "}
+                  card in <b>Preview in browser</b>: the cells open with the
+                  image under them and the molecules streamed over them, gene by
+                  gene. <b>Upload &amp; Save</b> keeps it in your account.
                 </p>
               ),
             },
@@ -199,39 +173,37 @@ WARN molecules/molecules: spans x 0–7941, y 0–8192, 9.2× the cells' extent:
               children: (
                 <>
                   <pre className={pre}>
-                    {`python scripts/prepare_folder.py sample/ --url https://<bucket>.s3.<region>.amazonaws.com/<path>/sample
-aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
+                    {`aws s3 sync sample/ s3://<bucket>/<path>/sample/ --exclude "sources/*"`}
                   </pre>
                   <p>
-                    <code>--url</code> is optional: names in{" "}
-                    <code>mapping.json</code> are resolved against the folder
-                    they are fetched from. The bucket must allow public reads
-                    and this site in its CORS settings, with the{" "}
-                    <code>Range</code> header allowed. Then paste the
-                    folder&apos;s URL into <b>Load from S3</b>.
+                    The bucket must allow public reads and this site in its CORS
+                    settings, with the <code>Range</code> header allowed. Then
+                    paste the folder&apos;s URL into <b>Load from S3</b>. In the
+                    expanded layout, <code>mapping.json</code> names the parts
+                    by name and the viewer resolves them against the folder;{" "}
+                    <code>--url</code> writes absolute links instead.
                   </p>
                 </>
               ),
             },
           ]}
         />
-        <Callout>
-          <b>Same units, same frame.</b> The cells&apos;{" "}
-          <code>obsm[&quot;spatial&quot;]</code>, the molecules&apos; x and y
-          and the image&apos;s pixel size and origin must all be in one
-          coordinate system — microns from the same corner is the usual one. The
-          viewer draws them exactly where the numbers say; nothing is aligned
-          for you.
+        <Callout kind="note">
+          <b>anndata 0.12 writes Zarr v2 by default</b> (0.13 writes v3). A v2
+          table opens from a drop, but a store needs v3. The script converts it,
+          reading the table whole; for a large table set{" "}
+          <code>anndata.settings.zarr_write_format = 3</code> before{" "}
+          <code>write_zarr</code> and the script moves it into the store without
+          rewriting it.
         </Callout>
         <Callout>
-          <b>A store you already have is repaired</b> where the viewer cannot
-          read it as written: a shapes element stored as a directory of parquet
-          parts, or in the geoarrow encoding, becomes one WKB file (the original
-          stays beside it as <code>shapes.parquet.parts</code>); image levels in
-          chunks over 1024² are rewritten in 1024² chunks; and{" "}
-          <code>--molecules-from-points</code> turns the store&apos;s own points
-          element into the molecule folder, since the viewer does not read
-          parquet points.
+          <b>Clusters and DEGs.</b> With <code>--cluster</code>, when the table
+          has no categorical column, Leiden clusters are written into the table
+          as <code>obs/leiden</code>, so every reader of the store sees them;
+          only the per-cluster differential-expression stats go beside the store
+          in <code>annotations/</code>, because SpatialData has no place for
+          them. <code>scripts/spatialdata_cluster.py</code> does the same for a
+          store you already have.
         </Callout>
       </DocSection>
 
@@ -240,31 +212,27 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
           headers={["In the folder", "What you see"]}
           rows={[
             [
-              "Cells + molecules + image",
+              "A store with a table, an image and points",
               "Molecules over the cells, the image under both",
             ],
-            ["Cells + molecules", "Molecules over the cells"],
-            ["Cells + image", "The image under the cells"],
+            ["A store with a table and points", "Molecules over the cells"],
+            ["A store with a table and an image", "The image under the cells"],
             [
-              "Molecules + image",
+              "A store with an image and points, no table",
               "The molecules as the scene, the image under them",
             ],
-            ["Cells only", "The cells"],
-            ["Molecules only", "The molecules, in the molecule viewer"],
-            ["Image only", "The image, in the image viewer"],
+            ["A table alone (a store, or a bare AnnData zarr)", "The cells"],
             [
-              "A SpatialData store holding several elements, no table",
-              "Its molecules (a linked folder) with its image under them",
+              "A molecule folder alone",
+              "The molecules, in the molecule viewer",
+            ],
+            ["An OME-Zarr image alone", "The image, in the image viewer"],
+            [
+              "Expanded: a store, a molecule folder, an image folder side by side",
+              "The same as the wrapped forms above",
             ],
           ]}
         />
-        <Callout>
-          <b>Clusters and DEGs</b> stay a sidecar beside the store (
-          <code>annotations/</code>): SpatialData has no place for
-          differential-expression stats, and the viewer reads them from there
-          for any store. <code>scripts/spatialdata_cluster.py</code> writes one
-          for a table that already has cell types too.
-        </Callout>
       </DocSection>
 
       <DocSection
@@ -276,9 +244,8 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
             A raw export needs no preparation: switch the homepage to{" "}
             <b>Upload &amp; process on server</b> and drop the folder. To
             process it yourself into the layout above, one script per platform
-            reads the export with <code>spatialdata-io</code> and ends in the
-            same checks as above. Xenium is below; MERSCOPE and Visium follow.
-            Our own readers, <code>scripts/process_spatial_data.py</code> and{" "}
+            reads the export and ends in the same checks. Our own readers,{" "}
+            <code>scripts/process_spatial_data.py</code> and{" "}
             <code>scripts/process_single_molecule.py</code>, still produce
             merfisheyes&apos; own folders, which open the same way.
           </p>
@@ -286,6 +253,20 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
       </DocSection>
 
       <DocSection heading="Xenium" id="xenium">
+        <Prose>
+          <p>You start with the Xenium Onboard Analysis output folder:</p>
+        </Prose>
+        <pre className={pre}>
+          {`Xenium_outs/
+├── experiment.xenium              the run's specs (pixel size, version)
+├── cell_feature_matrix.h5         counts
+├── cells.parquet (or cells.csv.gz) cell metadata
+├── cell_boundaries.parquet        polygons
+├── nucleus_boundaries.parquet     polygons
+├── transcripts.parquet            the molecules
+├── morphology_focus.ome.tif       the image (or morphology_focus/ in newer versions)
+└── cells.zarr.zip                 (1.3+) label ids`}
+        </pre>
         <Steps
           steps={[
             {
@@ -297,43 +278,42 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
               ),
             },
             {
-              title: "Run it on the output folder",
+              title: "Run it",
               children: (
                 <>
                   <pre className={pre}>
                     {`python scripts/prepare_xenium.py Xenium_outs/ sample/ --workers 8   # add --cluster when the export has no cell types`}
                   </pre>
-                  <p>
-                    The folder with <code>experiment.xenium</code> in it. The
-                    script reads the cell and nucleus boundaries, the
-                    transcripts, the morphology image and the cell table, and
-                    writes <code>sample/</code>:
-                  </p>
+                  <p>You get:</p>
                   <pre className={pre}>
                     {`sample/
-├── Xenium.zarr/       tables/table (+ layers/X_csc), shapes/cell_boundaries + nucleus_boundaries,
-│                      images/morphology_focus (1024² chunks, 6 levels), points/transcripts
-├── molecules/         the transcripts as one file per gene, flat on the cells' plane (--keep-z keeps z)
-├── annotations/       (--cluster) Leiden clusters + DEGs
-└── mapping.json       { "cells": "Xenium.zarr", "links": { "__all__": "molecules" } }`}
+├── Xenium.zarr/
+│   ├── tables/table/              counts (+ layers/X_csc), cell metadata, obsm/spatial in microns
+│   ├── shapes/cell_boundaries/    one GeoParquet each
+│   ├── shapes/nucleus_boundaries/
+│   ├── images/morphology_focus/   1024² chunks, 6 levels
+│   ├── points/molecules/          the transcripts, tiled, flat on the cells' plane (--keep-z keeps z)
+│   └── points/transcripts/        the reader's own parquet copy; not read by the viewer
+├── annotations/                   (--cluster) the DEG stats
+├── sources/molecules/             the per-gene files the points element was made from
+└── mapping.json                   { "cells": "Xenium.zarr" }`}
                   </pre>
                   <p>
-                    Coordinates are microns, as the export has them: the cells
-                    and the molecules as written, the image placed through the
-                    store&apos;s <code>global</code> system (pixels are 0.2125
-                    µm). The raster cell labels are left out unless{" "}
-                    <code>--labels</code>: the viewer does not draw them and
-                    they are the largest part of the store; the table then
-                    annotates the polygons, which carry the same cell ids.
+                    Coordinates are microns, as the export has them; the image
+                    is placed through the store&apos;s <code>global</code>{" "}
+                    system (pixels are 0.2125 µm). The raster cell labels are
+                    left out unless <code>--labels</code>: the viewer does not
+                    draw them and they are the largest part of the store; the
+                    table then annotates the polygons, which carry the same cell
+                    ids.
                   </p>
                   <p>
-                    Measured on a 130,870-cell, 7 M-transcript mouse brain
-                    (Xenium 1.0): 70 s, 9 GB of memory at the peak, a 2.9 GB
-                    store and 290 MB of molecule files; <code>--cluster</code>{" "}
-                    another 47 s for 33 Leiden clusters. The report&apos;s{" "}
-                    <code>WARN</code> lines on <code>points/transcripts</code>{" "}
-                    (not read; the molecule folder is) and on the polygon files
-                    (one row group) are expected.
+                    Measured on a 130,870-cell, 42 M-transcript mouse brain
+                    (Xenium 1.0): about 2 min and 9 GB of memory at the peak;{" "}
+                    <code>--cluster</code> another 47 s for 33 Leiden clusters.
+                    The report&apos;s <code>WARN</code> lines on{" "}
+                    <code>points/transcripts</code> (not read) and on the
+                    polygon files (one row group) are expected.
                   </p>
                 </>
               ),
@@ -345,7 +325,7 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
                   As above: drop <code>sample/</code> on the single cell{" "}
                   <b>Folder</b> card, <b>Upload &amp; Save</b>, or sync it to a
                   bucket. Zoomed in below 1 mm the cell polygons draw over the
-                  image; the molecules stream per gene.
+                  image; the molecules stream by view.
                 </p>
               ),
             },
@@ -356,14 +336,22 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
       <DocSection heading="MERSCOPE" id="merscope">
         <Prose>
           <p>
-            A region folder as the instrument (or vpt) writes it:{" "}
-            <code>cell_metadata.csv</code>, <code>cell_by_gene.csv</code>,{" "}
-            <code>detected_transcripts.csv</code> (or <code>.parquet</code>)
-            and, when you have them, <code>cell_boundaries.parquet</code> and{" "}
-            <code>cell_categories.csv</code>. The store is built with the{" "}
-            <code>spatialdata</code> library itself, not spatialdata-io, whose
-            MERSCOPE reader stops without the <code>images/</code> folder that
-            most shared exports lack.
+            You start with a region folder as the instrument (or vpt) writes it:
+          </p>
+        </Prose>
+        <pre className={pre}>
+          {`region_R1/
+├── cell_metadata.csv              one row per cell: EntityID, center_x, center_y, …
+├── cell_by_gene.csv               counts, one row per cell, one column per gene
+├── detected_transcripts.csv       gene, global_x, global_y, global_z, …   (or .parquet)
+├── cell_boundaries.parquet        (optional) vpt polygons: EntityID, ZIndex, Geometry
+└── cell_categories.csv            (optional) cell types / clusters per cell`}
+        </pre>
+        <Prose>
+          <p>
+            The store is built with the <code>spatialdata</code> library itself,
+            not spatialdata-io, whose MERSCOPE reader stops without the{" "}
+            <code>images/</code> folder that most shared exports lack.
           </p>
         </Prose>
         <Steps
@@ -377,19 +365,22 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
               ),
             },
             {
-              title: "Run it on the region folder",
+              title: "Run it",
               children: (
                 <>
                   <pre className={pre}>
                     {`python scripts/prepare_merscope.py region_R1/ sample/ --workers 8   # --z 3 picks the polygons' plane; --cluster when there are no cell types`}
                   </pre>
+                  <p>You get:</p>
                   <pre className={pre}>
                     {`sample/
-├── region_R1.zarr/    tables/table (counts without blanks, CSC; the metadata and categories as columns),
-│                      shapes/cell_boundaries (each cell's polygon on one z-plane, --z)
-├── molecules/         detected_transcripts as one file per gene, flat on the cells' plane (--keep-z keeps z)
-├── annotations/       (--cluster) Leiden clusters + DEGs
-└── mapping.json       { "cells": "region_R1.zarr", "links": { "__all__": "molecules" } }`}
+├── region_R1.zarr/
+│   ├── tables/table/              counts without blanks, CSC; the metadata and categories as columns
+│   ├── shapes/cell_boundaries/    each cell's polygon on one z-plane (--z), one GeoParquet
+│   └── points/molecules/          detected_transcripts, tiled, flat on the cells' plane (--keep-z keeps z)
+├── annotations/                   (--cluster) the DEG stats
+├── sources/molecules/             the per-gene files the points element was made from
+└── mapping.json                   { "cells": "region_R1.zarr" }`}
                   </pre>
                   <p>
                     Everything is in microns, as the files have it. The counts
@@ -403,11 +394,10 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
                   </p>
                   <p>
                     Measured: a 137,627-cell, 960-gene region with a 6 GB
-                    transcripts CSV took 2 min 22 s and 15 GB of memory (65 MB
-                    store, 530 MB of molecule files); a 703,879-cell region with
-                    boundaries and categories took 3 min 19 s and 22 GB (550 MB
-                    store with a 290 MB polygon file, 1.1 GB of molecules). The
-                    counts CSV is read whole, which is where the memory goes.
+                    transcripts CSV (70 M molecules) took about 3½ min and 16 GB
+                    of memory, clustering included; a 703,879-cell region with
+                    boundaries and categories about 4 min and 22 GB. The counts
+                    CSV is read whole, which is where the memory goes.
                   </p>
                 </>
               ),
@@ -428,11 +418,22 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
 
       <DocSection heading="Visium and Visium HD" id="visium">
         <Prose>
+          <p>You start with the Space Ranger output folder:</p>
+        </Prose>
+        <pre className={pre}>
+          {`outs/
+├── filtered_feature_bc_matrix.h5  counts
+├── spatial/
+│   ├── tissue_positions.csv       (or tissue_positions_list.csv) spot centres in full-res pixels
+│   ├── scalefactors_json.json     spot diameter, hires / lowres scale
+│   ├── tissue_hires_image.png
+│   └── tissue_lowres_image.png
+├── binned_outputs/                Visium HD only: square_002um/, square_008um/, square_016um/
+└── (the microscope image Space Ranger was given, if you kept it)`}
+        </pre>
+        <Prose>
           <p>
-            A Space Ranger output folder: the counts h5, <code>spatial/</code>{" "}
-            with the tissue positions, the scale factors and the hires and
-            lowres images, and for Visium HD <code>binned_outputs/</code>. The
-            spots, or the bins, are the cells: they are drawn at their real
+            The spots, or the bins, are the cells: they are drawn at their real
             size, there are no molecules, and the H&amp;E lies under them.
           </p>
         </Prose>
@@ -447,18 +448,26 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
               ),
             },
             {
-              title: "Run it on the output folder",
+              title: "Run it",
               children: (
                 <>
                   <pre className={pre}>
-                    {`python scripts/prepare_visium.py outs/ sample/ --fullres image.tif   # the microscope image Space Ranger was given, if you have it
+                    {`python scripts/prepare_visium.py outs/ sample/ --fullres image.tif   # the microscope image, if you have it
 python scripts/prepare_visium.py outs/ sample/ --bins 8 16           # Visium HD: which bin sizes to read (8 and 16 µm by default)`}
                   </pre>
+                  <p>You get:</p>
                   <pre className={pre}>
                     {`sample/
-├── sample.zarr/       tables/table (+ layers/X_csc), shapes/sample (the spots, with their radius),
-│                      images/sample_hires_image, sample_lowres_image (+ sample_full_image with --fullres)
-└── mapping.json       { "cells": "sample.zarr" }`}
+├── sample.zarr/
+│   ├── tables/table/              counts (+ layers/X_csc), obsm/spatial in full-res pixels
+│   ├── shapes/sample/             the spots, with their radius
+│   ├── images/sample_hires_image/
+│   ├── images/sample_lowres_image/
+│   └── images/sample_full_image/  with --fullres: 1024² chunks, a pyramid
+└── mapping.json                   { "cells": "sample.zarr" }
+
+# Visium HD: tables/square_008um, square_016um and shapes/sample_square_008um, …;
+# the 8 µm table is the default (metadata_general["Default Table"])`}
                   </pre>
                   <p>
                     Coordinates are full-resolution image pixels, as Space
@@ -466,8 +475,7 @@ python scripts/prepare_visium.py outs/ sample/ --bins 8 16           # Visium HD
                     system: the spots and each image declare their own, and the
                     viewer targets the spots&apos; and draws the finest image
                     that reaches it, the full-resolution one when you gave it,
-                    else the hires one. For Visium HD the 8 µm table is the one
-                    the viewer opens; the 2 µm bins are too many for a browser
+                    else the hires one. The 2 µm bins are too many for a browser
                     and are not read unless you ask.
                   </p>
                 </>
@@ -485,6 +493,22 @@ python scripts/prepare_visium.py outs/ sample/ --bins 8 16           # Visium HD
             },
           ]}
         />
+      </DocSection>
+
+      <DocSection heading="A store you already have" id="repairs">
+        <Prose>
+          <p>
+            Put the store in a folder and run <code>prepare_folder.py</code> on
+            it. Where the viewer cannot read the store as written, the script
+            repairs it in place: a shapes element stored as a directory of
+            parquet parts, or in the geoarrow encoding, becomes one WKB file
+            (the original stays beside it as <code>shapes.parquet.parts</code>);
+            image levels in chunks over 1024² are rewritten in 1024² chunks; and{" "}
+            <code>--molecules-from-points</code> turns the store&apos;s own
+            parquet points element into the tiled one the viewer streams. The
+            CSC copy of <code>X</code> is added as for any table.
+          </p>
+        </Prose>
       </DocSection>
     </>
   );

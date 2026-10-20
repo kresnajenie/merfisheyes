@@ -36,7 +36,7 @@ def prepared(tmp_path_factory):
 def test_the_folder_passes_the_validator(prepared):
     folder, report = prepared
     assert not report.failed, [m for lv, _, m in report.lines if lv == "FAIL"]
-    assert any(w.startswith("molecules/") and "covering" in m for lv, w, m in report.lines if lv == "OK")
+    assert any(w == "points/molecules" for lv, w, m in report.lines if lv == "OK"), report.lines
 
 
 def test_the_store_holds_what_the_profiles_need(prepared):
@@ -53,8 +53,10 @@ def test_the_store_holds_what_the_profiles_need(prepared):
         chunks = nodes[level]["chunk_grid"]["configuration"]["chunk_shape"]
         assert max(chunks[-2:]) <= 1024, (level, chunks)
     assert not any(k.startswith("labels/") for k in nodes)
+    assert nodes["points/molecules"]["attributes"]["points:version"]  # the molecules, tiled, inside the store
+    assert (folder / "sources" / "molecules").is_dir()
     mapping = json.loads((folder / "mapping.json").read_text())
-    assert mapping == {"cells": "sample.zarr", "linkColumn": "__all__", "links": {"__all__": "molecules"}}
+    assert mapping == {"cells": "sample.zarr"}
 
 
 def test_spatialdata_reads_the_store_back(prepared):

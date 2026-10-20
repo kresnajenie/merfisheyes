@@ -100,13 +100,13 @@ def test_an_export_becomes_a_store_with_polygons_and_molecules(tmp_path):
     assert nodes["tables/table/X"]["attributes"]["encoding-type"] == "csc_matrix"
     assert nodes["tables/table/X"]["attributes"]["shape"] == [CELLS, GENES]  # the blanks are gone
     assert (store / "shapes" / "cell_boundaries" / "shapes.parquet").is_file()
-    assert json.loads((folder / "mapping.json").read_text()) == {
-        "cells": "region_R1.zarr", "linkColumn": "__all__", "links": {"__all__": "molecules"},
-    }
-    assert any(w.startswith("molecules/") and "covering" in m for lv, w, m in r.lines if lv == "OK")
+    # The molecules went inside the store as a tiled points element; the folder to sources/
+    assert nodes["points/molecules"]["attributes"]["points:version"]
+    assert (folder / "sources" / "molecules" / "manifest.json.gz").exists()
+    assert json.loads((folder / "mapping.json").read_text()) == {"cells": "region_R1.zarr"}
 
     # Read back by the library that wrote it: the polygons are the cells', one each, on plane 1
-    sdata = spatialdata.read_zarr(store)
+    sdata = spatialdata.read_zarr(store, selection=("tables", "shapes"))
     adata = sdata.tables["table"]
     polys = sdata.shapes["cell_boundaries"]
     assert adata.n_obs == len(polys) == CELLS

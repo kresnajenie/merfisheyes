@@ -184,8 +184,11 @@ on their own.
 ### Clustering
 
 `spatialdata_cluster.py` runs normalize_total → log1p → PCA → neighbours →
-Leiden (`--resolution`, `--n-pcs`, `--n-neighbors`) and writes one category
-code per cell, in table order. The DE stats are per-cluster means of the
+Leiden (`--resolution`, `--n-pcs`, `--n-neighbors`) and writes the cluster
+of each cell into the table itself, as a categorical `obs/leiden` column
+(with `--sidecar-only`, as one category code per cell in
+`annotations/leiden.bin` instead, the table untouched). The DE stats always
+go to the sidecar: they are per-cluster means of the
 **log-normalized** matrix plus the fraction of cells expressing each gene —
 the DEG panel un-logs the means for fold change. (Raw Xenium counts are low
 enough that the panel would mistake their means for log values.)

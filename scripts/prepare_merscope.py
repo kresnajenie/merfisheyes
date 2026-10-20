@@ -183,6 +183,7 @@ def prepare_merscope(
     workers: int = 1,
     cluster: bool = False,
     url: str | None = None,
+    expanded: bool = False,
     log=print,
 ):
     path, folder = Path(path), Path(folder)
@@ -218,7 +219,8 @@ def prepare_merscope(
 
     log("checking the folder ...")
     return prepare_folder.prepare(
-        folder, cells=store, molecules=molecules if molecules.exists() else None, cluster=cluster, url=url, log=log
+        folder, cells=store, molecules=molecules if molecules.exists() else None, cluster=cluster, url=url,
+        expanded=expanded, workers=workers, log=log,
     )
 
 
@@ -232,6 +234,7 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=4, help="parallel gene-file writers")
     ap.add_argument("--cluster", action="store_true", help="Leiden clusters + DEGs when the table has no cell types")
     ap.add_argument("--url", help="the folder's public URL, for absolute links in mapping.json")
+    ap.add_argument("--expanded", action="store_true", help="keep the molecule folder beside the store instead of inside it")
     args = ap.parse_args(argv)
     r = prepare_merscope(
         args.region,
@@ -242,6 +245,7 @@ def main(argv=None) -> int:
         workers=args.workers,
         cluster=args.cluster,
         url=args.url,
+        expanded=args.expanded,
     )
     return 1 if r.failed else 0
 
