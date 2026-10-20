@@ -8,6 +8,112 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-20
+
+Molecules streamed by view from a tiled points element, cell polygons,
+Visium and Visium HD, one way to prepare data from any source, and the
+loading and rendering of every element measured against human time.
+
+### Added
+
+- **Molecules as a multiscale Zarr points element, streamed by view**
+  (#150). A SpatialData points element stored as Zarr instead of Parquet
+  (`docs/points-zarr-spec.md`): level 0 holds every molecule, each further
+  level a uniform quarter; each level in two row orders (by tile, by gene)
+  with an index, so the viewer reads only the tiles under the camera, at
+  the level whose count fits the budget, by HTTP range requests. A
+  **Detail** setting (Auto, More, All), a molecule panel with per-gene
+  progress and the bytes fetched, and molecules kept at least 1 px when
+  zoomed out. Measured on an 11.24 billion-molecule, ten-section mouse
+  brain store: a whole-atlas view of three genes reads 29 MB.
+- **Cell polygons from a store's shapes** (#151). A **Shapes** button on the
+  rail: outline or filled, with an opacity slider, each polygon in its
+  cell's colour, drawn when zoomed in below 1 mm.
+- **Visium and Visium HD** (#158, #159). A store's elements are placed
+  through its named coordinate systems, so Visium stores, which have no
+  `global`, open with the H&E under the spots. Spots and bins are drawn at
+  their real size and shape, as the cells, in the cell's colour, with
+  nothing extra downloaded (the radius from the shapes file's footer, the
+  bin side from the grid's pitch). The curated default table is the one
+  opened. A census of every store in SpatialData-DB (1,884) and the
+  profile of what they need (`docs/specs/sddb-profile.md`,
+  `docs/plans/SDDB.md`).
+- **Preparing data: one script per source into one SpatialData store,
+  with the tutorial** (#160). `/docs/prepare`, the README and the script
+  guide show exactly what you start with and what you get. Scripts:
+  `prepare_folder.py` for parts you already have (an AnnData table in
+  h5ad or Zarr, a transcripts table, an OME-Zarr image or a per-gene
+  molecule folder), `transcripts_to_points.py` (a Parquet or CSV table
+  straight into the tiled points element), `image_to_ome_zarr.py` (a TIFF
+  as OME-Zarr with a pyramid), `prepare_xenium.py`, `prepare_merscope.py`
+  and `prepare_visium.py`. The output is one store: the table with a CSC
+  copy of `X` and, with `--cluster`, Leiden clusters in `obs/leiden`; the
+  image written by the `spatialdata` library; the molecules as the tiled
+  points element; the DEG stats in an `annotations/` sidecar. The expanded
+  layout (store, molecule folder and image folder side by side) still
+  opens and is what `--expanded` writes. A store the viewer cannot read
+  as written is repaired in place: shapes parts into one WKB file, image
+  chunks over 1024² rechunked, parquet points into the tiled element.
+  Names in `mapping.json` may be relative to its folder.
+- **Open in 3D by default** (#148): an Advanced option in the upload
+  dialogs, and the owner's saved 2D/3D choice is now applied for
+  single-cell datasets.
+- **The formats as specifications** (#157): `docs/specs/` profiles for
+  the store layout, the table, the shapes, the image and `mapping.json`,
+  JSON Schemas, `scripts/validate_store.py` (run in CI on the fixtures),
+  `scripts/legacy_to_points.py`, and a Python test job that also checks
+  the `spatialdata` library reads what we write.
+- **Budgets** (#152): `docs/specs/BUDGETS.md` states the human-time limits
+  every change is judged by, with the perf suite measuring open-to-cells,
+  first molecules, view settled, bytes per view and frames over 16 ms on
+  the tiny and a generated medium store.
+
+### Changed
+
+- **One layer contract and one dataset loader** (#153). Every element
+  drawn (image, shapes, points, molecules) is a `Layer` with one lifecycle
+  in a registry; a scene renders only when something changed; every page
+  and split panel opens a dataset through one loader with one loading
+  screen.
+- **One store for every reader** (#154). `ElementStore` holds one byte
+  cache, shares reads in flight, cancels every read all the way to `fetch`,
+  merges neighbouring range reads and bounds requests in flight; the
+  consolidated metadata is seeded so opening a node costs no request; the
+  points layer keeps a byte budget per view. On the medium store a gene
+  settles in 2.7 s where it took 14.9 s, and a view in 13.5 s where it
+  took 140 s.
+- **Rendering within the frame budget** (#155). Molecule clouds carry
+  positions only, with colour, size and shape as uniforms, so a restyle
+  uploads nothing; cell buffers are reused and the gene percentile cached;
+  hover picks through a grid; the pixel ratio is capped at 2; the shapes
+  fill draws under the molecules. A heavy slider tick takes 2.6 s where it
+  took 32 s.
+- A cell dataset's overlays (a dropped folder's parts, the link registry,
+  `mapping.json`, the app's mapping route) are resolved outside the scene
+  (#156).
+- The molecule overlay's size slider takes the same right-click min/max
+  range editing as the cell slider (#149).
+- Leiden clusters from `spatialdata_cluster.py` go into the table itself;
+  the sidecar carries only the DEG stats (#160).
+- The public skin reference store on the bucket was repaired with the new
+  scripts: its polygons now load, and its image is in 1024² tiles.
+
+### Fixed
+
+- Dots invisible at the default size on graphics cards that draw nothing
+  for sub-pixel points: the point size is clamped to at least 1 px (#149).
+- A Visium image was drawn 148× too large (198× on Visium HD): an element's
+  transform list holds alternatives, one per system, and was multiplied
+  (#158).
+- An H&E image showed as one blue channel: channels sharing a chunk are
+  filled from one read, and r, g, b images open as RGB (#158).
+- Recolouring 1.59 M cells by gene froze for seconds: the 95th percentile
+  is taken by selection, not by sorting every cell (#150).
+- A store whose index anndata writes as a nullable-string group registered
+  with 0 cells and genes (#150).
+- The tooltip said "undefined" with no column to colour by; a real-size
+  cell keeps its size in every mode (#159).
+
 ## [0.11.0] - 2026-10-14
 
 A user guide and a new About page.
@@ -488,7 +594,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.8.0...v0.9.0
