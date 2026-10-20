@@ -155,7 +155,13 @@ the table, `annotations/` holding `de/leiden.bin.gz` only.
     cells' plane. Tests: `tests/python/test_transcripts_to_points.py`
     (parquet, CSV, custom columns, a points directory with its feature key
     and transforms), the folder tests on a transcripts table in both
-    layouts; 51 passed in the fresh venv, 50 in the base env.
+    layouts; 51 passed in the fresh venv, 50 in the base env. Measured:
+    the Xenium export in 1:13 and 9.2 GB (was 2:25 + 37 s, with a 293 MB
+    copy), 42,391,468 molecules with 293 control probes dropped; the
+    MERSCOPE brain region with `--cluster` in 3:00 and 3.2 GB (was 3:18
+    and 15.6 GB: the per-gene step read the 6 GB CSV whole, the direct
+    path reads it in batches). Both folders dropped on the homepage open
+    with the molecules streamed from the store.
 
 ## 3. Chapters
 

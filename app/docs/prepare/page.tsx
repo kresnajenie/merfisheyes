@@ -412,10 +412,11 @@ OK   mapping.json: names the store only`}
                   </p>
                   <p>
                     Measured: a 137,627-cell, 960-gene region with a 6 GB
-                    transcripts CSV (70 M molecules) took about 3½ min and 16 GB
-                    of memory, clustering included; a 703,879-cell region with
-                    boundaries and categories about 4 min and 22 GB. The counts
-                    CSV is read whole, which is where the memory goes.
+                    transcripts CSV (70 M molecules) took 3 min and 3.2 GB of
+                    memory, clustering included (the transcripts are read in
+                    batches); a 703,879-cell region with boundaries and
+                    categories about 4 min and 22 GB, where the counts CSV, read
+                    whole, is what takes the memory.
                   </p>
                 </>
               ),
