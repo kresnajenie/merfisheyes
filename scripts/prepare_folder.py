@@ -95,6 +95,108 @@ def find_parts(folder: Path) -> dict[str, list[Path]]:
     return found
 
 
+# ── where each part sits (the same units and frame, or nothing lines up) ──
+
+Box = tuple[float, float, float, float]  # x0, y0, x1, y1
+
+
+def table_box(table) -> Box | None:
+    import anndata as ad
+
+    if "spatial" not in table["obsm"]:
+        return None
+    xy = ad.io.read_elem(table["obsm/spatial"])
+    xy = xy[:, :2]
+    return float(xy[:, 0].min()), float(xy[:, 1].min()), float(xy[:, 0].max()), float(xy[:, 1].max())
+
+
+def molecules_box(folder: Path, genes: int = 3) -> Box | None:
+    """The extent of the first few genes' coordinates (raw, as the files hold them)."""
+    import gzip
+
+    import numpy as np
+
+    manifest_path = next((folder / n for n in ("manifest.json.gz", "manifest.json") if (folder / n).exists()), None)
+    if manifest_path is None:
+        return None
+    with (gzip.open(manifest_path, "rt") if manifest_path.suffix == ".gz" else manifest_path.open()) as f:
+        manifest = json.load(f)
+    dims = int(manifest.get("statistics", {}).get("spatial_dimensions", 2))
+    scale = float(manifest.get("processing", {}).get("scaling_factor", 1) or 1)
+    xs, ys = [], []
+    for path in sorted((folder / "genes").glob("*.bin.gz"))[:genes]:
+        with gzip.open(path, "rb") as f:
+            flat = np.frombuffer(f.read(), dtype="<f4")
+        if len(flat) < dims:
+            continue
+        coords = flat[: len(flat) // dims * dims].reshape(-1, dims)
+        xs.append(coords[:, 0])
+        ys.append(coords[:, 1])
+    if not xs:
+        return None
+    x, y = np.concatenate(xs) * scale, np.concatenate(ys) * scale
+    return float(x.min()), float(y.min()), float(x.max()), float(y.max())
+
+
+def image_box(image: Path) -> Box | None:
+    """Level 0's scale and translation over its shape, as the viewer places it."""
+    root = read_json(image / "zarr.json") or {}
+    ms = (root.get("attributes", {}).get("ome", {}).get("multiscales") or [{}])[0]
+    datasets = ms.get("datasets") or []
+    if not datasets:
+        return None
+    level = read_json(image / str(datasets[0].get("path")) / "zarr.json") or {}
+    shape = level.get("shape") or []
+    if len(shape) != 3:
+        return None
+    sx = sy = 1.0
+    tx = ty = 0.0
+    for t in datasets[0].get("coordinateTransformations") or []:
+        if t.get("type") == "scale":
+            sy, sx = float(t["scale"][-2]), float(t["scale"][-1])
+        elif t.get("type") == "translation":
+            ty, tx = float(t["translation"][-2]), float(t["translation"][-1])
+    return tx, ty, tx + sx * shape[2], ty + sy * shape[1]
+
+
+def overlap(a: Box, b: Box) -> float:
+    """The fraction of `a` covered by `b`."""
+    w = min(a[2], b[2]) - max(a[0], b[0])
+    h = min(a[3], b[3]) - max(a[1], b[1])
+    area = (a[2] - a[0]) * (a[3] - a[1])
+    return 0.0 if w <= 0 or h <= 0 or area <= 0 else (w * h) / area
+
+
+def fmt(box: Box) -> str:
+    return f"x {box[0]:.4g}–{box[2]:.4g}, y {box[1]:.4g}–{box[3]:.4g}"
+
+
+def check_against_cells(what: str, box: Box | None, cells: Box | None, r) -> None:
+    if box is None or cells is None:
+        return
+    covered = overlap(cells, box)
+    span = max(box[2] - box[0], box[3] - box[1]) / max(cells[2] - cells[0], cells[3] - cells[1], 1e-9)
+    if covered == 0:
+        r.warn(what, f"spans {fmt(box)} while the cells span {fmt(cells)}: they do not overlap — not the same units or frame?")
+    elif span > 5 or span < 0.2:
+        r.warn(what, f"spans {fmt(box)}, {span:.3g}× the cells' extent ({fmt(cells)}): not the same units?")
+    else:
+        r.ok(what, f"spans {fmt(box)}, covering {covered:.0%} of the cells' extent")
+
+
+def check_image_folder(image: Path, r) -> None:
+    """The image's own metadata through the validator's image rules
+    (docs/specs/image-profile.md), as if it sat inside a store."""
+    root = read_json(image / "zarr.json") or {}
+    ms = (root.get("attributes", {}).get("ome", {}).get("multiscales") or [{}])[0]
+    nodes = {f"images/{image.name}": root}
+    for ds in ms.get("datasets") or []:
+        level = read_json(image / str(ds.get("path")) / "zarr.json")
+        if level:
+            nodes[f"images/{image.name}/{ds['path']}"] = level
+    validate_store.check_image(validate_store.RootStore({"consolidated_metadata": {"metadata": nodes}}), image.name, r)
+
+
 # ── the table ─────────────────────────────────────────────────────────────
 
 def drop_consolidated(zarr_json: Path) -> None:
@@ -229,6 +331,7 @@ def prepare(
         raise SystemExit("nothing found: no table, store, molecule folder or image")
 
     store: Path | None = None
+    cells_box: Box | None = None
     if cells is not None:
         kind = kind_of(cells)
         if kind == "store":
@@ -239,6 +342,7 @@ def prepare(
         table = table_group(store)
         ensure_spatial(table, log)
         ensure_csc(table, log)
+        cells_box = table_box(table)
         if cluster and not has_categorical_column(table):
             import spatialdata_cluster
 
@@ -266,11 +370,11 @@ def prepare(
     else:
         validate_store.check_mapping(folder / "mapping.json", r)
     if molecules is not None:
-        r.ok("molecules", f"{molecules.name}: manifest and genes/ present")
+        r.ok(f"molecules/{molecules.name}", "manifest and genes/ present")
+        check_against_cells(f"molecules/{molecules.name}", molecules_box(molecules), cells_box, r)
     if image is not None:
-        root = read_json(image / "zarr.json") or {}
-        levels = root.get("attributes", {}).get("ome", {}).get("multiscales", [{}])[0].get("datasets", [])
-        r.ok("image", f"{image.name}: {len(levels)} level(s)")
+        check_image_folder(image, r)
+        check_against_cells(f"images/{image.name}", image_box(image), cells_box, r)
     for level, where, msg in r.lines:
         log(f"{level:4} {where}: {msg}")
     return r

@@ -142,6 +142,33 @@ the root and the table before editing and consolidates last; the Next
 dev server refuses a symlinked `node_modules`, so a worktree needs its
 own `npm install`.
 
+Cold walkthrough (2026-10-19, a fresh `python -m venv`, following only
+`/docs/prepare` as a bioinformatician with an h5ad, a transcripts parquet
+and a TIFF). Gaps found and closed in the same chapter:
+
+- No way to get the scripts: the page assumed a checkout. Now a first step
+  (clone, venv, `scripts/requirements-prepare.txt`, one file for every
+  script on the page). The fresh install resolved anndata 0.13.4 and zarr
+  3.4.1, so the tests run against those too (anndata 0.13 writes v3 only).
+- No command for the molecules or the image: the page named the scripts
+  and left the TIFF to "any OME-Zarr writer". Now `process_single_molecule.py`
+  with its column flags, and a new `scripts/image_to_ome_zarr.py` (a plane,
+  a channel stack or RGB, uint8/uint16, 1024² chunks, pyramid, `scale` and
+  `translation` from `--um-per-pixel` and `--origin`), checked by the
+  validator's image rules through `check_image_folder`.
+- Nothing said the three parts must share units and frame, and nothing
+  checked it. Now the script compares each part's extent with the cells'
+  (`molecules_box` from the first gene files, `image_box` from level 0):
+  no overlap or a span over 5× or under 0.2× is a `WARN` naming both
+  extents; the page explains the line and shows a sample report.
+- Memory: a v2 or h5ad table is read whole; the page says so and how to
+  avoid it (write v3, the table is moved).
+- The docs-drift test now pins all four commands on the page and in the
+  README.
+
+Left open for a later chapter: a Seurat object (convert to h5ad first),
+labels, a TIFF larger than memory (tile-wise writing), Windows paths.
+
 ### Chapter 2: Xenium (`feat/upload-tutorial-xenium`)
 
 - `scripts/prepare_xenium.py`: `spatialdata_io.xenium(path,
@@ -206,6 +233,13 @@ Gate: `validate_store.py` passes on the skin store through its URL.
   through the real homepage cards.
 - One person outside the team producing a working upload from the pages
   alone, on their own export, with no chat.
+- Before that person: every chapter ends with a **cold walkthrough** — a
+  fresh virtual environment, the page followed line by line as a
+  bioinformatician who has only the platform's export (or an h5ad, a
+  transcripts table and a TIFF), every command run as printed, every gap
+  (a missing step, an unnamed dependency, an unstated assumption about
+  units, memory or file layout) written into the chapter's result and
+  closed in the same PR.
 
 ## 5. How to brief a session on a chapter
 
@@ -216,9 +250,11 @@ mapping.md. Do chapter <N> of the plan: <its title>. Start from the raw
 material the plan names (the spatialdata-io readers at 0.7.1, the
 spatialdata writers at 0.8, the sandbox samples, the exports on this
 machine), not from the existing guides. Every command in the tutorial is a
-tested script that ends in the validator. It is done when the chapter's
-gate holds, the Python, unit and @quick suites are green, and this plan,
-/docs and README are updated. Commit only when told; never push or open a
-PR unless told. List every place you had to touch outside the files the
-chapter names.
+tested script that ends in the validator. Then do the cold walkthrough of
+§4: a fresh venv, the page followed as a bioinformatician with only the
+export, every gap closed and recorded in the chapter's result. It is done
+when the chapter's gate holds, the Python, unit and @quick suites are
+green, and this plan, /docs and README are updated. Commit only when
+told; never push or open a PR unless told. List every place you had to
+touch outside the files the chapter names.
 ```

@@ -160,13 +160,17 @@ sample/
 
 **The same data on a public bucket** opens from **Load from S3** on the homepage. Paste the URL of a merfisheyes folder, a SpatialData store, an OME-Zarr image, or the folder holding a store with its molecules beside it — the last opens with everything overlaid, and the link you land on reopens all of it. A bucket's folders can't be listed from a browser, so the folder's `mapping.json` names its store (`"cells": "name.zarr"`); without that, a store named after the folder (`sample/sample.zarr`) is tried. A store nobody owns yet shows **Add to my account**, like any other dataset opened by URL. See [docs/spatialdata](docs/spatialdata/README.md) for the layout.
 
-**Preparing the parts yourself.** An AnnData table you wrote (`.h5ad`, or `write_zarr` in Zarr v2 or v3), a molecule folder from `process_single_molecule.py` and an OME-Zarr image, side by side in one folder, are made ready by one script:
+**Preparing the parts yourself.** An AnnData table you wrote (`.h5ad`, or `write_zarr` in Zarr v2 or v3), a transcripts table and a TIFF become the three parts, and one script makes the folder ready:
 
 ```bash
+pip install -r scripts/requirements-prepare.txt
+python scripts/process_single_molecule.py transcripts.parquet sample/molecules/ --dataset-type xenium
+python scripts/image_to_ome_zarr.py dapi.tif sample/dapi.zarr --um-per-pixel 0.108 --origin 0 0
+cp cells.h5ad sample/
 python scripts/prepare_folder.py sample/            # --cluster adds Leiden clusters + DEGs when the table has none
 ```
 
-It wraps the table into a Zarr v3 SpatialData store (`sample.zarr/tables/table`), adds a CSC copy of `X` in `layers/X_csc` when `X` is not CSC (the viewer reads one gene as one slice; a CSR `X` cannot be read per gene), writes `mapping.json` naming the store, the molecules and the image relative to the folder, and ends by running `scripts/validate_store.py`. The folder then opens by drag and drop, saves with **Upload & Save**, or goes to a bucket as it is (`--url` writes absolute links; relative ones are resolved against the folder they are fetched from). Full guide: [/docs/prepare](https://merfisheyes.com/docs/prepare). Layout rules: [docs/specs/](docs/specs/).
+It wraps the table into a Zarr v3 SpatialData store (`sample.zarr/tables/table`), adds a CSC copy of `X` in `layers/X_csc` when `X` is not CSC (the viewer reads one gene as one slice; a CSR `X` cannot be read per gene), writes `mapping.json` naming the store, the molecules and the image relative to the folder, checks that the three sit in the same place (a part in other units or another frame gets a `WARN`), and ends by running `scripts/validate_store.py`. The folder then opens by drag and drop, saves with **Upload & Save**, or goes to a bucket as it is (`--url` writes absolute links; relative ones are resolved against the folder they are fetched from). Full guide: [/docs/prepare](https://merfisheyes.com/docs/prepare). Layout rules: [docs/specs/](docs/specs/).
 
 What is and isn't converted:
 

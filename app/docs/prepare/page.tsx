@@ -78,15 +78,15 @@ export default function PreparePage() {
             ],
             [
               "Molecules",
-              "A transcripts file (parquet / CSV)",
-              "manifest.json.gz + genes/<gene>.bin.gz",
-              "scripts/process_single_molecule.py",
+              "A transcripts file (parquet / CSV) with gene, x, y (and z) columns",
+              "manifest.json.gz + genes/<gene>.bin.gz, coordinates in the cells' units",
+              "scripts/process_single_molecule.py (step 2)",
             ],
             [
               "Image",
-              "A stitched plane, or an OME-Zarr folder",
+              "A TIFF (one plane, a channel stack, or RGB), or an OME-Zarr folder",
               "OME-Zarr 0.5 (Zarr v3), axes c, y, x, uint8 or uint16, chunks ≤ 1024², scale + translation in the cells' units",
-              "Any OME-Zarr writer; a 30-line example is in docs/spatialdata/README.md",
+              "scripts/image_to_ome_zarr.py (step 2), or any OME-Zarr writer",
             ],
             [
               "Clusters & DEGs",
@@ -97,11 +97,12 @@ export default function PreparePage() {
           ]}
         />
         <Callout kind="note">
-          <b>anndata writes Zarr v2 by default</b> (0.12). A v2 table opens from
-          a drop, but a store and a bucket need v3. The script converts it; or
-          set <code>anndata.settings.zarr_write_format = 3</code> before{" "}
-          <code>write_zarr</code> and the script moves the table into the store
-          without rewriting it.
+          <b>anndata 0.12 writes Zarr v2 by default</b> (0.13 writes v3). A v2
+          table opens from a drop, but a store and a bucket need v3. The script
+          converts it, reading the table whole; for a large table set{" "}
+          <code>anndata.settings.zarr_write_format = 3</code> before{" "}
+          <code>write_zarr</code> and the script moves it into the store without
+          rewriting it.
         </Callout>
       </DocSection>
 
@@ -109,15 +110,45 @@ export default function PreparePage() {
         <Steps
           steps={[
             {
-              title: "Put the parts in one folder",
+              title: "Get the scripts",
               children: (
-                <p>
-                  The table (or a SpatialData store), the molecule folder and
-                  the image folder, side by side. Two candidates for one part
-                  (two tables, say) make the script ask you to choose with{" "}
-                  <code>--cells</code>, <code>--molecules</code> or{" "}
-                  <code>--image</code>.
-                </p>
+                <>
+                  <pre className={pre}>
+                    {`git clone https://github.com/kresnajenie/merfisheyes.git && cd merfisheyes
+python -m venv .venv && source .venv/bin/activate     # Python 3.11 or newer
+pip install -r scripts/requirements-prepare.txt`}
+                  </pre>
+                  <p>
+                    One environment for every script on this page. Clustering
+                    (scanpy, igraph, leidenalg) is in it too; leave those lines
+                    out of the file if you never use <code>--cluster</code>.
+                  </p>
+                </>
+              ),
+            },
+            {
+              title: "Make the three parts",
+              children: (
+                <>
+                  <pre className={pre}>
+                    {`# cells: an AnnData table with obsm["spatial"] (x, y in microns), written by scanpy, anndata or Seurat's converters
+#        cells.h5ad, or cells.zarr from adata.write_zarr("cells.zarr")
+
+# molecules: a transcripts table → one file per gene
+python scripts/process_single_molecule.py transcripts.parquet molecules/ --dataset-type xenium
+#   --dataset-type merscope for gene/global_x/global_y/global_z columns;
+#   any other names: --gene-col gene --x-col x --y-col y [--z-col z]
+
+# image: a TIFF → OME-Zarr, placed among the cells by its pixel size and origin
+python scripts/image_to_ome_zarr.py dapi.tif dapi.zarr --um-per-pixel 0.108 --origin 0 0 --channels DAPI`}
+                  </pre>
+                  <p>
+                    Put them in one folder, side by side. Two candidates for one
+                    part (two tables, say) make the script ask you to choose
+                    with <code>--cells</code>, <code>--molecules</code> or{" "}
+                    <code>--image</code>.
+                  </p>
+                </>
               ),
             },
             {
@@ -125,14 +156,28 @@ export default function PreparePage() {
               children: (
                 <>
                   <pre className={pre}>
-                    {`pip install -r tests/python/requirements.txt   # once: anndata, zarr, pyarrow, jsonschema
-python scripts/prepare_folder.py sample/              # add --cluster for Leiden clusters (needs scanpy)`}
+                    {`python scripts/prepare_folder.py sample/              # add --cluster for Leiden clusters + DEGs`}
                   </pre>
                   <p>
                     It writes the store, <code>mapping.json</code> and, with{" "}
                     <code>--cluster</code>, <code>annotations/</code>, then runs
-                    the validator and prints one line per check. A{" "}
-                    <code>FAIL</code> names what the viewer could not read.
+                    the validator and prints one line per check:
+                  </p>
+                  <pre className={pre}>
+                    {`OK   root: consolidated metadata names all 26 nodes
+OK   tables/table: X is CSR with a CSC copy in layers/X_csc
+WARN tables/table: no instance_key: polygons cannot be matched to cells
+OK   images/dapi.zarr: uint16 [1, 8192, 7941], chunks [1, 1024, 1024], 4 levels
+OK   images/dapi.zarr: spans x 0–860, y 0–887, covering 100% of the cells' extent
+WARN molecules/molecules: spans x 0–7941, y 0–8192, 9.2× the cells' extent: not the same units?`}
+                  </pre>
+                  <p>
+                    A <code>FAIL</code> names what the viewer cannot read. A{" "}
+                    <code>WARN</code> on a part&apos;s extent means it does not
+                    sit where the cells are: the last line above is molecules
+                    still in pixels while the cells are in microns. Fix the
+                    source and run again; a second run changes nothing it has
+                    already done.
                   </p>
                 </>
               ),
@@ -170,6 +215,14 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
             },
           ]}
         />
+        <Callout>
+          <b>Same units, same frame.</b> The cells&apos;{" "}
+          <code>obsm[&quot;spatial&quot;]</code>, the molecules&apos; x and y
+          and the image&apos;s pixel size and origin must all be in one
+          coordinate system — microns from the same corner is the usual one. The
+          viewer draws them exactly where the numbers say; nothing is aligned
+          for you.
+        </Callout>
       </DocSection>
 
       <DocSection heading="Every combination opens" id="combinations">

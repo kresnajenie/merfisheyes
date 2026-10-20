@@ -126,7 +126,14 @@ def test_the_guides_show_the_script_as_it_is():
     usage = prepare_folder.__doc__.split("\n")[2].strip()
     assert usage.startswith("python scripts/prepare_folder.py <folder>")
     for page in (ROOT / "README.md", ROOT / "app" / "docs" / "prepare" / "page.tsx"):
-        assert "python scripts/prepare_folder.py " in page.read_text(), page
+        text = page.read_text()
+        for command in (
+            "python scripts/prepare_folder.py ",
+            "python scripts/process_single_molecule.py ",
+            "python scripts/image_to_ome_zarr.py ",
+            "pip install -r scripts/requirements-prepare.txt",
+        ):
+            assert command in text, (page, command)
 
 
 def test_url_makes_the_links_absolute(tmp_path):
@@ -216,6 +223,85 @@ def test_molecules_and_image_without_cells(tmp_path):
     assert not r.failed, fails(r)
     mapping = json.loads((folder / "mapping.json").read_text())
     assert mapping == {"linkColumn": "__all__", "links": {"__all__": "molecules"}, "image": "dapi.zarr"}
+
+
+# ── the parts have to sit in the same place ───────────────────────────────
+
+def warns(report):
+    return [m for lv, _, m in report.lines if lv == "WARN"]
+
+
+def test_a_part_elsewhere_or_in_other_units_is_warned_about(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    adata = make_table()
+    adata.obsm["spatial"] = adata.obsm["spatial"] + 1e6  # the cells far from the image
+    write_table(adata, folder / "cells.zarr", 3)
+    molecules_into(folder)  # the tiny molecules span ±1000: 20× the cells' 0–100
+    image_into(folder)  # the fixture image covers 0–100
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert any("images/dapi.zarr" in w and "do not overlap" in w for lv, w, m in r.lines for w in [f"{w} {m}"] if lv == "WARN")
+    assert any("molecules/molecules" in w and "do not overlap" in w for lv, w, m in r.lines for w in [f"{w} {m}"] if lv == "WARN")
+
+    # Over the cells but 20× their extent: the units are suspect
+    folder2 = tmp_path / "u"
+    folder2.mkdir()
+    write_table(make_table(), folder2 / "cells.zarr", 3)
+    molecules_into(folder2)
+    image_into(folder2)
+    r = prepare_folder.prepare(folder2, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert any("not the same units" in m and "molecules" in w for lv, w, m in r.lines if lv == "WARN")
+    assert any("covering" in m and "images/dapi.zarr" == w for lv, w, m in r.lines if lv == "OK")
+
+
+# ── an image from a TIFF ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize("layout", ["yx-uint16", "yxc-rgb"])
+def test_a_tiff_becomes_an_image_the_validator_accepts(tmp_path, layout):
+    tifffile = pytest.importorskip("tifffile")
+    import image_to_ome_zarr
+
+    rng = np.random.default_rng(2)
+    if layout == "yx-uint16":
+        plane = rng.integers(0, 60000, size=(300, 200), dtype=np.uint16)
+        channels = ["DAPI"]
+    else:
+        plane = rng.integers(0, 255, size=(300, 200, 3), dtype=np.uint8)
+        channels = ["R", "G", "B"]
+    tiff = tmp_path / "img.tif"
+    tifffile.imwrite(tiff, plane)
+    folder = tmp_path / "s"
+    folder.mkdir()
+    assert image_to_ome_zarr.main([str(tiff), str(folder / "img.zarr"), "--um-per-pixel", "0.5", "--origin", "10", "20",
+                                   "--channels", ",".join(channels), "--chunk", "128"]) == 0
+    root = json.loads((folder / "img.zarr" / "zarr.json").read_text())
+    ms = root["attributes"]["ome"]["multiscales"][0]
+    assert [a["name"] for a in ms["axes"]] == ["c", "y", "x"]
+    assert len(ms["datasets"]) == 3  # 300 → 150 → 75 px, until a level fits one 128² chunk
+    assert ms["datasets"][0]["coordinateTransformations"] == [
+        {"type": "scale", "scale": [1.0, 0.5, 0.5]},
+        {"type": "translation", "translation": [0.0, 20.0, 10.0]},
+    ]
+    assert [c["label"] for c in root["attributes"]["ome"]["omero"]["channels"]] == channels
+    assert prepare_folder.image_box(folder / "img.zarr") == (10.0, 20.0, 110.0, 170.0)
+    assert prepare_folder.kind_of(folder / "img.zarr") == "image"
+
+    # With cells over the same place, the folder passes and the image is checked
+    adata = make_table()
+    adata.obsm["spatial"] = rng.uniform(10, 110, size=(CELLS, 2))
+    write_table(adata, folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert any(w == "images/img.zarr" and "uint" in m and "3 levels" in m for lv, w, m in r.lines if lv == "OK")
+
+
+def test_a_float_tiff_is_refused(tmp_path):
+    import image_to_ome_zarr
+
+    with pytest.raises(SystemExit, match="uint8 or uint16"):
+        image_to_ome_zarr.write_ome_zarr(np.zeros((8, 8), dtype=np.float32), tmp_path / "x.zarr", um_per_pixel=1.0, log=lambda *_: None)
 
 
 # ── clustering ────────────────────────────────────────────────────────────

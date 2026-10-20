@@ -10,3 +10,4 @@ pytest
 # The external reader the round-trip test is judged by (heavy; optional
 # locally, installed in CI)
 spatialdata
+tifffile

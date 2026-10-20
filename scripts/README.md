@@ -350,9 +350,24 @@ python scripts/prepare_folder.py sample/ --url https://<bucket>.s3.<region>.amaz
 
 Writes `sample.zarr` (a Zarr v3 SpatialData store holding the table, with
 `layers/X_csc` when `X` is not CSC), `mapping.json` (names relative to the
-folder, absolute with `--url`), optionally `annotations/`, and runs
-`validate_store.py`. The folder then opens by drag and drop, with
-**Upload & Save**, or from a bucket. Tests: `tests/python/test_prepare_folder.py`.
+folder, absolute with `--url`), optionally `annotations/`, checks that the
+molecules and the image sit where the cells are (a `WARN` otherwise), and
+runs `validate_store.py`. The folder then opens by drag and drop, with
+**Upload & Save**, or from a bucket. Dependencies for all of this:
+`pip install -r scripts/requirements-prepare.txt`. Tests:
+`tests/python/test_prepare_folder.py`.
+
+### A TIFF as an OME-Zarr image (`image_to_ome_zarr.py`)
+
+```bash
+python scripts/image_to_ome_zarr.py dapi.tif dapi.zarr --um-per-pixel 0.108 --origin 0 0 --channels DAPI
+```
+
+One plane, a `(c, y, x)` stack or an RGB image, uint8 or uint16, written as
+OME-Zarr 0.5 in Zarr v3 with axes `c, y, x`, 1024² chunks and a pyramid
+halved until a level fits one chunk. `--um-per-pixel` and `--origin` (the
+centre of pixel 0, 0, in the cells' units) are what place it under the cells.
+The image is held in memory while it is written.
 
 ## Binary Format Details
 
