@@ -25,6 +25,13 @@ saved with Upload & Save, or synced to a public bucket — and holds:
   annotations/     with --cluster, Leiden clusters and per-cluster DEG stats when
                    the table has no categorical column (scripts/spatialdata_cluster.py)
 
+A SpatialData store that is there already is repaired where the viewer
+cannot read it as written: a shapes element stored as a directory of parquet
+parts or in the geoarrow encoding becomes one WKB file (the original kept
+as `shapes.parquet.parts`), image levels in chunks over 1024² are rewritten
+in 1024² chunks, and with --molecules-from-points a points element becomes
+the molecule folder (the store's own parquet points are not read).
+
 The last step runs scripts/validate_store.py on the store and the mapping;
 the exit code is 1 when a MUST fails. A Zarr v3 table is moved into the store
 (no rewrite); a Zarr v2 table or an .h5ad is read whole and written again, and
@@ -197,6 +204,102 @@ def check_image_folder(image: Path, r) -> None:
     validate_store.check_image(validate_store.RootStore({"consolidated_metadata": {"metadata": nodes}}), image.name, r)
 
 
+# ── repairs of a store the viewer cannot read as written ──────────────────
+
+CHUNK = 1024
+
+
+def element_dirs(store: Path, kind: str) -> list[Path]:
+    d = store / kind
+    return sorted(p for p in d.iterdir() if p.is_dir() and (p / "zarr.json").is_file()) if d.is_dir() else []
+
+
+def repair_shapes(store: Path, log) -> list[str]:
+    """One WKB GeoParquet file per shapes element (shapes-profile.md). A
+    directory of parts (dask-geopandas, Celldega's tiles) or a file in the
+    geoarrow encoding is read whole with geopandas and written again as
+    `shapes.parquet`; the parts are kept beside it as `shapes.parquet.parts`."""
+    import pyarrow.parquet as pq
+
+    repaired = []
+    for el in element_dirs(store, "shapes"):
+        path = el / "shapes.parquet"
+        if path.is_dir():
+            why = f"a directory of {sum(1 for _ in path.iterdir())} parts"
+        elif path.is_file():
+            meta = pq.read_metadata(path).metadata or {}
+            geo = json.loads(meta.get(b"geo", b"{}") or b"{}")
+            encoding = (geo.get("columns") or {}).get(geo.get("primary_column", ""), {}).get("encoding", "WKB")
+            if str(encoding).upper() == "WKB":
+                continue
+            why = f"{encoding} geometry encoding"
+        else:
+            continue
+        try:
+            import geopandas as gpd
+        except ImportError:
+            raise SystemExit(f"shapes/{el.name} is {why}: pip install geopandas to rewrite it as one WKB file")
+        log(f"  shapes/{el.name}: {why}; writing one WKB file ...")
+        gdf = gpd.read_parquet(path)
+        tmp = el / "shapes.parquet.tmp"
+        gdf.to_parquet(tmp, geometry_encoding="WKB")
+        parts = el / "shapes.parquet.parts"
+        if parts.exists():
+            shutil.rmtree(parts)
+        path.rename(parts)
+        tmp.rename(path)
+        log(f"  shapes/{el.name}: {len(gdf):,} geometries in shapes.parquet (the original kept as shapes.parquet.parts)")
+        repaired.append(el.name)
+    return repaired
+
+
+def repair_image_chunks(store: Path, log, chunk: int = CHUNK) -> list[str]:
+    """Image levels in chunks of at most `chunk`² (image-profile.md): a level
+    stored in larger chunks is rewritten, block by block, with the same
+    codecs; the viewer reads one tile at a time and a 4096² uint16 tile is
+    32 MB."""
+    import zarr
+
+    repaired = []
+    for el in element_dirs(store, "images"):
+        meta = read_json(el / "zarr.json") or {}
+        ms = (meta.get("attributes", {}).get("ome", meta.get("attributes", {})).get("multiscales") or [{}])[0]
+        for ds in ms.get("datasets") or []:
+            level = el / str(ds.get("path"))
+            src = zarr.open_array(level, mode="r")
+            if len(src.shape) < 2 or max(src.chunks[-2:]) <= chunk:
+                continue
+            chunks = tuple([1] * (len(src.shape) - 2) + [min(chunk, src.shape[-2]), min(chunk, src.shape[-1])])
+            log(f"  images/{el.name}/{level.name}: chunks {list(src.chunks)} → {list(chunks)} ...")
+            tmp = el / f"{level.name}.rechunk"
+            if tmp.exists():
+                shutil.rmtree(tmp)
+            dst = zarr.create_array(
+                tmp,
+                shape=src.shape,
+                dtype=src.dtype,
+                chunks=chunks,
+                compressors=src.compressors,
+                serializer=src.serializer,
+                filters=src.filters,
+                fill_value=src.fill_value,
+                dimension_names=src.metadata.dimension_names,
+                attributes=dict(src.attrs),
+                zarr_format=3,
+            )
+            step = src.chunks  # read the source a chunk at a time
+            import itertools
+
+            ranges = [range(0, n, s) for n, s in zip(src.shape, step)]
+            for start in itertools.product(*ranges):
+                sel = tuple(slice(a, min(a + s, n)) for a, s, n in zip(start, step, src.shape))
+                dst[sel] = src[sel]
+            shutil.rmtree(level)
+            tmp.rename(level)
+            repaired.append(f"{el.name}/{level.name}")
+    return repaired
+
+
 # ── the table ─────────────────────────────────────────────────────────────
 
 def drop_consolidated(zarr_json: Path) -> None:
@@ -321,6 +424,8 @@ def prepare(
     image: Path | None = None,
     cluster: bool = False,
     resolution: float = 0.5,
+    molecules_from_points: bool = False,
+    workers: int = 1,
     log=print,
 ) -> validate_store.Report:
     folder = folder.resolve()
@@ -364,6 +469,14 @@ def prepare(
 
             log("  no categorical column: Leiden clustering ...")
             spatialdata_cluster.cluster(store, folder / "annotations", table=table_name, resolution=resolution, log=log)
+        repair_shapes(store, log)
+        repair_image_chunks(store, log)
+        if molecules is None and molecules_from_points and element_dirs(store, "points"):
+            import spatialdata_points_to_sm
+
+            molecules = folder / "molecules"
+            log(f"  points → {molecules.name} (flat) ...")
+            spatialdata_points_to_sm.convert(store, molecules, workers=workers, drop_z=True)
         import zarr
 
         zarr.consolidate_metadata(str(store))
@@ -406,6 +519,9 @@ def main(argv=None) -> int:
     ap.add_argument("--image", type=Path)
     ap.add_argument("--cluster", action="store_true", help="Leiden clusters + DEGs when the table has no categorical column")
     ap.add_argument("--resolution", type=float, default=0.5)
+    ap.add_argument("--molecules-from-points", action="store_true",
+                    help="no molecule folder but the store has a points element: write one from it (flat)")
+    ap.add_argument("--workers", type=int, default=4, help="parallel gene-file writers for --molecules-from-points")
     args = ap.parse_args(argv)
     r = prepare(
         args.folder,
@@ -416,6 +532,8 @@ def main(argv=None) -> int:
         image=args.image,
         cluster=args.cluster,
         resolution=args.resolution,
+        molecules_from_points=args.molecules_from_points,
+        workers=args.workers,
     )
     return 1 if r.failed else 0
 

@@ -339,6 +339,35 @@ output this script wrote.
 
 Gate: `validate_store.py` passes on the skin store through its URL.
 
+Result (2026-10-20): there is no raw Xenium export of the skin on this
+machine, only the store (`/data/SpatialData/celldega/data/skin_adapt_v2.zarr`,
+4.7 GB, the Celldega `grid_files_v1` profile), so the chapter became
+three repairs in `prepare_folder.py`, each with a test on a made case:
+a shapes element stored as a directory of parquet parts (Celldega's
+tiles, dask-geopandas) or in the geoarrow encoding (which the viewer's
+WKB decoder cannot read, even as one file) is read whole with geopandas
+and written again as one WKB `shapes.parquet`, the original kept as
+`shapes.parquet.parts`; image levels in chunks over 1024² are rewritten
+block by block in 1024² chunks with the same codecs; and
+`--molecules-from-points` writes the molecule folder from the store's
+points element (flat), since the viewer does not read parquet points.
+On a copy of the skin store, in the fresh venv: 1:32 wall, 8.7 GB RSS;
+112,551 polygons in one WKB file (the local copy already had
+`layers/X_csc`; the bucket's store does not, and the script adds it
+when missing); the five image levels (4 × 20,294 × 42,748 uint16 at the
+top) from 4096² to 1024² chunks; 169 MB of molecule files. Validator:
+every MUST OK; the WARNs are the unread `points/transcripts` and the
+polygon file's single row group. Dropped on the homepage (throwaway
+spec): 112,551 cells, the Shapes button (the polygons now readable), the
+image's coarsest level under them and three genes loaded, 24 s in all.
+
+Not done: syncing the repaired copy to `s3://merfisheyes-bil/spatialdata/skin_adapt_v2/`
+(4.6 GB store + 169 MB molecules, replacing the store the audit and the
+profiles cite) is an outward-facing change the user has to say yes to;
+after it the validator should be run on the store through its URL
+(`--root-json` on the fetched `zarr.json`, the parquet checks through
+the fixture of the profiles).
+
 ### Later, out of this plan
 
 - The tiled points element as the molecule format (when it is finished).

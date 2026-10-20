@@ -307,6 +307,113 @@ def test_a_float_tiff_is_refused(tmp_path):
         image_to_ome_zarr.write_ome_zarr(np.zeros((8, 8), dtype=np.float32), tmp_path / "x.zarr", um_per_pixel=1.0, log=lambda *_: None)
 
 
+# ── a store the viewer cannot read as written is repaired ─────────────────
+
+def store_with_table(folder: Path) -> Path:
+    """A minimal SpatialData store: the table alone, in a Zarr v3 root."""
+    write_table(make_table(), folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    return folder / f"{folder.name}.zarr"
+
+
+def test_shapes_parts_become_one_wkb_file(tmp_path):
+    gpd = pytest.importorskip("geopandas")
+    import shapely
+
+    folder = tmp_path / "s"
+    folder.mkdir()
+    store = store_with_table(folder)
+    # A shapes element as Celldega / dask-geopandas write it: parts, geoarrow encoding
+    el = store / "shapes" / "cell_boundaries"
+    (el / "shapes.parquet").mkdir(parents=True)
+    fixture = ROOT / "tests" / "data" / "tiny" / "zarr" / "shapes_v1" / "cell_boundaries" / "zarr.json"
+    (el / "zarr.json").write_text(fixture.read_text())
+    (store / "shapes" / "zarr.json").write_text(json.dumps({"zarr_format": 3, "node_type": "group"}))
+    rng = np.random.default_rng(4)
+    for part in range(2):
+        ids = [f"cell-{i}" for i in range(part * 20, part * 20 + 20)]
+        geoms = [shapely.box(x, y, x + 3, y + 3) for x, y in rng.uniform(0, 90, size=(20, 2))]
+        gdf = gpd.GeoDataFrame(index=pd.Index(ids, name="cell_id"), geometry=geoms)
+        gdf.to_parquet(el / "shapes.parquet" / f"chunk_{part:02d}.parquet", geometry_encoding="geoarrow")
+
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (el / "shapes.parquet").is_file() and (el / "shapes.parquet.parts").is_dir()
+    import pyarrow.parquet as pq
+
+    meta = pq.read_metadata(el / "shapes.parquet")
+    geo = json.loads(meta.metadata[b"geo"])
+    assert geo["columns"]["geometry"]["encoding"] == "WKB" and meta.num_rows == 40
+    assert json.loads(meta.metadata[b"pandas"])["index_columns"] == ["cell_id"]
+    assert any(w == "shapes/cell_boundaries" and "GeoParquet" in m for lv, w, m in r.lines if lv == "OK"), r.lines
+    # A second run leaves the file alone
+    before = (el / "shapes.parquet").stat().st_mtime_ns
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed and (el / "shapes.parquet").stat().st_mtime_ns == before
+
+
+def test_large_image_chunks_are_rewritten(tmp_path):
+    import zarr
+
+    folder = tmp_path / "s"
+    folder.mkdir()
+    store = store_with_table(folder)
+    prepare_folder.drop_consolidated(store / "zarr.json")
+    root = zarr.open_group(store, mode="r+", use_consolidated=False)
+    img = root.require_group("images").create_group("dapi")
+    plane = (np.arange(2500 * 3000, dtype=np.uint16) % 60000).reshape(2500, 3000)
+    img.create_array("0", data=plane[None], chunks=(1, 2048, 2048))
+    img.attrs["ome"] = {
+        "version": "0.5",
+        "multiscales": [{"axes": [{"name": "c", "type": "channel"}, {"name": "y", "type": "space"}, {"name": "x", "type": "space"}],
+                         "datasets": [{"path": "0", "coordinateTransformations": [
+                             {"type": "scale", "scale": [1.0, 0.03, 0.03]}, {"type": "translation", "translation": [0.0, 0.0, 0.0]}]}]}],
+    }
+
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    level = zarr.open_array(store / "images" / "dapi" / "0", mode="r")
+    assert level.chunks == (1, 1024, 1024) and level.shape == (1, 2500, 3000)
+    assert (level[0] == plane).all()  # every pixel where it was
+    assert not any("over 1024" in m for lv, w, m in r.lines if lv == "WARN"), r.lines
+    assert not (store / "images" / "dapi" / "0.rechunk").exists()
+
+
+def test_points_become_molecules_on_request(tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    import pyarrow as pa
+
+    folder = tmp_path / "s"
+    folder.mkdir()
+    store = store_with_table(folder)
+    el = store / "points" / "transcripts"
+    (el / "points.parquet").mkdir(parents=True)
+    (store / "points" / "zarr.json").write_text(json.dumps({"zarr_format": 3, "node_type": "group"}))
+    (el / "zarr.json").write_text(json.dumps({
+        "zarr_format": 3, "node_type": "group",
+        "attributes": {"encoding-type": "ngff:points", "axes": ["x", "y", "z"],
+                       "spatialdata_attrs": {"feature_key": "feature_name", "version": "0.2"},
+                       "coordinateTransformations": [{"type": "identity",
+                                                      "input": {"name": "xyz", "axes": [{"name": a, "type": "space"} for a in "xyz"]},
+                                                      "output": {"name": "global", "axes": [{"name": a, "type": "space"} for a in "xyz"]}}]},
+    }))
+    rng = np.random.default_rng(6)
+    n = 600
+    table = pa.table({"x": rng.uniform(0, 100, n), "y": rng.uniform(0, 100, n), "z": rng.uniform(0, 5, n),
+                      "feature_name": rng.choice(["Gene0", "Gene1", "Gene2"], n)})
+    pq.write_table(table, el / "points.parquet" / "part.0.parquet")
+
+    r = prepare_folder.prepare(folder, log=lambda *_: None)  # not asked: no molecules
+    assert not r.failed and not (folder / "molecules").exists()
+    r = prepare_folder.prepare(folder, molecules_from_points=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (folder / "molecules" / "manifest.json.gz").exists()
+    assert sorted(p.stem.split(".")[0] for p in (folder / "molecules" / "genes").iterdir()) == ["Gene0", "Gene1", "Gene2"]
+    assert json.loads((folder / "mapping.json").read_text())["links"] == {"__all__": "molecules"}
+    assert any(w == "molecules/molecules" and "covering" in m for lv, w, m in r.lines if lv == "OK"), r.lines
+
+
 # ── clustering ────────────────────────────────────────────────────────────
 
 def test_cluster_runs_only_when_no_categorical_column(tmp_path):

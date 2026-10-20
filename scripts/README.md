@@ -353,9 +353,15 @@ Writes `sample.zarr` (a Zarr v3 SpatialData store holding the table, with
 folder, absolute with `--url`), optionally `annotations/`, checks that the
 molecules and the image sit where the cells are (a `WARN` otherwise), and
 runs `validate_store.py`. The folder then opens by drag and drop, with
-**Upload & Save**, or from a bucket. Dependencies for all of this:
-`pip install -r scripts/requirements-prepare.txt`. Tests:
-`tests/python/test_prepare_folder.py`.
+**Upload & Save**, or from a bucket. A store that is there already is
+repaired in place where the viewer cannot read it as written: shapes
+stored as a directory of parquet parts or in the geoarrow encoding are
+rewritten as one WKB `shapes.parquet` (the original kept as
+`shapes.parquet.parts`), image levels in chunks over 1024² are rewritten
+in 1024² chunks with the same codecs, and `--molecules-from-points` writes
+the molecule folder from the store's points element. Dependencies for all
+of this: `pip install -r scripts/requirements-prepare.txt` (`geopandas`
+for the shapes rewrite). Tests: `tests/python/test_prepare_folder.py`.
 
 ### A Xenium export (`prepare_xenium.py`)
 

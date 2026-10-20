@@ -223,6 +223,16 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
           viewer draws them exactly where the numbers say; nothing is aligned
           for you.
         </Callout>
+        <Callout>
+          <b>A store you already have is repaired</b> where the viewer cannot
+          read it as written: a shapes element stored as a directory of parquet
+          parts, or in the geoarrow encoding, becomes one WKB file (the original
+          stays beside it as <code>shapes.parquet.parts</code>); image levels in
+          chunks over 1024² are rewritten in 1024² chunks; and{" "}
+          <code>--molecules-from-points</code> turns the store&apos;s own points
+          element into the molecule folder, since the viewer does not read
+          parquet points.
+        </Callout>
       </DocSection>
 
       <DocSection heading="Every combination opens" id="combinations">
