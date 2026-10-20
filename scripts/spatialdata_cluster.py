@@ -36,37 +36,36 @@ import zarr
 from process_spatial_data import write_de_stats_binary
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("store", help="SpatialData zarr store")
-    parser.add_argument("output_folder", help="annotations folder to write")
-    parser.add_argument("--table", default="table")
-    parser.add_argument("--resolution", type=float, default=0.5)
-    parser.add_argument("--n-pcs", type=int, default=30)
-    parser.add_argument("--n-neighbors", type=int, default=15)
-    args = parser.parse_args()
-
+def cluster(
+    store,
+    output_folder,
+    *,
+    table: str = "table",
+    resolution: float = 0.5,
+    n_pcs: int = 30,
+    n_neighbors: int = 15,
+    log=print,
+) -> Path:
+    """Cluster `tables/<table>` of `store` and write the `annotations/` sidecar."""
     # Opened by path: these stores' consolidated metadata can be stale
-    table = zarr.open_group(args.store, mode="r", use_consolidated=False)[
-        f"tables/{args.table}"
-    ]
-    counts = sp.csr_matrix(ad.io.read_elem(table["X"]))
-    genes = [str(g) for g in ad.io.read_elem(table["var"]).index]
-    print(f"Table: {counts.shape[0]:,} cells x {counts.shape[1]:,} genes")
+    group = zarr.open_group(str(store), mode="r", use_consolidated=False)[f"tables/{table}"]
+    counts = sp.csr_matrix(ad.io.read_elem(group["X"]))
+    genes = [str(g) for g in ad.io.read_elem(group["var"]).index]
+    log(f"Table: {counts.shape[0]:,} cells x {counts.shape[1]:,} genes")
 
     adata = ad.AnnData(counts.astype(np.float32))
     sc.pp.normalize_total(adata)
     sc.pp.log1p(adata)
     lognorm = adata.X.copy()
-    sc.pp.pca(adata, n_comps=args.n_pcs)
-    sc.pp.neighbors(adata, n_neighbors=args.n_neighbors)
-    sc.tl.leiden(
-        adata, resolution=args.resolution, flavor="igraph", n_iterations=2
-    )
+    # PCA needs fewer components than cells and genes; tiny tables are allowed
+    n_comps = max(1, min(n_pcs, counts.shape[0] - 1, counts.shape[1] - 1))
+    sc.pp.pca(adata, n_comps=n_comps)
+    sc.pp.neighbors(adata, n_neighbors=min(n_neighbors, counts.shape[0] - 1))
+    sc.tl.leiden(adata, resolution=resolution, flavor="igraph", n_iterations=2)
     codes = adata.obs["leiden"].cat.codes.to_numpy()
     categories = [str(c) for c in adata.obs["leiden"].cat.categories]
     cell_counts = np.bincount(codes, minlength=len(categories))
-    print(f"Leiden (resolution {args.resolution}): {len(categories)} clusters")
+    log(f"Leiden (resolution {resolution}): {len(categories)} clusters")
 
     # Per-cluster sums via a cells x clusters membership matrix
     membership = sp.csr_matrix(
@@ -76,7 +75,7 @@ def main():
     sums = np.asarray((lognorm.T @ membership).todense())
     expressing = np.asarray(((counts > 0).astype(np.float32).T @ membership).todense())
 
-    out = Path(args.output_folder)
+    out = Path(output_folder)
     (out / "de").mkdir(parents=True, exist_ok=True)
     codes.astype("<u2").tofile(out / "leiden.bin")
     write_de_stats_binary(
@@ -97,7 +96,27 @@ def main():
             indent=2,
         )
     )
-    print(f"Wrote {out}/")
+    log(f"Wrote {out}/")
+    return out
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("store", help="SpatialData zarr store")
+    parser.add_argument("output_folder", help="annotations folder to write")
+    parser.add_argument("--table", default="table")
+    parser.add_argument("--resolution", type=float, default=0.5)
+    parser.add_argument("--n-pcs", type=int, default=30)
+    parser.add_argument("--n-neighbors", type=int, default=15)
+    args = parser.parse_args()
+    cluster(
+        args.store,
+        args.output_folder,
+        table=args.table,
+        resolution=args.resolution,
+        n_pcs=args.n_pcs,
+        n_neighbors=args.n_neighbors,
+    )
 
 
 if __name__ == "__main__":

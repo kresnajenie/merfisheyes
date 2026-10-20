@@ -274,6 +274,11 @@ export default function LoadingPage() {
             {`python scripts/process_spatial_data.py    data.h5ad    output/   # cells
 python scripts/process_single_molecule.py data.parquet output/   # molecules`}
           </pre>
+          <p>
+            For an AnnData table, a molecule folder and an image you made
+            yourself, see <a href="/docs/prepare">Preparing data</a>: one script
+            makes the folder ready.
+          </p>
         </Prose>
       </DocSection>
     </>

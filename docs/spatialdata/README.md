@@ -136,6 +136,13 @@ them the viewer shows the cells and the image only.
 
 ## Preparing a store
 
+For a table, a molecule folder and an image you already have,
+`scripts/prepare_folder.py` does steps 3 and 4 below in one go (the store
+from the table, `layers/X_csc`, `mapping.json`, optional clustering, the
+validator) — see [/docs/prepare](https://merfisheyes.com/docs/prepare) and
+`docs/plans/UPLOAD-TUTORIAL.md`. What follows is the hand route for a store
+you already have, with molecules inside it.
+
 Both scripts need the Python environment of the other `scripts/` plus
 `scanpy`, `leidenalg` and `igraph` for clustering.
 

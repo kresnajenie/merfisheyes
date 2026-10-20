@@ -337,6 +337,23 @@ aws s3 cp processed_molecules/ s3://your-bucket/datasets/{datasetId}/ --recursiv
 - **Lazy loading** - genes loaded on-demand when selected
 - **Consistent format** - exact same structure as browser processing
 
+## Preparing a folder of parts (`prepare_folder.py`)
+
+An AnnData table (`.h5ad`, or `write_zarr` output in Zarr v2 or v3), a
+molecule folder from `process_single_molecule.py` and an OME-Zarr image,
+side by side in one folder:
+
+```bash
+python scripts/prepare_folder.py sample/              # --cluster: Leiden + DEGs when the table has no categorical column
+python scripts/prepare_folder.py sample/ --url https://<bucket>.s3.<region>.amazonaws.com/<path>/sample
+```
+
+Writes `sample.zarr` (a Zarr v3 SpatialData store holding the table, with
+`layers/X_csc` when `X` is not CSC), `mapping.json` (names relative to the
+folder, absolute with `--url`), optionally `annotations/`, and runs
+`validate_store.py`. The folder then opens by drag and drop, with
+**Upload & Save**, or from a bucket. Tests: `tests/python/test_prepare_folder.py`.
+
 ## Binary Format Details
 
 ### Single Cell Binary Formats
