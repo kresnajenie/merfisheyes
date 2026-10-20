@@ -17,6 +17,11 @@
 const vertexBody = `
     uniform float dotSize;
     uniform float uPixelRatio;
+    // 1: dotSize is the cells' real size in world units (Visium spots,
+    // bins), drawn at that size on screen; uHalfHeight is the canvas's half
+    // height in CSS pixels, which turns world units into pixels
+    uniform float uWorldSized;
+    uniform float uHalfHeight;
     uniform vec3 uTargetCenter;
     uniform float uTargetFilterEnabled;
     varying float vTargetDist;
@@ -35,7 +40,10 @@ const vertexBody = `
         // World-space sizing: dotSize is pre-scaled to account for data extent.
         // projectionMatrix[1][1] = 1/tan(fov/2), dividing by -mvPosition.z gives perspective.
         // Points naturally appear bigger when closer and smaller when farther.
-        float px = POINT_SCALE * dotSize * projectionMatrix[1][1] / -mvPosition.z;
+        // A real-size cell keeps its size: expression and selection show in
+        // its colour and opacity, not by shrinking it
+        float px = (uWorldSized > 0.5 ? uHalfHeight : POINT_SCALE) * dotSize
+            * projectionMatrix[1][1] / -mvPosition.z;
 
         // Cull sub-pixel points — without this they jam at the GPU's 1px floor
         // and pile up as overdraw when zoomed far out. Threshold sets the
@@ -52,7 +60,9 @@ const vertexBody = `
         // to their 1px minimum, but some draw nothing at all, so the default
         // ~0.1px dots left the canvas empty (issue #147). Points below the
         // cull above still drop out; everything else stays visible.
-        gl_PointSize = clamp(px, 1.0, 200.0) * uPixelRatio;
+        // A real-size cell may fill much of the view when zoomed in (the GPU
+        // still caps a point, typically at 1024 px or more)
+        gl_PointSize = clamp(px, 1.0, uWorldSized > 0.5 ? 8192.0 : 200.0) * uPixelRatio;
 
         gl_Position = projectionMatrix * mvPosition;
     }

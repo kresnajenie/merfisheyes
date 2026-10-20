@@ -3,8 +3,8 @@
 
   python scripts/testdata/make-tiny-visium.py
 
-Outputs tests/data/tiny/zarr/visium_v3.zarr, written by the `spatialdata`
-library itself (0.8, as SpatialData-DB writes its stores), laid out like a
+Outputs tests/data/tiny/zarr/visium_v3.zarr and visium_hd_v3.zarr, written
+by the `spatialdata` library itself (0.8, as SpatialData-DB writes its stores), laid out like a
 Visium store there (docs/plans/SDDB.md §1):
 
 - no `global` system: three images in three systems, `tiny_full_image`
@@ -20,6 +20,11 @@ Visium store there (docs/plans/SDDB.md §1):
 The viewer must draw the full image at one pixel per unit, under the spots,
 and not open the downscaled images.
 
+visium_hd_v3.zarr is the Visium HD shape: the cells are square bins
+(`shapes/tiny_square_016um`, axis-aligned polygons tiling a grid, side 16,
+some missing as off-tissue bins are), the table `square_016um` annotating
+them and named the default; one full image identity into `tiny`.
+
 Needs spatialdata 0.8 (and its geopandas, shapely, anndata).
 """
 
@@ -33,7 +38,7 @@ import pandas as pd
 import scipy.sparse as sp
 import spatialdata as sd
 import zarr
-from shapely.geometry import Point
+from shapely.geometry import Point, box
 from spatialdata.models import Image2DModel, ShapesModel, TableModel
 from spatialdata.transformations import Identity, Scale
 
@@ -129,3 +134,45 @@ root = zarr.open_group(str(OUT), mode="r+")
 root.attrs["metadata_general"] = {"Assay": "Visium", "Default Table": "table"}
 zarr.consolidate_metadata(str(OUT))
 print(f"wrote {OUT}")
+
+# ── Visium HD: square bins ─────────────────────────────────────────────
+HD = OUT.parent / "visium_hd_v3.zarr"
+SIDE = 16
+centres = [(x, y) for y in range(8, FULL, SIDE) for x in range(8, FULL, SIDE) if (x // SIDE + y // SIDE) % 7]
+bins = gpd.GeoDataFrame(
+    geometry=[box(x - SIDE / 2, y - SIDE / 2, x + SIDE / 2, y + SIDE / 2) for x, y in centres],
+)
+name = f"{SAMPLE}_square_016um"
+hd_counts = sp.csr_matrix(rng.poisson(1.0, size=(len(centres), GENES)).astype(np.float32))
+hd_table = TableModel.parse(
+    ad.AnnData(
+        X=hd_counts,
+        obs=pd.DataFrame(
+            {
+                "location_id": np.arange(len(centres)),
+                "region": pd.Categorical([name] * len(centres)),
+                "array_row": np.array([y // SIDE for _, y in centres], dtype=np.uint32),
+                "array_col": np.array([x // SIDE for x, _ in centres], dtype=np.uint32),
+            },
+            index=[str(i) for i in range(len(centres))],
+        ),
+        var=pd.DataFrame(index=[f"gene{i}" for i in range(GENES)]),
+        obsm={"spatial": np.array(centres, dtype=np.float64)},
+        layers={"csc_counts": hd_counts.tocsc()},
+    ),
+    region=name,
+    region_key="region",
+    instance_key="location_id",
+)
+hd = sd.SpatialData(
+    images={f"{SAMPLE}_full_image": images[f"{SAMPLE}_full_image"]},
+    shapes={name: ShapesModel.parse(bins, transformations={SAMPLE: Identity()})},
+    tables={"square_016um": hd_table},
+)
+if HD.exists():
+    shutil.rmtree(HD)
+hd.write(HD)
+root = zarr.open_group(str(HD), mode="r+")
+root.attrs["metadata_general"] = {"Assay": "Visium HD", "Default Table": "square_016um"}
+zarr.consolidate_metadata(str(HD))
+print(f"wrote {HD}")

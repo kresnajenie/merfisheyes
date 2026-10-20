@@ -202,6 +202,23 @@ through Lamin's proxy for the placement only (the cerebellum
 `fJSOO03VzCTYtD1o`, the ovary `haOzFbJ7Bc9x7NW6`: the image lies under the
 spots); their load times are not measured yet (step 4's nightly).
 
+## After SDDB step 3 (2026-10-19, spots and bins at their real size)
+
+Same fixtures and server; the cell shader gained a real-size branch.
+
+| Metric | spatialdata-medium | after step 2 |
+|---|---|---|
+| openToCells | 4.7 s | 4.7 s |
+| sliderToFrame (light) | 104 ms | 109 ms |
+| sliderToFrameHeavy | 2.6 s | 2.7 s |
+| hoverFrameMs | 53 ms | 49 ms |
+| geneToSettled / viewSettled | 2.5 s / 14.7 s | 2.3 s / 14.4 s |
+| drawCalls | 79 | 79 |
+
+Unchanged within noise. A footprint costs one suffix read of the region's
+`shapes.parquet` (64 KB) and, for bins, a nearest-neighbour pass over a
+2,000-cell sample of the coordinates already loaded.
+
 ## How the numbers are read
 
 - Layer hooks (`window.__merfish.layers[kind]`, `lib/utils/test-hooks.ts`):

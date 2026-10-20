@@ -8,7 +8,10 @@ import {
   storeFolderUrl,
   imageUrl,
   visiumUrl,
+  visiumHdUrl,
+  selectGeneAndMeasure,
   SELECTORS,
+  type DatasetEntry,
   type StoreLayout,
   type StoreParts,
 } from "../../fixtures/merfish-fixtures";
@@ -200,6 +203,63 @@ test("@quick Visium store: the full image under the spots, not the downscaled on
     served(/\/images\/tiny_(hires|lowres)_image\//),
     "the downscaled images should not be read",
   ).toBe(false);
+});
+
+test("@quick Visium HD store: the bins drawn as squares of their real size", async ({
+  page,
+}) => {
+  // Square bins of side 16 on a 16 grid: at their real size they tile the
+  // section (1 in 7 of the fixture's bins is missing: about 86% of it lit
+  // with the image hidden); as dots, almost nothing is lit
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumHdUrl(server))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "bins").toBe(219);
+  const middle = { x0: 0.45, y0: 0.45, x1: 0.55, y1: 0.55 };
+  const binsLit = () => litFraction(page, SCENES.cells, middle);
+
+  // The bins alone: no column to colour by, so they are translucent
+  // neutral (NEUTRAL_POINT_ALPHA), and the image is hidden
+  await page.locator(SELECTORS.imageButton).click();
+  await page.getByLabel("Show image").uncheck();
+  // Close the image panel: it sits over the rail's buttons
+  await page.locator(SELECTORS.imageButton).click();
+  await expect
+    .poll(binsLit, {
+      message: "the bins should tile the section",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.7);
+
+  await test.step("coloured by a gene, every bin keeps its size", async () => {
+    // Low expression shrank a dot; a bin stays a bin (colour carries it)
+    await selectGeneAndMeasure(
+      page,
+      { dataType: "single_cell" } as DatasetEntry,
+      "gene0",
+    );
+    await expect
+      .poll(binsLit, {
+        message: "the bins should still tile the section",
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(0.7);
+  });
+
+  await test.step("the SC button hides them (an image is under them)", async () => {
+    await page.getByRole("button", { name: "SC", exact: true }).click();
+    await expect
+      .poll(binsLit, { message: "the bins should be hidden", timeout: 30_000 })
+      .toBeLessThan(0.05);
+  });
 });
 
 test("@quick SpatialData store with nothing to show says so", async ({

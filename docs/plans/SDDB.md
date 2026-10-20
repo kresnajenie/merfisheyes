@@ -284,6 +284,30 @@ medium store; the cerebellum spots draw at the default (whole-section)
 view; the ovary 16 µm table draws its bins at 1 mm; the ovary 2 µm table
 at 1 mm either draws every bin in view or says why not.
 
+Result (2026-10-19), a different design, decided with the user: the spots
+and bins are not a shapes kind but the cells themselves, drawn at their
+real size and shape by the cell cloud (`lib/spatialdata/footprint.ts`,
+`shapes-profile.md` "Spots and bins"). The radius comes from the shapes
+footer's column statistics (one suffix read, 64 KB) and a bin's side from
+the grid's pitch, so the shapes files — 22 MB for the ovary's default 8 µm
+table, 348 MB for its 2 µm one — are never fetched; there is no per-view
+cap and no 1 mm rule; colour, hover and selection are the cells'. On the
+real stores: the cerebellum's spots at the whole-section view and zoomed
+in, the ovary's 8 µm bins (its default table) tiling the tissue at every
+zoom. The 16 µm and 2 µm tables are not opened (the viewer reads the
+default table), so their gate items do not arise. Two tests that fail
+without the change: a Visium HD-shaped store written by spatialdata
+(`visium_hd_v3.zarr`) whose bins cover the section, and the footprint
+reads. Perf unchanged (`BUDGETS.md`). Also: with no column to colour by,
+the tooltip no longer says "undefined"; a real-size cell keeps its size in
+every mode (expression and selection show in colour and opacity, never by
+shrinking a spot); with nothing to colour by they are translucent
+(`NEUTRAL_POINT_ALPHA`), so the H&E under spots and bins shows; the SC
+button now shows whenever something is drawn with the cells, to hide them. Not done: "where the default table
+has no CSC layer, open the 16 µm table" — left for a decision; the 82
+stores are listed in `perf/sddb/NO-CSC.md` (all Visium HD, default
+`square_008um`, each with a `square_016um` that has one); Xenium's `cell_circles` vary in radius and stay dots.
+
 ### Step 4: the Lamin backend and the catalog (`feat/sddb-catalog`)
 
 - `lib/storage/backends.ts`: `laminBackend(uid)` resolving

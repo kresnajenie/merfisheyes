@@ -109,6 +109,8 @@ export function createPointCloudFromBuffers(
       ...filterUniforms(),
       dotSize: { value: dotSize },
       uShape: { value: 0.0 }, // circle
+      uWorldSized: { value: 0.0 },
+      uHalfHeight: { value: 400.0 },
     },
     vertexShader,
     fragmentShader,
@@ -350,6 +352,8 @@ export function createPointCloud(
       ...filterUniforms(),
       dotSize: { value: dotSize },
       uShape: { value: 0.0 }, // circle
+      uWorldSized: { value: 0.0 },
+      uHalfHeight: { value: 400.0 },
     },
     vertexShader,
     fragmentShader,
@@ -365,6 +369,30 @@ export function createPointCloud(
 /**
  * Updates the dotSize uniform of a point cloud material
  */
+/**
+ * Draw a cell cloud at the cells' real size and shape (a Visium spot's
+ * diameter, a bin's side, in world units), or back to sized dots (null).
+ * The dot size is then set by `updateDotSize` in world units.
+ */
+export function setCellFootprint(
+  pointsMesh: THREE.Points,
+  shape: "circle" | "square" | null,
+): void {
+  const uniforms = (pointsMesh.material as THREE.ShaderMaterial).uniforms;
+
+  uniforms.uWorldSized.value = shape ? 1.0 : 0.0;
+  uniforms.uShape.value = shape === "square" ? 1.0 : 0.0;
+}
+
+/** The canvas's half height in CSS pixels, for a real-size cloud. */
+export function updateHalfHeight(pointsMesh: THREE.Points, px: number): void {
+  const uniforms = (pointsMesh.material as THREE.ShaderMaterial).uniforms;
+
+  if (uniforms.uHalfHeight && uniforms.uHalfHeight.value !== px) {
+    uniforms.uHalfHeight.value = px;
+  }
+}
+
 export function updateDotSize(
   pointsMesh: THREE.Points,
   newDotSize: number,

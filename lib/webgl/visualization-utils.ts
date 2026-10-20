@@ -444,7 +444,7 @@ export function updateCelltypeVisualization(
         VISUALIZATION_CONFIG.POINT_BASE_SIZE * adv.selectedSizeMultiplier,
       ),
       alphas: new Float32Array(count).fill(
-        VISUALIZATION_CONFIG.POINT_BASE_ALPHA * alphaScale,
+        VISUALIZATION_CONFIG.NEUTRAL_POINT_ALPHA * alphaScale,
       ),
     };
   }

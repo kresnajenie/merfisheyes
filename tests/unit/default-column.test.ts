@@ -40,7 +40,7 @@ describe("the default colouring column", () => {
 });
 
 describe("cells with no column to colour by", () => {
-  it("are drawn in one neutral colour, not left black", () => {
+  it("are drawn in one translucent neutral colour, not left black", () => {
     const dataset = { getPointCount: () => 3, clusters: null } as unknown as StandardizedDataset;
     const result = updateCelltypeVisualization(dataset, null, new Set(), {}, 1, 1);
 
@@ -52,7 +52,7 @@ describe("cells with no column to colour by", () => {
       for (let c = 0; c < 3; c++) {
         expect(result!.colors[p * 3 + c]).toBeCloseTo(expected[c], 5);
       }
-      expect(result!.alphas[p]).toBe(VISUALIZATION_CONFIG.POINT_BASE_ALPHA);
+      expect(result!.alphas[p]).toBeCloseTo(VISUALIZATION_CONFIG.NEUTRAL_POINT_ALPHA, 6);
       expect(result!.sizes[p]).toBeGreaterThan(0);
     }
   });

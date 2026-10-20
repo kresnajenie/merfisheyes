@@ -1,3 +1,4 @@
+import { readCellFootprint } from "./footprint";
 import { SpatialDataTableAdapter } from "./SpatialDataTableAdapter";
 import { type SpatialDataStore } from "./store";
 
@@ -10,7 +11,7 @@ import { selectBestClusterColumnByName } from "@/lib/utils/dataset-utils";
  * gene expression is fetched per gene on demand.
  */
 export async function loadSpatialDataCells(
-  { store, keys, sidecar }: SpatialDataStore,
+  sd: SpatialDataStore,
   datasetId: string,
   name: string,
   onProgress?: (progress: number, message: string) => void,
@@ -18,6 +19,7 @@ export async function loadSpatialDataCells(
   // a mapping.json there to find the linked molecule dataset.
   customS3BaseUrl?: string,
 ): Promise<StandardizedDataset> {
+  const { store, keys, sidecar } = sd;
   const adapter = new SpatialDataTableAdapter(store, keys, sidecar);
 
   await adapter.initialize(onProgress);
@@ -66,6 +68,17 @@ export async function loadSpatialDataCells(
   dataset.allClusterColumnTypes = columnInfo.types;
   dataset.clustersFullyLoaded = columnInfo.names.length <= 1;
   dataset.availableDeStatsColumns = adapter.getAvailableDeStatsColumns();
+  // Spots and bins are drawn at their real size; a store that cannot say
+  // keeps its dots
+  dataset.cellFootprint = await readCellFootprint(
+    sd,
+    spatial.coordinates,
+    spatial.dimensions,
+  ).catch((error) => {
+    console.warn("Cell footprint not read:", error);
+
+    return null;
+  });
   dataset.allEmbeddingNames = dataInfo.availableEmbeddings;
   dataset.embeddingsFullyLoaded = false;
 
