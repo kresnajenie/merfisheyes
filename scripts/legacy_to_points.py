@@ -57,7 +57,20 @@ def read_gene(folder: Path, gene: str, unassigned=False) -> np.ndarray | None:
     return raw.reshape(-1, 3)
 
 
-def convert(folder: Path, store: Path, *, name="transcripts", levels=8, tile_size=100.0, drop_z=False, log=print) -> Path:
+def convert(
+    folder: Path,
+    store: Path,
+    *,
+    name="transcripts",
+    levels=8,
+    tile_size=100.0,
+    drop_z=False,
+    transformations: list[dict] | None = None,
+    log=print,
+) -> Path:
+    """`transformations`: the element's transforms into the store's named
+    systems, as the cells' region declares them (points are drawn in the
+    cells' frame); default identity into `global`."""
     manifest = read_manifest(folder)
     genes: list[str] = manifest["genes"]["unique_gene_names"]
     dims = int(manifest["statistics"]["spatial_dimensions"])
@@ -101,6 +114,7 @@ def convert(folder: Path, store: Path, *, name="transcripts", levels=8, tile_siz
         extent=extent,
         tile_size=tile_size,
         n_levels=levels,
+        transformations=transformations,
     )
     # Pass 2: every gene's molecules
     total = 0

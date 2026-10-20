@@ -7,6 +7,7 @@ export const DOC_PAGES = [
   { href: "/docs", label: "Getting started" },
   { href: "/docs/formats", label: "Data formats" },
   { href: "/docs/loading", label: "Loading data" },
+  { href: "/docs/prepare", label: "Preparing data" },
   { href: "/docs/viewer", label: "Using the viewer" },
   { href: "/docs/expression", label: "Expression & DEGs" },
   { href: "/docs/sharing", label: "Sharing on Explore" },

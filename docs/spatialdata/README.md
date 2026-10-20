@@ -136,6 +136,13 @@ them the viewer shows the cells and the image only.
 
 ## Preparing a store
 
+For a table, a molecule folder and an image you already have,
+`scripts/prepare_folder.py` does steps 3 and 4 below in one go (the store
+from the table, `layers/X_csc`, `mapping.json`, optional clustering, the
+validator) — see [/docs/prepare](https://merfisheyes.com/docs/prepare) and
+`docs/plans/UPLOAD-TUTORIAL.md`. What follows is the hand route for a store
+you already have, with molecules inside it.
+
 Both scripts need the Python environment of the other `scripts/` plus
 `scanpy`, `leidenalg` and `igraph` for clustering.
 
@@ -177,8 +184,11 @@ on their own.
 ### Clustering
 
 `spatialdata_cluster.py` runs normalize_total → log1p → PCA → neighbours →
-Leiden (`--resolution`, `--n-pcs`, `--n-neighbors`) and writes one category
-code per cell, in table order. The DE stats are per-cluster means of the
+Leiden (`--resolution`, `--n-pcs`, `--n-neighbors`) and writes the cluster
+of each cell into the table itself, as a categorical `obs/leiden` column
+(with `--sidecar-only`, as one category code per cell in
+`annotations/leiden.bin` instead, the table untouched). The DE stats always
+go to the sidecar: they are per-cluster means of the
 **log-normalized** matrix plus the fraction of cells expressing each gene —
 the DEG panel un-logs the means for fold change. (Raw Xenium counts are low
 enough that the panel would mistake their means for log values.)
