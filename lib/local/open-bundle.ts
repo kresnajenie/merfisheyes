@@ -2,13 +2,12 @@ import type { LocalBundle } from "./classify-bundle";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SpatialDataImage } from "@/lib/spatialdata/image";
+import type { CellPolygons } from "@/lib/spatialdata/shapes";
 
 import { partFileMap, partFiles, storeFileMap } from "./classify-bundle";
 
-import {
-  openOmeZarrImageFromFiles,
-  openSpatialDataImage,
-} from "@/lib/spatialdata/image";
+import { openElements } from "@/lib/scene/registry";
+import { openOmeZarrImageFromFiles } from "@/lib/spatialdata/image";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
 import { openSpatialDataStoreFromFiles } from "@/lib/spatialdata/localStore";
 import { elementNames } from "@/lib/spatialdata/store";
@@ -17,6 +16,8 @@ export interface OpenedBundle {
   cells?: StandardizedDataset;
   molecules?: SingleMoleculeDataset;
   image?: SpatialDataImage;
+  /** The cells' polygons, read when first drawn. */
+  shapes?: () => Promise<CellPolygons>;
 }
 
 /**
@@ -40,7 +41,7 @@ export async function openLocalBundle(
     );
   } else if (bundle.cells) {
     // What sits beside the store; nothing, when the store is all there is
-    const store = openSpatialDataStoreFromFiles(
+    const store = await openSpatialDataStoreFromFiles(
       storeFileMap(bundle, bundle.cells),
       bundle.cells.root ? bundle.files : undefined,
     );
@@ -52,7 +53,21 @@ export async function openLocalBundle(
         onProgress(p * 0.6, m),
       );
     }
-    opened.image = (await openSpatialDataImage(store)) ?? undefined;
+    // What else the store holds, as the registry finds it: its image, the
+    // cells' polygons, and molecules in the store itself (the Zarr points
+    // format), unless a molecule folder was dropped beside it
+    const elements = await openElements(store, {
+      id,
+      name,
+      cells: opened.cells,
+      onProgress: (p, m) => onProgress(65, m),
+    });
+
+    opened.image = elements.image;
+    opened.shapes = elements.shapes;
+    if (opened.cells && bundle.molecules === undefined) {
+      opened.molecules = elements.points ?? elements.molecules;
+    }
   }
 
   if (bundle.molecules !== undefined) {

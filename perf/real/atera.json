@@ -1,0 +1,42 @@
+{
+  "store": "atera",
+  "folder": "spatialdata/atera_breast_cancer/",
+  "app": "http://localhost:3002",
+  "measuredAt": "2026-10-17T17:51:50.654Z",
+  "median": {
+    "openToCells": 3045.399999856949,
+    "openBytesKB": 8578.9296875,
+    "openRequests": 58,
+    "geneToFirstMolecules": 130.30000019073486,
+    "geneToSettled": 4244.100000143051,
+    "geneBytesKB": 3158.81640625,
+    "viewSettled": 0.40000009536743164,
+    "bytesPerViewKB": 0,
+    "requestsPerView": 0,
+    "frameOver16Pct": 100,
+    "worstFrameMs": 223.09999990463257,
+    "jsHeapMB": 82.3974609375,
+    "drawCalls": 254,
+    "moleculesDrawn": 433213,
+    "moleculesResident": 433213
+  },
+  "samples": [
+    {
+      "openToCells": 3045.399999856949,
+      "openBytesKB": 8578.9296875,
+      "openRequests": 58,
+      "geneToFirstMolecules": 130.30000019073486,
+      "geneToSettled": 4244.100000143051,
+      "geneBytesKB": 3158.81640625,
+      "viewSettled": 0.40000009536743164,
+      "bytesPerViewKB": 0,
+      "requestsPerView": 0,
+      "frameOver16Pct": 100,
+      "worstFrameMs": 223.09999990463257,
+      "jsHeapMB": 82.3974609375,
+      "drawCalls": 254,
+      "moleculesDrawn": 433213,
+      "moleculesResident": 433213
+    }
+  ]
+}

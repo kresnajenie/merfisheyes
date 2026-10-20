@@ -1,0 +1,554 @@
+"""scripts/prepare_folder.py, judged from outside: the folder it leaves
+behind passes scripts/validate_store.py, the table it writes is a Zarr v3
+SpatialData store with a CSC copy of X, and the parts it names in
+mapping.json are the ones in the folder.
+
+  python -m pytest tests/python/test_prepare_folder.py -q
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import sys
+from pathlib import Path
+
+import anndata as ad
+import numpy as np
+import pandas as pd
+import pytest
+import scipy.sparse as sp
+import zarr
+
+ROOT = Path(__file__).resolve().parents[2]
+TINY = ROOT / "tests" / "data" / "tiny"
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import prepare_folder  # noqa: E402
+
+CELLS, GENES = 40, 6
+
+
+def make_table(*, categorical=True) -> ad.AnnData:
+    rng = np.random.default_rng(1)
+    dense = rng.poisson(0.7, size=(CELLS, GENES)).astype(np.float32)
+    obs = pd.DataFrame(
+        {"cell_id": [f"cell-{i}" for i in range(CELLS)]},
+        index=[str(i) for i in range(CELLS)],
+    )
+    if categorical:
+        obs["celltype"] = pd.Categorical([["a", "b"][i % 2] for i in range(CELLS)])
+    return ad.AnnData(
+        X=sp.csr_matrix(dense),
+        obs=obs,
+        var=pd.DataFrame(index=[f"gene{i}" for i in range(GENES)]),
+        obsm={"spatial": rng.uniform(0, 100, size=(CELLS, 2))},
+    )
+
+
+def write_table(adata: ad.AnnData, path: Path, zarr_format: int) -> Path:
+    with ad.settings.override(zarr_write_format=zarr_format):
+        adata.write_zarr(path)
+    return path
+
+
+def molecules_into(folder: Path) -> Path:
+    import process_single_molecule as psm
+
+    out = folder / "molecules"
+    psm.process_single_molecule_data(
+        input_file=str(TINY / "single-molecule" / "tiny.parquet"),
+        output_folder=str(out),
+        dataset_type="xenium",
+    )
+    return out
+
+
+def image_into(folder: Path) -> Path:
+    """The tiny fixture's image group, taken out of its store: an OME-Zarr
+    image on its own (its zarr.json carries the multiscales)."""
+    out = folder / "dapi.zarr"
+    shutil.copytree(TINY / "zarr" / "spatialdata_v3.zarr" / "images" / "dapi", out)
+    return out
+
+
+def fails(report):
+    return [m for lv, _, m in report.lines if lv == "FAIL"]
+
+
+def consolidated(store: Path) -> dict:
+    return json.loads((store / "zarr.json").read_text())["consolidated_metadata"]["metadata"]
+
+
+# ── a lone table, in each form it is written ─────────────────────────────
+
+@pytest.mark.parametrize("form", ["zarr2", "zarr3", "h5ad"])
+def test_lone_table_becomes_a_store_with_a_csc_copy(tmp_path, form):
+    folder = tmp_path / "sample"
+    folder.mkdir()
+    adata = make_table()
+    if form == "h5ad":
+        adata.write_h5ad(folder / "cells.h5ad")
+    else:
+        write_table(adata, folder / "cells.zarr", 2 if form == "zarr2" else 3)
+    molecules_into(folder)
+    image_into(folder)
+
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+
+    store = folder / "sample.zarr"
+    root = json.loads((store / "zarr.json").read_text())
+    assert root["zarr_format"] == 3
+    assert root["attributes"]["spatialdata_attrs"] == {"version": "0.2"}
+    nodes = consolidated(store)
+    assert nodes["tables/table/X"]["attributes"]["encoding-type"] == "csr_matrix"
+    assert nodes["tables/table/layers/X_csc"]["attributes"]["encoding-type"] == "csc_matrix"
+    assert nodes["tables/table/layers/X_csc"]["attributes"]["shape"] == [CELLS, GENES]
+    # The copy holds the same counts
+    table = zarr.open_group(store, mode="r")["tables/table"]
+    assert (ad.io.read_elem(table["layers/X_csc"]).toarray() == ad.io.read_elem(table["X"]).toarray()).all()
+
+    # One store holds everything: the image written by spatialdata, the
+    # molecules as a tiled points element; the parts it was made from in sources/
+    assert nodes["images/dapi"]["attributes"]["ome"]["multiscales"][0]["datasets"]
+    cts = nodes["images/dapi"]["attributes"]["ome"]["multiscales"][0]["coordinateTransformations"]
+    assert [t["output"]["name"] for t in cts] == ["global"]
+    assert nodes["points/molecules"]["attributes"]["points:version"]
+    assert sorted(p.name for p in (folder / "sources").iterdir()) == ["dapi.zarr", "molecules"]
+    assert not (folder / "molecules").exists() and not (folder / "dapi.zarr").exists()
+    mapping = json.loads((folder / "mapping.json").read_text())
+    assert mapping == {"cells": "sample.zarr"}
+    # The library that wrote the image reads the store back with it
+    spatialdata = pytest.importorskip("spatialdata")
+    sdata = spatialdata.read_zarr(store, selection=("tables", "images"))
+    assert "dapi" in sdata.images and sdata.tables["table"].n_obs == CELLS
+    # A Zarr v3 table is moved, not copied; the others are left in place
+    original = folder / ("cells.h5ad" if form == "h5ad" else "cells.zarr")
+    assert original.exists() == (form != "zarr3")
+
+
+def test_expanded_keeps_the_parts_beside_the_store(tmp_path):
+    folder = tmp_path / "sample"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    molecules_into(folder)
+    image_into(folder)
+    r = prepare_folder.prepare(folder, expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    nodes = consolidated(folder / "sample.zarr")
+    assert "images/dapi" not in nodes and "points/molecules" not in nodes
+    assert (folder / "molecules").is_dir() and (folder / "dapi.zarr").is_dir() and not (folder / "sources").exists()
+    assert json.loads((folder / "mapping.json").read_text()) == {
+        "cells": "sample.zarr",
+        "linkColumn": "__all__",
+        "links": {"__all__": "molecules"},
+        "image": "dapi.zarr",
+    }
+    assert any(w == "images/dapi.zarr" and "covering" in m for lv, w, m in r.lines if lv == "OK")
+
+
+def test_the_guides_show_the_script_as_it_is():
+    """The tutorial is generated from the script, not written beside it:
+    the command the pages show is the script's own usage line."""
+    usage = prepare_folder.__doc__.split("\n")[2].strip()
+    assert usage.startswith("python scripts/prepare_folder.py <folder>")
+    for page in (ROOT / "README.md", ROOT / "app" / "docs" / "prepare" / "page.tsx"):
+        text = page.read_text()
+        for command in (
+            "python scripts/prepare_folder.py ",
+            "transcripts_to_points.py",
+            "python scripts/image_to_ome_zarr.py ",
+            "python scripts/prepare_xenium.py ",
+            "python scripts/prepare_merscope.py ",
+            "python scripts/prepare_visium.py ",
+            "pip install -r scripts/requirements-prepare.txt",
+        ):
+            assert command in text, (page, command)
+
+
+def test_url_makes_the_links_absolute(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "t.zarr", 3)
+    molecules_into(folder)
+    r = prepare_folder.prepare(folder, url="https://bucket/data/s/", expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    mapping = json.loads((folder / "mapping.json").read_text())
+    assert mapping["cells"] == "https://bucket/data/s/s.zarr"
+    assert mapping["links"]["__all__"] == "https://bucket/data/s/molecules"
+
+
+# ── a store ───────────────────────────────────────────────────────────────
+
+def test_a_store_with_csr_gets_the_copy_in_place_and_a_rerun_changes_nothing(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    store = folder / "s.zarr"
+    before = (store / "tables" / "table" / "layers" / "X_csc" / "zarr.json").stat().st_mtime_ns
+
+    # Second run: the folder now holds the store only; nothing is rewritten
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (store / "tables" / "table" / "layers" / "X_csc" / "zarr.json").stat().st_mtime_ns == before
+    assert sorted(p.name for p in folder.iterdir()) == ["mapping.json", "s.zarr"]
+    assert json.loads((folder / "mapping.json").read_text()) == {"cells": "s.zarr"}
+
+
+def test_a_csc_table_is_left_alone(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    adata = make_table()
+    adata.X = sp.csc_matrix(adata.X)
+    write_table(adata, folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    nodes = consolidated(folder / "s.zarr")
+    assert nodes["tables/table/X"]["attributes"]["encoding-type"] == "csc_matrix"
+    assert "tables/table/layers/X_csc" not in nodes
+
+
+def test_x_spatial_is_accepted(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    adata = make_table()
+    adata.obsm["X_spatial"] = adata.obsm.pop("spatial")
+    write_table(adata, folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert "tables/table/obsm/spatial" in consolidated(folder / "s.zarr")
+
+
+# ── what it refuses ───────────────────────────────────────────────────────
+
+def test_two_cell_candidates_need_a_choice(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "a.zarr", 3)
+    write_table(make_table(), folder / "b.zarr", 3)
+    with pytest.raises(SystemExit, match="several cells candidates"):
+        prepare_folder.prepare(folder, log=lambda *_: None)
+    r = prepare_folder.prepare(folder, cells=folder / "a.zarr", log=lambda *_: None)
+    assert not r.failed, fails(r)
+
+
+def test_no_coordinates_is_an_error(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    adata = make_table()
+    del adata.obsm["spatial"]
+    write_table(adata, folder / "cells.zarr", 3)
+    with pytest.raises(SystemExit, match="obsm/spatial"):
+        prepare_folder.prepare(folder, log=lambda *_: None)
+
+
+def test_molecules_and_image_without_cells(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    molecules_into(folder)
+    image_into(folder)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    mapping = json.loads((folder / "mapping.json").read_text())
+    assert mapping == {"linkColumn": "__all__", "links": {"__all__": "molecules"}, "image": "dapi.zarr"}
+
+
+# ── the parts have to sit in the same place ───────────────────────────────
+
+def warns(report):
+    return [m for lv, _, m in report.lines if lv == "WARN"]
+
+
+def test_a_part_elsewhere_or_in_other_units_is_warned_about(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    adata = make_table()
+    adata.obsm["spatial"] = adata.obsm["spatial"] + 1e6  # the cells far from the image
+    write_table(adata, folder / "cells.zarr", 3)
+    molecules_into(folder)  # the tiny molecules span ±1000: 20× the cells' 0–100
+    image_into(folder)  # the fixture image covers 0–100
+    r = prepare_folder.prepare(folder, expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert any("images/dapi.zarr" in w and "do not overlap" in w for lv, w, m in r.lines for w in [f"{w} {m}"] if lv == "WARN")
+    assert any("molecules/molecules" in w and "do not overlap" in w for lv, w, m in r.lines for w in [f"{w} {m}"] if lv == "WARN")
+
+    # Over the cells but 20× their extent: the units are suspect
+    folder2 = tmp_path / "u"
+    folder2.mkdir()
+    write_table(make_table(), folder2 / "cells.zarr", 3)
+    molecules_into(folder2)
+    image_into(folder2)
+    r = prepare_folder.prepare(folder2, expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert any("not the same units" in m and "molecules" in w for lv, w, m in r.lines if lv == "WARN")
+    assert any("covering" in m and "images/dapi.zarr" == w for lv, w, m in r.lines if lv == "OK")
+
+
+# ── an image from a TIFF ──────────────────────────────────────────────────
+
+@pytest.mark.parametrize("layout", ["yx-uint16", "yxc-rgb"])
+def test_a_tiff_becomes_an_image_the_validator_accepts(tmp_path, layout):
+    tifffile = pytest.importorskip("tifffile")
+    import image_to_ome_zarr
+
+    rng = np.random.default_rng(2)
+    if layout == "yx-uint16":
+        plane = rng.integers(0, 60000, size=(300, 200), dtype=np.uint16)
+        channels = ["DAPI"]
+    else:
+        plane = rng.integers(0, 255, size=(300, 200, 3), dtype=np.uint8)
+        channels = ["R", "G", "B"]
+    tiff = tmp_path / "img.tif"
+    tifffile.imwrite(tiff, plane)
+    folder = tmp_path / "s"
+    folder.mkdir()
+    assert image_to_ome_zarr.main([str(tiff), str(folder / "img.zarr"), "--um-per-pixel", "0.5", "--origin", "10", "20",
+                                   "--channels", ",".join(channels), "--chunk", "128"]) == 0
+    root = json.loads((folder / "img.zarr" / "zarr.json").read_text())
+    ms = root["attributes"]["ome"]["multiscales"][0]
+    assert [a["name"] for a in ms["axes"]] == ["c", "y", "x"]
+    assert len(ms["datasets"]) == 3  # 300 → 150 → 75 px, until a level fits one 128² chunk
+    assert ms["datasets"][0]["coordinateTransformations"] == [
+        {"type": "scale", "scale": [1.0, 0.5, 0.5]},
+        {"type": "translation", "translation": [0.0, 20.0, 10.0]},
+    ]
+    assert [c["label"] for c in root["attributes"]["ome"]["omero"]["channels"]] == channels
+    assert prepare_folder.image_box(folder / "img.zarr") == (10.0, 20.0, 110.0, 170.0)
+    assert prepare_folder.kind_of(folder / "img.zarr") == "image"
+
+    # With cells over the same place, the folder passes and the image is checked
+    adata = make_table()
+    adata.obsm["spatial"] = rng.uniform(10, 110, size=(CELLS, 2))
+    write_table(adata, folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert any(w == "images/img.zarr" and "uint" in m and "3 levels" in m for lv, w, m in r.lines if lv == "OK")
+
+
+def test_a_float_tiff_is_refused(tmp_path):
+    import image_to_ome_zarr
+
+    with pytest.raises(SystemExit, match="uint8 or uint16"):
+        image_to_ome_zarr.write_ome_zarr(np.zeros((8, 8), dtype=np.float32), tmp_path / "x.zarr", um_per_pixel=1.0, log=lambda *_: None)
+
+
+# ── a transcripts table goes straight into the store ──────────────────────
+
+def transcripts_into(folder: Path, name="transcripts.parquet") -> Path:
+    """A Xenium-shaped transcripts table over the cells' 0–100 extent."""
+    rng = np.random.default_rng(8)
+    n = 4000
+    df = pd.DataFrame({
+        "feature_name": rng.choice([f"gene{i}" for i in range(GENES)] + ["BLANK-1"], n),
+        "x_location": rng.uniform(0, 100, n), "y_location": rng.uniform(0, 100, n), "z_location": rng.uniform(0, 5, n),
+    })
+    if name.endswith(".csv"):
+        df.to_csv(folder / name, index=False)
+    else:
+        df.to_parquet(folder / name)
+    return folder / name
+
+
+def test_a_transcripts_table_becomes_the_points_element(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    transcripts_into(folder)
+    image_into(folder)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    nodes = consolidated(folder / "s.zarr")
+    assert nodes["points/molecules"]["attributes"]["points:version"]
+    assert nodes["points/molecules"]["attributes"]["points:n_points"] < 4000  # the blank gene left out
+    assert nodes["points/molecules"]["attributes"]["axes"] == ["x", "y"]
+    assert "images/dapi" in nodes
+    assert sorted(p.name for p in (folder / "sources").iterdir()) == ["dapi.zarr", "transcripts.parquet"]
+    assert not (folder / "molecules").exists()  # no per-gene folder on the way
+    assert json.loads((folder / "mapping.json").read_text()) == {"cells": "s.zarr"}
+
+
+def test_a_transcripts_table_in_the_expanded_layout_becomes_a_per_gene_folder(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    transcripts_into(folder, "transcripts.csv")
+    r = prepare_folder.prepare(folder, expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (folder / "molecules" / "manifest.json.gz").exists() and (folder / "transcripts.csv").exists()
+    assert json.loads((folder / "mapping.json").read_text())["links"] == {"__all__": "molecules"}
+    assert any(w == "molecules/molecules" and "covering" in m for lv, w, m in r.lines if lv == "OK"), r.lines
+
+
+def test_a_table_with_other_column_names_needs_them_named(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    p = transcripts_into(folder)
+    pd.read_parquet(p).rename(columns={"feature_name": "g", "x_location": "px", "y_location": "py"}).to_parquet(p)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)  # not recognised: no molecules
+    assert not r.failed and "points/molecules" not in consolidated(folder / "s.zarr")
+    r = prepare_folder.prepare(folder, molecule_columns="g,px,py", log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert "points/molecules" in consolidated(folder / "s.zarr")
+
+
+# ── a store the viewer cannot read as written is repaired ─────────────────
+
+def store_with_table(folder: Path) -> Path:
+    """A minimal SpatialData store: the table alone, in a Zarr v3 root."""
+    write_table(make_table(), folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    return folder / f"{folder.name}.zarr"
+
+
+def test_shapes_parts_become_one_wkb_file(tmp_path):
+    gpd = pytest.importorskip("geopandas")
+    import shapely
+
+    folder = tmp_path / "s"
+    folder.mkdir()
+    store = store_with_table(folder)
+    # A shapes element as Celldega / dask-geopandas write it: parts, geoarrow encoding
+    el = store / "shapes" / "cell_boundaries"
+    (el / "shapes.parquet").mkdir(parents=True)
+    fixture = ROOT / "tests" / "data" / "tiny" / "zarr" / "shapes_v1" / "cell_boundaries" / "zarr.json"
+    (el / "zarr.json").write_text(fixture.read_text())
+    (store / "shapes" / "zarr.json").write_text(json.dumps({"zarr_format": 3, "node_type": "group"}))
+    rng = np.random.default_rng(4)
+    for part in range(2):
+        ids = [f"cell-{i}" for i in range(part * 20, part * 20 + 20)]
+        geoms = [shapely.box(x, y, x + 3, y + 3) for x, y in rng.uniform(0, 90, size=(20, 2))]
+        gdf = gpd.GeoDataFrame(index=pd.Index(ids, name="cell_id"), geometry=geoms)
+        gdf.to_parquet(el / "shapes.parquet" / f"chunk_{part:02d}.parquet", geometry_encoding="geoarrow")
+
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (el / "shapes.parquet").is_file() and (el / "shapes.parquet.parts").is_dir()
+    import pyarrow.parquet as pq
+
+    meta = pq.read_metadata(el / "shapes.parquet")
+    geo = json.loads(meta.metadata[b"geo"])
+    assert geo["columns"]["geometry"]["encoding"] == "WKB" and meta.num_rows == 40
+    assert json.loads(meta.metadata[b"pandas"])["index_columns"] == ["cell_id"]
+    assert any(w == "shapes/cell_boundaries" and "GeoParquet" in m for lv, w, m in r.lines if lv == "OK"), r.lines
+    # A second run leaves the file alone
+    before = (el / "shapes.parquet").stat().st_mtime_ns
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed and (el / "shapes.parquet").stat().st_mtime_ns == before
+
+
+def test_large_image_chunks_are_rewritten(tmp_path):
+    import zarr
+
+    folder = tmp_path / "s"
+    folder.mkdir()
+    store = store_with_table(folder)
+    prepare_folder.drop_consolidated(store / "zarr.json")
+    root = zarr.open_group(store, mode="r+", use_consolidated=False)
+    img = root.require_group("images").create_group("dapi")
+    plane = (np.arange(2500 * 3000, dtype=np.uint16) % 60000).reshape(2500, 3000)
+    img.create_array("0", data=plane[None], chunks=(1, 2048, 2048))
+    img.attrs["ome"] = {
+        "version": "0.5",
+        "multiscales": [{"axes": [{"name": "c", "type": "channel"}, {"name": "y", "type": "space"}, {"name": "x", "type": "space"}],
+                         "datasets": [{"path": "0", "coordinateTransformations": [
+                             {"type": "scale", "scale": [1.0, 0.03, 0.03]}, {"type": "translation", "translation": [0.0, 0.0, 0.0]}]}]}],
+    }
+
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    level = zarr.open_array(store / "images" / "dapi" / "0", mode="r")
+    assert level.chunks == (1, 1024, 1024) and level.shape == (1, 2500, 3000)
+    assert (level[0] == plane).all()  # every pixel where it was
+    assert not any("over 1024" in m for lv, w, m in r.lines if lv == "WARN"), r.lines
+    assert not (store / "images" / "dapi" / "0.rechunk").exists()
+
+
+def test_points_become_molecules_on_request(tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    import pyarrow as pa
+
+    folder = tmp_path / "s"
+    folder.mkdir()
+    store = store_with_table(folder)
+    el = store / "points" / "transcripts"
+    (el / "points.parquet").mkdir(parents=True)
+    (store / "points" / "zarr.json").write_text(json.dumps({"zarr_format": 3, "node_type": "group"}))
+    (el / "zarr.json").write_text(json.dumps({
+        "zarr_format": 3, "node_type": "group",
+        "attributes": {"encoding-type": "ngff:points", "axes": ["x", "y", "z"],
+                       "spatialdata_attrs": {"feature_key": "feature_name", "version": "0.2"},
+                       "coordinateTransformations": [{"type": "identity",
+                                                      "input": {"name": "xyz", "axes": [{"name": a, "type": "space"} for a in "xyz"]},
+                                                      "output": {"name": "global", "axes": [{"name": a, "type": "space"} for a in "xyz"]}}]},
+    }))
+    rng = np.random.default_rng(6)
+    n = 600
+    table = pa.table({"x": rng.uniform(0, 100, n), "y": rng.uniform(0, 100, n), "z": rng.uniform(0, 5, n),
+                      "feature_name": rng.choice(["Gene0", "Gene1", "Gene2"], n)})
+    pq.write_table(table, el / "points.parquet" / "part.0.parquet")
+
+    r = prepare_folder.prepare(folder, log=lambda *_: None)  # not asked: no molecules
+    assert not r.failed and not (folder / "molecules").exists() and "points/molecules" not in consolidated(store)
+    # Asked, expanded: the molecule folder beside the store, named in the mapping
+    r = prepare_folder.prepare(folder, molecules_from_points=True, expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (folder / "molecules" / "manifest.json.gz").exists()
+    assert sorted(p.stem.split(".")[0] for p in (folder / "molecules" / "genes").iterdir()) == ["Gene0", "Gene1", "Gene2"]
+    assert json.loads((folder / "mapping.json").read_text())["links"] == {"__all__": "molecules"}
+    assert any(w == "molecules/molecules" and "covering" in m for lv, w, m in r.lines if lv == "OK"), r.lines
+    # Run again, wrapped: the folder goes inside as points/molecules (the parquet points stay, unread)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    nodes = consolidated(store)
+    assert nodes["points/molecules"]["attributes"]["points:version"] and "points/transcripts" in nodes
+    assert (folder / "sources" / "molecules").is_dir() and not (folder / "molecules").exists()
+    assert json.loads((folder / "mapping.json").read_text()) == {"cells": "s.zarr"}
+
+
+# ── clustering ────────────────────────────────────────────────────────────
+
+def test_cluster_runs_only_when_no_categorical_column(tmp_path):
+    pytest.importorskip("scanpy")
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(categorical=True), folder / "cells.zarr", 3)
+    r = prepare_folder.prepare(folder, cluster=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert not (folder / "annotations").exists()
+
+    other = tmp_path / "u"
+    other.mkdir()
+    write_table(make_table(categorical=False), other / "cells.zarr", 3)
+    r = prepare_folder.prepare(other, cluster=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    # The clusters are in the table; the sidecar carries the DE stats only
+    notes = json.loads((other / "annotations" / "annotations.json").read_text())
+    assert notes["num_cells"] == CELLS and notes["de_stats"] == ["leiden"] and notes["columns"] == {}
+    assert (other / "annotations" / "de" / "leiden.bin.gz").exists() and not (other / "annotations" / "leiden.bin").exists()
+    nodes = consolidated(other / "u.zarr")
+    assert nodes["tables/table/obs/leiden"]["attributes"]["encoding-type"] == "categorical"
+    assert "leiden" in nodes["tables/table/obs"]["attributes"]["column-order"]
+    table = ad.read_zarr(other / "u.zarr" / "tables" / "table")
+    assert table.obs["leiden"].dtype == "category" and len(table.obs["leiden"]) == CELLS
+
+    # A store's join column (one category, "region") is not a cell type:
+    # a spatialdata-io table has nothing else categorical and still gets clustered
+    third = tmp_path / "v"
+    third.mkdir()
+    adata = make_table(categorical=False)
+    adata.obs["region"] = pd.Categorical(["cell_boundaries"] * CELLS)
+    adata.uns["spatialdata_attrs"] = {"region": "cell_boundaries", "region_key": "region", "instance_key": "cell_id"}
+    write_table(adata, third / "cells.zarr", 3)
+    import zarr
+
+    zarr.open_group(third / "cells.zarr", mode="r+", use_consolidated=False).attrs.update(
+        {"region": "cell_boundaries", "region_key": "region", "instance_key": "cell_id"}
+    )
+    r = prepare_folder.prepare(third, cluster=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (third / "annotations" / "de" / "leiden.bin.gz").exists()
+    assert "tables/table/obs/leiden" in consolidated(third / "v.zarr")

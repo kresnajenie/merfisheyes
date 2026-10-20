@@ -82,6 +82,18 @@ export const VISUALIZATION_CONFIG = {
   POINT_BASE_ALPHA: 1.0,
 
   /**
+   * Colour of every cell when there is no column to colour by (a table
+   * with only positional obs columns, as many Visium stores have)
+   */
+  NEUTRAL_POINT_COLOR: "#d0d0d0",
+
+  /**
+   * Their opacity: translucent, so an image under them (an H&E under Visium
+   * spots or bins, which tile it) still shows; a colouring makes them opaque
+   */
+  NEUTRAL_POINT_ALPHA: 0.35,
+
+  /**
    * Expression-Based Alpha Range
    * Controls how much alpha varies based on gene expression / numerical value
    * Min alpha for zero/NaN expression, max alpha for full expression

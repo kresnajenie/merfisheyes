@@ -4,6 +4,29 @@ import { type Page, expect } from "@playwright/test";
 import { type DatasetEntry, absPath } from "./databank";
 import { SELECTORS, fileInputSelector } from "./selectors";
 
+/** One molecule gene file's load, as MoleculeLayer reports it. */
+export interface MerfishFrameStats {
+  count: number;
+  drawn: number;
+  over16ms: number;
+  over33ms: number;
+  worstMs: number;
+  worstRenderMs: number;
+  renderMs: number;
+  since: number;
+}
+
+export interface MerfishGeneLoad {
+  id: number;
+  mode: "stream" | "whole";
+  batches: number;
+  loaded: number;
+  expected: number | null;
+  done: boolean;
+  aborted: boolean;
+  failed: boolean;
+}
+
 /** Shape of the window.__merfish test hook (mirror of lib/utils/test-hooks.ts). */
 export interface MerfishHooks {
   enabled: boolean;
@@ -19,6 +42,8 @@ export interface MerfishHooks {
     pointClouds?: number;
   } | null;
   lastGene: { gene: string; count: number; at: number } | null;
+  /** Molecule gene loads by gene (`${gene}:unassigned` for unassigned). */
+  geneLoads: Record<string, MerfishGeneLoad>;
   deStatsReadyAt: number | null;
   deStatsColumn: string | null;
   deStatsCount: number;
@@ -315,23 +340,88 @@ export async function dragDropFile(page: Page, ds: DatasetEntry): Promise<number
  * Share of a canvas's pixels that are not near-black, read from a screenshot
  * (a WebGL canvas can't be read back from the page once it has presented).
  */
-export async function litFraction(page: Page, canvasSelector: string): Promise<number> {
+/**
+ * Fraction of a canvas region whose pixels are within `tolerance` (per
+ * channel, 0–255) of `rgb` — e.g. how much of it a colour covers.
+ */
+export async function colourFraction(
+  page: Page,
+  canvasSelector: string,
+  rgb: [number, number, number],
+  region: { x0: number; y0: number; x1: number; y1: number },
+  tolerance = 12,
+): Promise<number> {
   const shot = await page.locator(canvasSelector).first().screenshot();
 
-  return page.evaluate(async (png) => {
-    const image = await createImageBitmap(
-      await (await fetch(`data:image/png;base64,${png}`)).blob(),
-    );
-    const context = new OffscreenCanvas(image.width, image.height).getContext("2d")!;
+  return page.evaluate(
+    async ({ png, rgb, region, tolerance }) => {
+      const image = await createImageBitmap(
+        await (await fetch(`data:image/png;base64,${png}`)).blob(),
+      );
+      const context = new OffscreenCanvas(image.width, image.height).getContext(
+        "2d",
+      )!;
 
-    context.drawImage(image, 0, 0);
-    const { data } = context.getImageData(0, 0, image.width, image.height);
-    let lit = 0;
+      context.drawImage(image, 0, 0);
+      const x = Math.floor(region.x0 * image.width);
+      const y = Math.floor(region.y0 * image.height);
+      const w = Math.max(1, Math.floor((region.x1 - region.x0) * image.width));
+      const h = Math.max(1, Math.floor((region.y1 - region.y0) * image.height));
+      const { data } = context.getImageData(x, y, w, h);
+      let hits = 0;
 
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i] + data[i + 1] + data[i + 2] > 60) lit++;
-    }
+      for (let i = 0; i < data.length; i += 4) {
+        if (
+          Math.abs(data[i] - rgb[0]) <= tolerance &&
+          Math.abs(data[i + 1] - rgb[1]) <= tolerance &&
+          Math.abs(data[i + 2] - rgb[2]) <= tolerance
+        ) {
+          hits++;
+        }
+      }
 
-    return lit / (data.length / 4);
-  }, shot.toString("base64"));
+      return hits / (data.length / 4);
+    },
+    { png: shot.toString("base64"), rgb, region, tolerance },
+  );
+}
+
+export async function litFraction(
+  page: Page,
+  canvasSelector: string,
+  /** Only this part of the canvas, as fractions of its width and height. */
+  region: { x0: number; y0: number; x1: number; y1: number } = {
+    x0: 0,
+    y0: 0,
+    x1: 1,
+    y1: 1,
+  },
+): Promise<number> {
+  const shot = await page.locator(canvasSelector).first().screenshot();
+
+  return page.evaluate(
+    async ({ png, region }) => {
+      const image = await createImageBitmap(
+        await (await fetch(`data:image/png;base64,${png}`)).blob(),
+      );
+      const context = new OffscreenCanvas(image.width, image.height).getContext(
+        "2d",
+      )!;
+
+      context.drawImage(image, 0, 0);
+      const x = Math.floor(region.x0 * image.width);
+      const y = Math.floor(region.y0 * image.height);
+      const w = Math.max(1, Math.floor((region.x1 - region.x0) * image.width));
+      const h = Math.max(1, Math.floor((region.y1 - region.y0) * image.height));
+      const { data } = context.getImageData(x, y, w, h);
+      let lit = 0;
+
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] + data[i + 1] + data[i + 2] > 60) lit++;
+      }
+
+      return lit / (data.length / 4);
+    },
+    { png: shot.toString("base64"), region },
+  );
 }

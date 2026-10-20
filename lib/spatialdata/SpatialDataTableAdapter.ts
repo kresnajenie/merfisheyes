@@ -27,6 +27,8 @@ import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 import { type DeStats, parseDeStatsBuffer } from "../utils/de-stats";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
 
+import { defaultTableName } from "./store";
+
 export type XFormat = "dense" | "csr" | "csc" | "missing";
 
 interface ClusterColumn {
@@ -75,7 +77,8 @@ export class SpatialDataTableAdapter {
   private genes: string[] | null = null;
 
   // Cache for lazy gene queries (dense/CSC path)
-  private geneExprCache = new Map<string, number[]>();
+  // Promises, so two asks for one gene share the read
+  private geneExprCache = new Map<string, Promise<number[] | null>>();
 
   // annotations/annotations.json from beside the store, if there is one
   private annotations: {
@@ -400,13 +403,23 @@ export class SpatialDataTableAdapter {
     const cached = this.geneExprCache.get(geneName);
 
     if (cached) return cached;
+    const p = this.readGeneExpression(geneName);
 
+    this.geneExprCache.set(geneName, p);
+    p.catch(() => this.geneExprCache.delete(geneName));
+
+    return p;
+  }
+
+  private async readGeneExpression(geneName: string): Promise<number[] | null> {
+    const expr = this.expr;
+
+    if (!expr) return null;
     const genes = await this.loadGenes();
     const geneIndex = genes.indexOf(geneName);
 
     if (geneIndex < 0) return null;
 
-    const expr = this.expr;
     const result: number[] = new Array(this.numCells).fill(0);
 
     if (!("format" in expr)) {
@@ -458,8 +471,6 @@ export class SpatialDataTableAdapter {
         }
       }
     }
-
-    this.geneExprCache.set(geneName, result);
 
     return result;
   }
@@ -517,6 +528,19 @@ export class SpatialDataTableAdapter {
    * Read a dataframe column (`obs/<name>`, `var/<name>`) as strings,
    * resolving categoricals to their labels.
    */
+  /**
+   * Each cell's instance id (the table's `instance_key` column, e.g.
+   * `cell_id`), in table order — what links a cell to its shapes. Null when
+   * the table names none.
+   */
+  async readInstanceIds(): Promise<string[] | null> {
+    const key = this.root?.attrs.instance_key;
+
+    if (typeof key !== "string" || !key) return null;
+
+    return this.readColumn(`obs/${key}`).catch(() => null);
+  }
+
   private async readColumn(path: string): Promise<string[]> {
     const node = await zarr.open.v3(this.root!.resolve(path));
 
@@ -548,9 +572,7 @@ export class SpatialDataTableAdapter {
    * the value is missing. Missing values read as "".
    */
   private async readValues(
-    node:
-      | zarr.Array<zarr.DataType, zarr.Readable>
-      | zarr.Group<zarr.Readable>,
+    node: zarr.Array<zarr.DataType, zarr.Readable> | zarr.Group<zarr.Readable>,
   ): Promise<string[]> {
     if (node instanceof zarr.Array) {
       return arrayToStringArray((await zarr.get(node, [null])).data);
@@ -663,9 +685,8 @@ function spatialDataTablePrefix(
   if (tables.length === 0) {
     throw new Error("SpatialData store has no table under tables/");
   }
-  const table = tables.includes("table") ? "table" : tables[0];
 
-  return `tables/${table}/`;
+  return `tables/${defaultTableName(rootAttrs, tables)}/`;
 }
 
 function hasNode(storeKeys: string[], path: string): boolean {

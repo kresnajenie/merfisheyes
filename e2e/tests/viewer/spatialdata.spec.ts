@@ -7,7 +7,11 @@ import {
   storeUrl,
   storeFolderUrl,
   imageUrl,
+  visiumUrl,
+  visiumHdUrl,
+  selectGeneAndMeasure,
   SELECTORS,
+  type DatasetEntry,
   type StoreLayout,
   type StoreParts,
 } from "../../fixtures/merfish-fixtures";
@@ -152,6 +156,111 @@ for (const { parts, layout } of STORES) {
     }
   });
 }
+
+test("@quick Visium store: the full image under the spots, not the downscaled ones", async ({
+  page,
+}) => {
+  // No `global` system: the spots' system is the target, and the full image
+  // is identity into it, so it spans the spots and no more: a square in the
+  // middle of the view framed on them. Multiplied by every transform of the
+  // spots (as before), it was drawn 64x too large and ran off the view.
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumUrl(server))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "spots").toBe(36);
+  await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
+  await expect
+    .poll(() => served(/\/images\/tiny_full_image\/s\d\/c\//), {
+      message: "the full image should be read",
+    })
+    .toBe(true);
+  await expect
+    .poll(() => litFraction(page, SCENES.cells), {
+      message: "the image should be drawn",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.08);
+  // A band along the right edge, clear of the buttons: dark beside the
+  // spots, lit when the image runs off past them
+  expect(
+    await litFraction(page, SCENES.cells, {
+      x0: 0.92,
+      y0: 0.3,
+      x1: 0.99,
+      y1: 0.7,
+    }),
+    "the image should cover the spots, not run past them",
+  ).toBeLessThan(0.05);
+  expect(
+    served(/\/images\/tiny_(hires|lowres)_image\//),
+    "the downscaled images should not be read",
+  ).toBe(false);
+});
+
+test("@quick Visium HD store: the bins drawn as squares of their real size", async ({
+  page,
+}) => {
+  // Square bins of side 16 on a 16 grid: at their real size they tile the
+  // section (1 in 7 of the fixture's bins is missing: about 86% of it lit
+  // with the image hidden); as dots, almost nothing is lit
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumHdUrl(server))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "bins").toBe(219);
+  const middle = { x0: 0.45, y0: 0.45, x1: 0.55, y1: 0.55 };
+  const binsLit = () => litFraction(page, SCENES.cells, middle);
+
+  // The bins alone: no column to colour by, so they are translucent
+  // neutral (NEUTRAL_POINT_ALPHA), and the image is hidden
+  await page.locator(SELECTORS.imageButton).click();
+  await page.getByLabel("Show image").uncheck();
+  // Close the image panel: it sits over the rail's buttons
+  await page.locator(SELECTORS.imageButton).click();
+  await expect
+    .poll(binsLit, {
+      message: "the bins should tile the section",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.7);
+
+  await test.step("coloured by a gene, every bin keeps its size", async () => {
+    // Low expression shrank a dot; a bin stays a bin (colour carries it)
+    await selectGeneAndMeasure(
+      page,
+      { dataType: "single_cell" } as DatasetEntry,
+      "gene0",
+    );
+    await expect
+      .poll(binsLit, {
+        message: "the bins should still tile the section",
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(0.7);
+  });
+
+  await test.step("the SC button hides them (an image is under them)", async () => {
+    await page.getByRole("button", { name: "SC", exact: true }).click();
+    await expect
+      .poll(binsLit, { message: "the bins should be hidden", timeout: 30_000 })
+      .toBeLessThan(0.05);
+  });
+});
 
 test("@quick SpatialData store with nothing to show says so", async ({
   page,

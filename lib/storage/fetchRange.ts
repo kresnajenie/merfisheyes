@@ -11,8 +11,10 @@ import type { RangeQuery } from "@zarrita/storage";
 export async function fetchRange(
   url: string,
   range: RangeQuery,
+  signal?: AbortSignal,
 ): Promise<Uint8Array | undefined> {
   const res = await fetch(url, {
+    signal,
     headers: {
       Range:
         "suffixLength" in range

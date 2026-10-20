@@ -46,26 +46,72 @@ function calcSizeMultiplier(
  * @param percentile - The percentile to calculate (between 0 and 1).
  * @returns The value at the specified percentile.
  */
+// Once per array and percentile: a slider tick asks again for the same gene
+const percentileCache = new WeakMap<object, Map<number, number>>();
+
 export function calculateGenePercentile(
   arr: number[],
   percentile: number,
 ): number {
-  // Filter out NaN values and create a sorted copy
-  const sortedArr = arr
-    .filter((value) => !isNaN(value) && value !== null)
-    .sort((a, b) => a - b);
+  let known = percentileCache.get(arr);
 
-  if (sortedArr.length === 0) {
+  if (known?.has(percentile)) return known.get(percentile)!;
+  const result = percentileOf(arr, percentile);
+
+  if (!known) percentileCache.set(arr, (known = new Map()));
+  known.set(percentile, result);
+
+  return result;
+}
+
+function percentileOf(arr: number[], percentile: number): number {
+  // The non-NaN values, in a typed array to select in place
+  const values = new Float64Array(arr.length);
+  let n = 0;
+
+  for (const value of arr) {
+    if (value !== null && !isNaN(value)) values[n++] = value;
+  }
+
+  if (n === 0) {
     return NaN; // Return NaN if all values are NaN
   }
 
-  // Calculate the index for the xth percentile
-  const index = Math.floor(sortedArr.length * percentile);
+  // The value that sorting would put at this index: found by selection, so
+  // a million cells cost milliseconds rather than a full sort
+  const index = Math.min(Math.max(0, Math.floor(n * percentile)), n - 1);
 
-  // Ensure index is within bounds
-  const boundedIndex = Math.min(Math.max(0, index), sortedArr.length - 1);
+  return selectKth(values.subarray(0, n), index);
+}
 
-  return sortedArr[boundedIndex];
+/** The k-th smallest value of `a` (0-based), reordering `a` in place. */
+function selectKth(a: Float64Array, k: number): number {
+  let lo = 0;
+  let hi = a.length - 1;
+
+  while (lo < hi) {
+    const pivot = a[(lo + hi) >>> 1];
+    let i = lo;
+    let j = hi;
+
+    while (i <= j) {
+      while (a[i] < pivot) i++;
+      while (a[j] > pivot) j--;
+      if (i <= j) {
+        const t = a[i];
+
+        a[i] = a[j];
+        a[j] = t;
+        i++;
+        j--;
+      }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return a[k];
+  }
+
+  return a[k];
 }
 
 /**
@@ -381,8 +427,29 @@ export function updateCelltypeVisualization(
 } | null {
   const count = dataset.getPointCount();
 
-  if (!dataset.clusters || !selectedColumn) {
-    console.log("No cluster data or column selected");
+  // Nothing to colour by: every cell in one neutral colour, not left black
+  if (!selectedColumn) {
+    const [r, g, b] = hexToRgb(VISUALIZATION_CONFIG.NEUTRAL_POINT_COLOR);
+    const colors = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      colors[i * 3] = r;
+      colors[i * 3 + 1] = g;
+      colors[i * 3 + 2] = b;
+    }
+
+    return {
+      colors,
+      sizes: new Float32Array(count).fill(
+        VISUALIZATION_CONFIG.POINT_BASE_SIZE * adv.selectedSizeMultiplier,
+      ),
+      alphas: new Float32Array(count).fill(
+        VISUALIZATION_CONFIG.NEUTRAL_POINT_ALPHA * alphaScale,
+      ),
+    };
+  }
+  if (!dataset.clusters) {
+    console.log("No cluster data");
 
     return null;
   }

@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { validateViewerConfig } from "@/lib/utils/viewer-config";
 import {
   generatePresignedUploadUrl,
   createMultipartUpload,
@@ -25,6 +26,8 @@ interface InitiateIngestRequest {
     stages?: Record<string, unknown>;
     [key: string]: unknown;
   };
+  /** Owner defaults to start with (see ViewerConfig), e.g. { viewMode: "3D" }. */
+  viewerConfig?: unknown;
   files: Array<{
     key: string; // relative path (folders preserve their path)
     size: number; // bytes
@@ -104,6 +107,10 @@ export async function POST(request: NextRequest) {
             adminOwned: false,
             ingestSource: "server",
             processingParams: processingParams as object,
+            // Uploader's chosen defaults (e.g. open in 3D); null when none.
+            viewerConfig:
+              (validateViewerConfig(body.viewerConfig) as object | null) ??
+              undefined,
           },
         });
 

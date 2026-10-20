@@ -28,6 +28,7 @@ import {
   usePanelVisualizationStore,
   usePanelDatasetStore,
   usePanelId,
+  usePanelLayers,
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
@@ -36,6 +37,7 @@ import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { glassButton } from "@/components/primitives";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { OverlayManager } from "@/components/overlay-manager";
+import { LayerControls } from "@/components/layer-controls";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
 export function VisualizationControls() {
@@ -90,6 +92,10 @@ export function VisualizationControls() {
   const hasSmOverlay = usePanelSingleMoleculeStore(
     (s) => s.currentDatasetId != null,
   );
+  // Anything drawn under or beside the cells (an image, shapes, molecules):
+  // hiding the cells is how it is seen, e.g. an H&E under Visium spots
+  const layers = usePanelLayers();
+  const hasOtherLayers = Object.values(layers).some(Boolean);
   const { isSplitMode, enableSplit } = useSplitScreenStore();
   const panelId = usePanelId();
 
@@ -461,6 +467,9 @@ export function VisualizationControls() {
         </Tooltip>
       )}
 
+      {/* The rail controls of the layers the scene draws (cell shapes…) */}
+      <LayerControls slot="rail" />
+
       {/* Plot Panel Button */}
       <Tooltip content="Plot panel" placement="right">
         <Button
@@ -528,25 +537,26 @@ export function VisualizationControls() {
       </div>
 
       {/* Layer visibility — show/hide the entire single-cell or single-molecule
-          layer. Only meaningful when an SM overlay is present, so both toggles
-          are hidden otherwise (a plain SC dataset has nothing to layer). */}
+          layer. SC whenever something else is drawn with the cells (an image,
+          shapes, molecules); SM only with molecules. A plain SC dataset has
+          nothing to layer, so neither shows. */}
+      {(hasSmOverlay || hasOtherLayers) && (
+        <LayerVisibilityButton
+          buttonBaseClass={buttonBaseClass}
+          kind="single cell"
+          label="SC"
+          visible={scLayerVisible}
+          onToggle={() => setScLayerVisible(!scLayerVisible)}
+        />
+      )}
       {hasSmOverlay && (
-        <>
-          <LayerVisibilityButton
-            buttonBaseClass={buttonBaseClass}
-            kind="single cell"
-            label="SC"
-            visible={scLayerVisible}
-            onToggle={() => setScLayerVisible(!scLayerVisible)}
-          />
-          <LayerVisibilityButton
-            buttonBaseClass={buttonBaseClass}
-            kind="single molecule"
-            label="SM"
-            visible={smLayerVisible}
-            onToggle={() => setSmLayerVisible(!smLayerVisible)}
-          />
-        </>
+        <LayerVisibilityButton
+          buttonBaseClass={buttonBaseClass}
+          kind="single molecule"
+          label="SM"
+          visible={smLayerVisible}
+          onToggle={() => setSmLayerVisible(!smLayerVisible)}
+        />
       )}
 
       {/* Visualization Panel */}
@@ -819,15 +829,21 @@ function DotSizeSlider({
   setScSizeScale: (n: number) => void;
   scSmMode: ScSmMode;
 }) {
-  // SC: editable range via right-click popover. SM: static range from config.
+  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.globalScale,
+  );
+  // Both ranges are editable via the right-click popover, each kept separately.
   const sc = useSliderRange(
     "sizeScale",
     VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MIN,
     VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_MAX,
     scSizeScale,
   );
-  const smGlobalScale = usePanelSingleMoleculeVisualizationStore(
-    (s) => s.globalScale,
+  const sm = useSliderRange(
+    "smGlobalScale",
+    VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MIN,
+    VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MAX,
+    smGlobalScale,
   );
   const setSmGlobalScale = usePanelSingleMoleculeVisualizationStore(
     (s) => s.setGlobalScale,
@@ -836,12 +852,8 @@ function DotSizeSlider({
   const isSc = scSmMode === "sc";
   const value = isSc ? scSizeScale : smGlobalScale;
   const setValue = isSc ? setScSizeScale : setSmGlobalScale;
-  const min = isSc
-    ? sc.min
-    : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MIN;
-  const max = isSc
-    ? sc.max
-    : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_MAX;
+  const range = isSc ? sc : sm;
+  const { min, max } = range;
   const step = isSc
     ? VISUALIZATION_CONFIG.SINGLE_CELL_SIZE_SCALE_STEP
     : VISUALIZATION_CONFIG.SINGLE_MOLECULE_GLOBAL_SCALE_STEP;
@@ -854,13 +866,13 @@ function DotSizeSlider({
       content={
         isSc
           ? "Change dotsize (right-click to edit range)"
-          : "Change SM molecule size"
+          : "Change SM molecule size (right-click to edit range)"
       }
       placement="right"
     >
       <div
         className={`w-14 h-32 rounded-full border-2 p-2 flex flex-col items-center justify-center transition-colors transition-shadow ${borderColor} ${glassButton()}`}
-        onContextMenu={isSc ? sc.onContextMenu : undefined}
+        onContextMenu={range.onContextMenu}
       >
         <Slider
           aria-label="Dot size"
@@ -873,7 +885,7 @@ function DotSizeSlider({
           value={value}
           onChange={(v) => setValue(v as number)}
         />
-        {isSc && sc.popover}
+        {range.popover}
       </div>
     </Tooltip>
   );

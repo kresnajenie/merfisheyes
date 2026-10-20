@@ -160,6 +160,31 @@ sample/
 
 **The same data on a public bucket** opens from **Load from S3** on the homepage. Paste the URL of a merfisheyes folder, a SpatialData store, an OME-Zarr image, or the folder holding a store with its molecules beside it — the last opens with everything overlaid, and the link you land on reopens all of it. A bucket's folders can't be listed from a browser, so the folder's `mapping.json` names its store (`"cells": "name.zarr"`); without that, a store named after the folder (`sample/sample.zarr`) is tried. A store nobody owns yet shows **Add to my account**, like any other dataset opened by URL. See [docs/spatialdata](docs/spatialdata/README.md) for the layout.
 
+**Preparing the parts yourself.** An AnnData table you wrote (`.h5ad`, or `write_zarr` in Zarr v2 or v3), a transcripts table and a TIFF become the three parts, and one script makes the folder ready:
+
+```bash
+pip install -r scripts/requirements-prepare.txt spatialdata
+mkdir sample && cp cells.h5ad transcripts.parquet sample/
+python scripts/image_to_ome_zarr.py dapi.tif sample/dapi.zarr --um-per-pixel 0.108 --origin 0 0
+python scripts/prepare_folder.py sample/            # --cluster adds Leiden clusters + DEGs when the table has none
+```
+
+The transcripts table is used as it is: Xenium's and MERSCOPE's column names are recognised, any others are given with `--molecule-columns GENE,X,Y[,Z]`. The script that writes it into the store's tiled points element, `scripts/transcripts_to_points.py`, also runs on its own.
+
+You get one SpatialData store holding everything, which is what the viewer, spatialdata, napari and Vitessce all open:
+
+```
+sample/
+├── sample.zarr/                 tables/table (X + layers/X_csc, obsm/spatial, your columns, obs/leiden with --cluster),
+│                                images/dapi (written by the spatialdata library), points/molecules (tiled, streamed by view,
+│                                straight from the transcripts table), shapes/cell_boundaries when you have polygons
+├── annotations/                 (--cluster) the per-cluster DEG stats only; the clusters are in the table
+├── sources/                     the image folder and the transcripts table the store was made from
+└── mapping.json                 { "cells": "sample.zarr" }
+```
+
+The script finds the parts by what is in them, wraps the table (Zarr v2, v3 or h5ad) into the store, adds a CSC copy of `X` when `X` is not CSC (the viewer reads one gene as one slice; a CSR `X` cannot be read per gene), writes the image into the store with the `spatialdata` library and the transcripts table straight into the tiled points element (`docs/points-zarr-spec.md`; a per-gene `bin.gz` folder is accepted too), and ends by running `scripts/validate_store.py`. With `--expanded` the image and molecule folders stay beside the store and `mapping.json` names them (relative names, resolved against the folder; `--url` for absolute ones); that layout opens the same way, and the script then checks that each part sits where the cells are (a `WARN` otherwise). A SpatialData store you already have is repaired where the viewer cannot read it as written: a shapes element stored as a directory of parquet parts (or in the geoarrow encoding) becomes one WKB file, image levels in chunks over 1024² are rewritten in 1024² chunks, and `--molecules-from-points` turns the store's parquet points element into the tiled one. The folder then opens by drag and drop, saves with **Upload & Save**, or goes to a bucket as it is. Full guide: [/docs/prepare](https://merfisheyes.com/docs/prepare). Layout rules: [docs/specs/](docs/specs/).
+
 What is and isn't converted:
 
 | You drop | Preview in browser | Upload & process on server |
@@ -264,7 +289,7 @@ Compare two datasets side by side (single-cell or single-molecule, in any combin
 
 ## Getting Started (development)
 
-Requires Node.js 18+.
+Requires Node.js 20 (`.nvmrc`; the browser test runner breaks on newer majors).
 
 ```bash
 git clone <repository-url>
@@ -337,6 +362,10 @@ Two options for datasets too big to parse in a browser:
    ```
 
    See **[scripts/README.md](scripts/README.md)** for formats, flags, and the output layout. (BIL HPC / SLURM pipelines live in [scripts/bil-scripts/](scripts/bil-scripts/README.md).)
+3. **Prepare your own parts** — an AnnData table, a molecule folder and an OME-Zarr image in one folder, made ready by `scripts/prepare_folder.py` (see *Preparing the parts yourself* above and [/docs/prepare](https://merfisheyes.com/docs/prepare)).
+4. **Prepare a Xenium export yourself** — `python scripts/prepare_xenium.py Xenium_outs/ sample/` reads it with `spatialdata-io` (`pip install spatialdata-io`, Python 3.12+) into a SpatialData store with the CSC copy, one GeoParquet per boundary element, the morphology image in 1024² chunks, plus the transcripts as a molecule folder, and ends in the same checks ([/docs/prepare#xenium](https://merfisheyes.com/docs/prepare#xenium)).
+5. **Prepare a MERSCOPE region yourself** — `python scripts/prepare_merscope.py region_R1/ sample/` builds the store with the `spatialdata` library from `cell_metadata.csv`, `cell_by_gene.csv` (blanks dropped, CSC) and, when present, the vpt `cell_boundaries.parquet` (one z-plane, `--z`) and `cell_categories.csv`, converts `detected_transcripts.csv` into the molecule folder, and ends in the same checks ([/docs/prepare#merscope](https://merfisheyes.com/docs/prepare#merscope)). The mosaic images are not written yet.
+6. **Prepare a Visium or Visium HD output yourself** — `python scripts/prepare_visium.py outs/ sample/ [--fullres image.tif]` reads the Space Ranger output with `spatialdata-io` (Visium HD when `binned_outputs/` is there; `--bins 8 16` by default) into a store whose spots or bins are drawn at their real size, each table with the CSC copy, the hires and lowres images and the full-resolution one when given, and ends in the same checks ([/docs/prepare#visium](https://merfisheyes.com/docs/prepare#visium)).
 
 ---
 
@@ -380,7 +409,10 @@ Two options for datasets too big to parse in a browser:
 
 ## Contributing
 
-Pull requests welcome. PRs target the `develop` branch.
+Pull requests welcome. PRs target the `develop` branch. Read
+[docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) first: it states the rules a
+change is judged by, and [docs/specs/](docs/specs/) holds the budgets,
+contracts and format profiles behind them.
 
 ## Acknowledgments
 

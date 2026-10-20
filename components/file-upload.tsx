@@ -50,6 +50,10 @@ import {
   type ImageUploadFile,
 } from "@/lib/upload/uploadImageToS3";
 import { AuthModal } from "@/components/auth-modal";
+import {
+  UploadAdvancedOptions,
+  uploadViewerConfig,
+} from "@/components/upload-advanced-options";
 
 type RawFile = { key: string; file: File; contentType: string };
 
@@ -216,6 +220,8 @@ export function FileUpload({
   // Whether to also upload the detected single-molecule data (combined flow).
   const [includeSm, setIncludeSm] = useState(true);
   const [includeImage, setIncludeImage] = useState(true);
+  // Advanced: open the new dataset(s) in the 3D camera by default.
+  const [open3D, setOpen3D] = useState(false);
 
   // Use appropriate store based on singleMolecule mode
   const cellStore = useDatasetStore();
@@ -572,6 +578,7 @@ export function FileUpload({
     if (!pendingUpload) return;
     const pending = pendingUpload;
     const base = titleDraft.trim() || "Untitled Dataset";
+    const viewerConfig = uploadViewerConfig(open3D);
 
     // Server-side processing does NOT ask the user to confirm columns: the
     // worker auto-detects the schema itself (detect_molecule_type picks
@@ -607,6 +614,7 @@ export function FileUpload({
             ...(linked.sm ? { linkedSmDatasetId: linked.sm } : {}),
             ...(linked.image ? { linkedImageDatasetId: linked.image } : {}),
           },
+          viewerConfig,
           onInitiated: (scId) => {
             void createCombinedProject(
               base,
@@ -626,6 +634,7 @@ export function FileUpload({
             // No columnMapping: the worker auto-detects the schema.
             stages: { chunk: { chunkSize: 1 } },
           },
+          viewerConfig,
           onInitiated: (smId) => {
             linked.sm = smId;
             startCells();
@@ -654,6 +663,7 @@ export function FileUpload({
       files: pending.files,
       // No columnMapping: the worker auto-detects the schema.
       processingParams: pending.processingParams,
+      viewerConfig,
     });
     router.push("/explore");
   };
@@ -680,6 +690,7 @@ export function FileUpload({
       // Over cells the scene adds the molecules itself; alone they are the dataset
       molecules: opened.cells ? (opened.molecules ?? null) : null,
       image: opened.image ?? null,
+      shapes: opened.shapes ?? null,
     });
 
     if (opened.cells) {
@@ -1323,6 +1334,11 @@ export function FileUpload({
                 </p>
               </div>
             )}
+
+            <UploadAdvancedOptions
+              open3D={open3D}
+              onOpen3DChange={setOpen3D}
+            />
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={() => setPendingUpload(null)}>

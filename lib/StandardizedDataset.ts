@@ -1,4 +1,5 @@
 import type { DeStats } from "./utils/de-stats";
+import type { CellFootprint } from "./spatialdata/footprint";
 
 import {
   normalizeCoordinates,
@@ -110,6 +111,8 @@ export class StandardizedDataset {
   deStats: DeStats | null;
   deStatsByColumn: Map<string, DeStats>;
   availableDeStatsColumns: string[];
+  /** The cells' real shape and size (Visium spots, Visium HD bins), if known. */
+  cellFootprint: CellFootprint | null = null;
 
   constructor({
     id,

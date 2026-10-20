@@ -60,6 +60,41 @@ export function getDatasetLinkConfig(dataset: {
   return s3Url ? (DATASET_LINK_REGISTRY[s3Url] ?? null) : null;
 }
 
+const isAbsolute = (ref: string) => /^[a-z][a-z0-9+.-]*:\/\//i.test(ref);
+
+/**
+ * A mapping.json may name its molecule folders and image by a name inside
+ * its own folder ("molecules", "dapi.zarr") instead of a full URL, so a
+ * folder prepared once (scripts/prepare_folder.py) opens from wherever it is
+ * synced to. Those names are resolved against the folder's URL here; full
+ * URLs and app dataset ids (`source: "app"`, `imageSource: "app"`) are left
+ * as they are.
+ */
+export function resolveMappingPaths<
+  T extends {
+    links?: Record<string, string>;
+    source?: "s3" | "app";
+    image?: string;
+    imageSource?: "s3" | "app";
+  },
+>(data: T, folderUrl: string): T {
+  const root = folderUrl.replace(/\/+$/, "");
+  const resolve = (ref: string) =>
+    isAbsolute(ref) ? ref : `${root}/${ref.replace(/^\.?\/+/, "")}`;
+  const out = { ...data };
+
+  if (out.links && (out.source ?? "s3") === "s3") {
+    out.links = Object.fromEntries(
+      Object.entries(out.links).map(([k, v]) => [k, resolve(v)]),
+    );
+  }
+  if (out.image && (out.imageSource ?? "s3") === "s3") {
+    out.image = resolve(out.image);
+  }
+
+  return out;
+}
+
 /**
  * Try to fetch mapping.json from the dataset's custom S3 base URL.
  * Returns DatasetLinkConfig if found, null otherwise.
@@ -77,7 +112,7 @@ export async function fetchMappingConfig(dataset: {
 
     if (!response.ok) return null;
 
-    const data = await response.json();
+    const data = resolveMappingPaths(await response.json(), s3Url);
 
     // Validate shape: a molecule link, or just an image to draw under the cells
     if (data.linkColumn && data.links && typeof data.links === "object") {

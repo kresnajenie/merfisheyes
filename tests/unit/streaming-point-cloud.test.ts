@@ -53,10 +53,15 @@ describe("streaming point cloud", () => {
     expect(cloud.geometry.drawRange.count).toBe(2);
   });
 
-  it("colors every vertex with the cloud color", () => {
+  it("carries the cloud color as a uniform, not per vertex", () => {
     const cloud = createStreamingSmPointCloud(4, "#ff0000", 1);
-    const colors = cloud.geometry.getAttribute("color").array as Float32Array;
+    const material = cloud.material as THREE.ShaderMaterial;
 
-    expect(Array.from(colors)).toEqual([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]);
+    expect(cloud.geometry.getAttribute("color")).toBeUndefined();
+    expect((material.uniforms.uColor.value as THREE.Color).getHex()).toBe(
+      0xff0000,
+    );
+    // Positions only: 12 bytes a molecule
+    expect(cloud.geometry.getAttribute("position").array.byteLength).toBe(48);
   });
 });

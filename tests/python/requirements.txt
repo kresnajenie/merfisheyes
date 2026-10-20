@@ -1,0 +1,13 @@
+# The format specs' tests (tests/python) and scripts/validate_store.py
+numpy
+pandas
+pyarrow
+zarr>=3.1
+numcodecs>=0.16
+jsonschema
+anndata>=0.12
+pytest
+# The external reader the round-trip test is judged by (heavy; optional
+# locally, installed in CI)
+spatialdata
+tifffile

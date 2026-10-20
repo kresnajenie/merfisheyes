@@ -1,6 +1,23 @@
 import type { ImageLevel, SpatialDataImage } from "./image";
+import type {
+  FrameInfo,
+  LayerBudget,
+  LayerStatus,
+  SceneHandle,
+  ViewRect,
+} from "@/lib/scene/contract";
 
 import * as THREE from "three";
+
+import { BaseLayer } from "@/lib/scene/BaseLayer";
+import { hint } from "@/lib/storage/ElementStore";
+import {
+  hooksEnabled,
+  markLayer,
+  markLayerChanged,
+  markLayerContent,
+  markLayerSettled,
+} from "@/lib/utils/test-hooks";
 
 export interface ImageChannel {
   label: string;
@@ -19,11 +36,38 @@ const CHANNEL_COLORS = [
   "#00e0ff",
   "#ff7030",
 ];
+const RGB_COLORS = ["#ff0000", "#00ff00", "#0000ff"];
+
+/**
+ * A colour photograph (an H&E stain): channels labelled r, g, b (as
+ * spatialdata-io writes them), or three unlabelled 8-bit channels (no
+ * label, or just their index, as spatialdata names them by default). Shown as
+ * itself — red, green and blue, all on, the full 0–255 range — not as three
+ * fluorescence channels.
+ */
+export function isRgb(image: SpatialDataImage): boolean {
+  const count = image.levels[0].array.shape[0];
+  const labels = image.channelLabels.map((l) => l.toLowerCase());
+  const named = ["r", "g", "b"].every(
+    (c, i) => labels[i] === c || labels[i] === ["red", "green", "blue"][i],
+  );
+  const unlabelled =
+    count === 3 &&
+    labels.every((l, i) => !l || l === `channel ${i}` || l === String(i));
+
+  return (
+    image.maxValue === 255 &&
+    (count === 3 || count === 4) &&
+    (named || unlabelled)
+  );
+}
+
 // Finer levels are skipped while a view would need more tiles than this
 // (a tilted 3D camera can see most of the image at once).
 const MAX_TILES_PER_VIEW = 12;
 const MAX_CONCURRENT_LOADS = 4;
-// Texture memory kept for tiles that have scrolled out of view.
+// Texture memory kept for tiles that have scrolled out of view, unless the
+// scene's budget (setBudget) says less.
 const CACHE_BYTES = 512 * 1024 * 1024;
 
 interface Tile {
@@ -38,6 +82,8 @@ interface Tile {
   y1: number;
   textures: (THREE.DataTexture | null)[];
   loading: boolean[];
+  /** Cancels the chunk read in flight, per channel. */
+  controllers: (AbortController | null)[];
   lastWanted: number;
 }
 
@@ -49,16 +95,18 @@ interface Tile {
  * through its own colour and display window. The coarsest level stays loaded
  * as a backdrop while finer chunks stream in on top of it.
  */
-export class ImageLayer {
+export class ImageLayer extends BaseLayer {
+  readonly kind = "image" as const;
   readonly channels: ImageChannel[];
   readonly maxValue: number;
-  visible = true;
   /** Called when channel settings change on their own (auto contrast). */
   onChange?: () => void;
 
+  private _visible = true;
+  private camera!: THREE.PerspectiveCamera;
+  private renderer!: THREE.WebGLRenderer;
   private levels: ImageLevel[];
   private tiles = new Map<string, Tile>();
-  private root = new THREE.Group();
   private blank: THREE.DataTexture;
   private sharedUniforms: {
     uColor: { value: THREE.Color[] };
@@ -69,28 +117,29 @@ export class ImageLayer {
   private queue: { tile: Tile; channel: number }[] = [];
   private activeLoads = 0;
   private frame = 0;
-  private rafId = 0;
-  private disposed = false;
   private windowed: boolean[];
+  private lastDrawn = 0;
+  private lastWanted = 0;
 
-  constructor(
-    image: SpatialDataImage,
-    parent: THREE.Object3D,
-    private camera: THREE.PerspectiveCamera,
-    private renderer: THREE.WebGLRenderer,
-  ) {
+  constructor(image: SpatialDataImage) {
+    super();
     this.levels = image.levels;
     this.maxValue = image.maxValue;
     const count = image.levels[0].array.shape[0];
+    const rgb = isRgb(image);
 
     this.channels = Array.from({ length: count }, (_, i) => ({
       label: image.channelLabels[i] ?? `Channel ${i}`,
-      color: CHANNEL_COLORS[i % CHANNEL_COLORS.length],
-      visible: i === 0,
+      color:
+        rgb && i < 3
+          ? RGB_COLORS[i]
+          : CHANNEL_COLORS[i % CHANNEL_COLORS.length],
+      visible: rgb ? i < 3 : i === 0,
       min: 0,
       max: image.maxValue,
     }));
-    this.windowed = new Array(count).fill(false);
+    // A photograph keeps its full range; fluorescence is windowed by the data
+    this.windowed = this.channels.map((_, i) => rgb && i < 3);
 
     this.sharedUniforms = {
       uColor: { value: this.channels.map((c) => new THREE.Color(c.color)) },
@@ -130,8 +179,62 @@ export class ImageLayer {
     );
 
     this.root.renderOrder = -1000;
-    parent.add(this.root);
-    this.tick();
+  }
+
+  get visible() {
+    return this._visible;
+  }
+  set visible(v: boolean) {
+    this._visible = v;
+    this.changed();
+  }
+
+  protected onAttach(scene: SceneHandle) {
+    this.camera = scene.camera;
+    this.renderer = scene.renderer;
+  }
+
+  status(): LayerStatus {
+    const loading = this.activeLoads > 0 || this.queue.length > 0;
+
+    return {
+      phase: loading ? "loading" : "ready",
+      progress: this.lastWanted
+        ? Math.min(1, this.lastDrawn / this.lastWanted)
+        : null,
+      drawn: this.lastDrawn,
+      wanted: this.lastWanted,
+      resident: this.tiles.size,
+      residentBytes: this.residentBytes(),
+      bytes: 0,
+      requests: 0,
+    };
+  }
+
+  private residentBytes() {
+    let total = 0;
+
+    for (const tile of this.tiles.values()) total += bytesOf(tile);
+
+    return total;
+  }
+
+  setBudget(budget: LayerBudget) {
+    super.setBudget(budget);
+    this.changed();
+  }
+
+  /** Cancel every chunk read, queued or in flight; what arrived stays. */
+  abort() {
+    for (const { tile, channel } of this.queue) tile.loading[channel] = false;
+    this.queue = [];
+    for (const tile of this.tiles.values()) {
+      tile.controllers.forEach((c, i) => {
+        c?.abort();
+        tile.controllers[i] = null;
+        tile.loading[i] = false;
+      });
+    }
   }
 
   /** Whether a channel's window has been set, by the data or by hand. */
@@ -148,30 +251,27 @@ export class ImageLayer {
     this.sharedUniforms.uColor.value[index].set(channel.color);
     this.sharedUniforms.uWindow.value[index].set(channel.min, channel.max);
     this.sharedUniforms.uOn.value[index] = channel.visible;
+    this.changed();
   }
 
   dispose() {
-    this.disposed = true;
-    cancelAnimationFrame(this.rafId);
-    this.root.removeFromParent();
+    super.dispose();
     for (const tile of this.tiles.values()) this.disposeTile(tile);
     this.tiles.clear();
     this.blank.dispose();
   }
 
-  private tick = () => {
-    if (this.disposed) return;
-    this.rafId = requestAnimationFrame(this.tick);
-    this.update();
-  };
+  tick(frame: FrameInfo) {
+    if (this.disposed || !this.scene) return;
+    this.update(frame.view);
+  }
 
   /** Choose the level and chunks for the current view, and show what's loaded. */
-  private update() {
+  private update(view: ViewRect | null) {
     this.frame++;
-    this.root.visible = this.visible && this.channels.some((c) => c.visible);
+    this.root.visible = this._visible && this.channels.some((c) => c.visible);
     if (!this.root.visible) return;
 
-    const view = this.visibleRect();
     const base = this.levels.length - 1;
     let level = base;
 
@@ -198,7 +298,12 @@ export class ImageLayer {
         wanted.add(tile);
         this.channels.forEach((channel, c) => {
           if (channel.visible && !tile.textures[c] && !tile.loading[c]) {
-            tile.loading[c] = true;
+            // One read fills every channel its chunk holds
+            for (const k of this.chunkChannels(l, c)) {
+              if (this.channels[k].visible && !tile.textures[k]) {
+                tile.loading[k] = true;
+              }
+            }
             this.queue.push({ tile, channel: c });
           }
         });
@@ -207,63 +312,66 @@ export class ImageLayer {
 
     // A tile is drawn once every visible channel has arrived. Coarser tiles
     // stay up underneath, so the view refines instead of blanking.
+    let drawn = 0;
+
     for (const tile of this.tiles.values()) {
       tile.mesh.visible =
         tile.level >= level &&
         this.channels.every((ch, c) => !ch.visible || tile.textures[c]);
+      if (tile.mesh.visible) drawn++;
+    }
+    const wantedAtLevel = [...wanted].filter((t) => t.level === level).length;
+
+    if (drawn !== this.lastDrawn || wantedAtLevel !== this.lastWanted) {
+      this.lastDrawn = drawn;
+      this.lastWanted = wantedAtLevel;
+      this.changed();
     }
 
+    for (const tile of this.tiles.values()) {
+      if (wanted.has(tile)) continue;
+      tile.controllers.forEach((c, i) => {
+        if (!c) return;
+        c.abort();
+        tile.controllers[i] = null;
+        tile.loading[i] = false;
+      });
+    }
+    this.report(level, wanted);
     this.pump();
     this.evict(wanted);
   }
 
+  private lastWantedKey = "";
+
   /**
-   * The part of the image plane (z = 0 in the parent's frame) on screen, and
-   * how many scene units one screen pixel covers there. Null when the camera
-   * doesn't look onto the plane.
+   * The E2E budget hooks (docs/specs/BUDGETS.md): tiles drawn and wanted at
+   * the chosen level, first content, a settled view. No-op in production.
    */
-  private visibleRect() {
-    this.root.updateWorldMatrix(true, false);
-    const toLocal = this.root.matrixWorld.clone().invert();
-    const origin = this.camera.position.clone().applyMatrix4(toLocal);
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
+  private report(level: number, wanted: Set<Tile>) {
+    if (!hooksEnabled()) return;
+    let drawn = 0;
 
-    for (const [nx, ny] of [
-      [-1, -1],
-      [1, -1],
-      [1, 1],
-      [-1, 1],
-    ]) {
-      const p = new THREE.Vector3(nx, ny, 0.5)
-        .unproject(this.camera)
-        .applyMatrix4(toLocal);
-      const t = -origin.z / (p.z - origin.z);
+    for (const tile of this.tiles.values()) if (tile.mesh.visible) drawn++;
+    const atLevel = [...wanted].filter((t) => t.level === level);
+    const key = atLevel
+      .map((t) => this.keyOf(t))
+      .sort()
+      .join("|");
 
-      if (!(t > 0) || !isFinite(t)) return null;
-      const x = origin.x + t * (p.x - origin.x);
-      const y = origin.y + t * (p.y - origin.y);
-
-      minX = Math.min(minX, x);
-      maxX = Math.max(maxX, x);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
+    if (key !== this.lastWantedKey) {
+      this.lastWantedKey = key;
+      markLayerChanged("image", atLevel.length);
     }
-
-    const canvas = this.renderer.domElement;
-
-    return {
-      minX,
-      minY,
-      maxX,
-      maxY,
-      unitsPerPixel: Math.min(
-        (maxX - minX) / canvas.width,
-        (maxY - minY) / canvas.height,
-      ),
-    };
+    markLayer("image", {
+      drawn,
+      wanted: atLevel.length,
+      resident: this.tiles.size,
+    });
+    if (drawn > 0) markLayerContent("image");
+    if (atLevel.length > 0 && atLevel.every((t) => t.mesh.visible)) {
+      markLayerSettled("image");
+    }
   }
 
   /** Chunk indices [x, y] of a level overlapping the view (all, if null). */
@@ -373,6 +481,7 @@ export class ImageLayer {
       y1,
       textures: this.channels.map(() => null),
       loading: this.channels.map(() => false),
+      controllers: this.channels.map(() => null),
       lastWanted: this.frame,
     };
 
@@ -388,39 +497,79 @@ export class ImageLayer {
 
       // Scrolled away (or the channel was switched off) before its turn
       if (tile.lastWanted < this.frame - 1 || !this.channels[channel].visible) {
-        tile.loading[channel] = false;
+        for (const k of this.chunkChannels(tile.level, channel)) {
+          tile.loading[k] = false;
+        }
         continue;
       }
       this.activeLoads++;
       this.loadChunk(tile, channel)
-        .catch((e) =>
-          console.error("[ImageLayer] Failed to load image chunk:", e),
-        )
+        .catch((e) => {
+          if ((e as Error)?.name !== "AbortError") {
+            console.error("[ImageLayer] Failed to load image chunk:", e);
+          }
+        })
         .finally(() => {
-          tile.loading[channel] = false;
+          for (const k of this.chunkChannels(tile.level, channel)) {
+            tile.loading[k] = false;
+          }
+          tile.controllers[channel] = null;
           this.activeLoads--;
         });
     }
   }
 
+  /**
+   * The channels stored in the same chunk as `channel` at a level: itself
+   * when the image is chunked one channel at a time, all of r, g, b when a
+   * chunk holds the three planes (as an H&E image is written).
+   */
+  private chunkChannels(level: number, channel: number): number[] {
+    const per = this.levels[level].array.chunks[0];
+    const first = Math.floor(channel / per) * per;
+    const end = Math.min(first + per, this.channels.length);
+
+    return Array.from({ length: end - first }, (_, i) => first + i);
+  }
+
   private async loadChunk(tile: Tile, channel: number) {
     const lv = this.levels[tile.level];
-    const chunk = await lv.array.getChunk([channel, tile.chunkY, tile.chunkX]);
+    // Coarser levels first: every tile of the coarsest is wanted at once
+    const controller = new AbortController();
+
+    tile.controllers[channel] = controller;
+    hint(controller.signal, { tag: "image", priority: tile.level });
+    const per = lv.array.chunks[0];
+    const chunk = await lv.array.getChunk(
+      [Math.floor(channel / per), tile.chunkY, tile.chunkX],
+      { signal: controller.signal },
+    );
 
     if (this.disposed || !this.tiles.has(this.keyOf(tile))) return;
 
     const data = chunk.data as Uint8Array | Uint16Array;
+    const plane = lv.chunkWidth * lv.chunkHeight;
 
-    if (tile.level === this.levels.length - 1 && !this.windowed[channel]) {
-      this.windowed[channel] = true;
-      this.setChannel(channel, { min: 0, max: percentile(data, 0.999) });
-      this.onChange?.();
+    // The chunk is (channels, y, x): one plane per channel it holds
+    for (const k of this.chunkChannels(tile.level, channel)) {
+      if (k !== channel && (!this.channels[k].visible || tile.textures[k])) {
+        continue;
+      }
+      const offset = (k % per) * plane;
+      const pixels = data.subarray(offset, offset + plane);
+
+      if (tile.level === this.levels.length - 1 && !this.windowed[k]) {
+        this.windowed[k] = true;
+        this.setChannel(k, { min: 0, max: percentile(pixels, 0.999) });
+        this.onChange?.();
+      }
+
+      const texture = this.makeTexture(pixels, lv.chunkWidth, lv.chunkHeight);
+
+      tile.textures[k] = texture;
+      tile.mesh.material.uniforms[`uTex${k}`].value = texture;
     }
-
-    const texture = this.makeTexture(data, lv.chunkWidth, lv.chunkHeight);
-
-    tile.textures[channel] = texture;
-    tile.mesh.material.uniforms[`uTex${channel}`].value = texture;
+    this.changed();
   }
 
   private makeTexture(
@@ -449,22 +598,17 @@ export class ImageLayer {
 
   /** Drop the textures of out-of-view tiles, oldest first, over the budget. */
   private evict(wanted: Set<Tile>) {
-    const bytesOf = (tile: Tile) =>
-      tile.textures.reduce(
-        (sum, t) => sum + (t ? (t.image.data as Uint16Array).byteLength : 0),
-        0,
-      );
-    let total = 0;
+    const cap = Math.min(CACHE_BYTES, this.budget.residentBytes);
+    let total = this.residentBytes();
 
-    for (const tile of this.tiles.values()) total += bytesOf(tile);
-    if (total <= CACHE_BYTES) return;
+    if (total <= cap) return;
 
     const idle = Array.from(this.tiles.values())
       .filter((t) => !wanted.has(t) && !t.loading.some(Boolean))
       .sort((a, b) => a.lastWanted - b.lastWanted);
 
     for (const tile of idle) {
-      if (total <= CACHE_BYTES) break;
+      if (total <= cap) break;
       total -= bytesOf(tile);
       this.disposeTile(tile);
       this.tiles.delete(this.keyOf(tile));
@@ -481,6 +625,14 @@ export class ImageLayer {
     tile.mesh.material.dispose();
     for (const texture of tile.textures) texture?.dispose();
   }
+}
+
+/** Texture bytes a tile holds. */
+function bytesOf(tile: Tile): number {
+  return tile.textures.reduce(
+    (sum, t) => sum + (t ? (t.image.data as Uint16Array).byteLength : 0),
+    0,
+  );
 }
 
 /** Value below which the given fraction of the non-zero pixels fall. */

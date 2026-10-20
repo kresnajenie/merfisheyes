@@ -20,6 +20,10 @@ import { generateDatasetFingerprint } from "@/lib/utils/fingerprint";
 import { uploadChunkedToS3 } from "@/lib/upload/uploadChunkedToS3";
 import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
 import { AuthModal } from "@/components/auth-modal";
+import {
+  UploadAdvancedOptions,
+  uploadViewerConfig,
+} from "@/components/upload-advanced-options";
 
 interface UploadSettingsModalProps {
   isOpen: boolean;
@@ -39,6 +43,7 @@ export function UploadSettingsModal({
     dataset?.name || "dataset",
   );
   const [owner, setOwner] = useState<OwnerValue>("me");
+  const [open3D, setOpen3D] = useState(false);
   const [email, setEmail] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -212,6 +217,7 @@ export function UploadSettingsModal({
             setProgressMessage(msg);
           },
           asAdmin: owner === "admin",
+          viewerConfig: uploadViewerConfig(open3D),
         });
 
         setProgress(100);
@@ -419,6 +425,7 @@ export function UploadSettingsModal({
         },
         files: filesToUpload,
         asAdmin: owner === "admin",
+        viewerConfig: uploadViewerConfig(open3D),
         onProgress: (prog, msg) => {
           setUploadProgress(prog);
           setUploadMessage(msg);
@@ -522,6 +529,11 @@ export function UploadSettingsModal({
               )}
 
               <OwnerChoice value={owner} onChange={setOwner} />
+
+              <UploadAdvancedOptions
+                open3D={open3D}
+                onOpen3DChange={setOpen3D}
+              />
 
               {!isSignedIn && (
                 <div className="bg-warning-50 border border-warning-200 p-3 rounded-lg flex items-center justify-between gap-3">

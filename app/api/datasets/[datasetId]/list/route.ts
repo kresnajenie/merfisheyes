@@ -37,7 +37,12 @@ export async function GET(
     }
 
     const prefix = `datasets/${datasetId}/`;
+    // With a delimiter, one level only: the keys at that level and the
+    // folders below it, so a store's root is found without listing it all
+    const delimiter =
+      request.nextUrl.searchParams.get("delimiter") ?? undefined;
     const keys: string[] = [];
+    const prefixes: string[] = [];
     let continuationToken: string | undefined = undefined;
 
     // Paginate — S3 returns up to 1000 keys per page; zarr stores can exceed.
@@ -45,19 +50,28 @@ export async function GET(
       const cmd: ListObjectsV2Command = new ListObjectsV2Command({
         Bucket: S3_BUCKET,
         Prefix: prefix,
+        Delimiter: delimiter,
         ContinuationToken: continuationToken,
       });
       const res: any = await s3Client.send(cmd);
+
+      for (const p of res.CommonPrefixes || []) {
+        if (p.Prefix) prefixes.push(p.Prefix.slice(prefix.length));
+      }
 
       for (const obj of res.Contents || []) {
         if (!obj.Key) continue;
         // Strip prefix; client works with paths relative to dataset root
         keys.push(obj.Key.slice(prefix.length));
       }
-      continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+      continuationToken = res.IsTruncated
+        ? res.NextContinuationToken
+        : undefined;
     } while (continuationToken);
 
-    return NextResponse.json({ keys }, { headers: corsHeaders });
+    return NextResponse.json(delimiter ? { keys, prefixes } : { keys }, {
+      headers: corsHeaders,
+    });
   } catch (error: any) {
     console.error("/list error:", error);
 

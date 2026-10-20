@@ -11,6 +11,7 @@ import {
   S3_POST_MAX_OBJECT_BYTES,
 } from "@/lib/s3";
 import { resolveDatasetOwner } from "@/lib/datasets/owner";
+import { validateViewerConfig } from "@/lib/utils/viewer-config";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -38,6 +39,8 @@ interface InitiateUploadRequest {
   }>;
   /** Admins only: true → collective "admin" ownership instead of personal. */
   asAdmin?: boolean;
+  /** Owner defaults to start with (see ViewerConfig), e.g. { viewMode: "3D" }. */
+  viewerConfig?: unknown;
   /**
    * "post-policy" → return one prefix-scoped POST policy instead of a
    * presigned PUT URL per file. Omitted → legacy per-file URLs.
@@ -115,6 +118,10 @@ export async function POST(request: NextRequest) {
             status: "UPLOADING",
             ownerId,
             adminOwned,
+            // Uploader's chosen defaults (e.g. open in 3D); null when none.
+            viewerConfig:
+              (validateViewerConfig(body.viewerConfig) as object | null) ??
+              undefined,
           },
         });
 

@@ -1,0 +1,22 @@
+# Preparing your own parts for MERFISHEYES (docs: /docs/prepare):
+#   scripts/prepare_folder.py, scripts/image_to_ome_zarr.py,
+#   scripts/process_single_molecule.py, scripts/validate_store.py
+#
+#   python -m venv .venv && source .venv/bin/activate
+#   pip install -r scripts/requirements-prepare.txt
+numpy
+pandas
+scipy
+pyarrow
+anndata>=0.12
+zarr>=3.1
+numcodecs>=0.16
+jsonschema
+tifffile
+# Only for --cluster (Leiden clusters + DEGs when a table has no cell types)
+scanpy
+igraph
+leidenalg
+# For a platform export, on Python 3.12 or newer:
+#   pip install spatialdata-io     scripts/prepare_xenium.py
+#   pip install spatialdata        scripts/prepare_merscope.py (also in spatialdata-io)

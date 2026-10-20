@@ -11,6 +11,8 @@ MERFISH Eyes is a web-based 3D visualization platform for spatial transcriptomic
 
 The platform provides interactive 3D visualization using Three.js with gene expression analysis capabilities.
 
+**How it is built:** [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) states the rules every change is judged by (one implementation per concern, an element kind is a contract, the format is the product, read the view not the dataset, human time is the budget, correctness shown from outside). The budgets and audits behind them live in [docs/specs/](docs/specs/). Read the philosophy before adding a format, a layer or a viewer.
+
 ## Development Commands
 
 ### Basic Commands
@@ -296,18 +298,111 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 
 #### Single Molecule Visualization
 
-**Three.js Point Clouds** ([components/single-molecule-three-scene.tsx](components/single-molecule-three-scene.tsx)):
+**Scene and layer contract** ([lib/scene/](lib/scene/), spec [docs/specs/LAYER-CONTRACT.md](docs/specs/LAYER-CONTRACT.md)):
 
-- One point cloud per gene for independent control (easier alpha/visibility management)
-- **Circular Point Rendering**: Uses radial gradient texture for smooth, anti-aliased circles
-  - `createCircleTexture()` generates 64x64 canvas texture with radial gradient
-  - Texture reused across all point clouds for memory efficiency
-  - `alphaTest: 0.5` for transparency, `map` property applies texture
-- **Color Assignment**: Random HSL colors per gene (70-100% saturation, 50-70% lightness for visibility on black background)
-- Coordinates pre-scaled by 100x (from normalized [-1,1] to [-100,100] range)
-- Point size: `localScale × globalScale × SINGLE_MOLECULE_POINT_BASE_SIZE` (configurable in VISUALIZATION_CONFIG)
-- **Async lazy loading**: `getCoordinatesByGene()` is async to support on-demand S3 loading
-- **Gene caching**: Once loaded from S3, genes remain in memory for instant re-selection
+Every element drawn in a scene (image, points element, shapes, legacy
+molecules) is a `Layer` with one lifecycle: `attach(scene)`, `tick(frame)`,
+`status()`, `subscribe()`, `setBudget()`, `abort()`, `dispose()`. Layers extend
+`BaseLayer` (root group, coalesced push notifications, `changed()` which asks
+the scene for a frame). A scene owns the only `requestAnimationFrame` loop
+(`initializeScene({ onFrame, idleFps })`, on demand: a still scene draws
+nothing) and a `LayerHost`, which builds the `SceneHandle` (`group`, `camera`,
+`renderer`, `view()` computed once per frame for all layers, `invalidate()`,
+`attach()`, `cellColors?`) and ticks the layers before each render. Controls
+re-render through `useLayerStatus(layer)`, never by polling. What a layer
+draws stays typed per layer (`setChannel`, `setGenes`/`setDetail`/
+`pointsStatus()`, `mode`/`opacity`/`shapesStatus`, `sync`). Never give a layer
+its own loop, its own view-rectangle code or a poll.
+
+**Element registry** ([lib/scene/registry.tsx](lib/scene/registry.tsx)): one
+`ElementDefinition` per kind in draw order (`ELEMENTS`): `detect` / `open`
+(metadata only) / `createLayer` / `canAttach` / `Bind` (keeps the layer in
+step with the panel's stores) / `Controls` + `slot` (`"rail"` in
+`VisualizationControls`, `"panel"` inside the scene). `openElements(store,
+ctx)` returns an `OpenedElements` record (`image`, `shapes`, `points`,
+`molecules`; a store's own points stand in for a linked molecule folder);
+`moleculeElements(ds)` classifies a molecule dataset. Scenes call
+`useLayers(elements, ctx)` ([lib/scene/useLayers.ts](lib/scene/useLayers.ts)),
+which creates the layers, keeps them across scene rebuilds (attach/detach
+only) and publishes them to the panel's layers store
+(`usePanelLayers`); `<LayerControls slot>` and `<LayerBindings ctx>`
+([components/layer-controls.tsx](components/layer-controls.tsx)) render what
+the registry says. Viewers pass `elements={…}` to `ThreeScene` /
+`SingleMoleculeThreeScene`; nothing in a viewer names a kind. Adding a kind
+is one registry entry plus the cases in `tests/unit/layer-contract.test.ts`
+and `tests/unit/registry.test.ts`; the five steps are in the spec.
+
+**One dataset loader** ([lib/viewer/load-dataset.ts](lib/viewer/load-dataset.ts),
+[lib/hooks/useDatasetLoader.ts](lib/hooks/useDatasetLoader.ts)): every page
+and split panel opens a dataset through `useDatasetLoader({ kind: "cell" |
+"sm" | "spatialdata", datasetId?, s3Url? })`, which looks the dataset up
+(registration, owner config, 202 = not ready), reuses one already open,
+reads it, applies its open state (`open-dataset.ts`), adds it to the panel's
+stores, publishes the registration (left panel) and counts the view. It
+returns `{ cells, molecules, elements, linkConfig, registration, storeUrl }`;
+a SpatialData store's elements come from `openElements`, a cell dataset's
+overlays (a dropped folder's parts, the link registry, `mapping.json`, the
+app's mapping route) from `lib/viewer/resolve-overlays.ts` through
+`useOverlays` (`lib/hooks/useOverlays.ts`), which also keeps the linked
+molecules in the panel's molecule store. `ThreeScene` takes `elements`,
+`linkConfig` and `loadingOverlay`; it resolves nothing itself. The screens are
+`DatasetLoadingScreen` / `DatasetErrorScreen`
+([components/dataset-loading-screen.tsx](components/dataset-loading-screen.tsx),
+`variant="panel"` inside a split) and the split URL params are
+`useSplitUrlParams()`. Do not add a loading path to a page.
+
+**Rendering rules** ([docs/specs/RENDERING.md](docs/specs/RENDERING.md)): a
+still scene draws nothing; a molecule cloud is positions only with its
+colour, size and shape as uniforms (`createMoleculeMaterial`); a cell tick
+copies into the existing attributes (`updatePointCloudAttributes`) and the
+gene percentile is cached; hover picks through `lib/webgl/picking-grid.ts`,
+never a pass over every cell; sizes are CSS pixels (`uPixelRatio`, renderer
+pixel ratio capped at 2); draw order is render order (image, polygon fill in
+the opaque pass, molecules, cells, outline). Never add a per-vertex constant,
+a per-frame allocation or an O(N) pass on hover.
+
+**One render path for molecules** ([lib/webgl/MoleculeLayer.ts](lib/webgl/MoleculeLayer.ts)):
+
+`MoleculeLayer` is a non-React class, in the pattern of `ImageLayer`, that owns
+every molecule point cloud of one `SingleMoleculeDataset` inside a Three.js
+group. Every surface that draws molecules drives it the same way, so loading,
+streaming and cancelling behave identically everywhere:
+
+- `components/single-molecule-three-scene.tsx` (the standalone molecule scene:
+  `/sm-viewer`, a SpatialData store without cells, a split panel, local files)
+  creates one on its inner group when the scene is built
+- `components/three-scene.tsx` (molecules over cells: `/viewer` with an
+  `__all__` mapping, a SpatialData store with cells, a split panel, a local
+  folder with cells + molecules) creates one per overlay dataset on its inner
+  group, rebuilt with the scene
+- both call `layer.sync(selection)` through `lib/hooks/useMoleculeLayerSync.ts`
+  whenever the panel's SM viz store changes, and `layer.dispose()` with the scene
+
+What the layer does (do not reimplement any of this in a scene):
+
+- one cloud per gene for assigned molecules (`${gene}:assigned`) and one for
+  unassigned (`${gene}:unassigned`), built with `createSmPointCloud` /
+  `createStreamingSmPointCloud` from `lib/webgl/point-cloud.ts`: positions
+  only, with colour, size, alpha and shape as uniforms of the molecule
+  shader (`moleculeVertexShader` in `lib/webgl/shaders.ts`), so a restyle
+  uploads nothing; render order from the legend (later-selected on top,
+  assigned above unassigned, all below the cell cloud)
+- **streams** a gene whose count (`resolveMoleculeCount`) is at or above
+  `VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD` when the dataset
+  streams (S3 factories install `streamCoordinatesByGene` as own properties);
+  a smaller gene, or any gene of a local dataset, loads whole with byte
+  progress. Downloads outlive `sync()` calls and stop only on deselect/hide,
+  toast close or dispose; appearance changes never refetch
+- one blue progress toast per gene (`loading-gene-{gene}`), updated per batch
+  or per MB; closing it aborts the download and calls `onCancelGene`, which
+  the scenes wire to `removeGene`
+- `onFirstData` fires on the first drawn molecules (the standalone scene fits
+  its camera there); `bounds` gives the filled extent; `setTargetFilter` pushes
+  the distance-filter uniforms the cell scene shares with its own cloud
+- reports every load to the E2E hooks (`window.__merfish.geneLoads`, see
+  `lib/utils/test-hooks.ts`) so browser tests can prove a gene streamed
+- gene coordinates are cached by the dataset after the first load, so
+  re-selection is instant
 
 **View Modes**:
 
@@ -316,18 +411,22 @@ Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload sta
 - **3D Mode**: Perspective view, camera at (150, 150, 150), rotation enabled
   - Uses TrackballControls for full 3D rotation
 - **Mode Switching**: Scene reinitializes when viewMode changes to swap control types
-  - Proper cleanup of point clouds and WebGL resources during reinitialization
-  - Point cloud effect includes `viewMode` dependency to recreate clouds in new scene
+  - The layer is disposed and recreated with the scene, so clouds and in-flight
+    streams are torn down and the selection is re-synced into the new scene
 
 **Rendering Strategy**:
 
 - Uses `fixed inset-0` positioning to fill entire viewport below navbar
 - Black background for high contrast with bright gene colors
-- Multiple point clouds rendered simultaneously (one per selected gene)
-- Point cloud update loop wrapped in async function to handle lazy S3 loading
-- **Toast notifications**: Only shown when first loading a new gene, not when updating existing genes (color/size changes)
-  - Prevents notification spam during visualization adjustments
-  - Silent updates for existing point clouds
+- Point size: `localScale × globalScale × SINGLE_MOLECULE_POINT_BASE_SIZE × SM_DOT_SIZE_FACTOR`,
+  set on sync; the shader scales it with the camera, so nothing runs per frame
+
+**Tests**: `tests/unit/molecule-layer.test.ts` (the layer against a fake
+dataset: whole and streamed loads, abort, toast cancel, restyle without
+refetch, order, dispose) and `e2e/tests/viewer/molecule-streaming.spec.ts`
+(`@quick`: every surface on a generated folder with two genes above the
+threshold, served throttled by `e2e/helpers/spatialdata.ts`, plus cancel
+mid-stream).
 
 ### SpatialData Stores and Images
 
@@ -394,8 +493,29 @@ the h5ad-zarr path:
   `uint8`/`uint16`, scale + translation, or a `sequence` of them as the
   `spatialdata` library writes it) and the tiled Three.js layer shared by all
   three viewers
+- `footprint.ts` — Visium spots and Visium HD bins: the cells drawn at
+  their real size and shape (radius from the shapes footer, bin side from
+  the grid's pitch), read without the shapes themselves
+- `coordinates.ts` — a store's coordinate systems: an element's transform
+  list is alternatives (one per output system), never multiplied; the
+  target is `global`, else the system the cells' region is identity into
+  (Visium); every element is placed in the cells' own coordinates through
+  it (`docs/specs/store-layout.md` §8)
+- [lib/storage/ElementStore.ts](lib/storage/ElementStore.ts) — **the one
+  store every reader reads through** (spec [docs/specs/LOADING.md](docs/specs/LOADING.md)):
+  a zarrita `AsyncReadable` over a `Backend` (`lib/storage/backends.ts`: a
+  public URL, an app dataset by presigned URL, dropped files) with one byte
+  cache, reads in flight shared, every read cancellable by `AbortSignal` all
+  the way to `fetch`, neighbouring ranged reads merged into one request, a
+  priority queue bounding requests in flight, and the consolidated metadata
+  seeded so opening a node costs no request. zarrita forwards only the
+  signal, so a reader's priority and name ride on it (`hint(signal, {…})`).
+  Never fetch, cache, queue or cancel in a reader; the legacy molecule folder
+  reads through it too (`lib/molecules/storeLoading.ts`, both `fromS3` and
+  `fromCustomS3`). `PointsLayer` keeps a byte budget per view beside its
+  point budget (`DETAIL_BYTES`) and asks for a gene's coarsest level first.
 - [lib/storage/fetchRange.ts](lib/storage/fetchRange.ts) — byte-range reads
-  for sharded arrays (`getRange` on both stores)
+  for sharded arrays, used by the URL and dataset backends
 
 **Already-processed data from disk**: the single-cell Folder card (browser
 mode) recognises, by content, a folder holding any of a SpatialData store or
@@ -416,6 +536,21 @@ alone — see the backlog in `docs/spatialdata/README.md`.
 Zarr v3 here uses the `zarrita-v3` alias (0.7.x); the h5ad-zarr path stays on
 the pinned `zarrita` 0.5.1. Do not point `lib/spatialdata/` at the old one or
 bump the shared one.
+
+**Formats as specs** ([docs/specs/store-layout.md](docs/specs/store-layout.md),
+[table-profile.md](docs/specs/table-profile.md), [shapes-profile.md](docs/specs/shapes-profile.md),
+[image-profile.md](docs/specs/image-profile.md), [mapping.md](docs/specs/mapping.md),
+[docs/points-zarr-spec.md](docs/points-zarr-spec.md) with its 0.2 proposals;
+JSON Schemas in `docs/specs/schemas/`): what a store must be, checked by
+`python scripts/validate_store.py <store.zarr>` (consolidated metadata
+naming every node, CSC `X` or a `layers/X_csc` copy, one GeoParquet file per
+shapes element, OME-NGFF `c, y, x` images, the points invariants, the
+mapping schema). `scripts/legacy_to_points.py` converts a legacy molecule
+folder into a points element. `tests/python/test_specs.py` (CI job
+`format-specs`, `pip install -r tests/python/requirements.txt`) validates the
+composed tiny fixtures, each violation, the converter molecule for molecule,
+and a store the `spatialdata` library writes. Change a format by changing
+its spec, schema and validator together.
 
 **Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
 `e2e/tests/viewer/spatialdata.spec.ts` (`@quick`),
@@ -572,7 +707,7 @@ output_folder/
 
 - `app/sm-viewer/page.tsx` - Single molecule viewer page (local file upload, auto-selects 5 random genes on load)
 - `app/sm-viewer/[id]/page.tsx` - Single molecule viewer page with S3 lazy loading (auto-selects first 3 genes)
-- `components/single-molecule-three-scene.tsx` - Three.js scene for molecule visualization with multiple point clouds
+- `components/single-molecule-three-scene.tsx` - Three.js scene for a molecule dataset on its own; the genes are drawn by `MoleculeLayer` (see Single Molecule Visualization)
 - `components/single-molecule-controls.tsx` - Gene selection UI with search, checkboxes, and colored chips
 - `components/view-mode-toggle.tsx` - Toggle button for 2D/3D camera views
 - `components/single-molecule-upload-modal.tsx` - Upload settings for molecule datasets (shows molecule count, genes, dimensions, handles S3 upload)

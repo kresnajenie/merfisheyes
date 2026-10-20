@@ -1,6 +1,7 @@
 import type { LocalBundle } from "@/lib/local/classify-bundle";
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { SpatialDataImage } from "@/lib/spatialdata/image";
+import type { CellPolygons } from "@/lib/spatialdata/shapes";
 
 import { create } from "zustand";
 
@@ -19,11 +20,18 @@ interface LocalBundleState {
   anchorId: string | null;
   molecules: SingleMoleculeDataset | null;
   image: SpatialDataImage | null;
+  shapes: (() => Promise<CellPolygons>) | null;
   set: (patch: Partial<Omit<LocalBundleState, "set" | "reset">>) => void;
   reset: () => void;
 }
 
-const initial = { bundle: null, anchorId: null, molecules: null, image: null };
+const initial = {
+  bundle: null,
+  anchorId: null,
+  molecules: null,
+  image: null,
+  shapes: null,
+};
 
 export const useLocalBundleStore = create<LocalBundleState>((set) => ({
   ...initial,

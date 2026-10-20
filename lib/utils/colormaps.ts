@@ -171,10 +171,26 @@ export const SEQUENTIAL_COLORMAPS: ColormapName[] = [
 
 export const DEFAULT_COLORMAP: ColormapName = "bwr";
 
+// Colormap stops are a handful of fixed strings, parsed once each: colouring
+// a million cells used to parse them again for every cell.
+const rgbCache = new Map<string, [number, number, number]>();
+
 function hexToRgb01(hex: string): [number, number, number] {
+  const hit = rgbCache.get(hex);
+
+  if (hit) return hit;
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!m) return [0, 0, 0];
-  return [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255];
+  const rgb: [number, number, number] = m
+    ? [
+        parseInt(m[1], 16) / 255,
+        parseInt(m[2], 16) / 255,
+        parseInt(m[3], 16) / 255,
+      ]
+    : [0, 0, 0];
+
+  rgbCache.set(hex, rgb);
+
+  return rgb;
 }
 
 function isValidColormap(name: string): name is ColormapName {
@@ -201,10 +217,12 @@ export function colormapRgb(
   for (let i = 0; i < stops.length - 1; i++) {
     const [t0, hex0] = stops[i];
     const [t1, hex1] = stops[i + 1];
+
     if (v <= t1) {
       const t = (v - t0) / (t1 - t0);
       const c0 = hexToRgb01(hex0);
       const c1 = hexToRgb01(hex1);
+
       return [
         c0[0] + (c1[0] - c0[0]) * t,
         c0[1] + (c1[1] - c0[1]) * t,
@@ -212,7 +230,9 @@ export function colormapRgb(
       ];
     }
   }
-  return hexToRgb01(stops[stops.length - 1][1]);
+  const last = hexToRgb01(stops[stops.length - 1][1]);
+
+  return [last[0], last[1], last[2]];
 }
 
 /**
@@ -231,6 +251,9 @@ export function colormapCss(
   const stops = reversed
     ? cmap.stops.map(([t, hex]) => [1 - t, hex] as const).reverse()
     : cmap.stops;
-  const css = stops.map(([t, hex]) => `${hex} ${(t * 100).toFixed(1)}%`).join(", ");
+  const css = stops
+    .map(([t, hex]) => `${hex} ${(t * 100).toFixed(1)}%`)
+    .join(", ");
+
   return `linear-gradient(${direction}, ${css})`;
 }
