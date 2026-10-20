@@ -229,7 +229,8 @@ OK   mapping.json: names the store only`}
 
       <DocSection heading="Every combination opens" id="combinations">
         <CompareTable
-          headers={["In the folder", "What you see"]}
+          headers={["What you see"]}
+          labelHeader="In the folder"
           rows={[
             [
               "A store with a table, an image and points",
