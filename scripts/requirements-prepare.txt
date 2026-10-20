@@ -17,5 +17,6 @@ tifffile
 scanpy
 igraph
 leidenalg
-# For a platform export (scripts/prepare_xenium.py), on Python 3.12 or newer:
-#   pip install spatialdata-io
+# For a platform export, on Python 3.12 or newer:
+#   pip install spatialdata-io     scripts/prepare_xenium.py
+#   pip install spatialdata        scripts/prepare_merscope.py (also in spatialdata-io)

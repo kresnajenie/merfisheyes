@@ -372,6 +372,26 @@ polygons), writes the store, converts `points/transcripts` into
 `prepare_folder.py`'s checks. Test: `MERFISHEYES_XENIUM=/path/to/outs
 python -m pytest tests/python/test_prepare_xenium.py` (skipped without it).
 
+### A MERSCOPE region (`prepare_merscope.py`)
+
+```bash
+pip install spatialdata                 # on top of requirements-prepare.txt
+python scripts/prepare_merscope.py region_R1/ sample/ --workers 8    # --z 3, --cluster, --keep-z, --url
+```
+
+Builds the store with the `spatialdata` library from the instrument's
+files: `cell_metadata.csv` + `cell_by_gene.csv` (blanks dropped, the counts
+aligned to the metadata's cell ids, written CSC; `cell_categories.csv` as
+categorical obs columns) and, when present, the vpt `cell_boundaries.parquet`
+as `shapes/cell_boundaries` (each cell's polygon on one z-plane, `--z`, the
+largest part of a MultiPolygon). `detected_transcripts.csv` (or `.parquet`)
+becomes `sample/molecules/` through `process_single_molecule.py`. Then
+`prepare_folder.py`'s checks. Not through spatialdata-io: its MERSCOPE
+reader needs the `images/` folder most exports lack. The mosaic images are
+not written (tens of GB; `image_to_ome_zarr.py` reads an image whole).
+Test: `tests/python/test_prepare_merscope.py` (a MERSCOPE-shaped export made
+in the test).
+
 ### A TIFF as an OME-Zarr image (`image_to_ome_zarr.py`)
 
 ```bash

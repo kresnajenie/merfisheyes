@@ -239,6 +239,57 @@ while writing).
 Gate: as chapter 2, on a sandbox MERFISH sample and one real MERSCOPE
 export.
 
+Result (2026-10-20): built as `scripts/prepare_merscope.py`, not on
+spatialdata-io. Measured first: spatialdata-io 0.7.1's MERSCOPE reader
+reads `images/micron_to_mosaic_pixel_transform.csv` unconditionally, no
+export on this machine has an `images/` folder (they hold the CSV trio,
+some with `cell_boundaries.parquet` and `cell_categories.csv`), and PR
+428 with the fixes is still open. So the store is built with the
+`spatialdata` library itself (`TableModel`, `ShapesModel`,
+`SpatialData.write`), which keeps the arbiter: the library that wrote it
+reads it back. The table: `cell_metadata.csv` + `cell_by_gene.csv`,
+blanks dropped by the same filter as our chunked pipeline, the counts
+aligned to the metadata's cell ids (the two files may differ in order),
+written CSC, `cell_categories.csv` as categorical columns,
+`obsm/spatial` = `center_x`, `center_y`. The polygons: the vpt
+`cell_boundaries.parquet` holds every cell once per z-plane (`ZIndex`
+0–6, MultiPolygon WKB, 4.9 M rows for 704 k cells); one plane is kept
+(`--z`, default 3), the largest part of each MultiPolygon, indexed by
+`EntityID` as a string so it matches the table's `cell_id`; a plane
+not in the file is refused naming the planes present. Transcripts go
+straight from `detected_transcripts.parquet` (or `.csv`) through
+`process_single_molecule.py` with the MERSCOPE column mapping; no points
+element is written. No image: the mosaics are not in these exports, and
+a MERSCOPE mosaic is tens of gigabytes, beyond `image_to_ome_zarr.py`.
+
+Tests: `tests/python/test_prepare_merscope.py` makes a MERSCOPE-shaped
+export (the CSVs, a vpt-layout boundaries parquet with three planes, a
+shuffled `cell_by_gene.csv`, blanks, optional categories) and checks the
+validator, the store's contents, the plane kept, the alignment, the
+blanks gone, `spatialdata.read_zarr` reading it back; 3 passed in both
+environments, no real data needed in CI.
+
+Measured: `hum_brain2` (137,627 cells, 960 genes, 6 GB transcripts CSV,
+no boundaries): 2:22 wall, 15 GB RSS, 65 MB store, 527 MB molecules,
+`--cluster` 166 Leiden clusters; dropped on the homepage, 137,627 cells,
+molecules loaded, the `leiden` column selected. The colon cancer export
+(703,879 cells, 1.3 GB counts CSV, 2 GB boundaries parquet, 3.5 GB
+transcripts parquet, `cell_categories.csv` with `leiden`): 3:19 wall,
+22 GB RSS, 554 MB store (289 MB polygon file, one row group), 1.1 GB
+molecules, validator every MUST OK.
+
+Cold walkthrough: the page's commands ran as printed in the fresh venv
+(`spatialdata` on top of the requirements). Gaps closed: the page says
+which files are needed, that the two CSVs may order cells differently,
+what `--z` means and what happens when the plane is missing, and why
+spatialdata-io is not used. Left open: memory — the counts CSV is read
+as a dense frame (704 k × 1,000 genes took 22 GB), a chunked read into
+sparse would cut it to a fraction; the polygon file is one row group
+(the shapes profile's later ask); the mosaic images (tile-wise OME-Zarr
+writing, a later chapter); `cell_numeric_categories.csv` (UMAP) not
+carried; 166 Leiden clusters on the brain export suggests the
+clustering sidecar's defaults deserve a look.
+
 ### Chapter 4: Visium and Visium HD (`feat/upload-tutorial-visium`)
 
 - `scripts/prepare_visium.py` on `visium()` / `visium_hd()` with

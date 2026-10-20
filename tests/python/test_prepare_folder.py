@@ -132,6 +132,7 @@ def test_the_guides_show_the_script_as_it_is():
             "python scripts/process_single_molecule.py ",
             "python scripts/image_to_ome_zarr.py ",
             "python scripts/prepare_xenium.py ",
+            "python scripts/prepare_merscope.py ",
             "pip install -r scripts/requirements-prepare.txt",
         ):
             assert command in text, (page, command)

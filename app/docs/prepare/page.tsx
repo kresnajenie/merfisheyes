@@ -342,6 +342,79 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
           ]}
         />
       </DocSection>
+
+      <DocSection heading="MERSCOPE" id="merscope">
+        <Prose>
+          <p>
+            A region folder as the instrument (or vpt) writes it:{" "}
+            <code>cell_metadata.csv</code>, <code>cell_by_gene.csv</code>,{" "}
+            <code>detected_transcripts.csv</code> (or <code>.parquet</code>)
+            and, when you have them, <code>cell_boundaries.parquet</code> and{" "}
+            <code>cell_categories.csv</code>. The store is built with the{" "}
+            <code>spatialdata</code> library itself, not spatialdata-io, whose
+            MERSCOPE reader stops without the <code>images/</code> folder that
+            most shared exports lack.
+          </p>
+        </Prose>
+        <Steps
+          steps={[
+            {
+              title: "Install the library",
+              children: (
+                <pre className={pre}>
+                  {`pip install -r scripts/requirements-prepare.txt spatialdata    # Python 3.12 or newer`}
+                </pre>
+              ),
+            },
+            {
+              title: "Run it on the region folder",
+              children: (
+                <>
+                  <pre className={pre}>
+                    {`python scripts/prepare_merscope.py region_R1/ sample/ --workers 8   # --z 3 picks the polygons' plane; --cluster when there are no cell types`}
+                  </pre>
+                  <pre className={pre}>
+                    {`sample/
+├── region_R1.zarr/    tables/table (counts without blanks, CSC; the metadata and categories as columns),
+│                      shapes/cell_boundaries (each cell's polygon on one z-plane, --z)
+├── molecules/         detected_transcripts as one file per gene, flat on the cells' plane (--keep-z keeps z)
+├── annotations/       (--cluster) Leiden clusters + DEGs
+└── mapping.json       { "cells": "region_R1.zarr", "links": { "__all__": "molecules" } }`}
+                  </pre>
+                  <p>
+                    Everything is in microns, as the files have it. The counts
+                    are aligned to the metadata&apos;s cell ids, so the two CSVs
+                    may list cells in different orders. The boundaries file
+                    holds every cell once per z-plane; one plane is kept (the
+                    largest part of a MultiPolygon), and a plane that is not in
+                    the file is refused with the planes that are. The mosaic
+                    images are not written yet: a MERSCOPE mosaic is tens of
+                    gigabytes, more than the image script holds in memory.
+                  </p>
+                  <p>
+                    Measured: a 137,627-cell, 960-gene region with a 6 GB
+                    transcripts CSV took 2 min 22 s and 15 GB of memory (65 MB
+                    store, 530 MB of molecule files); a 703,879-cell region with
+                    boundaries and categories took 3 min 19 s and 22 GB (550 MB
+                    store with a 290 MB polygon file, 1.1 GB of molecules). The
+                    counts CSV is read whole, which is where the memory goes.
+                  </p>
+                </>
+              ),
+            },
+            {
+              title: "Open it",
+              children: (
+                <p>
+                  As above: drop <code>sample/</code> on the single cell{" "}
+                  <b>Folder</b> card, <b>Upload &amp; Save</b>, or sync it to a
+                  bucket.
+                </p>
+              ),
+            },
+          ]}
+        />
+      </DocSection>
     </>
   );
 }
