@@ -138,6 +138,25 @@ image and 591,900 molecules of three genes streamed in 69 requests
 15.6 GB in all, 70.5 M molecules in `points/molecules`, `obs/leiden` in
 the table, `annotations/` holding `de/leiden.bin.gz` only.
 
+12. **The molecules go straight from the table into the points element**
+    (user, same day, on seeing the two-step conversion): the first wrap
+    went transcripts → per-gene `bin.gz` → tiled element, two scripts
+    chained because they existed, with a copy of the molecules left in
+    `sources/`. Now `scripts/transcripts_to_points.py` reads a parquet or
+    CSV table (Xenium's and MERSCOPE's columns recognised, others named
+    with `--columns`), or a store's parquet points element, in two batched
+    passes (genes and extent, then the molecules) and feeds the tiled
+    writer directly; `prepare_folder.py` recognises a transcripts table as
+    the molecules part (`--molecule-columns`), the platform scripts pass
+    the export's own transcripts file, and nothing is copied. The per-gene
+    `bin.gz` folder remains the molecules of the expanded layout and of a
+    molecule folder on its own, and is still accepted as input. `--keep-z`
+    left the platform scripts: inside a store the molecules lie on the
+    cells' plane. Tests: `tests/python/test_transcripts_to_points.py`
+    (parquet, CSV, custom columns, a points directory with its feature key
+    and transforms), the folder tests on a transcripts table in both
+    layouts; 51 passed in the fresh venv, 50 in the base env.
+
 ## 3. Chapters
 
 Branches off `develop`, one PR each, every PR with unit, Python and

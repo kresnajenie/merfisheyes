@@ -45,11 +45,12 @@ export default function PreparePage() {
 │   │   └── layers/X_csc           a CSC copy when X is not CSC (one gene = one slice)
 │   ├── images/dapi/               the image: OME-Zarr, axes c, y, x, 1024² chunks, a pyramid,
 │   │                              placed among the cells by its scale and translation
-│   ├── points/molecules/          the molecules: tiled points element (docs/points-zarr-spec.md)
+│   ├── points/molecules/          the molecules, straight from the transcripts table: a tiled
+│   │                              points element (docs/points-zarr-spec.md) streamed by view
 │   └── shapes/cell_boundaries/    the polygons, when you have them: one GeoParquet file
 ├── annotations/                   (--cluster) de/leiden.bin.gz: the DEG stats, which SpatialData
 │                                  has no place for; the clusters themselves are in the table
-├── sources/                       the image and molecule folders the store was made from
+├── sources/                       the image folder and the transcripts table the store was made from
 └── mapping.json                   { "cells": "sample.zarr" }`}
         </pre>
         <Callout>
@@ -96,25 +97,42 @@ pip install -r scripts/requirements-prepare.txt spatialdata`}
               ),
             },
             {
-              title: "Make the two parts that need converting",
+              title: "The cells and the molecules: as they are",
               children: (
                 <>
                   <pre className={pre}>
-                    {`mkdir sample && cp cells.h5ad sample/
-
-# molecules: a transcripts table → one file per gene
-python scripts/process_single_molecule.py transcripts.parquet sample/molecules/ --dataset-type xenium
-#   --dataset-type merscope for gene/global_x/global_y/global_z columns;
-#   any other names: --gene-col gene --x-col x --y-col y [--z-col z]
-
-# image: a TIFF → OME-Zarr, placed among the cells by its pixel size and origin
-python scripts/image_to_ome_zarr.py dapi.tif sample/dapi.zarr --um-per-pixel 0.108 --origin 0 0 --channels DAPI`}
+                    {`mkdir sample && cp cells.h5ad transcripts.parquet sample/`}
                   </pre>
-                  <p>Now the folder is:</p>
+                  <p>
+                    Nothing to convert. The transcripts table is read straight
+                    into the store&apos;s tiled points element. Xenium&apos;s
+                    columns (<code>feature_name</code>, <code>x_location</code>,{" "}
+                    <code>y_location</code>) and MERSCOPE&apos;s (
+                    <code>gene</code>, <code>global_x</code>,{" "}
+                    <code>global_y</code>) are recognised; any other names are
+                    given to the script in the next step with{" "}
+                    <code>--molecule-columns GENE,X,Y</code>. Molecules are
+                    written flat on the cells&apos; plane.
+                  </p>
+                </>
+              ),
+            },
+            {
+              title: "The image: a TIFF becomes OME-Zarr",
+              children: (
+                <>
+                  <pre className={pre}>
+                    {`python scripts/image_to_ome_zarr.py dapi.tif sample/dapi.zarr --um-per-pixel 0.108 --origin 0 0 --channels DAPI`}
+                  </pre>
+                  <p>
+                    The pixel size and the origin (where the centre of pixel 0,
+                    0 sits among the cells, in their units) are what place it
+                    under them. Now the folder is:
+                  </p>
                   <pre className={pre}>
                     {`sample/
 ├── cells.h5ad
-├── molecules/                 manifest.json.gz + genes/<gene>.bin.gz
+├── transcripts.parquet
 └── dapi.zarr/                 OME-Zarr: zarr.json + 0/, 1/, … (the pyramid)`}
                   </pre>
                 </>
@@ -131,8 +149,10 @@ python scripts/image_to_ome_zarr.py dapi.tif sample/dapi.zarr --um-per-pixel 0.1
                     It finds the three parts by what is in them (names do not
                     matter), wraps the table into the store, adds the CSC copy,
                     writes the image into the store with the{" "}
-                    <code>spatialdata</code> library and the molecules as the
-                    tiled points element, moves the two folders into{" "}
+                    <code>spatialdata</code> library and the transcripts table
+                    straight into the tiled points element (the script that does
+                    that, <code>transcripts_to_points.py</code>, also runs on
+                    its own), moves the image folder and the table into{" "}
                     <code>sources/</code>, writes <code>mapping.json</code> and
                     runs the validator, one line per check:
                   </p>
@@ -292,10 +312,9 @@ OK   mapping.json: names the store only`}
 │   ├── shapes/cell_boundaries/    one GeoParquet each
 │   ├── shapes/nucleus_boundaries/
 │   ├── images/morphology_focus/   1024² chunks, 6 levels
-│   ├── points/molecules/          the transcripts, tiled, flat on the cells' plane (--keep-z keeps z)
+│   ├── points/molecules/          transcripts.parquet, tiled, flat on the cells' plane
 │   └── points/transcripts/        the reader's own parquet copy; not read by the viewer
 ├── annotations/                   (--cluster) the DEG stats
-├── sources/molecules/             the per-gene files the points element was made from
 └── mapping.json                   { "cells": "Xenium.zarr" }`}
                   </pre>
                   <p>
@@ -309,9 +328,9 @@ OK   mapping.json: names the store only`}
                   </p>
                   <p>
                     Measured on a 130,870-cell, 42 M-transcript mouse brain
-                    (Xenium 1.0): about 2 min and 9 GB of memory at the peak;{" "}
-                    <code>--cluster</code> another 47 s for 33 Leiden clusters.
-                    The report&apos;s <code>WARN</code> lines on{" "}
+                    (Xenium 1.0): 73 s and 9 GB of memory at the peak, a 3.4 GB
+                    store; <code>--cluster</code> another 47 s for 33 Leiden
+                    clusters. The report&apos;s <code>WARN</code> lines on{" "}
                     <code>points/transcripts</code> (not read) and on the
                     polygon files (one row group) are expected.
                   </p>
@@ -377,9 +396,8 @@ OK   mapping.json: names the store only`}
 ├── region_R1.zarr/
 │   ├── tables/table/              counts without blanks, CSC; the metadata and categories as columns
 │   ├── shapes/cell_boundaries/    each cell's polygon on one z-plane (--z), one GeoParquet
-│   └── points/molecules/          detected_transcripts, tiled, flat on the cells' plane (--keep-z keeps z)
+│   └── points/molecules/          detected_transcripts, tiled, flat on the cells' plane
 ├── annotations/                   (--cluster) the DEG stats
-├── sources/molecules/             the per-gene files the points element was made from
 └── mapping.json                   { "cells": "region_R1.zarr" }`}
                   </pre>
                   <p>

@@ -156,7 +156,7 @@ def test_the_guides_show_the_script_as_it_is():
         text = page.read_text()
         for command in (
             "python scripts/prepare_folder.py ",
-            "python scripts/process_single_molecule.py ",
+            "transcripts_to_points.py",
             "python scripts/image_to_ome_zarr.py ",
             "python scripts/prepare_xenium.py ",
             "python scripts/prepare_merscope.py ",
@@ -332,6 +332,66 @@ def test_a_float_tiff_is_refused(tmp_path):
 
     with pytest.raises(SystemExit, match="uint8 or uint16"):
         image_to_ome_zarr.write_ome_zarr(np.zeros((8, 8), dtype=np.float32), tmp_path / "x.zarr", um_per_pixel=1.0, log=lambda *_: None)
+
+
+# ── a transcripts table goes straight into the store ──────────────────────
+
+def transcripts_into(folder: Path, name="transcripts.parquet") -> Path:
+    """A Xenium-shaped transcripts table over the cells' 0–100 extent."""
+    rng = np.random.default_rng(8)
+    n = 4000
+    df = pd.DataFrame({
+        "feature_name": rng.choice([f"gene{i}" for i in range(GENES)] + ["BLANK-1"], n),
+        "x_location": rng.uniform(0, 100, n), "y_location": rng.uniform(0, 100, n), "z_location": rng.uniform(0, 5, n),
+    })
+    if name.endswith(".csv"):
+        df.to_csv(folder / name, index=False)
+    else:
+        df.to_parquet(folder / name)
+    return folder / name
+
+
+def test_a_transcripts_table_becomes_the_points_element(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    transcripts_into(folder)
+    image_into(folder)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    nodes = consolidated(folder / "s.zarr")
+    assert nodes["points/molecules"]["attributes"]["points:version"]
+    assert nodes["points/molecules"]["attributes"]["points:n_points"] < 4000  # the blank gene left out
+    assert nodes["points/molecules"]["attributes"]["axes"] == ["x", "y"]
+    assert "images/dapi" in nodes
+    assert sorted(p.name for p in (folder / "sources").iterdir()) == ["dapi.zarr", "transcripts.parquet"]
+    assert not (folder / "molecules").exists()  # no per-gene folder on the way
+    assert json.loads((folder / "mapping.json").read_text()) == {"cells": "s.zarr"}
+
+
+def test_a_transcripts_table_in_the_expanded_layout_becomes_a_per_gene_folder(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    transcripts_into(folder, "transcripts.csv")
+    r = prepare_folder.prepare(folder, expanded=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (folder / "molecules" / "manifest.json.gz").exists() and (folder / "transcripts.csv").exists()
+    assert json.loads((folder / "mapping.json").read_text())["links"] == {"__all__": "molecules"}
+    assert any(w == "molecules/molecules" and "covering" in m for lv, w, m in r.lines if lv == "OK"), r.lines
+
+
+def test_a_table_with_other_column_names_needs_them_named(tmp_path):
+    folder = tmp_path / "s"
+    folder.mkdir()
+    write_table(make_table(), folder / "cells.zarr", 3)
+    p = transcripts_into(folder)
+    pd.read_parquet(p).rename(columns={"feature_name": "g", "x_location": "px", "y_location": "py"}).to_parquet(p)
+    r = prepare_folder.prepare(folder, log=lambda *_: None)  # not recognised: no molecules
+    assert not r.failed and "points/molecules" not in consolidated(folder / "s.zarr")
+    r = prepare_folder.prepare(folder, molecule_columns="g,px,py", log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert "points/molecules" in consolidated(folder / "s.zarr")
 
 
 # ── a store the viewer cannot read as written is repaired ─────────────────

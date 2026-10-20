@@ -352,7 +352,10 @@ Writes one SpatialData store `sample.zarr` (Zarr v3): the table in
 `tables/table` with `layers/X_csc` when `X` is not CSC, the image as
 `images/<name>` written by the `spatialdata` library from the OME-Zarr
 folder, the molecules as `points/molecules` (a tiled points element,
-`legacy_to_points.py`); the image and molecule folders move to `sources/`;
+straight from a transcripts table with `transcripts_to_points.py`, or from a
+per-gene folder with `legacy_to_points.py`; `--molecule-columns` names a
+table's columns when they are not Xenium's or MERSCOPE's); the image folder
+and the transcripts table move to `sources/`;
 `mapping.json` names the store; with `--cluster` the Leiden clusters go
 into the table as `obs/leiden` and `annotations/` holds the DEG stats.
 Then `validate_store.py`. `--expanded` keeps the image and molecule
@@ -372,22 +375,22 @@ Tests: `tests/python/test_prepare_folder.py`.
 
 ```bash
 pip install spatialdata-io          # Python 3.12 or newer, on top of requirements-prepare.txt
-python scripts/prepare_xenium.py Xenium_outs/ sample/ --workers 8    # --cluster, --labels, --keep-z, --url
+python scripts/prepare_xenium.py Xenium_outs/ sample/ --workers 8    # --cluster, --labels, --expanded, --url
 ```
 
-Reads the export with `spatialdata_io.xenium` (boundaries, transcripts,
-the morphology focus image with 1024² chunks and a pyramid, the cell
-table; no raster labels unless `--labels`, the table then annotating the
-polygons), writes the store, converts `points/transcripts` into
-`sample/molecules/` (flat; `--keep-z` keeps z), then runs
-`prepare_folder.py`'s checks. Test: `MERFISHEYES_XENIUM=/path/to/outs
+Reads the export with `spatialdata_io.xenium` (boundaries, the morphology
+focus image with 1024² chunks and a pyramid, the cell table; no raster
+labels unless `--labels`, the table then annotating the polygons), writes
+the store, then hands the export's own `transcripts.parquet` to
+`prepare_folder.py`, which writes it straight into `points/molecules` (flat,
+in the cells' frame) and runs the checks. Test: `MERFISHEYES_XENIUM=/path/to/outs
 python -m pytest tests/python/test_prepare_xenium.py` (skipped without it).
 
 ### A MERSCOPE region (`prepare_merscope.py`)
 
 ```bash
 pip install spatialdata                 # on top of requirements-prepare.txt
-python scripts/prepare_merscope.py region_R1/ sample/ --workers 8    # --z 3, --cluster, --keep-z, --url
+python scripts/prepare_merscope.py region_R1/ sample/ --workers 8    # --z 3, --cluster, --expanded, --url
 ```
 
 Builds the store with the `spatialdata` library from the instrument's
@@ -396,8 +399,8 @@ aligned to the metadata's cell ids, written CSC; `cell_categories.csv` as
 categorical obs columns) and, when present, the vpt `cell_boundaries.parquet`
 as `shapes/cell_boundaries` (each cell's polygon on one z-plane, `--z`, the
 largest part of a MultiPolygon). `detected_transcripts.csv` (or `.parquet`)
-becomes `sample/molecules/` through `process_single_molecule.py`. Then
-`prepare_folder.py`'s checks. Not through spatialdata-io: its MERSCOPE
+goes straight into `points/molecules` through `prepare_folder.py`, which
+then runs the checks. Not through spatialdata-io: its MERSCOPE
 reader needs the `images/` folder most exports lack. The mosaic images are
 not written (tens of GB; `image_to_ome_zarr.py` reads an image whole).
 Test: `tests/python/test_prepare_merscope.py` (a MERSCOPE-shaped export made
@@ -419,6 +422,23 @@ HD the 8 µm table is made the default (`metadata_general["Default Table"]`)
 and 2 µm bins are not read unless asked. Test:
 `tests/python/test_prepare_visium.py` (a Space Ranger-shaped output made in
 the test; the HD case runs with `MERFISHEYES_VISIUM_HD=/path/to/outs`).
+
+### A transcripts table as the tiled points element (`transcripts_to_points.py`)
+
+```bash
+python scripts/transcripts_to_points.py transcripts.parquet sample.zarr                 # Xenium / MERSCOPE columns recognised
+python scripts/transcripts_to_points.py detected_transcripts.csv sample.zarr --columns gene,global_x,global_y
+python scripts/transcripts_to_points.py store.zarr/points/transcripts sample.zarr        # a store's parquet points element
+```
+
+Writes `points/molecules` of the store as `docs/points-zarr-spec.md`
+describes it: every molecule at level 0, each further level a uniform
+quarter, two row orders (by tile, by gene) and an index per level, so the
+viewer reads one region or one gene by range request. Two passes over the
+table in batches; control probes and blanks dropped; flat unless
+`--keep-z`. 42 M molecules in about 40 s and 1 GB. `prepare_folder.py` calls
+it, with the cells' region transforms, whenever a folder holds a transcripts
+table. Test: `tests/python/test_transcripts_to_points.py`.
 
 ### A TIFF as an OME-Zarr image (`image_to_ome_zarr.py`)
 

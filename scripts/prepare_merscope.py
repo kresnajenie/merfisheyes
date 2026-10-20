@@ -2,7 +2,7 @@
 """Turn a MERSCOPE (Vizgen) region export into a folder MERFISHEYES opens as it is.
 
   python scripts/prepare_merscope.py <region_folder> <folder> [--name NAME]
-                                     [--z 3] [--keep-z] [--workers N]
+                                     [--z 3] [--workers N]
                                      [--cluster] [--url BASE]
 
 The region folder holds the files the MERSCOPE instrument (or vpt) writes:
@@ -21,7 +21,7 @@ reads back):
                           obs columns), shapes/cell_boundaries (one GeoParquet: each
                           cell's polygon on one z-plane, --z, as microns)
   <folder>/molecules/     the transcripts as one file per gene (what the viewer
-                          streams), flat on the cells' plane unless --keep-z
+                          streams), flat on the cells' plane
   <folder>/mapping.json   names the store and the molecules
   <folder>/annotations/   with --cluster, Leiden clusters + DEGs when the table
                           has no categorical column
@@ -46,7 +46,6 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import prepare_folder  # noqa: E402
-import process_single_molecule as psm  # noqa: E402
 from process_spatial_data import should_filter_gene  # noqa: E402
 
 ID_COLUMNS = ("EntityID", "cell_id", "cell", "id")
@@ -179,7 +178,6 @@ def prepare_merscope(
     *,
     name: str | None = None,
     z: int = 3,
-    keep_z: bool = False,
     workers: int = 1,
     cluster: bool = False,
     url: str | None = None,
@@ -203,23 +201,14 @@ def prepare_merscope(
             log(f"  {missing:,} cells have no polygon on ZIndex {z}")
     write_store(store, table, boundaries, log)
 
-    molecules = folder / "molecules"
+    # The transcripts go straight from the instrument's table into the store's
+    # tiled points element (or, --expanded, a per-gene folder beside it)
     transcripts = find(path, "detected_transcripts.parquet", "detected_transcripts.csv")
-    if transcripts is not None:
-        log(f"writing {molecules} from {transcripts.name} ({'3D' if keep_z else 'flat'}) ...")
-        psm.process_single_molecule_data(
-            input_file=str(transcripts),
-            output_folder=str(molecules),
-            dataset_type="merscope",
-            z_col=None if not keep_z else "global_z",
-            num_workers=workers,
-        )
-    else:
+    if transcripts is None:
         log("  no detected_transcripts file: no molecules")
-
     log("checking the folder ...")
     return prepare_folder.prepare(
-        folder, cells=store, molecules=molecules if molecules.exists() else None, cluster=cluster, url=url,
+        folder, cells=store, molecules=transcripts, molecule_columns="merscope", cluster=cluster, url=url,
         expanded=expanded, workers=workers, log=log,
     )
 
@@ -230,7 +219,6 @@ def main(argv=None) -> int:
     ap.add_argument("folder", type=Path, help="the folder to write; it is what you drop, save or sync")
     ap.add_argument("--name", help="the store's name (default: the region folder's)")
     ap.add_argument("--z", type=int, default=3, help="the z-plane (ZIndex) whose polygons are kept (default 3)")
-    ap.add_argument("--keep-z", action="store_true", help="keep the transcripts' z (for a 3D view on their own)")
     ap.add_argument("--workers", type=int, default=4, help="parallel gene-file writers")
     ap.add_argument("--cluster", action="store_true", help="Leiden clusters + DEGs when the table has no cell types")
     ap.add_argument("--url", help="the folder's public URL, for absolute links in mapping.json")
@@ -241,7 +229,6 @@ def main(argv=None) -> int:
         args.folder,
         name=args.name,
         z=args.z,
-        keep_z=args.keep_z,
         workers=args.workers,
         cluster=args.cluster,
         url=args.url,

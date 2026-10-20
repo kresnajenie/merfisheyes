@@ -54,7 +54,8 @@ def test_the_store_holds_what_the_profiles_need(prepared):
         assert max(chunks[-2:]) <= 1024, (level, chunks)
     assert not any(k.startswith("labels/") for k in nodes)
     assert nodes["points/molecules"]["attributes"]["points:version"]  # the molecules, tiled, inside the store
-    assert (folder / "sources" / "molecules").is_dir()
+    assert nodes["points/molecules"]["attributes"]["coordinateTransformations"][0]["scale"][0] > 4  # the cells' frame
+    assert not (folder / "sources").exists()  # straight from the export's table; nothing copied
     mapping = json.loads((folder / "mapping.json").read_text())
     assert mapping == {"cells": "sample.zarr"}
 

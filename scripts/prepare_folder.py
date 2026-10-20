@@ -70,10 +70,27 @@ def read_json(path: Path) -> dict | None:
         return None
 
 
-def kind_of(path: Path) -> str | None:
-    """`store`, `table3`, `table2`, `h5ad`, `molecules`, `image`, or None."""
+def transcripts_columns(path: Path) -> bool:
+    """True when the .parquet / .csv file has a gene column and x, y columns a
+    platform names (Xenium, MERSCOPE); other tables need --molecule-columns."""
+    try:
+        import transcripts_to_points
+
+        names = set(transcripts_to_points.column_names(path))
+    except Exception:  # noqa: BLE001 — not a table we can read
+        return False
+    return any({g, x, y} <= names for g, x, y, _ in transcripts_to_points.KNOWN.values())
+
+
+def kind_of(path: Path, molecule_columns: str | None = None) -> str | None:
+    """`store`, `table3`, `table2`, `h5ad`, `molecules` (a per-gene folder),
+    `transcripts` (a table of molecules), `image`, or None."""
     if path.is_file():
-        return "h5ad" if path.suffix == ".h5ad" else None
+        if path.suffix == ".h5ad":
+            return "h5ad"
+        if path.suffix.lower() in (".parquet", ".csv") and (molecule_columns or transcripts_columns(path)):
+            return "transcripts"
+        return None
     if not path.is_dir():
         return None
     root = read_json(path / "zarr.json")
@@ -94,15 +111,16 @@ def kind_of(path: Path) -> str | None:
     return None
 
 
-def find_parts(folder: Path) -> dict[str, list[Path]]:
-    """Every part in the folder, or the folder itself, grouped by what it is."""
+def find_parts(folder: Path, molecule_columns: str | None = None) -> dict[str, list[Path]]:
+    """Every part in the folder, or the folder itself, grouped by what it is.
+    Molecules are a per-gene folder or a transcripts table (parquet / csv)."""
     found: dict[str, list[Path]] = {"cells": [], "molecules": [], "image": []}
     candidates = [folder] + sorted(p for p in folder.iterdir() if not p.name.startswith("."))
     for p in candidates:
-        kind = kind_of(p)
+        kind = kind_of(p, molecule_columns)
         if kind in ("store", "table3", "table2", "h5ad"):
             found["cells"].append(p)
-        elif kind == "molecules":
+        elif kind in ("molecules", "transcripts"):
             found["molecules"].append(p)
         elif kind == "image":
             found["image"].append(p)
@@ -377,16 +395,40 @@ def region_transforms(store: Path, dims: int = 2) -> list[dict] | None:
     return out or None
 
 
-def wrap_molecules(store: Path, molecules: Path, name: str, workers: int, log) -> str:
-    """The molecule folder becomes `points/<name>`, a tiled points element
-    the viewer streams by view (docs/points-zarr-spec.md); molecules flat on
-    the cells' plane, in the cells' frame."""
-    import legacy_to_points
-
+def wrap_molecules(store: Path, molecules: Path, name: str, workers: int, log, columns: str | None = None) -> str:
+    """The molecules become `points/<name>`, a tiled points element the
+    viewer streams by view (docs/points-zarr-spec.md), flat on the cells'
+    plane and in the cells' frame: straight from a transcripts table, a
+    store's own parquet points element, or a per-gene folder."""
     transforms = region_transforms(store)
-    log(f"  points/{name}: from {molecules.name}" + (f", transforms of the cells' region" if transforms else "") + " ...")
-    legacy_to_points.convert(molecules, store, name=name, drop_z=True, transformations=transforms, log=lambda *_: None)
+    log(f"  points/{name}: from {molecules.name}" + (", transforms of the cells' region" if transforms else "") + " ...")
+    if molecules.is_dir() and (molecules / "genes").is_dir():
+        import legacy_to_points
+
+        legacy_to_points.convert(molecules, store, name=name, drop_z=True, transformations=transforms, log=lambda *_: None)
+    else:
+        import transcripts_to_points
+
+        transcripts_to_points.convert(molecules, store, name=name, columns=columns, transformations=transforms, log=log)
     return name
+
+
+def expand_molecules(folder: Path, molecules: Path, columns: str | None, workers: int, log) -> Path:
+    """The expanded layout keeps molecules as a per-gene folder beside the
+    store: a transcripts table is written as one (process_single_molecule.py)."""
+    if molecules.is_dir():
+        return molecules
+    import process_single_molecule as psm
+    import transcripts_to_points
+
+    gene, x, y, z = transcripts_to_points.resolve_columns(transcripts_to_points.column_names(molecules), columns)
+    out = folder / "molecules"
+    log(f"  {out.name}/: one file per gene from {molecules.name} ...")
+    psm.process_single_molecule_data(
+        input_file=str(molecules), output_folder=str(out), dataset_type="custom",
+        gene_col=gene, x_col=x, y_col=y, z_col=None, num_workers=workers,
+    )
+    return out
 
 
 # ── the table ─────────────────────────────────────────────────────────────
@@ -523,14 +565,15 @@ def prepare(
     molecules_from_points: bool = False,
     workers: int = 1,
     expanded: bool = False,
+    molecule_columns: str | None = None,
     log=print,
 ) -> validate_store.Report:
     folder = folder.resolve()
-    parts = find_parts(folder)
+    parts = find_parts(folder, molecule_columns)
 
     def pick(kind: str, given: Path | None) -> Path | None:
         if given is not None:
-            if kind_of(given) is None:
+            if kind_of(given, molecule_columns) is None:
                 raise SystemExit(f"{given} is not a {kind} part this script knows")
             return given.resolve()
         if len(parts[kind]) > 1:
@@ -568,26 +611,41 @@ def prepare(
             spatialdata_cluster.cluster(store, folder / "annotations", table=table_name, resolution=resolution, log=log)
         repair_shapes(store, log)
         repair_image_chunks(store, log)
-        if molecules is None and molecules_from_points and element_dirs(store, "points"):
-            import spatialdata_points_to_sm
+        if molecules is None and molecules_from_points:
+            parquet_points = [
+                el for el in element_dirs(store, "points")
+                if (el / "points.parquet").exists() and not (read_json(el / "zarr.json") or {}).get("attributes", {}).get("points:version")
+            ]
+            if parquet_points and expanded:
+                import spatialdata_points_to_sm
 
-            molecules = folder / "molecules"
-            log(f"  points → {molecules.name} (flat) ...")
-            spatialdata_points_to_sm.convert(store, molecules, workers=workers, drop_z=True)
+                molecules = folder / "molecules"
+                log(f"  points/{parquet_points[0].name} → {molecules.name} (flat) ...")
+                spatialdata_points_to_sm.convert(store, molecules, points=parquet_points[0].name, workers=workers, drop_z=True)
+            elif parquet_points and not (store / "points" / "molecules").exists():
+                wrap_molecules(store, parquet_points[0], "molecules", workers, log)
+        if expanded and molecules is not None:
+            molecules = expand_molecules(folder, molecules, molecule_columns, workers, log)
         if not expanded and (image is not None or molecules is not None):
-            # One SpatialData store holding everything; the parts it was
-            # made from go to sources/, where a drop does not look
+            # One SpatialData store holding everything; the parts it was made
+            # from go to sources/ (where a drop does not look) when they sit in
+            # this folder; a file given from elsewhere stays where it is
             sources = folder / "sources"
-            sources.mkdir(exist_ok=True)
+
+            def put_aside(part: Path) -> None:
+                if part.parent == folder:
+                    sources.mkdir(exist_ok=True)
+                    shutil.move(str(part), str(sources / part.name))
+                    log(f"  {part.name} moved to {sources.name}/")
+
             if image is not None:
                 wrap_image(store, image, log)
-                shutil.move(str(image), str(sources / image.name))
+                put_aside(image)
                 image = None
             if molecules is not None:
-                wrap_molecules(store, molecules, "molecules", workers, log)
-                shutil.move(str(molecules), str(sources / molecules.name))
+                wrap_molecules(store, molecules, "molecules", workers, log, columns=molecule_columns)
+                put_aside(molecules)
                 molecules = None
-            log(f"  the parts moved to {sources.name}/")
         import zarr
 
         zarr.consolidate_metadata(str(store))
@@ -635,6 +693,7 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=4, help="parallel gene-file writers for --molecules-from-points")
     ap.add_argument("--expanded", action="store_true",
                     help="leave the image and the molecule folder beside the store, named in mapping.json, instead of inside it")
+    ap.add_argument("--molecule-columns", help="a transcripts table's columns: xenium, merscope, or GENE,X,Y[,Z] (default: recognised)")
     args = ap.parse_args(argv)
     r = prepare(
         args.folder,
@@ -648,6 +707,7 @@ def main(argv=None) -> int:
         molecules_from_points=args.molecules_from_points,
         workers=args.workers,
         expanded=args.expanded,
+        molecule_columns=args.molecule_columns,
     )
     return 1 if r.failed else 0
 
