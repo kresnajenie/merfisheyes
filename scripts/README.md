@@ -357,6 +357,21 @@ runs `validate_store.py`. The folder then opens by drag and drop, with
 `pip install -r scripts/requirements-prepare.txt`. Tests:
 `tests/python/test_prepare_folder.py`.
 
+### A Xenium export (`prepare_xenium.py`)
+
+```bash
+pip install spatialdata-io          # Python 3.12 or newer, on top of requirements-prepare.txt
+python scripts/prepare_xenium.py Xenium_outs/ sample/ --workers 8    # --cluster, --labels, --keep-z, --url
+```
+
+Reads the export with `spatialdata_io.xenium` (boundaries, transcripts,
+the morphology focus image with 1024² chunks and a pyramid, the cell
+table; no raster labels unless `--labels`, the table then annotating the
+polygons), writes the store, converts `points/transcripts` into
+`sample/molecules/` (flat; `--keep-z` keeps z), then runs
+`prepare_folder.py`'s checks. Test: `MERFISHEYES_XENIUM=/path/to/outs
+python -m pytest tests/python/test_prepare_xenium.py` (skipped without it).
+
 ### A TIFF as an OME-Zarr image (`image_to_ome_zarr.py`)
 
 ```bash

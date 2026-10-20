@@ -279,13 +279,17 @@ def write_store_from_table(source: Path, kind: str, store: Path, log) -> None:
 
 
 def has_categorical_column(table) -> bool:
+    """A column the viewer would offer as cell types: categorical, with more
+    than one category, and not the join keys (`region`, the instance key)."""
     obs = table["obs"]
-    index = obs.attrs.get("_index", "_index")
-    return any(
-        obs[k].attrs.get("encoding-type") == "categorical"
-        for k in obs
-        if k != index and hasattr(obs[k], "attrs")
-    )
+    skip = {obs.attrs.get("_index", "_index"), table.attrs.get("region_key"), table.attrs.get("instance_key")}
+    for k in obs:
+        if k in skip or not hasattr(obs[k], "attrs") or obs[k].attrs.get("encoding-type") != "categorical":
+            continue
+        categories = obs[k].get("categories")
+        if categories is None or categories.shape[0] > 1:
+            return True
+    return False
 
 
 # ── the folder ────────────────────────────────────────────────────────────

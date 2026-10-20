@@ -265,13 +265,82 @@ aws s3 sync sample/ s3://<bucket>/<path>/sample/`}
           <p>
             A raw export needs no preparation: switch the homepage to{" "}
             <b>Upload &amp; process on server</b> and drop the folder. To
-            process it yourself into the layout above, the per-platform scripts
-            built on <code>spatialdata-io</code> follow in the next chapters;
-            until then <code>scripts/process_spatial_data.py</code> and{" "}
-            <code>scripts/process_single_molecule.py</code> produce
+            process it yourself into the layout above, one script per platform
+            reads the export with <code>spatialdata-io</code> and ends in the
+            same checks as above. Xenium is below; MERSCOPE and Visium follow.
+            Our own readers, <code>scripts/process_spatial_data.py</code> and{" "}
+            <code>scripts/process_single_molecule.py</code>, still produce
             merfisheyes&apos; own folders, which open the same way.
           </p>
         </Prose>
+      </DocSection>
+
+      <DocSection heading="Xenium" id="xenium">
+        <Steps
+          steps={[
+            {
+              title: "Install the reader",
+              children: (
+                <pre className={pre}>
+                  {`pip install -r scripts/requirements-prepare.txt spatialdata-io    # Python 3.12 or newer`}
+                </pre>
+              ),
+            },
+            {
+              title: "Run it on the output folder",
+              children: (
+                <>
+                  <pre className={pre}>
+                    {`python scripts/prepare_xenium.py Xenium_outs/ sample/ --workers 8   # add --cluster when the export has no cell types`}
+                  </pre>
+                  <p>
+                    The folder with <code>experiment.xenium</code> in it. The
+                    script reads the cell and nucleus boundaries, the
+                    transcripts, the morphology image and the cell table, and
+                    writes <code>sample/</code>:
+                  </p>
+                  <pre className={pre}>
+                    {`sample/
+├── Xenium.zarr/       tables/table (+ layers/X_csc), shapes/cell_boundaries + nucleus_boundaries,
+│                      images/morphology_focus (1024² chunks, 6 levels), points/transcripts
+├── molecules/         the transcripts as one file per gene, flat on the cells' plane (--keep-z keeps z)
+├── annotations/       (--cluster) Leiden clusters + DEGs
+└── mapping.json       { "cells": "Xenium.zarr", "links": { "__all__": "molecules" } }`}
+                  </pre>
+                  <p>
+                    Coordinates are microns, as the export has them: the cells
+                    and the molecules as written, the image placed through the
+                    store&apos;s <code>global</code> system (pixels are 0.2125
+                    µm). The raster cell labels are left out unless{" "}
+                    <code>--labels</code>: the viewer does not draw them and
+                    they are the largest part of the store; the table then
+                    annotates the polygons, which carry the same cell ids.
+                  </p>
+                  <p>
+                    Measured on a 130,870-cell, 7 M-transcript mouse brain
+                    (Xenium 1.0): 70 s, 9 GB of memory at the peak, a 2.9 GB
+                    store and 290 MB of molecule files; <code>--cluster</code>{" "}
+                    another 47 s for 33 Leiden clusters. The report&apos;s{" "}
+                    <code>WARN</code> lines on <code>points/transcripts</code>{" "}
+                    (not read; the molecule folder is) and on the polygon files
+                    (one row group) are expected.
+                  </p>
+                </>
+              ),
+            },
+            {
+              title: "Open it",
+              children: (
+                <p>
+                  As above: drop <code>sample/</code> on the single cell{" "}
+                  <b>Folder</b> card, <b>Upload &amp; Save</b>, or sync it to a
+                  bucket. Zoomed in below 1 mm the cell polygons draw over the
+                  image; the molecules stream per gene.
+                </p>
+              ),
+            },
+          ]}
+        />
       </DocSection>
     </>
   );

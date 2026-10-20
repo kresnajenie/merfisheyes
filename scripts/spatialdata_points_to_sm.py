@@ -25,6 +25,35 @@ import pyarrow.parquet as pq
 import process_single_molecule as psm
 
 
+def convert(store, output_folder, *, points: str | None = None, workers: int = 1, drop_z: bool = False) -> Path:
+    """Write `points/<points>` of `store` as a molecule folder; returns it."""
+    points_dir = Path(store) / "points"
+    elements = sorted(p.name for p in points_dir.iterdir() if p.is_dir()) if points_dir.is_dir() else []
+    element = points or (elements[0] if len(elements) == 1 else None)
+    if element not in elements:
+        raise SystemExit(f"Pick a points element with --points; found: {elements}")
+
+    attrs = json.loads((points_dir / element / "zarr.json").read_text())["attributes"]
+    feature_key = attrs["spatialdata_attrs"]["feature_key"]
+    axes = attrs["axes"]
+
+    # The element's parquet is a directory of part files; read_table handles
+    # that, read_schema doesn't.
+    psm.pq.read_schema = lambda path: pq.ParquetDataset(path).schema
+
+    psm.process_single_molecule_data(
+        input_file=str(points_dir / element / "points.parquet"),
+        output_folder=str(output_folder),
+        dataset_type="xenium",
+        gene_col=feature_key,
+        x_col="x",
+        y_col="y",
+        z_col="z" if "z" in axes and not drop_z else None,
+        num_workers=workers,
+    )
+    return Path(output_folder)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("store", help="SpatialData zarr store")
@@ -37,31 +66,7 @@ def main():
         help="write 2D molecules, flat on the plane of the cells and the image",
     )
     args = parser.parse_args()
-
-    points_dir = Path(args.store) / "points"
-    elements = sorted(p.name for p in points_dir.iterdir() if p.is_dir())
-    element = args.points or (elements[0] if len(elements) == 1 else None)
-    if element not in elements:
-        sys.exit(f"Pick a points element with --points; found: {elements}")
-
-    attrs = json.loads((points_dir / element / "zarr.json").read_text())["attributes"]
-    feature_key = attrs["spatialdata_attrs"]["feature_key"]
-    axes = attrs["axes"]
-
-    # The element's parquet is a directory of part files; read_table handles
-    # that, read_schema doesn't.
-    psm.pq.read_schema = lambda path: pq.ParquetDataset(path).schema
-
-    psm.process_single_molecule_data(
-        input_file=str(points_dir / element / "points.parquet"),
-        output_folder=args.output_folder,
-        dataset_type="xenium",
-        gene_col=feature_key,
-        x_col="x",
-        y_col="y",
-        z_col="z" if "z" in axes and not args.drop_z else None,
-        num_workers=args.workers,
-    )
+    convert(args.store, args.output_folder, points=args.points, workers=args.workers, drop_z=args.drop_z)
 
 
 if __name__ == "__main__":

@@ -131,6 +131,7 @@ def test_the_guides_show_the_script_as_it_is():
             "python scripts/prepare_folder.py ",
             "python scripts/process_single_molecule.py ",
             "python scripts/image_to_ome_zarr.py ",
+            "python scripts/prepare_xenium.py ",
             "pip install -r scripts/requirements-prepare.txt",
         ):
             assert command in text, (page, command)
@@ -324,3 +325,20 @@ def test_cluster_runs_only_when_no_categorical_column(tmp_path):
     assert notes["num_cells"] == CELLS and notes["de_stats"] == ["leiden"]
     codes = np.fromfile(other / "annotations" / "leiden.bin", dtype="<u2")
     assert len(codes) == CELLS and len(notes["columns"]["leiden"]["categories"]) == codes.max() + 1
+
+    # A store's join column (one category, "region") is not a cell type:
+    # a spatialdata-io table has nothing else categorical and still gets clustered
+    third = tmp_path / "v"
+    third.mkdir()
+    adata = make_table(categorical=False)
+    adata.obs["region"] = pd.Categorical(["cell_boundaries"] * CELLS)
+    adata.uns["spatialdata_attrs"] = {"region": "cell_boundaries", "region_key": "region", "instance_key": "cell_id"}
+    write_table(adata, third / "cells.zarr", 3)
+    import zarr
+
+    zarr.open_group(third / "cells.zarr", mode="r+", use_consolidated=False).attrs.update(
+        {"region": "cell_boundaries", "region_key": "region", "instance_key": "cell_id"}
+    )
+    r = prepare_folder.prepare(third, cluster=True, log=lambda *_: None)
+    assert not r.failed, fails(r)
+    assert (third / "annotations" / "leiden.bin").exists()

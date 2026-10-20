@@ -350,6 +350,7 @@ Two options for datasets too big to parse in a browser:
 
    See **[scripts/README.md](scripts/README.md)** for formats, flags, and the output layout. (BIL HPC / SLURM pipelines live in [scripts/bil-scripts/](scripts/bil-scripts/README.md).)
 3. **Prepare your own parts** — an AnnData table, a molecule folder and an OME-Zarr image in one folder, made ready by `scripts/prepare_folder.py` (see *Preparing the parts yourself* above and [/docs/prepare](https://merfisheyes.com/docs/prepare)).
+4. **Prepare a Xenium export yourself** — `python scripts/prepare_xenium.py Xenium_outs/ sample/` reads it with `spatialdata-io` (`pip install spatialdata-io`, Python 3.12+) into a SpatialData store with the CSC copy, one GeoParquet per boundary element, the morphology image in 1024² chunks, plus the transcripts as a molecule folder, and ends in the same checks ([/docs/prepare#xenium](https://merfisheyes.com/docs/prepare#xenium)).
 
 ---
 

@@ -187,6 +187,46 @@ Gate: validator green on the sandbox sample and on one real Xenium export
 on this machine; the folder opens with image, polygons, molecules and
 cells overlaid.
 
+Result (2026-10-20): built as `scripts/prepare_xenium.py`, with two
+departures from the sketch above. No labels by default (`--labels` to
+keep them): the viewer does not draw them and they are the largest part
+of the store; the reader then still ties the table to `cell_labels`, and
+the viewer places the image relative to the region it names, so a region
+that is not in the store would have put the image in pixels under cells
+in microns (4.7× off). The script re-points the table at
+`cell_boundaries`, which carries the same cell ids. And no sandbox
+download: the test (`tests/python/test_prepare_xenium.py`) runs on an
+export named by `MERFISHEYES_XENIUM` and is skipped otherwise; CI does
+not download gigabytes. `spatialdata_points_to_sm.py` gained a
+`convert()` function. The image gets `scale_factors` explicitly: without
+them spatialdata-io writes a single level, and the viewer loads the
+coarsest level whole as the backdrop.
+
+Measured on `Xenium_V1_FF_Mouse_Brain_Coronal_outs` (Xenium 1.0.2,
+130,870 cells, 248 genes, 7 M transcripts, 827 MB morphology focus):
+69 s wall, 8.9 GB RSS at the peak, a 2.9 GB store (image 6 levels of
+1024² chunks, one 13.7 MB GeoParquet per boundary element) and 293 MB of
+molecule files; `--cluster` 47 s and 1.8 GB for 33 Leiden clusters.
+Validator: every MUST OK; the expected WARNs are the unread
+`points/transcripts`, the polygon files' single row group and
+`nucleus_boundaries` not being a name the viewer draws. The gated test
+(validator, store contents, `spatialdata.read_zarr` reading the table and
+the polygons back, 93 s) passes; dropped on the homepage by a throwaway
+spec the folder opens with 130,870 cells, the image, the polygon layer
+and three genes loaded.
+
+Cold walkthrough (fresh venv, `pip install spatialdata-io` on top of the
+requirements file): the page's commands ran as printed. Gaps closed: the
+reader's `region` column counted as a cell-type column, so `--cluster`
+silently did nothing on every spatialdata-io store (`has_categorical_column`
+now skips the join keys and single-category columns, with a test); the
+page states the measured time, memory and sizes and which WARN lines are
+expected. Left open: polygon files as one row group (the shapes profile's
+later ask: row groups by tile), `nucleus_boundaries` never drawn, an
+export without `cells.zarr.zip` (pre-1.3 CSV bundles) untested, memory
+on a laptop with 8 GB (the reader holds the table and the transcripts
+while writing).
+
 ### Chapter 3: MERSCOPE (`feat/upload-tutorial-merscope`)
 
 - `scripts/prepare_merscope.py` on `spatialdata_io.merscope()` (the
