@@ -8,6 +8,41 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-21
+
+Every dataset of SpatialData-DB on Explore, and a page of its own for every
+dataset.
+
+### Added
+
+- **SpatialData-DB on Explore** (#162). Every dataset of the public
+  [SpatialData-DB](https://lamin.ai/scverse/spatialdata-db) instance is an
+  Explore card, read from the `catalog.parquet` the project publishes with
+  each `catalog-<date>` release of `theislab/spatialdata-db-client` (their
+  schema vendored in `lib/sddb/catalog-schema.ts`; one row is one card in
+  `lib/sddb/catalog-row.ts`). `scripts/sync-sddb-catalog.ts` registers each
+  store as an admin-owned dataset named from the catalog, upserts by the
+  catalog uid, unpublishes uids that left the release and fails unless what
+  it published equals the release's uid set; `--limit=N` syncs a sample
+  spread over the technologies. Run by hand, dev first, then production;
+  never on a schedule. A **SpatialData-DB** category, a licence chip on
+  every card that has one, licence and source in the info modal and a
+  "View on SpatialData-DB" link on the page. Catalog rows gain `source`
+  (`curated`, `bil`, `community`, `sddb`) and the licence and provenance
+  columns (migration `20261021100000_catalog_sddb_source`). Spec:
+  `docs/specs/sddb-catalog.md`.
+
+### Changed
+
+- **Every dataset opens its own page** (#162). An Explore card is a plain
+  link to the dataset's page (`/explore/[id]`, the BIL page for BIL rows)
+  instead of jumping straight to a viewer; the page lists the dataset's
+  parts and opens the viewer from there. The page groups entries by kind,
+  so a SpatialData store is listed under Single Cell and opens in the
+  SpatialData viewer, and an image gets its own row; before, the page
+  showed no entry at all for a SpatialData store. Both links come from one
+  module, `lib/explore/links.ts`.
+
 ## [0.12.0] - 2026-10-20
 
 Molecules streamed by view from a tiled points element, cell polygons,
@@ -594,7 +629,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.9.0...v0.10.0
