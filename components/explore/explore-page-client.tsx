@@ -20,7 +20,7 @@ import { ExploreDatasetGrid } from "./explore-dataset-grid";
 export const PAGE_LIMIT = 20;
 
 // Category filter values (empty string = "All"). Replaces the old tab bar.
-const CATEGORY_OPTIONS = ["featured", "bil", "community"];
+const CATEGORY_OPTIONS = ["featured", "bil", "sddb", "community"];
 
 interface ExplorePageClientProps {
   initialItems: CatalogDatasetItem[];

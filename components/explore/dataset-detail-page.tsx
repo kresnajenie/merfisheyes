@@ -10,6 +10,9 @@ import { useState } from "react";
 
 import { METADATA_LABELS } from "./metadata-labels";
 
+import { datasetKind, type DatasetKind } from "@/lib/datasets/kind";
+import { entryHref } from "@/lib/explore/links";
+
 const COLOR_STYLES = {
   blue: {
     border: "border-blue-500/30 hover:border-blue-400",
@@ -45,19 +48,7 @@ function externalLinkLabel(dataset: CatalogDatasetItem): string {
 }
 
 function getEntryHref(entry: CatalogDatasetEntry): string {
-  const base =
-    entry.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
-
-  if (entry.s3BaseUrl) {
-    const url = entry.s3BaseUrl.replace(/\/+$/, "");
-
-    return `${base}/from-s3?url=${encodeURIComponent(url)}`;
-  }
-  if (entry.datasetId) {
-    return `${base}/${entry.datasetId}`;
-  }
-
-  return "#";
+  return entryHref(entry) ?? "#";
 }
 
 /**
@@ -186,12 +177,13 @@ export function DatasetDetailPage({
 
   const metadata = (dataset.metadata ?? {}) as Record<string, unknown>;
   const genes = dataset.genes ?? [];
-  const scEntries = dataset.entries.filter(
-    (e) => e.datasetType === "single_cell",
-  );
-  const smEntries = dataset.entries.filter(
-    (e) => e.datasetType === "single_molecule",
-  );
+  // Grouped by kind, so a SpatialData store sits with the cells and an image
+  // gets its own row instead of being dropped.
+  const byKind = (kind: DatasetKind) =>
+    dataset.entries.filter((e) => datasetKind(e.datasetType) === kind);
+  const scEntries = byKind("single_cell");
+  const smEntries = byKind("single_molecule");
+  const imageEntries = byKind("image");
 
   const displayGenes = showAllGenes ? genes : genes.slice(0, 50);
 
@@ -233,6 +225,16 @@ export function DatasetDetailPage({
           {dataset.platform && (
             <Chip size="sm" variant="flat">
               {dataset.platform}
+            </Chip>
+          )}
+          {dataset.license && (
+            <Chip
+              color={dataset.licenseNoncommercial ? "warning" : "default"}
+              size="sm"
+              title="Licence"
+              variant="bordered"
+            >
+              {dataset.license}
             </Chip>
           )}
         </div>
@@ -298,6 +300,25 @@ export function DatasetDetailPage({
         </div>
       )}
 
+      {imageEntries.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-medium text-default-500 uppercase tracking-wider">
+            Image{imageEntries.length > 1 ? ` (${imageEntries.length})` : ""}
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+            {imageEntries.map((entry) => (
+              <EntryCard
+                key={entry.id}
+                actions={entryActions?.(entry)}
+                color="blue"
+                entry={entry}
+                onSelect={onSelectEntry}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Metadata */}
       {Object.keys(metadata).length > 0 && (
         <Card>
@@ -351,8 +372,22 @@ export function DatasetDetailPage({
       )}
 
       {/* External links */}
-      {(dataset.externalLink || dataset.publicationLink) && (
-        <div className="flex gap-3">
+      {(dataset.externalLink ||
+        dataset.publicationLink ||
+        typeof metadata.cardUrl === "string") && (
+        <div className="flex flex-wrap gap-3">
+          {typeof metadata.cardUrl === "string" && (
+            <Button
+              as="a"
+              href={metadata.cardUrl}
+              rel="noopener noreferrer"
+              size="sm"
+              target="_blank"
+              variant="flat"
+            >
+              View on SpatialData-DB
+            </Button>
+          )}
           {dataset.externalLink && (
             <Button
               as="a"

@@ -154,6 +154,19 @@ model CatalogDataset {
   // Re-derivable with scripts/recompute-catalog-views.ts.
   viewCount    Int     @default(0) @map("view_count")
 
+  // Where the row came from: "curated" (admin-authored), "bil", "community"
+  // or "sddb" (synced from a SpatialData-DB catalog release by
+  // scripts/sync-sddb-catalog.ts, see docs/specs/sddb-catalog.md). The flags
+  // above stay as they are; this is the one column to filter on.
+  source       String  @default("curated") @db.VarChar(20)
+  // SpatialData-DB rows: the catalog uid (the sync's upsert key), the licence
+  // shown on the card, and the release the row was last written from.
+  sddbUid              String?  @unique @map("sddb_uid") @db.VarChar(40)
+  license              String?  @db.VarChar(100)
+  licenseNoncommercial Boolean? @map("license_noncommercial")
+  sourceRelease        String?  @map("source_release") @db.VarChar(100)
+  sourceGeneratedAt    String?  @map("source_generated_at") @db.VarChar(40)
+
   // Audit
   createdBy     String?   @map("created_by")
   createdByUser User?     @relation(fields: [createdBy], references: [id], onDelete: SetNull)
@@ -172,6 +185,7 @@ model CatalogDataset {
   @@index([sourceDatasetId])
   @@index([sourceProjectId])
   @@index([viewCount])
+  @@index([source])
   @@map("catalog_datasets")
 }
 
