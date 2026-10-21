@@ -6,6 +6,8 @@ import { Chip } from "@heroui/chip";
 
 import type { CatalogDatasetItem, CatalogDatasetEntry } from "./types";
 
+import { datasetKind, KIND_BADGE } from "@/lib/datasets/kind";
+
 interface CompactDatasetCardProps {
   dataset: CatalogDatasetItem;
   onSelect: (dataset: CatalogDatasetItem, entry: CatalogDatasetEntry) => void;
@@ -89,11 +91,15 @@ export function CompactDatasetCard({ dataset, onSelect }: CompactDatasetCardProp
               onClick={() => onSelect(dataset, entry)}
             >
               <Chip
-                color={entry.datasetType === "single_cell" ? "primary" : "secondary"}
+                color={
+                  datasetKind(entry.datasetType) === "single_cell"
+                    ? "primary"
+                    : "secondary"
+                }
                 size="sm"
                 variant="flat"
               >
-                {entry.datasetType === "single_cell" ? "SC" : "SM"}
+                {KIND_BADGE[datasetKind(entry.datasetType)]}
               </Chip>
               <span className="truncate">{entry.label}</span>
             </button>

@@ -229,7 +229,7 @@ Signing in (**Google**, via NextAuth) unlocks:
 - **Projects** (`/account/projects/[id]`) — group related datasets (e.g. the cells + molecules from one experiment) into a folder with its own page and thumbnail.
 - **Community** — submit a dataset or project for review; once an admin approves it, it appears in the **Community** view on **[Explore](https://www.merfisheyes.com/explore)** for everyone.
 
-Explore (`/explore`) lists curated and community datasets with a persistent **Featured** row on top; community projects open a detail page (`/explore/[id]`).
+Explore (`/explore`) lists curated and community datasets with a persistent **Featured** row on top. Every dataset has a standalone page (`/explore/[id]`, `/explore/bil/[code]` for BIL rows): a card opens that page, which lists the dataset's parts (cells, molecules, images) and opens the viewer from there.
 
 ---
 
