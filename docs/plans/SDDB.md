@@ -352,10 +352,12 @@ production, no schedule; every store listed, mixed into "All".
 
 Deferred from the list below, each its own step: the static explore index
 behind a CDN, the gene-query parity test, the `/spatialdata-viewer/sddb/<uid>`
-route and Lamin proxy backend, the nightly perf run, the cron. Cards open
+route and Lamin proxy backend, the nightly perf run, the cron. A card opens
+the dataset's page (every Explore card does since #162) and the page opens
 the store by its public URL; the bucket's CORS allows `www.merfisheyes.com`
-only, so the cards work on production until the scverse team adds the dev
-origin. The 10-21 release carried no assets for hours after its tag, so the
+only, so the stores open on production until the scverse team adds the dev
+origin. Shipped in v0.13.0 (2026-10-21); production synced by hand after
+the deploy. The 10-21 release carried no assets for hours after its tag, so the
 sync skips releases without the file.
 
 The original step, for the record:

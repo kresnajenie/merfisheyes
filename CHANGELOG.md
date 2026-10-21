@@ -8,6 +8,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- Docs: the user guide's *Sharing on Explore* page describes the three
+  collections on Explore (curated, SpatialData-DB, Community) and that every
+  card opens the dataset's own page; `scripts/README.md`, the SpatialData
+  guide, the spec and `CLAUDE.md` say the same.
+
 ## [0.13.0] - 2026-10-21
 
 Every dataset of SpatialData-DB on Explore, and a page of its own for every

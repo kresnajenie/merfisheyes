@@ -337,6 +337,29 @@ aws s3 cp processed_molecules/ s3://your-bucket/datasets/{datasetId}/ --recursiv
 - **Lazy loading** - genes loaded on-demand when selected
 - **Consistent format** - exact same structure as browser processing
 
+## Syncing the SpatialData-DB catalog (`sync-sddb-catalog.ts`)
+
+Lists every dataset of [SpatialData-DB](https://lamin.ai/scverse/spatialdata-db)
+on Explore, from the `catalog.parquet` that `theislab/spatialdata-db-client`
+publishes on each `catalog-<date>` GitHub release. Spec:
+[docs/specs/sddb-catalog.md](../docs/specs/sddb-catalog.md).
+
+```bash
+npx tsx scripts/sync-sddb-catalog.ts --env=.env                      # dry run against the newest release
+npx tsx scripts/sync-sddb-catalog.ts --env=.env --limit=30 --apply   # a sample spread over the technologies
+npx tsx scripts/sync-sddb-catalog.ts --env=.env --apply              # everything
+npx tsx scripts/sync-sddb-catalog.ts --env=.env.prod --direct --apply
+```
+
+Each row becomes one card with one SpatialData entry; each store is
+registered as an admin-owned dataset named from the catalog. Rows are
+upserted by catalog uid, uids that left the release are unpublished, and the
+run fails unless what it published equals the release's uid set. `--env`
+reads the file literally (production passwords contain `$`), `--direct`
+uses its `DIRECT_URL`, `--tag=catalog-YYYY-MM-DD` pins a release, `--file=`
+reads a local copy. Run by hand, dev database first, then production;
+never on a schedule.
+
 ## Preparing a folder of parts (`prepare_folder.py`)
 
 An AnnData table (`.h5ad`, or `write_zarr` output in Zarr v2 or v3), a
