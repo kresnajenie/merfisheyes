@@ -8,6 +8,28 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Every kind of SpatialData-DB store opens: CODEX, PhenoCycler,
+  spatial-CUT&Tag, spatial-ATAC-seq, MALDI-MSI and CosMx beside the RNA
+  ones.** Measured on the root metadata of one store per technology
+  (`tests/data/sddb/roots`): a table's features come from the index column
+  `var` declares (`formula_adduct` in a MALDI table, `gene` in a CosMx
+  one), not only `var/_index`; a dense `X` (every image channel a feature,
+  as CODEX writes it) is read one feature at a time; a table with no
+  `obsm/spatial` (CosMx) draws its cells at the centres of the shapes it
+  annotates, read from the Point `<region>_for_vitessce` element when there
+  is one (35 MB for 1.46 M cells, against 265 MB of polygons) and matched
+  by instance id; an image placed by an `affine` that rotates (a MALDI
+  optical image, 91° in one store) is drawn as is, the levels staying in
+  the image's own frame and the placement being one matrix on the layer;
+  and an image of any number of channels (84 in a CODEX store) compiles,
+  the layer showing at most 8 at once through fixed shader slots. The
+  validator (`scripts/validate_store.py`) applies the same rules, and the
+  profiles say so (`docs/specs/table-profile.md`, `image-profile.md`,
+  `store-layout.md`). Fixtures shaped like the real stores, built by the
+  `spatialdata` library: `scripts/testdata/make-tiny-modalities.py`.
+
 ## [0.13.0] - 2026-10-21
 
 Every dataset of SpatialData-DB on Explore, and a page of its own for every

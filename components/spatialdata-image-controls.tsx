@@ -81,6 +81,7 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
             <div key={i} className="flex flex-col gap-1">
               <div className="flex items-center gap-2 text-sm">
                 <input
+                  aria-label={`Show ${channel.label}`}
                   checked={channel.visible}
                   type="checkbox"
                   onChange={(e) => {

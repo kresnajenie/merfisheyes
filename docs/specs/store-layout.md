@@ -65,10 +65,13 @@ store at its root or in one folder under it.
    target, then the inverse of the region's. The image drawn is the finest
    that reaches the target (a Visium full image, else its hires image).
    Points and other shapes are drawn as written and must sit in the
-   region's frame (every SpatialData-DB store's do); one that does not, or
-   any element whose transform is not a scale, translation, identity or a
-   sequence of them (`affine`), is left out and named in
-   `openElements`' `problems`.
+   region's frame (every SpatialData-DB store's do); one that does not is
+   left out and named in `openElements`' `problems`. An image's transform
+   may be a scale, translation, identity, affine (its x, y part, rotation
+   included: a MALDI optical image) or a sequence of them; the image's
+   levels stay in its own frame and the placement is one matrix on the
+   layer. A table with no `obsm/spatial` draws its cells at the centres of
+   the region's shapes (`table-profile.md`).
 
 ## What the validator checks
 

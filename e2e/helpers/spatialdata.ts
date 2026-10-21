@@ -155,6 +155,13 @@ function shapesNode(): unknown {
  *                                        circles, no `global`
  *   /visium-hd/store.zarr                the Visium HD-shaped one: square
  *                                        bins of side 16 tiling a grid
+ *   /codex/store.zarr, /maldi/store.zarr, /cosmx/store.zarr
+ *                                        stores shaped like SpatialData-DB's
+ *                                        CODEX (dense X, a 6-channel image),
+ *                                        MALDI-MSI (`formula_adduct` features,
+ *                                        an affine image) and CosMx (no
+ *                                        obsm/spatial) ones
+ *                                        (make-tiny-modalities.py)
  *   /medium/store.zarr                   the generated medium store, when
  *                                        it is on disk (make-medium-store.py)
  *
@@ -216,11 +223,16 @@ export function startSpatialDataServer(
     if (kind === "medium") {
       return { file: path.join(MEDIUM, ...rest) };
     }
-    if (kind === "visium" || kind === "visium-hd") {
+    if (kind in LIBRARY_STORES) {
       const [, ...inside] = rest;
-      const store = kind === "visium" ? "visium_v3.zarr" : "visium_hd_v3.zarr";
 
-      return { file: path.join(ZARR, store, ...inside) };
+      return {
+        file: path.join(
+          ZARR,
+          LIBRARY_STORES[kind as keyof typeof LIBRARY_STORES],
+          ...inside,
+        ),
+      };
     }
     if (kind === "image") {
       const [name, ...inside] = rest;
@@ -357,6 +369,18 @@ export function cellsUrl(server: FixtureServer, tag: string): string {
   return `${server.url}/cells/${tag}`;
 }
 
+/**
+ * The stores the `spatialdata` library wrote, served whole at
+ * `/<kind>/store.zarr` (make-tiny-visium.py, make-tiny-modalities.py).
+ */
+export const LIBRARY_STORES = {
+  visium: "visium_v3.zarr",
+  "visium-hd": "visium_hd_v3.zarr",
+  codex: "codex_v3.zarr",
+  maldi: "maldi_v3.zarr",
+  cosmx: "cosmx_v3.zarr",
+} as const;
+
 /** URL of the Visium-shaped store (no `global` system). */
 export function visiumUrl(server: FixtureServer): string {
   return `${server.url}/visium/store.zarr`;
@@ -365,6 +389,14 @@ export function visiumUrl(server: FixtureServer): string {
 /** URL of the Visium HD-shaped store (square bins). */
 export function visiumHdUrl(server: FixtureServer): string {
   return `${server.url}/visium-hd/store.zarr`;
+}
+
+/** URL of a store shaped like a SpatialData-DB CODEX, MALDI-MSI or CosMx one. */
+export function libraryStoreUrl(
+  server: FixtureServer,
+  kind: "codex" | "maldi" | "cosmx",
+): string {
+  return `${server.url}/${kind}/store.zarr`;
 }
 
 /**

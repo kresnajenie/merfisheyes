@@ -9,6 +9,7 @@ import {
   imageUrl,
   visiumUrl,
   visiumHdUrl,
+  libraryStoreUrl,
   selectGeneAndMeasure,
   SELECTORS,
   type DatasetEntry,
@@ -260,6 +261,121 @@ test("@quick Visium HD store: the bins drawn as squares of their real size", asy
       .poll(binsLit, { message: "the bins should be hidden", timeout: 30_000 })
       .toBeLessThan(0.05);
   });
+});
+
+test("@quick CODEX store: a dense X, a 6-channel image shown one channel at a time", async ({
+  page,
+}) => {
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(libraryStoreUrl(server, "codex"))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "cells").toBe(36);
+  await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
+  await expect
+    .poll(() => served(/\/images\/reg001_image\/s\d\/c\/0\//), {
+      message: "the first channel should be read",
+    })
+    .toBe(true);
+  await expect
+    .poll(() => litFraction(page, SCENES.cells), {
+      message: "the image should be drawn",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.08);
+  // Only the shown channel is read; the panel lists every one
+  expect(served(/\/images\/reg001_image\/s\d\/c\/[1-5]\//)).toBe(false);
+  await page.locator(SELECTORS.imageButton).click();
+  await expect(page.locator('input[aria-label$=" colour"]')).toHaveCount(6);
+  await page.getByLabel("Show CD3", { exact: true }).check();
+  await expect
+    .poll(() => served(/\/images\/reg001_image\/s\d\/c\/1\//), {
+      message: "a channel switched on should be read",
+    })
+    .toBe(true);
+  // A marker's intensities colour the cells
+  await page.locator(SELECTORS.imageButton).click();
+  await selectGeneAndMeasure(
+    page,
+    { dataType: "single_cell" } as DatasetEntry,
+    "CD3",
+  );
+});
+
+test("@quick MALDI-MSI store: ions as features, the optical image placed by a rotating affine", async ({
+  page,
+}) => {
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(libraryStoreUrl(server, "maldi"))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "spots").toBe(64);
+  await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
+  await expect
+    .poll(() => served(/\/images\/optical_image\/s\d\/c\//), {
+      message: "the optical image should be read",
+    })
+    .toBe(true);
+  await expect
+    .poll(() => litFraction(page, SCENES.cells), {
+      message: "the rotated image should be drawn",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.08);
+  await selectGeneAndMeasure(
+    page,
+    { dataType: "single_cell" } as DatasetEntry,
+    "C6H12O6+Na",
+  );
+});
+
+test("@quick CosMx store: cells placed from their shapes when the table has no obsm/spatial", async ({
+  page,
+}) => {
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(libraryStoreUrl(server, "cosmx"))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.waitForFunction(
+    () => (window as any).__merfish?.renderComplete != null,
+    undefined,
+    { timeout: 120_000 },
+  );
+  expect((await readHooks(page))!.stats!.pointCount, "cells").toBe(25);
+  // The Point element is read whole; of the polygons (265 MB in the real
+  // store) only the footer, by byte range, for the cells' footprint
+  const parquet = (name: string) =>
+    server.requests.filter(
+      (r) =>
+        r.status < 300 && r.path.endsWith(`/shapes/${name}/shapes.parquet`),
+    );
+
+  expect(parquet("cells_polygons_for_vitessce").some((r) => !r.range)).toBe(
+    true,
+  );
+  expect(parquet("cells_polygons").every((r) => r.range)).toBe(true);
+  await expect(page.locator(SELECTORS.imageButton)).toHaveCount(0);
+  await selectGeneAndMeasure(
+    page,
+    { dataType: "single_cell" } as DatasetEntry,
+    "CD45",
+  );
 });
 
 test("@quick SpatialData store with nothing to show says so", async ({

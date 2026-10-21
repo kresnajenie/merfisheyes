@@ -127,3 +127,12 @@ yet), each with the counts above:
    with no 429.)
 8. **The 17 stores the website lists beyond the 1,761 converted ones**, and
    whether the 123 older top-level stores are meant to stay listed.
+9. **The CosMx RNA|protein store `K1v57r8i8fQeI0Ul`** (added 2026-10-21,
+   from the 20 CODEX / PhenoCycler / CUT&Tag / ATAC / MALDI / CosMx stores
+   of release `catalog-2026-10-20`, of which the other 19 pass): its
+   `tables/protein_table` is CSR with no CSC copy, and its
+   `points/transcripts` declare a frame other than its cells'. The other
+   shapes of these stores — `var` indexed by `formula_adduct`, no
+   `obsm/spatial` with the positions in `<region>_for_vitessce`, an affine
+   optical image, 84 image channels — are read as written since 2026-10-21
+   (`docs/plans/SDDB.md`, step 5).

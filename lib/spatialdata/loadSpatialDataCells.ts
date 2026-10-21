@@ -1,3 +1,4 @@
+import { readCellCentroids } from "./centroids";
 import { readCellFootprint } from "./footprint";
 import { SpatialDataTableAdapter } from "./SpatialDataTableAdapter";
 import { type SpatialDataStore } from "./store";
@@ -25,7 +26,11 @@ export async function loadSpatialDataCells(
   await adapter.initialize(onProgress);
 
   onProgress?.(50, "Loading spatial coordinates...");
-  const spatial = await adapter.loadSpatialCoordinates();
+  // A table without obsm/spatial (CosMx) takes one point per cell from the
+  // shapes element it annotates
+  const spatial = adapter.hasSpatialCoordinates()
+    ? await adapter.loadSpatialCoordinates()
+    : await readCellCentroids(sd, adapter);
 
   onProgress?.(60, "Loading genes...");
   const genes = await adapter.loadGenes();

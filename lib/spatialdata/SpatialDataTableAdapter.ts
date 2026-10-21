@@ -209,6 +209,13 @@ export class SpatialDataTableAdapter {
     await onProgress?.(45, "Initialization complete");
   }
 
+  /** Whether the table carries its cells' coordinates (`obsm/spatial`). */
+  hasSpatialCoordinates(): boolean {
+    return (
+      this.obsmKeys.includes("X_spatial") || this.obsmKeys.includes("spatial")
+    );
+  }
+
   /**
    * Read spatial coordinates as a flat Float32Array (numCells × dims, row-major).
    */
@@ -251,13 +258,24 @@ export class SpatialDataTableAdapter {
   }
 
   /**
-   * Read the gene list from var/_index (or var/gene, var/genes).
+   * Read the feature list: the column `var`'s `_index` attribute names (the
+   * dataframe's index, `_index` by default; `formula_adduct` in a MALDI
+   * store, `gene` in a CosMx one), else var/_index, var/gene, var/genes.
    */
   async loadGenes(): Promise<string[]> {
     if (this.genes) return this.genes;
     if (!this.root) throw new Error("Adapter not initialized");
 
-    const candidates = ["_index", "gene", "genes"];
+    const named = await zarr.open
+      .v3(this.root.resolve("var"), { kind: "group" })
+      .then((g) => g.attrs._index)
+      .catch(() => null);
+    const candidates = [
+      ...(typeof named === "string" ? [named] : []),
+      "_index",
+      "gene",
+      "genes",
+    ];
 
     for (const candidate of candidates) {
       if (!this.varColumns.includes(candidate)) continue;
@@ -277,7 +295,9 @@ export class SpatialDataTableAdapter {
       }
     }
 
-    throw new Error("No gene list found in var/_index, var/gene, or var/genes");
+    throw new Error(
+      `No feature list found in var (looked for ${candidates.join(", ")})`,
+    );
   }
 
   /**
@@ -534,11 +554,18 @@ export class SpatialDataTableAdapter {
    * the table names none.
    */
   async readInstanceIds(): Promise<string[] | null> {
-    const key = this.root?.attrs.instance_key;
+    const key = this.instanceKey;
 
-    if (typeof key !== "string" || !key) return null;
+    if (!key) return null;
 
     return this.readColumn(`obs/${key}`).catch(() => null);
+  }
+
+  /** The obs column the table's `instance_key` names, if any. */
+  get instanceKey(): string | null {
+    const key = this.root?.attrs.instance_key;
+
+    return typeof key === "string" && key ? key : null;
   }
 
   private async readColumn(path: string): Promise<string[]> {

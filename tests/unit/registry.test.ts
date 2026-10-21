@@ -205,7 +205,9 @@ describe("openElements on a Visium store (no global system)", () => {
     );
 
     expect(opened.image?.name).toBe("tiny_hires_image");
-    expect(opened.image?.levels[0].pixelWidth).toBe(4);
+    // The level stays in the image's pixels; the placement scales it by 4
+    expect(opened.image?.levels[0].pixelWidth).toBe(1);
+    expect(opened.image?.placement.scale).toEqual([4, 4]);
   });
 });
 
