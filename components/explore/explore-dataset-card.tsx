@@ -374,6 +374,16 @@ export function ExploreDatasetCard({
                 {typeBadge(type)}
               </Chip>
             ))}
+            {dataset.source === "sddb" && (
+              <Chip
+                className="bg-default-800/70 text-white"
+                size="sm"
+                title="Synced from the SpatialData-DB catalog"
+                variant="solid"
+              >
+                SpatialData-DB
+              </Chip>
+            )}
           </div>
           {/* Entry count badge */}
           {hasMultipleEntries && !ownerOverlay && (
@@ -539,9 +549,21 @@ export function ExploreDatasetCard({
             </p>
           )}
 
-          {/* Metadata row */}
-          {(dataset.species || dataset.tissue) && (
+          {/* Metadata row. The licence is on every card that has one. */}
+          {(dataset.species || dataset.tissue || dataset.license) && (
             <div className="flex flex-wrap gap-1 shrink-0">
+              {dataset.license && (
+                <Chip
+                  className="max-w-full"
+                  classNames={{ content: "truncate" }}
+                  color={dataset.licenseNoncommercial ? "warning" : "default"}
+                  size="sm"
+                  title={`Licence: ${dataset.license}`}
+                  variant="bordered"
+                >
+                  {dataset.license}
+                </Chip>
+              )}
               {dataset.species && (
                 <Chip
                   className="max-w-full"

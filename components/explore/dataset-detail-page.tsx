@@ -235,6 +235,16 @@ export function DatasetDetailPage({
               {dataset.platform}
             </Chip>
           )}
+          {dataset.license && (
+            <Chip
+              color={dataset.licenseNoncommercial ? "warning" : "default"}
+              size="sm"
+              title="Licence"
+              variant="bordered"
+            >
+              {dataset.license}
+            </Chip>
+          )}
         </div>
         <h1 className="text-2xl font-bold">{dataset.title}</h1>
         {metadata.investigator ? (
@@ -351,8 +361,22 @@ export function DatasetDetailPage({
       )}
 
       {/* External links */}
-      {(dataset.externalLink || dataset.publicationLink) && (
-        <div className="flex gap-3">
+      {(dataset.externalLink ||
+        dataset.publicationLink ||
+        typeof metadata.cardUrl === "string") && (
+        <div className="flex flex-wrap gap-3">
+          {typeof metadata.cardUrl === "string" && (
+            <Button
+              as="a"
+              href={metadata.cardUrl}
+              rel="noopener noreferrer"
+              size="sm"
+              target="_blank"
+              variant="flat"
+            >
+              View on SpatialData-DB
+            </Button>
+          )}
           {dataset.externalLink && (
             <Button
               as="a"

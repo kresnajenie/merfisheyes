@@ -33,6 +33,7 @@ interface ExploreSearchBarProps {
 const CATEGORY_LABELS: Record<string, string> = {
   featured: "Featured",
   bil: "BIL",
+  sddb: "SpatialData-DB",
   community: "Community",
   internal: "Internal",
 };

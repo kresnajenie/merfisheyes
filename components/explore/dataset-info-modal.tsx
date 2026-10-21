@@ -59,6 +59,13 @@ export function DatasetInfoModal({
     dataset.disease && { label: "Disease", value: dataset.disease },
     dataset.platform && { label: "Platform", value: dataset.platform },
     dataset.institute && { label: "Institute", value: dataset.institute },
+    dataset.license && {
+      label: "Licence",
+      value:
+        dataset.license +
+        (dataset.licenseNoncommercial ? " (non-commercial)" : ""),
+    },
+    dataset.source === "sddb" && { label: "Source", value: "SpatialData-DB" },
     dataset.numCells != null && {
       label: "Cells / molecules",
       value: formatCount(dataset.numCells)!,
@@ -207,6 +214,18 @@ export function DatasetInfoModal({
                 variant="flat"
               >
                 Source
+              </Button>
+            )}
+            {typeof metadata.cardUrl === "string" && (
+              <Button
+                as="a"
+                href={metadata.cardUrl}
+                rel="noopener noreferrer"
+                size="sm"
+                target="_blank"
+                variant="flat"
+              >
+                SpatialData-DB page
               </Button>
             )}
           </div>

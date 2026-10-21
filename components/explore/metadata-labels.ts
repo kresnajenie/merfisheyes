@@ -16,6 +16,22 @@ export const METADATA_LABELS: Record<string, string> = {
   genotype: "Genotype",
   technique: "Technique",
   citation: "Citation",
+  // SpatialData-DB rows (lib/sddb/catalog-row.ts)
+  cardUrl: "SpatialData-DB page",
+  tier: "Tier",
+  assay: "Assay",
+  product: "Product",
+  chemistryVersion: "Chemistry",
+  sampleId: "Sample",
+  studyId: "Study",
+  canonicalKey: "Key",
+  developmentStage: "Development stage",
+  captureArea: "Capture area",
+  defaultTable: "Default table",
+  nTranscripts: "Transcripts",
+  storeSize: "Store size",
+  licenseUrl: "Licence URL",
+  collections: "Collections",
 };
 
 /** Label + rendered value for each non-empty entry of a metadata bag. */

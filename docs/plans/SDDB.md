@@ -51,6 +51,42 @@ that changes a fact or a decision edits this file in the same commit.
   older stores at the bucket's top level (65 Visium, 44 Xenium, 12 earlier
   Visium HD versions, 2 tests). Licence is a Lamin label, not in the store.
 
+### The catalog is a published file (measured 2026-10-18)
+
+- The website is fast because it is built from a pre-computed file, not
+  because it queries anything. `theislab/spatialdata-db-client` (pip
+  `spatialdata-db`, `import sddb`) publishes a GitHub release
+  `catalog-<date>` (nine releases 2026-10-05 → 10-18, most of them
+  nightly) holding `catalog.parquet` (1.7 MB, 1,774 rows, 63 columns,
+  parquet metadata `sddb_generated_at`, `sddb_n_datasets`),
+  `collections.parquet` (26 rows), `gene_search.parquet` (240,151
+  Ensembl entities, each a 222-byte bitset over the uid order in
+  `gene_search_meta.json`, least-significant bit first, guarded by
+  `order_hash`), `gene_index.parquet` (264 MB, per-dataset detection, for
+  Python only) and `citations.bib`. The column contract is
+  `src/sddb/_catalog_schema.py` (required: `uid`, `technology`, `assay`,
+  `organism`, `validation_status`, `zarr_url`; facets and range columns
+  derived from it). The engine's nightly job on their HPC writes the file;
+  the website is rebuilt from it by a Cloudflare deploy hook
+  (`.github/workflows/rebuild-site.yml`); the client reads it with a
+  conditional GET on the ETag (`_cache.py`). Their design spec (D61) says
+  consumers never query the Lamin database. The release assets carry an
+  ETag and no CORS header, so a browser cannot read them and a server
+  can; the website serves its own copies with `max-age=0,
+  must-revalidate`, one 304 round trip per load.
+- The catalog against the census: every catalog uid is in the census;
+  110 census stores are not in the catalog (49 Visium HD, 48 older
+  top-level stores, 9 Visium, 2 Xenium, 2 test folders), so the catalog
+  is the published set and the instance holds more. `zarr_url` is always
+  `s3://scverse-spatial-eu-central-1/.lamindb/<uid16>.zarr`, the proxy's
+  path. Licence is an id with properties (`CC-BY-NC-SA-4.0` 1,090,
+  `CC-BY-4.0` 411, `ncbi-geo-policy` 224, `unknown` 49;
+  `license_noncommercial`, `license_redistributable`). Fourteen columns
+  are all null, among them `thumbnail_url`, `published_at`,
+  `sddb_version`, `container_tag`; `n_obs` is null in 81 rows,
+  `n_features` in 112. `vitessce_url` is a complete vitessce.io link in
+  1,742 rows.
+
 ### Elements, one store per technology, against our profiles
 
 | Element | In their stores | Our reader today |
@@ -150,11 +186,22 @@ aligned H&E may (the census counts them).
   whether they will write a tiled index.
 - **Labels come afterwards** (the `LabelsLayer` from the second-implementer
   worktree, once a `TileLayer` base exists).
-- The catalog is synced **from the instance, not pasted**: a job reads the
-  artifacts through the hub REST (or `lamindb` in a Python job), keyed on
-  uid and version, and writes our dataset records with license,
-  NonCommercial, provenance and the curated metadata; the viewer shows
-  license and source on every one.
+- The catalog is synced **from their published release, not from the
+  instance** (decided 2026-10-19, replacing "from the hub REST"): a job
+  reads `catalog.parquet` from the GitHub release, validates it against
+  their schema, and upserts our records keyed on the versioned uid with
+  the release tag and `sddb_generated_at` as provenance; a re-run is a
+  no-op. The Lamin REST is used for nothing the catalog carries (their
+  spec D61: consumers never query the database). The 110 stores in the
+  instance but not in the catalog are not listed. Licence, NonCommercial
+  and the source are shown on every card and in the viewer.
+- **The explore index is pre-computed and served static**, as theirs is:
+  the sync writes immutable, content-hashed files (the card rows, the
+  facets, one gene bitset per gene over our uid order) and a small
+  `latest.json`; the explore page fetches them through Cloudflare with a
+  long `max-age` and filters, facets and gene-searches in memory.
+  Postgres stays for the internal, community and admin paths. Today the
+  page's API answers in 2.1 s and the ISR shell is 180 KB.
 - Their storage proxy is a **backend of the ElementStore** with its own
   contract (CORS, ranges, 404, no listing, user agent), tested nightly on
   one real store per technology.
@@ -284,50 +331,95 @@ medium store; the cerebellum spots draw at the default (whole-section)
 view; the ovary 16 µm table draws its bins at 1 mm; the ovary 2 µm table
 at 1 mm either draws every bin in view or says why not.
 
-Result (2026-10-19), a different design, decided with the user: the spots
-and bins are not a shapes kind but the cells themselves, drawn at their
-real size and shape by the cell cloud (`lib/spatialdata/footprint.ts`,
-`shapes-profile.md` "Spots and bins"). The radius comes from the shapes
-footer's column statistics (one suffix read, 64 KB) and a bin's side from
-the grid's pitch, so the shapes files — 22 MB for the ovary's default 8 µm
-table, 348 MB for its 2 µm one — are never fetched; there is no per-view
-cap and no 1 mm rule; colour, hover and selection are the cells'. On the
-real stores: the cerebellum's spots at the whole-section view and zoomed
-in, the ovary's 8 µm bins (its default table) tiling the tissue at every
-zoom. The 16 µm and 2 µm tables are not opened (the viewer reads the
-default table), so their gate items do not arise. Two tests that fail
-without the change: a Visium HD-shaped store written by spatialdata
-(`visium_hd_v3.zarr`) whose bins cover the section, and the footprint
-reads. Perf unchanged (`BUDGETS.md`). Also: with no column to colour by,
-the tooltip no longer says "undefined"; a real-size cell keeps its size in
-every mode (expression and selection show in colour and opacity, never by
-shrinking a spot); with nothing to colour by they are translucent
-(`NEUTRAL_POINT_ALPHA`), so the H&E under spots and bins shows; the SC
-button now shows whenever something is drawn with the cells, to hide them. Not done: "where the default table
-has no CSC layer, open the 16 µm table" — left for a decision; the 82
-stores are listed in `perf/sddb/NO-CSC.md` (all Visium HD, default
-`square_008um`, each with a `square_016um` that has one); Xenium's `cell_circles` vary in radius and stay dots.
+### Step 4: the catalog (`feat/sddb-catalog`) — built 2026-10-21
 
-### Step 4: the Lamin backend and the catalog (`feat/sddb-catalog`)
+What was built (spec `docs/specs/sddb-catalog.md`): the vendored schema
+(`lib/sddb/catalog-schema.ts`, pinned to `catalog-2026-10-20`, 3,222 rows),
+the row → card mapping (`lib/sddb/catalog-row.ts`), the reader
+(`lib/sddb/catalog-file.ts`, hyparquet), the sync
+(`scripts/sync-sddb-catalog.ts`: newest release with the asset or `--tag`,
+cached by tag, every store registered as an admin-owned `Dataset` and named
+from the catalog, upsert by `sddbUid`, stale uids unpublished, the uid-set
+gate; `--limit=N` for a sample on dev),
+the Prisma columns (`source`, `sddbUid`, `license`, `licenseNoncommercial`,
+`sourceRelease`, `sourceGeneratedAt`; migration
+`20261021100000_catalog_sddb_source` backfills `source` from the flags), the
+**SpatialData-DB** category and the licence chip on cards, the info modal
+and the page, and the unit tests on fixtures cut from the release
+(`tests/unit/sddb-catalog.test.ts`, `scripts/testdata/make-sddb-catalog-fixture.py`).
+User decisions (2026-10-19): sync only when told, dev database first, then
+production, no schedule; every store listed, mixed into "All".
 
-- `lib/storage/backends.ts`: `laminBackend(uid)` resolving
-  `lamin://scverse/spatialdata-db/artifact/<uid>` through the settings
-  endpoint and the storage root to the proxy URL; the quick suite's
-  fixture server gains a `/lamin/` route that mimics the proxy (CORS,
-  Range, 404 JSON, 403 on a non-browser user agent).
-- `/spatialdata-viewer/sddb/<uid>` opens an artifact by uid through the
-  one dataset loader (`kind: "spatialdata"`, a `lamin` source).
-- The catalog sync: a route or job that reads the artifact records
-  (uid, version, key, size, `metadata_general` fields, license,
-  NonCommercial) and upserts our dataset records with provenance; the
-  explore page shows them with license and source; re-run is idempotent.
-- Nightly: one real store per technology opened through the proxy by the
-  perf script, numbers into `docs/specs/BUDGETS.md`. Check once that the
-  proxy accepts the user agent the nightly runner sends (Node's `fetch`,
-  Playwright's browser); only Python's default is known to get 403.
+Deferred from the list below, each its own step: the static explore index
+behind a CDN, the gene-query parity test, the `/spatialdata-viewer/sddb/<uid>`
+route and Lamin proxy backend, the nightly perf run, the cron. Cards open
+the store by its public URL; the bucket's CORS allows `www.merfisheyes.com`
+only, so the cards work on production until the scverse team adds the dev
+origin. The 10-21 release carried no assets for hours after its tag, so the
+sync skips releases without the file.
 
-Gate: the five stores of §1 open by uid; the explore page lists the
-synced catalog with the same counts as the website.
+The original step, for the record:
+
+Raw material: the release assets (`catalog-2026-10-16`, the tag this
+plan was measured on, and `latest`), and in
+`theislab/spatialdata-db-client` the files `src/sddb/_catalog_schema.py`,
+`_cache.py`, `genes.py`, `docs/design/SPEC.md` §4 and §6 and the two
+workflows under `.github/workflows/`; ours: `app/explore/page.tsx`,
+`app/api/explore/route.ts`, `lib/explore/query.ts`,
+`prisma/schema.prisma` (`CatalogDataset`, `CatalogDatasetEntry`),
+`scripts/ingest-bil-projects.ts`. Not the website, not the hub REST.
+
+- `docs/specs/sddb-catalog.md` (ADR): the release as the contract (the
+  columns we read, how a row becomes a card, the licence shown, the 110
+  unlisted stores), the sync's idempotence and provenance, the static
+  index and its cache contract, how we learn of a new release (§6).
+- Prisma: on `CatalogDataset` a `sddbUid @unique`, `source` (`bil`,
+  `community`, `sddb`), `license`, `licenseNoncommercial`,
+  `sourceRelease`, `sourceGeneratedAt`; one entry per row,
+  `datasetType: "spatialdata"`, opened by uid. The existing `isBil` and
+  `bilCode` stay as they are.
+- `scripts/sync-sddb-catalog.ts`: a conditional GET on the asset (ETag
+  kept beside the file), read with `hyparquet`, the required columns and
+  dtypes checked against a vendored copy of their schema pinned to the
+  release tag (a contract test fails when the upstream file differs),
+  upsert by uid, rows whose uid left the catalog unpublished, the run's
+  tag and `sddb_generated_at` recorded. Run from a cron route
+  (`app/api/cron/sddb-catalog`, Vercel cron, `CRON_SECRET`) and by hand.
+- The static explore index: `docs/specs/schemas/explore-index.schema.json`
+  and a generator the sync runs (and the build), writing
+  `explore/<hash>/cards.json`, `facets.json` and `genes.bin` (one bitset
+  per gene over the index's uid order, their layout) plus
+  `explore/latest.json` to the app's bucket behind Cloudflare: the hashed
+  files immutable (`max-age=31536000`), `latest.json` at `max-age=60`.
+  The explore page reads `latest.json`, then the files, and filters,
+  facets and gene-searches in memory; `/api/explore` keeps the internal,
+  community and admin tabs. Nothing else on the page changes.
+- `lib/storage/backends.ts`: `laminBackend(zarrUrl)` mapping the row's
+  `zarr_url` to the proxy URL; the quick suite's fixture server gains a
+  `/lamin/` route that mimics the proxy (CORS, Range, 404 JSON, 403 on a
+  non-browser user agent).
+- `/spatialdata-viewer/sddb/<uid>` opens a catalog row through the one
+  dataset loader (`kind: "spatialdata"`, a `lamin` source); the licence
+  and `card_url` are in the viewer's dataset info.
+- Nightly: the sync, then one real store per technology opened through
+  the proxy by the perf script, numbers into `docs/specs/BUDGETS.md`.
+  Check once that the proxy accepts the user agent the nightly runner
+  sends (Node's `fetch`, Playwright's browser); only Python's default is
+  known to get 403.
+- Tests: unit on the sync against a fixture parquet in the release's
+  schema (insert, re-run a no-op, a uid removed, a schema drift); a
+  parity test in the Python job (`pip install spatialdata-db`): ten gene
+  queries answer the same uid sets from our bitset and from their
+  `GeneIndex.where_expressed`; `@quick`: the explore page lists an SDDB
+  card from a fixture index and opens it in
+  `/spatialdata-viewer/sddb/<uid>` on the fixture server; perf:
+  `exploreToInteractive` and `exploreBytes` added to the suite.
+
+Gate: `sddb.Catalog()` loads the file we consumed and its uid set equals
+our published set (count and `order_hash`), checked on every sync and in
+CI; the five stores of §1 open by uid; the explore page is interactive
+within 1 s at 12 MB/s with cache hits on the index files; the licence is
+on every card.
 
 ### Later, out of this plan
 
@@ -348,6 +440,9 @@ synced catalog with the same counts as the website.
 - The conformance and registry suites for the new kinds; the
   second-implementer backlog not growing.
 - The maintainers' written answer to `docs/specs/sddb-profile.md`.
+- Their own client agreeing with our catalog: the same uid set on every
+  sync, the same gene answers in the parity test; the explore budget
+  held on production through Cloudflare.
 
 ## 5. How to brief a session on a step
 
@@ -356,7 +451,8 @@ Read docs/plans/SDDB.md, docs/PHILOSOPHY.md and docs/specs/LAYER-CONTRACT.md,
 LOADING.md, RENDERING.md, BUDGETS.md and the profile closest to the
 work. Do step <N> of the plan: <its title>. Start from the raw material
 the plan names (the downloaded roots under tests/data/sddb/, the proxy
-URLs, the hub's openapi.json), not from the website. Read through the
+URLs, the catalog release assets and the client's schema), not from the
+website or the hub REST. Read through the
 ElementStore; never fetch, cache or loop in a layer; constants are
 uniforms; nothing per frame while still. It is done when the step's gate
 in the plan holds, unit + @quick + perf are green, BUDGETS.md and this
@@ -379,3 +475,9 @@ told. List every place you had to touch outside the files the step names.
    should rely on?
 6. Is the storage proxy's 403 for non-browser user agents intended, and is
    there a rate limit a nightly check should respect?
+7. May we poll the catalog releases nightly, or will the release workflow
+   (`rebuild-site.yml`, a deploy hook) ping a MERFISHEYES endpoint too?
+8. Will `thumbnail_url`, `published_at` and `sddb_version` be filled
+   (all null in `catalog-2026-10-16`)?
+9. Are the 110 stores in the instance but not in the catalog meant to stay
+   unlisted (49 Visium HD, 48 older top-level, 9 Visium, 2 Xenium)?
