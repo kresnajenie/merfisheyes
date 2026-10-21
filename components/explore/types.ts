@@ -41,6 +41,11 @@ export interface CatalogDatasetItem {
    *  the detail page even with a single entry. Optional: not every payload
    *  (e.g. account-card adapters) carries it. */
   sourceProjectId?: string | null;
+  /** "curated" | "bil" | "community" | "sddb" (a SpatialData-DB catalog row). */
+  source?: string;
+  /** Licence id of a SpatialData-DB row (e.g. "CC-BY-NC-SA-4.0", "unknown"). */
+  license?: string | null;
+  licenseNoncommercial?: boolean | null;
   sortOrder: number;
   /** Denormalized total views across this row's entries. Drives the Explore
    *  grid's default ordering; absent on adapters that build items by hand. */

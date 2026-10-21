@@ -49,6 +49,11 @@ export const CARD_SELECT = {
   // Cards need to know a community row is project-backed: those always open
   // the detail page, even with a single entry.
   sourceProjectId: true,
+  // Where the row came from and, for SpatialData-DB rows, the licence shown
+  // on the card.
+  source: true,
+  license: true,
+  licenseNoncommercial: true,
   sortOrder: true,
   viewCount: true,
   numCells: true,

@@ -9,17 +9,24 @@ import NextLink from "next/link";
 
 import { metadataEntries } from "./metadata-labels";
 
+import { datasetKind, KIND_BADGE } from "@/lib/datasets/kind";
+
 /**
- * `datasetType` is a free-form column, not an enum — the catalog already holds
- * values beyond the two the viewer routes on. Label the known pair and show
- * anything else verbatim rather than dropping or mislabelling it.
+ * `datasetType` is a free-form column, not an enum — the catalog holds raw
+ * formats and "spatialdata" beside the three kinds. Badge the kind.
  */
 function entryTypeLabel(datasetType: string): string {
-  if (datasetType === "single_cell") return "SC";
-  if (datasetType === "single_molecule") return "SM";
-  if (datasetType === "image") return "IMG";
+  return KIND_BADGE[datasetKind(datasetType)];
+}
 
-  return datasetType;
+function entryTypeColor(datasetType: string) {
+  const kind = datasetKind(datasetType);
+
+  return kind === "single_cell"
+    ? "primary"
+    : kind === "single_molecule"
+      ? "secondary"
+      : "default";
 }
 
 /**
@@ -59,6 +66,13 @@ export function DatasetInfoModal({
     dataset.disease && { label: "Disease", value: dataset.disease },
     dataset.platform && { label: "Platform", value: dataset.platform },
     dataset.institute && { label: "Institute", value: dataset.institute },
+    dataset.license && {
+      label: "Licence",
+      value:
+        dataset.license +
+        (dataset.licenseNoncommercial ? " (non-commercial)" : ""),
+    },
+    dataset.source === "sddb" && { label: "Source", value: "SpatialData-DB" },
     dataset.numCells != null && {
       label: "Cells / molecules",
       value: formatCount(dataset.numCells)!,
@@ -142,13 +156,7 @@ export function DatasetInfoModal({
                     className="flex items-center gap-2 text-sm"
                   >
                     <Chip
-                      color={
-                        entry.datasetType === "single_cell"
-                          ? "primary"
-                          : entry.datasetType === "single_molecule"
-                            ? "secondary"
-                            : "default"
-                      }
+                      color={entryTypeColor(entry.datasetType)}
                       size="sm"
                       variant="flat"
                     >
@@ -207,6 +215,18 @@ export function DatasetInfoModal({
                 variant="flat"
               >
                 Source
+              </Button>
+            )}
+            {typeof metadata.cardUrl === "string" && (
+              <Button
+                as="a"
+                href={metadata.cardUrl}
+                rel="noopener noreferrer"
+                size="sm"
+                target="_blank"
+                variant="flat"
+              >
+                SpatialData-DB page
               </Button>
             )}
           </div>

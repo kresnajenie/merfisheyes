@@ -444,6 +444,20 @@ converted or uploaded through the app:
   (`components/image-viewer.tsx`). Reached from the homepage by dropping an
   image folder (*Preview in browser*) or pasting its URL into **Load from S3**.
 
+**SpatialData-DB on Explore** ([docs/specs/sddb-catalog.md](docs/specs/sddb-catalog.md)):
+every dataset of the public SpatialData-DB instance is an Explore card with
+`source: "sddb"`, synced from the `catalog.parquet` that
+`theislab/spatialdata-db-client` publishes on each `catalog-<date>` GitHub
+release (their schema vendored in `lib/sddb/catalog-schema.ts`, one row → one
+card in `lib/sddb/catalog-row.ts`, the file read in `lib/sddb/catalog-file.ts`).
+`scripts/sync-sddb-catalog.ts` upserts by `sddbUid`, unpublishes uids that left
+the release and fails unless the published uid set equals the release's; it is
+run by hand (dev database first, `--limit=N` for a sample, then production),
+never on a schedule. Each store is registered as an admin-owned `Dataset`
+(`ensureDatasetForS3Url`) and its card opens it by public URL in
+`/spatialdata-viewer/from-s3`. The census behind the viewer work is
+[docs/specs/sddb-profile.md](docs/specs/sddb-profile.md).
+
 **An image is a dataset** (`datasetType: "image"`; helpers in
 [lib/datasets/kind.ts](lib/datasets/kind.ts) — never test
 `=== "single_molecule" ? … : …` for routing, an image is neither). It is

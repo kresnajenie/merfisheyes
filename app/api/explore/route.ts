@@ -39,9 +39,9 @@ export async function GET(req: NextRequest) {
   );
   const skip = (page - 1) * limit;
 
-  // Category filter (was tabs): "all" | "featured" | "bil" | "community" |
-  // "internal". "all" now includes approved community submissions alongside
-  // curated content.
+  // Category filter (was tabs): "all" | "featured" | "bil" | "sddb" |
+  // "community" | "internal". "all" now includes approved community
+  // submissions alongside curated content.
   const category = tab || "all";
   const includeCommunity = category === "all" || category === "community";
 
@@ -89,6 +89,8 @@ export async function GET(req: NextRequest) {
 
   if (category === "featured") conditions.push({ isFeatured: true });
   if (category === "bil") conditions.push({ isBil: true });
+  // Rows synced from a SpatialData-DB catalog release (docs/specs/sddb-catalog.md).
+  if (category === "sddb") conditions.push({ source: "sddb" });
 
   if (search) {
     // Tokenize on whitespace: each token must match SOME searched field

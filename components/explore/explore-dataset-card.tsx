@@ -11,50 +11,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { DatasetInfoModal } from "./dataset-info-modal";
-import { viewerBase } from "@/lib/datasets/kind";
 
-/**
- * Compute a static destination URL for the card if exactly one exists.
- * Returns null when the card needs runtime branching (e.g. multi-entry
- * datasets that expand a dropdown). Used to render the card as an actual
- * <a>/<Link> so right-click and middle-click open in new tab.
- */
-function getCardHref(
-  dataset: CatalogDatasetItem,
-  entries: CatalogDatasetEntry[],
-): { href: string; external?: boolean } | null {
-  if (dataset.bilCode) {
-    return { href: `/explore/bil/${dataset.bilCode}` };
-  }
-  // Project-backed rows open a detail page, like BIL — whoever curated them.
-  // Gating this on isCommunity used to hide the detail page from admin-curated
-  // atlases, which are project-backed in exactly the same way. Multi-entry
-  // rows still need isCommunity, so curated rows that were never project-backed
-  // (e.g. the BIL slice collections) keep their inline dropdown.
-  if (dataset.sourceProjectId || (dataset.isCommunity && entries.length > 1)) {
-    return { href: `/explore/${dataset.id}` };
-  }
-  if (entries.length === 0) {
-    return dataset.externalLink
-      ? { href: dataset.externalLink, external: true }
-      : null;
-  }
-  if (entries.length === 1) {
-    const e = entries[0];
-    const base = viewerBase(e.datasetType);
-
-    if (e.s3BaseUrl) {
-      const url = e.s3BaseUrl.replace(/\/+$/, "");
-
-      return { href: `${base}/from-s3?url=${encodeURIComponent(url)}` };
-    }
-    if (e.datasetId) {
-      return { href: `${base}/${e.datasetId}` };
-    }
-  }
-
-  return null;
-}
+import { catalogPageHref, entryHref } from "@/lib/explore/links";
 
 /** Badge for an entry's type: cells, an image, or (anything else) molecules. */
 const isCells = (type: string) =>
@@ -93,15 +51,9 @@ function navigateToEntry(
   entry: CatalogDatasetEntry,
   router: ReturnType<typeof useRouter>,
 ) {
-  const base = viewerBase(entry.datasetType);
+  const href = entryHref(entry);
 
-  if (entry.s3BaseUrl) {
-    const url = entry.s3BaseUrl.replace(/\/+$/, "");
-
-    router.push(`${base}/from-s3?url=${encodeURIComponent(url)}`);
-  } else if (entry.datasetId) {
-    router.push(`${base}/${entry.datasetId}`);
-  }
+  if (href) router.push(href);
 }
 
 function EntryList({
@@ -240,6 +192,8 @@ export function ExploreDatasetCard({
     };
   }, [isExpanded, handleClickOutside]);
 
+  // Only hosts with a handler reach this: every other card is a link to the
+  // dataset's standalone page (see `cardHref` below).
   const handlePress = () => {
     // Host (e.g. explore modal) takes over — no navigation, no inline dropdown.
     if (onCardClick) {
@@ -248,32 +202,9 @@ export function ExploreDatasetCard({
       return;
     }
 
-    // Navigate to detail page
-    if (dataset.bilCode) {
-      router.push(`/explore/bil/${dataset.bilCode}`);
+    if (entries.length === 0) return;
 
-      return;
-    }
-
-    // Project-backed community rows open their detail page, even with a
-    // single entry (mirrors getCardHref). onSelect hosts keep their own flow.
-    if (dataset.isCommunity && dataset.sourceProjectId && !onSelect) {
-      router.push(`/explore/${dataset.id}`);
-
-      return;
-    }
-
-    // Non-BIL datasets: keep existing behavior
-    // Zero entries: open external link or do nothing
-    if (entries.length === 0) {
-      if (dataset.externalLink) {
-        window.open(dataset.externalLink, "_blank", "noopener,noreferrer");
-      }
-
-      return;
-    }
-
-    // Single entry: navigate directly (or call onSelect)
+    // Single entry: hand it to the host (a picker) straight away.
     if (entries.length === 1) {
       if (onSelect) {
         onSelect(dataset, entries[0]);
@@ -284,7 +215,7 @@ export function ExploreDatasetCard({
       return;
     }
 
-    // Multiple entries: toggle expansion
+    // Multiple entries: toggle the picker's dropdown.
     setIsExpanded((prev) => !prev);
   };
 
@@ -296,16 +227,14 @@ export function ExploreDatasetCard({
     return String(n);
   };
 
-  const hasSomeEntry = entries.length > 0 || dataset.externalLink;
+  const hasSomeEntry = entries.length > 0;
 
-  // If the card has a single static destination AND no onSelect handler,
-  // render the whole thing as a real link (right-click → open in new tab,
-  // middle-click, cmd-click, etc. all work). Multi-entry cards or onSelect
-  // overrides keep the click-driven button behavior so the dropdown / handler
-  // can run.
-  // onCardClick fully overrides default behavior — never linkify in that mode.
-  const cardHref =
-    onSelect || onCardClick ? null : getCardHref(dataset, entries);
+  // Every dataset has a standalone page, and a card is a real link to it
+  // (right-click → open in new tab, middle-click, cmd-click all work). Hosts
+  // that pass onSelect (a picker) or onCardClick (the explore modal, the
+  // account cards) keep the click-driven button behaviour so their handler
+  // or the entry dropdown can run.
+  const cardHref = onSelect || onCardClick ? null : catalogPageHref(dataset);
   const linkified = cardHref !== null;
 
   // Portal-based dropdown for usePopover mode
@@ -374,6 +303,16 @@ export function ExploreDatasetCard({
                 {typeBadge(type)}
               </Chip>
             ))}
+            {dataset.source === "sddb" && (
+              <Chip
+                className="bg-default-800/70 text-white"
+                size="sm"
+                title="Synced from the SpatialData-DB catalog"
+                variant="solid"
+              >
+                SpatialData-DB
+              </Chip>
+            )}
           </div>
           {/* Entry count badge */}
           {hasMultipleEntries && !ownerOverlay && (
@@ -539,9 +478,21 @@ export function ExploreDatasetCard({
             </p>
           )}
 
-          {/* Metadata row */}
-          {(dataset.species || dataset.tissue) && (
+          {/* Metadata row. The licence is on every card that has one. */}
+          {(dataset.species || dataset.tissue || dataset.license) && (
             <div className="flex flex-wrap gap-1 shrink-0">
+              {dataset.license && (
+                <Chip
+                  className="max-w-full"
+                  classNames={{ content: "truncate" }}
+                  color={dataset.licenseNoncommercial ? "warning" : "default"}
+                  size="sm"
+                  title={`Licence: ${dataset.license}`}
+                  variant="bordered"
+                >
+                  {dataset.license}
+                </Chip>
+              )}
               {dataset.species && (
                 <Chip
                   className="max-w-full"
@@ -649,23 +600,12 @@ export function ExploreDatasetCard({
     </Card>
   );
 
-  // Wrap in a real anchor when a static href exists. Internal links use
-  // NextLink (prefetch + client nav). External (e.g. dataset.externalLink)
-  // gets a plain <a target="_blank">.
+  // Wrap in a real link to the dataset's page (prefetch + client nav).
   const wrappedCard =
     cardHref === null ? (
       cardElement
-    ) : cardHref.external ? (
-      <a
-        className="block"
-        href={cardHref.href}
-        rel="noopener noreferrer"
-        target="_blank"
-      >
-        {cardElement}
-      </a>
     ) : (
-      <NextLink className="block" href={cardHref.href}>
+      <NextLink className="block" href={cardHref}>
         {cardElement}
       </NextLink>
     );
