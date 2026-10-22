@@ -25,6 +25,26 @@ export interface CellFootprint {
 
 const TAIL = 65536;
 
+/**
+ * The geometry types a shapes element's GeoParquet declares (`["Point"]`,
+ * `["Polygon"]`, …), from its footer alone; null when it cannot be read.
+ */
+export async function geometryTypes(
+  sd: SpatialDataStore,
+  element: string,
+): Promise<string[] | null> {
+  const meta = await footer(sd, `/${element}/shapes.parquet`).catch(() => null);
+
+  if (!meta) return null;
+  const geo = JSON.parse(
+    meta.key_value_metadata?.find((kv) => kv.key === "geo")?.value ?? "{}",
+  );
+
+  return Object.values(
+    (geo.columns ?? {}) as Record<string, { geometry_types?: string[] }>,
+  ).flatMap((c) => c.geometry_types ?? []);
+}
+
 /** The footer of a parquet file, read from its end. */
 async function footer(sd: SpatialDataStore, key: string) {
   let tail = await sd.store.getRange(key, { suffixLength: TAIL });

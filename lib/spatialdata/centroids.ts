@@ -1,12 +1,15 @@
 /**
- * Cell coordinates for a table that has no `obsm/spatial` (a CosMx store):
- * one point per cell from the shapes element the table annotates, read from
- * its GeoParquet as written and matched to the table's rows by instance id.
+ * Cell coordinates from the shapes element the table annotates: one point
+ * per cell, read from its GeoParquet as written and matched to the table's
+ * rows by instance id.
  *
- * A Point element is read when there is one: SpatialData-DB writes a
- * `<region>_for_vitessce` sibling holding each cell's centre and radius
- * (35 MB for 1.46 M cells, against 265 MB of polygons); else the region's
- * polygons are read and each cell takes the mean of its outer ring.
+ * In SpatialData the region element is the cells' frame; `obsm/spatial` is
+ * a copy the format does not tie to it, and in SpatialData-DB's MALDI
+ * stores it is the ion image's pixel index (the spots are at 25 or 50 times
+ * it). So when the region has a Point element — itself, or the
+ * `<region>_for_vitessce` sibling SpatialData-DB writes (0.1–3.3 MB, 35 MB
+ * for 1.46 M CosMx cells) — the cells are placed from it. A table with no
+ * `obsm/spatial` and only polygons takes each polygon's vertex mean.
  */
 import type { SpatialDataTableAdapter } from "./SpatialDataTableAdapter";
 import type { SpatialDataStore } from "./store";
@@ -15,6 +18,7 @@ import type { ShapesWorkerApi } from "@/lib/workers/shapes.worker";
 import * as Comlink from "comlink";
 
 import { placesAsWritten, readCoordinateSystems } from "./coordinates";
+import { geometryTypes } from "./footprint";
 import { elementNames } from "./store";
 
 import { hinted } from "@/lib/storage/ElementStore";
@@ -29,12 +33,31 @@ export function centroidSource(sd: SpatialDataStore, region: string | null) {
   return names.includes(points) ? `shapes/${points}` : region;
 }
 
+/**
+ * The Point element holding the cells' centres, when the region has one
+ * (the region itself when its geometry is Point, else its `_for_vitessce`
+ * sibling); null otherwise.
+ */
+export async function pointSource(
+  sd: SpatialDataStore,
+): Promise<string | null> {
+  const cs = await readCoordinateSystems(sd);
+  const source = centroidSource(sd, cs.region);
+
+  if (!source || !placesAsWritten(cs.place(cs.region!))) return null;
+  if (source !== cs.region) return source;
+  const types = await geometryTypes(sd, source);
+
+  return types && types.length === 1 && types[0] === "Point" ? source : null;
+}
+
 export async function readCellCentroids(
   sd: SpatialDataStore,
   adapter: SpatialDataTableAdapter,
+  from?: string,
 ): Promise<{ coordinates: Float32Array; dimensions: number }> {
   const cs = await readCoordinateSystems(sd);
-  const source = centroidSource(sd, cs.region);
+  const source = from ?? centroidSource(sd, cs.region);
 
   if (!source) {
     throw new Error(

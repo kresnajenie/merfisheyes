@@ -324,6 +324,16 @@ test("@quick MALDI-MSI store: ions as features, the optical image placed by a ro
     { timeout: 120_000 },
   );
   expect((await readHooks(page))!.stats!.pointCount, "spots").toBe(64);
+  // obsm/spatial is the ion image's pixel index: the spots are placed from
+  // their own Point element, read whole
+  expect(
+    server.requests.some(
+      (r) =>
+        r.status < 300 &&
+        !r.range &&
+        r.path.endsWith("/shapes/maldi_spots/shapes.parquet"),
+    ),
+  ).toBe(true);
   await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
   await expect
     .poll(() => served(/\/images\/optical_image\/s\d\/c\//), {

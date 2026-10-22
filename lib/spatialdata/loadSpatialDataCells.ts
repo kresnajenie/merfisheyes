@@ -1,4 +1,4 @@
-import { readCellCentroids } from "./centroids";
+import { pointSource, readCellCentroids } from "./centroids";
 import { readCellFootprint } from "./footprint";
 import { SpatialDataTableAdapter } from "./SpatialDataTableAdapter";
 import { type SpatialDataStore } from "./store";
@@ -26,11 +26,21 @@ export async function loadSpatialDataCells(
   await adapter.initialize(onProgress);
 
   onProgress?.(50, "Loading spatial coordinates...");
-  // A table without obsm/spatial (CosMx) takes one point per cell from the
-  // shapes element it annotates
-  const spatial = adapter.hasSpatialCoordinates()
-    ? await adapter.loadSpatialCoordinates()
-    : await readCellCentroids(sd, adapter);
+  // The cells sit where the region's Point element puts them (MALDI's
+  // obsm/spatial is the ion image's pixel index, 25-50x off); with none,
+  // obsm/spatial; with neither, the polygons' centres (CosMx)
+  const points = await pointSource(sd).catch(() => null);
+  const fromObsm = () =>
+    adapter.hasSpatialCoordinates()
+      ? adapter.loadSpatialCoordinates()
+      : readCellCentroids(sd, adapter);
+  const spatial = points
+    ? await readCellCentroids(sd, adapter, points).catch((error) => {
+        console.warn(`Cells not placed from ${points}:`, error);
+
+        return fromObsm();
+      })
+    : await fromObsm();
 
   onProgress?.(60, "Loading genes...");
   const genes = await adapter.loadGenes();

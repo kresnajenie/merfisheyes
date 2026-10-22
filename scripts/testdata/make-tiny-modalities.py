@@ -14,8 +14,10 @@ Outputs under tests/data/tiny/zarr/, each laid out as the real store is
   everything identity into `global`;
 - maldi_v3.zarr — a MALDI-MSI store: the feature index column is
   `formula_adduct` (not `_index`), `X` CSR with a `csc_counts` copy,
-  `maldi_spots` circles, and an RGB optical image placed into `global` by an
-  affine that scales and rotates it;
+  `maldi_spots` circles, `obsm/spatial` holding the ion image's pixel index
+  (the spots are 20 times it, as the real stores' are 25 or 50 times), and
+  an RGB optical image placed into `global` by an affine that scales and
+  rotates it;
 - cosmx_v3.zarr — a CosMx store: the table has no `obsm/spatial`; the cells'
   positions are in `cells_polygons` (polygons, identity into `global`) and
   `cells_polygons_for_vitessce` (centre + radius + `global_cell_id`); no image.
@@ -136,7 +138,9 @@ maldi_table = TableModel.parse(
             {"formula": [i.split("+")[0].split("-")[0] for i in ions], "mz": rng.uniform(100, 900, IONS)},
             index=pd.Index(ions, name="formula_adduct"),
         ),
-        obsm={"spatial": np.array(spots, dtype=np.int64)},
+        # As SpatialData-DB writes it: the ion image's pixel index, not the
+        # spots' coordinates (those are PITCH times it)
+        obsm={"spatial": (np.array(spots) // PITCH).astype(np.int64)},
         layers={"csc_counts": counts.tocsc()},
     ),
     region="maldi_spots",
