@@ -272,9 +272,9 @@ async function loadMolecules(
 
 /**
  * A SpatialData store: its table makes the cells' scene, with the store's
- * other elements drawn in it; without a table, a linked molecule folder
- * makes the molecules' scene (a points element needs the cells' scene); an
- * image alone is shown on its own.
+ * other elements drawn in it; without a table, its points element or a
+ * linked molecule folder makes the molecules' scene, the image under them;
+ * an image alone is shown on its own.
  */
 async function loadStore(
   { datasetId, s3Url }: DatasetSource,
@@ -329,7 +329,7 @@ async function loadStore(
   let molecules: SingleMoleculeDataset | null = null;
 
   if (!cells) {
-    molecules = elements.molecules ?? null;
+    molecules = elements.points ?? elements.molecules ?? null;
     delete elements.molecules;
     delete elements.points;
   }

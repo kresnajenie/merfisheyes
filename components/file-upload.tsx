@@ -50,6 +50,7 @@ import {
   type ImageUploadFile,
 } from "@/lib/upload/uploadImageToS3";
 import { AuthModal } from "@/components/auth-modal";
+import { BundleUploadModal } from "@/components/bundle-upload-modal";
 import {
   UploadAdvancedOptions,
   uploadViewerConfig,
@@ -158,6 +159,8 @@ export function FileUpload({
   // Auth-on-drop: a signed-out user can drop a file; we stash it and pop the
   // sign-in modal, then resume the upload on success (no sign-in wall first).
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  // Processed data dropped for the server: saved as it is (BundleUploadModal)
+  const [bundleSaveOpen, setBundleSaveOpen] = useState(false);
   const pendingFilesRef = useRef<File[] | null>(null);
 
   // Single-molecule "confirm your columns" step. When a raw parquet/CSV is
@@ -185,6 +188,7 @@ export function FileUpload({
     async (file: File): Promise<MoleculeColumnMapping | null> => {
       setColumnPreviewLoading(true);
       let preview;
+
       try {
         preview = await readMoleculePreview(file);
       } finally {
@@ -268,7 +272,14 @@ export function FileUpload({
         .filter(Boolean);
 
       try {
-        files = await collectFilesFromEntries(entries);
+        // Several folders dropped at once are taken as one folder holding
+        // them, named after the first, as if that folder had been dropped
+        const wrap =
+          entries.length > 1 && entries.some((entry: any) => entry.isDirectory)
+            ? entries[0].name.replace(/\.zarr$/, "")
+            : "";
+
+        files = await collectFilesFromEntries(entries, wrap);
       } catch (err) {
         console.error("[FileUpload] folder walk failed:", err);
         files = Array.from(e.dataTransfer.files);
@@ -419,6 +430,27 @@ export function FileUpload({
   const doServerUpload = async (files: File[]) => {
     const kind = singleMolecule ? "single_molecule" : "single_cell";
     const title = files[0].webkitRelativePath?.split("/")[0] || files[0].name;
+
+    // Already-processed parts (a SpatialData store, separate stores, an
+    // image, merfisheyes folders) need no processing: they are uploaded as
+    // they are, without opening them first. Raw cells go to the processor,
+    // with any image or transcripts beside them, as below.
+    if (
+      kind === "single_cell" &&
+      !isXeniumFolder(files) &&
+      !isMerscopeFolder(files) &&
+      findH5adFile(files) === null
+    ) {
+      const bundle = await classifyBundle(files);
+
+      if (hasParts(bundle)) {
+        useLocalBundleStore.getState().reset();
+        useLocalBundleStore.getState().set({ bundle });
+        setBundleSaveOpen(true);
+
+        return;
+      }
+    }
 
     // A picked folder is filtered down to the files the processor actually
     // reads — a Xenium export is mostly images and QC output, and uploading it
@@ -1248,6 +1280,14 @@ export function FileUpload({
         />
       )}
 
+      {serverUpload && (
+        <BundleUploadModal
+          cells={null}
+          isOpen={bundleSaveOpen}
+          onClose={() => setBundleSaveOpen(false)}
+        />
+      )}
+
       {/* Name-your-dataset step for the server upload — pre-filled from the
           file/folder name, editable so multiple same-named files don't collide. */}
       <Modal
@@ -1375,12 +1415,16 @@ function formatBytes(bytes: number): string {
  * Each yielded File gets its `webkitRelativePath` patched to the dropped-tree
  * path so downstream detection (`isXeniumFolder`, etc.) and file-map building
  * (`fromH5adZarr`, `fromLocalChunked`) behave the same as the click-to-pick
- * `<input webkitdirectory>` path.
+ * `<input webkitdirectory>` path. With `parentPath`, every path starts with
+ * it, as if the entries had been dropped inside a folder of that name.
  */
-async function collectFilesFromEntries(entries: any[]): Promise<File[]> {
+async function collectFilesFromEntries(
+  entries: any[],
+  parentPath = "",
+): Promise<File[]> {
   const out: File[] = [];
 
-  await Promise.all(entries.map((entry) => walkEntry(entry, "", out)));
+  await Promise.all(entries.map((entry) => walkEntry(entry, parentPath, out)));
 
   return out;
 }
