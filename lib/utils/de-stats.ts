@@ -1,5 +1,7 @@
 import { markDeStatsReady } from "./test-hooks";
 
+import { CONVENTIONS } from "@/lib/spatialdata/conventions";
+
 /**
  * Per-celltype expression stats precomputed during in-browser parsing.
  *
@@ -30,16 +32,8 @@ interface ClusterLike {
   uniqueValues?: string[];
 }
 
-const PRIORITY_COLUMNS = [
-  "class_name",
-  "subclass_name",
-  "supertype_name",
-  "cluster_name",
-  "subcluster_name",
-  "super_cluster_name",
-  "leiden",
-  "Cluster",
-];
+// The same order selectBestClusterColumn() walks (docs/specs/conventions.json)
+const PRIORITY_COLUMNS = CONVENTIONS.tables.defaultColumnPriority;
 
 /**
  * Pick the priority categorical column. Walks the same priority order as

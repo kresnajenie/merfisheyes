@@ -27,6 +27,7 @@ import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 import { type DeStats, parseDeStatsBuffer } from "../utils/de-stats";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
 
+import { CONVENTIONS } from "./conventions";
 import { defaultTableName } from "./store";
 
 export type XFormat = "dense" | "csr" | "csc" | "missing";
@@ -282,9 +283,7 @@ export class SpatialDataTableAdapter {
       .catch(() => null);
     const candidates = [
       ...(typeof named === "string" ? [named] : []),
-      "_index",
-      "gene",
-      "genes",
+      ...CONVENTIONS.tables.featureIndexColumns,
     ];
 
     for (const candidate of candidates) {

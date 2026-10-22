@@ -8,6 +8,19 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **The names producers use, in one file.** `docs/specs/conventions.json`
+  (with a schema) holds the default-table attribute, feature-index columns,
+  default-colour priority, positional columns, cell-outline element names,
+  the `_for_vitessce` sibling suffix, the square-bin pattern and the
+  SpatialData-DB catalog's spellings, read by the viewer
+  (`lib/spatialdata/conventions.ts`) and by `scripts/validate_store.py`
+  alike. Supporting a new producer's naming is a line in that file; a test
+  fails if a reader hard-codes one of its names. Guide:
+  `docs/specs/conventions.md`. CosMx's `cells_polygons` is now a
+  recognised outline element, so its Shapes button appears.
+
 ### Added
 
 - **Every kind of SpatialData-DB store opens: CODEX, PhenoCycler,

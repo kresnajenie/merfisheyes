@@ -26,6 +26,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCHEMAS = HERE.parent / "docs" / "specs" / "schemas"
+# The names particular producers use, shared with the viewer
+# (lib/spatialdata/conventions.ts); docs/specs/conventions.md
+CONVENTIONS = json.loads((HERE.parent / "docs" / "specs" / "conventions.json").read_text())
 sys.path.insert(0, str(HERE))
 
 
@@ -162,7 +165,7 @@ def check_table(store, name: str, r: Report):
             (
                 f"shapes/{n}{suffix}"
                 for n in names
-                for suffix in ("_for_vitessce", "")
+                for suffix in (CONVENTIONS["shapes"]["pointSiblingSuffix"], "")
                 if node(store, f"shapes/{n}{suffix}")
             ),
             None,
@@ -281,8 +284,10 @@ def check_shapes(store, name: str, r: Report):
             r.warn(where, "one row group: a region cannot be read by range")
     except Exception as e:  # noqa: BLE001
         r.fail(where, f"unreadable: {e}")
-    if name not in ("cell_boundaries", "cell_polygons", "cells"):
-        r.warn(where, "not a name the viewer looks for (cell_boundaries, cell_polygons, cells)")
+    outlines = CONVENTIONS["shapes"]["cellOutlineElements"]
+    sibling = CONVENTIONS["shapes"]["pointSiblingSuffix"]
+    if name not in outlines and not name.endswith(sibling):
+        r.warn(where, f"not a name the viewer draws as outlines ({', '.join(outlines)})")
 
 
 def check_image(store, name: str, r: Report):
@@ -439,12 +444,15 @@ def describe(m) -> str:
 
 
 def default_table(root_attrs: dict, tables: list[str]) -> str | None:
-    """The curated default, else `table`, else the first by name."""
-    curated = (root_attrs.get("metadata_general") or {}).get("Default Table")
+    """The curated default, else `table`, else the first by name
+    (where each is named: docs/specs/conventions.json)."""
+    named = CONVENTIONS["tables"]["curatedDefaultTable"]
+    fallback = CONVENTIONS["tables"]["fallbackTableName"]
+    curated = (root_attrs.get(named["attribute"]) or {}).get(named["key"])
     if curated in tables:
         return curated
-    if "table" in tables:
-        return "table"
+    if fallback in tables:
+        return fallback
     return sorted(tables)[0] if tables else None
 
 

@@ -16,6 +16,7 @@ import type { SpatialDataStore } from "./store";
 import { parquetMetadata } from "hyparquet";
 
 import { placesAsWritten, readCoordinateSystems } from "./coordinates";
+import { isSquareBinRegion, pointSiblingOf } from "./conventions";
 import { elementNames } from "./store";
 
 export interface CellFootprint {
@@ -174,7 +175,7 @@ export async function readCellFootprint(
     return radius ? { shape: "circle", size: 2 * radius } : null;
   }
   if (types.length === 1 && types[0] === "Polygon") {
-    if (/square/i.test(region)) {
+    if (isSquareBinRegion(region)) {
       const side = gridPitch(coords, dims);
 
       return side ? { shape: "square", size: side } : null;
@@ -183,7 +184,7 @@ export async function readCellFootprint(
     // every cell the same radius when they are a grid's pixels (the squares
     // of a DBiT CUT&Tag or ATAC capture, side twice the radius); cells of
     // varying size (CODEX) have no footprint
-    const sibling = `${region}_for_vitessce`;
+    const sibling = pointSiblingOf(region);
 
     if (
       !elementNames(sd.keys, "shapes").includes(sibling.slice("shapes/".length))

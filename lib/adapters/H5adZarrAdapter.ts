@@ -20,6 +20,7 @@ import * as zarr from "zarrita";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
+import { CONVENTIONS } from "../spatialdata/conventions";
 
 export type XFormat = "dense" | "csr" | "csc" | "missing";
 
@@ -188,7 +189,7 @@ export class H5adZarrAdapter {
     if (this.genes) return this.genes;
     if (!this.adata) throw new Error("Adapter not initialized");
 
-    const candidates = ["_index", "gene", "genes"];
+    const candidates = CONVENTIONS.tables.featureIndexColumns;
 
     for (const candidate of candidates) {
       if (!this.varColumns.includes(candidate)) continue;
