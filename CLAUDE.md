@@ -541,7 +541,12 @@ lazily from the dropped `File`s (`lib/local/open-bundle.ts`,
 `lib/spatialdata/localStore.ts`) and shows them overlaid in the ordinary
 `from-local` viewers; the extras travel in `lib/stores/localBundleStore.ts`.
 *Upload & Save* there uploads every part as it is and links them
-(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`). A saved
+(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`).
+SpatialData parts in separate folders (a store without a table, a
+standalone image) join the cells' store as its elements
+(`joinedStoreFileMap`), in the preview and on save alike; several folders
+dragged in at once are walked as one. Processed data dropped on the server
+card skips the worker and opens the same save dialog, unopened. A saved
 store has `datasetType: "spatialdata"`: single cell in every respect except
 that it opens in `/spatialdata-viewer` (`viewerBase`, `entryType` in
 `lib/datasets/kind.ts`). Raw cells beside processed parts are still shown

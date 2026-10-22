@@ -98,9 +98,18 @@ sample/                          sample/
   inside the dropped one, or the dropped folder itself (an image folder
   dropped alone opens in the image viewer).
 - With cells, the molecules go over them and the image under them (a store's
-  own image, else the standalone one). Without cells the molecules are the
-  scene, image under them. With several candidates for a part the first by
-  name is used and a message names the rest.
+  own image, else the standalone one). Without cells the molecules (a
+  merfisheyes folder, or a store's tiled points) are the scene, image under
+  them.
+- SpatialData parts kept as separate folders become one store
+  (`joinedStoreFileMap` in `lib/local/classify-bundle.ts`): a store without a
+  table and a standalone OME-Zarr image join the store or table with the
+  cells — with no table, the first store by name — as its elements, renamed
+  `_2`, `_3`... when a name is taken. Only the root `zarr.json` is new: its
+  consolidated metadata lists the joined nodes. Several folders dragged in at
+  once are walked as one folder holding them, named after the first. With
+  several candidates for any other part the first by name is used and a
+  message names the rest.
 - The preview runs in the ordinary viewers — `/viewer/from-local`,
   `/sm-viewer/from-local`, `/image-viewer/from-local` — with the extras handed
   over through `lib/stores/localBundleStore.ts`.
@@ -113,8 +122,16 @@ upload, the molecules through the pre-chunked molecule upload, an image as an
 image dataset, and a SpatialData store whole (`datasetType: "spatialdata"`,
 its `annotations/` beside it), which then opens at `/spatialdata-viewer/{id}`.
 The cells' `mapping.json` is written with both links, so the saved link opens
-overlaid. Molecules and an image saved without cells are grouped in a project
-but not overlaid: only cells carry overlays.
+overlaid. Joined parts go up inside the one store, as the preview showed them.
+Merfisheyes molecules and an image saved without cells are grouped in a
+project but not overlaid: only cells carry overlays. A store saved without
+opening it (the server card, below) is counted from its metadata: cells and
+genes from the table's `X`, else molecules and genes from its points element.
+
+The same folder dropped with **Upload & process on server** chosen is not sent
+to the worker: it opens this upload directly, without a preview first, so its
+size is not limited by browser memory. Raw cells beside it still go to the
+worker, with the extras described in the next sections.
 
 ## Layout on S3
 

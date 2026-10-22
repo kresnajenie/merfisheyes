@@ -8,6 +8,34 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Processed data on "Upload & process on server".** A SpatialData store,
+  separate stores, an OME-Zarr image or merfisheyes output folders dropped
+  on the server card are uploaded as they are, the same as Upload & Save
+  from a preview, without opening them first; it used to say "No
+  single-cell data found". Raw exports still go to the worker.
+- **Separate SpatialData parts become one store.** A store without a table
+  (tiled molecules, an image) and a standalone OME-Zarr image beside a store
+  or table join it as its elements, in the preview and when saved; only the
+  root `zarr.json` is rewritten to list them.
+- **Drop matrix tests**: every combination of a table (CSR `X` + CSC layer,
+  or CSC `X`), an image and tiled molecules, in four layouts, dropped through
+  the drop zone (`e2e/tests/viewer/drop-matrix.spec.ts`), saved and sent to
+  the server card (`e2e/tests/upload/drop-matrix-save.spec.ts`), and timed on
+  real stores (`e2e/perf/real-drop.spec.ts`); a tiny store whose `X` is CSC
+  (`scripts/testdata/make-tiny-csc-x.py`).
+
+### Fixed
+
+- A store's tiled molecules without a table were dropped: a molecules-only
+  store bounced back to the homepage, and one with an image showed the image
+  alone. They now open in the molecule viewer, dropped or saved.
+- A molecules-only store beside a table store could take the table's place
+  (the first by name won), leaving no cells.
+- Several folders dragged in at once overwrote one another's root metadata,
+  keeping only one of them.
+
 ## [0.13.0] - 2026-10-21
 
 Every dataset of SpatialData-DB on Explore, and a page of its own for every
