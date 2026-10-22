@@ -183,12 +183,22 @@ export class SpatialDataTableAdapter {
       }
     }
 
-    // Build cluster column metadata (filter out the cell index, and the
-    // SpatialData join keys, which identify cells rather than annotate them)
-    const joinKeys = [this.root.attrs.instance_key, this.root.attrs.region_key];
+    // Build cluster column metadata (filter out the cell index — `_index`,
+    // or whatever the obs frame names it, `index` in a MALDI table — and
+    // the SpatialData join keys, which identify cells rather than annotate
+    // them)
+    const obsIndex = await zarr.open
+      .v3(this.root.resolve("obs"), { kind: "group" })
+      .then((g) => g.attrs._index)
+      .catch(() => null);
+    const notColumns = [
+      this.root.attrs.instance_key,
+      this.root.attrs.region_key,
+      obsIndex,
+    ];
 
     this.clusterColumnNames = this.obsColumns.filter(
-      (k) => !k.startsWith("_") && k !== "_index" && !joinKeys.includes(k),
+      (k) => !k.startsWith("_") && k !== "_index" && !notColumns.includes(k),
     );
     // Type detection happens on-demand in loadClusters; default everything to
     // "categorical" pre-load so the picker can show them.
