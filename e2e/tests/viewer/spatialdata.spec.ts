@@ -513,11 +513,17 @@ test("@quick image settings are kept in the link", async ({ page }) => {
   // An untouched image leaves the link alone
   expect(new URL(page.url()).searchParams.has("img")).toBe(false);
 
+  const img = () => new URL(page.url()).searchParams.get("img");
+
   await colour.fill("#ff8800");
+  // The colour alone writes the settings (with the auto-contrast window):
+  // wait for that, then for the link to change again with the new maximum,
+  // or the reload can race the debounced write
+  await expect.poll(img).not.toBeNull();
+  const afterColour = img();
+
   await maximum.fill("120");
-  await expect
-    .poll(() => new URL(page.url()).searchParams.has("img"))
-    .toBe(true);
+  await expect.poll(img).not.toBe(afterColour);
 
   await page.reload();
   await page.locator(SELECTORS.imageButton).click();
