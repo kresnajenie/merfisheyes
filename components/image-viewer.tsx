@@ -12,6 +12,7 @@ import { LayerHost } from "@/lib/scene/LayerHost";
 import { useLayers } from "@/lib/scene/useLayers";
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import {
+  imageBounds,
   openOmeZarrImage,
   openOmeZarrImageDataset,
   type SpatialDataImage,
@@ -158,13 +159,14 @@ export function ImageScene({
 
     if (!container) return;
 
-    // Frame the whole image (pixel i of the finest level spans i ± 0.5)
-    const finest = image.levels[0];
-    const width = finest.width * finest.pixelWidth;
-    const height = finest.height * finest.pixelHeight;
+    // Frame the whole image as placed in the scene (pixel i of the finest
+    // level spans i ± 0.5; a rotated placement makes the box a little larger)
+    const bounds = imageBounds(image);
+    const width = bounds.maxX - bounds.minX;
+    const height = bounds.maxY - bounds.minY;
     const centre = new THREE.Vector3(
-      finest.originX - finest.pixelWidth / 2 + width / 2,
-      finest.originY - finest.pixelHeight / 2 + height / 2,
+      bounds.minX + width / 2,
+      bounds.minY + height / 2,
       0,
     );
     const aspect = container.clientWidth / container.clientHeight;

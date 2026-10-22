@@ -209,10 +209,14 @@ cells expressing it, with the groups named as the column's values.
 
 - **Zarr v3** (`zarr.json`). Zarr v2 SpatialData stores are not read.
 - **A table** (optional) under `tables/` with `obsm/spatial` (or
-  `obsm/X_spatial`). With several tables, the one named `table` is used,
-  else the first. It is read as anndata writes it, old or new: plain or
-  sharded arrays, and plain or nullable string columns (a missing string
-  reads as empty).
+  `obsm/X_spatial`); without either, the cells are placed at one point per
+  shape of the region element the table annotates (SpatialData-DB's CosMx
+  stores), matched by instance id. With several tables, the one named
+  `table` is used, else the first. It is read as anndata writes it, old or
+  new: plain or sharded arrays, and plain or nullable string columns (a
+  missing string reads as empty). The features are the column `var`'s
+  `_index` attribute names, whatever it is called (`formula_adduct` in a
+  MALDI table).
 - **Expression that can be sliced by gene.** `X` is CSR in these stores, so
   genes are read from a CSC copy in `layers/` (e.g. `layers/X_csc`): one gene
   is ~17 small chunk reads. A dense or CSC `X` also works; a dense `X` written
@@ -256,7 +260,9 @@ The scene is in the units of the cells: `obsm/spatial`, which for Xenium is
 microns — the intrinsic coordinates of the shapes and points elements. The
 image is placed in those units by undoing the shapes (or points) element's
 transform to the shared coordinate system (for Xenium, pixels = microns ×
-4.7059).
+4.7059). An image whose transform is an affine with rotation (a MALDI
+optical image) is drawn turned: its tiles stay in the image's own frame
+and the placement is one matrix on the layer.
 
 ## Image
 

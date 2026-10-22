@@ -66,6 +66,35 @@ def test_composed_tiny_store_passes(tmp_path):
     assert validate_store.main([str(store), "--sample", "1000"]) == 0
 
 
+def test_modality_fixtures_pass():
+    """The stores shaped like SpatialData-DB's CODEX, MALDI-MSI and CosMx ones
+    (scripts/testdata/make-tiny-modalities.py): a dense X, a feature index
+    column that is not `_index`, an image placed by a rotating affine, and a
+    table whose cells' positions are only in its shapes."""
+    codex = validate_store.validate(ZARR / "codex_v3.zarr")
+    assert not codex.failed, fails(codex)
+    assert any(w == "tables/table" and "X is array" in m for lv, w, m in codex.lines)
+
+    maldi = validate_store.validate(ZARR / "maldi_v3.zarr")
+    assert not maldi.failed, fails(maldi)
+    assert any("placed by an affine" in m and "rotated 30.0°" in m for _, _, m in maldi.lines)
+
+    cosmx = validate_store.validate(ZARR / "cosmx_v3.zarr")
+    assert not cosmx.failed, fails(cosmx)
+    assert any("positions come from shapes/cells_polygons_for_vitessce" in m for _, _, m in cosmx.lines)
+
+
+def test_table_without_positions_anywhere_fails(tmp_path):
+    """No obsm/spatial and no region shapes element: the validator says so."""
+    store = tmp_path / "store.zarr"
+    shutil.copytree(ZARR / "cosmx_v3.zarr", store)
+    shutil.rmtree(store / "shapes" / "cells_polygons")
+    shutil.rmtree(store / "shapes" / "cells_polygons_for_vitessce")
+    zarr.consolidate_metadata(str(store))
+    r = validate_store.validate(store)
+    assert any("no obsm/spatial, and no region shapes element" in m for m in fails(r))
+
+
 def test_mapping_beside_the_store(tmp_path):
     store = compose_store(tmp_path, points=False, shapes=False)
     (tmp_path / "mapping.json").write_text(json.dumps({"cells": "store.zarr", "image": "https://x/dapi.zarr"}))
@@ -181,20 +210,43 @@ def test_coordinates_points_must_share_the_cells_frame():
     assert not any(w == "points/transcripts" for lv, w, _ in r.lines if lv == "FAIL")
 
 
-def test_coordinates_visium_targets_the_spots_and_leaves_affine_out():
+def test_coordinates_visium_targets_the_spots_and_places_an_affine():
     root = validate_store.read_json(SDDB_ROOTS / "fJSOO03VzCTYtD1o.json")
     cs = validate_store.coordinate_systems(validate_store.RootStore(root))
     sample = "Targeted_Visium_Human_Cerebellum_Neuroscience"
     assert (cs["target"], cs["rule"], cs["region"]) == (sample, "region identity", f"shapes/{sample}")
-    assert cs["place"](f"images/{sample}_full_image")[0] == (1.0, 1.0, 0.0, 0.0)
+    assert cs["place"](f"images/{sample}_full_image")[0] == validate_store.IDENTITY
     m, _ = cs["place"](f"images/{sample}_hires_image")
     assert round(m[0], 3) == 6.666
-    # An affine image is not drawn, and says why
+    # An affine image is placed, rotation and all, and the report says so
     nodes = root["consolidated_metadata"]["metadata"]
     ms = nodes[f"images/{sample}_hires_image"]["attributes"]["ome"]["multiscales"][0]
-    ms["coordinateTransformations"] = [{"type": "affine", "affine": [], "output": {"name": sample}}]
+    ms["coordinateTransformations"] = [{
+        "type": "affine",
+        "affine": [[1, 0, 0, 0], [0, 0, 2, 5], [0, -2, 0, 7]],
+        "input": {"name": "cyx", "axes": [{"name": "c"}, {"name": "y"}, {"name": "x"}]},
+        "output": {"name": sample, "axes": [{"name": "c"}, {"name": "y"}, {"name": "x"}]},
+    }]
+    cs = validate_store.coordinate_systems(validate_store.RootStore(root))
+    m, _ = cs["place"](f"images/{sample}_hires_image")
+    assert [round(v, 6) for v in m] == [0.0, -2.0, 2.0, 0.0, 7.0, 5.0]
     r = validate_store.validate(validate_store.RootStore(root))
-    assert any("affine" in m for lv, w, m in r.lines if lv == "WARN" and w.endswith("hires_image"))
+    assert any("rotated" in m for lv, w, m in r.lines if lv == "OK" and w.endswith("hires_image"))
+    # A broken affine (no rows) still reads as the identity, not a crash
+    ms["coordinateTransformations"] = [{"type": "affine", "affine": [], "output": {"name": sample}}]
+    cs = validate_store.coordinate_systems(validate_store.RootStore(root))
+    assert cs["place"](f"images/{sample}_hires_image")[0] == validate_store.IDENTITY
+
+
+def test_maldi_and_cosmx_roots_pass():
+    """The real roots (tests/data/sddb/roots): MALDI's affine image is placed,
+    CosMx's cells take their positions from the shapes."""
+    maldi = validate_store.validate(validate_store.RootStore(validate_store.read_json(SDDB_ROOTS / "fF2M7WUbkFnMMhpC.json")))
+    assert not maldi.failed, fails(maldi)
+    assert any("rotated -90.9°" in m for _, _, m in maldi.lines)
+    cosmx = validate_store.validate(validate_store.RootStore(validate_store.read_json(SDDB_ROOTS / "571yTEm4hqlkXRPf.json")))
+    assert not cosmx.failed, fails(cosmx)
+    assert any("positions come from shapes/cells_polygons_for_vitessce" in m for _, _, m in cosmx.lines)
 
 
 def test_points_writer_keeps_the_source_transforms(tmp_path):

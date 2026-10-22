@@ -7,11 +7,12 @@ import { elementNames, findZarrRoot, publicUrlStore } from "./store";
 import { fileStore } from "./localStore";
 import {
   type Map2,
+  IDENTITY,
+  applyMap,
   chain,
   chooseImage,
   elementTransforms,
   readCoordinateSystems,
-  compose,
   outputName,
   toSystem,
 } from "./coordinates";
@@ -24,10 +25,10 @@ export interface ImageLevel {
   height: number;
   chunkWidth: number;
   chunkHeight: number;
-  /** Scene units per pixel of this level. */
+  /** Image units per pixel of this level (the image's own, axis-aligned frame). */
   pixelWidth: number;
   pixelHeight: number;
-  /** Scene position of the centre of this level's pixel (0, 0). */
+  /** Position, in image units, of the centre of this level's pixel (0, 0). */
   originX: number;
   originY: number;
 }
@@ -39,6 +40,39 @@ export interface SpatialDataImage {
   maxValue: number;
   /** Finest first. */
   levels: ImageLevel[];
+  /**
+   * Image units → the scene (the cells' coordinates). The levels stay in
+   * the image's own frame, so a placement that rotates (an affine) is one
+   * matrix on the layer, not a different rectangle per tile.
+   */
+  placement: Map2;
+}
+
+/** The image's extent in the scene: the finest level's rectangle, placed. */
+export function imageBounds(image: SpatialDataImage): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} {
+  const l = image.levels[0];
+  const x0 = l.originX - l.pixelWidth / 2;
+  const y0 = l.originY - l.pixelHeight / 2;
+  const x1 = x0 + l.width * l.pixelWidth;
+  const y1 = y0 + l.height * l.pixelHeight;
+  const corners = [
+    [x0, y0],
+    [x1, y0],
+    [x0, y1],
+    [x1, y1],
+  ].map(([x, y]) => applyMap(image.placement, x, y));
+
+  return {
+    minX: Math.min(...corners.map((c) => c[0])),
+    minY: Math.min(...corners.map((c) => c[1])),
+    maxX: Math.max(...corners.map((c) => c[0])),
+    maxY: Math.max(...corners.map((c) => c[1])),
+  };
 }
 
 /**
@@ -68,17 +102,15 @@ export async function openSpatialDataImage(
     kind: "group",
   });
 
-  return readMultiscale(chosen.name, group, (level) =>
-    compose(level, placed.map),
-  );
+  return readMultiscale(chosen.name, group, placed.map);
 }
 
 /**
- * A standalone image's own transforms, after each level's: a plain OME-NGFF
- * chain; or, when the entries name output systems (as `spatialdata` writes
- * them), the one into `global`, else the first.
+ * A standalone image's own placement, after each level's map: a plain
+ * OME-NGFF chain; or, when the entries name output systems (as
+ * `spatialdata` writes them), the one into `global`, else the first.
  */
-function standalonePlacement(group: zarr.Group<zarr.Readable>) {
+function standalonePlacement(group: zarr.Group<zarr.Readable>): Map2 {
   const el = elementTransforms("images", group.attrs as Record<string, any>);
   const systems = el.transforms
     .map(outputName)
@@ -89,9 +121,8 @@ function standalonePlacement(group: zarr.Group<zarr.Readable>) {
   );
 
   if (!p.ok) throw new Error(`Image transform: ${p.reason}`);
-  const placed = p.map;
 
-  return (level: Map2) => compose(level, placed);
+  return p.map;
 }
 
 /**
@@ -160,12 +191,14 @@ export function openImageRef(ref: ImageRef): Promise<SpatialDataImage> {
     : openOmeZarrImage(ref.image);
 }
 
-/** Levels of an OME-Zarr multiscale group (axes c/y/x), in scene units. */
+/**
+ * Levels of an OME-Zarr multiscale group (axes c/y/x) in the image's own
+ * units, and the placement that takes those units to the scene.
+ */
 async function readMultiscale(
   name: string,
   group: zarr.Group<zarr.Readable>,
-  /** A level's pixel → image map, to its pixel → scene map. */
-  place: (level: Map2) => Map2,
+  placement: Map2 = IDENTITY,
 ): Promise<SpatialDataImage> {
   const ome = group.attrs.ome as any;
   const multiscale = ome.multiscales[0];
@@ -185,8 +218,9 @@ async function readMultiscale(
     if (!array.is("uint8") && !array.is("uint16")) {
       throw new Error(`Unsupported image data type: ${array.dtype}`);
     }
-    // Level pixel index → scene
-    const t = place(chain(dataset.coordinateTransformations ?? [], axisNames));
+    // Level pixel index → image units (a level's own transforms are a
+    // scale and a translation: pixels of a coarser level are larger)
+    const t = chain(dataset.coordinateTransformations ?? [], axisNames);
 
     levels.push({
       array,
@@ -210,5 +244,6 @@ async function readMultiscale(
     ),
     maxValue: levels[0].array.is("uint8") ? 255 : 65535,
     levels,
+    placement,
   };
 }
