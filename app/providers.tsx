@@ -42,18 +42,24 @@ export function Providers({ children, themeProps }: ProvidersProps) {
         <NextThemesProvider {...themeProps}>
           {children}
           <HideUiManager />
-          <ToastContainer
-          closeOnClick
-          draggable
-          pauseOnFocusLoss
-          pauseOnHover
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={true}
-          position="bottom-right"
-          rtl={false}
-          theme="dark"
-          />
+          {/* A toast is not "outside" an open dialog: closing one (an error
+              stays until it is) must not dismiss the dialog behind it, and
+              react-aria keeps it readable to screen readers while a dialog
+              is open */}
+          <div data-react-aria-top-layer="true">
+            <ToastContainer
+              closeOnClick
+              draggable
+              pauseOnFocusLoss
+              pauseOnHover
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop={true}
+              position="bottom-right"
+              rtl={false}
+              theme="dark"
+            />
+          </div>
         </NextThemesProvider>
       </HeroUIProvider>
     </SessionProvider>

@@ -105,6 +105,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- Closing an error toast while a dialog was open closed the dialog instead,
+  and the toast took a second click (kresnajenie/merfisheyes#166): toasts are
+  now outside every dialog's "click outside", so one click closes the toast
+  and the dialog stays. Upload & Save of a pre-chunked molecule folder is now
+  tested end to end, its failure message staying until closed.
 - A store's tiled molecules without a table were dropped: a molecules-only
   store bounced back to the homepage, and one with an image showed the image
   alone. They now open in the molecule viewer, dropped or saved.
