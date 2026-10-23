@@ -10,6 +10,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- **Molecule opacity slider.** Below the molecule size slider (and beside
+  it in the cell viewer while that slider is on molecules), one opacity for
+  every molecule in the panel, in both molecule layers (a folder's per-gene
+  clouds, a store's tiled points). Below 100% molecules blend and stop
+  hiding the ones behind them, so where they pile up reads denser when
+  zoomed out. A uniform: moving it uploads nothing.
 - Docs: the user guide's *Sharing on Explore* page describes the three
   collections on Explore (curated, SpatialData-DB, Community) and that every
   card opens the dataset's own page; `scripts/README.md`, the SpatialData
