@@ -105,11 +105,20 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
-- Closing an error toast while a dialog was open closed the dialog instead,
-  and the toast took a second click (kresnajenie/merfisheyes#166): toasts are
-  now outside every dialog's "click outside", so one click closes the toast
-  and the dialog stays. Upload & Save of a pre-chunked molecule folder is now
-  tested end to end, its failure message staying until closed.
+- **An error stays until you close it, and a failed upload is emailed**
+  (kresnajenie/merfisheyes#166). Errors shown by updating a loading toast
+  (a gene that failed to load, a column that failed, split-screen sync)
+  closed after 3–5 s; every error toast now waits to be closed. Closing one
+  while a dialog was open closed the dialog instead and took a second click;
+  toasts are now outside every dialog's "click outside". An upload that
+  fails in the browser — Upload & Save of cells, molecules or a processed
+  folder, or the transfer of a server upload — emails the signed-in user the
+  reason (`POST /api/uploads/failed`), as a failed server run already did,
+  and marks its dataset FAILED when one was made, instead of leaving it at
+  UPLOADING. Upload & Save of a pre-chunked molecule folder is tested end to
+  end, its failures included.
+- Local test runs no longer send real email: the test server gets empty SES
+  keys, where it used to pick up a developer's staging ones.
 - A store's tiled molecules without a table were dropped: a molecules-only
   store bounced back to the homepage, and one with an image showed the image
   alone. They now open in the molecule viewer, dropped or saved.

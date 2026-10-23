@@ -19,6 +19,7 @@ import { useSession } from "next-auth/react";
 import { AuthModal } from "@/components/auth-modal";
 import { saveLocalBundle, type SavedBundle } from "@/lib/local/save-bundle";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
+import { reportUploadFailure } from "@/lib/upload/reportUploadFailure";
 
 /**
  * "Upload & Save" for a folder of already-processed parts opened as a local
@@ -89,6 +90,7 @@ export function BundleUploadModal({
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
+      void reportUploadFailure({ title: title.trim(), error: e });
     } finally {
       setBusy(false);
     }

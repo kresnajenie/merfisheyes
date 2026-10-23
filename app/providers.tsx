@@ -11,14 +11,10 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { HideUiManager } from "@/components/hide-ui-manager";
+import { keepErrorsOpen } from "@/lib/utils/keep-errors-open";
 
-// An error stays on screen until it is closed, whatever a call site asked
-// for: whoever has to act on it must get to read it (a failed upload's
-// reason used to vanish after a few seconds)
-const showError = toast.error;
-
-toast.error = ((content, options) =>
-  showError(content, { ...options, autoClose: false })) as typeof toast.error;
+// An error stays on screen until it is closed (lib/utils/keep-errors-open.ts)
+keepErrorsOpen(toast);
 
 export interface ProvidersProps {
   children: React.ReactNode;

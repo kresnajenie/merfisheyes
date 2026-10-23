@@ -56,9 +56,18 @@ test.describe("@upload pre-chunked molecules: Upload & Save", () => {
     await page.route("**/api/single-molecule/initiate", (route) =>
       route.fulfill({ status: 500, json: { error: "Storage is unavailable" } }),
     );
+    const title = `e2e-sm-fail-${Date.now()}`;
+    const reported = page.waitForRequest("**/api/uploads/failed");
+
     await page.locator(SELECTORS.uploadSaveButton).first().click();
-    await page.getByPlaceholder("Enter dataset name").fill(`e2e-sm-fail-${Date.now()}`);
+    await page.getByPlaceholder("Enter dataset name").fill(title);
     await page.locator(SELECTORS.processUploadButton).click();
+
+    // The reason goes by email too; no dataset was made to mark
+    expect((await reported).postDataJSON()).toEqual({
+      title,
+      error: "Storage is unavailable",
+    });
 
     const message = page.getByText("Failed to process dataset: Storage is unavailable");
 
@@ -73,5 +82,32 @@ test.describe("@upload pre-chunked molecules: Upload & Save", () => {
       .click();
     await expect(message).toBeHidden();
     await expect(page.getByPlaceholder("Enter dataset name")).toBeVisible();
+  });
+
+  test("a save that fails after its dataset was made marks it FAILED", async ({ page }) => {
+    await signInDev(page, `e2e-sm-chunked-late-${Date.now()}@example.com`);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /single molecule/i }).first().click();
+    await page.locator("#sm-file-input-chunked").setInputFiles(CHUNKED);
+    await page.waitForURL("**/sm-viewer/from-local", { timeout: 60_000 });
+
+    // The files go up; finishing the upload is what fails
+    await page.route("**/api/single-molecule/*/complete", (route) =>
+      route.fulfill({ status: 500, json: { error: "Could not finish the upload" } }),
+    );
+    const reported = page.waitForResponse("**/api/uploads/failed");
+
+    await page.locator(SELECTORS.uploadSaveButton).first().click();
+    await page.getByPlaceholder("Enter dataset name").fill(`e2e-sm-late-${Date.now()}`);
+    await page.locator(SELECTORS.processUploadButton).click();
+
+    const response = await reported;
+    const { datasetId } = response.request().postDataJSON();
+
+    expect(datasetId).toMatch(/^sm_/);
+    expect(await response.json()).toMatchObject({ marked: true });
+    const dataset = await (await page.request.get(`/api/single-molecule/${datasetId}`)).json();
+
+    expect(dataset.status ?? dataset.dataset?.status).toBe("FAILED");
   });
 });

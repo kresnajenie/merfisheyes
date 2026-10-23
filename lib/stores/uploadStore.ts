@@ -12,6 +12,7 @@ import {
   type ImageUploadFile,
 } from "@/lib/upload/uploadImageToS3";
 import type { ViewerConfig } from "@/lib/utils/viewer-config";
+import { reportUploadFailure } from "@/lib/upload/reportUploadFailure";
 
 /**
  * Global raw-upload state.
@@ -246,6 +247,14 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
         status: "error",
         error: err instanceof Error ? err.message : "Upload failed",
       });
+      // The reason by email too, and the dataset, if made, marked FAILED
+      const failed = get().jobs.find((j) => j.id === id);
+
+      void reportUploadFailure({
+        datasetId: failed?.datasetId ?? undefined,
+        title: failed?.title,
+        error: err,
+      });
     } finally {
       patch({ _abort: null });
     }
@@ -330,6 +339,14 @@ export const useUploadStore = create<UploadStore>((set, get) => ({
       patch({
         status: "error",
         error: err instanceof Error ? err.message : "Upload failed",
+      });
+      // The reason by email too, and the dataset, if made, marked FAILED
+      const failed = get().jobs.find((j) => j.id === id);
+
+      void reportUploadFailure({
+        datasetId: failed?.datasetId ?? undefined,
+        title: failed?.title,
+        error: err,
       });
     } finally {
       patch({ _abort: null });
