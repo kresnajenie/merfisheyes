@@ -10,7 +10,11 @@ import { useEffect, useState } from "react";
 import { Button, Input, Skeleton } from "@heroui/react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import {
+  panelTypeForDataset,
+  panelTypeForViewer,
+  useSplitScreenStore,
+} from "@/lib/stores/splitScreenStore";
 import { ExploreDatasetCard } from "@/components/explore/explore-dataset-card";
 import { ExploreModal } from "@/components/explore/explore-modal";
 
@@ -62,8 +66,9 @@ export function SplitPanelPicker() {
     s3Url: string | null;
     type: PanelType;
   } => {
-    const isSm = pathname.startsWith("/sm-viewer");
-    const type: PanelType = isSm ? "sm" : "cell";
+    // The panel of the viewer this page is
+    const type: PanelType =
+      panelTypeForViewer(pathname.split("/")[1] ?? "") ?? "cell";
 
     // For from-s3 pages, return the S3 URL
     if (isFromS3Page) {
@@ -117,11 +122,13 @@ export function SplitPanelPicker() {
 
     const input = linkInput.trim();
 
+    // A bare S3 URL or dataset id opens as this page's kind
+    const here: PanelType =
+      panelTypeForViewer(pathname.split("/")[1] ?? "") ?? "cell";
+
     // Check if it's a raw S3 URL
     if (isRawS3Url(input)) {
-      const isSm = pathname.startsWith("/sm-viewer");
-
-      setRightPanelS3(input, isSm ? "sm" : "cell");
+      setRightPanelS3(input, here);
 
       return;
     }
@@ -129,48 +136,21 @@ export function SplitPanelPicker() {
     try {
       const url = new URL(input);
       const pathParts = url.pathname.split("/").filter(Boolean);
+      // Any viewer's link opens in that viewer's panel: cells, molecules,
+      // a SpatialData store, an image, labelled molecules
+      const type = panelTypeForViewer(pathParts[0] ?? "");
 
-      let type: PanelType = "cell";
-      let id: string | null = null;
+      if (!type) return;
+      if (pathParts[1] === "from-s3") {
+        const s3UrlParam = url.searchParams.get("url");
 
-      if (pathParts[0] === "sm-viewer") {
-        type = "sm";
-        if (pathParts[1] === "from-s3") {
-          const s3UrlParam = url.searchParams.get("url");
-
-          if (s3UrlParam) {
-            setRightPanelS3(decodeURIComponent(s3UrlParam), type);
-
-            return;
-          }
-        } else if (pathParts.length >= 2) {
-          id = pathParts[1];
-        }
-      } else if (pathParts[0] === "viewer") {
-        type = "cell";
-        if (pathParts[1] === "from-s3") {
-          const s3UrlParam = url.searchParams.get("url");
-
-          if (s3UrlParam) {
-            setRightPanelS3(decodeURIComponent(s3UrlParam), type);
-
-            return;
-          }
-        } else if (pathParts.length >= 2) {
-          id = pathParts[1];
-        }
-      }
-
-      if (id) {
-        setRightPanel(id, type);
+        if (s3UrlParam) setRightPanelS3(decodeURIComponent(s3UrlParam), type);
+      } else if (pathParts.length >= 2 && pathParts[1] !== "from-local") {
+        setRightPanel(pathParts[1], type);
       }
     } catch {
       // Invalid URL — try treating as dataset ID
-      if (input.length > 0) {
-        const isSm = pathname.startsWith("/sm-viewer");
-
-        setRightPanel(input, isSm ? "sm" : "cell");
-      }
+      if (input.length > 0) setRightPanel(input, here);
     }
   };
 
@@ -199,8 +179,8 @@ export function SplitPanelPicker() {
     _dataset: CatalogDatasetItem,
     entry: CatalogDatasetEntry,
   ) => {
-    const type: PanelType =
-      entry.datasetType === "single_molecule" ? "sm" : "cell";
+    // The panel of what the entry is (a SpatialData-DB store, an image...)
+    const type = panelTypeForDataset(entry.datasetType);
 
     if (entry.s3BaseUrl) {
       setRightPanelS3(entry.s3BaseUrl, type);

@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
 import {
   DatasetErrorScreen,
@@ -13,9 +15,12 @@ import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
 import { SplitScreenContainer } from "@/components/split-screen-container";
 import { useDatasetLoader } from "@/lib/hooks/useDatasetLoader";
+import {
+  usePanelSingleMoleculeStore,
+  usePanelSingleMoleculeVisualizationStore,
+} from "@/lib/hooks/usePanelStores";
+import { useSplitUrlParams } from "@/lib/hooks/useSplitUrlParams";
 import { useSMOverlayUrlSync } from "@/lib/hooks/useUrlVizSync";
-import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
-import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 
 /**
  * Viewer for a SpatialData zarr store: by dataset id (uploaded to our S3) or
@@ -28,29 +33,40 @@ import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMolecule
  *   - an image alone: just the image
  * The store is opened by the one dataset loader; which elements it holds
  * is decided by the element registry (lib/scene/registry.tsx).
+ *
+ * `panel`: the right side of a split view (components/split-panel-viewer.tsx),
+ * in that panel's stores, without the page's split container, claim banner or
+ * a counted view.
  */
 export function SpatialDataViewer({
   datasetId,
   url,
+  panel = false,
 }: {
   datasetId?: string;
   url?: string;
+  panel?: boolean;
 }) {
   const { loaded, loading, progress, message, error, retry } = useDatasetLoader(
     { kind: "spatialdata", datasetId, s3Url: url },
+    { countViews: !panel },
   );
 
-  // The scene loads the molecule dataset into the global SM store; this
+  // The scene loads the molecule dataset into the panel's SM store; this
   // picks its default genes (or restores them from the URL).
-  const smOverlayDataset = useSingleMoleculeStore((s) =>
+  const smOverlayDataset = usePanelSingleMoleculeStore((s) =>
     s.currentDatasetId ? (s.datasets.get(s.currentDatasetId) ?? null) : null,
   );
-  const smVizStore = useSingleMoleculeVisualizationStore();
+  const smVizStore = usePanelSingleMoleculeVisualizationStore();
 
   useSMOverlayUrlSync(!!smOverlayDataset, smOverlayDataset, smVizStore);
 
   if (error) {
-    return <DatasetErrorScreen error={error} homeHref="/" onRetry={retry} />;
+    return panel ? (
+      <DatasetErrorScreen error={error} variant="panel" />
+    ) : (
+      <DatasetErrorScreen error={error} homeHref="/" onRetry={retry} />
+    );
   }
   if (loading || !loaded) {
     return (
@@ -58,36 +74,52 @@ export function SpatialDataViewer({
         label="Loading SpatialData store..."
         message={message}
         progress={progress}
+        variant={panel ? "panel" : undefined}
       />
     );
   }
   const { cells, molecules, elements, storeUrl } = loaded;
+  // The page wraps its scene for the split; a panel is already inside one
+  const frame = (scene: ReactNode) =>
+    panel ? (
+      scene
+    ) : (
+      <PageFrame>
+        {storeUrl && <ClaimDatasetBanner />}
+        {scene}
+      </PageFrame>
+    );
 
   if (cells) {
-    return (
-      <SplitScreenContainer>
-        {storeUrl && <ClaimDatasetBanner />}
+    return frame(
+      <>
         <VisualizationControls />
         <ThreeScene dataset={cells} elements={elements} />
-      </SplitScreenContainer>
+      </>,
     );
   }
   if (molecules) {
-    return (
-      <SplitScreenContainer>
-        {storeUrl && <ClaimDatasetBanner />}
+    return frame(
+      <>
         <SingleMoleculeControls />
         <SingleMoleculeLegends />
         <SingleMoleculeThreeScene elements={elements} />
-      </SplitScreenContainer>
+      </>,
     );
   }
 
   return (
     elements.image && (
-      <ImageScene image={elements.image}>
-        {storeUrl && <ClaimDatasetBanner />}
+      <ImageScene image={elements.image} panel={panel}>
+        {!panel && storeUrl && <ClaimDatasetBanner />}
       </ImageScene>
     )
   );
+}
+
+/** The full page: a split view whose state is kept in the URL. */
+function PageFrame({ children }: { children: ReactNode }) {
+  useSplitUrlParams();
+
+  return <SplitScreenContainer>{children}</SplitScreenContainer>;
 }

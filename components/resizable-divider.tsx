@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@heroui/tooltip";
 
-import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import {
+  panelTypeForViewer,
+  useSplitScreenStore,
+} from "@/lib/stores/splitScreenStore";
 import type { PanelType } from "@/lib/stores/splitScreenStore";
 
 export function ResizableDivider() {
@@ -51,14 +54,10 @@ export function ResizableDivider() {
     };
   }, [isDragging, setDividerPosition]);
 
-  // Which viewer the left panel is. Without the lm case this fell through to
-  // "cell", so on /lm-viewer it never matched the right panel's "lm" and the
-  // sync button was hidden even though the sync itself was wired up.
-  const leftPanelType: PanelType = pathname.startsWith("/sm-viewer")
-    ? "sm"
-    : pathname.startsWith("/lm-viewer")
-      ? "lm"
-      : "cell";
+  // Which viewer the left panel is, by the page's first path segment (a
+  // missing case once fell through to "cell" and hid the sync button)
+  const leftPanelType: PanelType =
+    panelTypeForViewer(pathname.split("/")[1] ?? "") ?? "cell";
   const showSyncButton =
     rightPanelType !== null && leftPanelType === rightPanelType;
 

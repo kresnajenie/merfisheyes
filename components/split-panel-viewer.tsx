@@ -9,6 +9,8 @@ import { SingleMoleculeThreeScene } from "./single-molecule-three-scene";
 import { SingleMoleculeControls } from "./single-molecule-controls";
 import { SingleMoleculeLegends } from "./single-molecule-legends";
 import LabelledMoleculeViewerPage from "./labelled-molecule-viewer";
+import { SpatialDataViewer } from "./spatialdata-viewer";
+import { ImageViewer } from "./image-viewer";
 import {
   DatasetErrorScreen,
   DatasetLoadingScreen,
@@ -39,6 +41,25 @@ export function SplitPanelViewer({
 }: SplitPanelViewerProps) {
   if (type === "cell") {
     return <CellViewer datasetId={datasetId} s3Url={s3Url} />;
+  }
+  // A SpatialData store or an image: their own viewers, in panel mode
+  if (type === "spatialdata") {
+    return (
+      <SpatialDataViewer
+        panel
+        datasetId={datasetId ?? undefined}
+        url={s3Url ?? undefined}
+      />
+    );
+  }
+  if (type === "image") {
+    return (
+      <ImageViewer
+        panel
+        datasetId={datasetId ?? undefined}
+        url={s3Url ?? undefined}
+      />
+    );
   }
   if (type === "lm") {
     // The LM viewer already owns its loader, and inside a PanelProvider its

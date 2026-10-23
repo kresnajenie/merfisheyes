@@ -3,7 +3,7 @@
 import type { PanelType } from "@/lib/stores/splitScreenStore";
 
 import { useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 
@@ -14,7 +14,6 @@ import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
  * so a split opened on one surface restores the same way on any other.
  */
 export function useSplitUrlParams(): void {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const {
     isSplitMode,
@@ -48,10 +47,14 @@ export function useSplitUrlParams(): void {
     }
   }, []);
 
-  // Write split params to URL when split state changes
+  // Write split params to URL when split state changes. Written at once
+  // with history.replaceState, as lib/utils/url-state-writer.ts writes the
+  // panels' view state: both read the address as it is when they write, so
+  // neither undoes the other. (router.replace applied later, and a panel's
+  // image settings written in between were lost — or the split was.)
   useEffect(() => {
-    // Use window.location.search as base to avoid stale Next.js searchParams
-    const newParams = new URLSearchParams(window.location.search);
+    const url = new URL(window.location.href);
+    const newParams = url.searchParams;
 
     if (isSplitMode && rightPanelType) {
       if (rightPanelS3Url) {
@@ -67,17 +70,16 @@ export function useSplitUrlParams(): void {
       } else {
         newParams.delete("sync");
       }
-      router.replace(`?${newParams.toString()}`, { scroll: false });
     } else if (!isSplitMode) {
       newParams.delete("split");
       newParams.delete("splitS3Url");
       newParams.delete("splitType");
       newParams.delete("sync");
-      const paramStr = newParams.toString();
-
-      router.replace(paramStr ? `?${paramStr}` : window.location.pathname, {
-        scroll: false,
-      });
+    } else {
+      return;
+    }
+    if (url.href !== window.location.href) {
+      window.history.replaceState(window.history.state, "", url.href);
     }
   }, [
     isSplitMode,

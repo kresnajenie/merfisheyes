@@ -29,13 +29,19 @@ import { initializeScene } from "@/lib/webgl/scene-manager";
  * An image is a dataset like any other. One opened by URL is looked up in the
  * database, and when nobody owns it yet the banner offers to add it to the
  * viewer's account.
+ *
+ * `panel`: the right side of a split view. The page's registration (whose
+ * dataset is open, who owns it) belongs to the left panel, so a panel neither
+ * sets it nor counts a view, and its messages stay inside the panel.
  */
 export function ImageViewer({
   url,
   datasetId,
+  panel = false,
 }: {
   url?: string;
   datasetId?: string;
+  panel?: boolean;
 }) {
   const [image, setImage] = useState<SpatialDataImage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +79,7 @@ export function ImageViewer({
     let cancelled = false;
 
     setRegisteredId(datasetId ?? null);
-    if (!url) return;
+    if (!url || panel) return;
     const s3Url = normalizeS3Url(url);
 
     fetch(`/api/datasets/by-url?url=${encodeURIComponent(s3Url)}`)
@@ -101,7 +107,7 @@ export function ImageViewer({
 
   // One view per open (the server dedups per session and day).
   useEffect(() => {
-    if (!image || !registeredId) return;
+    if (!image || !registeredId || panel) return;
     fetch(`/api/datasets/${registeredId}/view`, { method: "POST" }).catch(
       () => {},
     );
@@ -121,14 +127,20 @@ export function ImageViewer({
   }
   if (!image) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4">
+      <div
+        className={`${panel ? "absolute" : "fixed"} inset-0 flex flex-col items-center justify-center gap-4`}
+      >
         <Spinner color="primary" size="lg" />
         <p className={subtitle({ class: "text-center" })}>Opening image...</p>
       </div>
     );
   }
 
-  return <ImageScene image={image}>{url && <ClaimDatasetBanner />}</ImageScene>;
+  return (
+    <ImageScene image={image} panel={panel}>
+      {!panel && url && <ClaimDatasetBanner />}
+    </ImageScene>
+  );
 }
 
 /**
@@ -139,10 +151,13 @@ export function ImageViewer({
 export function ImageScene({
   image,
   children,
+  panel = false,
 }: {
   image: SpatialDataImage;
   /** Drawn over the scene, e.g. the banner that offers to claim the image. */
   children?: React.ReactNode;
+  /** In a split view's panel: fill the panel, not the window. */
+  panel?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -216,7 +231,7 @@ export function ImageScene({
   }, [image]);
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
+    <div className={`${panel ? "absolute" : "fixed"} inset-0 overflow-hidden`}>
       <div
         ref={containerRef}
         className="absolute inset-0"

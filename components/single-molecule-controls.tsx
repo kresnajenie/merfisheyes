@@ -129,6 +129,7 @@ export function SingleMoleculeControls() {
         {!isSplitMode && !panelId && (
           <Tooltip content="Split screen" placement="right">
             <Button
+              aria-label="Split screen"
               className={`${BTN} ${glassButton()}`}
               color="default"
               variant="light"

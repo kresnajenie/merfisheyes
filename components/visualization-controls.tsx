@@ -498,6 +498,7 @@ export function VisualizationControls() {
       {!isSplitMode && !panelId && (
         <Tooltip content="Split screen" placement="right">
           <Button
+            aria-label="Split screen"
             className={`${buttonBaseClass} ${glassButton()}`}
             color="default"
             variant="light"
