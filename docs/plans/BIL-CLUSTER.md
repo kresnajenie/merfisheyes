@@ -70,20 +70,31 @@ copies, and the `.sbatch` wrappers already point at `analysis-scripts/`; and
 `analysis-scripts/h5ad-samples.csv`, identical to the top-level list and
 referenced by nothing.
 
-**Still open in Tier A — three shared scripts the branches disagree about.** Not
-restored, because taking either side blindly destroys work:
+**The three shared scripts. ✅ Resolved (user, 2026-10-23) — but not by "take
+the newest".** In two of three, no single version is a superset, so the newest
+file would have deleted working code:
 
-| File | Branches vs tip | What it means |
+| File | Resolution | Why |
 |---|---|---|
-| `map_my_cell.py` | **+602 / −179** | The branches carry the dual-method MMC work (hierarchical + correlation, per-row species, chunking over cells to fix OOM); the tip was *stripped* to one artifact in `9f4f981`. **The branch side has functionality the tip lacks.** |
-| `process_spatial_data.py` | +157…258 / **−704…786** | The reverse: the tip is far newer (DE stats, the one-pipeline work). **Take the tip**; port only BIL-specific additions. |
-| `combine_slices_v3.py` | +15…25 / −28…38 | Small. Needs a per-hunk read: the BIL fixes (panel-mismatch fill, species column) against whatever the tip changed. |
+| `map_my_cell.py` | **`mmc-update` + the `center_x` fallback from `s3-update`** → 722 lines | The tip (2026-07-22, 292 lines) is 15 days *newer* but was stripped in `9f4f981` and has **zero** correlation support (`correlat` ×0 vs ×30). Dual-method needs the branch. Of the three dual-method branches `mmc-update` (07-07) alone carries the **case-insensitive gene-symbol fallback** — without it a mouse panel against the human reference "would otherwise drop nearly every gene", which is exactly the macaque→human path. `s3-update` (07-09) is 2 days newer but dropped that fix and instead added the **`obs['center_x']` fallback for BIL SISSeg h5ad exports with no `obsm['X_spatial']`** — the h5ad sample family. Both are needed, so `mmc-update` is the base and the 14-line fallback is ported onto it. |
+| `process_spatial_data.py` | **tip + `92671a3`** | The tip (10-22) is genuinely newest and far richer. But it never received the 09-04 BIL fix: a `ProcessPoolExecutor` crash on `pd.Categorical` with int16+ codes, and — worse — `is_categorical()`'s `series.dtype == "object"` test, which **silently no-ops under pandas ≥ 3.0** (plain strings infer as `StringDtype`), misclassifying every high-cardinality string column as numerical and encoding it all-NaN. The tip still had the buggy line at `:258`. |
+| `combine_slices_v3.py` | **tip + `836a73a`** | Here "newest" would have been actively destructive: `pipeline/final-rerun` (09-09) is 5 days newer than the tip (09-04) and has the panel-mismatch fill, but contains **zero occurrences of `sample_offsets`** — the per-slice translation table §2.3 depends on to put molecules in the combined cells' frame. Tip is the base; the fill is ported. |
 
-`main`'s pipeline also still cannot run: `launch_pipeline.sh:195` hands a
-directory to an h5ad-only `map_my_cell.py` (`:264`); `launch_sm_pipeline.sh:190`
-passes named flags to a positional-only sbatch. Fixed on `pipeline/final-rerun`
-(`41cc34a`, `317deb4`); those commits are in the `map_my_cell.py` /
-`bil-scripts` decisions above, not yet on the mainline.
+Both ports applied with `git apply --3way` cleanly; every symbol other scripts
+import from `process_spatial_data` (`OBS_BINARY_FORMAT`, `fmt_elapsed`,
+`peak_rss_gb`, `write_coordinate_binary`, `build_obs_palette`,
+`encode_obs_binary`, `write_de_stats_binary`) still resolves.
+
+⚠ **Not yet verified by running anything** — `anndata`, `zarr` and `pyarrow` are
+not installed on the machine this was done on, so `pytest tests/python` and
+`npm run parity` have not been run against the merged files. Step 1's container
+is where that happens first.
+
+`main`'s pipeline still cannot run: `launch_pipeline.sh:195` hands a directory
+to an h5ad-only `map_my_cell.py`; `launch_sm_pipeline.sh:190` passes named flags
+to a positional-only sbatch. Fixed on `pipeline/final-rerun` (`41cc34a`,
+`317deb4`) — **and the restored `map_my_cell.py` accepts a directory again**, so
+the first of those two is now moot on this branch.
 
 **Tier B — in no branch of this clone.** `align2.py` and `build_store.py`,
 which built the 11.24 B-molecule `12_16_2025_all_sets` store that
