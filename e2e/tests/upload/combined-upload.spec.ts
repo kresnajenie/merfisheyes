@@ -147,4 +147,37 @@ test.describe("@upload combined upload", () => {
         .toBeGreaterThan(0.2);
     });
   });
+
+  test("molecules beside the cells are found by their columns, not their name", async ({
+    page,
+  }) => {
+    // A lab's own naming: no "transcript" anywhere
+    const named = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), "e2e-")),
+      "lab",
+    );
+
+    fs.mkdirSync(named);
+    fs.copyFileSync(
+      path.join(TINY, "h5ad", "tiny.h5ad"),
+      path.join(named, "cells.h5ad"),
+    );
+    fs.copyFileSync(
+      path.join(TINY, "single-molecule", "tiny.parquet"),
+      path.join(named, "set1__single_molecules.parquet"),
+    );
+
+    await signInDev(page, `e2e-combined-named-${Date.now()}@example.com`);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page
+      .getByRole("radio", { name: "Upload & process on server" })
+      .click();
+    await page.locator("#sc-file-input-folder").setInputFiles(named);
+
+    await expect(page.getByText("Name your dataset")).toBeVisible();
+    await expect(
+      page.getByText("Also upload the single-molecule data"),
+    ).toBeVisible();
+    fs.rmSync(path.dirname(named), { recursive: true });
+  });
 });
