@@ -18,7 +18,7 @@ It was built against the Xenium skin store from the Celldega
 | Cells | `tables/<name>` in the store | Coordinates, gene list and one cell column up front; expression per gene on demand |
 | Image | `images/<name>` in the store | The pyramid level matching the zoom, only the chunks in view |
 | Molecules | `molecules/` beside the store | Per-gene files, converted once from `points/<name>` |
-| Clusters + DEGs | `annotations/` beside the store | Leiden clusters and their DE stats, computed once from the table |
+| Clusters + DEGs | the table's `obs`, `varm` and `uns` (older stores: `annotations/` beside the store) | Leiden clusters and the DE stats of every categorical column, computed once from the table |
 
 Cell boundaries (`shapes/<name>`) are not drawn yet.
 
@@ -181,9 +181,11 @@ aws s3 sync molecules/ $DEST/molecules/
 echo "{\"cells\":\"name.zarr\",\"linkColumn\":\"__all__\",\"links\":{\"__all__\":\"$URL/molecules\"}}" > mapping.json
 aws s3 cp mapping.json $DEST/mapping.json
 
-# 4. Clusters and DEGs (112k cells: ~1 min)
+# 4. Clusters and DEGs, written into the table (112k cells: ~1 min); sync the
+#    table and the root metadata again
 python scripts/spatialdata_cluster.py $STORE annotations/ --resolution 0.5
-aws s3 sync annotations/ $DEST/annotations/
+aws s3 sync $STORE/tables $DEST/name.zarr/tables
+aws s3 cp $STORE/zarr.json $DEST/name.zarr/zarr.json
 ```
 
 For a store opened by dataset id, the same three sidecars go in the folder
@@ -204,8 +206,11 @@ on their own.
 Leiden (`--resolution`, `--n-pcs`, `--n-neighbors`) and writes the cluster
 of each cell into the table itself, as a categorical `obs/leiden` column
 (with `--sidecar-only`, as one category code per cell in
-`annotations/leiden.bin` instead, the table untouched). The DE stats always
-go to the sidecar: they are per-cluster means of the
+`annotations/leiden.bin` instead, the table untouched). The DE stats go
+into the table too — `varm/de_mean__leiden`, `varm/de_pct__leiden` and
+`uns/merfisheyes_de` (`scripts/de_stats.py`, which `prepare.py` runs for
+every categorical column) — or, with `--sidecar-only`, to `annotations/de/`
+as before; the viewer reads either. They are per-cluster means of the
 **log-normalized** matrix plus the fraction of cells expressing each gene —
 the DEG panel un-logs the means for fold change. (Raw Xenium counts are low
 enough that the panel would mistake their means for log values.)

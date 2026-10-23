@@ -10,6 +10,14 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **DEG stats live inside the table.** Every categorical column's per-gene
+  mean (log-normalised) and fraction expressing are written into the
+  SpatialData table itself — `varm/de_mean__<column>`, `varm/de_pct__<column>`,
+  `uns/merfisheyes_de` (`scripts/de_stats.py`) — by `prepare.py` and
+  `spatialdata_cluster.py`, so a store needs no `annotations/` folder beside
+  it; the viewer's DEG panel reads them (older stores' `annotations/` still
+  work).
+
 - **`scripts/prepare.py`: one command to prepare your own data** (step 1 of
   `docs/plans/ONE-PIPELINE.md`). `python scripts/prepare.py INPUT OUT`
   recognises an `.h5ad` / AnnData Zarr, a Xenium export, a MERSCOPE region,

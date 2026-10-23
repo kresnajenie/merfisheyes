@@ -208,8 +208,8 @@ You get one SpatialData store holding everything. The viewer opens all of it; sp
 sample/
 ├── sample.zarr/                 tables/table (X + layers/X_csc, obsm/spatial, your columns, obs/leiden with --cluster),
 │                                images/dapi (written by the spatialdata library), points/molecules (tiled, streamed by view,
-│                                straight from the transcripts table), shapes/cell_boundaries when you have polygons
-├── annotations/                 (--cluster) the per-cluster DEG stats only; the clusters are in the table
+│                                straight from the transcripts table), shapes/cell_boundaries when you have polygons,
+│                                and each categorical column's DEG stats in the table's varm / uns
 ├── sources/                     the image folder and the transcripts table the store was made from
 └── mapping.json                 { "cells": "sample.zarr" }
 ```
