@@ -108,7 +108,17 @@ export async function GET(request: NextRequest) {
     const insensitive = Prisma.QueryMode.insensitive;
     const filterAnd: Prisma.DatasetWhereInput[] = [];
 
-    if (type) filterAnd.push({ datasetType: type });
+    // One type, or several comma-separated (the overlay picker's molecules:
+    // single_molecule,spatialdata)
+    if (type) {
+      const types = type.split(",").filter(Boolean);
+
+      filterAnd.push(
+        types.length > 1
+          ? { datasetType: { in: types } }
+          : { datasetType: type },
+      );
+    }
     if (statusFilter && statusFilter in DatasetStatus)
       filterAnd.push({ status: statusFilter as DatasetStatus });
     if (species)

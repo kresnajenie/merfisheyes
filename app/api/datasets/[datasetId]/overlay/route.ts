@@ -12,6 +12,7 @@ import {
   type ImageOverlay,
   removeOverlay,
   groupInProject,
+  storeHasPoints,
 } from "@/lib/ingest/overlay";
 
 // Manage the overlays on a single-cell dataset the user owns: a
@@ -147,10 +148,17 @@ export async function POST(
   }
 
   const sm = await ownedDataset(smDatasetId, session.user.id, isAdmin);
+  // Molecules: a single molecule dataset, or a SpatialData store that has
+  // them (what scripts/prepare.py makes of a molecule table)
+  const molecules =
+    sm?.datasetType === "single_molecule" ||
+    (sm?.datasetType === "spatialdata" &&
+      smDatasetId !== datasetId &&
+      (await storeHasPoints(smDatasetId)));
 
-  if (!sm || sm.datasetType !== "single_molecule") {
+  if (!sm || !molecules) {
     return NextResponse.json(
-      { error: "Pick a single-molecule dataset you own" },
+      { error: "Pick a dataset of yours with molecules" },
       { status: 400 },
     );
   }

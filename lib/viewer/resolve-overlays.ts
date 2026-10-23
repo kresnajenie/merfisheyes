@@ -33,6 +33,7 @@ export interface OverlayIO {
   loadMolecules(
     ref: string,
     source: "s3" | "app",
+    linkFormat?: DatasetLinkConfig["linkFormat"],
   ): Promise<SingleMoleculeDataset>;
   /** Make a cluster column available on the dataset; true when fetched. */
   loadColumn(dataset: StandardizedDataset, column: string): Promise<boolean>;
@@ -116,11 +117,15 @@ export async function resolveOverlays(
     }
   };
 
-  const everyCell = async (ref: string, source: "s3" | "app") => {
+  const everyCell = async (
+    ref: string,
+    source: "s3" | "app",
+    linkFormat?: DatasetLinkConfig["linkFormat"],
+  ) => {
     if (!ref) return;
     on.loading(true);
     try {
-      const molecules = await io.loadMolecules(ref, source);
+      const molecules = await io.loadMolecules(ref, source, linkFormat);
 
       if (on.stale()) return;
       on.element(moleculeElements(molecules));
@@ -142,7 +147,11 @@ export async function resolveOverlays(
     on.link(mapping);
     // "__all__" means every cell links to the same molecule set: an overlay
     if (mapping.linkColumn === "__all__") {
-      await everyCell(mapping.links.__all__, mapping.source ?? "s3");
+      await everyCell(
+        mapping.links.__all__,
+        mapping.source ?? "s3",
+        mapping.linkFormat,
+      );
 
       return;
     }
@@ -182,7 +191,11 @@ export async function resolveOverlays(
     void image(mapping);
     if (mapping.linkColumn === "__all__" && mapping.links) {
       on.link(mapping);
-      await everyCell(mapping.links.__all__, mapping.source ?? "s3");
+      await everyCell(
+        mapping.links.__all__,
+        mapping.source ?? "s3",
+        mapping.linkFormat,
+      );
     }
   }
 }

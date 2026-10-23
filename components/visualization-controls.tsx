@@ -771,7 +771,12 @@ export function VisualizationControls() {
                 </button>
               </div>
               <div className="mt-4">
-                <OverlayManager scDatasetId={overlayDbId} />
+                {/* The links are read when the dataset opens: reopen it so
+                    an attached or removed overlay shows at once */}
+                <OverlayManager
+                  scDatasetId={overlayDbId}
+                  onChange={() => window.location.reload()}
+                />
               </div>
             </div>
           </div>,

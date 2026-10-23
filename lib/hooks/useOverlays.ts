@@ -33,14 +33,12 @@ const io: OverlayIO = {
       .then((r) => (r.ok ? (r.json() as Promise<DatasetLinkConfig>) : null))
       .catch(() => null),
   openImage: openImageRef,
-  loadMolecules: async (ref, source) => {
-    const { SingleMoleculeDataset } = await import(
-      "@/lib/SingleMoleculeDataset"
+  loadMolecules: async (ref, source, linkFormat) => {
+    const { openLinkedMolecules } = await import(
+      "@/lib/spatialdata/loadSpatialDataMolecules"
     );
 
-    return source === "app"
-      ? SingleMoleculeDataset.fromS3(ref)
-      : SingleMoleculeDataset.fromCustomS3(ref);
+    return openLinkedMolecules(ref, source, linkFormat);
   },
   loadColumn: loadClusterColumn,
 };
