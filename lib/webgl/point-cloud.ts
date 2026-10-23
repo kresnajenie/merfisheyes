@@ -52,6 +52,27 @@ export function createMoleculeMaterial(
 }
 
 /**
+ * A molecule cloud's opacity, as its `uAlpha` uniform. Below 1 the cloud
+ * blends and stops writing depth, so overlapping molecules build up where
+ * they are dense instead of the nearest one hiding the rest; at 1 it is
+ * opaque again. Switching mode recompiles once; moving the slider within a
+ * mode uploads nothing.
+ */
+export function setMoleculeOpacity(
+  material: THREE.ShaderMaterial,
+  opacity: number,
+): void {
+  material.uniforms.uAlpha.value = opacity;
+  const blended = opacity < 1;
+
+  if (material.transparent !== blended) {
+    material.transparent = blended;
+    material.depthWrite = !blended;
+    material.needsUpdate = true;
+  }
+}
+
+/**
  * Generates random point data for visualization
  */
 export function generateRandomPoints(config: PointCloudConfig): PointData[] {

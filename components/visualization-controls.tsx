@@ -35,6 +35,7 @@ import {
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { glassButton } from "@/components/primitives";
+import { MoleculeOpacitySlider } from "@/components/molecule-opacity-slider";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { OverlayManager } from "@/components/overlay-manager";
 import { LayerControls } from "@/components/layer-controls";
@@ -535,6 +536,9 @@ export function VisualizationControls() {
           />
         )}
       </div>
+
+      {/* The molecules' opacity, beside their size while that is shown */}
+      {hasSmOverlay && scSmMode === "sm" && <MoleculeOpacitySlider />}
 
       {/* Layer visibility — show/hide the entire single-cell or single-molecule
           layer. SC whenever something else is drawn with the cells (an image,

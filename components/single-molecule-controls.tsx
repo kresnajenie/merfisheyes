@@ -9,6 +9,7 @@ import { toast } from "react-toastify";
 import { CameraPanel } from "./camera-panel";
 import { SingleMoleculeGenePicker } from "./single-molecule-gene-picker";
 import { useSliderRangeLocal } from "./slider-range-popover";
+import { MoleculeOpacitySlider } from "./molecule-opacity-slider";
 
 import {
   usePanelSingleMoleculeVisualizationStore,
@@ -120,6 +121,9 @@ export function SingleMoleculeControls() {
           </div>
         </Tooltip>
         {dotRange.popover}
+
+        {/* Opacity — dense spots build up below 100% */}
+        <MoleculeOpacitySlider />
 
         {/* Split Screen Button */}
         {!isSplitMode && !panelId && (

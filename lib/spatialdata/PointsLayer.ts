@@ -18,7 +18,10 @@ import {
   markLayerContent,
   markLayerSettled,
 } from "@/lib/utils/test-hooks";
-import { createMoleculeMaterial } from "@/lib/webgl/point-cloud";
+import {
+  createMoleculeMaterial,
+  setMoleculeOpacity,
+} from "@/lib/webgl/point-cloud";
 
 /**
  * How much to draw: a point budget and a byte budget per view, shared by
@@ -72,6 +75,8 @@ export interface GeneStyle {
   /** Dot size as createSmPointCloud takes it. */
   dotSize: number;
   shape: "circle" | "square";
+  /** Opacity, 0-1 (1 when absent). */
+  opacity?: number;
   /** THREE renderOrder of the gene's points. */
   renderOrder: number;
   /**
@@ -257,6 +262,7 @@ export class PointsLayer extends BaseLayer {
         (old.color !== style.color ||
           old.dotSize !== style.dotSize ||
           old.shape !== style.shape ||
+          old.opacity !== style.opacity ||
           old.renderOrder !== style.renderOrder)
       ) {
         this.genes.set(gene, style);
@@ -736,11 +742,15 @@ export class PointsLayer extends BaseLayer {
 
   /** The molecule shader's material, for a gene's style. */
   private material(style: GeneStyle) {
-    return createMoleculeMaterial(
+    const material = createMoleculeMaterial(
       style.color,
       Math.max(style.dotSize, this.minDot),
       style.shape,
     );
+
+    setMoleculeOpacity(material, style.opacity ?? 1);
+
+    return material;
   }
 
   /**
@@ -843,6 +853,7 @@ export class PointsLayer extends BaseLayer {
       if (p.material) {
         (p.material.uniforms.uColor.value as THREE.Color).set(style.color);
         p.material.uniforms.uShape.value = style.shape === "square" ? 1 : 0;
+        setMoleculeOpacity(p.material, style.opacity ?? 1);
       }
       this.applySize(p);
     }

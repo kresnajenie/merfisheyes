@@ -35,6 +35,9 @@ export function usePointsLayerSync(layer: PointsLayer | null): void {
   const globalScale = usePanelSingleMoleculeVisualizationStore(
     (s) => s.globalScale,
   );
+  const opacity = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.moleculeOpacity,
+  );
   const showAssigned = usePanelSingleMoleculeVisualizationStore(
     (s) => s.showAssigned,
   );
@@ -65,6 +68,7 @@ export function usePointsLayerSync(layer: PointsLayer | null): void {
           globalScale *
           viz.localScale *
           SM_DOT_SIZE_FACTOR,
+        opacity,
         renderOrder: moleculeRenderOrder(index),
       });
     }
@@ -76,6 +80,7 @@ export function usePointsLayerSync(layer: PointsLayer | null): void {
     legend,
     geneDataCache,
     globalScale,
+    opacity,
     visible,
     showAssigned,
   ]);

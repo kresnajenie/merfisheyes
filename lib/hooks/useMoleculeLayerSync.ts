@@ -28,6 +28,9 @@ export function useMoleculeLayerSync(
   const globalScale = usePanelSingleMoleculeVisualizationStore(
     (s) => s.globalScale,
   );
+  const opacity = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.moleculeOpacity,
+  );
   const showAssigned = usePanelSingleMoleculeVisualizationStore(
     (s) => s.showAssigned,
   );
@@ -47,6 +50,7 @@ export function useMoleculeLayerSync(
         selectedGenes,
         legendOrder,
         globalScale,
+        opacity,
         showAssigned,
         showUnassigned,
         visible,
@@ -64,6 +68,7 @@ export function useMoleculeLayerSync(
     selectedGenes,
     legendOrder,
     globalScale,
+    opacity,
     showAssigned,
     showUnassigned,
     visible,
