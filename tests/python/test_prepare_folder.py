@@ -152,18 +152,32 @@ def test_the_guides_show_the_script_as_it_is():
     the command the pages show is the script's own usage line."""
     usage = prepare_folder.__doc__.split("\n")[2].strip()
     assert usage.startswith("python scripts/prepare_folder.py <folder>")
-    for page in (ROOT / "README.md", ROOT / "app" / "docs" / "prepare" / "page.tsx"):
-        text = page.read_text()
-        for command in (
-            "python scripts/prepare_folder.py ",
-            "transcripts_to_points.py",
-            "python scripts/image_to_ome_zarr.py ",
-            "python scripts/prepare_xenium.py ",
-            "python scripts/prepare_merscope.py ",
-            "python scripts/prepare_visium.py ",
-            "pip install -r scripts/requirements-prepare.txt",
-        ):
-            assert command in text, (page, command)
+    # The tutorial shows each script
+    page = ROOT / "app" / "docs" / "prepare" / "page.tsx"
+    text = page.read_text()
+    for command in (
+        "python scripts/prepare_folder.py ",
+        "transcripts_to_points.py",
+        "python scripts/image_to_ome_zarr.py ",
+        "python scripts/prepare_xenium.py ",
+        "python scripts/prepare_merscope.py ",
+        "python scripts/prepare_visium.py ",
+        "pip install -r scripts/requirements-prepare.txt",
+    ):
+        assert command in text, (page, command)
+    # The README shows the one entry point and where it is, and names the rest
+    readme = (ROOT / "README.md").read_text()
+    for command in (
+        "python scripts/prepare.py ",
+        "pip install -r scripts/requirements.txt",
+        "[`scripts/prepare.py`](scripts/prepare.py)",
+        "prepare_xenium.py",
+        "prepare_merscope.py",
+        "prepare_visium.py",
+        "prepare_folder.py",
+        "transcripts_to_points.py",
+    ):
+        assert command in readme, ("README.md", command)
 
 
 def test_url_makes_the_links_absolute(tmp_path):

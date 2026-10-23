@@ -587,7 +587,21 @@ through `e2e/helpers/fixture-server.ts`, a local stand-in for a public bucket.
 
 ### Python Preprocessing Scripts
 
-For very large datasets (>500K cells) that exceed browser memory limits, Python scripts can preprocess data into chunked format:
+**The entry point is [`scripts/prepare.py`](scripts/prepare.py)** `INPUT OUT`:
+it recognises an `.h5ad` / AnnData Zarr, a Xenium export, a MERSCOPE region,
+a Visium output, a molecule table or a folder of parts by content, runs the
+matching `prepare_*` script, and writes exactly `OUT/<name>.zarr` (one
+SpatialData store), `mapping.json` and `stats.json`, never touching INPUT
+(exit codes 0 / 2 unrecognised / 3 incomplete / 4 invalid). Packages are
+pinned in `scripts/requirements.txt`. Shared rules live in
+`scripts/meyes_common.py` (the control-probe filter, molecule column names,
+obs coordinate columns) — `worker/entrypoint.py` and
+`lib/ingest/molecule-columns.ts` repeat the column names, and tests keep the
+three equal. The server worker moves to `prepare.py` in step 2 of
+[docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md); until then it runs
+the legacy chunked processors below.
+
+The legacy processors write merfisheyes' chunked format (still read by the viewer):
 
 **Location**: [scripts/](scripts/)
 

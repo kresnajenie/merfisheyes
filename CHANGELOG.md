@@ -10,6 +10,21 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **`scripts/prepare.py`: one command to prepare your own data** (step 1 of
+  `docs/plans/ONE-PIPELINE.md`). `python scripts/prepare.py INPUT OUT`
+  recognises an `.h5ad` / AnnData Zarr, a Xenium export, a MERSCOPE region,
+  a Visium output, a molecule table (a lab's own `Gene, X, Y, Z` columns too)
+  or a folder of parts, and writes one SpatialData store with `mapping.json`
+  and `stats.json`, never changing INPUT. Images are written when the input
+  has them (`--no-images` to skip); `--labels` adds a MapMyCells CSV;
+  control probes are left out of every table; an `uns` entry the Zarr writer
+  refuses is left out with a warning; cells are placed from `obs` coordinate
+  columns when `obsm` has none; Xenium no longer keeps a second (parquet)
+  copy of the molecules. Packages pinned in `scripts/requirements.txt`
+  (`requirements-prepare.txt` now points there); shared rules in
+  `scripts/meyes_common.py`. The main README says where it is and how to run
+  it. Exit codes 0 / 2 / 3 / 4.
+
 - **Every kind of SpatialData-DB store opens: CODEX, PhenoCycler,
   spatial-CUT&Tag, spatial-ATAC-seq, MALDI-MSI and CosMx beside the RNA
   ones.** Measured on the root metadata of one store per technology

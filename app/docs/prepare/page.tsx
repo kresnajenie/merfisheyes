@@ -33,7 +33,10 @@ export default function PreparePage() {
             by the <code>spatialdata</code> library where it can be, so the same
             store opens in spatialdata, napari and Vitessce; the molecules are
             the one part in our own format, a tiled points element the viewer
-            streams by view.
+            streams by view. The <code>spatialdata</code> library (0.8) does not
+            know that element yet: open the store with{" "}
+            <code>read_zarr(path, on_bad_files=&quot;warn&quot;)</code> and it
+            reads everything else, skipping the molecules.
           </p>
         </Prose>
         <pre className={pre}>
