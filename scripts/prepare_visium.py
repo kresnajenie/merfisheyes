@@ -89,6 +89,8 @@ def prepare_visium(
     bins: list[int] | None = None,
     cluster: bool = False,
     url: str | None = None,
+    images: bool = True,
+    label_csv: Path | None = None,
     log=print,
 ):
     path, folder = Path(path), Path(folder)
@@ -102,6 +104,9 @@ def prepare_visium(
         raise SystemExit(f"--fullres {fullres}: not found in {path}")
 
     sdata, hd = read_visium(path, name, fullres=fullres, bins=bins, log=log)
+    if not images:
+        for key in list(sdata.images):
+            del sdata.images[key]
     log(f"  {sdata}")
     log(f"writing {store} ...")
     sdata.write(store)
@@ -111,7 +116,7 @@ def prepare_visium(
         log(f"  default table: {default}")
 
     log("checking the folder ...")
-    return prepare_folder.prepare(folder, cells=store, cluster=cluster, url=url, log=log)
+    return prepare_folder.prepare(folder, cells=store, cluster=cluster, url=url, labels=label_csv, log=log)
 
 
 def main(argv=None) -> int:
