@@ -29,6 +29,11 @@ test.describe("@upload combined upload", () => {
     !UPLOAD_ENABLED,
     "Set E2E_UPLOAD=1 (and start docker infra) to run upload tests.",
   );
+  // Under the one pipeline the folder is one dataset (prepare-upload.spec.ts)
+  test.skip(
+    process.env.NEXT_PUBLIC_INGEST_PIPELINE === "prepare",
+    "The separate-datasets upload is not made under NEXT_PUBLIC_INGEST_PIPELINE=prepare.",
+  );
 
   let folder: string;
 

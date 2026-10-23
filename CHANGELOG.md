@@ -10,6 +10,22 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **"Upload & process on server" can run `scripts/prepare.py`** (steps 2–3
+  of `docs/plans/ONE-PIPELINE.md`), behind `NEXT_PUBLIC_INGEST_PIPELINE=prepare`;
+  unset, nothing changes. The worker runs the same script a person runs, in
+  its own environment with `scripts/requirements.txt`, and writes one
+  SpatialData store per upload: the cells and the molecules beside them as
+  one dataset (no separate molecules dataset or project), opened in the
+  SpatialData viewer; a molecule table alone becomes a store of points. The
+  upload sends what `prepare.py` reads — a Xenium export's seven files, a
+  MERSCOPE region's tables, boundaries and transcripts — and the images only
+  when "Also upload the images (N GB)" is ticked (it starts unticked). The
+  compute tier is chosen from the upload's size instead of found by running
+  out of memory. A molecule table whose columns are not recognised asks for
+  them, listing the columns in its schema. On the Xenium lung and breast
+  exports the worker's store and a local `prepare.py` run's are identical,
+  file for file.
+
 - **DEG stats live inside the table.** Every categorical column's per-gene
   mean (log-normalised) and fraction expressing are written into the
   SpatialData table itself — `varm/de_mean__<column>`, `varm/de_pct__<column>`,
