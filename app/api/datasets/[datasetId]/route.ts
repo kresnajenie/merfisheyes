@@ -82,6 +82,7 @@ export async function GET(
           numCells: dataset.numCells,
           numGenes: dataset.numGenes,
           status: dataset.status,
+          datasetType: dataset.datasetType,
           formatVersion: dataset.formatVersion,
           ownerId: dataset.ownerId,
           adminOwned: dataset.adminOwned,
