@@ -165,8 +165,10 @@ export async function loadDataset(
 
 async function loadCells(
   { datasetId, s3Url }: DatasetSource,
-  { panel, viz, findCells, onProgress, isCancelled }: LoadDatasetOptions,
+  options: LoadDatasetOptions,
 ): Promise<LoadedDataset | null> {
+  const { panel, viz, findCells, onProgress, isCancelled } = options;
+
   if (!datasetId && !s3Url) throw new Error("No dataset given");
   let registration: DatasetRegistration;
   let meta: Record<string, any> | null = null;
@@ -183,6 +185,11 @@ async function loadCells(
       if (!dataset) throw error;
       registration = unregistered(null);
     }
+  }
+  // A SpatialData store reached by a cell-viewer link (the upload bar gave
+  // those out) opens as the store it is, in the same scene
+  if (!dataset && meta?.datasetType === "spatialdata") {
+    return loadStore({ kind: "spatialdata", datasetId }, options);
   }
   const config = registration.viewerConfig;
 

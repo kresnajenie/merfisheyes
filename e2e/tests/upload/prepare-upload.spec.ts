@@ -275,6 +275,22 @@ test.describe("@upload one store from the server", () => {
       // Z was ticked: the molecules kept it
       expect(await pointsAxes(id)).toEqual(["x", "y", "z"]);
     });
+
+    await test.step("the upload bar links its viewer, and a cell-viewer link opens it too", async () => {
+      const status = await (
+        await page.request.get(`/api/ingest/${id}/status`)
+      ).json();
+
+      expect(status.viewerUrl).toBe(`/spatialdata-viewer/${id}`);
+      // The upload bar gave /viewer links before; one already shared opens
+      await page.goto(`/viewer/${id}`);
+      await page.waitForFunction(
+        () => (window as any).__merfish?.stats?.pointCount === 300,
+        undefined,
+        { timeout: 120_000 },
+      );
+      await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible();
+    });
   });
 
   test("a molecule table alone becomes a store that opens", async ({ page }) => {

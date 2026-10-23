@@ -109,6 +109,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- A dataset processed into a SpatialData store opened in the wrong viewer
+  from the upload bar's "View dataset" link (`/viewer/…`, which cannot read
+  a store): the status route picked the viewer by "single molecule or not".
+  It now gives the dataset's own viewer (`viewerHref`), and a `/viewer/…`
+  link to a SpatialData store, as already shared, opens the store.
 - A molecule table uploaded on the single molecule card under the prepare
   pipeline became a SpatialData store but would not open (400, "Invalid
   dataset ID format"): the store's routes (`/api/datasets/[id]`, `/list`,
