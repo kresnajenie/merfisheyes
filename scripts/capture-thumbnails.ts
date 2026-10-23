@@ -20,6 +20,7 @@ import { chromium } from "playwright";
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import { viewerHref } from "../lib/datasets/kind";
 
 // ── Config ──────────────────────────────────────────────────────
 const JSON_PATH = path.join(__dirname, "../prisma/bil-examples.json");
@@ -58,16 +59,18 @@ function s3BaseUrlToS3Path(s3BaseUrl: string): string {
 }
 
 function buildViewerUrl(baseUrl: string, entry: Entry): string {
-  const viewerBase =
-    entry.datasetType === "single_molecule" ? "/sm-viewer" : "/viewer";
-  if (entry.s3BaseUrl) {
-    const url = entry.s3BaseUrl.replace(/\/+$/, "");
-    return `${baseUrl}${viewerBase}/from-s3?url=${encodeURIComponent(url)}`;
+  // The viewer of what the entry is (lib/datasets/kind.ts)
+  const href = viewerHref({
+    id: entry.datasetId,
+    datasetType: entry.datasetType,
+    s3BaseUrl: entry.s3BaseUrl,
+  });
+
+  if (!href) {
+    throw new Error(`Entry "${entry.label}" has no s3BaseUrl or datasetId`);
   }
-  if (entry.datasetId) {
-    return `${baseUrl}${viewerBase}/${entry.datasetId}`;
-  }
-  throw new Error(`Entry "${entry.label}" has no s3BaseUrl or datasetId`);
+
+  return `${baseUrl}${href}`;
 }
 
 function getThumbnailS3Path(entry: Entry): string {

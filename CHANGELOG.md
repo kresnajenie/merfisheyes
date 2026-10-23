@@ -10,6 +10,18 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- **A molecules store overlays cells.** The Overlays dialog lists your
+  SpatialData stores beside your single molecule datasets, and attaching
+  one draws its tiled molecules over the cells (`mapping.json`
+  `linkFormat: "store"`, `docs/specs/mapping.md`), in the SpatialData
+  viewer and in `/viewer` alike. Attaching or removing keeps the rest of
+  `mapping.json`, and the viewer reopens so the change shows at once.
+- **Every link opens the viewer of what the dataset is.** The "dataset
+  ready" and "already in your library" emails, the single molecule upload's
+  email and the admin Community list chose between `/viewer` and
+  `/sm-viewer` (by type or by an `sm_` id) and sent a SpatialData store to
+  the wrong one; they now use `viewerHref`. The admin catalog import reads
+  `/spatialdata-viewer` and `/image-viewer` links too.
 - **Molecule opacity slider.** Below the molecule size slider (and beside
   it in the cell viewer while that slider is on molecules), one opacity for
   every molecule in the panel, in both molecule layers (a folder's per-gene

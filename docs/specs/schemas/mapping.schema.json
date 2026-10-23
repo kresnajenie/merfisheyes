@@ -21,6 +21,11 @@
       "description": "Column value -> a molecule folder URL (source s3) or an app dataset id (source app)."
     },
     "source": { "enum": ["s3", "app"] },
+    "linkFormat": {
+      "enum": ["molecules", "store"],
+      "description": "What links point at: a molecule folder (default) or a SpatialData store whose points element is drawn."
+    },
+    "datasetId": { "type": "string" },
     "image": { "type": "string", "minLength": 1 },
     "imageSource": { "enum": ["s3", "app"] },
     "imageDatasetId": { "type": "string" }

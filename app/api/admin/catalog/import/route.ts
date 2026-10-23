@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { deriveGenesForEntry } from "@/lib/catalog/derive-genes";
 import { ensureDatasetForS3Url } from "@/lib/datasets/register-or-claim";
 import { resolveDatasetOwner } from "@/lib/datasets/owner";
+import { datasetTypeOfViewer } from "@/lib/datasets/kind";
 
 interface EntryPayload {
   label?: string;
@@ -74,12 +75,10 @@ function parseViewerLink(link: string): {
 
     if (parts.length < 1) return null;
 
-    const isSm = parts[0] === "sm-viewer";
-    const isSc = parts[0] === "viewer";
+    // Any viewer's link: cells, molecules, a SpatialData store, an image
+    const datasetType = datasetTypeOfViewer(parts[0]);
 
-    if (!isSm && !isSc) return null;
-
-    const datasetType = isSm ? "single_molecule" : "single_cell";
+    if (!datasetType) return null;
 
     if (parts[1] === "from-s3") {
       const inner = url.searchParams.get("url");
