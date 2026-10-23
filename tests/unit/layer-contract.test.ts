@@ -67,6 +67,7 @@ function fakeImage(): SpatialDataImage {
     name: "dapi",
     channelLabels: ["DAPI"],
     maxValue: 65535,
+    placement: { scale: [1, 1], offset: [0, 0] },
     levels: [level(256, 256, 1), level(64, 64, 4)],
   };
 }

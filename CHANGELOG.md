@@ -10,6 +10,25 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **Every kind of SpatialData-DB store opens: CODEX, PhenoCycler,
+  spatial-CUT&Tag, spatial-ATAC-seq, MALDI-MSI and CosMx beside the RNA
+  ones.** Measured on the root metadata of one store per technology
+  (`tests/data/sddb/roots`): a table's features come from the index column
+  `var` declares (`formula_adduct` in a MALDI table, `gene` in a CosMx
+  one), not only `var/_index`; a dense `X` (every image channel a feature,
+  as CODEX writes it) is read one feature at a time; a table with no
+  `obsm/spatial` (CosMx) draws its cells at the centres of the shapes it
+  annotates, read from the Point `<region>_for_vitessce` element when there
+  is one (35 MB for 1.46 M cells, against 265 MB of polygons) and matched
+  by instance id; an image placed by an `affine` that rotates (a MALDI
+  optical image, 91° in one store) is drawn as is, the levels staying in
+  the image's own frame and the placement being one matrix on the layer;
+  and an image of any number of channels (84 in a CODEX store) compiles,
+  the layer showing at most 8 at once through fixed shader slots. The
+  validator (`scripts/validate_store.py`) applies the same rules, and the
+  profiles say so (`docs/specs/table-profile.md`, `image-profile.md`,
+  `store-layout.md`). Fixtures shaped like the real stores, built by the
+  `spatialdata` library: `scripts/testdata/make-tiny-modalities.py`.
 - **Processed data on "Upload & process on server".** A SpatialData store,
   separate stores, an OME-Zarr image or merfisheyes output folders dropped
   on the server card are uploaded as they are, the same as Upload & Save
@@ -23,8 +42,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   or CSC `X`), an image and tiled molecules, in four layouts, dropped through
   the drop zone (`e2e/tests/viewer/drop-matrix.spec.ts`), saved and sent to
   the server card (`e2e/tests/upload/drop-matrix-save.spec.ts`), and timed on
-  real stores (`e2e/perf/real-drop.spec.ts`); a tiny store whose `X` is CSC
-  (`scripts/testdata/make-tiny-csc-x.py`).
+  real stores (`e2e/perf/real-drop.spec.ts`) and real uploads, prepared or
+  raw (`e2e/perf/real-upload.spec.ts`); tiny stores whose `X` is CSC
+  (`scripts/testdata/make-tiny-csc-x.py`) and whose indexes have names
+  (`make-tiny-named-index.py`).
 
 ### Fixed
 
@@ -35,6 +56,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   (the first by name won), leaving no cells.
 - Several folders dragged in at once overwrote one another's root metadata,
   keeping only one of them.
+- A store holding only molecules opened with the camera on an empty patch
+  of the plane, so none were drawn; the molecule scene now frames them.
+- The local `@upload` test stack no longer calls AWS Batch: with a custom S3
+  endpoint no job is submitted (it was reaching Batch with a developer's
+  staging settings, refused only for the wrong keys).
 
 ## [0.13.0] - 2026-10-21
 

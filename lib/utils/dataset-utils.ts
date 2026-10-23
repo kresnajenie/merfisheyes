@@ -14,10 +14,19 @@ import type { StandardizedDataset } from "../StandardizedDataset";
 
 /**
  * Positional or bookkeeping obs columns (a Visium spot's grid row and
- * column, whether it is on tissue): offered in the picker, never chosen as
- * the default colouring — coloured by them, a capture area is stripes.
+ * column, whether it is on tissue; a MALDI spot's pixel in the ion image):
+ * offered in the picker, never chosen as the default colouring — coloured
+ * by them, a capture area is stripes.
  */
-const NOT_DEFAULT_COLUMNS = new Set(["array_row", "array_col", "in_tissue"]);
+const NOT_DEFAULT_COLUMNS = new Set([
+  "array_row",
+  "array_col",
+  "in_tissue",
+  "ion_image_pixel_x",
+  "ion_image_pixel_y",
+  "ion_image_shape_x",
+  "ion_image_shape_y",
+]);
 
 const PRIORITY_COLUMNS = [
   "class_name",

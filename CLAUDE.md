@@ -504,9 +504,14 @@ the h5ad-zarr path:
 - `SpatialDataTableAdapter.ts` — table → cells, genes, columns; reads plain and
   sharded arrays, plain and nullable strings
 - `image.ts` / `ImageLayer.ts` — OME-Zarr multiscale metadata (axes `c, y, x`,
-  `uint8`/`uint16`, scale + translation, or a `sequence` of them as the
-  `spatialdata` library writes it) and the tiled Three.js layer shared by all
-  three viewers
+  `uint8`/`uint16`, any number of channels) and the tiled Three.js layer
+  shared by all three viewers. The levels stay in the image's own frame and
+  the placement (scale, translation, affine with rotation, or a `sequence`)
+  is one matrix on the layer's group; the shader has `MAX_VISIBLE_CHANNELS`
+  (8) slots, so an 84-channel CODEX image compiles and shows 8 at once
+- `centroids.ts` / `wkb.ts` — a table with no `obsm/spatial` (CosMx) draws
+  its cells at one point per shape of the region element it annotates (the
+  Point `<region>_for_vitessce` sibling first), matched by instance id
 - `footprint.ts` — Visium spots and Visium HD bins: the cells drawn at
   their real size and shape (radius from the shapes footer, bin side from
   the grid's pitch), read without the shapes themselves
@@ -514,7 +519,9 @@ the h5ad-zarr path:
   list is alternatives (one per output system), never multiplied; the
   target is `global`, else the system the cells' region is identity into
   (Visium); every element is placed in the cells' own coordinates through
-  it (`docs/specs/store-layout.md` §8)
+  it (`docs/specs/store-layout.md` §8). A placement is a 2-D affine
+  (`Map2`: scale, offset and, when it rotates, `skew`); points and shapes
+  must still place as written
 - [lib/storage/ElementStore.ts](lib/storage/ElementStore.ts) — **the one
   store every reader reads through** (spec [docs/specs/LOADING.md](docs/specs/LOADING.md)):
   a zarrita `AsyncReadable` over a `Backend` (`lib/storage/backends.ts`: a
