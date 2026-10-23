@@ -36,7 +36,9 @@ import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
 import {
   classifyFolder,
   fallbackSingleMoleculeFile,
+  type ClassifiedFile,
 } from "@/lib/ingest/classify-folder";
+import { matchMoleculeColumns } from "@/lib/ingest/molecule-columns";
 import { useUploadStore } from "@/lib/stores/uploadStore";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import {
@@ -456,6 +458,24 @@ export function FileUpload({
     // reads — a Xenium export is mostly images and QC output, and uploading it
     // whole means sending gigabytes nothing will open.
     const classification = classifyFolder(files);
+
+    // Molecules beside the cells: a transcripts-named file is taken by name
+    // (above); otherwise any top-level table whose columns are molecules
+    // (gene, x, y), whatever it is called
+    if (
+      kind === "single_cell" &&
+      classification.singleCell &&
+      !classification.singleMolecule
+    ) {
+      const molecules = await findMoleculeTable(classification.ignored);
+
+      if (molecules) {
+        classification.singleMolecule = { files: [molecules] };
+        classification.ignored = classification.ignored.filter(
+          (e) => e !== molecules,
+        );
+      }
+    }
     let selected =
       kind === "single_molecule"
         ? classification.singleMolecule
@@ -1406,6 +1426,27 @@ function formatBytes(bytes: number): string {
   return bytes >= 1024 ** 3
     ? `${(bytes / 1024 ** 3).toFixed(1)} GB`
     : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
+}
+
+/**
+ * The first top-level `.parquet` / `.csv` among `candidates` whose columns
+ * are molecules (lib/ingest/molecule-columns.ts) — read from the parquet
+ * schema or the CSV header, never the whole file.
+ */
+async function findMoleculeTable(
+  candidates: ClassifiedFile[],
+): Promise<ClassifiedFile | null> {
+  const tables = candidates.filter(
+    (e) => !e.key.includes("/") && /\.(parquet|csv)$/i.test(e.key),
+  );
+
+  for (const entry of tables) {
+    const preview = await readMoleculePreview(entry.file).catch(() => null);
+
+    if (preview && matchMoleculeColumns(preview.columns)) return entry;
+  }
+
+  return null;
 }
 
 /**
