@@ -1,6 +1,5 @@
 "use client";
 
-import type { MoleculeLayer } from "@/lib/webgl/MoleculeLayer";
 import type { LayerContext, OpenedElements } from "@/lib/scene/registry";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -10,6 +9,7 @@ import { Spinner } from "@heroui/react";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import { LayerHost } from "@/lib/scene/LayerHost";
 import { moleculeElements } from "@/lib/scene/registry";
+import { pointsElementOf } from "@/lib/spatialdata/pointsMolecules";
 import { useLayers } from "@/lib/scene/useLayers";
 import { LayerBindings, LayerControls } from "@/components/layer-controls";
 import {
@@ -81,7 +81,7 @@ export function SingleMoleculeThreeScene({
    * (all clouds still streaming with zero points): fitting an empty
    * THREE.Box3 produces a NaN camera that never recovers.
    */
-  const tryAutoFitCamera = (moleculeLayer: MoleculeLayer) => {
+  const tryAutoFitCamera = (box: THREE.Box3 | null | undefined) => {
     if (
       hasAutoFittedRef.current ||
       !cameraRef.current ||
@@ -89,8 +89,6 @@ export function SingleMoleculeThreeScene({
     ) {
       return;
     }
-    const box = moleculeLayer.bounds;
-
     if (!box) return;
 
     const center = new THREE.Vector3();
@@ -153,7 +151,7 @@ export function SingleMoleculeThreeScene({
   const layerCtx: LayerContext = {
     molecules: {
       // Fit the camera as soon as the first data exists
-      onFirstData: tryAutoFitCamera,
+      onFirstData: (moleculeLayer) => tryAutoFitCamera(moleculeLayer.bounds),
       // Closing a gene's loading toast cancels its download; take it out of
       // the selection so nothing restarts it
       onCancelGene: removeGene,
@@ -170,7 +168,7 @@ export function SingleMoleculeThreeScene({
         });
         // Fallback fit for whatever data exists once the loop finishes (no-op
         // when the first gene/batch already fitted the camera).
-        tryAutoFitCamera(moleculeLayer);
+        tryAutoFitCamera(moleculeLayer.bounds);
       },
     },
   };
@@ -258,6 +256,25 @@ export function SingleMoleculeThreeScene({
     init.animate();
     markSceneReady();
     const removeLayers = onSceneReady(host.handle);
+
+    // A points element is read for the view, so nothing is drawn until the
+    // camera looks at it: frame its extent (level 0's tile grid) up front
+    const points = pointsElementOf(dataset);
+
+    if (points) {
+      const { origin, tileSize, nx, ny } = points.levels[0].grid;
+
+      tryAutoFitCamera(
+        new THREE.Box3(
+          new THREE.Vector3(origin[0], origin[1], 0),
+          new THREE.Vector3(
+            origin[0] + nx * tileSize,
+            origin[1] + ny * tileSize,
+            0,
+          ),
+        ),
+      );
+    }
     const { dispose } = init;
 
     // Cleanup

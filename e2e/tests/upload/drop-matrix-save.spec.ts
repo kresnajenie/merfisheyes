@@ -126,6 +126,15 @@ async function showsParts(page: Page, spec: StoreSpec): Promise<void> {
       )
       .toBeVisible({ timeout: 60_000 });
   }
+  if (spec.points) {
+    // Drawn, not just listed: the camera has to be looking at them
+    await expect.soft
+      .poll(async () => (await readHooks(page))?.layers.points?.drawn ?? 0, {
+        message: "molecules drawn",
+        timeout: 60_000,
+      })
+      .toBeGreaterThan(0);
+  }
 }
 
 /** Name it in the save dialog, upload, and open what was saved. */

@@ -189,6 +189,16 @@ for (const layout of LAYOUTS) {
               })
               .toBe(POINTS_GENES);
           }
+          // Drawn, not just listed: the camera has to be looking at them
+          await expect.soft
+            .poll(
+              async () => (await readHooks(page))?.layers.points?.drawn ?? 0,
+              {
+                message: "molecules drawn",
+                timeout: 15_000,
+              },
+            )
+            .toBeGreaterThan(0);
         });
       } else {
         await expect
