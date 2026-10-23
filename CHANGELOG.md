@@ -105,6 +105,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **A big raw file uploads several parts at once.** "Upload & process on
+  server" sent a large file's 32 MB parts one after another over one
+  connection: 3.3 MB/s from the lab for Beaumont set1's 6 GB table, where
+  parallel requests from the same machine reach 26–29 MB/s. Six parts now go
+  up at once (`uploadParts` in `lib/upload/uploadRawToS3.ts`), and their
+  upload links last 12 hours instead of 1, which a slow link used to outrun
+  past ~11 GB.
 - A store's tiled molecules without a table were dropped: a molecules-only
   store bounced back to the homepage, and one with an image showed the image
   alone. They now open in the molecule viewer, dropped or saved.
