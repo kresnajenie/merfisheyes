@@ -127,6 +127,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **A split view opens SpatialData stores and images.** The right panel
+  only knew cells and molecules, so a SpatialData store (every SpatialData-DB
+  card on Explore, a store saved or processed here) or an image opened as
+  cells and failed. It has a panel for each now, chosen by the dataset's
+  type, a pasted link's viewer, or the page itself ("Same Dataset" on a
+  store's page). A SpatialData page keeps its split in the link, and the
+  split's part of the link no longer races the panels' image settings
+  (both written straight to the address). The split and close buttons have
+  accessible names.
 - A dataset processed into a SpatialData store opened in the wrong viewer
   from the upload bar's "View dataset" link (`/viewer/…`, which cannot read
   a store): the status route picked the viewer by "single molecule or not".

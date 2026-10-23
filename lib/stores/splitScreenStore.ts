@@ -1,6 +1,35 @@
 import { create } from "zustand";
 
-export type PanelType = "cell" | "sm" | "lm";
+/**
+ * What the right panel shows, as its full-page viewer would: cells
+ * (`/viewer`), molecules (`/sm-viewer`), labelled molecules (`/lm-viewer`), a
+ * SpatialData store (`/spatialdata-viewer`) or an image (`/image-viewer`).
+ */
+export type PanelType = "cell" | "sm" | "lm" | "spatialdata" | "image";
+
+/** The panel for a dataset of this `datasetType` (lib/datasets/kind.ts). */
+export function panelTypeForDataset(
+  datasetType: string | null | undefined,
+): PanelType {
+  if (datasetType === "single_molecule") return "sm";
+  if (datasetType === "spatialdata") return "spatialdata";
+  if (datasetType === "image") return "image";
+
+  return "cell";
+}
+
+/** The panel a viewer link opens, by its first path segment; null if none. */
+export function panelTypeForViewer(segment: string): PanelType | null {
+  const panels: Record<string, PanelType> = {
+    viewer: "cell",
+    "sm-viewer": "sm",
+    "lm-viewer": "lm",
+    "spatialdata-viewer": "spatialdata",
+    "image-viewer": "image",
+  };
+
+  return panels[segment] ?? null;
+}
 
 interface SplitScreenState {
   isSplitMode: boolean;
