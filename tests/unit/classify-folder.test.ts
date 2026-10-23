@@ -4,6 +4,7 @@ import {
   classifyFolder,
   datasetRelativeKey,
   fallbackSingleMoleculeFile,
+  preparePlatformFiles,
   scoreTranscriptFile,
 } from "@/lib/ingest/classify-folder";
 
@@ -265,5 +266,112 @@ describe("classifyFolder — image folders", () => {
     ]);
 
     expect(result.images.map((i) => i.name)).toEqual(["a.zarr", "b.zarr"]);
+  });
+});
+
+describe("preparePlatformFiles", () => {
+  // The 10x Xenium_V1_human_Lung_2fov export, as it unzips
+  const lung = [
+    "analysis_summary.html",
+    "analysis.tar.gz",
+    "analysis.zarr.zip",
+    "aux_outputs.tar.gz",
+    "cell_boundaries.csv.gz",
+    "cell_boundaries.parquet",
+    "cell_feature_matrix.h5",
+    "cell_feature_matrix.tar.gz",
+    "cell_feature_matrix.zarr.zip",
+    "cells.csv.gz",
+    "cells.parquet",
+    "cells.zarr.zip",
+    "experiment.xenium",
+    "gene_panel.json",
+    "metrics_summary.csv",
+    "morphology_focus/morphology_focus_0000.ome.tif",
+    "morphology_focus/morphology_focus_0001.ome.tif",
+    "morphology.ome.tif",
+    "nucleus_boundaries.csv.gz",
+    "nucleus_boundaries.parquet",
+    "transcripts.csv.gz",
+    "transcripts.parquet",
+    "transcripts.zarr.zip",
+  ].map((p) => pickedFile(`outs/${p}`));
+
+  it("takes the seven files prepare.py reads of a Xenium export", () => {
+    const parts = preparePlatformFiles(lung);
+
+    expect(parts?.format).toBe("xenium");
+    expect(keysOf(parts?.cells)).toEqual([
+      "cell_boundaries.parquet",
+      "cell_feature_matrix.h5",
+      "cells.parquet",
+      "cells.zarr.zip",
+      "experiment.xenium",
+      "nucleus_boundaries.parquet",
+    ]);
+    expect(keysOf(parts?.molecules)).toEqual(["transcripts.parquet"]);
+    expect(keysOf(parts?.images)).toEqual([
+      "morphology.ome.tif",
+      "morphology_focus/morphology_focus_0000.ome.tif",
+      "morphology_focus/morphology_focus_0001.ome.tif",
+    ]);
+  });
+
+  it("falls back to the CSVs an older export has instead", () => {
+    const parts = preparePlatformFiles(
+      [
+        "experiment.xenium",
+        "cell_feature_matrix/matrix.mtx.gz",
+        "cell_feature_matrix/features.tsv.gz",
+        "cells.csv.gz",
+        "cell_boundaries.csv.gz",
+        "nucleus_boundaries.csv.gz",
+        "transcripts.csv.gz",
+      ].map((p) => pickedFile(`run/${p}`)),
+    );
+
+    expect(keysOf(parts?.cells)).toEqual([
+      "cell_boundaries.csv.gz",
+      "cell_feature_matrix/features.tsv.gz",
+      "cell_feature_matrix/matrix.mtx.gz",
+      "cells.csv.gz",
+      "experiment.xenium",
+      "nucleus_boundaries.csv.gz",
+    ]);
+    expect(keysOf(parts?.molecules)).toEqual(["transcripts.csv.gz"]);
+  });
+
+  it("takes a MERSCOPE region's tables, boundaries and transcripts, no image", () => {
+    const parts = preparePlatformFiles(
+      [
+        "cell_by_gene.csv",
+        "cell_metadata.csv",
+        "cell_categories.csv",
+        "cell_boundaries.parquet",
+        "detected_transcripts.csv",
+        "images/mosaic_DAPI_z3.tif",
+        "images/micron_to_mosaic_pixel_transform.csv",
+        "summary.png",
+      ].map((p) => pickedFile(`region_0/${p}`)),
+    );
+
+    expect(parts?.format).toBe("merscope");
+    expect(keysOf(parts?.cells)).toEqual([
+      "cell_boundaries.parquet",
+      "cell_by_gene.csv",
+      "cell_categories.csv",
+      "cell_metadata.csv",
+    ]);
+    expect(keysOf(parts?.molecules)).toEqual(["detected_transcripts.csv"]);
+    expect(parts?.images).toEqual([]);
+  });
+
+  it("leaves anything else to classifyFolder", () => {
+    expect(
+      preparePlatformFiles([
+        pickedFile("set1/set1.h5ad"),
+        pickedFile("set1/set1__single_molecules.parquet"),
+      ]),
+    ).toBeNull();
   });
 });

@@ -7,7 +7,9 @@ to the app via a signed callback. In Phase 2 the callbacks are STUBBED — print
 as CALLBACK lines — and the canonical fingerprint is a placeholder (README §6).
 
 Handles single-cell (process_spatial_data.py → manifest.json) and single-molecule
-(process_single_molecule.py → manifest.json.gz + genes/*.bin.gz).
+(process_single_molecule.py → manifest.json.gz + genes/*.bin.gz); with
+PROCESSING_PARAMS.pipeline "prepare", either kind runs scripts/prepare.py
+instead (→ one SpatialData store, mapping.json, stats.json).
 
 Env:
   DATASET_ID          required — e.g. ds_xxx
@@ -22,6 +24,7 @@ Env:
   AWS_S3_ENDPOINT     optional — S3-compatible endpoint (e.g. MinIO), path-style
   DELETE_RAW          "true" to delete raw/{id}/ after success (default: false)
   SCRATCH_DIR         default /scratch
+  PREPARE_PYTHON      the interpreter prepare.py runs under (the image sets it)
   CALLBACK_URL/SECRET Phase 3 — unused here beyond being echoed
 """
 import hashlib
@@ -365,6 +368,12 @@ def run_processor(cmd):
             recent.append(stripped)
         if "Error during processing:" in line and error_line is None:
             error_line = stripped.split("Error during processing:", 1)[1].strip()
+        # prepare.py says why it stopped as "error: …" (exit 2 or 3), and
+        # which check a written store failed as "FAIL <where>: …" (exit 4)
+        if stripped.startswith("error: ") and error_line is None:
+            error_line = stripped[len("error: "):]
+        if stripped.startswith("FAIL ") and error_line is None:
+            error_line = "the store failed validation: " + stripped[len("FAIL "):].strip()
 
         step = _STEP_RE.search(line)
         if step:
@@ -603,6 +612,49 @@ def detect_molecule_type(input_path: Path):
     return args, "columns " + ", ".join(f"{k}={v}" for k, v in found.items())
 
 
+# prepare.py runs in its own environment, with the packages pinned in
+# scripts/requirements.txt (worker/Dockerfile); the legacy processors keep theirs
+PREPARE_PYTHON = os.environ.get("PREPARE_PYTHON", sys.executable)
+
+
+def prepare_command(kind, raw_dir: Path, work: Path, out_dir: Path, dataset_id: str, params: dict, chunk: dict) -> list[str]:
+    """The prepare.py call for this upload: the raw folder as it came (cells,
+    with molecules and, when sent, images beside them) or the one molecule
+    table; the store named after the dataset."""
+    extra: list[str] = []
+    if kind == "single_molecule":
+        source = find_single_molecule_input(raw_dir)
+        mapping = params.get("columnMapping") or {}
+        if mapping.get("gene") and mapping.get("x") and mapping.get("y"):
+            columns = [mapping["gene"], mapping["x"], mapping["y"]] + ([mapping["z"]] if mapping.get("z") else [])
+            extra = ["--molecule-columns", ",".join(str(c) for c in columns)]
+    else:
+        # The user's per-cell labels came with the upload under a reserved key
+        labels = extract_annotation_csv(raw_dir, work / "annotations", chunk.get("mmcCsv"))
+        source = raw_dir
+        if labels is not None:
+            extra = ["--labels", str(labels)]
+    # The molecules' z only when asked for (unticked by default, like images)
+    if params.get("keepZ"):
+        extra.append("--keep-z")
+    return [PREPARE_PYTHON, "scripts/prepare.py", str(source), str(out_dir), "--name", dataset_id, *extra]
+
+
+def read_prepare_stats(out_dir: Path) -> dict:
+    """numCells / numGenes from prepare.py's stats.json: the cells and genes of
+    the table, or — molecules only — the molecules and their genes, as a
+    single molecule dataset counts them."""
+    try:
+        stats = json.loads((out_dir / "stats.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    return {
+        "numCells": stats.get("cells") or stats.get("molecules"),
+        "numGenes": stats.get("genes") or stats.get("molecule_genes"),
+        "spatialDimensions": stats.get("dims"),
+    }
+
+
 def read_sm_stats(out_dir: Path) -> dict:
     """Molecule/gene counts from the single-molecule manifest.
 
@@ -677,7 +729,15 @@ def main():
     stages = params.get("stages", {}) or {}
     chunk = stages.get("chunk", {}) or {}
 
-    if kind == "single_molecule":
+    if params.get("pipeline") == "prepare":
+        # One pipeline (docs/plans/ONE-PIPELINE.md): the scripts/prepare.py a
+        # person runs on their own machine, writing one SpatialData store
+        cmd = prepare_command(kind, raw_dir, work, out_dir, dataset_id, params, chunk)
+        print(f"== Input: {cmd[2]} (prepare.py) ==", flush=True)
+        processor_name = "prepare.py"
+        manifest_name = "mapping.json"
+        read_output_stats = read_prepare_stats
+    elif kind == "single_molecule":
         # SM writes a GZIPPED manifest and no genes-per-chunk concept — it's a
         # different processor and stats shape from single-cell.
         input_path = find_single_molecule_input(raw_dir)

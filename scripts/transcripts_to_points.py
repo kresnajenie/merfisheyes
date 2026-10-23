@@ -156,6 +156,13 @@ def convert(
     gene_col, x_col, y_col, z_col = resolve_columns(column_names(source), columns, feature_key)
     dims = 3 if (z_col and keep_z) else 2
     cols = [gene_col, x_col, y_col] + ([z_col] if dims == 3 else [])
+    if dims == 3 and transformations:
+        # The cells' transforms are 2-D: z, in the same unit as x, is scaled
+        # as x is and not moved
+        transformations = [
+            {**t, **{k: [*t[k], t[k][0] if k == "scale" else 0.0] for k in ("scale", "translation") if len(t.get(k) or []) == 2}}
+            for t in transformations
+        ]
 
     # Pass 1: the genes and the extent
     genes: set[str] = set()

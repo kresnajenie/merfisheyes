@@ -102,6 +102,7 @@ def prepare_xenium(
     expanded: bool = False,
     images: bool = True,
     label_csv: Path | None = None,
+    keep_z: bool = False,
     log=print,
 ):
     path, folder = Path(path), Path(folder)
@@ -124,7 +125,7 @@ def prepare_xenium(
     log("checking the folder ...")
     return prepare_folder.prepare(
         folder, cells=store, molecules=transcripts, molecule_columns="xenium", cluster=cluster, url=url,
-        expanded=expanded, workers=workers, labels=label_csv, log=log,
+        expanded=expanded, workers=workers, labels=label_csv, keep_z=keep_z, log=log,
     )
 
 

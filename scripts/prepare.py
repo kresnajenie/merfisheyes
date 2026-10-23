@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Prepare spatial data for MERFISHEYES: whatever you have becomes one SpatialData store.
 
-  python scripts/prepare.py INPUT OUT [--name NAME] [--no-images] [--cluster]
-                            [--labels CSV] [--molecule-columns GENE,X,Y[,Z]]
-                            [--workers N]
+  python scripts/prepare.py INPUT OUT [--name NAME] [--no-images] [--keep-z]
+                            [--cluster] [--labels CSV]
+                            [--molecule-columns GENE,X,Y[,Z]] [--workers N]
 
 Run it on your own machine to prepare data before you drop or upload it. The
 server's worker is moving to this same script (docs/plans/ONE-PIPELINE.md,
@@ -29,7 +29,8 @@ OUT is written and nothing in INPUT is changed. OUT holds exactly:
 
   NAME.zarr/      the SpatialData store: tables/table (X, with a CSC copy in
                   layers/X_csc unless X is CSC; obsm/spatial; control probes
-                  left out), points/molecules (tiled, when there are molecules),
+                  left out), points/molecules (tiled, when there are molecules;
+                  flat on the cells' plane unless --keep-z keeps their z),
                   shapes/cell_boundaries (when the input has polygons),
                   images/... (when the input has an image; --no-images skips it);
                   the DEG panel's stats for every categorical column in the
@@ -118,12 +119,12 @@ def stage(source: Path, folder: Path) -> Path:
     return target
 
 
-def write_transcripts(source: Path, out: Path, name: str, columns: str | None, log) -> None:
+def write_transcripts(source: Path, out: Path, name: str, columns: str | None, log, keep_z: bool = False) -> None:
     """Molecules only: a store holding the tiled points element."""
     import transcripts_to_points
 
     store = out / f"{name}.zarr"
-    transcripts_to_points.convert(source, store, columns=columns, log=log)
+    transcripts_to_points.convert(source, store, columns=columns, keep_z=keep_z, log=log)
     (out / "mapping.json").write_text(json.dumps({"cells": store.name}, indent=2) + "\n")
 
 
@@ -205,6 +206,7 @@ def prepare(
     labels: Path | None = None,
     molecule_columns: str | None = None,
     workers: int = 4,
+    keep_z: bool = False,
     log=print,
 ) -> int:
     source = Path(source).resolve()
@@ -228,13 +230,14 @@ def prepare(
 
             report = prepare_xenium.prepare_xenium(
                 source, out, name=name, images=images, workers=workers, cluster=cluster,
-                label_csv=label_csv, log=log,
+                label_csv=label_csv, keep_z=keep_z, log=log,
             )
         elif kind == "merscope":
             import prepare_merscope
 
             report = prepare_merscope.prepare_merscope(
-                source, out, name=name, workers=workers, cluster=cluster, label_csv=label_csv, log=log,
+                source, out, name=name, workers=workers, cluster=cluster, label_csv=label_csv,
+                keep_z=keep_z, log=log,
             )
         elif kind == "visium":
             import prepare_visium
@@ -243,7 +246,7 @@ def prepare(
                 source, out, name=name, cluster=cluster, images=images, label_csv=label_csv, log=log,
             )
         elif kind == "transcripts":
-            write_transcripts(source, out, name, molecule_columns, log)
+            write_transcripts(source, out, name, molecule_columns, log, keep_z=keep_z)
             import validate_store
 
             report = validate_store.validate(out / f"{name}.zarr", out / "mapping.json")
@@ -258,7 +261,7 @@ def prepare(
                 stage(part, out)
             report = prepare_folder.prepare(
                 out, name=name, cluster=cluster, molecule_columns=molecule_columns,
-                workers=workers, images=images, labels=label_csv, log=log,
+                workers=workers, images=images, labels=label_csv, keep_z=keep_z, log=log,
             )
             # What OUT was made from stays in INPUT; a store that was there
             # already is OUT's store (the one mapping.json names)
@@ -296,6 +299,7 @@ def main(argv=None) -> int:
     ap.add_argument("out", type=Path, help="a new folder to write; it is what you drop or upload")
     ap.add_argument("--name", help="the store's name (default: INPUT's)")
     ap.add_argument("--no-images", action="store_true", help="leave an image that INPUT has out of the store")
+    ap.add_argument("--keep-z", action="store_true", help="keep the molecules' z (3-D); by default they are flat")
     ap.add_argument("--cluster", action="store_true", help="Leiden clusters + DEGs when the table has no cell types")
     ap.add_argument("--labels", type=Path, help="per-cell labels to add to the table (a MapMyCells CSV)")
     ap.add_argument("--molecule-columns", help="a molecule table's columns as GENE,X,Y[,Z] when they are not recognised")
@@ -310,6 +314,7 @@ def main(argv=None) -> int:
         labels=args.labels,
         molecule_columns=args.molecule_columns,
         workers=args.workers,
+        keep_z=args.keep_z,
     )
 
 

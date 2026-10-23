@@ -14,6 +14,7 @@ import {
   groupInProject,
 } from "@/lib/ingest/overlay";
 import { updateDatasetGenes } from "@/lib/datasets/read-genes";
+import { usesPreparePipeline } from "@/lib/ingest/pipeline";
 
 /**
  * Mark a dataset COMPLETE and register the worker's output.
@@ -195,11 +196,14 @@ export async function finalizeCompletedDataset(
   }
 
   const uploadId = `up_out${nanoid(8)}`;
+  // scripts/prepare.py wrote one SpatialData store: it opens in the
+  // SpatialData viewer, whatever card it was uploaded from
+  const prepared = usesPreparePipeline(dataset.processingParams);
 
   // Single-molecule: the worker's manifest (gene list, per-gene counts,
   // statistics) lives in S3; mirror it onto the row like a browser upload.
   const smManifest =
-    dataset.datasetType === "single_molecule"
+    dataset.datasetType === "single_molecule" && !prepared
       ? await getObjectJson<Record<string, unknown>>(
           `datasets/${datasetId}/manifest.json.gz`,
         ).catch(() => null)
@@ -241,6 +245,9 @@ export async function finalizeCompletedDataset(
           completedAt: new Date(),
           numCells: opts.stats?.numCells ?? dataset.numCells,
           numGenes: opts.stats?.numGenes ?? dataset.numGenes,
+          ...(prepared
+            ? { datasetType: "spatialdata", formatVersion: "zarr" }
+            : {}),
           // Browser uploads store the SM manifest at initiate; server
           // processing writes it to S3, so copy it onto the row here — the
           // SM API and gene indexing read it from the row.
@@ -280,7 +287,8 @@ export async function finalizeCompletedDataset(
         : {}),
     };
 
-    if (Object.keys(mapping).length > 0) {
+    // prepare.py's own mapping.json names the store; it is not overwritten
+    if (!prepared && Object.keys(mapping).length > 0) {
       await uploadBufferToS3(
         `datasets/${datasetId}/mapping.json`,
         Buffer.from(JSON.stringify(mapping)),
@@ -321,8 +329,8 @@ export async function finalizeCompletedDataset(
   // serverless route returns, leaving the row without genes.
   await updateDatasetGenes(prisma, {
     id: datasetId,
-    datasetType: dataset.datasetType,
-    formatVersion: dataset.formatVersion,
+    datasetType: prepared ? "spatialdata" : dataset.datasetType,
+    formatVersion: prepared ? "zarr" : dataset.formatVersion,
     manifestJson: dataset.manifestJson,
   });
 
@@ -339,7 +347,8 @@ export async function finalizeCompletedDataset(
         metadata: {
           numCells: opts.stats?.numCells ?? undefined,
           numGenes: opts.stats?.numGenes ?? undefined,
-          platform: dataset.datasetType ?? undefined,
+          platform:
+            (prepared ? "spatialdata" : dataset.datasetType) ?? undefined,
         },
       });
       emailed = true;

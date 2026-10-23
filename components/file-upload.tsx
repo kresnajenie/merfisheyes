@@ -27,7 +27,10 @@ import {
 } from "@/lib/config/moleculeColumnMappings";
 import { createPortal } from "react-dom";
 import { Spinner } from "@heroui/react";
-import { readMoleculePreview } from "@/lib/services/molecule-preview";
+import {
+  readMoleculeColumns,
+  readMoleculePreview,
+} from "@/lib/services/molecule-preview";
 import { SingleMoleculeHeaderModal } from "@/components/single-molecule-header-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
@@ -36,9 +39,14 @@ import { resetHooks, markDatasetLoaded } from "@/lib/utils/test-hooks";
 import {
   classifyFolder,
   fallbackSingleMoleculeFile,
+  preparePlatformFiles,
   type ClassifiedFile,
 } from "@/lib/ingest/classify-folder";
 import { matchMoleculeColumns } from "@/lib/ingest/molecule-columns";
+import {
+  PREPARE_PIPELINE,
+  preparePipelineEnabled,
+} from "@/lib/ingest/pipeline";
 import { useUploadStore } from "@/lib/stores/uploadStore";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import {
@@ -76,6 +84,18 @@ interface PendingServerUpload {
    * Offers to upload it as its own image dataset, drawn under the cells.
    */
   image?: { files: ImageUploadFile[]; name: string };
+  /**
+   * The prepare pipeline (lib/ingest/pipeline.ts) makes one store of
+   * everything sent: the cells and molecules are in `files`; the images go
+   * with them only when ticked (they are most of the bytes).
+   */
+  prepared?: {
+    cells: number;
+    molecules: string | null;
+    images: RawFile[];
+    /** The molecule table has a z column, so "keep Z" can be offered. */
+    moleculesZ: boolean;
+  };
 }
 
 /**
@@ -226,6 +246,8 @@ export function FileUpload({
   // Whether to also upload the detected single-molecule data (combined flow).
   const [includeSm, setIncludeSm] = useState(true);
   const [includeImage, setIncludeImage] = useState(true);
+  // The molecules' z under the prepare pipeline: off unless ticked, like images
+  const [keepZ, setKeepZ] = useState(false);
   // Advanced: open the new dataset(s) in the 3D camera by default.
   const [open3D, setOpen3D] = useState(false);
 
@@ -498,12 +520,31 @@ export function FileUpload({
       return;
     }
 
+    // A molecule table whose columns are not recognised (decision e in
+    // docs/plans/ONE-PIPELINE.md): ask, with the columns read from its
+    // parquet schema or CSV header. Unreadable, it goes up as it is and the
+    // worker says what it could not find.
+    let columnMapping: MoleculeColumnMapping | undefined;
+
+    if (kind === "single_molecule" && selected.files.length === 1) {
+      const table = selected.files[0].file;
+      // The schema only: a 10 GB table costs no more than a small one
+      const columns = await readMoleculeColumns(table).catch(() => []);
+
+      if (columns.length && !matchMoleculeColumns(columns)) {
+        const chosen = await awaitColumnMapping(table);
+
+        if (!chosen) return;
+        columnMapping = chosen;
+      }
+    }
+
     const selectedKeys = new Set(selected.files.map((f) => f.key));
     const ignored = classification.ignored.filter(
       (e) => !selectedKeys.has(e.key),
     );
 
-    if (ignored.length > 0) {
+    if (ignored.length > 0 && !preparePipelineEnabled()) {
       const skippedBytes = ignored.reduce((sum, f) => sum + f.file.size, 0);
 
       toast(
@@ -536,6 +577,7 @@ export function FileUpload({
     // selection in the viewer fetches only that gene instead of a whole chunk.
     const processingParams = {
       kind,
+      ...(columnMapping ? { columnMapping } : {}),
       stages: {
         chunk: {
           chunkSize: 1,
@@ -580,10 +622,85 @@ export function FileUpload({
       }
     }
 
+    // The one pipeline: scripts/prepare.py on the server makes one store of
+    // the cells and the molecules beside them (always sent), and of an image
+    // when asked for. A Xenium export or MERSCOPE region sends what prepare.py
+    // reads of it (preparePlatformFiles), which is more than the old processor.
+    if (preparePipelineEnabled() && kind === "single_cell") {
+      const platform = preparePlatformFiles(files);
+      const raw = (entries: ClassifiedFile[]) =>
+        entries.map(({ key, file }) => ({
+          key,
+          file,
+          contentType: "application/octet-stream",
+        }));
+      const cells = platform ? raw(platform.cells) : rawFiles;
+      const molecules = platform ? raw(platform.molecules) : (sm?.files ?? []);
+      const images = platform
+        ? raw(platform.images)
+        : (image?.files ?? []).map(({ key, file }) => ({
+            key: `${image!.name}/${key}`,
+            file,
+            contentType: "application/octet-stream",
+          }));
+
+      setPendingUpload({
+        kind,
+        files: [
+          ...cells.filter((f) => f.key !== ANNOTATION_CSV_KEY),
+          ...molecules,
+          ...rawFiles.filter((f) => f.key === ANNOTATION_CSV_KEY),
+        ],
+        processingParams: { ...processingParams, pipeline: PREPARE_PIPELINE },
+        prepared: {
+          cells: cells.filter((f) => f.key !== ANNOTATION_CSV_KEY).length,
+          molecules: molecules[0]?.key ?? null,
+          images,
+          moleculesZ: molecules[0]
+            ? await moleculeHasZ(molecules[0].file)
+            : false,
+        },
+      });
+      setTitleDraft(title);
+      setIncludeImage(false);
+      setKeepZ(false);
+
+      return;
+    }
+
+    // A molecule table alone becomes a store of points
+    if (preparePipelineEnabled() && kind === "single_molecule") {
+      setPendingUpload({
+        kind,
+        files: rawFiles,
+        processingParams: { ...processingParams, pipeline: PREPARE_PIPELINE },
+        prepared: {
+          cells: 0,
+          molecules: rawFiles[0]?.key ?? null,
+          images: [],
+          moleculesZ: columnMapping
+            ? Boolean(columnMapping.z)
+            : await moleculeHasZ(rawFiles[0].file),
+        },
+      });
+      setTitleDraft(title);
+      setKeepZ(false);
+
+      return;
+    }
+
     // Stage the upload and let the user confirm/rename the title before the
     // transfer begins (see startPreparedUpload). Navigation to /explore happens
     // on confirm, once the transfer is actually kicked off.
-    setPendingUpload({ kind, files: rawFiles, processingParams, sm, image });
+    setPendingUpload({
+      kind,
+      files: rawFiles,
+      processingParams: preparePipelineEnabled()
+        ? { ...processingParams, pipeline: PREPARE_PIPELINE }
+        : processingParams,
+      sm,
+      image,
+    });
     setTitleDraft(title);
     setIncludeSm(true);
     setIncludeImage(true);
@@ -619,10 +736,11 @@ export function FileUpload({
 
   // How many datasets the staged upload will make: the one picked, plus the
   // molecules and the image found beside it, when ticked.
-  const combinedCount =
-    1 +
-    (pendingUpload?.sm && includeSm ? 1 : 0) +
-    (pendingUpload?.image && includeImage ? 1 : 0);
+  const combinedCount = pendingUpload?.prepared
+    ? 1
+    : 1 +
+      (pendingUpload?.sm && includeSm ? 1 : 0) +
+      (pendingUpload?.image && includeImage ? 1 : 0);
 
   // Kick off the staged upload with the (possibly edited) title, then go to
   // /explore where the top bar tracks byte + processing progress.
@@ -632,16 +750,9 @@ export function FileUpload({
     const base = titleDraft.trim() || "Untitled Dataset";
     const viewerConfig = uploadViewerConfig(open3D);
 
-    // Server-side processing does NOT ask the user to confirm columns: the
-    // worker auto-detects the schema itself (detect_molecule_type picks
-    // MERSCOPE vs Xenium from the header, and the cell-id column with it).
-    //
-    // The confirm step used to run here, but on very large CSVs the browser
-    // preview can come back with no columns at all, leaving the dialog blank
-    // and its "process" button permanently disabled — an upload that cannot be
-    // completed. Auto-detection has no such failure mode, so the server path
-    // skips the check entirely. The in-browser path (handleFiles) still shows
-    // the confirm dialog, because nothing auto-detects on that side.
+    // Columns were settled before this (doServerUpload): recognised ones are
+    // left to the worker, and only a table it would not recognise asks — never
+    // with a blank list, which once left the dialog with no way forward.
     setPendingUpload(null);
 
     // Combined upload: the cells plus the molecules and/or the image, each
@@ -649,6 +760,26 @@ export function FileUpload({
     // cells' upload carries the ids of the others, so the server writes a
     // mapping.json (the overlays) when it finishes processing them — which is
     // why it starts last, once those ids are known.
+    // One store: the cells and molecules, and the images and the molecules'
+    // z when ticked
+    if (pending.prepared) {
+      startUpload({
+        kind: pending.kind,
+        title: base,
+        files: includeImage
+          ? [...pending.files, ...pending.prepared.images]
+          : pending.files,
+        processingParams:
+          keepZ && pending.prepared.moleculesZ
+            ? { ...pending.processingParams, keepZ: true }
+            : pending.processingParams,
+        viewerConfig,
+      });
+      router.push("/explore");
+
+      return;
+    }
+
     const withSm = pending.sm && includeSm ? pending.sm : null;
     const withImage = pending.image && includeImage ? pending.image : null;
 
@@ -1344,6 +1475,64 @@ export function FileUpload({
               onValueChange={setTitleDraft}
             />
 
+            {pendingUpload?.prepared && (
+              <div className="rounded-xl border border-default-200 bg-default-100/50 p-3 text-xs text-default-500">
+                <p>
+                  Processed on the server into one SpatialData store, the same
+                  one <code>scripts/prepare.py</code> makes on your own
+                  machine:
+                </p>
+                <ul className="mt-1 ml-4 list-disc">
+                  {pendingUpload.prepared.cells > 0 && (
+                    <li>
+                      the cells ({pendingUpload.prepared.cells.toLocaleString()}{" "}
+                      {pendingUpload.prepared.cells === 1 ? "file" : "files"})
+                    </li>
+                  )}
+                  {pendingUpload.prepared.molecules && (
+                    <li>
+                      the molecules,{" "}
+                      <span className="font-medium text-default-600">
+                        {pendingUpload.prepared.molecules}
+                      </span>
+                    </li>
+                  )}
+                </ul>
+                {pendingUpload.prepared.images.length > 0 && (
+                  <Checkbox
+                    className="mt-2"
+                    isSelected={includeImage}
+                    size="sm"
+                    onValueChange={setIncludeImage}
+                  >
+                    <span className="text-sm">
+                      Also upload the images (
+                      {formatBytes(
+                        pendingUpload.prepared.images.reduce(
+                          (sum, f) => sum + f.file.size,
+                          0,
+                        ),
+                      )}
+                      )
+                    </span>
+                  </Checkbox>
+                )}
+                {pendingUpload.prepared.moleculesZ && (
+                  <Checkbox
+                    className="mt-2"
+                    isSelected={keepZ}
+                    size="sm"
+                    onValueChange={setKeepZ}
+                  >
+                    <span className="text-sm">
+                      Keep the molecules&apos; Z (3-D); otherwise they are flat
+                      on the cells&apos; plane
+                    </span>
+                  </Checkbox>
+                )}
+              </div>
+            )}
+
             {pendingUpload?.sm && (
               <div className="rounded-xl border border-default-200 bg-default-100/50 p-3">
                 <Checkbox
@@ -1428,10 +1617,17 @@ function formatBytes(bytes: number): string {
     : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
 }
 
+/** Whether a molecule table has a z column, from its schema or header only. */
+async function moleculeHasZ(file: File): Promise<boolean> {
+  const columns = await readMoleculeColumns(file).catch(() => []);
+
+  return Boolean(matchMoleculeColumns(columns)?.z);
+}
+
 /**
  * The first top-level `.parquet` / `.csv` among `candidates` whose columns
  * are molecules (lib/ingest/molecule-columns.ts) — read from the parquet
- * schema or the CSV header, never the whole file.
+ * schema or the CSV header, never a row.
  */
 async function findMoleculeTable(
   candidates: ClassifiedFile[],
@@ -1441,9 +1637,9 @@ async function findMoleculeTable(
   );
 
   for (const entry of tables) {
-    const preview = await readMoleculePreview(entry.file).catch(() => null);
+    const columns = await readMoleculeColumns(entry.file).catch(() => []);
 
-    if (preview && matchMoleculeColumns(preview.columns)) return entry;
+    if (matchMoleculeColumns(columns)) return entry;
   }
 
   return null;

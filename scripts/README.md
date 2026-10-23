@@ -10,7 +10,7 @@ pip install -r scripts/requirements.txt     # pinned
 python scripts/prepare.py path/to/your_data my_sample/
 ```
 
-`my_sample/` then holds `my_sample.zarr`, `mapping.json` and `stats.json`; drag it onto the homepage, then **Upload & Save**. `python scripts/prepare.py --help` lists the options (`--labels`, `--cluster`, `--no-images`, `--molecule-columns`, `--name`); the [main README](../README.md#prepare-your-data-yourself-python) and [/docs/prepare](https://www.merfisheyes.com/docs/prepare) explain the output. It runs the per-platform scripts described [further down](#preparing-a-folder-of-parts-prepare_folderpy) (`prepare_xenium.py`, `prepare_merscope.py`, `prepare_visium.py`, `prepare_folder.py`, `transcripts_to_points.py`).
+`my_sample/` then holds `my_sample.zarr`, `mapping.json` and `stats.json`; drag it onto the homepage, then **Upload & Save**. `python scripts/prepare.py --help` lists the options (`--labels`, `--cluster`, `--no-images`, `--keep-z`, `--molecule-columns`, `--name`); the [main README](../README.md#prepare-your-data-yourself-python) and [/docs/prepare](https://www.merfisheyes.com/docs/prepare) explain the output. It runs the per-platform scripts described [further down](#preparing-a-folder-of-parts-prepare_folderpy) (`prepare_xenium.py`, `prepare_merscope.py`, `prepare_visium.py`, `prepare_folder.py`, `transcripts_to_points.py`).
 
 The rest of this page first describes the **older processors**, `process_spatial_data.py` and `process_single_molecule.py`. They write merfisheyes' own chunked format, which the viewer still reads; the server's worker runs them until it moves to `prepare.py` ([plan](../docs/plans/ONE-PIPELINE.md)).
 

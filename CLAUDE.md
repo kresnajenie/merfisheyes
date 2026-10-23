@@ -494,7 +494,10 @@ transcripts file and an OME-Zarr image folder
 ([lib/ingest/classify-folder.ts](lib/ingest/classify-folder.ts)). Each becomes
 its own dataset in one project; the cells carry
 `processingParams.linkedSmDatasetId` / `linkedImageDatasetId`, and
-`lib/ingest/finalize.ts` writes the `mapping.json` when they finish.
+`lib/ingest/finalize.ts` writes the `mapping.json` when they finish. Under
+`NEXT_PUBLIC_INGEST_PIPELINE=prepare` the same folder is one dataset instead
+(cells and molecules always, images only when ticked; a Xenium export or
+MERSCOPE region sends what `prepare.py` reads, `preparePlatformFiles`).
 
 **Code** lives in [lib/spatialdata/](lib/spatialdata/) and is kept apart from
 the h5ad-zarr path:
@@ -608,9 +611,13 @@ pinned in `scripts/requirements.txt`. Shared rules live in
 `scripts/meyes_common.py` (the control-probe filter, molecule column names,
 obs coordinate columns) — `worker/entrypoint.py` and
 `lib/ingest/molecule-columns.ts` repeat the column names, and tests keep the
-three equal. The server worker moves to `prepare.py` in step 2 of
-[docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md); until then it runs
-the legacy chunked processors below.
+three equal. The server worker runs `prepare.py` for an upload made with
+`NEXT_PUBLIC_INGEST_PIPELINE=prepare` (`processingParams.pipeline`, read
+through `lib/ingest/pipeline.ts`; steps 2–3 of
+[docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md)): one dataset per
+upload, finished as `datasetType: "spatialdata"`, its compute tier chosen
+from the upload's files (`lib/ingest/compute-tier.ts`). Without the setting
+it runs the legacy chunked processors below.
 
 The legacy processors write merfisheyes' chunked format (still read by the viewer):
 
