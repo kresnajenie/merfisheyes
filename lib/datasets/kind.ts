@@ -60,6 +60,16 @@ export function viewerHref(dataset: {
   return dataset.id ? `${base}/${dataset.id}` : null;
 }
 
+/**
+ * A dataset in the app's own bucket (`datasets/{id}/`): `ds_…`, or `sm_…`
+ * for one uploaded from the single molecule card. The id's prefix is where
+ * the upload began, not what the dataset is: a molecule table processed by
+ * scripts/prepare.py keeps its `sm_` id and is a SpatialData store.
+ */
+export function isAppDatasetId(id: string | null | undefined): id is string {
+  return !!id && (id.startsWith("ds_") || id.startsWith("sm_"));
+}
+
 export const KIND_LABEL: Record<DatasetKind, string> = {
   single_cell: "Single cell",
   single_molecule: "Single molecule",

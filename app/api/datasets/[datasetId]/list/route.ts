@@ -5,6 +5,7 @@ import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { NextRequest, NextResponse } from "next/server";
 
 import { S3_BUCKET, s3Client } from "@/lib/s3";
+import { isAppDatasetId } from "@/lib/datasets/kind";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -23,7 +24,7 @@ export async function GET(
   try {
     const { datasetId } = await params;
 
-    if (!datasetId.startsWith("ds_")) {
+    if (!isAppDatasetId(datasetId)) {
       return NextResponse.json(
         { error: "Invalid dataset ID format" },
         { status: 400, headers: corsHeaders },
