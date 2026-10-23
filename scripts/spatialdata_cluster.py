@@ -3,10 +3,10 @@
 Leiden clustering for a SpatialData store
 
 Clusters the cells of a SpatialData zarr store's table. The clusters go into
-the table itself, as a categorical `leiden` column of `obs`, so any reader of
-the store sees them; the per-cluster differential expression stats, which
-SpatialData has no place for, go next to the store as an `annotations/`
-folder the viewer's DEG panel reads.
+the table itself, as a categorical `leiden` column of `obs`, and so do the
+per-cluster differential expression stats the viewer's DEG panel reads
+(`varm/de_mean__leiden`, `varm/de_pct__leiden`, `uns/merfisheyes_de`; see
+scripts/de_stats.py), so any reader of the store sees them.
 
 Usage:
     python spatialdata_cluster.py store.zarr annotations/
@@ -15,11 +15,11 @@ Usage:
 
 Output:
     store.zarr/tables/<table>/obs/leiden     the cluster of each cell (categorical)
-    annotations/
-    ├── annotations.json     which columns have DE stats (and, with --sidecar-only,
-    │                        the columns kept here with their categories)
+    store.zarr/tables/<table>/varm, uns      its DE stats
+    annotations/             only with --sidecar-only, the older layout:
+    ├── annotations.json     the columns kept here with their categories
     ├── de/leiden.bin.gz     per-cluster mean / pct expressing per gene
-    └── leiden.bin           (--sidecar-only) uint16 category code per cell
+    └── leiden.bin           uint16 category code per cell
 
 Clustering: normalize_total → log1p → PCA → neighbours → Leiden. DE stats are
 means of that log-normalized matrix, which is what the viewer's DEG panel
@@ -29,6 +29,7 @@ that it would mistake their means for log values.
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import anndata as ad
@@ -38,7 +39,9 @@ import scanpy as sc
 import scipy.sparse as sp
 import zarr
 
-from process_spatial_data import write_de_stats_binary
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from process_spatial_data import write_de_stats_binary  # noqa: E402
 
 
 def _drop_consolidated(zarr_json: Path) -> None:
@@ -75,10 +78,12 @@ def cluster(
     n_pcs: int = 30,
     n_neighbors: int = 15,
     into_table: bool = True,
+    de: bool = True,
     log=print,
-) -> Path:
-    """Cluster `tables/<table>` of `store`: the clusters into the table's obs
-    (or, with `into_table=False`, into the sidecar), the DE stats into the
+) -> Path | None:
+    """Cluster `tables/<table>` of `store`: the clusters into the table's obs,
+    with their DE stats in the table (`de=False` leaves those to the caller);
+    or, with `into_table=False`, both into the sidecar, the DE stats into the
     `annotations/` sidecar."""
     # Opened by path: these stores' consolidated metadata can be stale
     group = zarr.open_group(str(store), mode="r", use_consolidated=False)[f"tables/{table}"]
@@ -108,15 +113,25 @@ def cluster(
     sums = np.asarray((lognorm.T @ membership).todense())
     expressing = np.asarray(((counts > 0).astype(np.float32).T @ membership).todense())
 
-    out = Path(output_folder)
-    (out / "de").mkdir(parents=True, exist_ok=True)
     if into_table:
+        # The clusters into the table, and their DE stats beside them in it
+        # (scripts/de_stats.py); no folder beside the store
         write_column(store, table, "leiden", pd.Categorical.from_codes(codes, categories))
         log(f"Wrote tables/{table}/obs/leiden")
-        columns = {}
-    else:
-        codes.astype("<u2").tofile(out / "leiden.bin")
-        columns = {"leiden": {"categories": categories}}
+        if de:
+            import de_stats
+
+            group = zarr.open_group(str(store), mode="r+", use_consolidated=False)[f"tables/{table}"]
+            de_stats.write_de_stats(group, log, columns=["leiden"])
+            # Writing dropped the root's consolidated metadata; a store opened
+            # by URL is listed by it (prepare_folder.py writes it once, last)
+            zarr.consolidate_metadata(str(store))
+        return None
+
+    out = Path(output_folder)
+    (out / "de").mkdir(parents=True, exist_ok=True)
+    codes.astype("<u2").tofile(out / "leiden.bin")
+    columns = {"leiden": {"categories": categories}}
     write_de_stats_binary(
         categories,
         cell_counts,

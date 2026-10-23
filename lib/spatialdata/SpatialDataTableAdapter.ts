@@ -31,6 +31,10 @@ import { defaultTableName } from "./store";
 
 export type XFormat = "dense" | "csr" | "csc" | "missing";
 
+/** Where a table keeps its DE stats (scripts/de_stats.py). */
+const DE_MEAN = "de_mean__";
+const DE_PCT = "de_pct__";
+
 interface ClusterColumn {
   column: string;
   type: "categorical" | "numerical";
@@ -79,6 +83,10 @@ export class SpatialDataTableAdapter {
   // Cache for lazy gene queries (dense/CSC path)
   // Promises, so two asks for one gene share the read
   private geneExprCache = new Map<string, Promise<number[] | null>>();
+
+  // Columns whose DE stats the table itself carries: varm/de_mean__<column>
+  // and varm/de_pct__<column> (scripts/de_stats.py)
+  private deInTable: string[] = [];
 
   // annotations/annotations.json from beside the store, if there is one
   private annotations: {
@@ -162,6 +170,12 @@ export class SpatialDataTableAdapter {
     this.obsColumns = enumerateChildArrays(this.storeKeys, "obs");
     this.obsmKeys = enumerateChildArrays(this.storeKeys, "obsm");
     this.varColumns = enumerateChildArrays(this.storeKeys, "var");
+    const varm = enumerateChildArrays(this.storeKeys, "varm");
+
+    this.deInTable = varm
+      .filter((k) => k.startsWith(DE_MEAN))
+      .map((k) => k.slice(DE_MEAN.length))
+      .filter((column) => varm.includes(`${DE_PCT}${column}`));
 
     // Spatial dimensions: derive from obsm/spatial or obsm/X_spatial shape if present
     const spatialKey = this.obsmKeys.includes("X_spatial")
@@ -653,12 +667,18 @@ export class SpatialDataTableAdapter {
     return Array.from(codes, (code) => categories[code]);
   }
 
-  /** Columns with precomputed DE stats in annotations/de/. */
+  /**
+   * Columns with precomputed DE stats: in the table (varm / uns), or in an
+   * annotations/de/ folder beside the store (written before they moved in).
+   */
   getAvailableDeStatsColumns(): string[] {
-    return this.annotations?.de_stats ?? [];
+    return Array.from(
+      new Set([...this.deInTable, ...(this.annotations?.de_stats ?? [])]),
+    );
   }
 
   async loadDeStats(column: string, genes: string[]): Promise<DeStats | null> {
+    if (this.deInTable.includes(column)) return this.loadTableDeStats(column);
     if (!this.getAvailableDeStatsColumns().includes(column)) return null;
 
     const gz = await this.sidecar!.get(`/annotations/de/${column}.bin.gz`);
@@ -669,6 +689,41 @@ export class SpatialDataTableAdapter {
     ).arrayBuffer();
 
     return parseDeStatsBuffer(buffer, column, genes);
+  }
+
+  /**
+   * DE stats kept in the table: genes × categories means and fractions in
+   * varm, the categories and their cell counts in uns/merfisheyes_de.
+   */
+  private async loadTableDeStats(column: string): Promise<DeStats | null> {
+    const record = `uns/merfisheyes_de/${column}`;
+    const [mean, pct, celltypes, counts] = await Promise.all([
+      this.openArray(`varm/${DE_MEAN}${column}`).then((a) => zarr.get(a)),
+      this.openArray(`varm/${DE_PCT}${column}`).then((a) => zarr.get(a)),
+      zarr.open
+        .v3(this.root!.resolve(`${record}/categories`))
+        .then((node) => this.readValues(node)),
+      this.openArray(`${record}/cell_counts`).then((a) => zarr.get(a)),
+    ]);
+    const genes = await this.loadGenes();
+
+    if (mean.shape[0] !== genes.length || mean.shape[1] !== celltypes.length) {
+      console.warn(
+        `[SpatialDataTableAdapter] varm/${DE_MEAN}${column} is ${mean.shape.join(" × ")}, expected ${genes.length} × ${celltypes.length}`,
+      );
+
+      return null;
+    }
+
+    return {
+      column,
+      celltypes,
+      cellCounts: Array.from(counts.data as ArrayLike<number | bigint>, Number),
+      genes,
+      // Row-major genes × categories: index g * C + c, as DeStats has it
+      means: Float32Array.from(mean.data as ArrayLike<number>),
+      pctExpressing: Float32Array.from(pct.data as ArrayLike<number>),
+    };
   }
 
   getClusterColumnInfo(): { names: string[]; types: Record<string, string> } {

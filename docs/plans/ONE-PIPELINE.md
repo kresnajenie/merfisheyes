@@ -405,3 +405,20 @@ Proposal, to plan on its own once the pipeline above is settled:
 To decide then: every categorical column (as the old pipeline did), or only
 the ones a person names; and whether the browser still computes them when a
 table has none.
+
+**Decided (user, 2026-10-23): every categorical column, the server path
+first. Done on `feat/de-in-table`:** `scripts/de_stats.py` writes, for every
+categorical obs column with 2–500 categories (not the index or join keys),
+`varm/de_mean__<column>` and `varm/de_pct__<column>` (float32, genes ×
+categories) and `uns/merfisheyes_de/<column>` (categories, cell counts,
+method) — the record sits at `uns["merfisheyes_de"]`, flatter than proposed.
+`normalize_total` + `log1p` are reimplemented in numpy (scanpy's defaults,
+equal to 1.2e-7; no scanpy needed). `prepare_folder.py` (so `prepare.py`,
+so the worker in step 2) runs it last on every table; `spatialdata_cluster.py`
+writes `obs/leiden` and its stats into the table and no `annotations/`
+(`--sidecar-only` keeps the old layout). `SpatialDataTableAdapter` offers
+the table's columns and reads them, falling back to `annotations/`. The
+browser computes nothing for a store (it never holds the whole matrix), so a
+store without them has no DEG panel. Checked: the stats against a hand
+computation (Python and the viewer), and the DEG panel listing genes for a
+dropped store that has them and absent for one that has not (`deg-table.spec.ts`).

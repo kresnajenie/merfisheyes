@@ -369,7 +369,9 @@ per-gene folder with `legacy_to_points.py`; `--molecule-columns` names a
 table's columns when they are not Xenium's or MERSCOPE's); the image folder
 and the transcripts table move to `sources/`;
 `mapping.json` names the store; with `--cluster` the Leiden clusters go
-into the table as `obs/leiden` and `annotations/` holds the DEG stats.
+into the table as `obs/leiden`; the DEG stats of every categorical column
+go into the table too (`varm/de_mean__<column>`, `varm/de_pct__<column>`,
+`uns/merfisheyes_de`; `de_stats.py`).
 Then `validate_store.py`. `--expanded` keeps the image and molecule
 folders beside the store, named in `mapping.json` (relative names, absolute
 with `--url`), and checks that they sit where the cells are (a `WARN`

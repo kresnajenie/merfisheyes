@@ -711,7 +711,14 @@ def prepare(
             import spatialdata_cluster
 
             log("  no categorical column: Leiden clustering ...")
-            spatialdata_cluster.cluster(store, folder / "annotations", table=table_name, resolution=resolution, log=log)
+            spatialdata_cluster.cluster(
+                store, folder / "annotations", table=table_name, resolution=resolution, de=False, log=log,
+            )
+            table = table_group(store, table_name)
+        # DE stats for every categorical column, kept in the table itself
+        import de_stats
+
+        de_stats.write_de_stats(table, log)
         repair_shapes(store, log)
         repair_image_chunks(store, log)
         if molecules is None and molecules_from_points:
