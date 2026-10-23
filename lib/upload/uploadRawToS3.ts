@@ -152,6 +152,97 @@ async function markFileComplete(
   }
 }
 
+/**
+ * Parts of one file in flight at once. One connection to S3 carries only a
+ * few MB/s from a lab network (3.3 MB/s, uploading Beaumont set1 from the
+ * lab), while many at once carry what the link has (26–29 MB/s from the same
+ * machine): a 6 GB table went up part after part in about half an hour.
+ */
+export const PART_CONCURRENCY = 6;
+
+/**
+ * Upload a multipart target's parts, `PART_CONCURRENCY` at a time, and give
+ * their ETags in part order. `onLoaded` gets the bytes of the parts still in
+ * flight, `onPartDone` each finished part's size. A part that fails stops the
+ * others: the upload has failed.
+ */
+export async function uploadParts(
+  target: {
+    partSize: number;
+    parts: Array<{ partNumber: number; url: string }>;
+  },
+  file: Blob,
+  key: string,
+  onLoaded: (inFlightBytes: number) => void,
+  onPartDone: (bytes: number) => void,
+  signal?: AbortSignal,
+  put: typeof xhrPut = xhrPut,
+): Promise<Array<{ partNumber: number; etag: string }>> {
+  const etags: Array<{ partNumber: number; etag: string }> = [];
+  const inFlight = new Map<number, number>();
+  const loaded = () => {
+    let sum = 0;
+
+    inFlight.forEach((bytes) => {
+      sum += bytes;
+    });
+    onLoaded(sum);
+  };
+  const stop = new AbortController();
+  const onAbort = () => stop.abort();
+
+  signal?.addEventListener("abort", onAbort);
+  if (signal?.aborted) stop.abort();
+
+  let next = 0;
+  const worker = async () => {
+    while (next < target.parts.length) {
+      const p = next++;
+      const start = p * target.partSize;
+      const end = Math.min(start + target.partSize, file.size);
+
+      inFlight.set(p, 0);
+      const { etag } = await put(
+        target.parts[p].url,
+        file.slice(start, end),
+        null,
+        (bytes) => {
+          inFlight.set(p, bytes);
+          loaded();
+        },
+        stop.signal,
+      );
+
+      if (!etag) {
+        throw new Error(
+          `Missing ETag for part ${p + 1} of ${key}. Ensure the S3 bucket CORS exposes the ETag header.`,
+        );
+      }
+      etags.push({ partNumber: target.parts[p].partNumber, etag });
+      inFlight.delete(p);
+      onPartDone(end - start);
+      loaded();
+    }
+  };
+
+  try {
+    await Promise.all(
+      Array.from(
+        { length: Math.min(PART_CONCURRENCY, target.parts.length) },
+        () =>
+          worker().catch((e) => {
+            stop.abort();
+            throw e;
+          }),
+      ),
+    );
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+  }
+
+  return etags.sort((a, b) => a.partNumber - b.partNumber);
+}
+
 export interface RawUploadResult {
   datasetId: string;
   /** Null when the processing job could not be submitted — see submitError. */
@@ -245,29 +336,16 @@ export async function uploadRawToS3(
       completedBytes += file.size;
       await markFileComplete(datasetId, uploadId, key, undefined, signal);
     } else {
-      const etags: Array<{ partNumber: number; etag: string }> = [];
-
-      for (let p = 0; p < target.parts.length; p++) {
-        const start = p * target.partSize;
-        const end = Math.min(start + target.partSize, file.size);
-        const blob = file.slice(start, end);
-
-        const { etag } = await xhrPut(
-          target.parts[p].url,
-          blob,
-          null,
-          (loaded) => report(loaded, i),
-          signal,
-        );
-
-        if (!etag) {
-          throw new Error(
-            `Missing ETag for part ${p + 1} of ${key}. Ensure the S3 bucket CORS exposes the ETag header.`,
-          );
-        }
-        etags.push({ partNumber: target.parts[p].partNumber, etag });
-        completedBytes += end - start;
-      }
+      const etags = await uploadParts(
+        target,
+        file,
+        key,
+        (loaded) => report(loaded, i),
+        (bytes) => {
+          completedBytes += bytes;
+        },
+        signal,
+      );
 
       await markFileComplete(
         datasetId,

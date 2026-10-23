@@ -119,6 +119,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   end, its failures included.
 - Local test runs no longer send real email: the test server gets empty SES
   keys, where it used to pick up a developer's staging ones.
+- **A big raw file uploads several parts at once.** "Upload & process on
+  server" sent a large file's 32 MB parts one after another over one
+  connection: 3.3 MB/s from the lab for Beaumont set1's 6 GB table. Six
+  parts now go up at once (`uploadParts` in `lib/upload/uploadRawToS3.ts`;
+  measured from the lab to S3, 4.5 MB/s for one and 20.3 MB/s for six, and
+  a browser opens at most six connections to S3), and their upload links
+  last 12 hours instead of 1, which a slow link used to outrun past ~11 GB.
 - A store's tiled molecules without a table were dropped: a molecules-only
   store bounced back to the homepage, and one with an image showed the image
   alone. They now open in the molecule viewer, dropped or saved.
