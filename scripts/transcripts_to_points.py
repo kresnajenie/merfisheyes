@@ -38,7 +38,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import points_zarr as pz  # noqa: E402
-from process_spatial_data import should_filter_gene  # noqa: E402
+from meyes_common import match_molecule_columns, should_filter_gene  # noqa: E402
 
 KNOWN = {
     "xenium": ("feature_name", "x_location", "y_location", "z_location"),
@@ -100,6 +100,10 @@ def resolve_columns(names: list[str], columns: str | None, feature_key: str | No
             return g, x, y, z if z in names else None
     if feature_key and {feature_key, "x", "y"} <= set(names):
         return feature_key, "x", "y", "z" if "z" in names else None
+    # A lab's own table: the gene and coordinates by name, in any case
+    found = match_molecule_columns(names)
+    if found:
+        return found["gene"], found["x"], found["y"], found.get("z")
     raise SystemExit(
         f"cannot tell the gene and coordinate columns of {names}: give --columns GENE,X,Y[,Z]"
     )

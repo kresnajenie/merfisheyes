@@ -6,26 +6,31 @@
                                    [--cluster] [--url BASE]
 
 Reads the export with spatialdata-io (`spatialdata_io.xenium`): the cell and
-nucleus boundaries, the transcripts, the morphology image(s) and the cell
-table, and writes
+nucleus boundaries, the morphology image (when the export has it) and the
+cell table, and writes
 
   <folder>/<name>.zarr/   the SpatialData store (Zarr v3): tables/table with a
                           CSC copy of X, shapes/cell_boundaries and
                           nucleus_boundaries (one GeoParquet each), images/
-                          (1024² chunks, a pyramid), points/transcripts
-  <folder>/molecules/     the transcripts as one file per gene (what the
-                          viewer streams; the store's parquet points are not
-                          read), flat on the plane of the cells
-  <folder>/mapping.json   names the store and the molecules
+                          (1024² chunks, a pyramid; when present),
+                          points/molecules (tiled, straight from
+                          transcripts.parquet, flat on the cells' plane)
+  <folder>/mapping.json   names the store
   <folder>/annotations/   with --cluster, Leiden clusters + DEGs when the
                           table has no categorical column
+
+With --expanded the molecules are instead a per-gene folder beside the store.
+An export without its morphology files (an upload without images) works the
+same; it needs experiment.xenium, cell_feature_matrix.h5, cells.parquet,
+cells.zarr.zip, cell_boundaries.parquet, nucleus_boundaries.parquet and
+transcripts.parquet. scripts/prepare.py runs this for a Xenium export.
 
 then runs scripts/prepare_folder.py's checks and scripts/validate_store.py.
 The raster cell and nucleus labels are not written unless --labels: the
 viewer does not draw them, and they are the largest part of the store. The
 table then annotates `cell_boundaries` (the polygons) instead of the labels.
 
-Needs: pip install -r scripts/requirements-prepare.txt spatialdata-io
+Needs: pip install -r scripts/requirements.txt
 """
 from __future__ import annotations
 
@@ -41,18 +46,30 @@ import prepare_folder  # noqa: E402
 CHUNK = 1024
 
 
-def read_xenium(path: Path, *, labels: bool, log=print):
+def has_images(path: Path) -> bool:
+    """Whether the export holds its morphology image (an upload may not:
+    the server sends images only when asked)."""
+    return any((path / n).exists() for n in ("morphology_focus", "morphology_focus.ome.tif", "morphology.ome.tif"))
+
+
+def read_xenium(path: Path, *, labels: bool, images: bool = True, log=print):
     try:
         from spatialdata_io import xenium
     except ImportError:
         raise SystemExit("pip install spatialdata-io   (Python 3.12 or newer)")
 
     log(f"reading {path} with spatialdata-io ...")
+    images = images and has_images(path)
     sdata = xenium(
         path,
         cells_as_circles=False,
         cells_labels=labels,
         nucleus_labels=labels,
+        # The molecules go into the tiled points element from transcripts.parquet;
+        # the reader's own parquet copy would only double them
+        transcripts=False,
+        morphology_focus=images,
+        aligned_images=images,
         morphology_mip=False,  # the focus image is the one drawn; the MIP doubles the store
         # No pyramid unless asked: the viewer draws the coarsest level whole as the backdrop
         image_models_kwargs={"chunks": (1, CHUNK, CHUNK), "scale_factors": [2, 2, 2, 2, 2]},
@@ -83,6 +100,8 @@ def prepare_xenium(
     cluster: bool = False,
     url: str | None = None,
     expanded: bool = False,
+    images: bool = True,
+    label_csv: Path | None = None,
     log=print,
 ):
     path, folder = Path(path), Path(folder)
@@ -92,7 +111,7 @@ def prepare_xenium(
     if store.exists():
         raise SystemExit(f"{store} exists already; remove it or pass --name")
 
-    sdata = read_xenium(path, labels=labels, log=log)
+    sdata = read_xenium(path, labels=labels, images=images, log=log)
     log(f"  {sdata}")
     log(f"writing {store} ...")
     sdata.write(store)
@@ -105,7 +124,7 @@ def prepare_xenium(
     log("checking the folder ...")
     return prepare_folder.prepare(
         folder, cells=store, molecules=transcripts, molecule_columns="xenium", cluster=cluster, url=url,
-        expanded=expanded, workers=workers, log=log,
+        expanded=expanded, workers=workers, labels=label_csv, log=log,
     )
 
 

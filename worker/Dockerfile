@@ -22,7 +22,7 @@ COPY worker/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Processors are reused verbatim; entrypoint orchestrates S3 + the run.
-COPY scripts/process_spatial_data.py scripts/process_single_molecule.py ./scripts/
+COPY scripts/process_spatial_data.py scripts/process_single_molecule.py scripts/meyes_common.py ./scripts/
 COPY worker/entrypoint.py .
 
 ENTRYPOINT ["python", "entrypoint.py"]

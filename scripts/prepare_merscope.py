@@ -20,9 +20,9 @@ reads back):
                           the cell centres, microns; the metadata and categories as
                           obs columns), shapes/cell_boundaries (one GeoParquet: each
                           cell's polygon on one z-plane, --z, as microns)
-  <folder>/molecules/     the transcripts as one file per gene (what the viewer
-                          streams), flat on the cells' plane
-  <folder>/mapping.json   names the store and the molecules
+                          and points/molecules (tiled, straight from the
+                          transcripts table, flat on the cells' plane)
+  <folder>/mapping.json   names the store
   <folder>/annotations/   with --cluster, Leiden clusters + DEGs when the table
                           has no categorical column
 
@@ -34,7 +34,7 @@ which most shared exports lack, and its fixes are still an open pull request.
 The mosaic images themselves are not written here yet: a MERSCOPE mosaic is
 tens of gigabytes, more than scripts/image_to_ome_zarr.py holds in memory.
 
-Needs: pip install -r scripts/requirements-prepare.txt spatialdata
+Needs: pip install -r scripts/requirements.txt
 """
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import prepare_folder  # noqa: E402
-from process_spatial_data import should_filter_gene  # noqa: E402
+from meyes_common import should_filter_gene  # noqa: E402
 
 ID_COLUMNS = ("EntityID", "cell_id", "cell", "id")
 
@@ -182,6 +182,7 @@ def prepare_merscope(
     cluster: bool = False,
     url: str | None = None,
     expanded: bool = False,
+    label_csv: Path | None = None,
     log=print,
 ):
     path, folder = Path(path), Path(folder)
@@ -209,7 +210,7 @@ def prepare_merscope(
     log("checking the folder ...")
     return prepare_folder.prepare(
         folder, cells=store, molecules=transcripts, molecule_columns="merscope", cluster=cluster, url=url,
-        expanded=expanded, workers=workers, log=log,
+        expanded=expanded, workers=workers, labels=label_csv, log=log,
     )
 
 

@@ -243,6 +243,18 @@ runs each input kind on a tiny fixture; `prepare.py` twice on the lung and
 breast exports gives identical bytes; spatialdata `read_zarr` and anndata
 `read_zarr` open every output.
 
+**Done (2026-10-23, `feat/prepare-entry`).** As planned, with: obs
+coordinate columns (`center_x/y/z`…) used when a table has no
+`obsm/spatial`, as the legacy pipeline and the browser do (the BIL h5ad:
+151,391 cells, 3-D); the README section of step 4 brought forward. DE stats
+inside the table are their own PR (§8). Gate: Python suite 68 passed; the
+Xenium test on the 10x lung export; lung and breast twice → identical;
+anndata reads every table. **Found:** spatialdata 0.8's `read_zarr` stops on
+the tiled points element (`KeyError: '0.3-zarr'` — our own format); with
+`on_bad_files="warn"` it reads the table, images and shapes and skips the
+molecules. The docs now say so; whether to also write a standard points
+element is an open question for the user.
+
 ### Step 2: the worker runs it (`feat/worker-one-pipeline`)
 
 `worker/Dockerfile` copies `scripts/prepare*.py`, the modules they import

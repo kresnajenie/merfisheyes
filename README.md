@@ -6,6 +6,34 @@ Web-based 3D visualization platform for spatial transcriptomics data. Supports b
 
 ---
 
+## Prepare your data yourself (Python)
+
+Want to prepare your data on your own machine before uploading — because it is large, private, or you want to check it first? It is **one Python script in this repository: [`scripts/prepare.py`](scripts/prepare.py)**. It turns what you have into one [SpatialData](https://spatialdata.scverse.org) store the viewer opens as it is.
+
+```bash
+git clone https://github.com/kresnajenie/merfisheyes.git
+cd merfisheyes
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r scripts/requirements.txt          # pinned: the same packages the server uses
+
+python scripts/prepare.py path/to/your_data my_sample/
+```
+
+| You have | `path/to/your_data` is |
+|---|---|
+| An AnnData table | the `.h5ad` file (or an AnnData Zarr folder) |
+| A Xenium export | the `outs/` folder (the one with `experiment.xenium`) |
+| A MERSCOPE region | the folder with `cell_by_gene.csv` and `cell_metadata.csv` |
+| A Visium / Visium HD output | Space Ranger's `outs/` folder |
+| Molecules only | the transcripts `.parquet` / `.csv` — Xenium's and MERSCOPE's columns, or your own (`Gene, X, Y, Z`… in any case; else `--molecule-columns GENE,X,Y[,Z]`) |
+| Cells, molecules and an image together | a folder holding the table, the molecule table and an OME-Zarr image side by side |
+
+You get `my_sample/` holding `my_sample.zarr` (the cells, the molecules, and the image when your data has one — `--no-images` leaves it out), `mapping.json` and `stats.json` (what was written), checked before the script exits. Your input is never changed. **Drag `my_sample/` onto the homepage** to look at it, then **Upload & Save** to keep it.
+
+Options: `python scripts/prepare.py --help` — `--labels cell_types.csv` adds per-cell labels (a MapMyCells result), `--cluster` adds Leiden clusters when the table has none, `--name` names the store. Exit codes: 0 done, 2 not recognised, 3 something missing (the message says what), 4 the store failed its checks. The full guide is [/docs/prepare](https://www.merfisheyes.com/docs/prepare). The server's worker is moving to this same script ([plan](docs/plans/ONE-PIPELINE.md)); once it has, uploading raw data and running it yourself give the same store.
+
+---
+
 ## What files can I bring? (input requirements)
 
 MERFISHEYES reads the **raw outputs** of the common spatial platforms — you don't need to pre-format anything. Below is exactly which files each type needs and what they should look like. Drop a whole folder or a single file on the homepage; the app figures out the format from the file names.
@@ -17,6 +45,7 @@ There are three kinds of data, and they can be shown together: **cells**, **mole
 | Raw platform output (H5AD, Xenium, MERSCOPE, a transcripts file) | [Single cell](#single-cell), [Single molecule](#single-molecule), [Combined upload](#combined-single-cell--single-molecule--image-raw-data) |
 | An image | [Image](#image) |
 | Data that is already in a format the viewer reads — a SpatialData store, or merfisheyes' own output folders | [Already-processed data](#already-processed-data-opens-as-it-is) |
+| Raw data you would rather prepare on your own machine first | [Prepare your data yourself](#prepare-your-data-yourself-python) — `scripts/prepare.py` |
 
 ### Single cell
 
@@ -173,7 +202,7 @@ python scripts/prepare_folder.py sample/            # --cluster adds Leiden clus
 
 The transcripts table is used as it is: Xenium's and MERSCOPE's column names are recognised, any others are given with `--molecule-columns GENE,X,Y[,Z]`. The script that writes it into the store's tiled points element, `scripts/transcripts_to_points.py`, also runs on its own.
 
-You get one SpatialData store holding everything, which is what the viewer, spatialdata, napari and Vitessce all open:
+You get one SpatialData store holding everything. The viewer opens all of it; spatialdata, napari and Vitessce open the table, images and shapes, but not yet the molecules, which are in our own tiled format (`docs/points-zarr-spec.md`) — with the `spatialdata` library (0.8), `read_zarr(path, on_bad_files="warn")` reads the rest and skips them:
 
 ```
 sample/
@@ -358,18 +387,11 @@ npm run test:perf        # performance suite (compares against perf/baselines/)
 Two options for datasets too big to parse in a browser:
 
 1. **Upload & process on server** (in-app) — described above; a background worker does it for you.
-2. **Pre-process locally** with the Python scripts and upload the ready-made chunks:
+2. **Prepare it yourself** with **[`scripts/prepare.py`](scripts/prepare.py)** — see [Prepare your data yourself](#prepare-your-data-yourself-python). One command for an `.h5ad`, a Xenium export, a MERSCOPE region, a Visium output, a molecule table or a folder of parts; the result opens by drag and drop and saves with **Upload & Save**.
 
-   ```bash
-   python scripts/process_spatial_data.py    data.h5ad   output/   # single cell
-   python scripts/process_single_molecule.py data.parquet output/  # single molecule
-   ```
+`prepare.py` runs the per-platform scripts, which also run on their own when you want their extra options: `prepare_xenium.py` (`--labels` for the raster labels), `prepare_merscope.py` (`--z`, the polygons' plane; the mosaic images are not written yet), `prepare_visium.py` (`--fullres`, `--bins`), `prepare_folder.py` (`--url`, `--expanded`), and `transcripts_to_points.py` for molecules alone. Each writes one SpatialData store with the molecules inside it as a tiled points element. See [scripts/README.md](scripts/README.md) and [/docs/prepare](https://merfisheyes.com/docs/prepare).
 
-   See **[scripts/README.md](scripts/README.md)** for formats, flags, and the output layout. (BIL HPC / SLURM pipelines live in [scripts/bil-scripts/](scripts/bil-scripts/README.md).)
-3. **Prepare your own parts** — an AnnData table, a molecule folder and an OME-Zarr image in one folder, made ready by `scripts/prepare_folder.py` (see *Preparing the parts yourself* above and [/docs/prepare](https://merfisheyes.com/docs/prepare)).
-4. **Prepare a Xenium export yourself** — `python scripts/prepare_xenium.py Xenium_outs/ sample/` reads it with `spatialdata-io` (`pip install spatialdata-io`, Python 3.12+) into a SpatialData store with the CSC copy, one GeoParquet per boundary element, the morphology image in 1024² chunks, plus the transcripts as a molecule folder, and ends in the same checks ([/docs/prepare#xenium](https://merfisheyes.com/docs/prepare#xenium)).
-5. **Prepare a MERSCOPE region yourself** — `python scripts/prepare_merscope.py region_R1/ sample/` builds the store with the `spatialdata` library from `cell_metadata.csv`, `cell_by_gene.csv` (blanks dropped, CSC) and, when present, the vpt `cell_boundaries.parquet` (one z-plane, `--z`) and `cell_categories.csv`, converts `detected_transcripts.csv` into the molecule folder, and ends in the same checks ([/docs/prepare#merscope](https://merfisheyes.com/docs/prepare#merscope)). The mosaic images are not written yet.
-6. **Prepare a Visium or Visium HD output yourself** — `python scripts/prepare_visium.py outs/ sample/ [--fullres image.tif]` reads the Space Ranger output with `spatialdata-io` (Visium HD when `binned_outputs/` is there; `--bins 8 16` by default) into a store whose spots or bins are drawn at their real size, each table with the CSC copy, the hires and lowres images and the full-resolution one when given, and ends in the same checks ([/docs/prepare#visium](https://merfisheyes.com/docs/prepare#visium)).
+The older processors, `process_spatial_data.py` and `process_single_molecule.py`, write merfisheyes' own chunked format; the server's worker still runs them until it moves to `prepare.py`, and the viewer keeps reading what they wrote. (BIL HPC / SLURM pipelines live in [scripts/bil-scripts/](scripts/bil-scripts/README.md).)
 
 ---
 
