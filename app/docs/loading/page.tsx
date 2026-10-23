@@ -168,6 +168,13 @@ export default function LoadingPage() {
           into one project, and the cells open with the molecules over them and
           the image under them.
         </Callout>
+        <Callout id="server-processed">
+          <b>Already processed?</b> A{" "}
+          <a href="#processed">folder that needs no processing</a> dropped here
+          is not sent to a worker: it is uploaded as it is, the same as{" "}
+          <b>Upload &amp; Save</b> from a preview, without being opened in your
+          browser first.
+        </Callout>
       </DocSection>
 
       <DocSection
@@ -195,7 +202,7 @@ export default function LoadingPage() {
             {
               title: "+ Molecules",
               detail:
-                "A merfisheyes molecule folder (manifest.json.gz + genes/)",
+                "A merfisheyes molecule folder (manifest.json.gz + genes/), or the tiled points inside a SpatialData store",
             },
             {
               title: "+ Image",
@@ -210,11 +217,19 @@ export default function LoadingPage() {
         />
         <Prose>
           <p>
-            Any part may be missing. <b>Upload &amp; Save</b> from this preview
-            uploads every part exactly as it is — nothing is processed — each as
-            its own dataset in one project, and the saved link opens with the
-            same overlays. Raw cells (H5AD, Xenium, MERSCOPE) beside processed
-            parts are shown on their own here; use{" "}
+            Any part may be missing. SpatialData parts kept as separate folders
+            — a store with only molecules or an image, an OME-Zarr image beside
+            a store — are put into one store, the one with the cells. Several
+            folders dragged in at once count as one folder holding them.
+          </p>
+          <p>
+            <b>Upload &amp; Save</b> from this preview uploads every part
+            exactly as it is — nothing is processed — each as its own dataset in
+            one project, or as that one store, and the saved link opens with the
+            same overlays. Dropping the same folder on{" "}
+            <b>Upload &amp; process on server</b> does the same without opening
+            it first. Raw cells (H5AD, Xenium, MERSCOPE) beside processed parts
+            are shown on their own here; use{" "}
             <b>Upload &amp; process on server</b> to combine those.
           </p>
         </Prose>

@@ -29,6 +29,38 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   profiles say so (`docs/specs/table-profile.md`, `image-profile.md`,
   `store-layout.md`). Fixtures shaped like the real stores, built by the
   `spatialdata` library: `scripts/testdata/make-tiny-modalities.py`.
+- **Processed data on "Upload & process on server".** A SpatialData store,
+  separate stores, an OME-Zarr image or merfisheyes output folders dropped
+  on the server card are uploaded as they are, the same as Upload & Save
+  from a preview, without opening them first; it used to say "No
+  single-cell data found". Raw exports still go to the worker.
+- **Separate SpatialData parts become one store.** A store without a table
+  (tiled molecules, an image) and a standalone OME-Zarr image beside a store
+  or table join it as its elements, in the preview and when saved; only the
+  root `zarr.json` is rewritten to list them.
+- **Drop matrix tests**: every combination of a table (CSR `X` + CSC layer,
+  or CSC `X`), an image and tiled molecules, in four layouts, dropped through
+  the drop zone (`e2e/tests/viewer/drop-matrix.spec.ts`), saved and sent to
+  the server card (`e2e/tests/upload/drop-matrix-save.spec.ts`), and timed on
+  real stores (`e2e/perf/real-drop.spec.ts`) and real uploads, prepared or
+  raw (`e2e/perf/real-upload.spec.ts`); tiny stores whose `X` is CSC
+  (`scripts/testdata/make-tiny-csc-x.py`) and whose indexes have names
+  (`make-tiny-named-index.py`).
+
+### Fixed
+
+- A store's tiled molecules without a table were dropped: a molecules-only
+  store bounced back to the homepage, and one with an image showed the image
+  alone. They now open in the molecule viewer, dropped or saved.
+- A molecules-only store beside a table store could take the table's place
+  (the first by name won), leaving no cells.
+- Several folders dragged in at once overwrote one another's root metadata,
+  keeping only one of them.
+- A store holding only molecules opened with the camera on an empty patch
+  of the plane, so none were drawn; the molecule scene now frames them.
+- The local `@upload` test stack no longer calls AWS Batch: with a custom S3
+  endpoint no job is submitted (it was reaching Batch with a developer's
+  staging settings, refused only for the wrong keys).
 
 ## [0.13.0] - 2026-10-21
 

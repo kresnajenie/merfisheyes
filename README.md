@@ -154,9 +154,11 @@ sample/
 - **Any part may be missing.** Cells + image, cells + molecules, molecules + image, or a single part on its own all open. Without cells the molecules are the scene, with the image under them; an image alone opens in the image viewer.
 - **A part is a folder directly inside the one you drop**, or the dropped folder itself.
 - **A table on its own works in either Zarr version.** A Zarr v2 AnnData folder (`.zgroup`) opens as before; a Zarr v3 one (`zarr.json`), including `tables/<table>/` or `tables/` taken out of a SpatialData store, opens with the same reader a store uses.
-- **With several candidates for one part** (two images, say) the first by name is used, and a message says which were skipped.
-- **A SpatialData store's molecules** are not read from its `points/`; convert them once with `scripts/spatialdata_points_to_sm.py` and put the result beside the store.
-- **Upload & Save** from this preview uploads every part exactly as it is — nothing is processed — each as its own dataset in one project, and the saved cells open with the same overlays. (Molecules and an image saved without cells are grouped in a project but not overlaid.) Signing in is required; no single file may exceed 5 GB.
+- **Separate SpatialData parts become one store.** A store without a table (its tiled molecules, an image) and an OME-Zarr image beside a store or a table are put into that store, under their own names (`_2` when a name is taken); with no table anywhere, the first store by name holds the rest. The preview shows them together, and Upload & Save uploads that one store: every data file as it is, only the store's root `zarr.json` rewritten to list them.
+- **Several folders dragged in at once** are taken as one folder holding them, named after the first.
+- **With several candidates for one part** (two merfisheyes cell folders, say) the first by name is used, and a message says which were skipped.
+- **A SpatialData store's molecules** are drawn from its tiled points element ([docs/points-zarr-spec.md](docs/points-zarr-spec.md)), over the cells or, without a table, on their own. A parquet points element is not read; `python scripts/prepare_folder.py --molecules-from-points` turns it into the tiled one.
+- **Upload & Save** from this preview uploads every part exactly as it is — nothing is processed — each as its own dataset in one project (or one store, as above), and the saved cells open with the same overlays. (Merfisheyes molecules and an image saved without cells are grouped in a project but not overlaid.) Signing in is required; no single file may exceed 5 GB.
 
 **The same data on a public bucket** opens from **Load from S3** on the homepage. Paste the URL of a merfisheyes folder, a SpatialData store, an OME-Zarr image, or the folder holding a store with its molecules beside it — the last opens with everything overlaid, and the link you land on reopens all of it. A bucket's folders can't be listed from a browser, so the folder's `mapping.json` names its store (`"cells": "name.zarr"`); without that, a store named after the folder (`sample/sample.zarr`) is tried. A store nobody owns yet shows **Add to my account**, like any other dataset opened by URL. See [docs/spatialdata](docs/spatialdata/README.md) for the layout.
 
@@ -192,8 +194,8 @@ What is and isn't converted:
 | Raw cells (H5AD, Xenium, MERSCOPE) | Parsed in your browser | Converted by a worker |
 | Raw molecules (Parquet / CSV) | Parsed in your browser | Converted by a worker |
 | Raw cells + transcripts and/or an image | Cells only | All converted or uploaded, and overlaid |
-| Already-processed cells, molecules, image | **Opened as they are, overlaid** | — (use Upload & Save from the preview) |
-| An OME-Zarr image | **Opened as it is** | Uploaded as it is, beside raw cells |
+| Already-processed cells, molecules, image | **Opened as they are, overlaid** | **Uploaded as they are**, as Upload & Save does, without opening them first |
+| An OME-Zarr image | **Opened as it is** | Uploaded as it is |
 
 ---
 
@@ -213,6 +215,8 @@ For large datasets, upload the **raw bytes** and let a background worker do the 
 2. **Single-molecule uploads add a "Confirm columns" step** — a preview of the first rows with dropdowns to map gene / x / y / z / cell-id (auto-filled from the detected platform). This is what guarantees the server reads your columns correctly.
 3. A full-screen progress bar tracks the upload; you can leave once it says "Uploaded — we'll email you."
 4. An AWS worker runs the same Python processors used for pre-chunking, writes the result to S3, and **emails you a link** to the viewer when it's done.
+
+[Already-processed data](#already-processed-data-opens-as-it-is) dropped on the single-cell card here needs no worker: it is uploaded as it is, the same as **Upload & Save** from a preview, without being opened in the browser first, so its size is not limited by your browser's memory.
 
 This path has no browser memory limits and produces the exact same chunked format as everything else. See **[docs/server-side-ingestion/](docs/server-side-ingestion/README.md)** for the full architecture.
 
