@@ -10,6 +10,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- Docs: the user guide's *Sharing on Explore* page describes the three
+  collections on Explore (curated, SpatialData-DB, Community) and that every
+  card opens the dataset's own page; `scripts/README.md`, the SpatialData
+  guide, the spec and `CLAUDE.md` say the same.
 - **The names producers use, in one file.** `docs/specs/conventions.json`
   (with a schema) holds the default-table attribute, feature-index columns,
   default-colour priority, positional columns, cell-outline element names,

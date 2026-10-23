@@ -454,8 +454,9 @@ card in `lib/sddb/catalog-row.ts`, the file read in `lib/sddb/catalog-file.ts`).
 the release and fails unless the published uid set equals the release's; it is
 run by hand (dev database first, `--limit=N` for a sample, then production),
 never on a schedule. Each store is registered as an admin-owned `Dataset`
-(`ensureDatasetForS3Url`) and its card opens it by public URL in
-`/spatialdata-viewer/from-s3`. The census behind the viewer work is
+(`ensureDatasetForS3Url`); its card opens the dataset's page (every Explore
+card does, `lib/explore/links.ts`), and the page opens the store by public
+URL in `/spatialdata-viewer/from-s3`. The census behind the viewer work is
 [docs/specs/sddb-profile.md](docs/specs/sddb-profile.md).
 
 **An image is a dataset** (`datasetType: "image"`; helpers in

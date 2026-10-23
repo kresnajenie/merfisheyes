@@ -58,6 +58,11 @@ banner, like any other dataset opened by URL. Nothing is copied: the row
 store's URL, it is listed under **Your datasets**, and it opens at the same
 `from-s3` link.
 
+The stores of [SpatialData-DB](https://lamin.ai/scverse/spatialdata-db) are
+already registered this way and listed on Explore under the
+**SpatialData-DB** category, synced from the catalogue that project
+publishes — see [docs/specs/sddb-catalog.md](../specs/sddb-catalog.md).
+
 **By dataset id** — a store under `datasets/{id}/` in the app's own bucket,
 with a `Dataset` row (`COMPLETE`):
 

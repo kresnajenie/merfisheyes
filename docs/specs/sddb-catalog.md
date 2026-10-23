@@ -37,10 +37,12 @@ same path as the viewer's "Add this dataset" banner
 (`ensureDatasetForS3Url`: one read of the store's root metadata, the table's
 size taken from it), named and described from the catalog, and the entry
 carries its `datasetId`, so views are counted and the banner never shows.
-A card opens `/spatialdata-viewer/from-s3?url=…` like any public store.
-Their bucket allows CORS for `www.merfisheyes.com` only, so the cards work
-on production and not on dev or localhost until the scverse team adds those
-origins.
+A card opens the dataset's page (`/explore/[id]`, as every Explore card
+does; `lib/explore/links.ts`), and the page opens the store in
+`/spatialdata-viewer/from-s3?url=…` like any public store. Their bucket
+allows CORS for `www.merfisheyes.com` only, so the stores open on
+production and not on dev or localhost until the scverse team adds those
+origins; the cards and pages work everywhere.
 
 ## The sync
 
