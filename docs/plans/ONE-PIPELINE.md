@@ -275,6 +275,34 @@ container with `--memory` set to that tier. Today's numbers already need
 the large tier for Beaumont set1 (15.6 GB); a streaming writer for the
 points element is the fix if the user wants everything on standard.
 
+**Done with step 3 (2026-10-23, `feat/one-pipeline-server`)**, behind
+`NEXT_PUBLIC_INGEST_PIPELINE=prepare` (stamped on each upload's
+`processingParams.pipeline`; unset, nothing changes). The image keeps the
+legacy processors, so `:latest` can carry both; it was built and run
+locally only, not pushed. Parity: the lung and breast exports through the
+worker (download from MinIO, `prepare.py`, upload) and through `prepare.py`
+run in the same image give identical folders, `stats.json` included (410
+and 405 files). Memory, as the container's anonymous memory (its
+`memory.peak` counts page cache and fills to the limit), on the tier
+`lib/ingest/compute-tier.ts` picks:
+
+| Upload | Tier | Time | Peak |
+|---|---|---|---|
+| Xenium lung 2-FOV, 7 files, 24.7 MB | standard | 0:10 | 0.8 GB |
+| Xenium breast 2-FOV, 7 files, 28.8 MB | standard | 0:11 | 0.8 GB |
+| Beaumont set2 molecules, 548 MB | standard | 1:34 | 2.7 GiB |
+| Beaumont set1 h5ad + molecules, 6.5 GB | large | 16:11 | 16 GiB (50%) |
+
+Found on the way: the image's build context left out `meyes_common.py`
+(fixed in #171) and the schemas `validate_store.py` reads; `prepare.py`'s
+output reached the log only at exit (`PYTHONUNBUFFERED`); numba cannot
+cache as a non-root user (`NUMBA_CACHE_DIR`). Gate:
+`e2e/tests/upload/prepare-upload.spec.ts` (run with the setting, and with
+`E2E_WORKER_IMAGE` the worker image processes the upload and its signed
+callback finishes it); the rest of the upload suite passes without the
+setting. **Not yet run:** the staging pipeline (AWS Batch) — it needs the
+image in ECR.
+
 ### Step 3: the app sends what the script reads (`feat/upload-one-store`)
 
 - `classify-folder.ts`: per platform, the files `prepare.py` reads — the 7
