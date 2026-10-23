@@ -276,6 +276,86 @@ test.describe("@upload one store from the server", () => {
       expect(await pointsAxes(id)).toEqual(["x", "y", "z"]);
     });
   });
+
+  test("a molecule table alone becomes a store that opens", async ({ page }) => {
+    test.skip(
+      !WORKER_IMAGE || !process.env.CALLBACK_SECRET,
+      "Set E2E_WORKER_IMAGE (and CALLBACK_SECRET, as the app has it) to run the worker.",
+    );
+    test.setTimeout(600_000);
+    const name = `e2e-prepare-sm-${Date.now()}`;
+    // Its own molecules, so it is never a duplicate of an earlier run's
+    const table = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "e2e-")), "spots.csv");
+    const rows = Array.from(
+      { length: 2000 },
+      (_, i) => `gene_${i % 10},${(Math.random() * 500).toFixed(2)},${(Math.random() * 500).toFixed(2)}`,
+    );
+
+    fs.writeFileSync(table, ["feature_name,x_location,y_location", ...rows].join("\n"));
+
+    await signInDev(page, `e2e-prepare-sm-${Date.now()}@example.com`);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: /single molecule/i }).first().click();
+    await page.getByRole("radio", { name: "Upload & process on server" }).click();
+    await page.locator("#sm-file-input-file").setInputFiles(table);
+    await page.getByLabel("Dataset name").fill(name);
+    const initiate = page.waitForRequest("**/api/ingest/initiate");
+
+    await page.getByRole("button", { name: "Start upload" }).click();
+    const params = (await initiate).postDataJSON().processingParams;
+
+    expect(params).toMatchObject({ kind: "single_molecule", pipeline: "prepare" });
+    await page.waitForURL("**/explore");
+
+    let id = "";
+
+    await expect
+      .poll(
+        async () =>
+          (await mine(page, "single_molecule", name)).find((d) => d.status === "QUEUED")?.id ?? "",
+        { timeout: 120_000 },
+      )
+      .toMatch(/^sm_/);
+    id = (await mine(page, "single_molecule", name))[0].id;
+
+    execFileSync(
+      "docker",
+      [
+        "run", "--rm", "--network", "host",
+        "-e", `DATASET_ID=${id}`,
+        "-e", "DATASET_KIND=single_molecule",
+        "-e", `PROCESSING_PARAMS=${JSON.stringify(params)}`,
+        "-e", `AWS_S3_ENDPOINT=${process.env.AWS_S3_ENDPOINT}`,
+        "-e", `AWS_S3_BUCKET=${process.env.AWS_S3_BUCKET}`,
+        "-e", `AWS_ACCESS_KEY_ID=${process.env.AWS_ACCESS_KEY_ID}`,
+        "-e", `AWS_SECRET_ACCESS_KEY=${process.env.AWS_SECRET_ACCESS_KEY}`,
+        "-e", `CALLBACK_URL=${new URL(page.url()).origin}/api/ingest/${id}/callback`,
+        "-e", `CALLBACK_SECRET=${process.env.CALLBACK_SECRET}`,
+        WORKER_IMAGE!,
+      ],
+      { stdio: "inherit", timeout: 300_000 },
+    );
+    fs.rmSync(path.dirname(table), { recursive: true });
+
+    // Still its sm_ id, now a SpatialData store, opened by that id
+    await expect
+      .poll(async () => (await mine(page, "spatialdata", name)).length, {
+        timeout: 120_000,
+      })
+      .toBe(1);
+    const [store] = await mine(page, "spatialdata", name);
+
+    expect(store).toMatchObject({
+      id,
+      status: "COMPLETE",
+      viewerUrl: `/spatialdata-viewer/${id}`,
+    });
+    await page.goto(store.viewerUrl!);
+    await expect(page.locator(SELECTORS.smCanvas).first()).toBeVisible({
+      timeout: 120_000,
+    });
+    await expect(page.getByText(/Dataset fetch failed|Invalid dataset ID/)).toHaveCount(0);
+  });
 });
 
 test.describe("@upload molecule columns on the server card", () => {

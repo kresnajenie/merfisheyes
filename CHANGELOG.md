@@ -109,6 +109,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- A molecule table uploaded on the single molecule card under the prepare
+  pipeline became a SpatialData store but would not open (400, "Invalid
+  dataset ID format"): the store's routes (`/api/datasets/[id]`, `/list`,
+  `/object`) took only `ds_` ids, and it keeps its `sm_` one. They take any
+  app dataset id (`isAppDatasetId` in `lib/datasets/kind.ts`).
 - **An error stays until you close it, and a failed upload is emailed**
   (kresnajenie/merfisheyes#166). Errors shown by updating a loading toast
   (a gene that failed to load, a column that failed, split-screen sync)
