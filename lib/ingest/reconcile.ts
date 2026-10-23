@@ -4,6 +4,7 @@ import { batchClient } from "@/lib/batch";
 import { getObjectJson } from "@/lib/s3";
 import { finalizeCompletedDataset } from "@/lib/ingest/finalize";
 import { markDatasetFailed } from "@/lib/ingest/mark-failed";
+import { statsFromPrepare } from "@/lib/ingest/pipeline";
 
 /**
  * Recover a dataset whose worker callback never arrived.
@@ -138,6 +139,26 @@ export async function reconcileWithBatch(
       await markFailed(dataset.id, `Processing failed: ${detail}`);
 
       return { changed: true, status: "FAILED", reason: detail };
+    }
+
+    // scripts/prepare.py (the one pipeline) leaves its counts in stats.json
+    // beside the store; the legacy processors never write one
+    const prepared =
+      job.status === "SUCCEEDED"
+        ? await getObjectJson<Record<string, number>>(
+            `datasets/${dataset.id}/stats.json`,
+          ).catch(() => null)
+        : null;
+
+    if (prepared) {
+      await finalizeCompletedDataset(dataset.id, {
+        stats: statsFromPrepare(prepared),
+      });
+      console.warn(
+        `Ingest reconcile: ${dataset.id} completed from Batch state; its worker callback never arrived.`,
+      );
+
+      return { changed: true, status: "COMPLETE" };
     }
 
     if (job.status === "SUCCEEDED") {

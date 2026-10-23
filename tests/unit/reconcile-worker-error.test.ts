@@ -63,3 +63,27 @@ describe("reconcileWithBatch on a failed job", () => {
     );
   });
 });
+
+describe("reconcileWithBatch on a job that succeeded", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    send.mockResolvedValue({ jobs: [{ status: "SUCCEEDED" }] });
+  });
+
+  it("completes a prepare.py run from its stats.json", async () => {
+    const { finalizeCompletedDataset } = await import("@/lib/ingest/finalize");
+
+    getObjectJson.mockImplementation(async (key: string) =>
+      key.endsWith("stats.json")
+        ? { cells: 0, genes: 0, molecules: 851483449, molecule_genes: 1067 }
+        : null,
+    );
+
+    const outcome = await reconcileWithBatch(dataset);
+
+    expect(outcome).toEqual({ changed: true, status: "COMPLETE" });
+    expect(finalizeCompletedDataset).toHaveBeenCalledWith("sm_x", {
+      stats: { numCells: 851483449, numGenes: 1067 },
+    });
+  });
+});
