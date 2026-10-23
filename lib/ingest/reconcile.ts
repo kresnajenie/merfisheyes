@@ -128,7 +128,12 @@ export async function reconcileWithBatch(
     }
 
     if (job.status === "FAILED") {
-      const detail = failureDetail(job);
+      // The worker's own reason, when it could leave one (worker/entrypoint.py
+      // fail()): Batch alone knows only "exit code 1"
+      const reported = await getObjectJson<{ error?: string }>(
+        `datasets/${dataset.id}/worker-error.json`,
+      ).catch(() => null);
+      const detail = reported?.error || failureDetail(job);
 
       await markFailed(dataset.id, `Processing failed: ${detail}`);
 

@@ -61,6 +61,20 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 - The local `@upload` test stack no longer calls AWS Batch: with a custom S3
   endpoint no job is submitted (it was reaching Batch with a developer's
   staging settings, refused only for the wrong keys).
+- **A lab's own molecule table processes on the server.** The worker read
+  only Xenium's (`x_location`) and MERSCOPE's (`global_x`) column names and
+  failed on anything else (`Gene, X, Y, Z`); it now takes a gene column and
+  x / y (/ z) by name in any case, and a failure names the columns it found.
+- **A molecule table beside the cells is found by its columns** on the server
+  card, not only when "transcript" is in its name.
+- **Gene names stored as bytes** (Xenium Onboard Analysis 1.x `transcripts.parquet`)
+  crashed the molecule processor ("cannot use a string pattern on a
+  bytes-like object"); they are read as text.
+- **A failed processing job says why.** When the worker's report did not
+  arrive, the dataset only said "container exited with exit code 1"; the
+  worker now also leaves its reason beside the dataset, and the app reads it.
+- **Error messages stay on screen until closed** instead of vanishing after
+  a few seconds.
 
 ## [0.13.0] - 2026-10-21
 

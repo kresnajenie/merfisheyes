@@ -156,8 +156,30 @@ def progress(stage, percent=None, min_interval=0.0):
     post_callback({"status": "PROCESSING", "progress": prog}, attempts=1, best_effort=True)
 
 
+# Where fail() also leaves its reason: (s3 client, bucket, key), set in main()
+# once the bucket is known. The app reads it when the callback never arrived
+# and Batch alone would say only "exit code 1" (lib/ingest/reconcile.ts).
+_failure_record = [None]
+
+
+def failure_key(dataset_id: str) -> str:
+    return f"datasets/{dataset_id}/worker-error.json"
+
+
 def fail(msg):
     callback("FAILED", error=msg)
+    record = _failure_record[0]
+    if record is not None:
+        s3, bucket, key = record
+        try:
+            s3.put_object(
+                Bucket=bucket,
+                Key=key,
+                Body=json.dumps({"error": msg}).encode(),
+                ContentType="application/json",
+            )
+        except Exception as e:  # noqa: BLE001 — the callback may still have landed
+            print(f"Could not record the failure in s3://{bucket}/{key}: {e}", flush=True)
     sys.exit(1)
 
 
@@ -500,35 +522,85 @@ def find_single_molecule_input(raw_dir: Path) -> Path:
     return max(candidates, key=score)
 
 
-def detect_molecule_type(input_path: Path):
-    """Pick the process_single_molecule.py --dataset-type from the column names.
+# The names a molecule table's columns may have, each list tried in order and
+# without regard to case. A platform's own layout is recognised first (see
+# detect_molecule_type); these cover a lab's own table (Gene, X, Y, Z).
+# lib/ingest/molecule-columns.ts recognises the same names: keep them equal.
+MOLECULE_COLUMN_NAMES = {
+    "gene": ["gene", "feature_name", "feature", "target", "gene_name", "target_name", "genes"],
+    "x": ["x", "x_location", "global_x", "x_um", "x_global", "x_position"],
+    "y": ["y", "y_location", "global_y", "y_um", "y_global", "y_position"],
+    "z": ["z", "z_location", "global_z", "z_um", "z_global", "z_position"],
+}
 
-    MERSCOPE uses global_x/global_y; Xenium uses x_location/y_location. Peeking
-    the header (a single line for CSV, the schema for parquet) keeps type
-    detection server-side — no schema hint has to be threaded from the client.
 
-    Returns (dataset_type, cell_id_col). The cell-id column follows the same
-    preset the browser pipeline uses (MERSCOPE → "cell_id" when present, Xenium
-    → none), so an auto-detected upload gets the same assigned/unassigned
-    split as a browser upload of the same file.
-    """
+def match_molecule_columns(columns) -> dict | None:
+    """gene / x / y (and z when there is one) among `columns`, by name in any
+    case; None without a gene, an x and a y column. A cell-id column is not
+    guessed: what marks an unassigned molecule differs from table to table."""
+    by_name = {}
+    for column in columns:
+        by_name.setdefault(column.strip().lower(), column)
+
+    found = {}
+    for role, names in MOLECULE_COLUMN_NAMES.items():
+        match = next((by_name[n] for n in names if n in by_name), None)
+        if match is not None:
+            found[role] = match
+
+    return found if {"gene", "x", "y"} <= found.keys() else None
+
+
+def read_columns(input_path: Path) -> list[str]:
+    """Column names from the parquet schema or the CSV's first line."""
     if input_path.suffix.lower() == ".parquet":
         import pyarrow.parquet as pq
 
-        columns = set(pq.read_schema(str(input_path)).names)
-    else:
-        with open(input_path, "r", encoding="utf-8", errors="replace") as f:
-            header = f.readline()
-        columns = {c.strip().strip('"') for c in header.split(",")}
+        return list(pq.read_schema(str(input_path)).names)
+    with open(input_path, "r", encoding="utf-8", errors="replace") as f:
+        header = f.readline()
+    return [c.strip().strip('"') for c in header.split(",")]
+
+
+def detect_molecule_type(input_path: Path):
+    """The process_single_molecule.py arguments for a table, from its columns.
+
+    MERSCOPE (global_x/global_y) and Xenium (x_location/y_location) keep their
+    presets — with the cell-id column the browser pipeline uses (MERSCOPE's
+    "cell_id" when present, Xenium none), so an auto-detected upload gets the
+    same assigned/unassigned split as a browser upload of the same file. Any
+    other table is read by its column names (match_molecule_columns). Peeking
+    the header keeps detection server-side: no schema hint has to be threaded
+    from the client.
+
+    Returns (arguments, description).
+    """
+    columns = read_columns(input_path)
 
     if "global_x" in columns:
-        return "merscope", ("cell_id" if "cell_id" in columns else None)
+        args = ["--dataset-type", "merscope"]
+        if "cell_id" in columns:
+            args += ["--cell-id-col", "cell_id"]
+        return args, "MERSCOPE columns"
     if "x_location" in columns:
-        return "xenium", None
-    raise RuntimeError(
-        "Could not detect molecule schema: expected 'global_x' (MERSCOPE) or "
-        f"'x_location' (Xenium) in the header. Columns: {sorted(columns)[:12]}"
-    )
+        return ["--dataset-type", "xenium"], "Xenium columns"
+
+    found = match_molecule_columns(columns)
+    if found is None:
+        raise RuntimeError(
+            "Could not find the molecule columns: a gene column (gene, "
+            "feature_name, target...) and x and y coordinate columns are needed. "
+            f"Columns in the file: {', '.join(columns[:20])}"
+        )
+    args = [
+        "--dataset-type", "custom",
+        "--gene-col", found["gene"],
+        "--x-col", found["x"],
+        "--y-col", found["y"],
+    ]
+    if "z" in found:
+        args += ["--z-col", found["z"]]
+    return args, "columns " + ", ".join(f"{k}={v}" for k, v in found.items())
 
 
 def read_sm_stats(out_dir: Path) -> dict:
@@ -577,6 +649,12 @@ def main():
     callback("PROCESSING", datasetId=dataset_id)
 
     s3 = make_s3()
+    # A reason left by an earlier attempt must not stand for this one
+    try:
+        s3.delete_object(Bucket=bucket, Key=failure_key(dataset_id))
+    except Exception as e:  # noqa: BLE001
+        print(f"Could not clear an earlier failure record: {e}", flush=True)
+    _failure_record[0] = (s3, bucket, failure_key(dataset_id))
     scratch.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix=f"{dataset_id}_", dir=scratch))
     raw_dir = work / "raw"
@@ -626,14 +704,9 @@ def main():
                 cmd += ["--cell-id-col", str(mapping["cellId"])]
             print(f"== Input: {input_path} (mapping={mapping}) ==", flush=True)
         else:
-            dataset_type, cell_id_col = detect_molecule_type(input_path)
-            cmd += ["--dataset-type", dataset_type]
-            if cell_id_col:
-                cmd += ["--cell-id-col", cell_id_col]
-            print(
-                f"== Input: {input_path} (type={dataset_type}, cell_id={cell_id_col}, auto) ==",
-                flush=True,
-            )
+            detected, how = detect_molecule_type(input_path)
+            cmd += detected
+            print(f"== Input: {input_path} ({how}, auto) ==", flush=True)
 
         processor_name = "process_single_molecule.py"
         manifest_name = "manifest.json.gz"

@@ -132,12 +132,14 @@ export default function LoadingPage() {
               ),
             },
             {
-              title: "Confirm the columns (molecules only)",
+              title: "The columns are read for you (molecules)",
               children: (
                 <p>
-                  A preview of the first rows, with a dropdown for each of gene,
-                  x, y, z and cell id, filled in from the detected platform.
-                  This is what makes sure your columns are read correctly.
+                  Xenium&apos;s and MERSCOPE&apos;s column names are recognised,
+                  and so is any table with a gene column and x / y (/ z)
+                  columns, in any case — <code>Gene, X, Y, Z</code>,{" "}
+                  <code>feature_name</code>, <code>target</code>. If none match,
+                  the dataset says which columns it found.
                 </p>
               ),
             },

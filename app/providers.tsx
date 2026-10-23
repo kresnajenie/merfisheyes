@@ -7,10 +7,18 @@ import { HeroUIProvider } from "@heroui/system";
 import { SessionProvider } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
-import { ToastContainer } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { HideUiManager } from "@/components/hide-ui-manager";
+
+// An error stays on screen until it is closed, whatever a call site asked
+// for: whoever has to act on it must get to read it (a failed upload's
+// reason used to vanish after a few seconds)
+const showError = toast.error;
+
+toast.error = ((content, options) =>
+  showError(content, { ...options, autoClose: false })) as typeof toast.error;
 
 export interface ProvidersProps {
   children: React.ReactNode;

@@ -106,7 +106,7 @@ An image is only drawn under cells that kept their **original coordinates**. Fol
 
 ### Combined single-cell + single-molecule + image (raw data)
 
-With **Upload & process on server**, drop a **single-cell folder that also contains a transcripts file** (a typical Xenium export) and/or an **OME-Zarr image folder** (any name ending `.zarr`), and MERFISHEYES offers to upload them together: each becomes its own dataset, grouped into one project, and the cells open with the molecules over them and the image under them.
+With **Upload & process on server**, drop a **single-cell folder that also contains a transcripts file** (a typical Xenium export; any `.parquet` / `.csv` whose columns are molecules counts, whatever its name) and/or an **OME-Zarr image folder** (any name ending `.zarr`), and MERFISHEYES offers to upload them together: each becomes its own dataset, grouped into one project, and the cells open with the molecules over them and the image under them.
 
 ```
 sample/
@@ -212,7 +212,7 @@ Data that is [already processed](#already-processed-data-opens-as-it-is) — mer
 For large datasets, upload the **raw bytes** and let a background worker do the processing. Requires signing in (so we know where to email you). The flow:
 
 1. Drop your file/folder → confirm the dataset name.
-2. **Single-molecule uploads add a "Confirm columns" step** — a preview of the first rows with dropdowns to map gene / x / y / z / cell-id (auto-filled from the detected platform). This is what guarantees the server reads your columns correctly.
+2. **Molecule columns are read from the file.** Xenium's and MERSCOPE's own names are recognised, and any other table whose columns are a gene and x / y (/ z) in any case — `Gene, X, Y, Z`, `feature_name`, `target`, `x_um`… If none match, the dataset says which columns it found.
 3. A full-screen progress bar tracks the upload; you can leave once it says "Uploaded — we'll email you."
 4. An AWS worker runs the same Python processors used for pre-chunking, writes the result to S3, and **emails you a link** to the viewer when it's done.
 
