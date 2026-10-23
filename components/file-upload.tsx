@@ -27,7 +27,10 @@ import {
 } from "@/lib/config/moleculeColumnMappings";
 import { createPortal } from "react-dom";
 import { Spinner } from "@heroui/react";
-import { readMoleculePreview } from "@/lib/services/molecule-preview";
+import {
+  readMoleculeColumns,
+  readMoleculePreview,
+} from "@/lib/services/molecule-preview";
 import { SingleMoleculeHeaderModal } from "@/components/single-molecule-header-modal";
 import { useDatasetStore } from "@/lib/stores/datasetStore";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
@@ -90,6 +93,8 @@ interface PendingServerUpload {
     cells: number;
     molecules: string | null;
     images: RawFile[];
+    /** The molecule table has a z column, so "keep Z" can be offered. */
+    moleculesZ: boolean;
   };
 }
 
@@ -241,6 +246,8 @@ export function FileUpload({
   // Whether to also upload the detected single-molecule data (combined flow).
   const [includeSm, setIncludeSm] = useState(true);
   const [includeImage, setIncludeImage] = useState(true);
+  // The molecules' z under the prepare pipeline: off unless ticked, like images
+  const [keepZ, setKeepZ] = useState(false);
   // Advanced: open the new dataset(s) in the 3D camera by default.
   const [open3D, setOpen3D] = useState(false);
 
@@ -521,9 +528,10 @@ export function FileUpload({
 
     if (kind === "single_molecule" && selected.files.length === 1) {
       const table = selected.files[0].file;
-      const preview = await readMoleculePreview(table).catch(() => null);
+      // The schema only: a 10 GB table costs no more than a small one
+      const columns = await readMoleculeColumns(table).catch(() => []);
 
-      if (preview?.columns.length && !matchMoleculeColumns(preview.columns)) {
+      if (columns.length && !matchMoleculeColumns(columns)) {
         const chosen = await awaitColumnMapping(table);
 
         if (!chosen) return;
@@ -648,10 +656,35 @@ export function FileUpload({
           cells: cells.filter((f) => f.key !== ANNOTATION_CSV_KEY).length,
           molecules: molecules[0]?.key ?? null,
           images,
+          moleculesZ: molecules[0]
+            ? await moleculeHasZ(molecules[0].file)
+            : false,
         },
       });
       setTitleDraft(title);
       setIncludeImage(false);
+      setKeepZ(false);
+
+      return;
+    }
+
+    // A molecule table alone becomes a store of points
+    if (preparePipelineEnabled() && kind === "single_molecule") {
+      setPendingUpload({
+        kind,
+        files: rawFiles,
+        processingParams: { ...processingParams, pipeline: PREPARE_PIPELINE },
+        prepared: {
+          cells: 0,
+          molecules: rawFiles[0]?.key ?? null,
+          images: [],
+          moleculesZ: columnMapping
+            ? Boolean(columnMapping.z)
+            : await moleculeHasZ(rawFiles[0].file),
+        },
+      });
+      setTitleDraft(title);
+      setKeepZ(false);
 
       return;
     }
@@ -727,7 +760,8 @@ export function FileUpload({
     // cells' upload carries the ids of the others, so the server writes a
     // mapping.json (the overlays) when it finishes processing them — which is
     // why it starts last, once those ids are known.
-    // One store: the cells and molecules, and the images when ticked
+    // One store: the cells and molecules, and the images and the molecules'
+    // z when ticked
     if (pending.prepared) {
       startUpload({
         kind: pending.kind,
@@ -735,7 +769,10 @@ export function FileUpload({
         files: includeImage
           ? [...pending.files, ...pending.prepared.images]
           : pending.files,
-        processingParams: pending.processingParams,
+        processingParams:
+          keepZ && pending.prepared.moleculesZ
+            ? { ...pending.processingParams, keepZ: true }
+            : pending.processingParams,
         viewerConfig,
       });
       router.push("/explore");
@@ -1446,10 +1483,12 @@ export function FileUpload({
                   machine:
                 </p>
                 <ul className="mt-1 ml-4 list-disc">
-                  <li>
-                    the cells ({pendingUpload.prepared.cells.toLocaleString()}{" "}
-                    {pendingUpload.prepared.cells === 1 ? "file" : "files"})
-                  </li>
+                  {pendingUpload.prepared.cells > 0 && (
+                    <li>
+                      the cells ({pendingUpload.prepared.cells.toLocaleString()}{" "}
+                      {pendingUpload.prepared.cells === 1 ? "file" : "files"})
+                    </li>
+                  )}
                   {pendingUpload.prepared.molecules && (
                     <li>
                       the molecules,{" "}
@@ -1475,6 +1514,19 @@ export function FileUpload({
                         ),
                       )}
                       )
+                    </span>
+                  </Checkbox>
+                )}
+                {pendingUpload.prepared.moleculesZ && (
+                  <Checkbox
+                    className="mt-2"
+                    isSelected={keepZ}
+                    size="sm"
+                    onValueChange={setKeepZ}
+                  >
+                    <span className="text-sm">
+                      Keep the molecules&apos; Z (3-D); otherwise they are flat
+                      on the cells&apos; plane
                     </span>
                   </Checkbox>
                 )}
@@ -1565,10 +1617,17 @@ function formatBytes(bytes: number): string {
     : `${Math.max(1, Math.round(bytes / 1024 ** 2))} MB`;
 }
 
+/** Whether a molecule table has a z column, from its schema or header only. */
+async function moleculeHasZ(file: File): Promise<boolean> {
+  const columns = await readMoleculeColumns(file).catch(() => []);
+
+  return Boolean(matchMoleculeColumns(columns)?.z);
+}
+
 /**
  * The first top-level `.parquet` / `.csv` among `candidates` whose columns
  * are molecules (lib/ingest/molecule-columns.ts) — read from the parquet
- * schema or the CSV header, never the whole file.
+ * schema or the CSV header, never a row.
  */
 async function findMoleculeTable(
   candidates: ClassifiedFile[],
@@ -1578,9 +1637,9 @@ async function findMoleculeTable(
   );
 
   for (const entry of tables) {
-    const preview = await readMoleculePreview(entry.file).catch(() => null);
+    const columns = await readMoleculeColumns(entry.file).catch(() => []);
 
-    if (preview && matchMoleculeColumns(preview.columns)) return entry;
+    if (matchMoleculeColumns(columns)) return entry;
   }
 
   return null;

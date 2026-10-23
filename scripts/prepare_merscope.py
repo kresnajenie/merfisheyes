@@ -183,6 +183,7 @@ def prepare_merscope(
     url: str | None = None,
     expanded: bool = False,
     label_csv: Path | None = None,
+    keep_z: bool = False,
     log=print,
 ):
     path, folder = Path(path), Path(folder)
@@ -210,7 +211,7 @@ def prepare_merscope(
     log("checking the folder ...")
     return prepare_folder.prepare(
         folder, cells=store, molecules=transcripts, molecule_columns="merscope", cluster=cluster, url=url,
-        expanded=expanded, workers=workers, labels=label_csv, log=log,
+        expanded=expanded, workers=workers, labels=label_csv, keep_z=keep_z, log=log,
     )
 
 

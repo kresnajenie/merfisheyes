@@ -3,7 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  ListObjectsV2Command,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import type { Page } from "@playwright/test";
 
 import {
@@ -55,6 +59,18 @@ async function rawKeys(id: string): Promise<string[]> {
   return (res.Contents ?? [])
     .map((o) => o.Key!.slice(`raw/${id}/`.length))
     .sort();
+}
+
+/** The axes of the points element the worker wrote. */
+async function pointsAxes(id: string): Promise<string[]> {
+  const res = await s3().send(
+    new GetObjectCommand({
+      Bucket: process.env.AWS_S3_BUCKET,
+      Key: `datasets/${id}/${id}.zarr/points/molecules/zarr.json`,
+    }),
+  );
+
+  return JSON.parse(await res.Body!.transformToString()).attributes.axes;
 }
 
 const mine = async (page: Page, type: string, name: string) =>
@@ -121,6 +137,10 @@ test.describe("@upload one store from the server", () => {
       });
 
       await expect(images).not.toBeChecked();
+      // The molecules have a z column: offered, and off unless ticked
+      await expect(
+        page.getByRole("checkbox", { name: /Keep the molecules' Z/ }),
+      ).not.toBeChecked();
       // No separate molecules or image dataset is offered
       await expect(
         page.getByText("Also upload the single-molecule data"),
@@ -129,7 +149,13 @@ test.describe("@upload one store from the server", () => {
 
     await test.step("one dataset, the image left behind", async () => {
       await page.getByLabel("Dataset name").fill(name);
+      const initiate = page.waitForRequest("**/api/ingest/initiate");
+
       await page.getByRole("button", { name: "Start upload" }).click();
+      const params = (await initiate).postDataJSON().processingParams;
+
+      expect(params.pipeline).toBe("prepare");
+      expect(params.keepZ).toBeUndefined();
       await page.waitForURL("**/explore");
 
       await expect
@@ -163,8 +189,15 @@ test.describe("@upload one store from the server", () => {
     fs.writeFileSync(path.join(folder, "dapi.zarr", "e2e-run.txt"), name);
     await dropFolder(page, "e2e-prepare-worker");
     await page.getByRole("checkbox", { name: /Also upload the images/ }).check();
+    await page.getByRole("checkbox", { name: /Keep the molecules' Z/ }).check();
     await page.getByLabel("Dataset name").fill(name);
+    const initiate = page.waitForRequest("**/api/ingest/initiate");
+
     await page.getByRole("button", { name: "Start upload" }).click();
+    // What the app stored is what Batch would hand the worker
+    const params = (await initiate).postDataJSON().processingParams;
+
+    expect(params).toMatchObject({ pipeline: "prepare", keepZ: true });
     await page.waitForURL("**/explore");
 
     let id = "";
@@ -196,7 +229,7 @@ test.describe("@upload one store from the server", () => {
           "-e",
           "DATASET_KIND=single_cell",
           "-e",
-          `PROCESSING_PARAMS=${JSON.stringify({ kind: "single_cell", pipeline: "prepare", stages: { chunk: { chunkSize: 1 } } })}`,
+          `PROCESSING_PARAMS=${JSON.stringify(params)}`,
           "-e",
           `AWS_S3_ENDPOINT=${process.env.AWS_S3_ENDPOINT}`,
           "-e",
@@ -239,6 +272,8 @@ test.describe("@upload one store from the server", () => {
       );
       await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
       await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible();
+      // Z was ticked: the molecules kept it
+      expect(await pointsAxes(id)).toEqual(["x", "y", "z"]);
     });
   });
 });

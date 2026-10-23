@@ -28,7 +28,7 @@ python scripts/prepare.py path/to/your_data my_sample/
 | Molecules only | the transcripts `.parquet` / `.csv` — Xenium's and MERSCOPE's columns, or your own (`Gene, X, Y, Z`… in any case; else `--molecule-columns GENE,X,Y[,Z]`) |
 | Cells, molecules and an image together | a folder holding the table, the molecule table and an OME-Zarr image side by side |
 
-You get `my_sample/` holding `my_sample.zarr` (the cells, the molecules, and the image when your data has one — `--no-images` leaves it out), `mapping.json` and `stats.json` (what was written), checked before the script exits. Your input is never changed. **Drag `my_sample/` onto the homepage** to look at it, then **Upload & Save** to keep it.
+You get `my_sample/` holding `my_sample.zarr` (the cells, the molecules, and the image when your data has one — `--no-images` leaves it out; the molecules are flat on the cells' plane unless `--keep-z` keeps their Z), `mapping.json` and `stats.json` (what was written), checked before the script exits. Your input is never changed. **Drag `my_sample/` onto the homepage** to look at it, then **Upload & Save** to keep it.
 
 Options: `python scripts/prepare.py --help` — `--labels cell_types.csv` adds per-cell labels (a MapMyCells result), `--cluster` adds Leiden clusters when the table has none, `--name` names the store. Exit codes: 0 done, 2 not recognised, 3 something missing (the message says what), 4 the store failed its checks. The full guide is [/docs/prepare](https://www.merfisheyes.com/docs/prepare). The server's worker is moving to this same script ([plan](docs/plans/ONE-PIPELINE.md)); once it has, uploading raw data and running it yourself give the same store.
 

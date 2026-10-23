@@ -252,8 +252,10 @@ Xenium test on the 10x lung export; lung and breast twice → identical;
 anndata reads every table. **Found:** spatialdata 0.8's `read_zarr` stops on
 the tiled points element (`KeyError: '0.3-zarr'` — our own format); with
 `on_bad_files="warn"` it reads the table, images and shapes and skips the
-molecules. The docs now say so; whether to also write a standard points
-element is an open question for the user.
+molecules. The docs now say so. **Decided (2026-10-23):** no standard
+points element beside it for now — the multiscale points layout is not
+standardised upstream yet, and `docs/points-zarr-spec.md` is the leading
+prototype for it.
 
 ### Step 2: the worker runs it (`feat/worker-one-pipeline`)
 

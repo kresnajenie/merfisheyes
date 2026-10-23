@@ -400,11 +400,14 @@ def region_transforms(store: Path, dims: int = 2) -> list[dict] | None:
     return out or None
 
 
-def wrap_molecules(store: Path, molecules: Path, name: str, workers: int, log, columns: str | None = None) -> str:
+def wrap_molecules(
+    store: Path, molecules: Path, name: str, workers: int, log, columns: str | None = None, keep_z: bool = False,
+) -> str:
     """The molecules become `points/<name>`, a tiled points element the
-    viewer streams by view (docs/points-zarr-spec.md), flat on the cells'
-    plane and in the cells' frame: straight from a transcripts table, a
-    store's own parquet points element, or a per-gene folder."""
+    viewer streams by view (docs/points-zarr-spec.md), in the cells' frame
+    and flat on their plane unless `keep_z` (a transcripts table's z): straight
+    from a transcripts table, a store's own parquet points element, or a
+    per-gene folder."""
     transforms = region_transforms(store)
     log(f"  points/{name}: from {molecules.name}" + (", transforms of the cells' region" if transforms else "") + " ...")
     if molecules.is_dir() and (molecules / "genes").is_dir():
@@ -414,7 +417,9 @@ def wrap_molecules(store: Path, molecules: Path, name: str, workers: int, log, c
     else:
         import transcripts_to_points
 
-        transcripts_to_points.convert(molecules, store, name=name, columns=columns, transformations=transforms, log=log)
+        transcripts_to_points.convert(
+            molecules, store, name=name, columns=columns, keep_z=keep_z, transformations=transforms, log=log,
+        )
     return name
 
 
@@ -665,6 +670,7 @@ def prepare(
     molecule_columns: str | None = None,
     images: bool = True,
     labels: Path | None = None,
+    keep_z: bool = False,
     log=print,
 ) -> validate_store.Report:
     folder = folder.resolve()
@@ -753,7 +759,7 @@ def prepare(
                 put_aside(image)
                 image = None
             if molecules is not None:
-                wrap_molecules(store, molecules, "molecules", workers, log, columns=molecule_columns)
+                wrap_molecules(store, molecules, "molecules", workers, log, columns=molecule_columns, keep_z=keep_z)
                 put_aside(molecules)
                 molecules = None
         import zarr

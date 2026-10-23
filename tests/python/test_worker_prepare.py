@@ -107,3 +107,43 @@ def test_the_worker_writes_what_prepare_py_writes(tmp_path, monkeypatch):
 
     assert files(tmp_path / "worker") == files(tmp_path / "person")
     assert json.loads((tmp_path / "worker" / "mapping.json").read_text()) == {"cells": "sm_x.zarr"}
+
+
+def test_the_molecules_z_is_kept_only_when_asked(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    molecules(raw / "spots.parquet")
+
+    asked = entrypoint.prepare_command("single_molecule", raw, tmp_path, tmp_path / "out", "sm_x", {"keepZ": True}, {})
+    assert asked[-1] == "--keep-z"
+    assert "--keep-z" not in entrypoint.prepare_command("single_molecule", raw, tmp_path, tmp_path / "out", "sm_x", {}, {})
+
+
+def points_axes(out: Path, name: str) -> list[str]:
+    attrs = json.loads((out / f"{name}.zarr" / "points" / "molecules" / "zarr.json").read_text())["attributes"]
+    return attrs["axes"]
+
+
+def test_keep_z_writes_3d_molecules_beside_cells_and_alone(tmp_path, monkeypatch):
+    """--keep-z: the molecules keep their z, over the cells too (whose 2-D
+    transforms then pass z through), and the store still validates."""
+    tiny = ROOT / "tests" / "data" / "tiny"
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    (raw / "cells.h5ad").write_bytes((tiny / "h5ad" / "tiny.h5ad").read_bytes())
+    (raw / "transcripts.parquet").write_bytes((tiny / "single-molecule" / "tiny.parquet").read_bytes())
+    monkeypatch.chdir(ROOT)
+
+    def run(source: Path, out: Path, *flags: str) -> None:
+        r = subprocess.run(
+            [sys.executable, "scripts/prepare.py", str(source), str(out), "--name", "s", *flags],
+            capture_output=True, text=True,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+
+    run(raw, tmp_path / "flat")
+    assert points_axes(tmp_path / "flat", "s") == ["x", "y"]
+    run(raw, tmp_path / "deep", "--keep-z")
+    assert points_axes(tmp_path / "deep", "s") == ["x", "y", "z"]
+    run(raw / "transcripts.parquet", tmp_path / "alone", "--keep-z")
+    assert points_axes(tmp_path / "alone", "s") == ["x", "y", "z"]

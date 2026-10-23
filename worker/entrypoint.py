@@ -634,6 +634,9 @@ def prepare_command(kind, raw_dir: Path, work: Path, out_dir: Path, dataset_id: 
         source = raw_dir
         if labels is not None:
             extra = ["--labels", str(labels)]
+    # The molecules' z only when asked for (unticked by default, like images)
+    if params.get("keepZ"):
+        extra.append("--keep-z")
     return [PREPARE_PYTHON, "scripts/prepare.py", str(source), str(out_dir), "--name", dataset_id, *extra]
 
 

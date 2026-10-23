@@ -21,8 +21,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   MERSCOPE region's tables, boundaries and transcripts — and the images only
   when "Also upload the images (N GB)" is ticked (it starts unticked). The
   compute tier is chosen from the upload's size instead of found by running
-  out of memory. A molecule table whose columns are not recognised asks for
-  them, listing the columns in its schema. On the Xenium lung and breast
+  out of memory. The molecules are flat on the cells' plane unless "Keep the
+  molecules' Z" is ticked (also unticked by default; `prepare.py --keep-z`).
+  A molecule table whose columns are not recognised asks for them, listing
+  the columns in its schema; only the parquet footer or CSV header is read
+  for that, and sample rows only from a first row group under 32 MB, so a
+  10 GB Xenium table (one row group) is never read whole in the browser. On the Xenium lung and breast
   exports the worker's store and a local `prepare.py` run's are identical,
   file for file.
 
