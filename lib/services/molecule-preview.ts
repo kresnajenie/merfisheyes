@@ -11,42 +11,86 @@ export interface MoleculePreview {
 }
 
 /**
+ * Sample rows are read only from a first row group at most this big. Reading
+ * row 0 of a parquet reads its whole row group, and a Xenium export writes
+ * the file as one: the lung's is 54 MB for 826k molecules, a 10 GB export's
+ * would be the 10 GB.
+ */
+export const MAX_SAMPLE_ROW_GROUP_BYTES = 32 * 1024 ** 2;
+
+function parquetBuffer(file: File) {
+  return {
+    byteLength: file.size,
+    slice: async (start: number, end?: number): Promise<ArrayBuffer> =>
+      file.slice(start, end).arrayBuffer(),
+  };
+}
+
+/** A parquet's footer: its columns, and how big its first row group is. */
+async function parquetSchema(file: File) {
+  const { parquetMetadataAsync } = await import("hyparquet");
+  const meta = await parquetMetadataAsync(parquetBuffer(file));
+  const columns: string[] = [];
+
+  for (const node of meta.schema) {
+    if (!node || !node.name) continue;
+    if (node.name === "schema" || node.name === "root") continue;
+    columns.push(node.name);
+  }
+  const first = meta.row_groups[0];
+
+  return {
+    columns,
+    firstRowGroupBytes: first
+      ? Number(first.total_compressed_size ?? first.total_byte_size)
+      : 0,
+  };
+}
+
+/**
+ * Only a molecule file's column names: the parquet footer or the CSV's first
+ * line, never a row, so it costs the same for a 10 GB file as for a small
+ * one.
+ */
+export async function readMoleculeColumns(file: File): Promise<string[]> {
+  const ext = file.name.toLowerCase().split(".").pop();
+
+  if (ext === "parquet") return (await parquetSchema(file)).columns;
+  if (ext === "csv" || ext === "tsv" || ext === "txt") {
+    return readCsvHeader(file);
+  }
+
+  return [];
+}
+
+/**
  * Read a single-molecule file's columns AND a handful of sample rows, cheaply
  * and on the main thread — enough for the "confirm your columns" step. Parquet
- * reads only the first `nRows`; CSV uses PapaParse's `preview`.
+ * reads only the first `nRows`, and none when its first row group is larger
+ * than `maxSampleBytes`; CSV uses PapaParse's `preview`.
  */
 export async function readMoleculePreview(
   file: File,
   nRows = 8,
+  maxSampleBytes = MAX_SAMPLE_ROW_GROUP_BYTES,
 ): Promise<MoleculePreview> {
   const ext = file.name.toLowerCase().split(".").pop();
 
   if (ext === "parquet") {
-    const { parquetReadObjects, parquetMetadataAsync } = await import(
-      "hyparquet"
-    );
-    const { compressors } = await import("hyparquet-compressors");
-    const asyncBuffer = {
-      byteLength: file.size,
-      slice: async (start: number, end?: number): Promise<ArrayBuffer> =>
-        file.slice(start, end).arrayBuffer(),
-    };
+    const { columns, firstRowGroupBytes } = await parquetSchema(file);
+    let rows: Record<string, unknown>[] = [];
 
-    const meta = await parquetMetadataAsync(asyncBuffer);
-    const columns: string[] = [];
+    if (firstRowGroupBytes <= maxSampleBytes) {
+      const { parquetReadObjects } = await import("hyparquet");
+      const { compressors } = await import("hyparquet-compressors");
 
-    for (const node of meta.schema) {
-      if (!node || !node.name) continue;
-      if (node.name === "schema" || node.name === "root") continue;
-      columns.push(node.name);
+      rows = (await parquetReadObjects({
+        file: parquetBuffer(file),
+        compressors,
+        rowStart: 0,
+        rowEnd: nRows,
+      })) as Record<string, unknown>[];
     }
-
-    const rows = (await parquetReadObjects({
-      file: asyncBuffer,
-      compressors,
-      rowStart: 0,
-      rowEnd: nRows,
-    })) as Record<string, unknown>[];
 
     return { columns, rows, autoType: pickSchema(columns) };
   }
