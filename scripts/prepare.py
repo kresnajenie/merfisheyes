@@ -31,8 +31,9 @@ OUT is written and nothing in INPUT is changed. OUT holds exactly:
                   layers/X_csc unless X is CSC; obsm/spatial; control probes
                   left out), points/molecules (tiled, when there are molecules),
                   shapes/cell_boundaries (when the input has polygons),
-                  images/... (when the input has an image; --no-images skips it)
-  annotations/    with --cluster, the per-cluster DEG stats
+                  images/... (when the input has an image; --no-images skips it);
+                  the DEG panel's stats for every categorical column in the
+                  table's varm / uns (scripts/de_stats.py)
   mapping.json    {"cells": "NAME.zarr"}
   stats.json      what was written: cells, genes, molecules, the input kind, and
                   the pipeline's version and packages
@@ -173,6 +174,8 @@ def store_stats(store: Path) -> dict:
         stats["cells"], stats["genes"] = int(shape[0]), int(shape[1])
         spatial = table["obsm"]["spatial"]
         stats["dims"] = 3 if (spatial.shape[1] if hasattr(spatial, "shape") else 2) >= 3 else 2
+        uns = table["uns"] if "uns" in table else {}
+        stats["de_stats"] = sorted(uns["merfisheyes_de"]) if "merfisheyes_de" in uns else []
     if "points" in root:
         import points_zarr
 

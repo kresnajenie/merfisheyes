@@ -533,17 +533,19 @@ def test_cluster_runs_only_when_no_categorical_column(tmp_path):
     r = prepare_folder.prepare(folder, cluster=True, log=lambda *_: None)
     assert not r.failed, fails(r)
     assert not (folder / "annotations").exists()
+    # A categorical column there already: not clustered, but its DE stats are written
+    assert "tables/table/obs/leiden" not in consolidated(folder / "s.zarr")
+    assert "tables/table/varm/de_mean__celltype" in consolidated(folder / "s.zarr")
 
     other = tmp_path / "u"
     other.mkdir()
     write_table(make_table(categorical=False), other / "cells.zarr", 3)
     r = prepare_folder.prepare(other, cluster=True, log=lambda *_: None)
     assert not r.failed, fails(r)
-    # The clusters are in the table; the sidecar carries the DE stats only
-    notes = json.loads((other / "annotations" / "annotations.json").read_text())
-    assert notes["num_cells"] == CELLS and notes["de_stats"] == ["leiden"] and notes["columns"] == {}
-    assert (other / "annotations" / "de" / "leiden.bin.gz").exists() and not (other / "annotations" / "leiden.bin").exists()
+    # The clusters and their DE stats are in the table; nothing beside it
+    assert not (other / "annotations").exists()
     nodes = consolidated(other / "u.zarr")
+    assert "tables/table/varm/de_mean__leiden" in nodes and "tables/table/varm/de_pct__leiden" in nodes
     assert nodes["tables/table/obs/leiden"]["attributes"]["encoding-type"] == "categorical"
     assert "leiden" in nodes["tables/table/obs"]["attributes"]["column-order"]
     table = ad.read_zarr(other / "u.zarr" / "tables" / "table")
@@ -564,5 +566,7 @@ def test_cluster_runs_only_when_no_categorical_column(tmp_path):
     )
     r = prepare_folder.prepare(third, cluster=True, log=lambda *_: None)
     assert not r.failed, fails(r)
-    assert (third / "annotations" / "de" / "leiden.bin.gz").exists()
     assert "tables/table/obs/leiden" in consolidated(third / "v.zarr")
+    assert "tables/table/varm/de_mean__leiden" in consolidated(third / "v.zarr")
+    # The join column (one category) has no DE stats
+    assert "tables/table/varm/de_mean__region" not in consolidated(third / "v.zarr")
