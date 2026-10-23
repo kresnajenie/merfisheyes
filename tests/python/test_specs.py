@@ -66,6 +66,23 @@ def test_composed_tiny_store_passes(tmp_path):
     assert validate_store.main([str(store), "--sample", "1000"]) == 0
 
 
+def test_conventions_file_matches_its_schema():
+    """docs/specs/conventions.json, shared by the viewer and this validator."""
+    import jsonschema
+
+    schema = json.loads((ROOT / "docs" / "specs" / "schemas" / "conventions.schema.json").read_text())
+    jsonschema.Draft202012Validator(schema).validate(validate_store.CONVENTIONS)
+    # A broken file is refused
+    bad = json.loads(json.dumps(validate_store.CONVENTIONS))
+    bad["shapes"]["pointSiblingSuffix"] = ""
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.Draft202012Validator(schema).validate(bad)
+    # And the validator reads it: the default table follows the file
+    named = validate_store.CONVENTIONS["tables"]["curatedDefaultTable"]
+    attrs = {named["attribute"]: {named["key"]: "b"}}
+    assert validate_store.default_table(attrs, ["a", "b"]) == "b"
+
+
 def test_modality_fixtures_pass():
     """The stores shaped like SpatialData-DB's CODEX, MALDI-MSI and CosMx ones
     (scripts/testdata/make-tiny-modalities.py): a dense X, a feature index

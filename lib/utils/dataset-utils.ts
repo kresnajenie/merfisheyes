@@ -1,43 +1,24 @@
 import type { StandardizedDataset } from "../StandardizedDataset";
 
+import {
+  CONVENTIONS,
+  NOT_DEFAULT_COLUMNS,
+} from "@/lib/spatialdata/conventions";
+
 /**
  * Determines the best cluster column to use for visualization
  * Priority:
- * 1. Taxonomy columns (class_name, subclass_name, supertype_name, etc.)
- * 2. "leiden"
- * 3. "Cluster"
- * 4. Any column containing "celltype"
- * 5. First available categorical column
- * 6. First available column
- * 7. null if no clusters exist, or only positional ones (NOT_DEFAULT_COLUMNS)
+ * 1. The priority columns, in order (taxonomy names, "leiden", "Cluster")
+ * 2. Any column containing "celltype"
+ * 3. First available categorical column
+ * 4. First available column
+ * 5. null if no clusters exist, or only positional ones
+ *
+ * The priority list and the positional columns (a Visium spot's grid row
+ * and column, a MALDI spot's pixel in the ion image: offered in the picker,
+ * never the default colouring) are in docs/specs/conventions.json.
  */
-
-/**
- * Positional or bookkeeping obs columns (a Visium spot's grid row and
- * column, whether it is on tissue; a MALDI spot's pixel in the ion image):
- * offered in the picker, never chosen as the default colouring — coloured
- * by them, a capture area is stripes.
- */
-const NOT_DEFAULT_COLUMNS = new Set([
-  "array_row",
-  "array_col",
-  "in_tissue",
-  "ion_image_pixel_x",
-  "ion_image_pixel_y",
-  "ion_image_shape_x",
-  "ion_image_shape_y",
-]);
-
-const PRIORITY_COLUMNS = [
-  "class_name",
-  "subclass_name",
-  "supertype_name",
-  "cluster_name",
-  "subcluster_name",
-  "super_cluster_name",
-  "leiden",
-  "Cluster",
-];
+const PRIORITY_COLUMNS = CONVENTIONS.tables.defaultColumnPriority;
 
 export function selectBestClusterColumn(
   dataset: StandardizedDataset | null,

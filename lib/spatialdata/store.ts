@@ -1,3 +1,5 @@
+import { CONVENTIONS } from "./conventions";
+
 import { ElementStore } from "@/lib/storage/ElementStore";
 import {
   datasetBackend,
@@ -170,16 +172,19 @@ export async function openSpatialDataStoreFromFiles(
 /**
  * The table a store's cells are read from: the curated default
  * (`metadata_general["Default Table"]`, as SpatialData-DB writes it), else
- * one named `table`, else the first by name.
+ * one named `table`, else the first by name. Where the default is named,
+ * and the fallback name, are in docs/specs/conventions.json.
  */
 export function defaultTableName(
   rootAttrs: Record<string, any>,
   tables: string[],
 ): string | null {
-  const curated = rootAttrs?.metadata_general?.["Default Table"];
+  const { curatedDefaultTable, fallbackTableName } = CONVENTIONS.tables;
+  const curated =
+    rootAttrs?.[curatedDefaultTable.attribute]?.[curatedDefaultTable.key];
 
   if (typeof curated === "string" && tables.includes(curated)) return curated;
-  if (tables.includes("table")) return "table";
+  if (tables.includes(fallbackTableName)) return fallbackTableName;
 
   return [...tables].sort()[0] ?? null;
 }

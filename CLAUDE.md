@@ -578,6 +578,17 @@ composed tiny fixtures, each violation, the converter molecule for molecule,
 and a store the `spatialdata` library writes. Change a format by changing
 its spec, schema and validator together.
 
+**Producers' names live in one file** ([docs/specs/conventions.md](docs/specs/conventions.md)):
+`docs/specs/conventions.json` (schema beside the others) holds the names
+particular producers use — the default-table attribute, feature-index
+columns, default-colour priority and positional columns, cell-outline
+element names, the `_for_vitessce` sibling suffix, the square-bin pattern,
+the catalog's spellings. The viewer reads it through
+`lib/spatialdata/conventions.ts`, the validator at import. Add a name there,
+never as a string literal in a reader (`tests/unit/conventions.test.ts`
+fails if one is); rules of the format itself stay in code and the profiles;
+one dataset's choices go in its `viewerConfig`.
+
 **Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
 `e2e/tests/viewer/spatialdata.spec.ts` (`@quick`),
 `e2e/tests/viewer/local-bundle.spec.ts` (`@quick`), and
