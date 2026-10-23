@@ -85,10 +85,20 @@ import from `process_spatial_data` (`OBS_BINARY_FORMAT`, `fmt_elapsed`,
 `peak_rss_gb`, `write_coordinate_binary`, `build_obs_palette`,
 `encode_obs_binary`, `write_de_stats_binary`) still resolves.
 
-⚠ **Not yet verified by running anything** — `anndata`, `zarr` and `pyarrow` are
-not installed on the machine this was done on, so `pytest tests/python` and
-`npm run parity` have not been run against the merged files. Step 1's container
-is where that happens first.
+**The `process_spatial_data.py` port is verified empirically** (2026-10-23, conda
+`base`, pandas 3.0.1 — the version where the bug bites). pandas 3 infers plain
+strings as `str`, not legacy `object`, so on a 5,000-row barcode column:
+
+| Version | `is_categorical(barcodes)` | Consequence |
+|---|---|---|
+| tip, unfixed | **False** | classified numerical → encoded all-NaN |
+| tip + `92671a3` | **True** | correct |
+
+⚠ Still unrun: `pytest tests/python` (needs `pytest`, `jsonschema`, `tifffile`,
+`spatialdata`) and `npm run parity` (needs `node_modules`). The `map_my_cell.py`
+and `combine_slices_v3.py` merges are verified only by compile, symbol
+resolution and feature presence — **not** by processing a dataset. Step 0's
+control run on one BIL dataset is the first real exercise.
 
 `main`'s pipeline still cannot run: `launch_pipeline.sh:195` hands a directory
 to an h5ad-only `map_my_cell.py`; `launch_sm_pipeline.sh:190` passes named flags
