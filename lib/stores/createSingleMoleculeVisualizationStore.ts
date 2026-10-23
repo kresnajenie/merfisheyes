@@ -28,6 +28,9 @@ export interface SingleMoleculeVisualizationState {
   geneDataCache: Map<string, GeneVisualization>;
   geneColorSlots: Map<string, number>;
   globalScale: number;
+  /** Opacity of every molecule, 0-1. Below 1 they blend, so dense spots
+   * build up and stand out when zoomed out. */
+  moleculeOpacity: number;
   viewMode: ViewMode;
   showAssigned: boolean;
   showUnassigned: boolean;
@@ -54,6 +57,7 @@ export interface SingleMoleculeVisualizationState {
   setGeneColor: (gene: string, color: string) => void;
   setGeneLocalScale: (gene: string, scale: number) => void;
   setGlobalScale: (scale: number) => void;
+  setMoleculeOpacity: (opacity: number) => void;
   setViewMode: (mode: ViewMode) => void;
   setShowAssigned: (show: boolean) => void;
   setShowUnassigned: (show: boolean) => void;
@@ -80,6 +84,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
     geneDataCache: new Map(),
     geneColorSlots: new Map(),
     globalScale: 1.0,
+    moleculeOpacity: 1,
     viewMode: "2D",
     showAssigned: true,
     showUnassigned: true,
@@ -265,6 +270,8 @@ export function createSingleMoleculeVisualizationStoreInstance() {
       }),
 
     setGlobalScale: (scale: number) => set({ globalScale: scale }),
+    setMoleculeOpacity: (opacity: number) =>
+      set({ moleculeOpacity: Math.min(1, Math.max(0.01, opacity)) }),
 
     setSmLayerVisible: (visible: boolean) => set({ smLayerVisible: visible }),
 
@@ -477,6 +484,7 @@ export function createSingleMoleculeVisualizationStoreInstance() {
         geneDataCache: new Map(),
         geneColorSlots: new Map(),
         globalScale: 1.0,
+        moleculeOpacity: 1,
         viewMode: "2D",
         showAssigned: true,
         showUnassigned: true,
