@@ -16,6 +16,8 @@ import type { SpatialDataStore } from "./store";
 import { parquetMetadata } from "hyparquet";
 
 import { placesAsWritten, readCoordinateSystems } from "./coordinates";
+import { isSquareBinRegion, pointSiblingOf } from "./conventions";
+import { elementNames } from "./store";
 
 export interface CellFootprint {
   shape: "circle" | "square";
@@ -24,6 +26,26 @@ export interface CellFootprint {
 }
 
 const TAIL = 65536;
+
+/**
+ * The geometry types a shapes element's GeoParquet declares (`["Point"]`,
+ * `["Polygon"]`, …), from its footer alone; null when it cannot be read.
+ */
+export async function geometryTypes(
+  sd: SpatialDataStore,
+  element: string,
+): Promise<string[] | null> {
+  const meta = await footer(sd, `/${element}/shapes.parquet`).catch(() => null);
+
+  if (!meta) return null;
+  const geo = JSON.parse(
+    meta.key_value_metadata?.find((kv) => kv.key === "geo")?.value ?? "{}",
+  );
+
+  return Object.values(
+    (geo.columns ?? {}) as Record<string, { geometry_types?: string[] }>,
+  ).flatMap((c) => c.geometry_types ?? []);
+}
 
 /** The footer of a parquet file, read from its end. */
 async function footer(sd: SpatialDataStore, key: string) {
@@ -147,33 +169,53 @@ export async function readCellFootprint(
   const types: string[] = Object.values(
     (geo.columns ?? {}) as Record<string, { geometry_types?: string[] }>,
   ).flatMap((c) => c.geometry_types ?? []);
-  const names = meta.schema.map((s) => s.name);
+  if (types.length === 1 && types[0] === "Point") {
+    const radius = oneRadius(meta);
 
-  if (types.length === 1 && types[0] === "Point" && names.includes("radius")) {
-    // One radius for every spot: the column's minimum equals its maximum
-    const index = meta.row_groups[0]?.columns.findIndex(
-      (c) => c.meta_data?.path_in_schema.join(".") === "radius",
-    );
-    let min = Infinity;
-    let max = -Infinity;
-
-    for (const group of meta.row_groups) {
-      const stats = group.columns[index]?.meta_data?.statistics;
-
-      if (stats?.min_value == null || stats.max_value == null) return null;
-      min = Math.min(min, Number(stats.min_value));
-      max = Math.max(max, Number(stats.max_value));
-    }
-
-    return max > 0 && max - min <= max * 1e-6
-      ? { shape: "circle", size: 2 * max }
-      : null;
+    return radius ? { shape: "circle", size: 2 * radius } : null;
   }
-  if (types.length === 1 && types[0] === "Polygon" && /square/i.test(region)) {
-    const side = gridPitch(coords, dims);
+  if (types.length === 1 && types[0] === "Polygon") {
+    if (isSquareBinRegion(region)) {
+      const side = gridPitch(coords, dims);
 
-    return side ? { shape: "square", size: side } : null;
+      return side ? { shape: "square", size: side } : null;
+    }
+    // Polygons of one size: SpatialData-DB's `_for_vitessce` sibling gives
+    // every cell the same radius when they are a grid's pixels (the squares
+    // of a DBiT CUT&Tag or ATAC capture, side twice the radius); cells of
+    // varying size (CODEX) have no footprint
+    const sibling = pointSiblingOf(region);
+
+    if (
+      !elementNames(sd.keys, "shapes").includes(sibling.slice("shapes/".length))
+    ) {
+      return null;
+    }
+    const siblingMeta = await footer(sd, `/${sibling}/shapes.parquet`);
+    const radius = siblingMeta && oneRadius(siblingMeta);
+
+    return radius ? { shape: "square", size: 2 * radius } : null;
   }
 
   return null;
+}
+
+/** The `radius` column's one value, when every row has the same; else null. */
+function oneRadius(meta: ReturnType<typeof parquetMetadata>): number | null {
+  if (!meta.schema.some((s) => s.name === "radius")) return null;
+  const index = meta.row_groups[0]?.columns.findIndex(
+    (c) => c.meta_data?.path_in_schema.join(".") === "radius",
+  );
+  let min = Infinity;
+  let max = -Infinity;
+
+  for (const group of meta.row_groups) {
+    const stats = group.columns[index]?.meta_data?.statistics;
+
+    if (stats?.min_value == null || stats.max_value == null) return null;
+    min = Math.min(min, Number(stats.min_value));
+    max = Math.max(max, Number(stats.max_value));
+  }
+
+  return max > 0 && max - min <= max * 1e-6 ? max : null;
 }

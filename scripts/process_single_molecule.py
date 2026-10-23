@@ -457,6 +457,26 @@ def _process_sample_worker(args):
         return sample_id, False, str(e)
 
 
+def decode_binary_columns(table, names):
+    """`table` with each named BINARY column read as UTF-8 text."""
+    import pyarrow as pa
+
+    for name in names:
+        if not name or name not in table.column_names:
+            continue
+        column = table.column(name)
+        kind = column.type
+        if pa.types.is_dictionary(kind):
+            kind = kind.value_type
+        if pa.types.is_binary(kind) or pa.types.is_large_binary(kind):
+            if pa.types.is_dictionary(column.type):
+                column = column.cast(pa.dictionary(column.type.index_type, pa.string()))
+            else:
+                column = column.cast(pa.string())
+            table = table.set_column(table.column_names.index(name), name, column)
+    return table
+
+
 def read_parquet_file(
     file_path: str,
     gene_col: str,
@@ -502,6 +522,10 @@ def read_parquet_file(
         )
 
     table = pq.read_table(file_path, columns=wanted)
+    # Some exports keep names as raw bytes (Xenium Onboard Analysis 1.x writes
+    # feature_name and cell_id as parquet BINARY): read them as text, or the
+    # gene filter's patterns cannot match them
+    table = decode_binary_columns(table, [gene_col, cell_id_col])
 
     # Pull columns straight out of the Arrow table — `to_pandas()` on the whole
     # table would hold a second copy of every column alongside the Arrow

@@ -14,6 +14,148 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   collections on Explore (curated, SpatialData-DB, Community) and that every
   card opens the dataset's own page; `scripts/README.md`, the SpatialData
   guide, the spec and `CLAUDE.md` say the same.
+- **The names producers use, in one file.** `docs/specs/conventions.json`
+  (with a schema) holds the default-table attribute, feature-index columns,
+  default-colour priority, positional columns, cell-outline element names,
+  the `_for_vitessce` sibling suffix, the square-bin pattern and the
+  SpatialData-DB catalog's spellings, read by the viewer
+  (`lib/spatialdata/conventions.ts`) and by `scripts/validate_store.py`
+  alike. Supporting a new producer's naming is a line in that file; a test
+  fails if a reader hard-codes one of its names. Guide:
+  `docs/specs/conventions.md`. CosMx's `cells_polygons` is now a
+  recognised outline element, so its Shapes button appears.
+
+### Added
+
+- **"Upload & process on server" can run `scripts/prepare.py`** (steps 2–3
+  of `docs/plans/ONE-PIPELINE.md`), behind `NEXT_PUBLIC_INGEST_PIPELINE=prepare`;
+  unset, nothing changes. The worker runs the same script a person runs, in
+  its own environment with `scripts/requirements.txt`, and writes one
+  SpatialData store per upload: the cells and the molecules beside them as
+  one dataset (no separate molecules dataset or project), opened in the
+  SpatialData viewer; a molecule table alone becomes a store of points. The
+  upload sends what `prepare.py` reads — a Xenium export's seven files, a
+  MERSCOPE region's tables, boundaries and transcripts — and the images only
+  when "Also upload the images (N GB)" is ticked (it starts unticked). The
+  compute tier is chosen from the upload's size instead of found by running
+  out of memory. The molecules are flat on the cells' plane unless "Keep the
+  molecules' Z" is ticked (also unticked by default; `prepare.py --keep-z`).
+  A molecule table whose columns are not recognised asks for them, listing
+  the columns in its schema; only the parquet footer or CSV header is read
+  for that, and sample rows only from a first row group under 32 MB, so a
+  10 GB Xenium table (one row group) is never read whole in the browser. On the Xenium lung and breast
+  exports the worker's store and a local `prepare.py` run's are identical,
+  file for file.
+
+- **DEG stats live inside the table.** Every categorical column's per-gene
+  mean (log-normalised) and fraction expressing are written into the
+  SpatialData table itself — `varm/de_mean__<column>`, `varm/de_pct__<column>`,
+  `uns/merfisheyes_de` (`scripts/de_stats.py`) — by `prepare.py` and
+  `spatialdata_cluster.py`, so a store needs no `annotations/` folder beside
+  it; the viewer's DEG panel reads them (older stores' `annotations/` still
+  work).
+
+- **`scripts/prepare.py`: one command to prepare your own data** (step 1 of
+  `docs/plans/ONE-PIPELINE.md`). `python scripts/prepare.py INPUT OUT`
+  recognises an `.h5ad` / AnnData Zarr, a Xenium export, a MERSCOPE region,
+  a Visium output, a molecule table (a lab's own `Gene, X, Y, Z` columns too)
+  or a folder of parts, and writes one SpatialData store with `mapping.json`
+  and `stats.json`, never changing INPUT. Images are written when the input
+  has them (`--no-images` to skip); `--labels` adds a MapMyCells CSV;
+  control probes are left out of every table; an `uns` entry the Zarr writer
+  refuses is left out with a warning; cells are placed from `obs` coordinate
+  columns when `obsm` has none; Xenium no longer keeps a second (parquet)
+  copy of the molecules. Packages pinned in `scripts/requirements.txt`
+  (`requirements-prepare.txt` now points there); shared rules in
+  `scripts/meyes_common.py`. The main README says where it is and how to run
+  it. Exit codes 0 / 2 / 3 / 4.
+
+- **Every kind of SpatialData-DB store opens: CODEX, PhenoCycler,
+  spatial-CUT&Tag, spatial-ATAC-seq, MALDI-MSI and CosMx beside the RNA
+  ones.** Measured on the root metadata of one store per technology
+  (`tests/data/sddb/roots`): a table's features come from the index column
+  `var` declares (`formula_adduct` in a MALDI table, `gene` in a CosMx
+  one), not only `var/_index`; a dense `X` (every image channel a feature,
+  as CODEX writes it) is read one feature at a time; a table with no
+  `obsm/spatial` (CosMx) draws its cells at the centres of the shapes it
+  annotates, read from the Point `<region>_for_vitessce` element when there
+  is one (35 MB for 1.46 M cells, against 265 MB of polygons) and matched
+  by instance id; an image placed by an `affine` that rotates (a MALDI
+  optical image, 91° in one store) is drawn as is, the levels staying in
+  the image's own frame and the placement being one matrix on the layer;
+  and an image of any number of channels (84 in a CODEX store) compiles,
+  the layer showing at most 8 at once through fixed shader slots. The
+  validator (`scripts/validate_store.py`) applies the same rules, and the
+  profiles say so (`docs/specs/table-profile.md`, `image-profile.md`,
+  `store-layout.md`). Fixtures shaped like the real stores, built by the
+  `spatialdata` library: `scripts/testdata/make-tiny-modalities.py`.
+- **Processed data on "Upload & process on server".** A SpatialData store,
+  separate stores, an OME-Zarr image or merfisheyes output folders dropped
+  on the server card are uploaded as they are, the same as Upload & Save
+  from a preview, without opening them first; it used to say "No
+  single-cell data found". Raw exports still go to the worker.
+- **Separate SpatialData parts become one store.** A store without a table
+  (tiled molecules, an image) and a standalone OME-Zarr image beside a store
+  or table join it as its elements, in the preview and when saved; only the
+  root `zarr.json` is rewritten to list them.
+- **Drop matrix tests**: every combination of a table (CSR `X` + CSC layer,
+  or CSC `X`), an image and tiled molecules, in four layouts, dropped through
+  the drop zone (`e2e/tests/viewer/drop-matrix.spec.ts`), saved and sent to
+  the server card (`e2e/tests/upload/drop-matrix-save.spec.ts`), and timed on
+  real stores (`e2e/perf/real-drop.spec.ts`) and real uploads, prepared or
+  raw (`e2e/perf/real-upload.spec.ts`); tiny stores whose `X` is CSC
+  (`scripts/testdata/make-tiny-csc-x.py`) and whose indexes have names
+  (`make-tiny-named-index.py`).
+
+### Fixed
+
+- **An error stays until you close it, and a failed upload is emailed**
+  (kresnajenie/merfisheyes#166). Errors shown by updating a loading toast
+  (a gene that failed to load, a column that failed, split-screen sync)
+  closed after 3–5 s; every error toast now waits to be closed. Closing one
+  while a dialog was open closed the dialog instead and took a second click;
+  toasts are now outside every dialog's "click outside". An upload that
+  fails in the browser — Upload & Save of cells, molecules or a processed
+  folder, or the transfer of a server upload — emails the signed-in user the
+  reason (`POST /api/uploads/failed`), as a failed server run already did,
+  and marks its dataset FAILED when one was made, instead of leaving it at
+  UPLOADING. Upload & Save of a pre-chunked molecule folder is tested end to
+  end, its failures included.
+- Local test runs no longer send real email: the test server gets empty SES
+  keys, where it used to pick up a developer's staging ones.
+- **A big raw file uploads several parts at once.** "Upload & process on
+  server" sent a large file's 32 MB parts one after another over one
+  connection: 3.3 MB/s from the lab for Beaumont set1's 6 GB table. Six
+  parts now go up at once (`uploadParts` in `lib/upload/uploadRawToS3.ts`;
+  measured from the lab to S3, 4.5 MB/s for one and 20.3 MB/s for six, and
+  a browser opens at most six connections to S3), and their upload links
+  last 12 hours instead of 1, which a slow link used to outrun past ~11 GB.
+- A store's tiled molecules without a table were dropped: a molecules-only
+  store bounced back to the homepage, and one with an image showed the image
+  alone. They now open in the molecule viewer, dropped or saved.
+- A molecules-only store beside a table store could take the table's place
+  (the first by name won), leaving no cells.
+- Several folders dragged in at once overwrote one another's root metadata,
+  keeping only one of them.
+- A store holding only molecules opened with the camera on an empty patch
+  of the plane, so none were drawn; the molecule scene now frames them.
+- The local `@upload` test stack no longer calls AWS Batch: with a custom S3
+  endpoint no job is submitted (it was reaching Batch with a developer's
+  staging settings, refused only for the wrong keys).
+- **A lab's own molecule table processes on the server.** The worker read
+  only Xenium's (`x_location`) and MERSCOPE's (`global_x`) column names and
+  failed on anything else (`Gene, X, Y, Z`); it now takes a gene column and
+  x / y (/ z) by name in any case, and a failure names the columns it found.
+- **A molecule table beside the cells is found by its columns** on the server
+  card, not only when "transcript" is in its name.
+- **Gene names stored as bytes** (Xenium Onboard Analysis 1.x `transcripts.parquet`)
+  crashed the molecule processor ("cannot use a string pattern on a
+  bytes-like object"); they are read as text.
+- **A failed processing job says why.** When the worker's report did not
+  arrive, the dataset only said "container exited with exit code 1"; the
+  worker now also leaves its reason beside the dataset, and the app reads it.
+- **Error messages stay on screen until closed** instead of vanishing after
+  a few seconds.
 
 ## [0.13.0] - 2026-10-21
 

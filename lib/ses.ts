@@ -39,7 +39,13 @@ export async function sendDatasetReadyEmail({
   // Single-molecule datasets (sm_ prefix) open in the SM viewer; single-cell in
   // the standard viewer. Same convention used elsewhere in this file.
   const isSingleMolecule = datasetId.startsWith("sm_");
-  const viewerPath = isSingleMolecule ? "sm-viewer" : "viewer";
+  // A SpatialData store (what the server's prepare.py writes) opens in its own.
+  const viewerPath =
+    metadata?.platform === "spatialdata"
+      ? "spatialdata-viewer"
+      : isSingleMolecule
+        ? "sm-viewer"
+        : "viewer";
   const link = `${baseUrl}/${viewerPath}/${datasetId}`;
   // numCells stores the molecule count for single-molecule datasets, so label
   // the row accordingly.

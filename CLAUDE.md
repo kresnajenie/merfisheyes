@@ -495,7 +495,10 @@ transcripts file and an OME-Zarr image folder
 ([lib/ingest/classify-folder.ts](lib/ingest/classify-folder.ts)). Each becomes
 its own dataset in one project; the cells carry
 `processingParams.linkedSmDatasetId` / `linkedImageDatasetId`, and
-`lib/ingest/finalize.ts` writes the `mapping.json` when they finish.
+`lib/ingest/finalize.ts` writes the `mapping.json` when they finish. Under
+`NEXT_PUBLIC_INGEST_PIPELINE=prepare` the same folder is one dataset instead
+(cells and molecules always, images only when ticked; a Xenium export or
+MERSCOPE region sends what `prepare.py` reads, `preparePlatformFiles`).
 
 **Code** lives in [lib/spatialdata/](lib/spatialdata/) and is kept apart from
 the h5ad-zarr path:
@@ -505,9 +508,14 @@ the h5ad-zarr path:
 - `SpatialDataTableAdapter.ts` — table → cells, genes, columns; reads plain and
   sharded arrays, plain and nullable strings
 - `image.ts` / `ImageLayer.ts` — OME-Zarr multiscale metadata (axes `c, y, x`,
-  `uint8`/`uint16`, scale + translation, or a `sequence` of them as the
-  `spatialdata` library writes it) and the tiled Three.js layer shared by all
-  three viewers
+  `uint8`/`uint16`, any number of channels) and the tiled Three.js layer
+  shared by all three viewers. The levels stay in the image's own frame and
+  the placement (scale, translation, affine with rotation, or a `sequence`)
+  is one matrix on the layer's group; the shader has `MAX_VISIBLE_CHANNELS`
+  (8) slots, so an 84-channel CODEX image compiles and shows 8 at once
+- `centroids.ts` / `wkb.ts` — a table with no `obsm/spatial` (CosMx) draws
+  its cells at one point per shape of the region element it annotates (the
+  Point `<region>_for_vitessce` sibling first), matched by instance id
 - `footprint.ts` — Visium spots and Visium HD bins: the cells drawn at
   their real size and shape (radius from the shapes footer, bin side from
   the grid's pitch), read without the shapes themselves
@@ -515,7 +523,9 @@ the h5ad-zarr path:
   list is alternatives (one per output system), never multiplied; the
   target is `global`, else the system the cells' region is identity into
   (Visium); every element is placed in the cells' own coordinates through
-  it (`docs/specs/store-layout.md` §8)
+  it (`docs/specs/store-layout.md` §8). A placement is a 2-D affine
+  (`Map2`: scale, offset and, when it rotates, `skew`); points and shapes
+  must still place as written
 - [lib/storage/ElementStore.ts](lib/storage/ElementStore.ts) — **the one
   store every reader reads through** (spec [docs/specs/LOADING.md](docs/specs/LOADING.md)):
   a zarrita `AsyncReadable` over a `Backend` (`lib/storage/backends.ts`: a
@@ -542,7 +552,12 @@ lazily from the dropped `File`s (`lib/local/open-bundle.ts`,
 `lib/spatialdata/localStore.ts`) and shows them overlaid in the ordinary
 `from-local` viewers; the extras travel in `lib/stores/localBundleStore.ts`.
 *Upload & Save* there uploads every part as it is and links them
-(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`). A saved
+(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`).
+SpatialData parts in separate folders (a store without a table, a
+standalone image) join the cells' store as its elements
+(`joinedStoreFileMap`), in the preview and on save alike; several folders
+dragged in at once are walked as one. Processed data dropped on the server
+card skips the worker and opens the same save dialog, unopened. A saved
 store has `datasetType: "spatialdata"`: single cell in every respect except
 that it opens in `/spatialdata-viewer` (`viewerBase`, `entryType` in
 `lib/datasets/kind.ts`). Raw cells beside processed parts are still shown
@@ -567,6 +582,17 @@ composed tiny fixtures, each violation, the converter molecule for molecule,
 and a store the `spatialdata` library writes. Change a format by changing
 its spec, schema and validator together.
 
+**Producers' names live in one file** ([docs/specs/conventions.md](docs/specs/conventions.md)):
+`docs/specs/conventions.json` (schema beside the others) holds the names
+particular producers use — the default-table attribute, feature-index
+columns, default-colour priority and positional columns, cell-outline
+element names, the `_for_vitessce` sibling suffix, the square-bin pattern,
+the catalog's spellings. The viewer reads it through
+`lib/spatialdata/conventions.ts`, the validator at import. Add a name there,
+never as a string literal in a reader (`tests/unit/conventions.test.ts`
+fails if one is); rules of the format itself stay in code and the profiles;
+one dataset's choices go in its `viewerConfig`.
+
 **Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
 `e2e/tests/viewer/spatialdata.spec.ts` (`@quick`),
 `e2e/tests/viewer/local-bundle.spec.ts` (`@quick`), and
@@ -576,7 +602,25 @@ through `e2e/helpers/fixture-server.ts`, a local stand-in for a public bucket.
 
 ### Python Preprocessing Scripts
 
-For very large datasets (>500K cells) that exceed browser memory limits, Python scripts can preprocess data into chunked format:
+**The entry point is [`scripts/prepare.py`](scripts/prepare.py)** `INPUT OUT`:
+it recognises an `.h5ad` / AnnData Zarr, a Xenium export, a MERSCOPE region,
+a Visium output, a molecule table or a folder of parts by content, runs the
+matching `prepare_*` script, and writes exactly `OUT/<name>.zarr` (one
+SpatialData store), `mapping.json` and `stats.json`, never touching INPUT
+(exit codes 0 / 2 unrecognised / 3 incomplete / 4 invalid). Packages are
+pinned in `scripts/requirements.txt`. Shared rules live in
+`scripts/meyes_common.py` (the control-probe filter, molecule column names,
+obs coordinate columns) — `worker/entrypoint.py` and
+`lib/ingest/molecule-columns.ts` repeat the column names, and tests keep the
+three equal. The server worker runs `prepare.py` for an upload made with
+`NEXT_PUBLIC_INGEST_PIPELINE=prepare` (`processingParams.pipeline`, read
+through `lib/ingest/pipeline.ts`; steps 2–3 of
+[docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md)): one dataset per
+upload, finished as `datasetType: "spatialdata"`, its compute tier chosen
+from the upload's files (`lib/ingest/compute-tier.ts`). Without the setting
+it runs the legacy chunked processors below.
+
+The legacy processors write merfisheyes' chunked format (still read by the viewer):
 
 **Location**: [scripts/](scripts/)
 

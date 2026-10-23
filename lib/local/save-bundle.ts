@@ -3,11 +3,20 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
 import { gzip, ungzip } from "pako";
 
-import { partFileMap, storeFileMap, type BundleCells } from "./classify-bundle";
+import {
+  joinedStoreFileMap,
+  partFileMap,
+  type BundleCells,
+} from "./classify-bundle";
 
 import { uploadChunkedToS3 } from "@/lib/upload/uploadChunkedToS3";
 import { uploadImageToS3 } from "@/lib/upload/uploadImageToS3";
 import { uploadZarrFolderToS3 } from "@/lib/upload/uploadZarrFolderToS3";
+import { openSpatialDataStoreFromFiles } from "@/lib/spatialdata/localStore";
+import {
+  findPointsElements,
+  openPointsElement,
+} from "@/lib/spatialdata/points";
 
 /**
  * Save a folder that was dropped for a browser preview: every part goes to
@@ -99,14 +108,56 @@ async function saveChunkedCells(
 }
 
 /**
- * A SpatialData store, with the annotations folder beside it if there is
- * one. A table dropped on its own is saved where a store keeps its table, so
- * the SpatialData viewer finds it (see storeFileMap).
+ * Counts for a store that was not opened first: cells and genes from its
+ * table's X metadata (`tables/table`, else the first table); with no table,
+ * its molecules and genes, counted the way a single molecule dataset is.
+ */
+async function storeCounts(
+  store: Map<string, File>,
+): Promise<{ numCells?: number; numGenes?: number }> {
+  const xs = Array.from(store.keys())
+    .filter((k) => /^tables\/[^/]+\/X\/zarr\.json$/.test(k))
+    .sort();
+  const x = xs.includes("tables/table/X/zarr.json")
+    ? "tables/table/X/zarr.json"
+    : xs[0];
+
+  if (x) {
+    const node = await store
+      .get(x)!
+      .text()
+      .then(JSON.parse)
+      .catch(() => null);
+    // A sparse X keeps its shape in its group's attributes; a dense one is
+    // an array with a shape
+    const shape: number[] | undefined = node?.attributes?.shape ?? node?.shape;
+
+    return shape ? { numCells: shape[0], numGenes: shape[1] } : {};
+  }
+  const sd = await openSpatialDataStoreFromFiles(store);
+  const [points] = await findPointsElements(sd);
+
+  if (!points) return {};
+  const element = await openPointsElement(sd, points);
+  const counts = await element.featureCounts();
+
+  return {
+    numCells: counts.reduce((sum, n) => sum + n, 0),
+    numGenes: element.features.length,
+  };
+}
+
+/**
+ * A SpatialData store, with the parts that join it and the annotations
+ * folder beside it if there is one. A table dropped on its own is saved
+ * where a store keeps its table, so the SpatialData viewer finds it (see
+ * joinedStoreFileMap).
  */
 async function saveSpatialDataStore(
   bundle: LocalBundle,
   cellsPart: Exclude<BundleCells, { kind: "chunked" }>,
-  cells: StandardizedDataset,
+  /** None when the store has no table (molecules and/or an image only). */
+  cells: StandardizedDataset | null | undefined,
   title: string,
   onProgress: Progress,
 ): Promise<string> {
@@ -117,7 +168,7 @@ async function saveSpatialDataStore(
     cellsPart.kind === "spatialdata" && root
       ? root
       : `${(root || bundle.name).replace(/\.zarr$/, "")}.zarr`;
-  const store = storeFileMap(bundle, cellsPart);
+  const store = await joinedStoreFileMap(bundle, cellsPart);
 
   const files = Array.from(store, ([key, file]) => ({
     key: `${folder}/${key}`,
@@ -133,8 +184,9 @@ async function saveSpatialDataStore(
   const { datasetId } = await uploadZarrFolderToS3({
     title,
     platform: "spatialdata",
-    numCells: cells.getPointCount(),
-    numGenes: cells.genes.length,
+    ...(cells
+      ? { numCells: cells.getPointCount(), numGenes: cells.genes.length }
+      : await storeCounts(store)),
     files,
     lastKey: `${folder}/zarr.json`,
     onProgress: (p) =>
@@ -289,7 +341,7 @@ export async function saveLocalBundle({
         : await saveSpatialDataStore(
             bundle,
             bundle.cells,
-            cells!,
+            cells,
             titled("cells"),
             stage(2, "Cells"),
           );

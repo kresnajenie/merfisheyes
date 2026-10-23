@@ -56,6 +56,7 @@ function image(
     name: "he",
     channelLabels: labels,
     maxValue,
+    placement: { scale: [1, 1], offset: [0, 0] },
     levels: [
       {
         array: array as never,

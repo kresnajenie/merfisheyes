@@ -317,25 +317,9 @@ def _is_blank_column(series: pd.Series) -> bool:
 MAX_COORDINATE_DIMS = 3  # Viewer renders 2D/3D only
 
 
-# Control probes / unassigned codewords are not genes. Mirrors
-# lib/utils/gene-filters.ts shouldFilterGene() — the two lists must stay equal.
-_GENE_FILTER_PATTERNS = [
-    re.compile(p, re.IGNORECASE)
-    for p in (
-        r"negative[\s_-]*control",
-        r"neg[\s_-]*ctrl",
-        r"unassigned",
-        r"deprecated",
-        r"codeword",
-        r"blank",
-        r"negcontrol",
-    )
-]
-
-
-def should_filter_gene(gene: str) -> bool:
-    g = str(gene)
-    return any(p.search(g) for p in _GENE_FILTER_PATTERNS)
+# Control probes / unassigned codewords are not genes (scripts/meyes_common.py,
+# shared with every other script that prepares data)
+from meyes_common import should_filter_gene  # noqa: E402
 
 
 def sanitize_coordinate_name(name: str) -> str:

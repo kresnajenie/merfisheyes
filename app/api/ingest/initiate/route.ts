@@ -35,6 +35,9 @@ interface InitiateIngestRequest {
   }>;
 }
 
+/** How long a multipart upload's part URLs stay valid, in seconds. */
+const PART_URL_EXPIRES_IN = 12 * 3600;
+
 type UploadTarget =
   | { mode: "single"; url: string }
   | {
@@ -153,10 +156,13 @@ export async function POST(request: NextRequest) {
               s3Key,
               contentType,
             );
+            // A big file's parts may still be going up hours later on a slow
+            // link (at 3 MB/s, 1 h covers only ~11 GB): its part URLs last 12 h
             const parts = await generatePresignedUploadPartUrls(
               s3Key,
               s3UploadId,
               computePartCount(file.size),
+              PART_URL_EXPIRES_IN,
             );
 
             return [

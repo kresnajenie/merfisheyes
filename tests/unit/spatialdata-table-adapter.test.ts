@@ -47,6 +47,11 @@ const STORES = [
     store: "spatialdata_v3_sharded.zarr",
     extra: ["note"],
   },
+  // python scripts/testdata/make-tiny-csc-x.py: X itself CSC, no layer
+  { name: "CSC X", store: "spatialdata_v3_csc_x.zarr", extra: [] },
+  // python scripts/testdata/make-tiny-named-index.py: var/feature_name and
+  // obs/cell_name instead of _index, as a lab's own h5ad often has
+  { name: "named indexes", store: "spatialdata_v3_named_index.zarr", extra: [] },
 ];
 
 describe.each(STORES)(
@@ -78,7 +83,7 @@ describe.each(STORES)(
       return adapter;
     }
 
-    it("finds the table and reads genes from the CSC layer of a CSR X", async () => {
+    it("finds the table and reads genes from CSC (X, or a layer of a CSR X)", async () => {
       const adapter = await openAdapter();
 
       expect(adapter.tablePrefix).toBe("tables/table/");

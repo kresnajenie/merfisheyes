@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { compose } from "@/lib/spatialdata/coordinates";
 import { openOmeZarrImage } from "@/lib/spatialdata/image";
 
 const BASE = "https://bucket.example/folder/dapi.zarr";
@@ -107,13 +108,23 @@ describe("openOmeZarrImage", () => {
       "/s1/zarr.json": level(4, 6),
     });
 
-    const { levels } = await openOmeZarrImage(BASE);
+    const { levels, placement } = await openOmeZarrImage(BASE);
 
-    expect(levels[0].pixelWidth).toBeCloseTo(0.1);
-    expect(levels[0].originX).toBeCloseTo(-12);
-    expect(levels[0].originY).toBeCloseTo(-11);
-    expect(levels[1].pixelWidth).toBeCloseTo(0.2);
-    expect(levels[1].originX).toBeCloseTo(-11.95);
+    // The levels in the image's own units; the sequence is the placement
+    expect(levels[0].pixelWidth).toBeCloseTo(1);
+    expect(levels[0].originX).toBeCloseTo(0);
+    expect(levels[1].pixelWidth).toBeCloseTo(2);
+    expect(levels[1].originX).toBeCloseTo(0.5);
+    expect(placement.scale[0]).toBeCloseTo(0.1);
+    expect(placement.offset).toEqual([-12, -11]);
+    // Placed: pixel (0, 0) of the full image at (-12, -11), each 0.1 wide
+    const placed = compose(
+      { scale: [levels[1].pixelWidth, levels[1].pixelHeight], offset: [levels[1].originX, levels[1].originY] },
+      placement,
+    );
+
+    expect(placed.scale[0]).toBeCloseTo(0.2);
+    expect(placed.offset[0]).toBeCloseTo(-11.95);
   });
 
   it("rejects axes other than c, y, x", async () => {

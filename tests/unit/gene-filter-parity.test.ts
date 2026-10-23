@@ -40,7 +40,8 @@ function pythonFilters(patterns: RegExp[], gene: string): boolean {
 }
 
 describe("control-probe gene filter parity (JS vs Python)", () => {
-  for (const script of ["process_spatial_data.py", "process_single_molecule.py"]) {
+  // meyes_common.py holds the rule the preparing scripts share
+  for (const script of ["meyes_common.py", "process_single_molecule.py"]) {
     it(`agrees with ${script} on every panel gene`, () => {
       const patterns = pythonPatterns(script);
 

@@ -57,6 +57,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import validate_store  # noqa: E402
+from meyes_common import should_filter_gene  # noqa: E402
 
 SPATIALDATA_ATTRS = {"version": "0.2"}
 
@@ -71,15 +72,19 @@ def read_json(path: Path) -> dict | None:
 
 
 def transcripts_columns(path: Path) -> bool:
-    """True when the .parquet / .csv file has a gene column and x, y columns a
-    platform names (Xenium, MERSCOPE); other tables need --molecule-columns."""
+    """True when the .parquet / .csv file has a gene column and x, y columns:
+    a platform's names (Xenium, MERSCOPE) or a lab's own (Gene, X, Y), by name
+    in any case (meyes_common.match_molecule_columns); anything else needs
+    --molecule-columns."""
     try:
         import transcripts_to_points
+        from meyes_common import match_molecule_columns
 
-        names = set(transcripts_to_points.column_names(path))
+        names = list(transcripts_to_points.column_names(path))
     except Exception:  # noqa: BLE001 — not a table we can read
         return False
-    return any({g, x, y} <= names for g, x, y, _ in transcripts_to_points.KNOWN.values())
+    known = any({g, x, y} <= set(names) for g, x, y, _ in transcripts_to_points.KNOWN.values())
+    return known or match_molecule_columns(names) is not None
 
 
 def kind_of(path: Path, molecule_columns: str | None = None) -> str | None:
@@ -395,11 +400,14 @@ def region_transforms(store: Path, dims: int = 2) -> list[dict] | None:
     return out or None
 
 
-def wrap_molecules(store: Path, molecules: Path, name: str, workers: int, log, columns: str | None = None) -> str:
+def wrap_molecules(
+    store: Path, molecules: Path, name: str, workers: int, log, columns: str | None = None, keep_z: bool = False,
+) -> str:
     """The molecules become `points/<name>`, a tiled points element the
-    viewer streams by view (docs/points-zarr-spec.md), flat on the cells'
-    plane and in the cells' frame: straight from a transcripts table, a
-    store's own parquet points element, or a per-gene folder."""
+    viewer streams by view (docs/points-zarr-spec.md), in the cells' frame
+    and flat on their plane unless `keep_z` (a transcripts table's z): straight
+    from a transcripts table, a store's own parquet points element, or a
+    per-gene folder."""
     transforms = region_transforms(store)
     log(f"  points/{name}: from {molecules.name}" + (", transforms of the cells' region" if transforms else "") + " ...")
     if molecules.is_dir() and (molecules / "genes").is_dir():
@@ -409,7 +417,9 @@ def wrap_molecules(store: Path, molecules: Path, name: str, workers: int, log, c
     else:
         import transcripts_to_points
 
-        transcripts_to_points.convert(molecules, store, name=name, columns=columns, transformations=transforms, log=log)
+        transcripts_to_points.convert(
+            molecules, store, name=name, columns=columns, keep_z=keep_z, transformations=transforms, log=log,
+        )
     return name
 
 
@@ -463,16 +473,29 @@ def table_group(store: Path, name: str = "table"):
 
 
 def ensure_spatial(table, log) -> None:
-    """`obsm/spatial` from `obsm/X_spatial` when only the latter is there."""
+    """`obsm/spatial` from `obsm/X_spatial`, or from coordinate columns of
+    `obs` (center_x / center_y (/ center_z), x / y...) — where the legacy
+    pipeline and the browser also look — when it is not there."""
     import anndata as ad
+    import numpy as np
+    from meyes_common import obs_coordinate_columns
 
     obsm = table.require_group("obsm")
     if "spatial" in obsm:
         return
-    if "X_spatial" not in obsm:
-        raise SystemExit("the table has no obsm/spatial (nor obsm/X_spatial): where are the cells?")
-    ad.io.write_elem(obsm, "spatial", ad.io.read_elem(obsm["X_spatial"]))
-    log("  obsm/spatial written from obsm/X_spatial")
+    if "X_spatial" in obsm:
+        ad.io.write_elem(obsm, "spatial", ad.io.read_elem(obsm["X_spatial"]))
+        log("  obsm/spatial written from obsm/X_spatial")
+        return
+    obs = ad.io.read_elem(table["obs"])
+    columns = obs_coordinate_columns(obs.columns)
+    if columns is None:
+        raise SystemExit(
+            "the table has no obsm/spatial, obsm/X_spatial nor coordinate columns in obs "
+            "(center_x / center_y, x / y...): where are the cells?"
+        )
+    ad.io.write_elem(obsm, "spatial", obs[columns].to_numpy(dtype=np.float64))
+    log(f"  obsm/spatial written from obs columns {', '.join(columns)}")
 
 
 def ensure_csc(table, log) -> bool:
@@ -502,6 +525,35 @@ def ensure_csc(table, log) -> bool:
     return True
 
 
+def filter_genes(adata, log):
+    """`adata` without control probes, blanks and unassigned codewords: the
+    same rule as every other reader (meyes_common.should_filter_gene)."""
+    keep = [not should_filter_gene(g) for g in adata.var_names]
+    dropped = len(keep) - sum(keep)
+    if dropped:
+        log(f"  {dropped} control / blank features of {len(keep)} left out")
+        adata = adata[:, keep].copy()
+    return adata
+
+
+def write_table(tables, adata, log) -> None:
+    """`tables/table` from `adata`. An `uns` entry the Zarr writer refuses (a
+    string too long for an array: the BIL files' `uns['cell_polygons']`) is
+    left out with a warning; everything else is written as it is."""
+    import anndata as ad
+
+    uns, adata.uns = dict(adata.uns), {}
+    ad.io.write_elem(tables, "table", adata)
+    group = tables["table"].require_group("uns")
+    for key, value in uns.items():
+        try:
+            ad.io.write_elem(group, key, value)
+        except Exception as e:  # noqa: BLE001 — whatever the writer refuses
+            if key in group:
+                del group[key]
+            log(f"WARN uns['{key}'] left out: the Zarr writer refused it ({type(e).__name__}: {str(e)[:120]})")
+
+
 def write_store_from_table(source: Path, kind: str, store: Path, log) -> None:
     """A lone table becomes `store/tables/table`: moved when it is Zarr v3,
     read and written again when it is Zarr v2 or an .h5ad."""
@@ -513,13 +565,20 @@ def write_store_from_table(source: Path, kind: str, store: Path, log) -> None:
     root = zarr.open_group(store, mode="w", zarr_format=3)
     root.attrs["spatialdata_attrs"] = SPATIALDATA_ATTRS
     tables = root.create_group("tables")
+    adata = None
     if kind == "table3":
         log(f"  moving {source.name} into {store.name}/tables/table")
         shutil.move(str(source), str(store / "tables" / "table"))
+        # Rewritten only when it holds control probes to drop
+        var = ad.io.read_elem(zarr.open_group(store / "tables" / "table" / "var", mode="r"))
+        if any(should_filter_gene(g) for g in var.index):
+            adata = ad.io.read_elem(zarr.open_group(store / "tables" / "table", mode="r"))
+            shutil.rmtree(store / "tables" / "table")
     else:
         log(f"  reading {source.name} and writing it as Zarr v3 ...")
         adata = ad.read_h5ad(source) if kind == "h5ad" else ad.read_zarr(source)
-        ad.io.write_elem(tables, "table", adata)
+    if adata is not None:
+        write_table(tables, filter_genes(adata, log), log)
     # What the spatialdata library writes on a table, so it reads this one back
     drop_consolidated(store / "tables" / "table" / "zarr.json")
     table = zarr.open_group(store / "tables" / "table", mode="r+", use_consolidated=False)
@@ -527,6 +586,49 @@ def write_store_from_table(source: Path, kind: str, store: Path, log) -> None:
         {"spatialdata-encoding-type": "ngff:regions_table", "region": None, "region_key": None,
          "instance_key": None, "version": SPATIALDATA_ATTRS["version"]}
     )
+
+
+def merge_labels(table, csv: Path, log) -> None:
+    """Per-cell labels as `obs` columns: a MapMyCells result, or any CSV with
+    one row per cell (`#` lines are comments). Rows are matched by their
+    `cell_id` when those are the table's cell ids (its index or instance
+    key), else taken in the table's order when the counts agree. Every other
+    column that is not blank is written, text as categories."""
+    import anndata as ad
+    import pandas as pd
+
+    labels = pd.read_csv(csv, comment="#")
+    obs = ad.io.read_elem(table["obs"])
+    keys = [obs.index.astype(str)]
+    instance_key = table.attrs.get("instance_key")
+    if instance_key and instance_key in obs.columns:
+        keys.append(obs[instance_key].astype(str))
+    ids = labels["cell_id"].astype(str) if "cell_id" in labels.columns else None
+    matched = next((k for k in keys if ids is not None and set(ids) <= set(k)), None)
+    if matched is not None:
+        labels = labels.set_index(ids).reindex(matched.to_numpy())
+        log(f"  {csv.name}: matched by cell_id ({labels.index.notna().sum():,} cells)")
+    elif len(labels) == len(obs):
+        log(f"  {csv.name}: no cell_id the table knows; rows taken in the table's order")
+    else:
+        raise SystemExit(f"{csv.name} has {len(labels):,} rows and the table {len(obs):,} cells, and no cell_id the table knows")
+
+    group = table["obs"]
+    order = list(group.attrs.get("column-order", []))
+    for column in labels.columns:
+        if column == "cell_id":
+            continue
+        values = labels[column]
+        if values.isna().all() or (values.astype(str).str.strip() == "").all():
+            continue
+        values = values.to_numpy() if pd.api.types.is_numeric_dtype(values) else pd.Categorical(values.astype("string"))
+        if column in group:
+            log(f"  obs/{column} replaced by {csv.name}'s")
+            del group[column]
+        ad.io.write_elem(group, column, values)
+        if column not in order:
+            order.append(column)
+    group.attrs["column-order"] = order
 
 
 def has_categorical_column(table) -> bool:
@@ -566,6 +668,9 @@ def prepare(
     workers: int = 1,
     expanded: bool = False,
     molecule_columns: str | None = None,
+    images: bool = True,
+    labels: Path | None = None,
+    keep_z: bool = False,
     log=print,
 ) -> validate_store.Report:
     folder = folder.resolve()
@@ -581,7 +686,9 @@ def prepare(
             raise SystemExit(f"several {kind} candidates ({names}); pass --{kind}")
         return parts[kind][0] if parts[kind] else None
 
-    cells, molecules, image = pick("cells", cells), pick("molecules", molecules), pick("image", image)
+    cells, molecules = pick("cells", cells), pick("molecules", molecules)
+    # An image is used when there is one, unless images are left out
+    image = pick("image", image) if images else None
     log(f"{folder}")
     log(f"  cells:     {cells.name if cells else '-'}")
     log(f"  molecules: {molecules.name if molecules else '-'}")
@@ -603,12 +710,21 @@ def prepare(
         table = table_group(store, table_name)
         ensure_spatial(table, log)
         ensure_csc(table, log)
+        if labels is not None:
+            merge_labels(table, labels, log)
         cells_box = table_box(table)
         if cluster and not has_categorical_column(table):
             import spatialdata_cluster
 
             log("  no categorical column: Leiden clustering ...")
-            spatialdata_cluster.cluster(store, folder / "annotations", table=table_name, resolution=resolution, log=log)
+            spatialdata_cluster.cluster(
+                store, folder / "annotations", table=table_name, resolution=resolution, de=False, log=log,
+            )
+            table = table_group(store, table_name)
+        # DE stats for every categorical column, kept in the table itself
+        import de_stats
+
+        de_stats.write_de_stats(table, log)
         repair_shapes(store, log)
         repair_image_chunks(store, log)
         if molecules is None and molecules_from_points:
@@ -643,7 +759,7 @@ def prepare(
                 put_aside(image)
                 image = None
             if molecules is not None:
-                wrap_molecules(store, molecules, "molecules", workers, log, columns=molecule_columns)
+                wrap_molecules(store, molecules, "molecules", workers, log, columns=molecule_columns, keep_z=keep_z)
                 put_aside(molecules)
                 molecules = None
         import zarr
@@ -694,6 +810,8 @@ def main(argv=None) -> int:
     ap.add_argument("--expanded", action="store_true",
                     help="leave the image and the molecule folder beside the store, named in mapping.json, instead of inside it")
     ap.add_argument("--molecule-columns", help="a transcripts table's columns: xenium, merscope, or GENE,X,Y[,Z] (default: recognised)")
+    ap.add_argument("--no-images", action="store_true", help="leave an image in the folder out of the store")
+    ap.add_argument("--labels", type=Path, help="per-cell labels (a MapMyCells CSV) to add to the table's obs")
     args = ap.parse_args(argv)
     r = prepare(
         args.folder,
@@ -708,6 +826,8 @@ def main(argv=None) -> int:
         workers=args.workers,
         expanded=args.expanded,
         molecule_columns=args.molecule_columns,
+        images=not args.no_images,
+        labels=args.labels,
     )
     return 1 if r.failed else 0
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyBundle,
   hasParts,
+  joinedStoreFileMap,
   partFileMap,
   partFiles,
   storeFileMap,
@@ -184,7 +185,7 @@ describe("classifyBundle", () => {
 
     expect(bundle.image).toBe("a.zarr");
     expect(bundle.molecules).toBe("m1");
-    expect(bundle.skipped).toEqual(["image b.zarr", "molecules m2"]);
+    expect(bundle.skipped).toEqual(["molecules m2", "image b.zarr"]);
   });
 
   it("does not take a zarr the viewer cannot draw for an image", async () => {
@@ -235,6 +236,127 @@ describe("classifyBundle", () => {
       "0/zarr.json",
       "zarr.json",
     ]);
+  });
+});
+
+describe("separate SpatialData parts become one store", () => {
+  /** A store root listing its nodes in consolidated metadata. */
+  const consolidatedRoot = (folder: string, nodes: string[]) =>
+    picked(
+      `${folder}/zarr.json`,
+      JSON.stringify({
+        zarr_format: 3,
+        node_type: "group",
+        attributes: { spatialdata_attrs: { version: "0.2" } },
+        consolidated_metadata: {
+          kind: "inline",
+          must_understand: false,
+          metadata: Object.fromEntries(
+            nodes.map((n) => [n, { zarr_format: 3, node_type: "group" }]),
+          ),
+        },
+      }),
+    );
+  const pointsStore = (folder: string, name = "transcripts") => [
+    consolidatedRoot(folder, ["points", `points/${name}`]),
+    picked(`${folder}/points/zarr.json`, "{}"),
+    picked(
+      `${folder}/points/${name}/zarr.json`,
+      JSON.stringify({ zarr_format: 3, node_type: "group", attributes: {} }),
+    ),
+    picked(`${folder}/points/${name}/0/index/c/0`),
+  ];
+  const tableStore = (folder: string) => [
+    consolidatedRoot(folder, ["tables", "tables/table"]),
+    picked(`${folder}/tables/zarr.json`, "{}"),
+    picked(`${folder}/tables/table/zarr.json`, "{}"),
+    picked(`${folder}/tables/table/X/data/c/0`),
+  ];
+
+  it("joins a store without a table, and an image, to the one with the cells", async () => {
+    // points.zarr sorts first; the table still holds the cells
+    const bundle = await classifyBundle([
+      ...pointsStore("s/points.zarr"),
+      ...tableStore("s/table.zarr"),
+      ...image("s/image.zarr"),
+    ]);
+
+    expect(bundle.cells).toEqual({ kind: "spatialdata", root: "table.zarr" });
+    expect(bundle.joins).toEqual([
+      { root: "points.zarr", kind: "store" },
+      { root: "image.zarr", kind: "image" },
+    ]);
+    expect(bundle.image).toBeUndefined();
+    expect(bundle.skipped).toEqual([]);
+  });
+
+  it("with no table, the first store holds the rest", async () => {
+    const bundle = await classifyBundle([
+      ...pointsStore("s/points.zarr"),
+      ...image("s/image.zarr"),
+    ]);
+
+    expect(bundle.cells).toEqual({ kind: "spatialdata", root: "points.zarr" });
+    expect(bundle.joins).toEqual([{ root: "image.zarr", kind: "image" }]);
+  });
+
+  it("lays the joined parts in as elements and lists them in the root", async () => {
+    const bundle = await classifyBundle([
+      ...tableStore("s/table.zarr"),
+      ...pointsStore("s/a.zarr"),
+      // The same element name twice: the second is renamed
+      ...pointsStore("s/b.zarr"),
+      ...image("s/dapi.zarr"),
+    ]);
+    const files = await joinedStoreFileMap(bundle, bundle.cells as any);
+
+    expect(Array.from(files.keys()).sort()).toEqual([
+      "images/dapi/0/c/0/0/0",
+      "images/dapi/0/zarr.json",
+      "images/dapi/zarr.json",
+      "images/zarr.json",
+      "points/transcripts/0/index/c/0",
+      "points/transcripts/zarr.json",
+      "points/transcripts_2/0/index/c/0",
+      "points/transcripts_2/zarr.json",
+      "points/zarr.json",
+      "tables/table/X/data/c/0",
+      "tables/table/zarr.json",
+      "tables/zarr.json",
+      "zarr.json",
+    ]);
+    // Data files are the dropped ones, untouched
+    expect(files.get("points/transcripts_2/0/index/c/0")).toBe(
+      bundle.files.get("b.zarr/points/transcripts/0/index/c/0"),
+    );
+
+    const root = JSON.parse(await files.get("zarr.json")!.text());
+
+    expect(root.attributes.spatialdata_attrs).toEqual({ version: "0.2" });
+    expect(Object.keys(root.consolidated_metadata.metadata).sort()).toEqual([
+      "images",
+      "images/dapi",
+      "images/dapi/0",
+      "points",
+      "points/transcripts",
+      "points/transcripts_2",
+      "tables",
+      "tables/table",
+    ]);
+
+    // And the reader lists the store by it
+    const opened = await openSpatialDataStoreFromFiles(files);
+
+    expect(opened.keys).toContain("points/transcripts_2/zarr.json");
+    expect(opened.keys).toContain("images/dapi/zarr.json");
+  });
+
+  it("leaves a store with nothing to join exactly as it is", async () => {
+    const bundle = await classifyBundle(tableStore("table.zarr"));
+
+    expect(await joinedStoreFileMap(bundle, bundle.cells as any)).toEqual(
+      storeFileMap(bundle, bundle.cells as any),
+    );
   });
 });
 

@@ -61,10 +61,11 @@ export async function POST(request: NextRequest) {
       );
     }
     // An image dataset (an OME-Zarr folder uploaded as it is) has no cells or
-    // genes to count.
-    const isImage = metadata.platform === "image";
+    // genes to count, nor has a SpatialData store holding only an image.
+    const countless =
+      metadata.platform === "image" || metadata.platform === "spatialdata";
 
-    if (!isImage && (!metadata.numCells || !metadata.numGenes)) {
+    if (!countless && (!metadata.numCells || !metadata.numGenes)) {
       return NextResponse.json(
         { error: "metadata.numCells and metadata.numGenes are required" },
         { status: 400, headers: corsHeaders },

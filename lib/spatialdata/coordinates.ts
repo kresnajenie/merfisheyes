@@ -16,10 +16,13 @@
  * - else, with no region, the one system every element shares.
  *
  * The scene is drawn in the region's own coordinates (the table's
- * `obsm/spatial`), so an element is placed by its entry into the target
- * followed by the inverse of the region's. An element with no entry into
- * the target, or one whose transform is not a scale, translation, identity
- * or a sequence of them (`affine` today), is not placed and says why.
+ * `obsm/spatial`, or the region's own centroids), so an element is placed
+ * by its entry into the target followed by the inverse of the region's. A
+ * transform is a scale, translation, identity, affine (the 2-D part, which
+ * may rotate: a MALDI optical image sits at an angle to its pixels) or a
+ * sequence of them; an element with no entry into the target is not placed
+ * and says why. Points and shapes are drawn as written, so their placement
+ * must still be the identity.
  *
  * A list whose entries name no output (plain OME-NGFF) is a chain, applied
  * in order: that is how a standalone OME-Zarr image is read.
@@ -32,19 +35,54 @@ export interface Transform {
   type: string;
   scale?: number[];
   translation?: number[];
+  /** Of an "affine": one row per output axis, one column per input axis plus the translation. */
+  affine?: number[][];
   /** Of a "sequence": its steps, applied in order. */
   transformations?: Transform[];
   input?: { name?: string; axes?: { name: string }[] } | string;
   output?: { name?: string; axes?: { name: string }[] } | string;
 }
 
-/** x' = x · scale + offset, per axis (x, y). */
+/**
+ * A 2-D affine map:
+ *   x' = scale[0] · x + skew[0] · y + offset[0]
+ *   y' = skew[1] · x + scale[1] · y + offset[1]
+ * `skew` is absent (or zero) for the axis-aligned maps every scale and
+ * translation produce; an affine with rotation fills it.
+ */
 export interface Map2 {
   scale: [number, number];
   offset: [number, number];
+  skew?: [number, number];
 }
 
 export const IDENTITY: Map2 = { scale: [1, 1], offset: [0, 0] };
+
+const skewOf = (m: Map2): [number, number] => m.skew ?? [0, 0];
+
+/** The map applied to a point. */
+export function applyMap(m: Map2, x: number, y: number): [number, number] {
+  const [b, c] = skewOf(m);
+
+  return [
+    m.scale[0] * x + b * y + m.offset[0],
+    c * x + m.scale[1] * y + m.offset[1],
+  ];
+}
+
+/** True when the map keeps x and y axes as they are (no rotation or shear). */
+export function isAxisAligned(m: Map2): boolean {
+  const [b, c] = skewOf(m);
+
+  return Math.abs(b) < 1e-12 && Math.abs(c) < 1e-12;
+}
+
+/** How much the map scales lengths: √|det| (one number, even when rotated). */
+export function linearScale(m: Map2): number {
+  const [b, c] = skewOf(m);
+
+  return Math.sqrt(Math.abs(m.scale[0] * m.scale[1] - b * c));
+}
 
 export type Placement = { ok: true; map: Map2 } | { ok: false; reason: string };
 
@@ -85,28 +123,98 @@ function inputAxes(t: Transform): string[] | null {
   return typeof i === "object" && i?.axes ? i.axes.map((a) => a.name) : null;
 }
 
+/** A map from its 2 × 2 linear part and its offset; `skew` only when needed. */
+function map2(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+  tx: number,
+  ty: number,
+): Map2 {
+  const m: Map2 = { scale: [a, d], offset: [tx, ty] };
+
+  if (Math.abs(b) >= 1e-12 || Math.abs(c) >= 1e-12) m.skew = [b, c];
+
+  return m;
+}
+
 /** First step, then the second. */
 export function compose(a: Map2, b: Map2): Map2 {
-  return {
-    scale: [a.scale[0] * b.scale[0], a.scale[1] * b.scale[1]],
-    offset: [
-      a.offset[0] * b.scale[0] + b.offset[0],
-      a.offset[1] * b.scale[1] + b.offset[1],
-    ],
-  };
+  const [ab, ac] = skewOf(a);
+  const [bb, bc] = skewOf(b);
+  const [ox, oy] = applyMap(b, a.offset[0], a.offset[1]);
+
+  // Linear part: B · A
+  return map2(
+    b.scale[0] * a.scale[0] + bb * ac,
+    b.scale[0] * ab + bb * a.scale[1],
+    bc * a.scale[0] + b.scale[1] * ac,
+    bc * ab + b.scale[1] * a.scale[1],
+    ox,
+    oy,
+  );
 }
 
 export function invert(m: Map2): Map2 {
-  return {
-    scale: [1 / m.scale[0], 1 / m.scale[1]],
-    offset: [-m.offset[0] / m.scale[0], -m.offset[1] / m.scale[1]],
-  };
+  const [b, c] = skewOf(m);
+  const det = m.scale[0] * m.scale[1] - b * c;
+
+  if (!det) throw new Error("the transform is not invertible");
+  const ia = m.scale[1] / det;
+  const ib = -b / det;
+  const ic = -c / det;
+  const id = m.scale[0] / det;
+
+  return map2(
+    ia,
+    ib,
+    ic,
+    id,
+    -(ia * m.offset[0] + ib * m.offset[1]),
+    -(ic * m.offset[0] + id * m.offset[1]),
+  );
+}
+
+function outputAxes(t: Transform): string[] | null {
+  const o = t.output;
+
+  return typeof o === "object" && o?.axes ? o.axes.map((a) => a.name) : null;
 }
 
 /**
- * A chain of scale / translation / identity steps (a sequence counts as its
- * steps), on the x and y axes. `axes` names the vector entries when a step
- * does not name its own input axes. Throws on any other kind of step.
+ * The x, y part of an "affine" step. SpatialData writes one row per output
+ * axis and one column per input axis plus a last column of translations
+ * (a `c` axis row and column carry the identity); the axes are named by the
+ * step's input and output, else by `axes`.
+ */
+function affineStep(t: Transform, axes: string[]): Map2 {
+  const rows = t.affine ?? [];
+  const inputs = inputAxes(t) ?? axes;
+  const outputs = outputAxes(t) ?? inputs;
+  const xi = inputs.indexOf("x");
+  const yi = inputs.indexOf("y");
+  const xo = outputs.indexOf("x");
+  const yo = outputs.indexOf("y");
+  const at = (r: number, c: number, fill: number) =>
+    r >= 0 && c >= 0 && rows[r] && c < rows[r].length ? rows[r][c] : fill;
+  const last = (r: number) => (rows[r] ? rows[r][rows[r].length - 1] : 0);
+
+  return map2(
+    at(xo, xi, 1),
+    at(xo, yi, 0),
+    at(yo, xi, 0),
+    at(yo, yi, 1),
+    xo >= 0 ? last(xo) : 0,
+    yo >= 0 ? last(yo) : 0,
+  );
+}
+
+/**
+ * A chain of scale / translation / identity / affine steps (a sequence
+ * counts as its steps), on the x and y axes. `axes` names the vector
+ * entries when a step does not name its own input axes. Throws on any other
+ * kind of step.
  */
 export function chain(transforms: Transform[], axes: string[]): Map2 {
   let m: Map2 = IDENTITY;
@@ -130,6 +238,8 @@ export function chain(transforms: Transform[], axes: string[]): Map2 {
       m = compose(m, { scale: pick(t.scale, 1), offset: [0, 0] });
     } else if (t.type === "translation" && t.translation) {
       m = compose(m, { scale: [1, 1], offset: pick(t.translation, 0) });
+    } else if (t.type === "affine" && t.affine) {
+      m = compose(m, affineStep(t, names));
     } else {
       throw new Error(`unsupported transform "${t.type}"`);
     }
@@ -140,6 +250,7 @@ export function chain(transforms: Transform[], axes: string[]): Map2 {
 
 function isIdentity(m: Map2): boolean {
   return (
+    isAxisAligned(m) &&
     Math.abs(m.scale[0] - 1) < 1e-9 &&
     Math.abs(m.scale[1] - 1) < 1e-9 &&
     Math.abs(m.offset[0]) < 1e-9 &&
@@ -367,7 +478,7 @@ export function chooseImage(
   }
   placed.sort(
     (a, b) =>
-      Math.abs(a.p.map.scale[0]) - Math.abs(b.p.map.scale[0]) ||
+      linearScale(a.p.map) - linearScale(b.p.map) ||
       a.name.localeCompare(b.name),
   );
 

@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://merfisheyes.com/specs/conventions.schema.json",
+  "title": "MERFISHEYES store conventions",
+  "description": "The names and spellings particular producers use (SpatialData-DB, spatialdata-io, 10x, the MERFISHEYES writers), read by the viewer (lib/spatialdata/conventions.ts) and by scripts/validate_store.py, so the two cannot drift. Rules of the format itself stay in code and in the profiles of docs/specs/. See docs/specs/conventions.md.",
+  "type": "object",
+  "required": ["version", "tables", "shapes", "catalog"],
+  "additionalProperties": false,
+  "$defs": {
+    "names": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "spellings": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "tables": {
+      "type": "object",
+      "required": [
+        "curatedDefaultTable",
+        "fallbackTableName",
+        "featureIndexColumns",
+        "defaultColumnPriority",
+        "notDefaultColumns"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "curatedDefaultTable": {
+          "description": "Where a store names its default table: root attribute `attribute`, key `key` (SpatialData-DB: metadata_general[\"Default Table\"]).",
+          "type": "object",
+          "required": ["attribute", "key"],
+          "additionalProperties": false,
+          "properties": {
+            "attribute": { "type": "string", "minLength": 1 },
+            "key": { "type": "string", "minLength": 1 }
+          }
+        },
+        "fallbackTableName": {
+          "description": "The table read when none is named; else the first by name.",
+          "type": "string",
+          "minLength": 1
+        },
+        "featureIndexColumns": {
+          "description": "var columns tried for the feature names after the one the var frame declares as its index.",
+          "$ref": "#/$defs/names"
+        },
+        "defaultColumnPriority": {
+          "description": "obs columns chosen first as the default colouring, in order.",
+          "$ref": "#/$defs/names"
+        },
+        "notDefaultColumns": {
+          "description": "Positional or bookkeeping obs columns: offered in the picker, never the default colouring.",
+          "$ref": "#/$defs/names"
+        }
+      }
+    },
+    "shapes": {
+      "type": "object",
+      "required": ["cellOutlineElements", "pointSiblingSuffix", "squareBinPattern"],
+      "additionalProperties": false,
+      "properties": {
+        "cellOutlineElements": {
+          "description": "Shapes element names the Shapes layer draws as cell outlines, best first.",
+          "$ref": "#/$defs/names"
+        },
+        "pointSiblingSuffix": {
+          "description": "Suffix of the Point element beside a region that holds each cell's centre and radius (SpatialData-DB writes `<region>_for_vitessce`).",
+          "type": "string",
+          "minLength": 1
+        },
+        "squareBinPattern": {
+          "description": "A polygon region whose name contains this (case-insensitive) is a grid of square bins (Visium HD).",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "required": ["bucketRegions", "species", "platforms"],
+      "additionalProperties": false,
+      "properties": {
+        "bucketRegions": {
+          "description": "Region of each public bucket a catalog names by s3:// URL.",
+          "$ref": "#/$defs/spellings"
+        },
+        "species": {
+          "description": "A catalog's organism (lower case) → the spelling Explore filters on.",
+          "$ref": "#/$defs/spellings"
+        },
+        "platforms": {
+          "description": "A catalog's technology → the spelling Explore filters on.",
+          "$ref": "#/$defs/spellings"
+        }
+      }
+    }
+  }
+}

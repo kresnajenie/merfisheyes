@@ -18,7 +18,7 @@ It was built against the Xenium skin store from the Celldega
 | Cells | `tables/<name>` in the store | Coordinates, gene list and one cell column up front; expression per gene on demand |
 | Image | `images/<name>` in the store | The pyramid level matching the zoom, only the chunks in view |
 | Molecules | `molecules/` beside the store | Per-gene files, converted once from `points/<name>` |
-| Clusters + DEGs | `annotations/` beside the store | Leiden clusters and their DE stats, computed once from the table |
+| Clusters + DEGs | the table's `obs`, `varm` and `uns` (older stores: `annotations/` beside the store) | Leiden clusters and the DE stats of every categorical column, computed once from the table |
 
 Cell boundaries (`shapes/<name>`) are not drawn yet.
 
@@ -103,9 +103,18 @@ sample/                          sample/
   inside the dropped one, or the dropped folder itself (an image folder
   dropped alone opens in the image viewer).
 - With cells, the molecules go over them and the image under them (a store's
-  own image, else the standalone one). Without cells the molecules are the
-  scene, image under them. With several candidates for a part the first by
-  name is used and a message names the rest.
+  own image, else the standalone one). Without cells the molecules (a
+  merfisheyes folder, or a store's tiled points) are the scene, image under
+  them.
+- SpatialData parts kept as separate folders become one store
+  (`joinedStoreFileMap` in `lib/local/classify-bundle.ts`): a store without a
+  table and a standalone OME-Zarr image join the store or table with the
+  cells — with no table, the first store by name — as its elements, renamed
+  `_2`, `_3`... when a name is taken. Only the root `zarr.json` is new: its
+  consolidated metadata lists the joined nodes. Several folders dragged in at
+  once are walked as one folder holding them, named after the first. With
+  several candidates for any other part the first by name is used and a
+  message names the rest.
 - The preview runs in the ordinary viewers — `/viewer/from-local`,
   `/sm-viewer/from-local`, `/image-viewer/from-local` — with the extras handed
   over through `lib/stores/localBundleStore.ts`.
@@ -118,8 +127,16 @@ upload, the molecules through the pre-chunked molecule upload, an image as an
 image dataset, and a SpatialData store whole (`datasetType: "spatialdata"`,
 its `annotations/` beside it), which then opens at `/spatialdata-viewer/{id}`.
 The cells' `mapping.json` is written with both links, so the saved link opens
-overlaid. Molecules and an image saved without cells are grouped in a project
-but not overlaid: only cells carry overlays.
+overlaid. Joined parts go up inside the one store, as the preview showed them.
+Merfisheyes molecules and an image saved without cells are grouped in a
+project but not overlaid: only cells carry overlays. A store saved without
+opening it (the server card, below) is counted from its metadata: cells and
+genes from the table's `X`, else molecules and genes from its points element.
+
+The same folder dropped with **Upload & process on server** chosen is not sent
+to the worker: it opens this upload directly, without a preview first, so its
+size is not limited by browser memory. Raw cells beside it still go to the
+worker, with the extras described in the next sections.
 
 ## Layout on S3
 
@@ -169,9 +186,11 @@ aws s3 sync molecules/ $DEST/molecules/
 echo "{\"cells\":\"name.zarr\",\"linkColumn\":\"__all__\",\"links\":{\"__all__\":\"$URL/molecules\"}}" > mapping.json
 aws s3 cp mapping.json $DEST/mapping.json
 
-# 4. Clusters and DEGs (112k cells: ~1 min)
+# 4. Clusters and DEGs, written into the table (112k cells: ~1 min); sync the
+#    table and the root metadata again
 python scripts/spatialdata_cluster.py $STORE annotations/ --resolution 0.5
-aws s3 sync annotations/ $DEST/annotations/
+aws s3 sync $STORE/tables $DEST/name.zarr/tables
+aws s3 cp $STORE/zarr.json $DEST/name.zarr/zarr.json
 ```
 
 For a store opened by dataset id, the same three sidecars go in the folder
@@ -192,8 +211,11 @@ on their own.
 Leiden (`--resolution`, `--n-pcs`, `--n-neighbors`) and writes the cluster
 of each cell into the table itself, as a categorical `obs/leiden` column
 (with `--sidecar-only`, as one category code per cell in
-`annotations/leiden.bin` instead, the table untouched). The DE stats always
-go to the sidecar: they are per-cluster means of the
+`annotations/leiden.bin` instead, the table untouched). The DE stats go
+into the table too — `varm/de_mean__leiden`, `varm/de_pct__leiden` and
+`uns/merfisheyes_de` (`scripts/de_stats.py`, which `prepare.py` runs for
+every categorical column) — or, with `--sidecar-only`, to `annotations/de/`
+as before; the viewer reads either. They are per-cluster means of the
 **log-normalized** matrix plus the fraction of cells expressing each gene —
 the DEG panel un-logs the means for fold change. (Raw Xenium counts are low
 enough that the panel would mistake their means for log values.)
@@ -214,10 +236,14 @@ cells expressing it, with the groups named as the column's values.
 
 - **Zarr v3** (`zarr.json`). Zarr v2 SpatialData stores are not read.
 - **A table** (optional) under `tables/` with `obsm/spatial` (or
-  `obsm/X_spatial`). With several tables, the one named `table` is used,
-  else the first. It is read as anndata writes it, old or new: plain or
-  sharded arrays, and plain or nullable string columns (a missing string
-  reads as empty).
+  `obsm/X_spatial`); without either, the cells are placed at one point per
+  shape of the region element the table annotates (SpatialData-DB's CosMx
+  stores), matched by instance id. With several tables, the one named
+  `table` is used, else the first. It is read as anndata writes it, old or
+  new: plain or sharded arrays, and plain or nullable string columns (a
+  missing string reads as empty). The features are the column `var`'s
+  `_index` attribute names, whatever it is called (`formula_adduct` in a
+  MALDI table).
 - **Expression that can be sliced by gene.** `X` is CSR in these stores, so
   genes are read from a CSC copy in `layers/` (e.g. `layers/X_csc`): one gene
   is ~17 small chunk reads. A dense or CSC `X` also works; a dense `X` written
@@ -261,7 +287,9 @@ The scene is in the units of the cells: `obsm/spatial`, which for Xenium is
 microns — the intrinsic coordinates of the shapes and points elements. The
 image is placed in those units by undoing the shapes (or points) element's
 transform to the shared coordinate system (for Xenium, pixels = microns ×
-4.7059).
+4.7059). An image whose transform is an affine with rotation (a MALDI
+optical image) is drawn turned: its tiles stay in the image's own frame
+and the placement is one matrix on the layer.
 
 ## Image
 

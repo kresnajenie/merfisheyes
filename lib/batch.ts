@@ -101,8 +101,15 @@ export interface SubmitIngestJobParams {
   computeTier?: string;
 }
 
-/** True when the app has enough config to submit jobs at all. */
+/**
+ * True when the app has enough config to submit jobs at all. Never with a
+ * custom S3 endpoint (the local MinIO of the test stack): AWS Batch cannot
+ * read it, and the test stack must not reach AWS at all — it would pick up
+ * a developer's staging credentials from their .env.
+ */
 export function isBatchConfigured(): boolean {
+  if (process.env.AWS_S3_ENDPOINT || process.env.S3_ENDPOINT) return false;
+
   return Boolean(process.env.CALLBACK_SECRET && callbackBaseUrl());
 }
 

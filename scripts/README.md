@@ -1,8 +1,20 @@
 # Spatial Transcriptomics Data Processing Scripts
 
-This directory contains Python scripts for preprocessing spatial transcriptomics datasets that are too large for browser processing.
+## Start here: `prepare.py`
 
-## Overview
+To prepare your data yourself, run **`prepare.py`**. It recognises what you have (an `.h5ad`, a Xenium export, a MERSCOPE region, a Visium output, a molecule table, or a folder holding cells, molecules and an image) and writes one SpatialData store the viewer opens as it is:
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r scripts/requirements.txt     # pinned
+python scripts/prepare.py path/to/your_data my_sample/
+```
+
+`my_sample/` then holds `my_sample.zarr`, `mapping.json` and `stats.json`; drag it onto the homepage, then **Upload & Save**. `python scripts/prepare.py --help` lists the options (`--labels`, `--cluster`, `--no-images`, `--keep-z`, `--molecule-columns`, `--name`); the [main README](../README.md#prepare-your-data-yourself-python) and [/docs/prepare](https://www.merfisheyes.com/docs/prepare) explain the output. It runs the per-platform scripts described [further down](#preparing-a-folder-of-parts-prepare_folderpy) (`prepare_xenium.py`, `prepare_merscope.py`, `prepare_visium.py`, `prepare_folder.py`, `transcripts_to_points.py`).
+
+The rest of this page first describes the **older processors**, `process_spatial_data.py` and `process_single_molecule.py`. They write merfisheyes' own chunked format, which the viewer still reads; the server's worker runs them until it moves to `prepare.py` ([plan](../docs/plans/ONE-PIPELINE.md)).
+
+## Overview (the older chunked processors)
 
 This directory contains two types of processing scripts:
 
@@ -380,7 +392,9 @@ per-gene folder with `legacy_to_points.py`; `--molecule-columns` names a
 table's columns when they are not Xenium's or MERSCOPE's); the image folder
 and the transcripts table move to `sources/`;
 `mapping.json` names the store; with `--cluster` the Leiden clusters go
-into the table as `obs/leiden` and `annotations/` holds the DEG stats.
+into the table as `obs/leiden`; the DEG stats of every categorical column
+go into the table too (`varm/de_mean__<column>`, `varm/de_pct__<column>`,
+`uns/merfisheyes_de`; `de_stats.py`).
 Then `validate_store.py`. `--expanded` keeps the image and molecule
 folders beside the store, named in `mapping.json` (relative names, absolute
 with `--url`), and checks that they sit where the cells are (a `WARN`

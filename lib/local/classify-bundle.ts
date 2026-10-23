@@ -16,7 +16,10 @@ import { isOmeZarrImage } from "@/lib/upload/uploadImageToS3";
  *
  * Each is a folder directly inside the dropped one, or the dropped folder
  * itself. With several candidates for one part the first by name is used and
- * the others are reported as skipped.
+ * the others are reported as skipped, except that SpatialData parts kept as
+ * separate folders become one store: a store without a table (molecules, an
+ * image) and a standalone image join the store or table that has the cells,
+ * or, with no cells, the first store (see `joinedStoreFileMap`).
  */
 
 export type BundleCells =
@@ -35,6 +38,11 @@ export interface LocalBundle {
   molecules?: string;
   /** Folder of a standalone image. A SpatialData store's image is inside it. */
   image?: string;
+  /**
+   * Folders that join the `cells` store as its elements: other stores
+   * (their points, images, shapes, labels) and standalone images.
+   */
+  joins: { root: string; kind: "store" | "image" }[];
   /** Candidates that lost to an earlier one, e.g. "image b.zarr". */
   skipped: string[];
 }
@@ -52,6 +60,11 @@ const hasMolecules = (keys: Set<string>, p: string) =>
   (keys.has(`${p}manifest.json.gz`) || keys.has(`${p}manifest.json`)) &&
   Array.from(keys).some(
     (k) => k.startsWith(`${p}genes/`) && k.endsWith(".bin.gz"),
+  );
+
+const hasTable = (keys: Set<string>, p: string) =>
+  Array.from(keys).some(
+    (k) => k.startsWith(`${p}tables/`) && k.endsWith("/zarr.json"),
   );
 
 /** A SpatialData store keeps its elements in groups named by their type. */
@@ -76,7 +89,7 @@ export async function classifyBundle(files: File[]): Promise<LocalBundle> {
   }
 
   const keys = new Set(all.keys());
-  const bundle: LocalBundle = { name, files: all, skipped: [] };
+  const bundle: LocalBundle = { name, files: all, skipped: [], joins: [] };
   const isImage = async (prefix: string) =>
     isOmeZarrImage(
       await all
@@ -142,10 +155,16 @@ export async function classifyBundle(files: File[]): Promise<LocalBundle> {
     ),
   ).sort();
 
+  // Cells first by name; stores without a table and images may join them
+  const stores: string[] = [];
+  const images: string[] = [];
+
   for (const folder of folders) {
     const part = await partAt(`${folder}/`);
 
-    if (part?.startsWith("cells-")) {
+    if (part === "cells-spatialdata" && !hasTable(keys, `${folder}/`)) {
+      stores.push(folder);
+    } else if (part?.startsWith("cells-")) {
       if (bundle.cells) bundle.skipped.push(`cells ${folder}`);
       else {
         bundle.cells = {
@@ -163,9 +182,24 @@ export async function classifyBundle(files: File[]): Promise<LocalBundle> {
         bundle.skipped.push(`molecules ${folder}`);
       } else bundle.molecules = folder;
     } else if (part === "image") {
-      if (bundle.image !== undefined) bundle.skipped.push(`image ${folder}`);
-      else bundle.image = folder;
+      images.push(folder);
     }
+  }
+
+  // With no cells, the first store holds the rest
+  if (!bundle.cells && stores.length > 0) {
+    bundle.cells = { kind: "spatialdata", root: stores.shift()! };
+  }
+  if (bundle.cells && bundle.cells.kind !== "chunked") {
+    bundle.joins.push(
+      ...stores.map((root) => ({ root, kind: "store" as const })),
+      ...images.map((root) => ({ root, kind: "image" as const })),
+    );
+  } else {
+    // A merfisheyes cell folder is no store to join: one image beside it
+    bundle.skipped.push(...stores.map((folder) => `cells ${folder}`));
+    if (images.length > 0) bundle.image = images[0];
+    bundle.skipped.push(...images.slice(1).map((folder) => `image ${folder}`));
   }
 
   return bundle;
@@ -241,6 +275,98 @@ export function storeFileMap(
     Array.from(files.keys()).some((k) => k.startsWith("tables/"))
   ) {
     files.set("tables/zarr.json", groupFile());
+  }
+
+  return files;
+}
+
+const ELEMENT = /^(images|points|shapes|labels)\/([^/]+)\/(.+)$/;
+
+/**
+ * The cells store with the folders that join it (`bundle.joins`) laid in as
+ * its elements: one SpatialData store, which is what the preview opens and
+ * what "Upload & Save" uploads. Each joined store's elements keep their
+ * names (a taken one gets `_2`, `_3`...); a standalone image goes in as
+ * `images/<folder name>`. Every data file is the dropped one; only the root
+ * `zarr.json` is new when the store has consolidated metadata, which then
+ * lists the joined elements too (a store is listed by it).
+ */
+export async function joinedStoreFileMap(
+  bundle: LocalBundle,
+  cells: Exclude<BundleCells, { kind: "chunked" }>,
+): Promise<Map<string, File>> {
+  const files = storeFileMap(bundle, cells);
+
+  if (bundle.joins.length === 0) return files;
+
+  const taken = new Set(
+    Array.from(files.keys(), (k) => ELEMENT.exec(k)?.slice(1, 3).join("/")),
+  );
+  const place = (group: string, name: string) => {
+    let n = 1;
+    let path = `${group}/${name}`;
+
+    while (taken.has(path)) path = `${group}/${name}_${++n}`;
+    taken.add(path);
+
+    return path;
+  };
+  const added = new Map<string, File>();
+
+  for (const join of bundle.joins) {
+    const part = partFileMap(bundle, join.root);
+
+    if (join.kind === "image") {
+      const at = place("images", join.root.replace(/\.zarr$/, ""));
+
+      for (const [key, file] of part) added.set(`${at}/${key}`, file);
+      continue;
+    }
+    const renamed = new Map<string, string>();
+
+    for (const [key, file] of part) {
+      const match = ELEMENT.exec(key);
+
+      if (!match) continue;
+      const [, group, name, rest] = match;
+      const element = `${group}/${name}`;
+
+      if (!renamed.has(element)) renamed.set(element, place(group, name));
+      added.set(`${renamed.get(element)}/${rest}`, file);
+    }
+  }
+
+  const groups = new Set(Array.from(added.keys(), (k) => k.split("/")[0]));
+
+  for (const group of groups) {
+    if (!files.has(`${group}/zarr.json`)) {
+      added.set(`${group}/zarr.json`, groupFile());
+    }
+  }
+  for (const [key, file] of added) files.set(key, file);
+
+  const root = await files
+    .get("zarr.json")!
+    .text()
+    .then(JSON.parse)
+    .catch(() => null);
+  const nodes = root?.consolidated_metadata?.metadata;
+
+  if (nodes) {
+    for (const [key, file] of added) {
+      if (!key.endsWith("zarr.json")) continue;
+      const node = JSON.parse(await file.text());
+
+      // Only the root carries consolidated metadata
+      delete node.consolidated_metadata;
+      nodes[key.slice(0, -"/zarr.json".length)] = node;
+    }
+    files.set(
+      "zarr.json",
+      new File([JSON.stringify(root)], "zarr.json", {
+        type: "application/json",
+      }),
+    );
   }
 
   return files;

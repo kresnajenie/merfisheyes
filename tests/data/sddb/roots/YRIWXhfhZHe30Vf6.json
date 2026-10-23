@@ -1,0 +1,4397 @@
+{
+  "attributes": {
+    "spatialdata_attrs": {
+      "version": "0.2",
+      "spatialdata_software_version": "0.8.0"
+    },
+    "akoya": {
+      "regions": {
+        "reg001": {
+          "generation": "legacy_processor",
+          "software": null,
+          "slide_id": null,
+          "pixel_size_um": null,
+          "nominal_pixel_size_um": null,
+          "stage_position_um": null,
+          "path": "/lustre/groups/ml01/datasets/spatialdata_db/candidates/sddb_hyvjr5a7j7/work/reg001_montage.tif",
+          "channels": [
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 1,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST"
+            },
+            {
+              "name": "CollIV",
+              "fluor": null,
+              "cycle": 1,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CollIV"
+            },
+            {
+              "name": "NaKATPase",
+              "fluor": null,
+              "cycle": 1,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "NaKATPase"
+            },
+            {
+              "name": "HLA-ABC",
+              "fluor": null,
+              "cycle": 1,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HLA-ABC"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 2,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (2)"
+            },
+            {
+              "name": "blank",
+              "fluor": null,
+              "cycle": 2,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "blank"
+            },
+            {
+              "name": "blank",
+              "fluor": null,
+              "cycle": 2,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "blank (2)"
+            },
+            {
+              "name": "blank",
+              "fluor": null,
+              "cycle": 2,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "blank (3)"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 3,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (3)"
+            },
+            {
+              "name": "Ki67",
+              "fluor": null,
+              "cycle": 3,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Ki67"
+            },
+            {
+              "name": "BCL-2",
+              "fluor": null,
+              "cycle": 3,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "BCL-2"
+            },
+            {
+              "name": "TOX",
+              "fluor": null,
+              "cycle": 3,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "TOX"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 4,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (4)"
+            },
+            {
+              "name": "Chromogranin A",
+              "fluor": null,
+              "cycle": 4,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Chromogranin A"
+            },
+            {
+              "name": "CD25",
+              "fluor": null,
+              "cycle": 4,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD25"
+            },
+            {
+              "name": "FOXP3",
+              "fluor": null,
+              "cycle": 4,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "FOXP3"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 5,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (5)"
+            },
+            {
+              "name": "Proinsulin",
+              "fluor": null,
+              "cycle": 5,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Proinsulin"
+            },
+            {
+              "name": "Galectin-3",
+              "fluor": null,
+              "cycle": 5,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Galectin-3"
+            },
+            {
+              "name": "PDX1",
+              "fluor": null,
+              "cycle": 5,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "PDX1"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 6,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (6)"
+            },
+            {
+              "name": "Glucagon",
+              "fluor": null,
+              "cycle": 6,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Glucagon"
+            },
+            {
+              "name": "Podoplanin",
+              "fluor": null,
+              "cycle": 6,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Podoplanin"
+            },
+            {
+              "name": "Insulin",
+              "fluor": null,
+              "cycle": 6,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Insulin"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 7,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (7)"
+            },
+            {
+              "name": "CD8",
+              "fluor": null,
+              "cycle": 7,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD8"
+            },
+            {
+              "name": "CD31",
+              "fluor": null,
+              "cycle": 7,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD31"
+            },
+            {
+              "name": "Lag3",
+              "fluor": null,
+              "cycle": 7,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Lag3"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 8,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (8)"
+            },
+            {
+              "name": "CD15",
+              "fluor": null,
+              "cycle": 8,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD15"
+            },
+            {
+              "name": "CD45RA",
+              "fluor": null,
+              "cycle": 8,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD45RA"
+            },
+            {
+              "name": "PD-1",
+              "fluor": null,
+              "cycle": 8,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "PD-1"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 9,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (9)"
+            },
+            {
+              "name": "MPO",
+              "fluor": null,
+              "cycle": 9,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "MPO"
+            },
+            {
+              "name": "CD69",
+              "fluor": null,
+              "cycle": 9,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD69"
+            },
+            {
+              "name": "PD-L1",
+              "fluor": null,
+              "cycle": 9,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "PD-L1"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 10,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (10)"
+            },
+            {
+              "name": "S100A6",
+              "fluor": null,
+              "cycle": 10,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "S100A6"
+            },
+            {
+              "name": "empty",
+              "fluor": null,
+              "cycle": 10,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "empty"
+            },
+            {
+              "name": "CD3",
+              "fluor": null,
+              "cycle": 10,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD3"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 11,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (11)"
+            },
+            {
+              "name": "MUC-1",
+              "fluor": null,
+              "cycle": 11,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "MUC-1"
+            },
+            {
+              "name": "CD20",
+              "fluor": null,
+              "cycle": 11,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD20"
+            },
+            {
+              "name": "CD4",
+              "fluor": null,
+              "cycle": 11,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD4"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 12,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (12)"
+            },
+            {
+              "name": "Cytokeratin",
+              "fluor": null,
+              "cycle": 12,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Cytokeratin"
+            },
+            {
+              "name": "CD16",
+              "fluor": null,
+              "cycle": 12,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD16"
+            },
+            {
+              "name": "CD11c",
+              "fluor": null,
+              "cycle": 12,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD11c"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 13,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (13)"
+            },
+            {
+              "name": "alphaSma",
+              "fluor": null,
+              "cycle": 13,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "alphaSma"
+            },
+            {
+              "name": "CD163",
+              "fluor": null,
+              "cycle": 13,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD163"
+            },
+            {
+              "name": "TBET",
+              "fluor": null,
+              "cycle": 13,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "TBET"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 14,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (14)"
+            },
+            {
+              "name": "CD57",
+              "fluor": null,
+              "cycle": 14,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD57"
+            },
+            {
+              "name": "Somatostatin",
+              "fluor": null,
+              "cycle": 14,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Somatostatin"
+            },
+            {
+              "name": "CD56",
+              "fluor": null,
+              "cycle": 14,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD56"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 15,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (15)"
+            },
+            {
+              "name": "CD44",
+              "fluor": null,
+              "cycle": 15,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD44"
+            },
+            {
+              "name": "CD206",
+              "fluor": null,
+              "cycle": 15,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD206"
+            },
+            {
+              "name": "CD45RO",
+              "fluor": null,
+              "cycle": 15,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD45RO"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 16,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (16)"
+            },
+            {
+              "name": "TCR g/d",
+              "fluor": null,
+              "cycle": 16,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "TCR g/d"
+            },
+            {
+              "name": "CD45",
+              "fluor": null,
+              "cycle": 16,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD45"
+            },
+            {
+              "name": "ICOS",
+              "fluor": null,
+              "cycle": 16,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "ICOS"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 17,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (17)"
+            },
+            {
+              "name": "empty",
+              "fluor": null,
+              "cycle": 17,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "empty (2)"
+            },
+            {
+              "name": "Synaptophysin",
+              "fluor": null,
+              "cycle": 17,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Synaptophysin"
+            },
+            {
+              "name": "Granzyme B",
+              "fluor": null,
+              "cycle": 17,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Granzyme B"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 18,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (18)"
+            },
+            {
+              "name": "empty",
+              "fluor": null,
+              "cycle": 18,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "empty (3)"
+            },
+            {
+              "name": "HLA-DR",
+              "fluor": null,
+              "cycle": 18,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HLA-DR"
+            },
+            {
+              "name": "OX40",
+              "fluor": null,
+              "cycle": 18,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "OX40"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 19,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (19)"
+            },
+            {
+              "name": "empty",
+              "fluor": null,
+              "cycle": 19,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "empty (4)"
+            },
+            {
+              "name": "VISTA",
+              "fluor": null,
+              "cycle": 19,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "VISTA"
+            },
+            {
+              "name": "CD138",
+              "fluor": null,
+              "cycle": 19,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD138"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 20,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (20)"
+            },
+            {
+              "name": "empty",
+              "fluor": null,
+              "cycle": 20,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "empty (5)"
+            },
+            {
+              "name": "IDO",
+              "fluor": null,
+              "cycle": 20,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "IDO"
+            },
+            {
+              "name": "CD68",
+              "fluor": null,
+              "cycle": 20,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "CD68"
+            },
+            {
+              "name": "HOECHST",
+              "fluor": null,
+              "cycle": 21,
+              "channel": 1,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HOECHST (21)"
+            },
+            {
+              "name": "empty",
+              "fluor": null,
+              "cycle": 21,
+              "channel": 2,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "empty (6)"
+            },
+            {
+              "name": "HABP",
+              "fluor": null,
+              "cycle": 21,
+              "channel": 3,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "HABP"
+            },
+            {
+              "name": "Draq 5",
+              "fluor": null,
+              "cycle": 21,
+              "channel": 4,
+              "exposure_ms": null,
+              "color": null,
+              "extra": {},
+              "name_deduped": "Draq 5"
+            }
+          ],
+          "raw": {
+            "files": [
+              "/lustre/groups/ml01/datasets/spatialdata_db/candidates/sddb_hyvjr5a7j7/work/reg001_montage.tif"
+            ],
+            "experiment_json": null,
+            "channel_names_txt": [
+              "HOECHST",
+              "CollIV",
+              "NaKATPase",
+              "HLA-ABC",
+              "HOECHST",
+              "blank",
+              "blank",
+              "blank",
+              "HOECHST",
+              "Ki67",
+              "BCL-2",
+              "TOX",
+              "HOECHST",
+              "Chromogranin A",
+              "CD25",
+              "FOXP3",
+              "HOECHST",
+              "Proinsulin",
+              "Galectin-3",
+              "PDX1",
+              "HOECHST",
+              "Glucagon",
+              "Podoplanin",
+              "Insulin",
+              "HOECHST",
+              "CD8",
+              "CD31",
+              "Lag3",
+              "HOECHST",
+              "CD15",
+              "CD45RA",
+              "PD-1",
+              "HOECHST",
+              "MPO",
+              "CD69",
+              "PD-L1",
+              "HOECHST",
+              "S100A6",
+              "empty",
+              "CD3",
+              "HOECHST",
+              "MUC-1",
+              "CD20",
+              "CD4",
+              "HOECHST",
+              "Cytokeratin",
+              "CD16",
+              "CD11c",
+              "HOECHST",
+              "alphaSma",
+              "CD163",
+              "TBET",
+              "HOECHST",
+              "CD57",
+              "Somatostatin",
+              "CD56",
+              "HOECHST",
+              "CD44",
+              "CD206",
+              "CD45RO",
+              "HOECHST",
+              "TCR g/d",
+              "CD45",
+              "ICOS",
+              "HOECHST",
+              "empty",
+              "Synaptophysin",
+              "Granzyme B",
+              "HOECHST",
+              "empty",
+              "HLA-DR",
+              "OX40",
+              "HOECHST",
+              "empty",
+              "VISTA",
+              "CD138",
+              "HOECHST",
+              "empty",
+              "IDO",
+              "CD68",
+              "HOECHST",
+              "empty",
+              "HABP",
+              "Draq 5"
+            ]
+          }
+        }
+      },
+      "cell_tables": {}
+    },
+    "spatialdata_io_software_version": "0.1.dev1304+g501dc6d8a",
+    "spatialdata_io_reader": "codex",
+    "sddb_segmentation": {
+      "method": "sopa + cellpose (nuclei, expanded in raster)",
+      "model": "cpsam",
+      "software": "sopa 2.2.11; cellpose 4.2.1.1",
+      "sopa_version": "2.2.11",
+      "cellpose_version": "4.2.1.1",
+      "image": "reg001_image",
+      "nuclear_channel": "HOECHST",
+      "pixel_size_um": 0.5,
+      "pixel_size_assumed": true,
+      "diameter_px": 20.0,
+      "patch_overlap_px": 80,
+      "expand_px": 6.0,
+      "gpu": true,
+      "tissue_roi": true,
+      "n_nuclei": 50605,
+      "n_cells": 50567,
+      "params": {
+        "nucleus_diameter_um": 10.0,
+        "expand_um": 3.0,
+        "patch_width_px": 2048,
+        "patch_overlap_nuclei": 4.0,
+        "min_intensity_ratio": 0.1,
+        "model_v4": "cpsam",
+        "model_v3": "nuclei",
+        "flow_threshold": 0.4,
+        "cellprob_threshold": 0.0,
+        "batch_size": 32,
+        "tissue_roi": true
+      }
+    },
+    "sddb_provenance": {
+      "akoya": {
+        "region": "reg001",
+        "image": "reg001_image",
+        "Akoya Generation": "legacy_processor",
+        "Number of Channels": 84,
+        "Number of Cycles": 21,
+        "Number of Protein Markers": 54,
+        "n_markers_mapped_to_gene": 27,
+        "crop_yx": null
+      },
+      "sddb_id": "sddb_hyvjr5a7j7",
+      "canonical_key": "bia:S-BIAD859:6371v1:reg001",
+      "study_id": "bia:S-BIAD859",
+      "container_version": "unknown",
+      "converted_at": "2026-10-19T22:19:00Z"
+    },
+    "metadata_general": {
+      "Product": "PhenoCycler",
+      "Assay": "PhenoCycler",
+      "Biomaterial Type": "Specimen from Organism",
+      "Organism": "human",
+      "Tissue": "pancreas",
+      "Modality": "protein",
+      "Dataset Url": "https://www.ebi.ac.uk/biostudies/BioImages/studies/S-BIAD859",
+      "Publication Date": "2023-12-01",
+      "Sample ID at Source": "S-BIAD859:6371v1:reg001",
+      "Disease": "type 1 diabetes mellitus",
+      "Default Table": "table",
+      "DOI": "10.7554/elife.100535",
+      "PubMed ID": null,
+      "Publication Year": "2025",
+      "Publication Verify Status": "verified",
+      "Chemistry Version": "CODEX Processor",
+      "Preservation Method": "FFPE",
+      "Staining Method": "IF",
+      "Disease Details": "nPOD donor 6371, patient group T1D (sbiad859_filelist_new.tsv)",
+      "HnE Image Available": false,
+      "IF Image Available": true,
+      "FTU Annotation Available": false,
+      "License": "CC0 1.0 (public domain)",
+      "SpatialData-IO Version": "0.1.dev1304+g501dc6d8a",
+      "SpatialData Repr": "SpatialData object\n\u251c\u2500\u2500 Images\n\u2502     \u2514\u2500\u2500 'reg001_image': DataTree[cyx] (84, 3528, 3360), (84, 1764, 1680), (84, 882, 840), (84, 441, 420), (84, 220, 210)\n\u251c\u2500\u2500 Shapes\n\u2502     \u251c\u2500\u2500 'cell_boundaries': GeoDataFrame shape: (50567, 1) (2D shapes)\n\u2502     \u2514\u2500\u2500 'cell_boundaries_for_vitessce': GeoDataFrame shape: (50567, 2) (2D shapes)\n\u2514\u2500\u2500 Tables\n      \u2514\u2500\u2500 'table': AnnData (50567, 84)\nwith coordinate systems:\n    \u25b8 'global', with elements:\n        reg001_image (Images), cell_boundaries (Shapes), cell_boundaries_for_vitessce (Shapes)",
+      "Count Matrix Hash": "cmh1:4a50238774f20129e8c2a04d4169f9f4099241bdb9c477cb09d67ec4329d46e9",
+      "Database Version": "0.0.20",
+      "General Metadata Version": "0.3.2"
+    },
+    "metadata_phenocycler": {
+      "Akoya Generation": "legacy_processor",
+      "Number of Channels": 84,
+      "Number of Cycles": 21,
+      "Number of Protein Markers": 54,
+      "Number of Cells": 50567,
+      "Median Cell Area": 43.832254777830904,
+      "Segmentation Method": "sopa + cellpose (nuclei, expanded in raster)",
+      "Segmentation Model": "cpsam",
+      "Segmentation Channel": "HOECHST",
+      "Segmentation Software": "sopa 2.2.11; cellpose 4.2.1.1",
+      "Segmentation Parameters": "{\"batch_size\": 32, \"cellprob_threshold\": 0.0, \"crop_yx\": null, \"diameter_px\": 20.0, \"expand_um\": 3.0, \"flow_threshold\": 0.4, \"gpu\": true, \"min_intensity_ratio\": 0.1, \"model_v3\": \"nuclei\", \"model_v4\": \"cpsam\", \"nucleus_diameter_um\": 10.0, \"patch_overlap_nuclei\": 4.0, \"patch_overlap_px\": 80, \"patch_width_px\": 2048, \"pixel_size_um\": 0.5, \"tissue_roi\": true}",
+      "PhenoCycler Metadata Version": "0.1.0"
+    }
+  },
+  "zarr_format": 3,
+  "consolidated_metadata": {
+    "kind": "inline",
+    "must_understand": false,
+    "metadata": {
+      "images": {
+        "attributes": {},
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "shapes": {
+        "attributes": {},
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables": {
+        "attributes": {},
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "images/reg001_image": {
+        "attributes": {
+          "ome": {
+            "version": "0.5-dev-spatialdata",
+            "multiscales": [
+              {
+                "datasets": [
+                  {
+                    "path": "s0",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          1.0,
+                          1.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          0.0,
+                          0.0
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s1",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          2.0,
+                          2.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          0.5,
+                          0.5
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s2",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          4.0,
+                          4.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          1.5,
+                          1.5
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s3",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          8.0,
+                          8.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          3.5,
+                          3.5
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "path": "s4",
+                    "coordinateTransformations": [
+                      {
+                        "type": "scale",
+                        "scale": [
+                          1.0,
+                          16.036363636363635,
+                          16.0
+                        ]
+                      },
+                      {
+                        "type": "translation",
+                        "translation": [
+                          0.0,
+                          7.518181818181818,
+                          7.5
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "name": "/images/reg001_image",
+                "axes": [
+                  {
+                    "name": "c",
+                    "type": "channel"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space"
+                  },
+                  {
+                    "name": "x",
+                    "type": "space"
+                  }
+                ],
+                "coordinateTransformations": [
+                  {
+                    "type": "identity",
+                    "input": {
+                      "name": "cyx",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    },
+                    "output": {
+                      "name": "global",
+                      "axes": [
+                        {
+                          "name": "c",
+                          "type": "channel"
+                        },
+                        {
+                          "name": "y",
+                          "type": "space",
+                          "unit": "unit"
+                        },
+                        {
+                          "name": "x",
+                          "type": "space",
+                          "unit": "unit"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "omero": {
+              "channels": [
+                {
+                  "label": "HOECHST"
+                },
+                {
+                  "label": "CollIV"
+                },
+                {
+                  "label": "NaKATPase"
+                },
+                {
+                  "label": "HLA-ABC"
+                },
+                {
+                  "label": "HOECHST (2)"
+                },
+                {
+                  "label": "blank"
+                },
+                {
+                  "label": "blank (2)"
+                },
+                {
+                  "label": "blank (3)"
+                },
+                {
+                  "label": "HOECHST (3)"
+                },
+                {
+                  "label": "Ki67"
+                },
+                {
+                  "label": "BCL-2"
+                },
+                {
+                  "label": "TOX"
+                },
+                {
+                  "label": "HOECHST (4)"
+                },
+                {
+                  "label": "Chromogranin A"
+                },
+                {
+                  "label": "CD25"
+                },
+                {
+                  "label": "FOXP3"
+                },
+                {
+                  "label": "HOECHST (5)"
+                },
+                {
+                  "label": "Proinsulin"
+                },
+                {
+                  "label": "Galectin-3"
+                },
+                {
+                  "label": "PDX1"
+                },
+                {
+                  "label": "HOECHST (6)"
+                },
+                {
+                  "label": "Glucagon"
+                },
+                {
+                  "label": "Podoplanin"
+                },
+                {
+                  "label": "Insulin"
+                },
+                {
+                  "label": "HOECHST (7)"
+                },
+                {
+                  "label": "CD8"
+                },
+                {
+                  "label": "CD31"
+                },
+                {
+                  "label": "Lag3"
+                },
+                {
+                  "label": "HOECHST (8)"
+                },
+                {
+                  "label": "CD15"
+                },
+                {
+                  "label": "CD45RA"
+                },
+                {
+                  "label": "PD-1"
+                },
+                {
+                  "label": "HOECHST (9)"
+                },
+                {
+                  "label": "MPO"
+                },
+                {
+                  "label": "CD69"
+                },
+                {
+                  "label": "PD-L1"
+                },
+                {
+                  "label": "HOECHST (10)"
+                },
+                {
+                  "label": "S100A6"
+                },
+                {
+                  "label": "empty"
+                },
+                {
+                  "label": "CD3"
+                },
+                {
+                  "label": "HOECHST (11)"
+                },
+                {
+                  "label": "MUC-1"
+                },
+                {
+                  "label": "CD20"
+                },
+                {
+                  "label": "CD4"
+                },
+                {
+                  "label": "HOECHST (12)"
+                },
+                {
+                  "label": "Cytokeratin"
+                },
+                {
+                  "label": "CD16"
+                },
+                {
+                  "label": "CD11c"
+                },
+                {
+                  "label": "HOECHST (13)"
+                },
+                {
+                  "label": "alphaSma"
+                },
+                {
+                  "label": "CD163"
+                },
+                {
+                  "label": "TBET"
+                },
+                {
+                  "label": "HOECHST (14)"
+                },
+                {
+                  "label": "CD57"
+                },
+                {
+                  "label": "Somatostatin"
+                },
+                {
+                  "label": "CD56"
+                },
+                {
+                  "label": "HOECHST (15)"
+                },
+                {
+                  "label": "CD44"
+                },
+                {
+                  "label": "CD206"
+                },
+                {
+                  "label": "CD45RO"
+                },
+                {
+                  "label": "HOECHST (16)"
+                },
+                {
+                  "label": "TCR g/d"
+                },
+                {
+                  "label": "CD45"
+                },
+                {
+                  "label": "ICOS"
+                },
+                {
+                  "label": "HOECHST (17)"
+                },
+                {
+                  "label": "empty (2)"
+                },
+                {
+                  "label": "Synaptophysin"
+                },
+                {
+                  "label": "Granzyme B"
+                },
+                {
+                  "label": "HOECHST (18)"
+                },
+                {
+                  "label": "empty (3)"
+                },
+                {
+                  "label": "HLA-DR"
+                },
+                {
+                  "label": "OX40"
+                },
+                {
+                  "label": "HOECHST (19)"
+                },
+                {
+                  "label": "empty (4)"
+                },
+                {
+                  "label": "VISTA"
+                },
+                {
+                  "label": "CD138"
+                },
+                {
+                  "label": "HOECHST (20)"
+                },
+                {
+                  "label": "empty (5)"
+                },
+                {
+                  "label": "IDO"
+                },
+                {
+                  "label": "CD68"
+                },
+                {
+                  "label": "HOECHST (21)"
+                },
+                {
+                  "label": "empty (6)"
+                },
+                {
+                  "label": "HABP"
+                },
+                {
+                  "label": "Draq 5"
+                }
+              ]
+            }
+          },
+          "spatialdata_attrs": {
+            "version": "0.3"
+          }
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "shapes/cell_boundaries": {
+        "attributes": {
+          "encoding-type": "ngff:shapes",
+          "axes": [
+            "x",
+            "y"
+          ],
+          "coordinateTransformations": [
+            {
+              "type": "identity",
+              "input": {
+                "name": "xy",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              },
+              "output": {
+                "name": "global",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              }
+            }
+          ],
+          "spatialdata_attrs": {
+            "version": "0.3"
+          }
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "shapes/cell_boundaries_for_vitessce": {
+        "attributes": {
+          "encoding-type": "ngff:shapes",
+          "axes": [
+            "x",
+            "y"
+          ],
+          "coordinateTransformations": [
+            {
+              "type": "identity",
+              "input": {
+                "name": "xy",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              },
+              "output": {
+                "name": "global",
+                "axes": [
+                  {
+                    "name": "x",
+                    "type": "space",
+                    "unit": "unit"
+                  },
+                  {
+                    "name": "y",
+                    "type": "space",
+                    "unit": "unit"
+                  }
+                ]
+              }
+            }
+          ],
+          "spatialdata_attrs": {
+            "version": "0.3"
+          }
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table": {
+        "attributes": {
+          "encoding-type": "anndata",
+          "encoding-version": "0.1.0",
+          "spatialdata-encoding-type": "ngff:regions_table",
+          "region": "cell_boundaries",
+          "region_key": "region",
+          "instance_key": "cell_id",
+          "version": "0.2"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "images/reg001_image/s0": {
+        "shape": [
+          84,
+          3528,
+          3360
+        ],
+        "data_type": "uint16",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1,
+              1024,
+              1024
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes",
+            "configuration": {
+              "endian": "little"
+            }
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/reg001_image/s1": {
+        "shape": [
+          84,
+          1764,
+          1680
+        ],
+        "data_type": "uint16",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1,
+              1024,
+              1024
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes",
+            "configuration": {
+              "endian": "little"
+            }
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/reg001_image/s2": {
+        "shape": [
+          84,
+          882,
+          840
+        ],
+        "data_type": "uint16",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1,
+              882,
+              840
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes",
+            "configuration": {
+              "endian": "little"
+            }
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/reg001_image/s3": {
+        "shape": [
+          84,
+          441,
+          420
+        ],
+        "data_type": "uint16",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1,
+              441,
+              420
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes",
+            "configuration": {
+              "endian": "little"
+            }
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "images/reg001_image/s4": {
+        "shape": [
+          84,
+          220,
+          210
+        ],
+        "data_type": "uint16",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1,
+              220,
+              210
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "bytes",
+            "configuration": {
+              "endian": "little"
+            }
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {},
+        "dimension_names": [
+          "c",
+          "y",
+          "x"
+        ],
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs": {
+        "attributes": {
+          "column-order": [
+            "region",
+            "cell_id",
+            "area",
+            "area_um2"
+          ],
+          "_index": "_index",
+          "encoding-type": "dataframe",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obsm": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obsp": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/raw": {
+        "shape": [],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "null",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var": {
+        "attributes": {
+          "column-order": [
+            "marker_name",
+            "marker_role",
+            "target_gene_symbol",
+            "target_ensembl_id",
+            "uniprot_id",
+            "antibody_clone",
+            "reporter",
+            "cycle",
+            "channel"
+          ],
+          "_index": "_index",
+          "encoding-type": "dataframe",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/varm": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/varp": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/X": {
+        "shape": [
+          50567,
+          84
+        ],
+        "data_type": "float32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              25284,
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                6321,
+                21
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers/csc_counts": {
+        "attributes": {
+          "shape": [
+            50567,
+            84
+          ],
+          "encoding-type": "csc_matrix",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs/_index": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs/area": {
+        "shape": [
+          50567
+        ],
+        "data_type": "float64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              25284
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                25284
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/area_um2": {
+        "shape": [
+          50567
+        ],
+        "data_type": "float64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              25284
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                25284
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/cell_id": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obs/region": {
+        "attributes": {
+          "ordered": false,
+          "encoding-type": "categorical",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/obsm/spatial": {
+        "shape": [
+          50567,
+          2
+        ],
+        "data_type": "float64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              25284,
+              1
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                25284,
+                1
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/sopa_attrs": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/uns/spatialdata_attrs": {
+        "attributes": {
+          "encoding-type": "dict",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/_index": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/antibody_clone": {
+        "attributes": {
+          "na-value": "NA",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/channel": {
+        "shape": [
+          84
+        ],
+        "data_type": "float64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/cycle": {
+        "shape": [
+          84
+        ],
+        "data_type": "float64",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/marker_name": {
+        "attributes": {
+          "na-value": "NaN",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/marker_role": {
+        "attributes": {
+          "ordered": false,
+          "encoding-type": "categorical",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/reporter": {
+        "attributes": {
+          "na-value": "NA",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/target_ensembl_id": {
+        "attributes": {
+          "na-value": "NA",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/target_gene_symbol": {
+        "attributes": {
+          "na-value": "NA",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/var/uniprot_id": {
+        "attributes": {
+          "na-value": "NA",
+          "encoding-type": "nullable-string-array",
+          "encoding-version": "0.1.0"
+        },
+        "zarr_format": 3,
+        "consolidated_metadata": {
+          "kind": "inline",
+          "must_understand": false,
+          "metadata": {}
+        },
+        "node_type": "group"
+      },
+      "tables/table/layers/csc_counts/data": {
+        "shape": [
+          4247628
+        ],
+        "data_type": "float32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4114909
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0.0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                132739
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers/csc_counts/indices": {
+        "shape": [
+          4247628
+        ],
+        "data_type": "int32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              4114909
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                132739
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/layers/csc_counts/indptr": {
+        "shape": [
+          85
+        ],
+        "data_type": "int32",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              85
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                85
+              ],
+              "codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {},
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/_index/mask": {
+        "shape": [
+          50567
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              50567
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                50567
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/_index/values": {
+        "shape": [
+          50567
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              50567
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                50567
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/cell_id/mask": {
+        "shape": [
+          50567
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              50567
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                50567
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/cell_id/values": {
+        "shape": [
+          50567
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              50567
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                50567
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/region/categories": {
+        "shape": [
+          1
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              1
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                1
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/obs/region/codes": {
+        "shape": [
+          50567
+        ],
+        "data_type": "int8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              50567
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                50567
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/sopa_attrs/intensities": {
+        "shape": [],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "numeric-scalar",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/sopa_attrs/transcripts": {
+        "shape": [],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "bytes"
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "numeric-scalar",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatialdata_attrs/instance_key": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatialdata_attrs/region": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/uns/spatialdata_attrs/region_key": {
+        "shape": [],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": []
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "vlen-utf8",
+            "configuration": {}
+          },
+          {
+            "name": "zstd",
+            "configuration": {
+              "level": 0,
+              "checksum": false
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/_index/mask": {
+        "shape": [
+          84
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/_index/values": {
+        "shape": [
+          84
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/antibody_clone/mask": {
+        "shape": [
+          84
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/antibody_clone/values": {
+        "shape": [
+          84
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/marker_name/mask": {
+        "shape": [
+          84
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/marker_name/values": {
+        "shape": [
+          84
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/marker_role/categories": {
+        "shape": [
+          3
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              3
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                3
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/marker_role/codes": {
+        "shape": [
+          84
+        ],
+        "data_type": "int8",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": 0,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/reporter/mask": {
+        "shape": [
+          84
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/reporter/values": {
+        "shape": [
+          84
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/target_ensembl_id/mask": {
+        "shape": [
+          84
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/target_ensembl_id/values": {
+        "shape": [
+          84
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/target_gene_symbol/mask": {
+        "shape": [
+          84
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/target_gene_symbol/values": {
+        "shape": [
+          84
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/uniprot_id/mask": {
+        "shape": [
+          84
+        ],
+        "data_type": "bool",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": false,
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "bytes"
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      },
+      "tables/table/var/uniprot_id/values": {
+        "shape": [
+          84
+        ],
+        "data_type": "string",
+        "chunk_grid": {
+          "name": "regular",
+          "configuration": {
+            "chunk_shape": [
+              84
+            ]
+          }
+        },
+        "chunk_key_encoding": {
+          "name": "default",
+          "configuration": {
+            "separator": "/"
+          }
+        },
+        "fill_value": "",
+        "codecs": [
+          {
+            "name": "sharding_indexed",
+            "configuration": {
+              "chunk_shape": [
+                84
+              ],
+              "codecs": [
+                {
+                  "name": "vlen-utf8",
+                  "configuration": {}
+                },
+                {
+                  "name": "zstd",
+                  "configuration": {
+                    "level": 0,
+                    "checksum": false
+                  }
+                }
+              ],
+              "index_codecs": [
+                {
+                  "name": "bytes",
+                  "configuration": {
+                    "endian": "little"
+                  }
+                },
+                {
+                  "name": "crc32c"
+                }
+              ],
+              "index_location": "end"
+            }
+          }
+        ],
+        "attributes": {
+          "encoding-type": "string-array",
+          "encoding-version": "0.2.0"
+        },
+        "zarr_format": 3,
+        "node_type": "array",
+        "storage_transformers": []
+      }
+    }
+  },
+  "node_type": "group"
+}

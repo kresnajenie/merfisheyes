@@ -19,6 +19,7 @@ import { useSession } from "next-auth/react";
 import { AuthModal } from "@/components/auth-modal";
 import { saveLocalBundle, type SavedBundle } from "@/lib/local/save-bundle";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
+import { reportUploadFailure } from "@/lib/upload/reportUploadFailure";
 
 /**
  * "Upload & Save" for a folder of already-processed parts opened as a local
@@ -52,13 +53,20 @@ export function BundleUploadModal({
   const parts = [
     bundle.cells &&
       (bundle.cells.kind === "spatialdata"
-        ? "Cells and their image (SpatialData store)"
+        ? `SpatialData store${bundle.cells.root ? ` (${bundle.cells.root})` : ""}`
         : bundle.cells.kind === "table"
           ? "Cells (SpatialData table)"
           : "Cells"),
+    // Separate stores and images go up inside that one store
+    ...bundle.joins.map(
+      (join) =>
+        `${join.kind === "image" ? "Image" : "SpatialData store"} (${join.root}), put into the same store`,
+    ),
     bundle.molecules !== undefined && "Molecules",
     bundle.image !== undefined && "Image",
   ].filter((p): p is string => !!p);
+  // Each line is its own dataset, except what goes into the one store
+  const datasets = parts.length - bundle.joins.length;
 
   const save = async () => {
     if (!session?.user) {
@@ -82,6 +90,7 @@ export function BundleUploadModal({
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
+      void reportUploadFailure({ title: title.trim(), error: e });
     } finally {
       setBusy(false);
     }
@@ -107,7 +116,7 @@ export function BundleUploadModal({
               <div className="flex flex-col gap-3" data-testid="bundle-saved">
                 <p className="text-sm text-success">
                   Saved.{" "}
-                  {parts.length > 1 &&
+                  {datasets > 1 &&
                     "The parts are grouped in one project and open overlaid."}
                 </p>
                 <Button
@@ -123,7 +132,7 @@ export function BundleUploadModal({
               <>
                 <Input
                   isDisabled={busy}
-                  label={parts.length > 1 ? "Project name" : "Dataset name"}
+                  label={datasets > 1 ? "Project name" : "Dataset name"}
                   value={title}
                   onValueChange={setName}
                 />
