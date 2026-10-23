@@ -45,7 +45,7 @@ const TEAM: Member[] = [
   {
     name: "Elvis Smith",
     href: "https://www.linkedin.com/in/hire-elvis-smith/",
-    role: "Lead Data Analyst",
+    role: "Lead Software & Pipeline Engineer",
     photo: "/about/smith.webp",
   },
 ];
