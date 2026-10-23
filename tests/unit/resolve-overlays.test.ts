@@ -121,7 +121,7 @@ describe("resolveOverlays", () => {
     expect(got.loading).toEqual([true, false]);
     expect(got.element).toEqual([{ molecules: molecules("https://x/sm") }]);
     expect(got.source).toEqual(["https://x/sm"]);
-    expect(io.loadMolecules).toHaveBeenCalledWith("https://x/sm", "s3");
+    expect(io.loadMolecules).toHaveBeenCalledWith("https://x/sm", "s3", undefined);
   });
 
   it("fetches a per-cell link column so the split opens at once", async () => {
@@ -166,12 +166,36 @@ describe("resolveOverlays", () => {
     await resolveOverlays(dataset(), null, null, io, on);
     await settle();
     expect(io.fetchAppMapping).toHaveBeenCalledWith("ds");
-    expect(io.loadMolecules).toHaveBeenCalledWith("sm_1", "app");
+    expect(io.loadMolecules).toHaveBeenCalledWith("sm_1", "app", undefined);
     expect(io.openImage).toHaveBeenCalledWith({ image: "img_1", source: "app" });
     expect(got.element).toEqual(
       expect.arrayContaining([{ molecules: molecules("sm_1") }, { image }]),
     );
     expect(got.source).toBeUndefined();
+  });
+
+  it("draws a linked store's molecules as its points element", async () => {
+    // What the overlay dialog writes when the molecules are a SpatialData
+    // store (a molecule table prepared on the server)
+    const mapping = {
+      linkColumn: "__all__",
+      links: { __all__: "sm_store" },
+      source: "app",
+      linkFormat: "store",
+    };
+    const { io, on, got } = fakes(null, mapping);
+    const points = {
+      id: "sm_store_molecules",
+      uniqueGenes: ["A"],
+      metadata: { pointsElement: {} },
+    } as any;
+
+    io.loadMolecules = vi.fn(async () => points);
+    await resolveOverlays(dataset(), null, null, io, on);
+    await settle();
+    expect(io.loadMolecules).toHaveBeenCalledWith("sm_store", "app", "store");
+    // Drawn by the tiled points layer, not as per-gene clouds
+    expect(got.element).toEqual([{ points }]);
   });
 
   it("hands nothing over once the caller has moved on", async () => {

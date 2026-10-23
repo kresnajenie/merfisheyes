@@ -33,6 +33,19 @@ const VIEWER: Record<DatasetKind, string> = {
   image: "/image-viewer",
 };
 
+/**
+ * The dataset type a viewer's first path segment stands for (`viewer`,
+ * `sm-viewer`, `spatialdata-viewer`, `image-viewer`); null for anything else.
+ */
+export function datasetTypeOfViewer(segment: string): string | null {
+  if (segment === "spatialdata-viewer") return SPATIALDATA;
+  const kind = (Object.keys(VIEWER) as DatasetKind[]).find(
+    (k) => VIEWER[k] === `/${segment}`,
+  );
+
+  return kind ?? null;
+}
+
 /** `/viewer`, `/sm-viewer` or `/image-viewer`. */
 export function viewerBase(datasetType?: string | null): string {
   return datasetType === SPATIALDATA

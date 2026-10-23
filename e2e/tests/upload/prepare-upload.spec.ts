@@ -73,6 +73,30 @@ async function pointsAxes(id: string): Promise<string[]> {
   return JSON.parse(await res.Body!.transformToString()).attributes.axes;
 }
 
+/**
+ * Every link the app gives a processed dataset opens the SpatialData viewer:
+ * the upload bar's "View dataset" (the status route's `viewerUrl`; the bar
+ * itself stops watching on this stack, which has no Batch queue to submit
+ * to) and, clicked as a person would, the dataset's card in your account
+ * and the open button on its page.
+ */
+async function expectLinksOpenTheStore(
+  page: Page,
+  id: string,
+  name: string,
+): Promise<void> {
+  const href = `/spatialdata-viewer/${id}`;
+  const status = await (await page.request.get(`/api/ingest/${id}/status`)).json();
+
+  expect(status.viewerUrl).toBe(href);
+  // Your datasets → the dataset's page → its open button
+  await page.goto("/account");
+  await page.getByText(name, { exact: true }).first().click({ timeout: 60_000 });
+  await page.waitForURL(`**/account/datasets/${id}`);
+  await page.locator(`a[href="${href}"]`).first().click({ timeout: 60_000 });
+  await page.waitForURL(`**${href}`);
+}
+
 const mine = async (page: Page, type: string, name: string) =>
   (
     (await (await page.request.get(`/api/ingest/mine?type=${type}`)).json())
@@ -248,6 +272,10 @@ test.describe("@upload one store from the server", () => {
       );
     });
 
+    await test.step("every link to it opens the SpatialData viewer", async () => {
+      await expectLinksOpenTheStore(page, id, name);
+    });
+
     await test.step("it is a SpatialData dataset and opens with all three", async () => {
       // The callback finishes it; on a cold dev server that takes a moment
       await expect
@@ -352,6 +380,7 @@ test.describe("@upload one store from the server", () => {
       { stdio: "inherit", timeout: 300_000 },
     );
     fs.rmSync(path.dirname(table), { recursive: true });
+    await expectLinksOpenTheStore(page, id, name);
 
     // Still its sm_ id, now a SpatialData store, opened by that id
     await expect

@@ -72,7 +72,7 @@ export async function finalizeCompletedDataset(
   ) {
     const existing = await prisma.dataset.findFirst({
       where: { fingerprint: opts.fingerprint, id: { not: datasetId } },
-      select: { id: true, title: true },
+      select: { id: true, title: true, datasetType: true },
     });
 
     if (existing) {
@@ -177,6 +177,7 @@ export async function finalizeCompletedDataset(
             uploadedName: dataset.title ?? undefined,
             existingId: existing.id,
             existingTitle: existing.title ?? undefined,
+            existingType: existing.datasetType,
             overlay: overlayOutcome,
           });
           emailed = true;
@@ -343,6 +344,12 @@ export async function finalizeCompletedDataset(
       await sendDatasetReadyEmail({
         email: dataset.owner.email,
         datasetId,
+        datasetType: prepared ? "spatialdata" : dataset.datasetType,
+        // A molecule table prepared into a store still counts molecules
+        molecules: prepared
+          ? (dataset.processingParams as { kind?: unknown } | null)?.kind ===
+            "single_molecule"
+          : dataset.datasetType === "single_molecule",
         datasetName: dataset.title ?? undefined,
         metadata: {
           numCells: opts.stats?.numCells ?? undefined,
