@@ -225,7 +225,7 @@ Only created if all three columns found. 2D only.
 
 ### 4. Pre-Chunked (Python-preprocessed folder)
 
-**Source**: `lib/adapters/ChunkedDataAdapter.ts`, `scripts/process_h5ad.py`
+**Source**: `lib/adapters/ChunkedDataAdapter.ts`, `scripts/process_spatial_data.py`
 
 #### Required Folder Structure
 

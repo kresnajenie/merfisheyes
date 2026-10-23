@@ -1,1043 +1,459 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-MERFISH Eyes is a web-based 3D visualization platform for spatial transcriptomics data. It supports both:
-
-- **Single Cell Data** (.h5ad, MERSCOPE, Xenium) - Cell-level aggregated data with expression matrices
-- **Single Molecule Data** (.parquet, .csv) - Individual molecule coordinates with gene labels
-
-The platform provides interactive 3D visualization using Three.js with gene expression analysis capabilities.
-
-**How it is built:** [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) states the rules every change is judged by (one implementation per concern, an element kind is a contract, the format is the product, read the view not the dataset, human time is the budget, correctness shown from outside). The budgets and audits behind them live in [docs/specs/](docs/specs/). Read the philosophy before adding a format, a layer or a viewer.
-
-## Development Commands
-
-### Basic Commands
-
-```bash
-npm install              # Install dependencies
-npm run dev             # Start dev server with Turbopack (http://localhost:3000)
-npm run build           # Production build (4GB memory)
-npm run build:low-memory # Production build for low-memory servers (2GB)
-npm run build:strict    # Production build with ESLint enabled
-npm start               # Start production server
-npm run lint            # Run ESLint with auto-fix
-```
-
-### Database Commands
-
-```bash
-npx prisma generate     # Generate Prisma client after schema changes
-npx prisma migrate dev  # Create and apply database migrations
-npx prisma studio       # Open Prisma Studio GUI
-npm run test-prisma     # Test Prisma connection
-```
-
-### Environment Setup
-
-Required environment variables in `.env` or `.env.local`:
-
-- `DATABASE_URL` - PostgreSQL connection string
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `AWS_S3_BUCKET` - S3 storage
-- `NEXT_PUBLIC_BASE_URL` - Base URL for the application
-
-## Releases & Versioning
-
-Releases follow **Semantic Versioning** (`vMAJOR.MINOR.PATCH`). A release is a
-promotion of `develop` → `main`; each one is a git tag on `main`, a GitHub
-Release, a `CHANGELOG.md` entry, and a matching `package.json` version — all kept
-in sync. Pre-`1.0`, new features bump MINOR and MAJOR stays `0`.
-
-**Full process (agents must follow it):** [docs/RELEASING.md](docs/RELEASING.md).
-Do NOT tag, push tags, create GitHub Releases, or open a `develop` → `main` PR
-unless explicitly asked — same as the "never commit or push unless asked" rule.
-
-## Architecture
-
-### Data Processing Pipeline
-
-The application supports two distinct data types with separate processing pipelines:
-
-#### Single Cell Data Pipeline
-
-Uses an **Adapter Pattern** to standardize different formats into a unified `StandardizedDataset`:
-
-1. **Format-Specific Adapters** ([lib/adapters/](lib/adapters/)):
-
-   - `H5adAdapter` - Parses AnnData .h5ad files using h5wasm
-   - `XeniumAdapter` - Parses Xenium folder structure (cells.csv, transcripts.csv)
-   - `MerscopeAdapter` - Parses MERSCOPE folder structure (cell_metadata.csv, cell_by_gene.csv)
-   - `ChunkedDataAdapter` - Loads pre-processed data from S3 storage or local pre-chunked folders
-     - **Dual-mode support**: Remote (S3) and Local (File objects)
-     - Local mode enables direct upload of Python-preprocessed datasets
-
-2. **StandardizedDataset** ([lib/StandardizedDataset.ts](lib/StandardizedDataset.ts)):
-   - Normalizes spatial coordinates to [-1, 1] range
-   - Provides consistent interface: `spatial`, `embeddings`, `genes`, `clusters`
-   - Factory methods: `fromH5ad()`, `fromXenium()`, `fromMerscope()`, `fromS3()`, `fromLocalChunked()`
-   - Handles gene expression queries via adapter's matrix interface
-   - **Pre-chunked support**: `isPreChunked` flag bypasses processing for Python-preprocessed data
-
-#### Single Molecule Data Pipeline
-
-Uses **Web Workers with Comlink** for non-blocking data processing:
-
-1. **File Parsing** ([lib/services/hyparquetService.ts](lib/services/hyparquetService.ts)):
-
-   - `hyparquet` - Pure JavaScript parquet reader with `onPage` callback for column-oriented data
-   - `hyparquet-compressors` - Compression codec support (gzip, snappy, etc.)
-   - `papaparse` - CSV parsing fallback
-   - Memory optimization: Stores column chunks during reading, flattens once at end to avoid repeated array concatenation
-   - Warning for files >2GB to alert about potential memory pressure
-
-2. **Web Worker Processing** ([lib/workers/](lib/workers/)):
-
-   - `single-molecule.worker.ts` - Background worker for parsing parquet/CSV files
-   - `singleMoleculeWorkerManager.ts` - Singleton pattern for worker lifecycle management
-   - Uses Comlink for seamless function proxying across worker boundary
-   - Progress callbacks proxied via `Comlink.proxy()` for real-time UI updates
-   - Serializable dataset format transfers geneIndex as array of entries
-   - Prevents UI freezing during processing of large files (e.g., 26+ seconds for 21M molecules)
-
-3. **SingleMoleculeDataset** ([lib/SingleMoleculeDataset.ts](lib/SingleMoleculeDataset.ts)):
-
-   - Stores molecules as: `uniqueGenes: string[]`, `geneIndex: Map<string, number[]>`, `dimensions: 2|3`
-   - Pre-computes normalized coordinates ([-1, 1]) during initialization
-   - Gene index stores flattened coordinate arrays: `[x1,y1,z1, x2,y2,z2, ...]`
-   - `getCoordinatesByGene()` provides O(1) lookup of pre-normalized coordinates (async for S3 lazy loading)
-   - Saves `scalingFactor` for potential denormalization
-   - Factory methods:
-     - `fromParquet()`, `fromCSV()` - Local file parsing with async progress callbacks (called from worker)
-     - `fromS3()` - **Lazy loading from S3** (loads manifest only, genes on-demand)
-     - `fromSerializedData()` - Reconstructs dataset from worker-serialized data
-   - **Progress Tracking**: Reports progress during file reading (10%), parsing (30%), extraction (50-60%), normalization (60%), indexing (70-85%), filtering (85%), and finalization (90-100%)
-   - **Gene Filtering**: Automatically filters control probes and unassigned genes using shared `shouldFilterGene()` utility
-   - **Granular Progress**: Indexing loop reports every 5% for real-time feedback on large datasets (millions of molecules)
-   - **Responsive UI**: Progress callbacks with `await` yield to event loop for UI updates
-   - **Performance Timer**: Displays elapsed time in progress messages and final completion time (e.g., "2.45s", "1m 32.5s")
-   - **S3 Lazy Loading**: Downloads gene files on-demand when selected, caches in memory for instant re-selection
-
-4. **Column Mapping Configuration** ([lib/config/moleculeColumnMappings.ts](lib/config/moleculeColumnMappings.ts)):
-
-   - Configurable column names for different dataset types (xenium, merscope, custom)
-   - Default mappings: `feature_name`, `x_location`, `y_location`, `z_location` (Xenium)
-
-5. **Color Palette System** ([lib/utils/color-palette.ts](lib/utils/color-palette.ts)):
-
-   - **Centralized palette**: `DEFAULT_COLOR_PALETTE` with 40+ bright, distinct colors optimized for black backgrounds
-   - **Shared across all adapters**: H5adAdapter, XeniumAdapter, MerscopeAdapter all use same palette
-   - **Utility functions**: `getColorFromPalette()` for index-based access, `generateColorPalette()` for value mapping
-   - **Consistent styling**: Ensures cluster colors match across tooltips, legends, and visualization
-
-6. **Gene Filtering Utilities** ([lib/utils/gene-filters.ts](lib/utils/gene-filters.ts)):
-
-   - Shared `shouldFilterGene()` function filters control probes and unassigned genes
-   - Used by both single cell (XeniumAdapter) and single molecule (SingleMoleculeDataset) pipelines
-   - Filters patterns: negative controls, unassigned, deprecated, codewords, blanks
-   - Reduces clutter in gene selection UI and improves performance
-
-7. **Visualization Configuration** ([lib/config/visualization.config.ts](lib/config/visualization.config.ts)):
-   - Centralized configuration for all visualization parameters
-   - **Percentiles**: Gene expression (95th), numerical clusters (95th)
-   - **Point Sizes**:
-     - Single cell base size (0.5), size multiplier range (0.5x-2.0x)
-     - Single molecule base size (5.0) - configurable separately
-   - **Opacity**: Base alpha (1.0)
-   - **Scale Bar**: Default range (0-3), step size (0.1% of max), decimal places (3)
-   - **Helper Functions**: `calculateSizeMultiplier()` for consistent size scaling across visualization modes
-   - All visualization parameters can be modified in this single file
-
-#### State Management
-
-Separate stores for each data type ([lib/stores/](lib/stores/)):
-
-- `datasetStore` - Manages single cell datasets (StandardizedDataset)
-- `singleMoleculeStore` - Manages single molecule datasets (SingleMoleculeDataset)
-- `visualizationStore` - Controls 3D scene state for single cell viewer (camera, colors, filters, gene/celltype selection)
-  - **Mode Array System**: `mode: VisualizationMode[]` supports multiple simultaneous visualization modes
-  - **Automatic Mode Switching**: Mode array updates automatically based on selections
-    - Selecting a gene → adds `"gene"` to mode array
-    - Toggling celltypes → adds/removes `"celltype"` from mode array
-    - Selecting numerical column → clears gene and sets mode to `["celltype"]` only (mutual exclusivity)
-  - **Combined Visualization**: When `mode = ["gene", "celltype"]` with selected gene + celltypes:
-    - Shows gene expression gradient on selected celltypes only
-    - Greys out non-selected celltypes
-  - **Separate Panel Mode**: `panelMode` controls which panel is open (independent of visualization)
-  - Allows browsing genes/celltypes without changing visualization
-  - **Plot-only secondary grouping**: `secondaryColumn`, `selectedSecondaryValues`, `secondaryPaletteOverrides` drive the (primary × secondary) comparisons in the plot panel (e.g. "compare apoe across treatments within microglia"). These do **not** affect the 3D scene. `setSelectedColumn` clears all three so the grouping is invalidated when the primary changes. The "starred" celltypes for grouping are the existing `selectedCelltypes` set — same UX as scene/legend selection
-- `singleMoleculeVisualizationStore` - Controls visualization state for single molecule viewer (gene selection with colors, local/global scaling, view mode)
-- Uses Zustand for client-side state management
-
-**Routing**: Components check `pathname.startsWith("/sm-viewer")` to determine which store to use:
-
-- `/viewer` - Single cell viewer using `datasetStore` and `visualizationStore`
-- `/sm-viewer` - Single molecule viewer using `singleMoleculeStore` and `singleMoleculeVisualizationStore`
-
-### Upload & Storage Flow
-
-#### Single Cell Upload Flow
-
-**Standard Flow (H5AD, Xenium, MERSCOPE)**:
-
-1. **Client-side**: Parse file in web worker, calculate dataset fingerprint, check for duplicates
-2. **Process**: Browser processes data using `GeneChunkProcessor` to create chunks
-3. **Initiate Upload**: POST to `/api/datasets/initiate` with metadata and file list
-   - Creates `Dataset`, `UploadSession`, and `UploadFile` records in PostgreSQL
-   - Batch creates file records (`createMany`) for performance with large file counts
-   - Generates presigned S3 URLs in batches of 50 for parallel processing
-   - Returns presigned URLs for direct upload
-4. **Upload Files**: Client uploads directly to S3 using presigned URLs
-5. **Complete**: POST to `/api/datasets/[datasetId]/complete` to finalize upload
-6. **Email Notification**: POST to `/api/send-email` with dataset name and metadata
-   - Subject line includes dataset name: `"{DatasetName} - Dataset Ready - MERFISHeyes"`
-   - Email body includes: total cells, unique genes, platform, cluster columns count, shareable link
-7. **View**: Navigate to `/viewer/[datasetId]` which loads data via `StandardizedDataset.fromS3()`
-
-**Pre-Chunked Flow (Python-Preprocessed)**:
-
-1. **Preprocessing**: Run Python script locally to create chunked folder (see [scripts/README.md](scripts/README.md))
-   ```bash
-   python scripts/process_spatial_data.py data.h5ad output_folder
-   ```
-2. **Client-side**: Select chunked folder on homepage, reads `manifest.json` only
-   - **No browser processing** - dataset marked with `isPreChunked = true`
-   - Fingerprint generated from manifest hash (SHA-256)
-   - File map created for upload
-3. **Upload Modal**: Chunk size settings hidden, shows "Pre-chunked and ready for upload"
-4. **Initiate Upload**: POST to `/api/datasets/initiate` with existing chunked files
-   - Skips `GeneChunkProcessor` entirely
-   - Uploads files as-is from Python preprocessing
-5. **Upload Files**: Direct S3 upload of pre-chunked files
-6. **Complete & View**: Same as standard flow
-
-**Benefits of Pre-Chunked Flow**:
-
-- ✅ No browser memory pressure (processes in Python with unlimited memory)
-- ✅ Faster upload initialization (no client-side chunking)
-- ✅ Handles very large datasets (>500K cells) that browsers can't process
-- ✅ Reproducible preprocessing outside browser environment
-
-#### Single Molecule Upload Flow
-
-1. **Client-side Processing**:
-   - `SingleMoleculeProcessor.processAndUpload()` processes dataset locally
-   - Generates fingerprint via `generateSingleMoleculeFingerprint()` (gene names + per-gene molecule counts)
-   - Checks for duplicates via `/api/single-molecule/check-duplicate/[fingerprint]`
-2. **File Preparation**:
-   - Creates `manifest.json.gz` with metadata (genes, dimensions, scaling factor, statistics)
-   - Creates `genes/{geneName}.bin.gz` for each gene (gzipped Float32Array of normalized coordinates)
-3. **Initiate Upload**: POST to `/api/single-molecule/initiate` with fingerprint, metadata, manifest, and file list
-   - Creates `Dataset` (datasetType="single_molecule"), `UploadSession`, and `UploadFile` records
-   - Stores manifest JSON in database `manifestJson` field
-   - Returns presigned S3 URLs for direct upload
-4. **Upload Files**: Client uploads directly to S3 using presigned URLs
-   - S3 path: `datasets/{datasetId}/manifest.json.gz` and `datasets/{datasetId}/genes/{gene}.bin.gz`
-   - Marks each file complete via `/api/single-molecule/[id]/files/[key]/complete`
-5. **Complete**: POST to `/api/single-molecule/[id]/complete` to finalize upload and send email
-6. **View**: Navigate to `/sm-viewer/[datasetId]` which lazy-loads data via `SingleMoleculeDataset.fromS3()`
-
-#### Database Schema
-
-Database schema ([prisma/schema.prisma](prisma/schema.prisma)) tracks upload state:
-
-- `datasetType` field distinguishes "single_cell" vs "single_molecule"
-- `manifestJson` field stores manifest for single molecule datasets
-- `numCells` field stores molecule count for single molecule datasets
-- `DatasetStatus` enum: UPLOADING → PROCESSING → COMPLETE/FAILED
-- `FileStatus` enum tracks individual file upload status
-
-### 3D Visualization Architecture
-
-#### Single Cell Visualization
-
-**WebGL Rendering** ([lib/webgl/](lib/webgl/)):
-
-- `point-cloud.ts` - Creates Three.js point cloud with custom shaders
-- `shaders.ts` - Vertex/fragment shaders for point rendering with color/size control
-- `scene-manager.ts` - Manages Three.js scene, camera, controls, and rendering loop
-- `visualization-utils.ts` - Color mapping utilities with support for:
-  - Gene expression → coolwarm gradient (95th percentile normalization)
-  - Categorical clusters → discrete palette colors
-  - **Numerical clusters** → coolwarm gradient (same as gene expression)
-  - **Combined gene + celltype** → gene gradient on selected celltypes, grey on others (`updateCombinedVisualization()`)
-
-**Key Features**:
-
-- GPU-accelerated point rendering using BufferGeometry and custom shaders
-- Dynamic attribute updates for color (gene expression or cell type) and size
-- Coordinate normalization ensures consistent visualization across datasets
-- Supports both 2D and 3D spatial coordinates
-- **Automatic column type detection**: Columns with ≤100 unique values are categorical, >100 are numerical
-- **Numerical cluster visualization**: Numerical metadata columns use gradient coloring instead of discrete categories
-- **Interactive hover tooltips**: Mouse over points to see cluster/gene information
-  - Celltype mode: Shows original cluster palette color + cluster name (even when filtered/greyed)
-  - Gene mode: Shows cluster palette color + cluster name, plus gene gradient color + expression value
-  - Numerical clusters: Shows numerical value without color circle
-  - Fine-tuned adaptive raycaster threshold (0.1-2.0 based on camera distance) for accurate selection
-  - Throttled intersection checking (50ms) for performance
-- **Double-click interaction**: Double-click points to toggle cluster selection
-  - Automatically switches to celltype mode
-  - Toggles cluster in/out of selectedCelltypes for filtering
-  - Only works for categorical clusters (numerical clusters excluded)
-- **Interactive Gene Expression Scalebar** ([components/gene-scalebar.tsx](components/gene-scalebar.tsx)):
-  - Appears when gene mode or numerical cluster mode is active
-  - **Gradient Bar**: Blue (low) → White (mid) → Red (high) representing expression levels
-  - **Number Scrubbers** ([components/ui/number-scrubber.tsx](components/ui/number-scrubber.tsx)): Interactive min/max controls with vertical drag
-    - Drag up to increase value, drag down to decrease
-    - Glassmorphism design (frosted glass background)
-    - Debounced updates (100ms) during drag for performance
-    - Immediate display feedback during scrubbing
-  - **Auto-scaling**: Min/max values auto-set to 0 and 95th percentile when gene/column changes
-  - **Manual Override**: Users can scrub to adjust scale range after auto-scaling
-  - **Dynamic Step Size**: 0.1% of max value (configurable in VISUALIZATION_CONFIG)
-  - **Separate Scales**: Independent scales for gene expression vs numerical clusters
-- **Ref-based state management**: Uses refs to avoid JavaScript closure issues with event handlers
-
-#### Single Molecule Visualization
-
-**Scene and layer contract** ([lib/scene/](lib/scene/), spec [docs/specs/LAYER-CONTRACT.md](docs/specs/LAYER-CONTRACT.md)):
-
-Every element drawn in a scene (image, points element, shapes, legacy
-molecules) is a `Layer` with one lifecycle: `attach(scene)`, `tick(frame)`,
-`status()`, `subscribe()`, `setBudget()`, `abort()`, `dispose()`. Layers extend
-`BaseLayer` (root group, coalesced push notifications, `changed()` which asks
-the scene for a frame). A scene owns the only `requestAnimationFrame` loop
-(`initializeScene({ onFrame, idleFps })`, on demand: a still scene draws
-nothing) and a `LayerHost`, which builds the `SceneHandle` (`group`, `camera`,
-`renderer`, `view()` computed once per frame for all layers, `invalidate()`,
-`attach()`, `cellColors?`) and ticks the layers before each render. Controls
-re-render through `useLayerStatus(layer)`, never by polling. What a layer
-draws stays typed per layer (`setChannel`, `setGenes`/`setDetail`/
-`pointsStatus()`, `mode`/`opacity`/`shapesStatus`, `sync`). Never give a layer
-its own loop, its own view-rectangle code or a poll.
-
-**Element registry** ([lib/scene/registry.tsx](lib/scene/registry.tsx)): one
-`ElementDefinition` per kind in draw order (`ELEMENTS`): `detect` / `open`
-(metadata only) / `createLayer` / `canAttach` / `Bind` (keeps the layer in
-step with the panel's stores) / `Controls` + `slot` (`"rail"` in
-`VisualizationControls`, `"panel"` inside the scene). `openElements(store,
-ctx)` returns an `OpenedElements` record (`image`, `shapes`, `points`,
-`molecules`; a store's own points stand in for a linked molecule folder);
-`moleculeElements(ds)` classifies a molecule dataset. Scenes call
-`useLayers(elements, ctx)` ([lib/scene/useLayers.ts](lib/scene/useLayers.ts)),
-which creates the layers, keeps them across scene rebuilds (attach/detach
-only) and publishes them to the panel's layers store
-(`usePanelLayers`); `<LayerControls slot>` and `<LayerBindings ctx>`
-([components/layer-controls.tsx](components/layer-controls.tsx)) render what
-the registry says. Viewers pass `elements={…}` to `ThreeScene` /
-`SingleMoleculeThreeScene`; nothing in a viewer names a kind. Adding a kind
-is one registry entry plus the cases in `tests/unit/layer-contract.test.ts`
-and `tests/unit/registry.test.ts`; the five steps are in the spec.
-
-**One dataset loader** ([lib/viewer/load-dataset.ts](lib/viewer/load-dataset.ts),
-[lib/hooks/useDatasetLoader.ts](lib/hooks/useDatasetLoader.ts)): every page
-and split panel opens a dataset through `useDatasetLoader({ kind: "cell" |
-"sm" | "spatialdata", datasetId?, s3Url? })`, which looks the dataset up
-(registration, owner config, 202 = not ready), reuses one already open,
-reads it, applies its open state (`open-dataset.ts`), adds it to the panel's
-stores, publishes the registration (left panel) and counts the view. It
-returns `{ cells, molecules, elements, linkConfig, registration, storeUrl }`;
-a SpatialData store's elements come from `openElements`, a cell dataset's
-overlays (a dropped folder's parts, the link registry, `mapping.json`, the
-app's mapping route) from `lib/viewer/resolve-overlays.ts` through
-`useOverlays` (`lib/hooks/useOverlays.ts`), which also keeps the linked
-molecules in the panel's molecule store. `ThreeScene` takes `elements`,
-`linkConfig` and `loadingOverlay`; it resolves nothing itself. The screens are
-`DatasetLoadingScreen` / `DatasetErrorScreen`
-([components/dataset-loading-screen.tsx](components/dataset-loading-screen.tsx),
-`variant="panel"` inside a split) and the split URL params are
-`useSplitUrlParams()`. Do not add a loading path to a page.
-
-**Rendering rules** ([docs/specs/RENDERING.md](docs/specs/RENDERING.md)): a
-still scene draws nothing; a molecule cloud is positions only with its
-colour, size and shape as uniforms (`createMoleculeMaterial`); a cell tick
-copies into the existing attributes (`updatePointCloudAttributes`) and the
-gene percentile is cached; hover picks through `lib/webgl/picking-grid.ts`,
-never a pass over every cell; sizes are CSS pixels (`uPixelRatio`, renderer
-pixel ratio capped at 2); draw order is render order (image, polygon fill in
-the opaque pass, molecules, cells, outline). Never add a per-vertex constant,
-a per-frame allocation or an O(N) pass on hover.
-
-**One render path for molecules** ([lib/webgl/MoleculeLayer.ts](lib/webgl/MoleculeLayer.ts)):
-
-`MoleculeLayer` is a non-React class, in the pattern of `ImageLayer`, that owns
-every molecule point cloud of one `SingleMoleculeDataset` inside a Three.js
-group. Every surface that draws molecules drives it the same way, so loading,
-streaming and cancelling behave identically everywhere:
-
-- `components/single-molecule-three-scene.tsx` (the standalone molecule scene:
-  `/sm-viewer`, a SpatialData store without cells, a split panel, local files)
-  creates one on its inner group when the scene is built
-- `components/three-scene.tsx` (molecules over cells: `/viewer` with an
-  `__all__` mapping, a SpatialData store with cells, a split panel, a local
-  folder with cells + molecules) creates one per overlay dataset on its inner
-  group, rebuilt with the scene
-- both call `layer.sync(selection)` through `lib/hooks/useMoleculeLayerSync.ts`
-  whenever the panel's SM viz store changes, and `layer.dispose()` with the scene
-
-What the layer does (do not reimplement any of this in a scene):
-
-- one cloud per gene for assigned molecules (`${gene}:assigned`) and one for
-  unassigned (`${gene}:unassigned`), built with `createSmPointCloud` /
-  `createStreamingSmPointCloud` from `lib/webgl/point-cloud.ts`: positions
-  only, with colour, size, alpha and shape as uniforms of the molecule
-  shader (`moleculeVertexShader` in `lib/webgl/shaders.ts`), so a restyle
-  uploads nothing; render order from the legend (later-selected on top,
-  assigned above unassigned, all below the cell cloud)
-- **streams** a gene whose count (`resolveMoleculeCount`) is at or above
-  `VISUALIZATION_CONFIG.SINGLE_MOLECULE_STREAM_THRESHOLD` when the dataset
-  streams (S3 factories install `streamCoordinatesByGene` as own properties);
-  a smaller gene, or any gene of a local dataset, loads whole with byte
-  progress. Downloads outlive `sync()` calls and stop only on deselect/hide,
-  toast close or dispose; appearance changes never refetch
-- one blue progress toast per gene (`loading-gene-{gene}`), updated per batch
-  or per MB; closing it aborts the download and calls `onCancelGene`, which
-  the scenes wire to `removeGene`
-- `onFirstData` fires on the first drawn molecules (the standalone scene fits
-  its camera there); `bounds` gives the filled extent; `setTargetFilter` pushes
-  the distance-filter uniforms the cell scene shares with its own cloud
-- reports every load to the E2E hooks (`window.__merfish.geneLoads`, see
-  `lib/utils/test-hooks.ts`) so browser tests can prove a gene streamed
-- gene coordinates are cached by the dataset after the first load, so
-  re-selection is instant
-
-**View Modes**:
-
-- **2D Mode**: Top-down orthographic-like view, camera at (0, 0, 200), rotation disabled
-  - Uses OrbitControls with `enableRotate = false`
-- **3D Mode**: Perspective view, camera at (150, 150, 150), rotation enabled
-  - Uses TrackballControls for full 3D rotation
-- **Mode Switching**: Scene reinitializes when viewMode changes to swap control types
-  - The layer is disposed and recreated with the scene, so clouds and in-flight
-    streams are torn down and the selection is re-synced into the new scene
-
-**Rendering Strategy**:
-
-- Uses `fixed inset-0` positioning to fill entire viewport below navbar
-- Black background for high contrast with bright gene colors
-- Point size: `localScale × globalScale × SINGLE_MOLECULE_POINT_BASE_SIZE × SM_DOT_SIZE_FACTOR`,
-  set on sync; the shader scales it with the camera, so nothing runs per frame
-
-**Tests**: `tests/unit/molecule-layer.test.ts` (the layer against a fake
-dataset: whole and streamed loads, abort, toast cancel, restyle without
-refetch, order, dispose) and `e2e/tests/viewer/molecule-streaming.spec.ts`
-(`@quick`: every surface on a generated folder with two genes above the
-threshold, served throttled by `e2e/helpers/spatialdata.ts`, plus cancel
-mid-stream).
-
-### SpatialData Stores and Images
-
-Full guide: [docs/spatialdata/README.md](docs/spatialdata/README.md). Three
-routes read zarr v3 lazily and as written, straight from S3 — nothing is
-converted or uploaded through the app:
-
-- `/spatialdata-viewer/from-s3?url=…` and `/spatialdata-viewer/[id]` — a
-  [SpatialData](https://spatialdata.scverse.org) store holding any of cells
-  (`tables/`), molecules (a linked single molecule dataset) and an image
-  (`images/`). `components/spatialdata-viewer.tsx` picks the scene: cells →
-  `ThreeScene`; molecules without cells → `SingleMoleculeThreeScene`; an image
-  alone → `ImageScene`.
-- `/image-viewer/from-s3?url=…` — an OME-Zarr image on its own
-  (`components/image-viewer.tsx`). Reached from the homepage by dropping an
-  image folder (*Preview in browser*) or pasting its URL into **Load from S3**.
-
-**SpatialData-DB on Explore** ([docs/specs/sddb-catalog.md](docs/specs/sddb-catalog.md)):
-every dataset of the public SpatialData-DB instance is an Explore card with
-`source: "sddb"`, synced from the `catalog.parquet` that
-`theislab/spatialdata-db-client` publishes on each `catalog-<date>` GitHub
-release (their schema vendored in `lib/sddb/catalog-schema.ts`, one row → one
-card in `lib/sddb/catalog-row.ts`, the file read in `lib/sddb/catalog-file.ts`).
-`scripts/sync-sddb-catalog.ts` upserts by `sddbUid`, unpublishes uids that left
-the release and fails unless the published uid set equals the release's; it is
-run by hand (dev database first, `--limit=N` for a sample, then production),
-never on a schedule. Each store is registered as an admin-owned `Dataset`
-(`ensureDatasetForS3Url`) and its card opens it by public URL in
-`/spatialdata-viewer/from-s3`. The census behind the viewer work is
-[docs/specs/sddb-profile.md](docs/specs/sddb-profile.md).
-
-**An image is a dataset** (`datasetType: "image"`; helpers in
-[lib/datasets/kind.ts](lib/datasets/kind.ts) — never test
-`=== "single_molecule" ? … : …` for routing, an image is neither). It is
-either registered from a public URL (the claim banner in the image viewer,
-`lib/datasets/register-or-claim.ts`; a SpatialData store opened by URL is
-registered the same way, as `datasetType: "spatialdata"`) or uploaded as it is into the app's
-bucket (`lib/upload/uploadImageToS3.ts`, ids `ds_…`, `formatVersion: "zarr"`).
-
-**Image under any dataset**: `mapping.json` names it next to the molecule link
-(`DatasetLinkConfig` in [lib/config/dataset-links.ts](lib/config/dataset-links.ts)):
-`image` is a public URL, or with `imageSource: "app"` an image dataset's id.
-`ThreeScene` draws it under the cells, only for datasets with raw
-(un-normalized) coordinates. An owner picks one of their images in the
-overlay dialog (`components/image-overlay-picker.tsx` →
-`PATCH /api/datasets/[datasetId]/overlay` → `lib/ingest/overlay.ts`, which
-keeps the molecule link and the image independent).
-
-**Opening by URL**: the homepage's **Load from S3** dialog
-(`components/load-from-s3-modal.tsx`) routes a merfisheyes folder by its
-manifest as before; anything else goes through
-[lib/spatialdata/resolveUrl.ts](lib/spatialdata/resolveUrl.ts) — a store, an
-image, or a folder holding a store. A public URL can't be listed, so a
-folder's store is named by the `cells` entry of its `mapping.json`, else
-`<folder>/<folder>.zarr` is tried. `/spatialdata-viewer/from-s3` accepts the
-folder URL too and resolves it the same way.
-
-**Image settings in the link**: an image layer's display settings (channels,
-colours, bounds) go into the URL as `img=` (`rimg=` in the right split panel)
-once changed — `lib/spatialdata/imageUrlState.ts`, written through
-`lib/utils/url-state-writer.ts` by `components/spatialdata-image-controls.tsx`.
-
-**Combined upload**: in server mode a picked folder may hold cells, a
-transcripts file and an OME-Zarr image folder
-([lib/ingest/classify-folder.ts](lib/ingest/classify-folder.ts)). Each becomes
-its own dataset in one project; the cells carry
-`processingParams.linkedSmDatasetId` / `linkedImageDatasetId`, and
-`lib/ingest/finalize.ts` writes the `mapping.json` when they finish. Under
-`NEXT_PUBLIC_INGEST_PIPELINE=prepare` the same folder is one dataset instead
-(cells and molecules always, images only when ticked; a Xenium export or
-MERSCOPE region sends what `prepare.py` reads, `preparePlatformFiles`).
-
-**Code** lives in [lib/spatialdata/](lib/spatialdata/) and is kept apart from
-the h5ad-zarr path:
-
-- `store.ts` — open a store by dataset id (listed through S3) or by public URL
-  (listed by its consolidated metadata)
-- `SpatialDataTableAdapter.ts` — table → cells, genes, columns; reads plain and
-  sharded arrays, plain and nullable strings
-- `image.ts` / `ImageLayer.ts` — OME-Zarr multiscale metadata (axes `c, y, x`,
-  `uint8`/`uint16`, any number of channels) and the tiled Three.js layer
-  shared by all three viewers. The levels stay in the image's own frame and
-  the placement (scale, translation, affine with rotation, or a `sequence`)
-  is one matrix on the layer's group; the shader has `MAX_VISIBLE_CHANNELS`
-  (8) slots, so an 84-channel CODEX image compiles and shows 8 at once
-- `centroids.ts` / `wkb.ts` — a table with no `obsm/spatial` (CosMx) draws
-  its cells at one point per shape of the region element it annotates (the
-  Point `<region>_for_vitessce` sibling first), matched by instance id
-- `footprint.ts` — Visium spots and Visium HD bins: the cells drawn at
-  their real size and shape (radius from the shapes footer, bin side from
-  the grid's pitch), read without the shapes themselves
-- `coordinates.ts` — a store's coordinate systems: an element's transform
-  list is alternatives (one per output system), never multiplied; the
-  target is `global`, else the system the cells' region is identity into
-  (Visium); every element is placed in the cells' own coordinates through
-  it (`docs/specs/store-layout.md` §8). A placement is a 2-D affine
-  (`Map2`: scale, offset and, when it rotates, `skew`); points and shapes
-  must still place as written
-- [lib/storage/ElementStore.ts](lib/storage/ElementStore.ts) — **the one
-  store every reader reads through** (spec [docs/specs/LOADING.md](docs/specs/LOADING.md)):
-  a zarrita `AsyncReadable` over a `Backend` (`lib/storage/backends.ts`: a
-  public URL, an app dataset by presigned URL, dropped files) with one byte
-  cache, reads in flight shared, every read cancellable by `AbortSignal` all
-  the way to `fetch`, neighbouring ranged reads merged into one request, a
-  priority queue bounding requests in flight, and the consolidated metadata
-  seeded so opening a node costs no request. zarrita forwards only the
-  signal, so a reader's priority and name ride on it (`hint(signal, {…})`).
-  Never fetch, cache, queue or cancel in a reader; the legacy molecule folder
-  reads through it too (`lib/molecules/storeLoading.ts`, both `fromS3` and
-  `fromCustomS3`). `PointsLayer` keeps a byte budget per view beside its
-  point budget (`DETAIL_BYTES`) and asks for a gene's coarsest level first.
-- [lib/storage/fetchRange.ts](lib/storage/fetchRange.ts) — byte-range reads
-  for sharded arrays, used by the URL and dataset backends
-
-**Already-processed data from disk**: the single-cell Folder card (browser
-mode) recognises, by content, a folder holding any of a SpatialData store or
-merfisheyes cell folder, a merfisheyes molecule folder and an OME-Zarr image
-([lib/local/classify-bundle.ts](lib/local/classify-bundle.ts); an AnnData
-table in Zarr v3 on its own counts as cells and is laid out as a store by
-`storeFileMap`), opens each
-lazily from the dropped `File`s (`lib/local/open-bundle.ts`,
-`lib/spatialdata/localStore.ts`) and shows them overlaid in the ordinary
-`from-local` viewers; the extras travel in `lib/stores/localBundleStore.ts`.
-*Upload & Save* there uploads every part as it is and links them
-(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`).
-SpatialData parts in separate folders (a store without a table, a
-standalone image) join the cells' store as its elements
-(`joinedStoreFileMap`), in the preview and on save alike; several folders
-dragged in at once are walked as one. Processed data dropped on the server
-card skips the worker and opens the same save dialog, unopened. A saved
-store has `datasetType: "spatialdata"`: single cell in every respect except
-that it opens in `/spatialdata-viewer` (`viewerBase`, `entryType` in
-`lib/datasets/kind.ts`). Raw cells beside processed parts are still shown
-alone — see the backlog in `docs/spatialdata/README.md`.
-
-Zarr v3 here uses the `zarrita-v3` alias (0.7.x); the h5ad-zarr path stays on
-the pinned `zarrita` 0.5.1. Do not point `lib/spatialdata/` at the old one or
-bump the shared one.
-
-**Formats as specs** ([docs/specs/store-layout.md](docs/specs/store-layout.md),
-[table-profile.md](docs/specs/table-profile.md), [shapes-profile.md](docs/specs/shapes-profile.md),
-[image-profile.md](docs/specs/image-profile.md), [mapping.md](docs/specs/mapping.md),
-[docs/points-zarr-spec.md](docs/points-zarr-spec.md) with its 0.2 proposals;
-JSON Schemas in `docs/specs/schemas/`): what a store must be, checked by
-`python scripts/validate_store.py <store.zarr>` (consolidated metadata
-naming every node, CSC `X` or a `layers/X_csc` copy, one GeoParquet file per
-shapes element, OME-NGFF `c, y, x` images, the points invariants, the
-mapping schema). `scripts/legacy_to_points.py` converts a legacy molecule
-folder into a points element. `tests/python/test_specs.py` (CI job
-`format-specs`, `pip install -r tests/python/requirements.txt`) validates the
-composed tiny fixtures, each violation, the converter molecule for molecule,
-and a store the `spatialdata` library writes. Change a format by changing
-its spec, schema and validator together.
-
-**Tests**: unit tests on the tiny stores in `tests/data/tiny/zarr/`;
-`e2e/tests/viewer/spatialdata.spec.ts` (`@quick`),
-`e2e/tests/viewer/local-bundle.spec.ts` (`@quick`), and
-`e2e/tests/upload/image-overlay.spec.ts`, `combined-upload.spec.ts` and
-`local-bundle-save.spec.ts` (`@upload`) open them in a browser
-through `e2e/helpers/fixture-server.ts`, a local stand-in for a public bucket.
-
-### Python Preprocessing Scripts
-
-**The entry point is [`scripts/prepare.py`](scripts/prepare.py)** `INPUT OUT`:
-it recognises an `.h5ad` / AnnData Zarr, a Xenium export, a MERSCOPE region,
-a Visium output, a molecule table or a folder of parts by content, runs the
-matching `prepare_*` script, and writes exactly `OUT/<name>.zarr` (one
-SpatialData store), `mapping.json` and `stats.json`, never touching INPUT
-(exit codes 0 / 2 unrecognised / 3 incomplete / 4 invalid). Packages are
-pinned in `scripts/requirements.txt`. Shared rules live in
-`scripts/meyes_common.py` (the control-probe filter, molecule column names,
-obs coordinate columns) — `worker/entrypoint.py` and
-`lib/ingest/molecule-columns.ts` repeat the column names, and tests keep the
-three equal. The server worker runs `prepare.py` for an upload made with
-`NEXT_PUBLIC_INGEST_PIPELINE=prepare` (`processingParams.pipeline`, read
-through `lib/ingest/pipeline.ts`; steps 2–3 of
-[docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md)): one dataset per
-upload, finished as `datasetType: "spatialdata"`, its compute tier chosen
-from the upload's files (`lib/ingest/compute-tier.ts`). Without the setting
-it runs the legacy chunked processors below.
-
-The legacy processors write merfisheyes' chunked format (still read by the viewer):
-
-**Location**: [scripts/](scripts/)
-
-**Scripts**:
-
-- `process_h5ad.py` - Process single .h5ad files
-- `process_spatial_data.py` - Auto-detects and processes H5AD, Xenium, or MERSCOPE formats
-
-**Usage**:
-
-```bash
-# Install dependencies
-pip install anndata numpy pandas
-
-# Process any format (auto-detection)
-python scripts/process_spatial_data.py path/to/data output_folder
-
-# Process H5AD specifically
-python scripts/process_h5ad.py path/to/data.h5ad output_folder
-```
-
-**Output Structure**:
-
-```
-output_folder/
-├── manifest.json              # Dataset metadata
-├── coords/
-│   ├── spatial.bin.gz        # Normalized spatial coordinates
-│   ├── umap.bin.gz           # UMAP embedding (max 3D)
-│   └── pca.bin.gz            # PCA embedding (max 3D, truncated from 50)
-├── expr/
-│   ├── index.json            # Expression matrix index
-│   └── chunk_00000.bin.gz    # Gene expression chunks
-├── obs/
-│   ├── metadata.json         # Cluster metadata
-│   └── leiden.json.gz        # Cluster values
-└── palettes/
-    └── leiden.json           # Color palettes for categorical clusters
-```
-
-**Key Features**:
-
-- **Embedding Dimension Limit**: Automatically truncates embeddings (PCA, UMAP, etc.) to first 3 dimensions
-  - Example: PCA with 50 components → saves only first 3 (94% size reduction)
-- **Coordinate Normalization**: Scales to [-1, 1] range with saved scaling factor
-- **Sparse Expression Matrix**: Stores only non-zero values with indices
-- **Binary Compression**: Uses gzip compression for all binary files
-- **Automatic Column Detection**: Detects categorical vs numerical metadata columns
-- **Color Palette Generation**: Creates consistent color palettes matching browser visualization
-
-**Documentation**: See [scripts/README.md](scripts/README.md) and [scripts/UPLOAD_GUIDE.md](scripts/UPLOAD_GUIDE.md)
-
-### Component Structure
-
-#### Shared Components
-
-- `components/three-scene.tsx` - Three.js scene for single cell visualization
-  - Unified `useEffect` hook handles all visualization modes based on `mode` array
-  - Supports gene-only, celltype-only, and combined gene+celltype visualization
-  - Automatic switching between `updateGeneVisualization()`, `updateCelltypeVisualization()`, `updateNumericalCelltypeVisualization()`, and `updateCombinedVisualization()`
-- `components/visualization-controls.tsx` - UI for gene selection, cluster filtering (single cell viewer)
-- `components/dataset-card.tsx` - Dataset preview cards on explore page
-- `components/navbar-wrapper.tsx` - Smart routing to appropriate store/modal based on pathname
-  - Detects `/sm-viewer` path and shows `SingleMoleculeUploadModal`
-  - Detects `/viewer` path and shows `UploadSettingsModal`
-  - Manages "Upload & Save" button visibility based on dataset presence
-
-#### Single Cell Components
-
-- `app/viewer/[id]/page.tsx` - Single cell viewer page with dynamic dataset loading from S3
-  - **Real-time Progress Bar**: Shows loading percentage (0-100%) and status messages during S3 dataset loading
-  - Progress updates from `StandardizedDataset.fromS3()` callback (e.g., "Fetching manifest", "Loading chunk 1 of 3")
-  - Enhanced loading UI with spinner, progress bar, and descriptive status text
-  - Automatic progress reset on retry
-- `components/visualization-controls.tsx` - Left-side control buttons (Celltype, Gene, Size slider)
-  - Positioned at `top-28 left-4` with glassmorphism styling
-  - Opens/closes VisualizationPanel on button press
-- `components/visualization-panel.tsx` - Sidebar panel for gene/celltype selection
-  - Glassmorphism background with `backdrop-blur-[50px]` and rounded-3xl corners
-  - Click-outside-to-close functionality
-  - Positioned at `top-28 left-20` (32px below navbar)
-  - Cluster column dropdown (categorical/numerical detection)
-  - Search, filter, and selection UI for genes and celltypes
-- `components/visualization-legends.tsx` - **Top-right legends panel** showing active selections
-  - **Unified layout** (top to bottom): Gene badge → Scale bar → Clusters list
-  - **Gene Badge**: Blue pill with gene name, click X to remove
-  - **Scale Bar**: Embedded gradient bar (w-8 h-32) with number scrubbers for gene/numerical columns
-  - **Cluster Badges**: Color-coded pills with celltype names, 70% opacity → solid on hover
-  - **"Clear All" header**: Click cluster header to deselect all celltypes at once
-  - Gets palette colors from `dataset.clusters[].palette` (same source as tooltips)
-  - Auto-hides when nothing is selected
-- `components/gene-scalebar.tsx` - Compact gradient scale bar (now embedded in legends)
-  - Size: `w-8 h-32` (reduced from w-12 h-48)
-  - Position: Relative (removed fixed positioning, now inside VisualizationLegends)
-  - Shows for gene expression or numerical cluster columns
-- `components/plot-panel.tsx` - **Floating, draggable, resizable plot panel** with quantification plots
-  - Toggled from the Plot button in `visualization-controls.tsx`
-  - Built on `react-rnd`; rendered inside a `fixed inset-0` shim so the Rnd's default `position: absolute` resolves against viewport coords. Wrapper z-`[10]` sits within the controls' z-`[70]` stacking context, below side panels (z-50)
-  - Default size stored as fractions of the viewport (0.375 × 0.45) so it scales with window resize; `ResizeObserver` on `documentElement` triggers a reflow tick
-  - Anchored to bottom-left of viewport (`MARGIN_LEFT=88` clears the sidebar buttons, `MARGIN_BOTTOM=72` clears the spatial scale bar); offsets recompute from saved fractions on every resize
-  - **Active plot routing** based on `(selectedGene, isCategorical, isNumerical, plotView)`:
-    - gene + categorical, **Box** → `GeneCelltypeBoxplot`
-    - gene + categorical, **Hist** → `GeneHistogram`
-    - gene + numerical or no column → `GeneHistogram`
-    - no gene + categorical → `CelltypeBarplot`
-    - no gene + numerical → `NumericalHistogram`
-  - **Header controls** (visible per active plot):
-    - **Box / Hist** segmented toggle for gene + categorical
-    - **Top N** integer input — caps non-starred primaries (boxplot, barplot)
-    - **Ymax / Xmax** value-axis cap with shorthand parsing (`20k` → 20 000, `1.5m` → 1 500 000, comma-grouped also accepted) — y-axis on boxplot, x-axis on horizontal barplot
-    - **Outliers** toggle for boxplot — flips between `boxpoints: false` (hidden) and `"outliers"` (Tukey markers, secondary palette colour)
-    - **Density** toggle for grouped histogram — switches each per-secondary trace to `histnorm: "probability density"` so groups with very different sample sizes are comparable (matplotlib `density=True`)
-    - **Download CSV** button for boxplot and barplot — async-resolves gene expression then writes per-(primary[, secondary]) row stats. File name = `{gene}_by_{column}_{ISO}.csv` or `cells_per_{column}_{ISO}.csv`
-    - Minimize (collapses to header height), close
-  - On resize, dispatches a `window.resize` event so Plotly's `useResizeHandler` reflows the chart
-- `components/secondary-group-controls.tsx` - **Group-by row** rendered inside the plot panel header. Visible whenever the active plot is `gene-box`, `gene-histogram`, or `celltype-barplot` and the primary column is categorical
-  - Native `<select>` "Group by" dropdown — categorical cluster columns excluding the primary (numerical columns are unsupported as a grouping axis)
-  - Picking a column lazy-loads it via `loadClusterColumn()` and bumps `clusterVersion` so the plots re-derive
-  - Once loaded, renders one chip per `cluster.uniqueValues` entry. Each chip has:
-    - A coloured swatch — clicking it opens a hidden native `<input type="color">` and writes to `secondaryPaletteOverrides[value]`
-    - The value label — clicking it toggles the value in `selectedSecondaryValues`
-- `lib/utils/load-cluster-column.ts` - Reusable lazy-load helper. Mode-aware (local adapter loads on main thread; S3 / custom S3 dispatches to `standardizedDatasetWorkerManager`). No-ops when the column is already on the dataset
-- `components/plots/celltype-barplot.tsx` - Horizontal Plotly bar chart for categorical cluster columns. Two modes:
-  - **Ungrouped (default)**: one bar per category. Selected celltypes pinned to top by count desc; non-selected truncated to Top-N. Non-selected dim to 0.25 opacity when any are selected
-  - **Grouped** (when secondary + selected secondary values + starred celltypes are all present): horizontal grouped bars with `barmode: "group"`. y = starred primaries (sorted by total across selected secondaries, desc), one trace per secondary value (`offsetgroup` per trace), tooltip shows `celltype + secondary + count + share`
-  - Manual double-click detection (350ms window) → `toggleCelltype()`. `xMax` prop caps the count axis. Both palette systems (primary in ungrouped, secondary in grouped) honour `dataset.clusters[].palette` plus `secondaryPaletteOverrides`
-- `components/plots/gene-celltype-boxplot.tsx` - Plotly boxplot of gene expression per celltype. Two modes:
-  - **Ungrouped**: one box per celltype. `boxpoints: false` by default, white outline + median line (1.5 px). Pre-computed `n / q1 / median / q3 / max` exposed via an invisible scatter overlay (size 24, transparent) that drives a single consolidated tooltip per box (Plotly's stat hovers can't be overridden via hovertemplate, so the overlay is the workaround). Sort: median desc; selected pinned, others truncated to Top-N
-  - **Grouped** (secondary active): one box trace per secondary value, `boxmode: "group"`. Box colour = secondary palette + override. Sort primaries by mean of medians across selected secondaries. Empty (primary × secondary) pairs render a faint translucent dash placeholder via the overlay's `line-ew` marker. Scatter overlay aligned to each grouped box via matching `offsetgroup`, tooltip prepends `{secondary_column}: {value}`
-  - **Outliers** (`showOutliers` prop): flips `boxpoints` to `"outliers"` with small markers in the box's colour
-  - **yMax**: when set, locks `yaxis.range = [0, yMax]`
-- `components/plots/gene-histogram.tsx` - Plotly histogram of gene expression. Two modes:
-  - **Ungrouped**: single histogram, 60 bins, bar colour from current colormap at 0.7
-  - **Grouped** (secondary active + starred celltypes): one trace per selected secondary value at opacity 0.55 with `barmode: "overlay"`. Restricted to cells in starred celltypes. Per-trace colour from secondary palette + override. With `density: true`, all traces use `histnorm: "probability density"` so groups of different sizes are visually comparable
-- `components/plots/numerical-histogram.tsx` - Plotly histogram for numerical cluster columns
-  - 60 bins, bar color sampled from current colormap at 0.7 (matches viewer gradient)
-  - Reads values via `getClusterValue(cluster, i)` so it works with both indexed and non-indexed clusters
-- `components/plots/plot-loader.tsx` - Dynamic Plotly import (cartesian dist) used by all plots
-- All plots have `xaxis.fixedrange: true` and `yaxis.fixedrange: true` so users can't accidentally zoom/pan inside the small floating panel
-- `components/upload-settings-modal.tsx` - Upload settings for cell datasets (shows point count, genes, clusters)
-
-#### Single Molecule Components
-
-- `app/sm-viewer/page.tsx` - Single molecule viewer page (local file upload, auto-selects 5 random genes on load)
-- `app/sm-viewer/[id]/page.tsx` - Single molecule viewer page with S3 lazy loading (auto-selects first 3 genes)
-- `components/single-molecule-three-scene.tsx` - Three.js scene for a molecule dataset on its own; the genes are drawn by `MoleculeLayer` (see Single Molecule Visualization)
-- `components/single-molecule-controls.tsx` - Gene selection UI with search, checkboxes, and colored chips
-- `components/view-mode-toggle.tsx` - Toggle button for 2D/3D camera views
-- `components/single-molecule-upload-modal.tsx` - Upload settings for molecule datasets (shows molecule count, genes, dimensions, handles S3 upload)
-
-#### User docs (`/docs`)
-
-- `app/docs/` — the site's user guide, linked from the navbar: Getting started (`/docs`), Data formats (`/docs/formats`, the same `FormatGuide` tabs as the homepage's "What can I upload?"), Loading data, Using the viewer, Sharing on Explore. `app/docs/layout.tsx` adds the sidebar and previous/next links (`components/docs/docs-nav.tsx`, page list in `DOC_PAGES`)
-- `components/docs/doc-ui.tsx` — the pages' building blocks: `Flow` (short pipelines), `Steps` (numbered timeline), `Decision` (yes/no chain), `CompareTable`, `Callout`, `Status` (the app's own review chips)
-- These pages restate the user-facing parts of `README.md`; when a feature changes what users do, update both
-
-#### File Upload
-
-- `components/file-upload.tsx` - Unified upload component with `singleMolecule` prop
-  - **Single Molecule**: Worker-based parsing with granular progress tracking (.parquet/.csv)
-  - **Single Cell**: Worker-based parsing with progress callbacks (h5ad, xenium, merscope)
-  - Routes to appropriate store based on data type
-  - Navigates to `/viewer` for cell data, `/sm-viewer` for molecule data
-  - Real-time progress bar (0-100%) and status messages
-  - Uses singleton worker managers to keep UI responsive during heavy processing
-
-## Key Technical Details
-
-### Data Format Requirements
-
-#### Single Cell Data
-
-**H5AD**: Requires `obsm['X_spatial']` for coordinates. Optionally supports `obsm['X_umap']` and cell type annotations in `obs`.
-
-**Xenium**: Must have `cells.csv` with centroid columns. Auto-detects cell type columns.
-
-**MERSCOPE**: Must have `cell_metadata.csv` with coordinate columns. Supports `cell_by_gene.csv` for expression matrix.
-
-#### Single Molecule Data
-
-**Parquet**: Columnar format read via `hyparquet` (pure JavaScript, no WASM)
-
-- Requires columns for gene names and x/y/z coordinates
-- Column names configurable via `MOLECULE_COLUMN_MAPPINGS`
-- Supports both 2D and 3D datasets (z_location optional)
-- Processed in web worker to keep UI responsive
-
-**CSV**: Parsed via `papaparse` with same column requirements as parquet
-
-- Automatically infers dimensions based on z column presence
-- Less efficient than parquet for large datasets (millions of molecules)
-
-**Dataset Types**:
-
-- **Xenium**: `feature_name`, `x_location`, `y_location`, `z_location`
-- **MERSCOPE**: `gene`, `global_x`, `global_y`, `global_z`
-- **Custom**: User-defined column mappings
-
-### S3 Loading Architecture
-
-#### Single Molecule S3 Lazy Loading
-
-**API Endpoints**:
-
-- `/api/single-molecule/[id]` - Returns dataset metadata and manifest URL
-- `/api/single-molecule/[id]/gene/[geneName]` - Returns presigned URL for specific gene file
-
-**Loading Process** (`SingleMoleculeDataset.fromS3()`):
-
-1. **Fetch Metadata** (10%): GET `/api/single-molecule/[id]` to get manifest URL
-2. **Download Manifest** (30%): Fetch and ungzip `manifest.json.gz` from S3
-3. **Initialize Dataset** (60%): Create dataset with gene list, empty geneIndex
-4. **Lazy Load Genes** (on-demand): Override `getCoordinatesByGene()` to:
-   - Check cache first (return immediately if already loaded)
-   - Fetch presigned URL from `/api/single-molecule/[id]/gene/[geneName]`
-   - Download `genes/{geneName}.bin.gz` from S3
-   - Ungzip → Float32Array → number[] conversion
-   - Cache in geneIndex for future use
-
-**Gene File Binary Format** (.bin.gz):
-
-- Gzipped Float32Array of normalized coordinates
-- Flat array: `[x1, y1, z1, x2, y2, z2, ...]` for 3D or `[x1, y1, x2, y2, ...]` for 2D
-- Each coordinate is 4 bytes (Float32)
-- Coordinates already normalized to [-1, 1] range
-- Gene names sanitized in filenames (special chars → underscores)
-
-**Benefits**:
-
-- ✅ Fast initialization (~1 second for manifest only)
-- ✅ Memory efficient (only loads selected genes)
-- ✅ Instant re-selection (genes cached after first load)
-- ✅ Scales to datasets with hundreds of genes
-
-### Cluster Column Type Detection & Selection
-
-**Type Detection** - All adapters and workers automatically classify columns:
-
-- **Categorical**: ≤100 unique values → discrete color palette, checkbox filtering
-- **Numerical**: >100 unique values → coolwarm gradient, no filtering UI
-
-**Implementation**:
-
-- `H5adAdapter.isCategoricalData()` - Analyzes column values during H5AD parsing
-- `standardized-dataset.worker.ts` - Uses `isCategoricalData()` helper for Xenium/Merscope
-- `ChunkedDataAdapter` - Reads type from S3 metadata, skips palette loading for numerical columns
-
-**Column Selection** - The `selectBestClusterColumn()` utility ([lib/utils/dataset-utils.ts](lib/utils/dataset-utils.ts)) automatically picks the best cluster column with priority:
-
-1. "leiden" column
-2. Any column containing "celltype"
-3. First categorical column
-4. First available column
-
-### Memory Considerations
-
-- Production builds require 4GB RAM by default (`--max-old-space-size=4096`)
-- Use `npm run build:low-memory` for servers with <4GB RAM
-- Large datasets may cause SIGBUS errors on low-memory systems
-
-**Single Cell Data**:
-
-- Gene expression matrices are cached in `StandardizedDataset.matrix` after first query
-- Cell-level aggregation reduces memory footprint vs raw molecule data
-
-**Single Molecule Data**:
-
-- Pre-computed gene index trades memory for O(1) query speed
-- For millions of molecules, index stores normalized coordinates per gene
-- **Web worker processing** prevents UI freezing during large file parsing
-- **Chunked storage** during parquet reading reduces memory pressure (avoids repeated concatenation)
-- Parquet files more memory-efficient than CSV parsing
-- Warning for files >2GB to alert about potential browser memory limits
-
-### Threading Model
-
-**ALL DATA PROCESSING NOW USES WEB WORKERS** to keep UI responsive:
-
-**Single Cell Adapters** (H5adAdapter, XeniumAdapter, MerscopeAdapter, ChunkedDataAdapter):
-
-- `standardized-dataset.worker.ts` - Background worker for parsing all single cell formats
-- `standardizedDatasetWorkerManager.ts` - Singleton pattern for worker lifecycle management
-- Workers parse files → load expression matrix → normalize coordinates → serialize
-- Main thread receives serialized data → reconstructs `StandardizedDataset` with cached matrix
-- Expression matrix pre-loaded in worker for non-S3 datasets
-- For S3 datasets: ChunkedDataAdapter created in main thread after worker completes
-  - Enables on-demand gene expression loading via `adapter.fetchGeneExpression()`
-  - Loads gene data from S3 chunks as needed (avoids loading entire matrix)
-- Prevents UI freezing during parsing of large H5AD/Xenium/MERSCOPE files
-- ChunkedDataAdapter (S3 loading) also runs in worker with absolute URLs for fetch
-- Progress callbacks use `Comlink.proxy()` to avoid DataCloneError in production
-
-**Single Molecule Processing** (hyparquetService, SingleMoleculeDataset):
-
-- `single-molecule.worker.ts` - Background worker for parsing parquet/CSV files
-- `singleMoleculeWorkerManager.ts` - Singleton pattern for worker lifecycle management
-- Uses Comlink for seamless function proxying across worker boundary
-- Progress callbacks proxied via `Comlink.proxy()` for real-time UI updates
-- Prevents UI freezing for large files (e.g., 21M+ molecules taking 26+ seconds)
-- Worker serializes dataset as JSON-compatible structure for main thread transfer
-
-**Worker Compatibility Fixes**:
-
-- `gzip.ts`: Uses `typeof DecompressionStream !== "undefined"` instead of `window` check
-- `ChunkedDataAdapter.ts`: Uses `self.location.origin` for absolute URLs (works in both main thread and workers)
-
-### TypeScript Configuration
-
-- Path alias `@/*` maps to project root for clean imports
-- Strict mode enabled
-- Target ES2015 with downlevel iteration support
-- Next.js plugin for type generation
-
-## Database Schema
-
-Three main entities:
-
-- **Dataset** - Stores dataset metadata, fingerprint for deduplication, status tracking
-- **UploadSession** - Tracks multi-file upload progress with expiration
-- **UploadFile** - Individual file upload status within a session
-
-All use cascade deletion to maintain referential integrity.
-
-## Tech Stack
-
-- **Framework**: Next.js 15 (App Router) with Turbopack
-- **UI**: HeroUI v2 + Tailwind CSS
-- **3D Graphics**: Three.js with custom WebGL shaders
-- **Data Processing**:
-  - Single Cell: h5wasm (WebAssembly H5AD parser), pako (gzip)
-  - Single Molecule: hyparquet (pure JS parquet reader), hyparquet-compressors, papaparse, comlink (web workers)
-- **State**: Zustand (separate stores for cell vs molecule datasets)
-- **Database**: PostgreSQL + Prisma ORM
-- **Storage**: AWS S3 with presigned URLs
-- **Animation**: Framer Motion, GSAP
-- **Background Processing**: Web Workers with Comlink for all data processing
-
-## Performance Optimizations
-
-### Single Cell Data
-
-- **Web Worker Processing**: All parsing (H5AD/Xenium/MERSCOPE) runs in background workers
-- **Pre-loaded Expression Matrix**: Matrix cached during worker processing for instant gene queries
-- **On-Demand S3 Loading**: ChunkedDataAdapter fetches gene data from S3 as needed
-- **Coordinate Validation**: Ensures ≥90% valid coordinates, filters invalid rows automatically
-- **Progress Tracking**: Real-time progress updates via Comlink proxying
-- **Comlink Proxy Safety**: Progress callbacks properly proxied to avoid DataCloneError in production
-
-### Single Molecule Data
-
-- **Web Worker Processing**: All parsing happens in background worker to prevent UI freezing
-- **Comlink Proxying**: Seamless function calls and progress updates across worker boundary
-- **Chunked Storage**: During parquet reading, stores column chunks then flattens once at end (avoids repeated array concatenation)
-- **Async Progress Callbacks**: Yields to event loop during heavy processing to keep UI responsive
-- **Pre-computed Gene Index**: Normalized coordinates computed once during initialization
-- **O(1) Gene Lookup**: `getCoordinatesByGene()` is direct Map lookup with no computation
-- **Hyparquet Column-Oriented Reading**: Only processes requested columns via `onPage` callback
-- **Typed Arrays**: Float32Array for memory-efficient coordinate storage
-- **Coordinate Normalization**: [-1, 1] range with saved `scalingFactor` for consistent visualization
-- **Granular Progress Updates**: Every 5% during indexing for responsive UI feedback on large datasets
-- **Memory Warnings**: Alerts for files >2GB that may cause browser memory pressure
-
-# Behavioural Guidelines
-
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
-
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
-
-## 1. Think Before Coding
-
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
-
-Before implementing:
-
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
-
-## 2. Simplicity First
-
-**Minimum code that solves the problem. Nothing speculative.**
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
-
-## 3. Surgical Changes
-
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Guidance for Claude Code (claude.ai/code) working in this repository.
+
+This file is a **map**, not a specification. The specifications live in
+[`docs/`](docs/) and are the source of truth; where this file and a doc in
+`docs/specs/` disagree, the doc wins. Read the doc before changing the thing
+it describes.
 
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+## 1. What this is
+
+**MERFISHEYES** — a web viewer for spatial transcriptomics, live at
+[merfisheyes.com](https://www.merfisheyes.com). It draws **cells**,
+**molecules**, **cell polygons** and a **microscopy image** in one Three.js
+scene, reading data lazily from S3, from a public bucket by URL, or from a
+folder on disk — at the scale of an 11.24-billion-molecule store.
+
+Current version: see `package.json` (**0.13.0** at time of writing) and the top
+of [`CHANGELOG.md`](CHANGELOG.md).
+
+### Read these first
+
+| Order | Document | Why |
+|---|---|---|
+| 1 | [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) | The eight rules a change is judged by. Short. Non-negotiable. |
+| 2 | [docs/specs/](docs/specs/) | The format profiles, the layer contract, the loading and rendering rules, the budgets. |
+| 3 | [docs/plans/](docs/plans/) | Live, multi-session work briefs with steps and gates. |
+
+The philosophy in one line each: **one implementation per concern**; an element
+is a kind and a kind is a contract; **the format is the product**; read the
+view, not the dataset; **human time is the budget**; correctness is shown from
+outside; start from the raw material; the largest dataset we have is the design
+target.
+
+---
+
+## 2. Rules for agents
+
+- **Never commit or push unless explicitly asked.** Never `git tag`, push a
+  tag, create a GitHub Release, or open a `develop` → `main` PR unless the user
+  asks for it by name. See [docs/RELEASING.md](docs/RELEASING.md) §"Rules for
+  agents".
+- **Branching**: feature branches → PR into **`develop`** (staging,
+  dev.merfisheyes.com). A release is a promotion of `develop` → `main`
+  (production, www.merfisheyes.com). Never work directly on `main`.
+- **Plan files are living documents.** A step that changes a fact or a decision
+  in `docs/plans/*.md` **edits that file in the same commit**. Same for a spec
+  in `docs/specs/` when behaviour changes.
+- **Measure before optimising.** Perf claims belong in
+  [docs/specs/BUDGETS.md](docs/specs/BUDGETS.md) with the run that produced
+  them, not in a commit message.
+- **If the worker or `scripts/process_*.py` changed**, the ECR image must be
+  rebuilt or Fargate keeps running the old code (§8).
+
+---
+
+## 3. Where the truth lives
+
+`docs/` is current. **`scripts/README.md` and `DATA_PROCESSING_ARCHITECTURE.md`
+at the repo root are older than the specs** — use them only for the legacy
+per-script flag reference, and trust `docs/` on anything they contradict.
+
+### Specifications — `docs/specs/`
+
+| File | Covers |
+|---|---|
+| [store-layout.md](docs/specs/store-layout.md) | What a folder must look like to be opened: Zarr v3, consolidated metadata, `spatialdata_attrs`, CORS, **coordinate systems (§8 — the transform rule)** |
+| [table-profile.md](docs/specs/table-profile.md) | A SpatialData table as cells: `obsm/spatial`, `X` CSC, obs columns |
+| [shapes-profile.md](docs/specs/shapes-profile.md) | Cell polygons; **spots and bins drawn at real size** (Visium / Visium HD) |
+| [image-profile.md](docs/specs/image-profile.md) | OME-NGFF 0.5 multiscale images, `c,y,x`, placement |
+| [mapping.md](docs/specs/mapping.md) + [schemas/](docs/specs/schemas/) | `mapping.json`: what is drawn beside a cell dataset |
+| [LAYER-CONTRACT.md](docs/specs/LAYER-CONTRACT.md) | **The `Layer` lifecycle and the element registry. Read before adding any drawable kind.** |
+| [LOADING.md](docs/specs/LOADING.md) | `ElementStore`: one cache, cancellation, merged ranges, priority queue, budgets per reader |
+| [RENDERING.md](docs/specs/RENDERING.md) | On-demand frames, uniforms vs attributes, picking grid, draw order |
+| [BUDGETS.md](docs/specs/BUDGETS.md) | The human-time acceptance criteria and every measured number to date |
+| [sddb-profile.md](docs/specs/sddb-profile.md) | The 1,884-store SpatialData-DB census against our profiles |
+| [sddb-catalog.md](docs/specs/sddb-catalog.md) | How SpatialData-DB rows become Explore cards |
+| [AUDIT-2026-10-17.md](docs/specs/AUDIT-2026-10-17.md) | The findings LOADING/RENDERING answer |
+| [SECOND-IMPLEMENTER-2026-10-17.md](docs/specs/SECOND-IMPLEMENTER-2026-10-17.md) | What a fresh agent found missing when adding a kind from the contract alone — the contract's backlog |
+
+### Formats and pipelines
+
+| File | Covers |
+|---|---|
+| [docs/PIPELINE-SPEC.md](docs/PIPELINE-SPEC.md) | **The chunked S3 layout, byte for byte — and the rule that browser JS ≡ server Python.** Canonical for the legacy format. |
+| [docs/PARITY-TESTING.md](docs/PARITY-TESTING.md) | `npm run parity` — runs both pipelines on the same inputs and diffs. 9/9 identical. |
+| [docs/points-zarr-spec.md](docs/points-zarr-spec.md) | **Draft 0.1** — the multiscale, doubly-ordered Zarr points element (molecules streamed by view) |
+| [docs/molecule-pyramid.md](docs/molecule-pyramid.md) | The research and measurements behind that format |
+| [docs/data-requirements.md](docs/data-requirements.md) | Per-format input requirements of the **browser** adapters. ⚠ Its "normalized to [-1,1]" and "sparse X unsupported" sections are stale — see §6. |
+
+### Systems
+
+| File | Covers |
+|---|---|
+| [docs/server-side-ingestion/README.md](docs/server-side-ingestion/README.md) | **Shipped.** The "Upload & process on server" path end to end: routes, AWS Batch worker, callback, email, AWS resources, **§12 how to deploy a worker change** |
+| [docs/spatialdata/README.md](docs/spatialdata/README.md) | Opening SpatialData stores, already-processed folders, images as datasets, overlays, the `mapping.json` surface |
+| [docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md) | **Live plan: one pipeline, run by you or by the server** — the `prepare.py` contract (steps 1–3 done) |
+| [docs/plans/BIL-CLUSTER.md](docs/plans/BIL-CLUSTER.md) | **Live plan: the same pipeline on the PSC cluster** — many sections in one store, the 87-dataset fleet, billion-scale molecules |
+| [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
+| [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
+| [docs/labelled-single-molecule.md](docs/labelled-single-molecule.md) | `/lm-viewer` — molecules with N categorical labels, no expression matrix |
+| [docs/sc-sm-one-space.md](docs/sc-sm-one-space.md) | SC+SM overlay; `__all__` ships, per-sample mode is future work |
+| [docs/SM-STREAMING-PLAN.md](docs/SM-STREAMING-PLAN.md) | Streaming the legacy per-gene `bin.gz` files |
+| [TESTING.md](TESTING.md) | The three test layers, the dataset databank, perf baselines |
+| [docs/RELEASING.md](docs/RELEASING.md) | SemVer, branch model, the release checklist |
+
+---
+
+## 4. Commands
+
+```bash
+npm install
+npm run dev                  # dev server, :3000, Turbopack
+npm run build                # prisma generate + migrate deploy + next build (4 GB)
+npm run build:low-memory     # same at 2 GB
+npm run lint                 # eslint --fix
+
+npx prisma generate          # after any schema change
+npx prisma migrate dev       # create + apply a migration
+npx prisma studio
+
+npm test                     # unit (Vitest), tests/unit/
+npm run test:e2e:quick       # @quick Playwright suite on committed tiny fixtures
+npm run test:e2e             # full E2E
+npm run test:upload          # @upload — needs test:infra:up (Postgres + MinIO)
+npm run test:perf            # perf suite → perf/results/latest.json
+npm run test:perf:compare    # vs perf/baselines/<platform>.baseline.json; non-zero on regression
+npm run parity               # browser JS vs server Python pipeline diff
+npm run test:data:make-tiny  # regenerate the committed fixtures
+```
+
+Node **20** (`.nvmrc`) — the Playwright runner breaks on newer majors.
+Python for the `scripts/` needs `anndata numpy pandas scipy pyarrow`; the
+`prepare_*.py` family additionally needs `spatialdata` (+ `spatialdata-io`,
+`scanpy`, `leidenalg`, `igraph`) — see `scripts/requirements-prepare.txt`.
+
+---
+
+## 5. Architecture: two generations, both live
+
+This is the single most important thing to understand. **There are two data
+paths, and most confusion comes from mixing them up.**
+
+### A. SpatialData / Zarr (current, where new work goes)
+
+A store is read **as written** and never converted. Everything goes through one
+contract and one store:
+
+```
+ElementStore (lib/storage/)         one byte cache, cancellation, merged ranges,
+  └─ Backend                        priority queue · public URL | app bucket | dropped files
+       │
+  registry (lib/scene/registry.tsx) one ElementDefinition per kind: detect, open,
+       │                            createLayer, Bind, Controls
+       ├─ ImageLayer    (lib/spatialdata/ImageLayer.ts)
+       ├─ PointsLayer   (lib/spatialdata/PointsLayer.ts)   tiled Zarr points
+       ├─ ShapesLayer   (lib/spatialdata/ShapesLayer.ts)
+       └─ MoleculeLayer (lib/webgl/MoleculeLayer.ts)       legacy per-gene files
+       │
+  LayerHost (lib/scene/LayerHost.ts)  one rAF loop, one view rect per frame
+```
+
+- Every layer implements `Layer` (`lib/scene/contract.ts`): `attach`, `detach`,
+  `tick`, `status`, `subscribe`, `setBudget`, `abort`, `dispose`. Extend
+  `BaseLayer`. **Never run your own `requestAnimationFrame` loop.**
+- `tests/unit/layer-contract.test.ts` is the conformance suite — "implements the
+  contract" means it passes there.
+- One dataset loader: `lib/viewer/load-dataset.ts`. One overlay resolver:
+  `lib/viewer/resolve-overlays.ts` (pure, tested).
+- **Adding an element kind is five steps** and touches no viewer — the steps and
+  what a second implementer found missing are in
+  [LAYER-CONTRACT.md](docs/specs/LAYER-CONTRACT.md).
+
+**The entry point for preparing data is [`scripts/prepare.py`](scripts/prepare.py)**
+`INPUT OUT`: it recognises an `.h5ad` / AnnData Zarr, a Xenium export, a
+MERSCOPE region, a Visium output, a molecule table or a folder of parts **by
+content**, runs the matching `prepare_*` script, and writes exactly
+`OUT/<name>.zarr` (one SpatialData store), `mapping.json` and `stats.json`,
+never touching INPUT. Exit codes: **0** written and validated, **2**
+unrecognised, **3** incomplete, **4** invalid. Packages are pinned in
+`scripts/requirements.txt`. Shared rules live in `scripts/meyes_common.py` (the
+control-probe filter, molecule column names, obs coordinate columns) —
+`worker/entrypoint.py` and `lib/ingest/molecule-columns.ts` repeat the column
+names and tests keep the three equal.
+
+The server worker runs `prepare.py` for an upload made with
+`NEXT_PUBLIC_INGEST_PIPELINE=prepare` (`processingParams.pipeline`, read through
+`lib/ingest/pipeline.ts`; steps 2–3 of
+[docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md)): **one dataset per
+upload**, finished as `datasetType: "spatialdata"`, its compute tier chosen up
+front from the upload's files (`lib/ingest/compute-tier.ts`). Without the
+setting it runs the legacy chunked processors below.
+
+### B. Legacy chunked format (still the output of both processors)
+
+`StandardizedDataset` + adapters, and `SingleMoleculeDataset` for molecules.
+This is what `process_spatial_data.py` / `process_single_molecule.py` write,
+what the server ingestion worker produces without the flag above, and what
+thousands of existing S3 datasets are in. **Specified byte-for-byte in
+[docs/PIPELINE-SPEC.md](docs/PIPELINE-SPEC.md).**
+
+```
+datasets/{id}/
+├── manifest.json              statistics, files, normalized:false
+├── coords/spatial.bin.gz      [u32 n][u32 dims][f32…]  raw µm, rounded 2 dp
+├── expr/index.json            genes → chunk_id, position_in_chunk
+├── expr/chunk_%05d.bin.gz     one gene per chunk; sparse [idx…][val…]
+├── obs/metadata.json          per column: categorical | numerical
+├── obs/{col}.bin.gz           binary obs v1 (lib/utils/obs-binary.ts)
+├── palettes/{col}.json        categorical only, sorted label order
+└── de/{col}.bin.gz            DE stats: counts, means, pct
+
+# single molecule
+├── manifest.json.gz
+└── genes/{sanitized}.bin.gz   f32 [x,y,z,…], 3 floats/molecule even in 2D
+    genes/{g}_uuuuuuuuuu.bin.gz  unassigned, only when non-empty
+```
+
+**The invariant: the same input must yield the same output from the browser
+pipeline and the Python pipeline.** The Python is the reference. `npm run
+parity` enforces it across 9 cases; read
+[docs/PARITY-TESTING.md](docs/PARITY-TESTING.md) before touching either side —
+coordinate rounding, float32 narrowing, obs dictionary JSON and gene filtering
+all have exact rules that are easy to break silently.
+
+### Where they meet
+
+`lib/adapters/ChunkedDataAdapter.ts` reads format B; `lib/spatialdata/*` reads
+format A; both go through `ElementStore` where they can. A legacy molecule
+folder can be converted into a points element with
+`scripts/legacy_to_points.py`, after which the `mapping.json` link is not
+needed.
+
+---
+
+## 6. Facts that are easy to get wrong
+
+- **Coordinates are raw microns now, not normalized.** `manifest.normalized:
+  false`, rounded to 2 dp in float64 (`np.round` semantics, round-half-even)
+  then narrowed to float32. Older S3 datasets *are* normalized to [-1,1];
+  `StandardizedDataset` reads both (`normalized` flag). **An image can only be
+  drawn under cells with raw coordinates.**
+- **`chunk_size` is 1** — one gene per expression chunk, both pipelines.
+- **Sparse h5ad `X` (CSR/CSC) is supported** by the server pipeline and the
+  worker path. The *local browser* `H5adAdapter` still reads only a dense `X` —
+  keep local h5ad test fixtures dense (see TESTING.md).
+- **A missing categorical label is `""`**, not `"Unknown"`.
+- **Column type detection**: `lib/utils/column-type-detection.ts` ≡ Python
+  `is_categorical`. Name lists, ≥80 % unique → numerical, >50 % floats →
+  numerical. Roughly: ≤100 unique values is categorical in the viewer.
+- **Gene filtering** (control probes, blanks, codewords) is single-sourced:
+  `lib/utils/gene-filters.ts` ≡ `should_filter_gene`, pinned by
+  `tests/unit/gene-filter-parity.test.ts`.
+- **An element's `coordinateTransformations` is a list of *alternatives*, one
+  per output coordinate system — not a chain.** Multiplying them placed Visium
+  images 148× too large. The rule is in
+  [store-layout.md §8](docs/specs/store-layout.md). A placement is a 2-D affine
+  (`Map2`: scale, offset and, when it rotates, `skew`) applied as **one matrix
+  on the layer's group**; points and shapes must still place as written.
+- **A table with no `obsm/spatial` still draws** (CosMx): its cells sit at one
+  point per shape of the region element it annotates — the Point
+  `<region>_for_vitessce` sibling first — matched by instance id
+  (`lib/spatialdata/centroids.ts`, `wkb.ts`).
+- **The image layer is shared by all three viewers** and takes any channel
+  count; the shader has `MAX_VISIBLE_CHANNELS` (8) slots, so an 84-channel
+  CODEX image compiles and shows 8 at once.
+- **Two zarrita versions are installed**: `zarrita` 0.5.1 (the h5ad-zarr cell
+  path only) and `zarrita-v3` (alias for 0.7.5, everything SpatialData). Zarr v3
+  string arrays need 0.7.
+- **Zarr v2 SpatialData stores are not opened.** Zarr v3 only, with
+  consolidated metadata at the root — a public URL cannot be listed, so that
+  metadata is the only way the viewer learns what a store holds.
+- The viewer shows `Dataset.title`, **not** `manifest.name`.
+
+---
+
+## 7. Ways data gets in
+
+| Path | What happens | Entry points |
+|---|---|---|
+| **Preview in browser** | Raw H5AD/Xenium/MERSCOPE/parquet/CSV parsed in a web worker. Bounded by browser RAM. | `components/file-upload.tsx`, `lib/workers/` |
+| **Already-processed folder** | A SpatialData store, an AnnData zarr table, a merfisheyes output folder, an OME-Zarr image — **opened as it is**, read piecewise from disk, any size. SpatialData parts in separate folders **join the cells' store as its elements** (`joinedStoreFileMap`), in the preview and on save alike; several folders dragged at once are walked as one. | `lib/local/classify-bundle.ts`, `open-bundle.ts`, `save-bundle.ts`, `components/bundle-upload-modal.tsx` |
+| **Upload & Save** | The browser-processed or already-processed parts go to S3. Processed data dropped on the server card skips the worker and opens the same save dialog, unopened. | `app/api/datasets/*`, `app/api/single-molecule/*`, `lib/upload/` |
+| **Upload & process on server** | Raw bytes to `raw/{id}/`, AWS Batch (Fargate) runs the Python, writes `datasets/{id}/`, HMAC callback, SES email. Sign-in required. `lib/ingest/finalize.ts` writes the `mapping.json` when the parts finish; under `NEXT_PUBLIC_INGEST_PIPELINE=prepare` the same folder becomes **one** dataset instead (cells and molecules always, images only when ticked; a Xenium export or MERSCOPE region sends what `prepare.py` reads — `preparePlatformFiles`). | `app/api/ingest/*`, `worker/`, `lib/ingest/` |
+| **Load from S3 / by URL** | A public store, folder, or image opened directly; nothing copied. "Add to my account" registers the URL. | `lib/spatialdata/resolveUrl.ts`, `lib/datasets/register-or-claim.ts` |
+| **Prepare it yourself** | `scripts/prepare_folder.py` (+ `prepare_xenium/merscope/visium.py`, `image_to_ome_zarr.py`, `transcripts_to_points.py`) build one SpatialData store, ending in `validate_store.py`. | `scripts/`, [/docs/prepare](https://merfisheyes.com/docs/prepare) |
+
+**There is no server-side cell typing.** The user runs MapMyCells (or anything)
+and uploads a one-row-per-cell CSV; the worker merges it as another cluster
+column with its own palette and DE stats.
+
+**The validator is the gate**: `python scripts/validate_store.py <store.zarr>
+[--mapping]` — run in CI on the tiny fixtures and by hand on real stores. It
+applies the same coordinate-system rule the viewer does.
+
+---
+
+## 8. Infrastructure
+
+- **Database**: PostgreSQL + Prisma. Key models: `User`, `Dataset`,
+  `CatalogDataset` + `CatalogDatasetEntry` (Explore), `Project`,
+  `UploadSession`, `UploadFile`, `DatasetView`. Enums: `DatasetStatus`
+  (`UPLOADING → QUEUED → PROCESSING → COMPLETE | FAILED`),
+  `DatasetFaultCategory` (`USER | PLATFORM | UNKNOWN`), `FileStatus`.
+- **`Dataset.datasetType` is free text.** Use `lib/datasets/kind.ts`
+  (`datasetKind`, `viewerBase`, `viewerHref`) — never compare the string
+  yourself. Kinds are `single_cell | single_molecule | image`; `"spatialdata"`
+  is single cell that opens in its own viewer; old rows hold raw format names.
+- **Auth**: NextAuth v5, Google sign-in, Prisma adapter. Admin surfaces under
+  `/admin` and `/api/admin`.
+- **Storage**: S3 (`merfisheyes-staging`), `raw/{id}/` (7-day lifecycle) and
+  `datasets/{id}/`. Presigned URLs; multipart above ~100 MB.
+- **Processing**: AWS Batch on Fargate, account 533267148861, us-west-2. Job
+  definition `merfisheyes-ingest`, 4 vCPU / 16 GB. Worker image is
+  `worker/Dockerfile` + `worker/entrypoint.py` + `scripts/process_*.py`
+  **copied in** — ⚠ **editing those files changes nothing until the ECR image is
+  rebuilt and pushed** ([§12](docs/server-side-ingestion/README.md#12-deploying-a-worker-code-change)).
+- **Email**: AWS SES (`lib/ses.ts`).
+- **CI** (`.github/workflows/`): `test.yml` (unit), `e2e.yml` (e2e-quick and
+  e2e-upload on every PR, perf nightly).
+
+---
+
+## 9. Code map
+
+```
+app/
+  viewer/ sm-viewer/ lm-viewer/        cells · molecules · labelled molecules
+  spatialdata-viewer/ image-viewer/    each with [id], from-s3, from-local
+  explore/ account/ admin/ docs/       catalog, your data, admin, user guide
+  api/datasets|single-molecule|ingest|projects|admin|catalog|community
+
+lib/
+  scene/        contract.ts, BaseLayer, LayerHost, registry.tsx, useLayers — the layer system
+  storage/      ElementStore, backends, fetchRange, FileMapStore, PresignedFetchStore
+  spatialdata/  store, resolveUrl, coordinates, footprint, table adapter,
+                image/points/shapes readers + their Layers
+  viewer/       load-dataset, open-dataset, resolve-overlays
+  adapters/     H5ad, H5adZarr, Xenium, Merscope, ChunkedData, ProcessedSingleMolecule
+  local/        classify-bundle, open-bundle, save-bundle  (dropped folders)
+  molecules/    storeLoading  (legacy per-gene files through ElementStore)
+  ingest/       classify-folder, finalize, overlay, error-classification, reconcile, …
+  upload/       uploadChunked|Raw|Image|Zarr ToS3
+  sddb/         catalog-schema, catalog-file, catalog-row
+  datasets/     kind, metadata, owner, read-genes, register-or-claim
+  stores/       Zustand; create*Store factories give each split panel its own
+  workers/      standardized-dataset, single-molecule, shapes, zarr-densify
+  webgl/        scene-manager, shaders, point-cloud, picking-grid, MoleculeLayer
+  utils/        obs-binary, gene-filters, color-palette, coordinates,
+                column-type-detection, url-state-writer, test-hooks
+
+components/     79 files + docs/ explore/ plots/ admin/ account/ ui/ auth/
+worker/         Dockerfile + entrypoint.py (the Batch job)
+scripts/        Python processors, prepare_*, validate_store, points_zarr,
+                parity/, perf/, testdata/, bil-scripts/ (HPC SLURM)
+tests/          unit/ (38 Vitest), python/, fixtures/, data/ (tiny committed)
+e2e/            Playwright: tests/viewer, tests/upload, perf/
+perf/           baselines/, results/, real/, sddb/ (census)
+docs/           specs/, plans/, server-side-ingestion/, spatialdata/
+```
+
+### State management
+
+Zustand. Each store has a `create*Store` factory so **split screen** can give
+each panel its own instance. Notable: `visualizationStore` (single cell scene:
+`mode: VisualizationMode[]` supports combined gene + celltype),
+`singleMoleculeVisualizationStore`, `labelledMoleculeVisualizationStore`,
+`layersStore` (what the registry published), `localBundleStore` (parts of a
+dropped folder), `splitScreenStore`, `uploadStore`, `tourStore`.
+
+Components used to branch on `pathname.startsWith("/sm-viewer")` to pick a
+store. New code should take its stores from the panel context / `Bind`
+component instead.
+
+---
+
+## 10. Testing
+
+Three layers — full guide in [TESTING.md](TESTING.md).
+
+- **Unit** (Vitest, `tests/unit/`) — pure helpers, readers, the **layer
+  contract conformance suite**, the registry, parity of the gene filter.
+- **E2E** (Playwright, `e2e/`) — `@quick` on committed tiny fixtures (no
+  Docker, runs on every PR), `@upload` against Postgres + MinIO in Docker.
+  `e2e/helpers/fixture-server.ts` stands in for a public bucket, answering CORS
+  preflights and `Range`.
+- **Perf** (`e2e/perf/`, `scripts/perf/`) — fixtures at a capped 12 MB/s plus
+  `scripts/perf/real-store.ts` against real stores. Compared to
+  `perf/baselines/<platform>.baseline.json`; **headless Chromium draws with
+  SwiftShader**, so frame numbers are only comparable with themselves.
+- **Parity** (`npm run parity`) — both processing pipelines, diffed.
+- App instrumentation: `window.__merfish` (`lib/utils/test-hooks.ts`), only
+  when `NEXT_PUBLIC_E2E=1` — layer hooks, frame intervals, authoritative counts.
+
+The test dataset databank is `tests/data/manifest.json`; tiny fixtures are
+committed, medium/large are generated or downloaded on demand.
+
+---
+
+## 11. Known gaps and active backlogs
+
+These are recorded where they will be read; listed here so they are not
+rediscovered.
+
+- **Layer contract backlog** — no reusable `TileLayer` base (a second tiled
+  kind re-derives ~200 lines); two hidden enumerations of kinds; the URL-slot
+  writer has six hard-coded slots. [SECOND-IMPLEMENTER-2026-10-17.md](docs/specs/SECOND-IMPLEMENTER-2026-10-17.md)
+- **Rendering not done** — cells through a lookup texture; pooled draws for the
+  points element; stacked image levels. [RENDERING.md](docs/specs/RENDERING.md)
+- **Loading not done** — the h5ad-zarr cell path still uses
+  `PresignedFetchStore`, not `ElementStore`. [LOADING.md](docs/specs/LOADING.md)
+- **Pipeline Tier-2 divergences** — two manifest key spellings, embedding name
+  drift, **fingerprints differ between the browser and server paths so there is
+  no cross-path dedupe**. [PIPELINE-SPEC.md](docs/PIPELINE-SPEC.md)
+- **Budgets not met** — a one-event zoom still reads ~16.6 MB against a 12 MB
+  target; "All" detail cannot be seamless over the internet and is labelled so.
+  [BUDGETS.md](docs/specs/BUDGETS.md)
+- **Not built** — a QC stage in ingestion; per-user compute tiers; labels as a
+  drawable kind; SC+SM per-sample (non-`__all__`) overlay; reading a store's
+  `points.parquet` directly.
+- `spatialdata` 0.8 cannot read our points element — the spec has not landed
+  upstream.
+
+---
+
+## 12. BIL / HPC pipelines
+
+`scripts/bil-scripts/` holds the SLURM batch pipeline for processing BIL
+datasets on the PSC cluster (`launch_*.sh` + `*.sbatch`, sample lists in
+`*.csv`), with its own [README](scripts/bil-scripts/README.md),
+[SETUP](scripts/bil-scripts/SETUP.md) and
+[INPUT_REQUIREMENTS](scripts/bil-scripts/INPUT_REQUIREMENTS.md). It runs the
+legacy `scripts/process_*.py` on a cluster, then syncs to S3.
+
+**Moving it onto `prepare.py` is planned in
+[docs/plans/BIL-CLUSTER.md](docs/plans/BIL-CLUSTER.md).** Read that before
+changing anything here. Three facts it records that will otherwise cost you a
+day:
+
+- **Three input families**, each with its own sample list and column
+  conventions: MERSCOPE multi-slice (`samples.csv`, `csv-samples.csv` —
+  `sample_name,species,percentile`), H5AD (`h5ad-samples.csv`, molecules in
+  `segmented_spot_table.csv` as `gene_names,x,y,z,cell_ids`) and Xenium
+  (`xenium-samples.csv`).
+- **Cells are combined across slices; molecules are not.**
+  `combine_slices_v3.py` grid-shifts every slice into one frame, tags each cell
+  with `_sample_id` and writes the exact per-slice shift to
+  `sample_offsets.json`; `process_single_molecule.py` writes one folder per
+  slice. Both derive `sample_id` the same way (the slice's top-level folder
+  name), so joining them is a lookup, not a search.
+- **Pipeline history lives on unmerged branches.** `pipeline/final-rerun`,
+  `mmc-update`, `s3-update`, `testing/full-pipeline` and
+  `feature/spinal-rna-spots` each carry BIL work not on `develop`, and they
+  disagree about `map_my_cell.py` and `process_spatial_data.py`. Check there
+  before concluding something was never written;
+  `scripts/bil-scripts/find_missing_scripts.sh` searches the cluster for the
+  two scripts that are in no branch at all.
