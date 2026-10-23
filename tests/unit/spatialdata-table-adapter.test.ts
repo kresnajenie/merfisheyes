@@ -49,6 +49,9 @@ const STORES = [
   },
   // python scripts/testdata/make-tiny-csc-x.py: X itself CSC, no layer
   { name: "CSC X", store: "spatialdata_v3_csc_x.zarr", extra: [] },
+  // python scripts/testdata/make-tiny-named-index.py: var/feature_name and
+  // obs/cell_name instead of _index, as a lab's own h5ad often has
+  { name: "named indexes", store: "spatialdata_v3_named_index.zarr", extra: [] },
 ];
 
 describe.each(STORES)(

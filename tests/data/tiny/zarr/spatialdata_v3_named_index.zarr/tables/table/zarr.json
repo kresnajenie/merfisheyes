@@ -1,0 +1,12 @@
+{
+  "attributes": {
+    "encoding-type": "anndata",
+    "encoding-version": "0.1.0",
+    "spatialdata-encoding-type": "ngff:regions_table",
+    "region": "cell_labels",
+    "region_key": "region",
+    "instance_key": "cell_id"
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}
