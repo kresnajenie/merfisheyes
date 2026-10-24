@@ -11,6 +11,7 @@ import type {
 
 import * as Comlink from "comlink";
 
+import { CONVENTIONS } from "./conventions";
 import { elementNames } from "./store";
 
 import { hinted } from "@/lib/storage/ElementStore";
@@ -24,8 +25,8 @@ export interface CellPolygons {
   cell: Int32Array;
 }
 
-/** Shapes elements that hold cell outlines, best first. */
-const CELL_SHAPES = ["cell_boundaries", "cell_polygons", "cells"];
+/** Shapes elements that hold cell outlines, best first (conventions.json). */
+const CELL_SHAPES = CONVENTIONS.shapes.cellOutlineElements;
 
 /** The store's cell-outline shapes element, if it has one. */
 export function cellShapesName(sd: SpatialDataStore): string | null {

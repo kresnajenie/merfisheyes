@@ -33,7 +33,10 @@ export default function PreparePage() {
             by the <code>spatialdata</code> library where it can be, so the same
             store opens in spatialdata, napari and Vitessce; the molecules are
             the one part in our own format, a tiled points element the viewer
-            streams by view.
+            streams by view. The <code>spatialdata</code> library (0.8) does not
+            know that element yet: open the store with{" "}
+            <code>read_zarr(path, on_bad_files=&quot;warn&quot;)</code> and it
+            reads everything else, skipping the molecules.
           </p>
         </Prose>
         <pre className={pre}>
@@ -42,15 +45,14 @@ export default function PreparePage() {
 │   ├── zarr.json                  spatialdata_attrs + consolidated metadata, written last
 │   ├── tables/table/              the cells: AnnData — obs (your columns, + obs/leiden with --cluster),
 │   │   ├── X                      obsm/spatial, var; X as written, plus
-│   │   └── layers/X_csc           a CSC copy when X is not CSC (one gene = one slice)
+│   │   ├── layers/X_csc           a CSC copy when X is not CSC (one gene = one slice)
+│   │   └── varm, uns              the DEG stats of every categorical column (the DEG panel)
 │   ├── images/dapi/               the image: OME-Zarr, axes c, y, x, 1024² chunks, a pyramid,
 │   │                              placed among the cells by its scale and translation
 │   ├── points/molecules/          the molecules, straight from the transcripts table: a tiled
 │   │                              points element (docs/points-zarr-spec.md) streamed by view
 │   └── shapes/cell_boundaries/    the polygons, when you have them: one GeoParquet file
-├── annotations/                   (--cluster) de/leiden.bin.gz: the DEG stats, which SpatialData
-│                                  has no place for; the clusters themselves are in the table
-├── sources/                       the image folder and the transcripts table the store was made from
+├── sources/                      the image folder and the transcripts table the store was made from
 └── mapping.json                   { "cells": "sample.zarr" }`}
         </pre>
         <Callout>
@@ -219,11 +221,13 @@ OK   mapping.json: names the store only`}
         <Callout>
           <b>Clusters and DEGs.</b> With <code>--cluster</code>, when the table
           has no categorical column, Leiden clusters are written into the table
-          as <code>obs/leiden</code>, so every reader of the store sees them;
-          only the per-cluster differential-expression stats go beside the store
-          in <code>annotations/</code>, because SpatialData has no place for
-          them. <code>scripts/spatialdata_cluster.py</code> does the same for a
-          store you already have.
+          as <code>obs/leiden</code>, so every reader of the store sees them.
+          The differential-expression stats the DEG panel reads are written for
+          every categorical column, <code>leiden</code> included, into the table
+          too (<code>varm</code> and <code>uns</code>), so the store carries
+          them and nothing sits beside it.{" "}
+          <code>scripts/spatialdata_cluster.py</code> does the same for a store
+          you already have.
         </Callout>
       </DocSection>
 
@@ -313,9 +317,7 @@ OK   mapping.json: names the store only`}
 │   ├── shapes/cell_boundaries/    one GeoParquet each
 │   ├── shapes/nucleus_boundaries/
 │   ├── images/morphology_focus/   1024² chunks, 6 levels
-│   ├── points/molecules/          transcripts.parquet, tiled, flat on the cells' plane
-│   └── points/transcripts/        the reader's own parquet copy; not read by the viewer
-├── annotations/                   (--cluster) the DEG stats
+│   └── points/molecules/          transcripts.parquet, tiled, flat on the cells' plane
 └── mapping.json                   { "cells": "Xenium.zarr" }`}
                   </pre>
                   <p>
@@ -398,7 +400,6 @@ OK   mapping.json: names the store only`}
 │   ├── tables/table/              counts without blanks, CSC; the metadata and categories as columns
 │   ├── shapes/cell_boundaries/    each cell's polygon on one z-plane (--z), one GeoParquet
 │   └── points/molecules/          detected_transcripts, tiled, flat on the cells' plane
-├── annotations/                   (--cluster) the DEG stats
 └── mapping.json                   { "cells": "region_R1.zarr" }`}
                   </pre>
                   <p>

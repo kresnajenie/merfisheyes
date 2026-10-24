@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 import { isStale, reconcileWithBatch } from "@/lib/ingest/reconcile";
+import { viewerHref } from "@/lib/datasets/kind";
 
 /**
  * Polling endpoint for ingestion progress (design §5.5). The browser polls this
@@ -65,9 +66,6 @@ export async function GET(
       }
     }
 
-    const viewerPath =
-      dataset.datasetType === "single_molecule" ? "sm-viewer" : "viewer";
-
     return NextResponse.json({
       id: dataset.id,
       title: dataset.title,
@@ -79,8 +77,9 @@ export async function GET(
       numGenes: dataset.numGenes,
       createdAt: dataset.createdAt,
       completedAt: dataset.completedAt,
-      viewerUrl:
-        dataset.status === "COMPLETE" ? `/${viewerPath}/${dataset.id}` : null,
+      // The viewer of what it is: a SpatialData store or an image too, not
+      // only cells or molecules
+      viewerUrl: dataset.status === "COMPLETE" ? viewerHref(dataset) : null,
     });
   } catch (err: any) {
     console.error("Ingest status error:", err);

@@ -79,10 +79,15 @@ export async function resubmitProcessing(
     },
   });
 
+  // The kind it was uploaded as: a finished prepare.py run is "spatialdata"
+  // whichever card it came from
+  const uploadedAs = (dataset.processingParams as { kind?: unknown } | null)
+    ?.kind;
   const batchJobId = await submitIngestJob({
     datasetId,
     kind:
-      dataset.datasetType === "single_molecule"
+      uploadedAs === "single_molecule" ||
+      (!uploadedAs && dataset.datasetType === "single_molecule")
         ? "single_molecule"
         : "single_cell",
     processingParams: dataset.processingParams,

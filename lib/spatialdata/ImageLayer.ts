@@ -9,6 +9,8 @@ import type {
 
 import * as THREE from "three";
 
+import { type Map2, applyMap, invert, linearScale } from "./coordinates";
+
 import { BaseLayer } from "@/lib/scene/BaseLayer";
 import { hint } from "@/lib/storage/ElementStore";
 import {
@@ -26,6 +28,11 @@ export interface ImageChannel {
   /** Display window: pixel values mapped to black and to full colour. */
   min: number;
   max: number;
+  /**
+   * The span the controls' sliders cover, when narrowed by hand (else the
+   * whole of the data type). Drawing ignores it.
+   */
+  range?: [number, number];
 }
 
 const CHANNEL_COLORS = [
@@ -70,12 +77,21 @@ const MAX_CONCURRENT_LOADS = 4;
 // scene's budget (setBudget) says less.
 const CACHE_BYTES = 512 * 1024 * 1024;
 
+/**
+ * Channels drawn at once. A fragment shader samples one texture per channel
+ * it blends, and WebGL guarantees only 16 texture units, so a 54- or
+ * 84-channel CODEX image cannot have a sampler per channel: the visible
+ * channels take one of these slots each, and turning a ninth on turns the
+ * first off.
+ */
+export const MAX_VISIBLE_CHANNELS = 8;
+
 interface Tile {
   level: number;
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
   chunkX: number;
   chunkY: number;
-  /** Bounds in scene units. */
+  /** Bounds in image units (the layer's group carries the placement). */
   x0: number;
   y0: number;
   x1: number;
@@ -102,12 +118,21 @@ export class ImageLayer extends BaseLayer {
   /** Called when channel settings change on their own (auto contrast). */
   onChange?: () => void;
 
+  /** Image units → the scene; the group's matrix, so tiles stay axis-aligned. */
+  readonly placement: Map2;
+
   private _visible = true;
   private camera!: THREE.PerspectiveCamera;
   private renderer!: THREE.WebGLRenderer;
   private levels: ImageLevel[];
   private tiles = new Map<string, Tile>();
   private blank: THREE.DataTexture;
+  /** Scene → image units, and how many scene units one image unit is. */
+  private toImage: Map2;
+  private unitScale: number;
+  /** The channel each shader slot shows (−1: free), and each channel's slot. */
+  private slots: number[] = [];
+  private slotOf: number[];
   private sharedUniforms: {
     uColor: { value: THREE.Color[] };
     uWindow: { value: THREE.Vector2[] };
@@ -125,6 +150,9 @@ export class ImageLayer extends BaseLayer {
     super();
     this.levels = image.levels;
     this.maxValue = image.maxValue;
+    this.placement = image.placement;
+    this.toImage = invert(image.placement);
+    this.unitScale = linearScale(image.placement);
     const count = image.levels[0].array.shape[0];
     const rgb = isRgb(image);
 
@@ -140,30 +168,34 @@ export class ImageLayer extends BaseLayer {
     }));
     // A photograph keeps its full range; fluorescence is windowed by the data
     this.windowed = this.channels.map((_, i) => rgb && i < 3);
+    this.slotOf = this.channels.map(() => -1);
+
+    const perSlot = <T>(make: () => T) =>
+      Array.from({ length: MAX_VISIBLE_CHANNELS }, make);
 
     this.sharedUniforms = {
-      uColor: { value: this.channels.map((c) => new THREE.Color(c.color)) },
-      uWindow: {
-        value: this.channels.map((c) => new THREE.Vector2(c.min, c.max)),
-      },
-      uOn: { value: this.channels.map((c) => c.visible) },
+      uColor: { value: perSlot(() => new THREE.Color()) },
+      uWindow: { value: perSlot(() => new THREE.Vector2()) },
+      uOn: { value: perSlot(() => false) },
     };
     // Sampler arrays can't be indexed by a loop variable in GLSL ES 3, so
-    // the per-channel code is written out.
+    // the per-slot code is written out.
+    const slots = Array.from({ length: MAX_VISIBLE_CHANNELS }, (_, i) => i);
+
     this.fragmentShader = `
       precision highp float;
       precision highp usampler2D;
-      ${this.channels.map((_, i) => `uniform usampler2D uTex${i};`).join("\n")}
-      uniform vec3 uColor[${count}];
-      uniform vec2 uWindow[${count}];
-      uniform bool uOn[${count}];
+      ${slots.map((i) => `uniform usampler2D uTex${i};`).join("\n")}
+      uniform vec3 uColor[${MAX_VISIBLE_CHANNELS}];
+      uniform vec2 uWindow[${MAX_VISIBLE_CHANNELS}];
+      uniform bool uOn[${MAX_VISIBLE_CHANNELS}];
       in vec2 vUv;
       out vec4 fragColor;
       void main() {
         vec3 rgb = vec3(0.0);
-        ${this.channels
+        ${slots
           .map(
-            (_, i) => `if (uOn[${i}]) {
+            (i) => `if (uOn[${i}]) {
           float v = float(texture(uTex${i}, vUv).r);
           rgb += uColor[${i}] * clamp((v - uWindow[${i}].x) / max(uWindow[${i}].y - uWindow[${i}].x, 1.0), 0.0, 1.0);
         }`,
@@ -177,8 +209,51 @@ export class ImageLayer extends BaseLayer {
       1,
       1,
     );
+    this.assignSlots();
 
+    // The placement, as one matrix on the group (x' = a x + b y + tx, …)
+    const [b, c] = image.placement.skew ?? [0, 0];
+    const [a, d] = image.placement.scale;
+    const [tx, ty] = image.placement.offset;
+
+    this.root.matrixAutoUpdate = false;
+    this.root.matrix.set(a, b, 0, tx, c, d, 0, ty, 0, 0, 1, 0, 0, 0, 0, 1);
+    this.root.matrixWorldNeedsUpdate = true;
     this.root.renderOrder = -1000;
+  }
+
+  /**
+   * Give every visible channel a shader slot, in channel order, and point
+   * each tile's samplers at the right textures. Called when visibility
+   * changes; cheap (one uniform per slot per tile).
+   */
+  private assignSlots() {
+    const visible = this.channels
+      .map((c, i) => (c.visible ? i : -1))
+      .filter((i) => i >= 0)
+      .slice(0, MAX_VISIBLE_CHANNELS);
+
+    this.slots = Array.from({ length: MAX_VISIBLE_CHANNELS }, (_, s) =>
+      s < visible.length ? visible[s] : -1,
+    );
+    this.slotOf = this.channels.map(() => -1);
+    this.slots.forEach((channel, s) => {
+      if (channel >= 0) this.slotOf[channel] = s;
+      this.sharedUniforms.uOn.value[s] = channel >= 0;
+      if (channel >= 0) {
+        this.sharedUniforms.uColor.value[s].set(this.channels[channel].color);
+        this.sharedUniforms.uWindow.value[s].set(
+          this.channels[channel].min,
+          this.channels[channel].max,
+        );
+      }
+    });
+    for (const tile of this.tiles.values()) {
+      this.slots.forEach((channel, s) => {
+        tile.mesh.material.uniforms[`uTex${s}`].value =
+          (channel >= 0 && tile.textures[channel]) || this.blank;
+      });
+    }
   }
 
   get visible() {
@@ -243,14 +318,30 @@ export class ImageLayer extends BaseLayer {
   }
 
   setChannel(index: number, patch: Partial<ImageChannel>) {
+    const wasVisible = this.channels[index].visible;
     const channel = Object.assign(this.channels[index], patch);
 
     if (patch.min !== undefined || patch.max !== undefined) {
       this.windowed[index] = true;
     }
-    this.sharedUniforms.uColor.value[index].set(channel.color);
-    this.sharedUniforms.uWindow.value[index].set(channel.min, channel.max);
-    this.sharedUniforms.uOn.value[index] = channel.visible;
+    if (channel.visible && !wasVisible) {
+      // A slot for it: the earliest visible channel gives way when all are taken
+      const on = this.channels.filter((c) => c.visible);
+
+      if (on.length > MAX_VISIBLE_CHANNELS) {
+        this.channels.find((c) => c.visible && c !== channel)!.visible = false;
+      }
+    }
+    if (channel.visible !== wasVisible) {
+      this.assignSlots();
+    } else {
+      const s = this.slotOf[index];
+
+      if (s >= 0) {
+        this.sharedUniforms.uColor.value[s].set(channel.color);
+        this.sharedUniforms.uWindow.value[s].set(channel.min, channel.max);
+      }
+    }
     this.changed();
   }
 
@@ -266,12 +357,34 @@ export class ImageLayer extends BaseLayer {
     this.update(frame.view);
   }
 
+  /**
+   * The scene's view in image units: its corners through the inverse
+   * placement, then their box (a rotated view covers a little more).
+   */
+  private toImageView(view: ViewRect): ViewRect {
+    const corners = [
+      [view.minX, view.minY],
+      [view.maxX, view.minY],
+      [view.minX, view.maxY],
+      [view.maxX, view.maxY],
+    ].map(([x, y]) => applyMap(this.toImage, x, y));
+
+    return {
+      minX: Math.min(...corners.map((c) => c[0])),
+      minY: Math.min(...corners.map((c) => c[1])),
+      maxX: Math.max(...corners.map((c) => c[0])),
+      maxY: Math.max(...corners.map((c) => c[1])),
+      unitsPerPixel: view.unitsPerPixel / this.unitScale,
+    };
+  }
+
   /** Choose the level and chunks for the current view, and show what's loaded. */
-  private update(view: ViewRect | null) {
+  private update(sceneView: ViewRect | null) {
     this.frame++;
     this.root.visible = this._visible && this.channels.some((c) => c.visible);
     if (!this.root.visible) return;
 
+    const view = sceneView && this.toImageView(sceneView);
     const base = this.levels.length - 1;
     let level = base;
 
@@ -310,14 +423,14 @@ export class ImageLayer extends BaseLayer {
       }
     }
 
-    // A tile is drawn once every visible channel has arrived. Coarser tiles
+    // A tile is drawn once every shown channel has arrived. Coarser tiles
     // stay up underneath, so the view refines instead of blanking.
     let drawn = 0;
 
     for (const tile of this.tiles.values()) {
       tile.mesh.visible =
         tile.level >= level &&
-        this.channels.every((ch, c) => !ch.visible || tile.textures[c]);
+        this.slots.every((c) => c < 0 || tile.textures[c]);
       if (tile.mesh.visible) drawn++;
     }
     const wantedAtLevel = [...wanted].filter((t) => t.level === level).length;
@@ -443,9 +556,9 @@ export class ImageLayer extends BaseLayer {
 
     const uniforms: Record<string, THREE.IUniform> = { ...this.sharedUniforms };
 
-    this.channels.forEach((_, c) => {
-      uniforms[`uTex${c}`] = { value: this.blank };
-    });
+    for (let s = 0; s < MAX_VISIBLE_CHANNELS; s++) {
+      uniforms[`uTex${s}`] = { value: this.blank };
+    }
 
     const mesh = new THREE.Mesh(
       geometry,
@@ -567,7 +680,9 @@ export class ImageLayer extends BaseLayer {
       const texture = this.makeTexture(pixels, lv.chunkWidth, lv.chunkHeight);
 
       tile.textures[k] = texture;
-      tile.mesh.material.uniforms[`uTex${k}`].value = texture;
+      if (this.slotOf[k] >= 0) {
+        tile.mesh.material.uniforms[`uTex${this.slotOf[k]}`].value = texture;
+      }
     }
     this.changed();
   }

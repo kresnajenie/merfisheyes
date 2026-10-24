@@ -7,6 +7,8 @@ import {
   normalizeComputeTier,
 } from "@/lib/batch";
 import { prisma } from "@/lib/prisma";
+import { usesPreparePipeline } from "@/lib/ingest/pipeline";
+import { tierForUpload } from "@/lib/ingest/compute-tier";
 
 interface CompleteIngestRequest {
   uploadId: string;
@@ -33,7 +35,10 @@ export async function POST(
 
     const uploadSession = await prisma.uploadSession.findUnique({
       where: { id: uploadId },
-      include: { dataset: { include: { owner: true } } },
+      include: {
+        dataset: { include: { owner: true } },
+        files: { select: { fileKey: true, fileSize: true } },
+      },
     });
 
     if (!uploadSession || uploadSession.datasetId !== datasetId) {
@@ -72,9 +77,19 @@ export async function POST(
 
     if (isBatchConfigured()) {
       try {
-        const computeTier = normalizeComputeTier(
-          uploadSession.dataset.owner?.computeTier,
-        );
+        // prepare.py runs get the tier their upload needs from the start;
+        // the legacy processors start at the owner's and step up on OOM
+        const computeTier = usesPreparePipeline(
+          uploadSession.dataset.processingParams,
+        )
+          ? tierForUpload(
+              uploadSession.files.map((f) => ({
+                key: f.fileKey,
+                size: Number(f.fileSize),
+              })),
+              uploadSession.dataset.owner?.computeTier,
+            )
+          : normalizeComputeTier(uploadSession.dataset.owner?.computeTier);
 
         batchJobId = await submitIngestJob({
           datasetId,

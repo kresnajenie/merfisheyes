@@ -15,10 +15,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  applyMap,
   chain,
   chooseImage,
   coordinateSystems,
   elementTransforms,
+  invert,
+  linearScale,
   readCoordinateSystems,
   compose,
   type ElementTransforms,
@@ -167,11 +170,24 @@ describe("coordinateSystems rules", () => {
     expect(p.ok && p.map.scale).toEqual([4, 4]);
   });
 
-  it("rejects an affine transform and an element with no way into the target", () => {
+  it("places an affine image, rotation and all; rejects an element with no way into the target", () => {
+    // A MALDI optical image as SpatialData-DB writes it: one row per output
+    // axis (c, y, x), one column per input axis plus the translation; the
+    // x, y part scales by 2 and turns by 90°
+    const affine = {
+      type: "affine",
+      affine: [
+        [1, 0, 0, 0],
+        [0, 0, 2, 5], // y' = 2 x + 5
+        [0, -2, 0, 7], // x' = -2 y + 7
+      ],
+      input: { name: "cyx", axes: [{ name: "c" }, { name: "y" }, { name: "x" }] },
+      output: { name: "s", axes: [{ name: "c" }, { name: "y" }, { name: "x" }] },
+    };
     const cs = coordinateSystems(
       new Map([
         ["shapes/s", el([["s", id]])],
-        ["images/rotated", { ...el([["s", { type: "affine", affine: [] }]]), axes: ["c", "y", "x"] }],
+        ["images/rotated", { ...el([["s", affine]]), axes: ["c", "y", "x"] }],
         ["images/elsewhere", { ...el([["other", id]]), axes: ["c", "y", "x"] }],
       ]),
       "shapes/s",
@@ -180,10 +196,42 @@ describe("coordinateSystems rules", () => {
     const rotated = cs.place("images/rotated");
     const elsewhere = cs.place("images/elsewhere");
 
-    expect(rotated.ok).toBe(false);
-    expect(!rotated.ok && rotated.reason).toMatch(/affine/);
+    expect(rotated.ok).toBe(true);
+    if (rotated.ok) {
+      expect(rotated.map).toEqual({ scale: [0, 0], offset: [7, 5], skew: [-2, 2] });
+      expect(applyMap(rotated.map, 1, 0)).toEqual([7, 7]);
+      expect(applyMap(rotated.map, 0, 1)).toEqual([5, 5]);
+      expect(linearScale(rotated.map)).toBeCloseTo(2);
+      // Back again
+      const back = invert(rotated.map);
+
+      expect(applyMap(back, 7, 7).map((v) => +v.toFixed(9))).toEqual([1, 0]);
+    }
     expect(!elsewhere.ok && elsewhere.reason).toMatch(/no transform into "s"/);
-    expect(chooseImage(cs, ["elsewhere", "rotated"]).name).toBeNull();
+    expect(chooseImage(cs, ["elsewhere", "rotated"]).name).toBe("rotated");
+  });
+
+  it("MALDI (human kidney): the optical image placed by an affine with rotation", async () => {
+    const sd = rootStore("fF2M7WUbkFnMMhpC");
+    const cs = await readCoordinateSystems(sd);
+    const p = cs.place("images/optical_image");
+
+    expect(cs.target).toBe("global");
+    expect(cs.region).toBe("shapes/maldi_spots");
+    expect(p.ok).toBe(true);
+    if (p.ok) {
+      expect(linearScale(p.map)).toBeCloseTo(15.4258, 3);
+      expect(p.map.skew).toBeDefined();
+    }
+  });
+
+  it("CosMx: the cells' frame is the polygons', which carry a translation into global", async () => {
+    const sd = rootStore("571yTEm4hqlkXRPf");
+    const cs = await readCoordinateSystems(sd);
+
+    expect(cs.region).toBe("shapes/cells_polygons");
+    expect(cs.place("shapes/cells_polygons")).toEqual({ ok: true, map: { scale: [1, 1], offset: [0, 0] } });
+    expect(cs.place("shapes/cells_polygons_for_vitessce")).toEqual({ ok: true, map: { scale: [1, 1], offset: [0, 0] } });
   });
 
   it("reads a plain (unnamed) transform list as a chain", () => {

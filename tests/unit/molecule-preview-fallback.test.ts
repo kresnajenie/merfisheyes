@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 
-import { readMoleculePreview } from "@/lib/services/molecule-preview";
+import fs from "node:fs";
+import path from "node:path";
+
+import {
+  readMoleculeColumns,
+  readMoleculePreview,
+} from "@/lib/services/molecule-preview";
 import { pickSchema, readCsvHeader } from "@/lib/services/molecule-file-sniffer";
 
 const mk = (content: string, name = "test_sm.csv") =>
@@ -57,5 +63,30 @@ describe("molecule preview falls back to a header-only read", () => {
 
     expect(cols).toEqual(["gene", "global_x", "global_y", "cell_id"]);
     expect(pickSchema(cols)).toBe("merscope");
+  });
+});
+
+describe("a parquet's columns cost only its footer", () => {
+  const tiny = () =>
+    new File(
+      [
+        fs.readFileSync(
+          path.join(__dirname, "../data/tiny/single-molecule/tiny.parquet"),
+        ),
+      ],
+      "spots.parquet",
+    );
+
+  it("reads the columns without a row", async () => {
+    expect(await readMoleculeColumns(tiny())).toContain("feature_name");
+  });
+
+  it("reads sample rows only from a small first row group", async () => {
+    // A Xenium export is one row group: reading row 0 would read all of it
+    const big = await readMoleculePreview(tiny(), 8, 0);
+
+    expect(big.columns).toContain("feature_name");
+    expect(big.rows).toEqual([]);
+    expect((await readMoleculePreview(tiny())).rows).toHaveLength(8);
   });
 });

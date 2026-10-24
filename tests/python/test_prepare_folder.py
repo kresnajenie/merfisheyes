@@ -152,18 +152,32 @@ def test_the_guides_show_the_script_as_it_is():
     the command the pages show is the script's own usage line."""
     usage = prepare_folder.__doc__.split("\n")[2].strip()
     assert usage.startswith("python scripts/prepare_folder.py <folder>")
-    for page in (ROOT / "README.md", ROOT / "app" / "docs" / "prepare" / "page.tsx"):
-        text = page.read_text()
-        for command in (
-            "python scripts/prepare_folder.py ",
-            "transcripts_to_points.py",
-            "python scripts/image_to_ome_zarr.py ",
-            "python scripts/prepare_xenium.py ",
-            "python scripts/prepare_merscope.py ",
-            "python scripts/prepare_visium.py ",
-            "pip install -r scripts/requirements-prepare.txt",
-        ):
-            assert command in text, (page, command)
+    # The tutorial shows each script
+    page = ROOT / "app" / "docs" / "prepare" / "page.tsx"
+    text = page.read_text()
+    for command in (
+        "python scripts/prepare_folder.py ",
+        "transcripts_to_points.py",
+        "python scripts/image_to_ome_zarr.py ",
+        "python scripts/prepare_xenium.py ",
+        "python scripts/prepare_merscope.py ",
+        "python scripts/prepare_visium.py ",
+        "pip install -r scripts/requirements-prepare.txt",
+    ):
+        assert command in text, (page, command)
+    # The README shows the one entry point and where it is, and names the rest
+    readme = (ROOT / "README.md").read_text()
+    for command in (
+        "python scripts/prepare.py ",
+        "pip install -r scripts/requirements.txt",
+        "[`scripts/prepare.py`](scripts/prepare.py)",
+        "prepare_xenium.py",
+        "prepare_merscope.py",
+        "prepare_visium.py",
+        "prepare_folder.py",
+        "transcripts_to_points.py",
+    ):
+        assert command in readme, ("README.md", command)
 
 
 def test_url_makes_the_links_absolute(tmp_path):
@@ -519,17 +533,19 @@ def test_cluster_runs_only_when_no_categorical_column(tmp_path):
     r = prepare_folder.prepare(folder, cluster=True, log=lambda *_: None)
     assert not r.failed, fails(r)
     assert not (folder / "annotations").exists()
+    # A categorical column there already: not clustered, but its DE stats are written
+    assert "tables/table/obs/leiden" not in consolidated(folder / "s.zarr")
+    assert "tables/table/varm/de_mean__celltype" in consolidated(folder / "s.zarr")
 
     other = tmp_path / "u"
     other.mkdir()
     write_table(make_table(categorical=False), other / "cells.zarr", 3)
     r = prepare_folder.prepare(other, cluster=True, log=lambda *_: None)
     assert not r.failed, fails(r)
-    # The clusters are in the table; the sidecar carries the DE stats only
-    notes = json.loads((other / "annotations" / "annotations.json").read_text())
-    assert notes["num_cells"] == CELLS and notes["de_stats"] == ["leiden"] and notes["columns"] == {}
-    assert (other / "annotations" / "de" / "leiden.bin.gz").exists() and not (other / "annotations" / "leiden.bin").exists()
+    # The clusters and their DE stats are in the table; nothing beside it
+    assert not (other / "annotations").exists()
     nodes = consolidated(other / "u.zarr")
+    assert "tables/table/varm/de_mean__leiden" in nodes and "tables/table/varm/de_pct__leiden" in nodes
     assert nodes["tables/table/obs/leiden"]["attributes"]["encoding-type"] == "categorical"
     assert "leiden" in nodes["tables/table/obs"]["attributes"]["column-order"]
     table = ad.read_zarr(other / "u.zarr" / "tables" / "table")
@@ -550,5 +566,7 @@ def test_cluster_runs_only_when_no_categorical_column(tmp_path):
     )
     r = prepare_folder.prepare(third, cluster=True, log=lambda *_: None)
     assert not r.failed, fails(r)
-    assert (third / "annotations" / "de" / "leiden.bin.gz").exists()
     assert "tables/table/obs/leiden" in consolidated(third / "v.zarr")
+    assert "tables/table/varm/de_mean__leiden" in consolidated(third / "v.zarr")
+    # The join column (one category) has no DE stats
+    assert "tables/table/varm/de_mean__region" not in consolidated(third / "v.zarr")

@@ -1,5 +1,7 @@
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
+import { viewerHref } from "@/lib/datasets/kind";
+
 const ses = new SESClient({
   region: process.env.AWS_SES_REGION || "us-west-2",
   credentials: {
@@ -13,6 +15,10 @@ const FROM_EMAIL = process.env.SES_FROM_EMAIL || "noreply@merfisheyes.com";
 export interface DatasetReadyEmailParams {
   email: string;
   datasetId: string;
+  /** Its `datasetType`: which viewer the link opens (lib/datasets/kind.ts). */
+  datasetType?: string | null;
+  /** Whether its count is of molecules (a molecule dataset or store). */
+  molecules?: boolean;
   datasetName?: string;
   metadata?: {
     numCells?: number;
@@ -32,17 +38,22 @@ export interface DatasetReadyEmailParams {
 export async function sendDatasetReadyEmail({
   email,
   datasetId,
+  datasetType,
+  molecules,
   datasetName,
   metadata,
 }: DatasetReadyEmailParams): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  // Single-molecule datasets (sm_ prefix) open in the SM viewer; single-cell in
-  // the standard viewer. Same convention used elsewhere in this file.
-  const isSingleMolecule = datasetId.startsWith("sm_");
-  const viewerPath = isSingleMolecule ? "sm-viewer" : "viewer";
-  const link = `${baseUrl}/${viewerPath}/${datasetId}`;
-  // numCells stores the molecule count for single-molecule datasets, so label
-  // the row accordingly.
+  // The viewer of what it is (a SpatialData store, an image, cells or
+  // molecules); without a type, an sm_ id is still a molecule dataset
+  const isSingleMolecule = molecules ?? datasetId.startsWith("sm_");
+  const link = `${baseUrl}${viewerHref({
+    id: datasetId,
+    datasetType:
+      datasetType ?? (datasetId.startsWith("sm_") ? "single_molecule" : null),
+  })}`;
+  // numCells stores the molecule count for molecule datasets, so label the
+  // row accordingly.
   const countLabel = isSingleMolecule ? "Molecules" : "Cells";
 
   const subject = datasetName
@@ -131,6 +142,8 @@ export interface DuplicateDatasetEmailParams {
   /** The already-ingested dataset this duplicates. */
   existingId: string;
   existingTitle?: string;
+  /** The existing dataset's `datasetType`, for its viewer link. */
+  existingType?: string | null;
   /**
    * Outcome for a duplicate that was uploaded with a single-molecule dataset to
    * overlay: "attached" — the molecules were overlaid onto the existing dataset;
@@ -148,11 +161,15 @@ export async function sendDuplicateDatasetEmail({
   uploadedName,
   existingId,
   existingTitle,
+  existingType,
   overlay,
 }: DuplicateDatasetEmailParams): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const viewerPath = existingId.startsWith("sm_") ? "sm-viewer" : "viewer";
-  const link = `${baseUrl}/${viewerPath}/${existingId}`;
+  const link = `${baseUrl}${viewerHref({
+    id: existingId,
+    datasetType:
+      existingType ?? (existingId.startsWith("sm_") ? "single_molecule" : null),
+  })}`;
   const existingLabel = existingTitle || "your existing dataset";
   const overlayNote =
     overlay === "attached"

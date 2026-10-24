@@ -273,3 +273,104 @@ export function classifyFolder(files: File[]): FolderClassification {
     ignored: entries.filter((e) => !claimed.has(e)),
   };
 }
+
+/** What scripts/prepare.py reads of a Xenium export or a MERSCOPE region. */
+export interface PreparePlatformFiles {
+  format: "xenium" | "merscope";
+  cells: ClassifiedFile[];
+  molecules: ClassifiedFile[];
+  /** Sent only when the uploader asks for them: they are most of the bytes. */
+  images: ClassifiedFile[];
+}
+
+/** The first of `names` at the top level, as prepare.py looks for it. */
+function firstOf(entries: ClassifiedFile[], ...names: string[]) {
+  for (const name of names) {
+    const hit = entries.find((e) => e.key === name);
+
+    if (hit) return [hit];
+  }
+
+  return [];
+}
+
+/**
+ * The files of a Xenium export (experiment.xenium) or a MERSCOPE region
+ * (cell_by_gene.csv + cell_metadata.csv) that scripts/prepare.py reads —
+ * recognised as it recognises them (`recognise()`), by exact names at the top.
+ * Null for anything else (a table, a folder of parts): classifyFolder's
+ * choice stands for those.
+ *
+ * Mirrors scripts/prepare_xenium.py (spatialdata-io's reader: the matrix,
+ * cells, cells.zarr.zip, both boundaries; transcripts.parquet; the morphology
+ * image when sent) and scripts/prepare_merscope.py (its two CSVs, the
+ * categories, the boundaries, detected_transcripts; it writes no image).
+ */
+export function preparePlatformFiles(
+  files: File[],
+): PreparePlatformFiles | null {
+  const usable = files
+    .map((file) => ({ key: datasetRelativeKey(file), file }))
+    .filter((e) => !isJunk(e.key));
+  const top = usable.filter((e) => isTopLevel(e.key));
+  const has = (name: string) => top.some((e) => e.key === name);
+
+  if (has("experiment.xenium")) {
+    const matrixFolder = usable.filter((e) =>
+      e.key.startsWith("cell_feature_matrix/"),
+    );
+    const matrix = firstOf(
+      top,
+      "cell_feature_matrix.h5",
+      "cell_feature_matrix.zarr.zip",
+    );
+
+    return {
+      format: "xenium",
+      cells: [
+        ...firstOf(top, "experiment.xenium"),
+        ...(matrix.length ? matrix : matrixFolder),
+        ...firstOf(top, "cells.parquet", "cells.csv.gz"),
+        ...firstOf(top, "cells.zarr.zip"),
+        ...firstOf(top, "cell_boundaries.parquet", "cell_boundaries.csv.gz"),
+        ...firstOf(
+          top,
+          "nucleus_boundaries.parquet",
+          "nucleus_boundaries.csv.gz",
+        ),
+      ],
+      molecules: firstOf(
+        top,
+        "transcripts.parquet",
+        "transcripts.csv.gz",
+        "transcripts.csv",
+      ),
+      images: usable.filter(
+        (e) =>
+          e.key.startsWith("morphology_focus/") ||
+          e.key === "morphology_focus.ome.tif" ||
+          e.key === "morphology.ome.tif",
+      ),
+    };
+  }
+
+  if (has("cell_by_gene.csv") && has("cell_metadata.csv")) {
+    return {
+      format: "merscope",
+      cells: [
+        ...firstOf(top, "cell_by_gene.csv"),
+        ...firstOf(top, "cell_metadata.csv"),
+        ...firstOf(top, "cell_categories.csv"),
+        ...firstOf(top, "cell_boundaries.parquet"),
+      ],
+      molecules: firstOf(
+        top,
+        "detected_transcripts.parquet",
+        "detected_transcripts.csv",
+      ),
+      images: [],
+    };
+  }
+
+  return null;
+}

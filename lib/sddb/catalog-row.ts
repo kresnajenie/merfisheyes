@@ -5,10 +5,15 @@
  */
 import type { CatalogRow } from "./catalog-schema";
 
-/** Where each public bucket lives; `s3://` URLs carry no region. */
-const BUCKET_REGION: Record<string, string> = {
-  "scverse-spatial-eu-central-1": "eu-central-1",
-};
+import { CONVENTIONS } from "@/lib/spatialdata/conventions";
+
+/**
+ * Where each public bucket lives (`s3://` URLs carry no region), and the
+ * spellings Explore filters on: docs/specs/conventions.json.
+ */
+const BUCKET_REGION = CONVENTIONS.catalog.bucketRegions;
+const SPECIES = CONVENTIONS.catalog.species;
+const PLATFORM = CONVENTIONS.catalog.platforms;
 
 /**
  * `s3://bucket/key.zarr` → the virtual-hosted HTTPS URL the browser reads.
@@ -26,28 +31,6 @@ export function storeUrlFromZarrUrl(zarrUrl: string): string {
 
   return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
 }
-
-const SPECIES: Record<string, string> = {
-  human: "Human",
-  mouse: "Mouse",
-  rat: "Rat",
-  macaque: "Macaque",
-  "rhesus macaque": "Rhesus Macaque",
-  zebrafish: "Zebrafish",
-  "golden hamster": "Golden hamster",
-};
-
-/** Their `technology` → the platform spelling the Explore filter already uses. */
-const PLATFORM: Record<string, string> = {
-  Visium: "Visium",
-  VisiumHD: "Visium HD",
-  Xenium: "Xenium",
-  Merscope: "MERSCOPE",
-  MERFISH: "MERFISH",
-  SpatialTranscriptomics: "Spatial Transcriptomics",
-  CosMx: "CosMx",
-  Atera: "Atera",
-};
 
 const str = (v: unknown): string | null => {
   if (v === null || v === undefined) return null;

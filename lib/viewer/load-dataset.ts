@@ -165,8 +165,10 @@ export async function loadDataset(
 
 async function loadCells(
   { datasetId, s3Url }: DatasetSource,
-  { panel, viz, findCells, onProgress, isCancelled }: LoadDatasetOptions,
+  options: LoadDatasetOptions,
 ): Promise<LoadedDataset | null> {
+  const { panel, viz, findCells, onProgress, isCancelled } = options;
+
   if (!datasetId && !s3Url) throw new Error("No dataset given");
   let registration: DatasetRegistration;
   let meta: Record<string, any> | null = null;
@@ -183,6 +185,11 @@ async function loadCells(
       if (!dataset) throw error;
       registration = unregistered(null);
     }
+  }
+  // A SpatialData store reached by a cell-viewer link (the upload bar gave
+  // those out) opens as the store it is, in the same scene
+  if (!dataset && meta?.datasetType === "spatialdata") {
+    return loadStore({ kind: "spatialdata", datasetId }, options);
   }
   const config = registration.viewerConfig;
 
@@ -272,9 +279,9 @@ async function loadMolecules(
 
 /**
  * A SpatialData store: its table makes the cells' scene, with the store's
- * other elements drawn in it; without a table, a linked molecule folder
- * makes the molecules' scene (a points element needs the cells' scene); an
- * image alone is shown on its own.
+ * other elements drawn in it; without a table, its points element or a
+ * linked molecule folder makes the molecules' scene, the image under them;
+ * an image alone is shown on its own.
  */
 async function loadStore(
   { datasetId, s3Url }: DatasetSource,
@@ -329,7 +336,7 @@ async function loadStore(
   let molecules: SingleMoleculeDataset | null = null;
 
   if (!cells) {
-    molecules = elements.molecules ?? null;
+    molecules = elements.points ?? elements.molecules ?? null;
     delete elements.molecules;
     delete elements.points;
   }

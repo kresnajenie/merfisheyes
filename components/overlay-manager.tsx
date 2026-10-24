@@ -63,12 +63,14 @@ export function OverlayManager({
     };
   }, [scDatasetId]);
 
-  // Paginated + searched list of the user's single-molecule datasets.
+  // Paginated + searched list of the user's molecule datasets: single
+  // molecule ones, and SpatialData stores (what the server makes of a molecule
+  // table; the route checks the one picked has molecules).
   const fetchPage = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        type: "single_molecule",
+        type: "single_molecule,spatialdata",
         page: String(page),
         limit: String(PAGE_SIZE),
       });
@@ -77,7 +79,11 @@ export function OverlayManager({
       const res = await fetch(`/api/ingest/mine?${params}`);
       const data = res.ok ? await res.json() : null;
 
-      setItems(data?.datasets ?? []);
+      setItems(
+        ((data?.datasets ?? []) as typeof items).filter(
+          (d) => d.id !== scDatasetId,
+        ),
+      );
       setTotal(data?.total ?? 0);
     } finally {
       setLoading(false);
@@ -197,7 +203,7 @@ export function OverlayManager({
 
       <Input
         isClearable
-        placeholder="Search your single-molecule datasets…"
+        placeholder="Search your molecule datasets…"
         size="sm"
         value={search}
         onClear={() => setSearch("")}
@@ -212,8 +218,8 @@ export function OverlayManager({
         ) : items.length === 0 ? (
           <p className="py-8 text-center text-xs text-default-400">
             {search
-              ? "No single-molecule datasets match."
-              : "You have no single-molecule datasets to overlay yet."}
+              ? "No molecule datasets match."
+              : "You have no molecule datasets to overlay yet."}
           </p>
         ) : (
           <div className="flex flex-col gap-1.5">

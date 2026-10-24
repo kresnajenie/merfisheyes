@@ -1,0 +1,81 @@
+{
+  "attributes": {
+    "ome": {
+      "version": "0.5",
+      "multiscales": [
+        {
+          "name": "dapi",
+          "axes": [
+            {
+              "name": "c",
+              "type": "channel"
+            },
+            {
+              "name": "y",
+              "type": "space",
+              "unit": "micrometer"
+            },
+            {
+              "name": "x",
+              "type": "space",
+              "unit": "micrometer"
+            }
+          ],
+          "datasets": [
+            {
+              "path": "0",
+              "coordinateTransformations": [
+                {
+                  "type": "scale",
+                  "scale": [
+                    1.0,
+                    1.5625,
+                    1.5625
+                  ]
+                },
+                {
+                  "type": "translation",
+                  "translation": [
+                    0.0,
+                    0.78125,
+                    0.78125
+                  ]
+                }
+              ]
+            },
+            {
+              "path": "1",
+              "coordinateTransformations": [
+                {
+                  "type": "scale",
+                  "scale": [
+                    1.0,
+                    3.125,
+                    3.125
+                  ]
+                },
+                {
+                  "type": "translation",
+                  "translation": [
+                    0.0,
+                    1.5625,
+                    1.5625
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "omero": {
+        "channels": [
+          {
+            "label": "DAPI"
+          }
+        ]
+      }
+    }
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

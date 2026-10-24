@@ -19,6 +19,7 @@ import { SingleMoleculeProcessor } from "@/lib/utils/SingleMoleculeProcessor";
 import { generateSingleMoleculeFingerprint } from "@/lib/utils/fingerprint";
 import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
 import { AuthModal } from "@/components/auth-modal";
+import { reportUploadFailure } from "@/lib/upload/reportUploadFailure";
 import {
   UploadAdvancedOptions,
   uploadViewerConfig,
@@ -110,6 +111,8 @@ export function SingleMoleculeUploadModal({
     setIsProcessing(true);
     setProgress(0);
     setProgressMessage("Generating fingerprint...");
+    // The dataset, once the upload has made one: a failure marks it FAILED
+    let createdId: string | undefined;
 
     try {
       // Generate fingerprint
@@ -208,6 +211,7 @@ export function SingleMoleculeUploadModal({
         } = await initiateResponse.json();
 
         datasetId = newDatasetId;
+        createdId = newDatasetId;
         uploadId = newUploadId;
 
         // Upload files directly to S3
@@ -279,6 +283,7 @@ export function SingleMoleculeUploadModal({
         );
 
         datasetId = result.datasetId;
+        createdId = result.datasetId;
         uploadId = result.uploadId;
       }
 
@@ -331,6 +336,12 @@ export function SingleMoleculeUploadModal({
       toast.error(
         `Failed to process dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
+      // The reason by email too, and the half-made dataset marked FAILED
+      void reportUploadFailure({
+        datasetId: createdId,
+        title: datasetName,
+        error,
+      });
       setIsProcessing(false);
       setProgress(0);
       setProgressMessage("");

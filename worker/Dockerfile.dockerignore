@@ -3,5 +3,6 @@
 *
 !worker/requirements.txt
 !worker/entrypoint.py
-!scripts/process_spatial_data.py
-!scripts/process_single_molecule.py
+!scripts/*.py
+!scripts/requirements.txt
+!docs/specs/schemas/*.json

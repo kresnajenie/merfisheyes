@@ -25,6 +25,8 @@ dataset each cell links to, and an image under them. Schema:
 | `linkColumn` | `"__all__"`: every cell links to the one dataset in `links.__all__`, drawn over the cells. Any other value: the name of a cluster column; a cell's value picks its entry in `links`, opened in a split panel on right-click. |
 | `links` | Column value → a molecule dataset: a public folder's URL or a name inside this folder (`source: "s3"`, the default), or an app dataset id (`source: "app"`). |
 | `source` | How `links` are opened: `"s3"` (public URL, `SingleMoleculeDataset.fromCustomS3`) or `"app"` (presigned API, `fromS3`). |
+| `linkFormat` | What `links` point at: `"molecules"` (default), a molecule folder of one file per gene; `"store"`, a SpatialData store whose tiled points element is drawn over the cells (what `scripts/prepare.py` makes of a molecule table). One loader opens either: `openLinkedMolecules` in `lib/spatialdata/loadSpatialDataMolecules.ts`. |
+| `datasetId` | The linked molecule dataset's id when it is registered (for the overlay picker). |
 | `image` | An OME-Zarr image drawn under the cells: a public URL or a name inside this folder, or with `imageSource: "app"` an image dataset's id. Its transforms must place it in the cells' coordinates; it is drawn only for cells with raw (un-normalized) coordinates. |
 | `imageSource` | `"s3"` (default) or `"app"`. |
 | `imageDatasetId` | The image's dataset id when it is registered (for the overlay picker). |

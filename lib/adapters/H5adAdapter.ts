@@ -8,6 +8,7 @@ import h5wasm from "h5wasm";
 
 import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
+import { CONVENTIONS } from "../spatialdata/conventions";
 
 // async function loadH5wasm() {
 //   if (h5wasm) return h5wasm;
@@ -410,7 +411,7 @@ export class H5adAdapter {
    * Tries multiple common column names: _index, gene, genes
    */
   async loadGenes(): Promise<string[]> {
-    const possibleColumns = ["_index", "gene", "genes"];
+    const possibleColumns = CONVENTIONS.tables.featureIndexColumns;
 
     for (const columnName of possibleColumns) {
       try {

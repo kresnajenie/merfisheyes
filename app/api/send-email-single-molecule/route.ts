@@ -2,6 +2,7 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { viewerHref } from "@/lib/datasets/kind";
 
 const ses = new SESClient({
   region: process.env.AWS_SES_REGION || "us-west-2",
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
         title: true,
         numCells: true,
         numGenes: true,
+        datasetType: true,
       },
     });
 
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-    const datasetUrl = `${baseUrl}/sm-viewer/${datasetId}`;
+    const datasetUrl = `${baseUrl}${viewerHref({ id: datasetId, datasetType: dataset.datasetType })}`;
 
     const command = new SendEmailCommand({
       Source: FROM_EMAIL,

@@ -8,6 +8,220 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-24
+
+One pipeline for preparing data: `scripts/prepare.py` for your own machine,
+which the server can run too (behind `NEXT_PUBLIC_INGEST_PIPELINE=prepare`);
+molecule opacity, molecules stores overlaying cells, split views of stores
+and images, and a viewer that fits any window.
+
+### Changed
+
+- **Share shows a QR code.** The Share button opens a panel with the link
+  to this view (still copied at once) and its QR code, to open the same view
+  on a phone or from a slide. The link includes a change made just before
+  (the view's settings were written to the URL 400 ms late, so a quick share
+  could miss them).
+- **Panels and columns fit the window.** The image and cell-shapes panels
+  close on a click outside; the shapes panel sits beside its button. The
+  left control rail and the legends scroll, with faded edges, instead of
+  running off the bottom (the rail now holds the molecule opacity slider
+  too), and the legends stop above the molecule status panel.
+- **An image on its own has the viewer's buttons.** `/image-viewer` and a
+  SpatialData store holding only an image get Split screen, Hide UI and
+  Share, like the cell and molecule viewers (no camera panel: the image is
+  flat), and both pages can split. A dropped image's preview splits too,
+  without Share, since its files are only in that tab.
+- **Image channels: a slider range and typed values.** Each channel's
+  sliders span a range you can type (say 0–15000 of a 16-bit image's
+  0–65535) for finer control where the data is, and each bound has a box to
+  type it exactly; a value typed past the range widens it. The range is
+  kept in the link (`img=`) with the window. The channel panel scrolls when
+  there are many channels.
+- **A molecules store overlays cells.** The Overlays dialog lists your
+  SpatialData stores beside your single molecule datasets, and attaching
+  one draws its tiled molecules over the cells (`mapping.json`
+  `linkFormat: "store"`, `docs/specs/mapping.md`), in the SpatialData
+  viewer and in `/viewer` alike. Attaching or removing keeps the rest of
+  `mapping.json`, and the viewer reopens so the change shows at once.
+- **Every link opens the viewer of what the dataset is.** The "dataset
+  ready" and "already in your library" emails, the single molecule upload's
+  email and the admin Community list chose between `/viewer` and
+  `/sm-viewer` (by type or by an `sm_` id) and sent a SpatialData store to
+  the wrong one; they now use `viewerHref`. The admin catalog import reads
+  `/spatialdata-viewer` and `/image-viewer` links too.
+- **Molecule opacity slider.** Below the molecule size slider (and beside
+  it in the cell viewer while that slider is on molecules), one opacity for
+  every molecule in the panel, in both molecule layers (a folder's per-gene
+  clouds, a store's tiled points). Below 100% molecules blend and stop
+  hiding the ones behind them, so where they pile up reads denser when
+  zoomed out. A uniform: moving it uploads nothing.
+- Docs: the user guide's *Sharing on Explore* page describes the three
+  collections on Explore (curated, SpatialData-DB, Community) and that every
+  card opens the dataset's own page; `scripts/README.md`, the SpatialData
+  guide, the spec and `CLAUDE.md` say the same.
+- **The names producers use, in one file.** `docs/specs/conventions.json`
+  (with a schema) holds the default-table attribute, feature-index columns,
+  default-colour priority, positional columns, cell-outline element names,
+  the `_for_vitessce` sibling suffix, the square-bin pattern and the
+  SpatialData-DB catalog's spellings, read by the viewer
+  (`lib/spatialdata/conventions.ts`) and by `scripts/validate_store.py`
+  alike. Supporting a new producer's naming is a line in that file; a test
+  fails if a reader hard-codes one of its names. Guide:
+  `docs/specs/conventions.md`. CosMx's `cells_polygons` is now a
+  recognised outline element, so its Shapes button appears.
+
+### Added
+
+- **"Upload & process on server" can run `scripts/prepare.py`** (steps 2–3
+  of `docs/plans/ONE-PIPELINE.md`), behind `NEXT_PUBLIC_INGEST_PIPELINE=prepare`;
+  unset, nothing changes. The worker runs the same script a person runs, in
+  its own environment with `scripts/requirements.txt`, and writes one
+  SpatialData store per upload: the cells and the molecules beside them as
+  one dataset (no separate molecules dataset or project), opened in the
+  SpatialData viewer; a molecule table alone becomes a store of points. The
+  upload sends what `prepare.py` reads — a Xenium export's seven files, a
+  MERSCOPE region's tables, boundaries and transcripts — and the images only
+  when "Also upload the images (N GB)" is ticked (it starts unticked). The
+  compute tier is chosen from the upload's size instead of found by running
+  out of memory. The molecules are flat on the cells' plane unless "Keep the
+  molecules' Z" is ticked (also unticked by default; `prepare.py --keep-z`).
+  A molecule table whose columns are not recognised asks for them, listing
+  the columns in its schema; only the parquet footer or CSV header is read
+  for that, and sample rows only from a first row group under 32 MB, so a
+  10 GB Xenium table (one row group) is never read whole in the browser. On the Xenium lung and breast
+  exports the worker's store and a local `prepare.py` run's are identical,
+  file for file.
+
+- **DEG stats live inside the table.** Every categorical column's per-gene
+  mean (log-normalised) and fraction expressing are written into the
+  SpatialData table itself — `varm/de_mean__<column>`, `varm/de_pct__<column>`,
+  `uns/merfisheyes_de` (`scripts/de_stats.py`) — by `prepare.py` and
+  `spatialdata_cluster.py`, so a store needs no `annotations/` folder beside
+  it; the viewer's DEG panel reads them (older stores' `annotations/` still
+  work).
+
+- **`scripts/prepare.py`: one command to prepare your own data** (step 1 of
+  `docs/plans/ONE-PIPELINE.md`). `python scripts/prepare.py INPUT OUT`
+  recognises an `.h5ad` / AnnData Zarr, a Xenium export, a MERSCOPE region,
+  a Visium output, a molecule table (a lab's own `Gene, X, Y, Z` columns too)
+  or a folder of parts, and writes one SpatialData store with `mapping.json`
+  and `stats.json`, never changing INPUT. Images are written when the input
+  has them (`--no-images` to skip); `--labels` adds a MapMyCells CSV;
+  control probes are left out of every table; an `uns` entry the Zarr writer
+  refuses is left out with a warning; cells are placed from `obs` coordinate
+  columns when `obsm` has none; Xenium no longer keeps a second (parquet)
+  copy of the molecules. Packages pinned in `scripts/requirements.txt`
+  (`requirements-prepare.txt` now points there); shared rules in
+  `scripts/meyes_common.py`. The main README says where it is and how to run
+  it. Exit codes 0 / 2 / 3 / 4.
+
+- **Every kind of SpatialData-DB store opens: CODEX, PhenoCycler,
+  spatial-CUT&Tag, spatial-ATAC-seq, MALDI-MSI and CosMx beside the RNA
+  ones.** Measured on the root metadata of one store per technology
+  (`tests/data/sddb/roots`): a table's features come from the index column
+  `var` declares (`formula_adduct` in a MALDI table, `gene` in a CosMx
+  one), not only `var/_index`; a dense `X` (every image channel a feature,
+  as CODEX writes it) is read one feature at a time; a table with no
+  `obsm/spatial` (CosMx) draws its cells at the centres of the shapes it
+  annotates, read from the Point `<region>_for_vitessce` element when there
+  is one (35 MB for 1.46 M cells, against 265 MB of polygons) and matched
+  by instance id; an image placed by an `affine` that rotates (a MALDI
+  optical image, 91° in one store) is drawn as is, the levels staying in
+  the image's own frame and the placement being one matrix on the layer;
+  and an image of any number of channels (84 in a CODEX store) compiles,
+  the layer showing at most 8 at once through fixed shader slots. The
+  validator (`scripts/validate_store.py`) applies the same rules, and the
+  profiles say so (`docs/specs/table-profile.md`, `image-profile.md`,
+  `store-layout.md`). Fixtures shaped like the real stores, built by the
+  `spatialdata` library: `scripts/testdata/make-tiny-modalities.py`.
+- **Processed data on "Upload & process on server".** A SpatialData store,
+  separate stores, an OME-Zarr image or merfisheyes output folders dropped
+  on the server card are uploaded as they are, the same as Upload & Save
+  from a preview, without opening them first; it used to say "No
+  single-cell data found". Raw exports still go to the worker.
+- **Separate SpatialData parts become one store.** A store without a table
+  (tiled molecules, an image) and a standalone OME-Zarr image beside a store
+  or table join it as its elements, in the preview and when saved; only the
+  root `zarr.json` is rewritten to list them.
+- **Drop matrix tests**: every combination of a table (CSR `X` + CSC layer,
+  or CSC `X`), an image and tiled molecules, in four layouts, dropped through
+  the drop zone (`e2e/tests/viewer/drop-matrix.spec.ts`), saved and sent to
+  the server card (`e2e/tests/upload/drop-matrix-save.spec.ts`), and timed on
+  real stores (`e2e/perf/real-drop.spec.ts`) and real uploads, prepared or
+  raw (`e2e/perf/real-upload.spec.ts`); tiny stores whose `X` is CSC
+  (`scripts/testdata/make-tiny-csc-x.py`) and whose indexes have names
+  (`make-tiny-named-index.py`).
+
+### Fixed
+
+- **A split view opens SpatialData stores and images.** The right panel
+  only knew cells and molecules, so a SpatialData store (every SpatialData-DB
+  card on Explore, a store saved or processed here) or an image opened as
+  cells and failed. It has a panel for each now, chosen by the dataset's
+  type, a pasted link's viewer, or the page itself ("Same Dataset" on a
+  store's page). A SpatialData page keeps its split in the link, and the
+  split's part of the link no longer races the panels' image settings
+  (both written straight to the address). The split and close buttons have
+  accessible names.
+- A dataset processed into a SpatialData store opened in the wrong viewer
+  from the upload bar's "View dataset" link (`/viewer/…`, which cannot read
+  a store): the status route picked the viewer by "single molecule or not".
+  It now gives the dataset's own viewer (`viewerHref`), and a `/viewer/…`
+  link to a SpatialData store, as already shared, opens the store.
+- A molecule table uploaded on the single molecule card under the prepare
+  pipeline became a SpatialData store but would not open (400, "Invalid
+  dataset ID format"): the store's routes (`/api/datasets/[id]`, `/list`,
+  `/object`) took only `ds_` ids, and it keeps its `sm_` one. They take any
+  app dataset id (`isAppDatasetId` in `lib/datasets/kind.ts`).
+- **An error stays until you close it, and a failed upload is emailed**
+  (kresnajenie/merfisheyes#166). Errors shown by updating a loading toast
+  (a gene that failed to load, a column that failed, split-screen sync)
+  closed after 3–5 s; every error toast now waits to be closed. Closing one
+  while a dialog was open closed the dialog instead and took a second click;
+  toasts are now outside every dialog's "click outside". An upload that
+  fails in the browser — Upload & Save of cells, molecules or a processed
+  folder, or the transfer of a server upload — emails the signed-in user the
+  reason (`POST /api/uploads/failed`), as a failed server run already did,
+  and marks its dataset FAILED when one was made, instead of leaving it at
+  UPLOADING. Upload & Save of a pre-chunked molecule folder is tested end to
+  end, its failures included.
+- Local test runs no longer send real email: the test server gets empty SES
+  keys, where it used to pick up a developer's staging ones.
+- **A big raw file uploads several parts at once.** "Upload & process on
+  server" sent a large file's 32 MB parts one after another over one
+  connection: 3.3 MB/s from the lab for Beaumont set1's 6 GB table. Six
+  parts now go up at once (`uploadParts` in `lib/upload/uploadRawToS3.ts`;
+  measured from the lab to S3, 4.5 MB/s for one and 20.3 MB/s for six, and
+  a browser opens at most six connections to S3), and their upload links
+  last 12 hours instead of 1, which a slow link used to outrun past ~11 GB.
+- A store's tiled molecules without a table were dropped: a molecules-only
+  store bounced back to the homepage, and one with an image showed the image
+  alone. They now open in the molecule viewer, dropped or saved.
+- A molecules-only store beside a table store could take the table's place
+  (the first by name won), leaving no cells.
+- Several folders dragged in at once overwrote one another's root metadata,
+  keeping only one of them.
+- A store holding only molecules opened with the camera on an empty patch
+  of the plane, so none were drawn; the molecule scene now frames them.
+- The local `@upload` test stack no longer calls AWS Batch: with a custom S3
+  endpoint no job is submitted (it was reaching Batch with a developer's
+  staging settings, refused only for the wrong keys).
+- **A lab's own molecule table processes on the server.** The worker read
+  only Xenium's (`x_location`) and MERSCOPE's (`global_x`) column names and
+  failed on anything else (`Gene, X, Y, Z`); it now takes a gene column and
+  x / y (/ z) by name in any case, and a failure names the columns it found.
+- **A molecule table beside the cells is found by its columns** on the server
+  card, not only when "transcript" is in its name.
+- **Gene names stored as bytes** (Xenium Onboard Analysis 1.x `transcripts.parquet`)
+  crashed the molecule processor ("cannot use a string pattern on a
+  bytes-like object"); they are read as text.
+- **A failed processing job says why.** When the worker's report did not
+  arrive, the dataset only said "container exited with exit code 1"; the
+  worker now also leaves its reason beside the dataset, and the app reads it.
+- **Error messages stay on screen until closed** instead of vanishing after
+  a few seconds.
+
 ## [0.13.0] - 2026-10-21
 
 Every dataset of SpatialData-DB on Explore, and a page of its own for every
@@ -629,7 +843,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.10.0...v0.11.0

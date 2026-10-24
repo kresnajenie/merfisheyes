@@ -4,7 +4,7 @@ import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SpatialDataImage } from "@/lib/spatialdata/image";
 import type { CellPolygons } from "@/lib/spatialdata/shapes";
 
-import { partFileMap, partFiles, storeFileMap } from "./classify-bundle";
+import { joinedStoreFileMap, partFileMap, partFiles } from "./classify-bundle";
 
 import { openElements } from "@/lib/scene/registry";
 import { openOmeZarrImageFromFiles } from "@/lib/spatialdata/image";
@@ -40,9 +40,10 @@ export async function openLocalBundle(
       (p, m) => onProgress(p * 0.6, m),
     );
   } else if (bundle.cells) {
-    // What sits beside the store; nothing, when the store is all there is
+    // The store with the parts that join it, and what sits beside it
+    // (nothing, when the store is all there is)
     const store = await openSpatialDataStoreFromFiles(
-      storeFileMap(bundle, bundle.cells),
+      await joinedStoreFileMap(bundle, bundle.cells),
       bundle.cells.root ? bundle.files : undefined,
     );
     const name = (bundle.cells.root || bundle.name).replace(/\.zarr$/, "");
@@ -65,7 +66,8 @@ export async function openLocalBundle(
 
     opened.image = elements.image;
     opened.shapes = elements.shapes;
-    if (opened.cells && bundle.molecules === undefined) {
+    // Over the cells, or the dataset itself when the store has no table
+    if (bundle.molecules === undefined) {
       opened.molecules = elements.points ?? elements.molecules;
     }
   }

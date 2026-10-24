@@ -13,3 +13,6 @@ proxy answers 403 to Python's default user agent).
 | `fJSOO03VzCTYtD1o.json` | Visium | human cerebellum, targeted neuroscience panel |
 | `haOzFbJ7Bc9x7NW6.json` | Visium HD | human ovary (ovarian serous adenocarcinoma) |
 | `gZwZDQTAM8vvm8sE.json` | spatial transcriptomics | mouse spinal cord (ALS), NCBI137 |
+| `YRIWXhfhZHe30Vf6.json` | CODEX (2026-10-21, from the bucket) | human pancreas: dense `X`, an 84-channel uint16 image chunked one channel at a time |
+| `fF2M7WUbkFnMMhpC.json` | MALDI-MSI (2026-10-21) | human kidney: `var` index `formula_adduct`, the optical image placed by an affine rotated 91° |
+| `571yTEm4hqlkXRPf.json` | CosMx, protein (2026-10-21) | human tonsil: 1,464,516 cells, no `obsm/spatial`, positions in `cells_polygons(_for_vitessce)` |

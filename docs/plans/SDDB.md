@@ -352,10 +352,12 @@ production, no schedule; every store listed, mixed into "All".
 
 Deferred from the list below, each its own step: the static explore index
 behind a CDN, the gene-query parity test, the `/spatialdata-viewer/sddb/<uid>`
-route and Lamin proxy backend, the nightly perf run, the cron. Cards open
+route and Lamin proxy backend, the nightly perf run, the cron. A card opens
+the dataset's page (every Explore card does since #162) and the page opens
 the store by its public URL; the bucket's CORS allows `www.merfisheyes.com`
-only, so the cards work on production until the scverse team adds the dev
-origin. The 10-21 release carried no assets for hours after its tag, so the
+only, so the stores open on production until the scverse team adds the dev
+origin. Shipped in v0.13.0 (2026-10-21); production synced by hand after
+the deploy. The 10-21 release carried no assets for hours after its tag, so the
 sync skips releases without the file.
 
 The original step, for the record:
@@ -420,6 +422,43 @@ our published set (count and `order_hash`), checked on every sync and in
 CI; the five stores of §1 open by uid; the explore page is interactive
 within 1 s at 12 MB/s with cache hits on the index files; the licence is
 on every card.
+
+### Step 5: the other technologies (`feat/sddb-modalities`) — built 2026-10-21
+
+The catalog grew past RNA: CODEX, PhenoCycler (two versions), spatial-CUT&Tag,
+spatial-ATAC-seq, MALDI-MSI and CosMx stores (20 in release
+`catalog-2026-10-20`, plus Atera). Measured on one root per technology
+(`tests/data/sddb/roots`, fetched 2026-10-21 from the bucket), four of
+them could not open, and each is now a rule of the profiles
+(`table-profile.md`, `image-profile.md`, `store-layout.md`) that the
+validator and the viewer both apply:
+
+- MALDI names its features `var/formula_adduct`: the adapter reads the
+  column `var`'s `_index` attribute names (`loadGenes`).
+- CosMx tables have no `obsm/spatial`: the cells are placed at one point
+  per shape of the region element, from the Point `<region>_for_vitessce`
+  sibling (35 MB for 1.46 M cells) matched by instance id
+  (`lib/spatialdata/centroids.ts`, `wkb.ts`, the shapes worker).
+- A MALDI optical image is placed by an affine with rotation (91° in one
+  store): `Map2` is a 2-D affine, the image's levels stay in its own frame
+  and the placement is one matrix on the layer, the view mapped back
+  through the inverse (`coordinates.ts`, `image.ts`, `ImageLayer.ts`).
+- CODEX images have 84 channels: the shader has `MAX_VISIBLE_CHANNELS` (8)
+  slots; turning a ninth on turns the earliest off.
+- A dense `X` (CODEX, PhenoCycler) reads one feature per row chunk, as it
+  did; the profile says so.
+
+Arbiters: the validator passes 19 of the 20 stores; the one failure
+(`K1v57r8i8fQeI0Ul`, CosMx RNA|protein) is the store's: its
+`protein_table` has no CSC copy and its transcripts declare another frame
+— to file with the maintainers. Fixtures shaped like the real stores,
+written by the `spatialdata` library (`scripts/testdata/make-tiny-modalities.py`:
+`codex_v3`, `maldi_v3`, `cosmx_v3`), pass the validator and the Python
+tests, and open in the `@quick` browser suite. Deferred: a re-run of the
+census on the 3,222-row catalog (the inventory is still the 1,884-store
+one of 2026-10-18), the perf suite on the 1.46 M-cell CosMx store, and the
+UI's wording ("gene", "DEG") for proteins, peaks and ions — the user's
+decision: tables and images first, no DEGs for now.
 
 ### Later, out of this plan
 

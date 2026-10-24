@@ -389,8 +389,9 @@ sd.SpatialData(images={"dapi": image}).write("sample.zarr")
     notes: [
       "The parts are recognised by what is inside them, not by their names. Each must be a folder directly inside the one you drop.",
       "With cells, the molecules are drawn over them and the image under them. Without cells the molecules are the scene; an image alone opens in the image viewer.",
-      "With two candidates for one part, the first by name is used and a message says which was skipped.",
-      "Upload & Save from this preview uploads every part as it is and keeps them overlaid.",
+      "SpatialData stores and images kept as separate folders are put into one store, the one with the cells. Several folders dragged in at once count as one folder holding them.",
+      "With two candidates for one part otherwise, the first by name is used and a message says which was skipped.",
+      "Upload & Save from this preview uploads every part as it is and keeps them overlaid; on “Upload & process on server” the same folder is uploaded as it is without opening it first.",
       "Raw cells (H5AD, Xenium, MERSCOPE) beside processed parts are shown on their own here; use “Upload & process on server” to combine those.",
     ],
   },

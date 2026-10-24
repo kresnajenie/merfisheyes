@@ -244,7 +244,16 @@ export async function openElements(
       ctx.onProgress?.(90, `Opening ${def.kind}...`);
       const element = await def.open(store, name, ctx);
 
-      if (element) (opened as Record<string, unknown>)[def.kind] = element;
+      if (!element) continue;
+      // A linked store's molecules are its points element: drawn as points
+      if (
+        def.kind === "molecules" &&
+        pointsElementOf(element as SingleMoleculeDataset)
+      ) {
+        opened.points = element as SingleMoleculeDataset;
+        continue;
+      }
+      (opened as Record<string, unknown>)[def.kind] = element;
     } catch (error) {
       console.error(`Error opening ${def.kind}:`, error);
       (opened.problems ??= []).push(

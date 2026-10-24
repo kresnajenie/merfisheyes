@@ -13,6 +13,7 @@ import {
   createSmPointCloud,
   createStreamingSmPointCloud,
   SM_DOT_SIZE_FACTOR,
+  setMoleculeOpacity,
   updateDotSize,
   updatePointCloudColor,
   updatePointCloudShape,
@@ -36,6 +37,8 @@ export interface MoleculeLayerSelection {
   /** Legend order: a gene later in it is drawn on top. */
   legendOrder: Iterable<string>;
   globalScale: number;
+  /** Opacity of every molecule, 0-1 (1 when absent). */
+  opacity?: number;
   showAssigned: boolean;
   showUnassigned: boolean;
   /** Master switch for the whole layer. */
@@ -349,10 +352,12 @@ export class MoleculeLayer extends BaseLayer {
     const color = this.colorOf(viz, kind);
     const shape = this.shapeOf(viz, kind);
     const dotSize = this.dotSize(viz, kind);
+    const opacity = this.selection?.opacity ?? 1;
     const last = cloud.userData as {
       smColor?: string;
       smShape?: MoleculeShape;
       smDotSize?: number;
+      smOpacity?: number;
     };
 
     // A sync runs on every store change (each slider tick); repainting a
@@ -368,6 +373,10 @@ export class MoleculeLayer extends BaseLayer {
     if (last.smShape !== shape) {
       updatePointCloudShape(cloud, shape);
       last.smShape = shape;
+    }
+    if (last.smOpacity !== opacity) {
+      setMoleculeOpacity(cloud.material as THREE.ShaderMaterial, opacity);
+      last.smOpacity = opacity;
     }
     cloud.renderOrder = renderOrderFor(legendIndex.get(gene) ?? 0, kind);
     cloud.visible = this.selection?.visible ?? true;

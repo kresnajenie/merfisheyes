@@ -26,6 +26,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SCHEMAS = HERE.parent / "docs" / "specs" / "schemas"
+# The names particular producers use, shared with the viewer
+# (lib/spatialdata/conventions.ts); docs/specs/conventions.md
+CONVENTIONS = json.loads((HERE.parent / "docs" / "specs" / "conventions.json").read_text())
 sys.path.insert(0, str(HERE))
 
 
@@ -153,7 +156,24 @@ def check_table(store, name: str, r: Report):
     attrs = t.get("attributes", {}) if t else {}
     spatial = node(store, f"{where}/obsm/spatial")
     if not spatial:
-        r.fail(where, "no obsm/spatial")
+        # The viewer takes one point per cell from the region shapes element
+        # (a Point `<region>_for_vitessce` sibling first, else the polygons'
+        # centres), matched by instance id (lib/spatialdata/centroids.ts)
+        reg = attrs.get("region")
+        names = reg if isinstance(reg, list) else [reg] if reg else []
+        source = next(
+            (
+                f"shapes/{n}{suffix}"
+                for n in names
+                for suffix in (CONVENTIONS["shapes"]["pointSiblingSuffix"], "")
+                if node(store, f"shapes/{n}{suffix}")
+            ),
+            None,
+        )
+        if source and attrs.get("instance_key"):
+            r.ok(where, f"no obsm/spatial: the cells' positions come from {source}")
+        else:
+            r.fail(where, "no obsm/spatial, and no region shapes element with an instance_key to take positions from")
     elif len(spatial.get("shape", [])) != 2 or spatial["shape"][1] not in (2, 3):
         r.fail(where, f"obsm/spatial shape {spatial.get('shape')} is not n_obs × 2 or 3")
     else:
@@ -264,8 +284,10 @@ def check_shapes(store, name: str, r: Report):
             r.warn(where, "one row group: a region cannot be read by range")
     except Exception as e:  # noqa: BLE001
         r.fail(where, f"unreadable: {e}")
-    if name not in ("cell_boundaries", "cell_polygons", "cells"):
-        r.warn(where, "not a name the viewer looks for (cell_boundaries, cell_polygons, cells)")
+    outlines = CONVENTIONS["shapes"]["cellOutlineElements"]
+    sibling = CONVENTIONS["shapes"]["pointSiblingSuffix"]
+    if name not in outlines and not name.endswith(sibling):
+        r.warn(where, f"not a name the viewer draws as outlines ({', '.join(outlines)})")
 
 
 def check_image(store, name: str, r: Report):
@@ -315,10 +337,34 @@ def element_transforms(kind: str, attrs: dict) -> tuple[list[dict], list[str]]:
     return attrs.get("coordinateTransformations") or [], attrs.get("axes") or default
 
 
-def chain(transforms: list[dict], axes: list[str]) -> tuple[float, float, float, float]:
-    """(sx, sy, ox, oy) of scale / translation / identity steps applied in
-    order (a sequence counts as its steps); ValueError on any other step."""
-    sx, sy, ox, oy = 1.0, 1.0, 0.0, 0.0
+IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+
+
+def compose(m, n):
+    """First m, then n; maps are (a, b, c, d, tx, ty): x' = a x + b y + tx, y' = c x + d y + ty."""
+    a, b, c, d, tx, ty = m
+    e, f, g, h, ux, uy = n
+    return (
+        e * a + f * c, e * b + f * d,
+        g * a + h * c, g * b + h * d,
+        e * tx + f * ty + ux, g * tx + h * ty + uy,
+    )
+
+
+def invert(m):
+    a, b, c, d, tx, ty = m
+    det = a * d - b * c
+    if not det:
+        raise ValueError("the transform is not invertible")
+    ia, ib, ic, id_ = d / det, -b / det, -c / det, a / det
+    return ia, ib, ic, id_, -(ia * tx + ib * ty), -(ic * tx + id_ * ty)
+
+
+def chain(transforms: list[dict], axes: list[str]) -> tuple[float, float, float, float, float, float]:
+    """The 2-D affine (a, b, c, d, tx, ty) of scale / translation / identity /
+    affine steps applied in order (a sequence counts as its steps), as
+    lib/spatialdata/coordinates.ts computes it; ValueError on any other step."""
+    m = IDENTITY
     for t in transforms:
         names = [a.get("name") for a in (t.get("input") or {}).get("axes", [])] if isinstance(t.get("input"), dict) else []
         names = names or axes
@@ -330,17 +376,39 @@ def chain(transforms: list[dict], axes: list[str]) -> tuple[float, float, float,
         if kind == "identity":
             continue
         if kind == "sequence":
-            a, b, c, d = chain(t.get("transformations") or [], names)
-            sx, sy, ox, oy = sx * a, sy * b, ox * a + c, oy * b + d
+            m = compose(m, chain(t.get("transformations") or [], names))
         elif kind == "scale" and t.get("scale"):
             a, b = pick(t["scale"], 1.0)
-            sx, sy, ox, oy = sx * a, sy * b, ox * a, oy * b
+            m = compose(m, (a, 0.0, 0.0, b, 0.0, 0.0))
         elif kind == "translation" and t.get("translation"):
             a, b = pick(t["translation"], 0.0)
-            ox, oy = ox + a, oy + b
+            m = compose(m, (1.0, 0.0, 0.0, 1.0, a, b))
+        elif kind == "affine" and t.get("affine") is not None:
+            # One row per output axis, one column per input axis plus the
+            # translation; a `c` axis carries the identity
+            rows = t["affine"]
+            outs = [a.get("name") for a in (t.get("output") or {}).get("axes", [])] if isinstance(t.get("output"), dict) else []
+            outs = outs or names
+            xi, yi = names.index("x") if "x" in names else -1, names.index("y") if "y" in names else -1
+            xo, yo = outs.index("x") if "x" in outs else -1, outs.index("y") if "y" in outs else -1
+
+            def at(r, c, fill):
+                return rows[r][c] if r >= 0 and c >= 0 and r < len(rows) and c < len(rows[r]) else fill
+
+            def last(r):
+                return rows[r][-1] if 0 <= r < len(rows) and rows[r] else 0.0
+
+            m = compose(
+                m,
+                (
+                    at(xo, xi, 1.0), at(xo, yi, 0.0),
+                    at(yo, xi, 0.0), at(yo, yi, 1.0),
+                    last(xo), last(yo),
+                ),
+            )
         else:
             raise ValueError(f'unsupported transform "{kind}"')
-    return sx, sy, ox, oy
+    return m
 
 
 def to_system(el: tuple[list[dict], list[str]], system: str | None):
@@ -361,16 +429,30 @@ def to_system(el: tuple[list[dict], list[str]], system: str | None):
 
 
 def is_identity(m) -> bool:
-    return abs(m[0] - 1) < 1e-9 and abs(m[1] - 1) < 1e-9 and abs(m[2]) < 1e-9 and abs(m[3]) < 1e-9
+    return all(abs(v - e) < 1e-9 for v, e in zip(m, IDENTITY))
+
+
+def describe(m) -> str:
+    """A map in words: its scale and offset, and the rotation if it has one."""
+    import math
+
+    a, b, c, d, tx, ty = m
+    text = f"scale {math.hypot(a, c):g}, {math.hypot(b, d):g}; offset {tx:g}, {ty:g}"
+    if abs(b) > 1e-9 or abs(c) > 1e-9:
+        text += f"; rotated {math.degrees(math.atan2(c, a)):.1f}°"
+    return text
 
 
 def default_table(root_attrs: dict, tables: list[str]) -> str | None:
-    """The curated default, else `table`, else the first by name."""
-    curated = (root_attrs.get("metadata_general") or {}).get("Default Table")
+    """The curated default, else `table`, else the first by name
+    (where each is named: docs/specs/conventions.json)."""
+    named = CONVENTIONS["tables"]["curatedDefaultTable"]
+    fallback = CONVENTIONS["tables"]["fallbackTableName"]
+    curated = (root_attrs.get(named["attribute"]) or {}).get(named["key"])
     if curated in tables:
         return curated
-    if "table" in tables:
-        return "table"
+    if fallback in tables:
+        return fallback
     return sorted(tables)[0] if tables else None
 
 
@@ -416,7 +498,7 @@ def coordinate_systems(store) -> dict:
         target, rule = next(iter(every)), "only common system"
     elif not systems:
         rule = "only common system"
-    region_map, region_reason = to_system(elements[region], target) if region else ((1.0, 1.0, 0.0, 0.0), None)
+    region_map, region_reason = to_system(elements[region], target) if region else (IDENTITY, None)
 
     def place(path: str):
         if path not in elements:
@@ -428,15 +510,15 @@ def coordinate_systems(store) -> dict:
         m, reason = to_system(elements[path], target)
         if m is None:
             return None, reason
-        a, b, c, d = region_map
-        return (m[0] / a, m[1] / b, (m[2] - c) / a, (m[3] - d) / b), None
+        return compose(m, invert(region_map)), None
 
     return {"systems": systems, "target": target, "rule": rule, "region": region, "elements": elements, "place": place}
 
 
 def check_coordinates(store, r: Report):
-    """store-layout.md §8: one target; images reach it; points and shapes are
-    in the cells' frame (they are drawn as written); no affine."""
+    """store-layout.md §8: one target; images reach it (by a scale, a
+    translation or an affine, which may rotate); points and shapes are in
+    the cells' frame (they are drawn as written)."""
     cs = coordinate_systems(store)
     if not cs["elements"]:
         return
@@ -453,12 +535,14 @@ def check_coordinates(store, r: Report):
             if m is None:
                 r.fail(path, f"not placed with the cells: {reason}")
             elif not is_identity(m):
-                r.fail(path, f"declares a frame other than the cells' (scale {m[0]:g}, {m[1]:g}; offset {m[2]:g}, {m[3]:g}): it is drawn as written, so its transforms must match theirs")
+                r.fail(path, f"declares a frame other than the cells' ({describe(m)}): it is drawn as written, so its transforms must match theirs")
         elif kind == "images":
             if m is None:
                 r.warn(path, f"not drawn: {reason}")
             else:
                 placed.append(path)
+                if abs(m[1]) > 1e-9 or abs(m[2]) > 1e-9:
+                    r.ok(path, f"placed by an affine ({describe(m)})")
     if images and not placed:
         r.fail("coordinates", "no image can be placed with the cells")
 
