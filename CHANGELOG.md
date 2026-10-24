@@ -10,6 +10,16 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- **Share shows a QR code.** The Share button opens a panel with the link
+  to this view (still copied at once) and its QR code, to open the same view
+  on a phone or from a slide. The link includes a change made just before
+  (the view's settings were written to the URL 400 ms late, so a quick share
+  could miss them).
+- **Panels and columns fit the window.** The image and cell-shapes panels
+  close on a click outside; the shapes panel sits beside its button. The
+  left control rail and the legends scroll, with faded edges, instead of
+  running off the bottom (the rail now holds the molecule opacity slider
+  too), and the legends stop above the molecule status panel.
 - **A molecules store overlays cells.** The Overlays dialog lists your
   SpatialData stores beside your single molecule datasets, and attaching
   one draws its tiled molecules over the cells (`mapping.json`

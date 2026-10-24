@@ -24,6 +24,7 @@ import { LayerHost } from "@/lib/scene/LayerHost";
 import { PickingGrid } from "@/lib/webgl/picking-grid";
 import { useLayers } from "@/lib/scene/useLayers";
 import { LayerBindings, LayerControls } from "@/components/layer-controls";
+import { FadeScroll } from "@/components/fade-scroll";
 import {
   updateGeneVisualization,
   updateCelltypeVisualization,
@@ -1732,11 +1733,15 @@ export function ThreeScene({
 
       {/* SC + SM legends share a single absolute container so the SM gene
           pills stack below the SC celltype/gene legend instead of overlapping
-          it at top-right. */}
-      <div className="absolute right-6 top-24 z-10 flex flex-col items-end gap-4 max-w-xs">
+          it at top-right. It scrolls as one once it is taller than the panel
+          (many clusters, many genes), so nothing falls off the bottom. */}
+      <FadeScroll
+        className="absolute right-4 top-24 z-10 flex max-h-[calc(100%-9rem-var(--points-status-h,0px))] max-w-xs flex-col items-end gap-4 px-2 py-1"
+        data-testid="legends"
+      >
         <VisualizationLegends embedded />
         <SingleMoleculeLegends embedded />
-      </div>
+      </FadeScroll>
 
       {/* Spatial scale bar — only for datasets with reliable raw coordinates */}
       {dataset && !dataset.metadata?.wasNormalized && (

@@ -21,6 +21,7 @@ import {
   ColorPickerOutput,
   ColorPickerSelection,
 } from "@/components/ui/shadcn-io/color-picker";
+import { FadeScroll } from "@/components/fade-scroll";
 
 interface SingleMoleculeLegendsProps {
   // When true, render without the outer absolute positioning so the parent
@@ -148,9 +149,14 @@ export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
     setGeneUnassignedColor(gene, color);
   };
 
+  // On its own (the molecule viewer) the legend is its own scroll area;
+  // embedded, the column it sits in scrolls
+  const Root = embedded ? "div" : FadeScroll;
+
   return (
-    <div
-      className={`flex flex-col items-end gap-4 max-w-xs ${embedded ? "" : "absolute right-6 top-24 z-10"}`}
+    <Root
+      className={`flex flex-col items-end gap-4 max-w-xs ${embedded ? "" : "absolute right-4 top-24 z-10 max-h-[calc(100%-9rem-var(--points-status-h,0px))] px-2 py-1"}`}
+      data-testid={embedded ? undefined : "legends"}
     >
       {/* Selected Genes Badges */}
       <div className="flex flex-col items-end gap-2">
@@ -166,7 +172,7 @@ export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
         >
           Selected Genes ({selectedGenesLegend.size}) - Clear All
         </div>
-        <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto px-3 py-1">
+        <div className="flex flex-col items-end gap-2 px-3 py-1">
           {legendGenesArray.map(({ gene, geneViz, isVisible }) => {
             if (!geneViz) return null;
 
@@ -473,6 +479,6 @@ export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
           })}
         </div>
       </div>
-    </div>
+    </Root>
   );
 };

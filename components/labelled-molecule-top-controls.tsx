@@ -6,10 +6,12 @@ import { Button } from "@heroui/button";
 import { Slider, Switch } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { SharePanel } from "@/components/share-panel";
+import { flushUrlState } from "@/lib/utils/url-state-writer";
 import { usePanelLabelledMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
@@ -111,17 +113,29 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
     }
   };
 
+  // Share: copy the link to this view and show it with its QR code
+  const topRightRef = useRef<HTMLDivElement>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const handleShare = async () => {
+    if (shareUrl) {
+      setShareUrl(null);
+
+      return;
+    }
+    flushUrlState();
+    const url = window.location.href;
+
+    setShareUrl(url);
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("Link copied");
+      await navigator.clipboard.writeText(url);
     } catch {
-      toast.error("Couldn't copy link");
+      toast.error("Couldn't copy link — copy it from the share panel");
     }
   };
 
   return (
     <div
+      ref={topRightRef}
       data-ui-overlay
       className={`absolute top-4 z-[var(--z-rail)] flex flex-row gap-2 ${
         // Clear of the split panel's own close button.
@@ -182,8 +196,9 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
       )}
 
       {!embedded && (
-        <Tooltip content="Copy link to this view" placement="bottom">
+        <Tooltip content="Share this view (link + QR code)" placement="bottom">
           <Button
+            aria-label="Share"
             className={`${buttonBaseClass} ${glassButton()}`}
             color="default"
             variant="light"
@@ -204,6 +219,14 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
             </svg>
           </Button>
         </Tooltip>
+      )}
+
+      {shareUrl && (
+        <SharePanel
+          controlsRef={topRightRef}
+          url={shareUrl}
+          onClose={() => setShareUrl(null)}
+        />
       )}
 
       {isCameraOpen && (
