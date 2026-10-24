@@ -8,6 +8,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-24
+
+One pipeline for preparing data: `scripts/prepare.py` for your own machine,
+which the server can run too (behind `NEXT_PUBLIC_INGEST_PIPELINE=prepare`);
+molecule opacity, molecules stores overlaying cells, split views of stores
+and images, and a viewer that fits any window.
+
 ### Changed
 
 - **Share shows a QR code.** The Share button opens a panel with the link
@@ -836,7 +843,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.10.0...v0.11.0
