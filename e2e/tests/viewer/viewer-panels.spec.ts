@@ -1,5 +1,6 @@
 import {
   expect,
+  libraryStoreUrl,
   SELECTORS,
   startSpatialDataServer,
   storeUrl,
@@ -135,6 +136,89 @@ test("@quick the rail and the legends scroll in a short window", async ({
     await fits("legends");
     await legendsAboveStatus(page);
   });
+});
+
+test("@quick the image panel scrolls through many channels in a short window", async ({
+  page,
+}) => {
+  // The CODEX-shaped store: six channels, taller than this window
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(
+      libraryStoreUrl(server, "codex"),
+    )}`,
+  );
+  await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.locator(SELECTORS.imageButton).click();
+  const panel = page.getByTestId("image-panel");
+
+  await expect(panel).toBeVisible();
+  const box = (await panel.boundingBox())!;
+
+  expect(
+    box.y + box.height,
+    "image panel inside the window",
+  ).toBeLessThanOrEqual(600);
+  const list = panel.locator("[data-fade-scroll]");
+
+  await expect(list).toHaveAttribute("data-fade-scroll", "overflowing");
+  await list.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  // The last channel's last control is reachable
+  await expect(panel.getByRole("slider").last()).toBeInViewport();
+});
+
+test("@quick a channel's slider range can be narrowed, typed past and kept", async ({
+  page,
+}) => {
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(
+      libraryStoreUrl(server, "codex"),
+    )}`,
+  );
+  await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.locator(SELECTORS.imageButton).click();
+  const panel = page.getByTestId("image-panel");
+  const box = (name: string) =>
+    panel.getByRole("textbox", { name: `DAPI ${name}`, exact: true });
+  const slider = panel.getByRole("slider", {
+    name: "DAPI maximum",
+    exact: true,
+  });
+  const type = async (name: string, value: string) => {
+    await box(name).fill(value);
+    await box(name).press("Enter");
+  };
+
+  // Narrowed: the sliders span it, and the window is pulled inside
+  await type("range end", "150");
+  await expect(slider).toHaveAttribute("max", "150");
+  expect(Number(await box("maximum value").inputValue())).toBeLessThanOrEqual(
+    150,
+  );
+
+  // A value typed past the range sets it and widens the range to hold it
+  await type("maximum value", "300");
+  await expect(box("maximum value")).toHaveValue("300");
+  await expect(box("range end")).toHaveValue("300");
+  await expect(slider).toHaveValue("300");
+
+  // In the link: a reload keeps the range and the window
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("img"))
+    .not.toBeNull();
+  await page.reload();
+  await expect(page.locator(SELECTORS.scCanvas).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.locator(SELECTORS.imageButton).click();
+  await expect(box("range end")).toHaveValue("300");
+  await expect(box("maximum value")).toHaveValue("300");
 });
 
 test("@quick a molecules store's rail and legends stay in a short window", async ({

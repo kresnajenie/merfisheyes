@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageLayer } from "@/lib/spatialdata/ImageLayer";
+import type { ImageChannel, ImageLayer } from "@/lib/spatialdata/ImageLayer";
 
 import { useEffect, useReducer, useRef, useState } from "react";
 
@@ -18,11 +18,58 @@ import {
   scheduleUrlUpdate,
 } from "@/lib/utils/url-state-writer";
 
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(Math.max(v, lo), hi);
+
+/**
+ * A whole number typed in, applied on Enter or on leaving the box; Escape
+ * puts back the value it had.
+ */
+function NumberBox({
+  label,
+  value,
+  disabled,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  disabled?: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    const n = Number(draft);
+
+    setDraft(null);
+    if (draft !== null && draft.trim() !== "" && Number.isFinite(n)) {
+      onCommit(Math.round(n));
+    }
+  };
+
+  return (
+    <input
+      aria-label={label}
+      className="w-14 shrink-0 rounded bg-default-100 px-1 py-0.5 text-right text-xs tabular-nums text-foreground disabled:opacity-50"
+      disabled={disabled}
+      inputMode="numeric"
+      type="text"
+      value={draft ?? String(value)}
+      onBlur={commit}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") setDraft(null);
+      }}
+    />
+  );
+}
+
 /**
  * Image button + channel panel for the SpatialData viewer: show/hide the
- * image, and per channel its visibility, colour and display window. What is
- * set here is kept in the link (img=, or rimg= in the right split panel), so
- * a shared link looks the same.
+ * image, and per channel its visibility, colour, display window and the
+ * range its sliders cover (narrow it for finer control where the data is).
+ * What is set here is kept in the link (img=, or rimg= in the right split
+ * panel), so a shared link looks the same.
  */
 export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
   const [open, setOpen] = useState(false);
@@ -58,6 +105,49 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
   const changed = () => {
     scheduleUrlUpdate(slot, encodeImageState(layer));
     rerender();
+  };
+
+  // The sliders' span: the channel's own range, else the whole data type
+  const span = (ch: ImageChannel): [number, number] =>
+    ch.range ?? [0, layer.maxValue];
+
+  // A bound dragged or typed. The bounds can't cross: the one being set
+  // stops one short of the other. A typed value outside the range widens it.
+  const setBound = (i: number, bound: "min" | "max", value: number) => {
+    const ch = layer.channels[i];
+    const v = clamp(value, 0, layer.maxValue);
+    const [lo, hi] = span(ch);
+    const patch: Partial<ImageChannel> =
+      bound === "min"
+        ? { min: Math.min(v, ch.max - 1) }
+        : { max: Math.max(v, ch.min + 1) };
+
+    if (ch.range && (v < lo || v > hi)) {
+      patch.range = [Math.min(lo, v), Math.max(hi, v)];
+    }
+    layer.setChannel(i, patch);
+    changed();
+  };
+
+  // One end of the sliders' range typed. The window is pulled inside it, so
+  // the sliders show what is drawn; the whole data type is no range at all.
+  const setRangeEnd = (i: number, end: 0 | 1, value: number) => {
+    const ch = layer.channels[i];
+    const v = clamp(value, 0, layer.maxValue);
+    let [lo, hi] = span(ch);
+
+    if (end === 0) lo = Math.min(v, hi - 1);
+    else hi = Math.max(v, lo + 1);
+    const min = clamp(ch.min, lo, hi - 1);
+    const max = clamp(ch.max, min + 1, hi);
+    const patch: Partial<ImageChannel> = {
+      range: lo === 0 && hi === layer.maxValue ? undefined : [lo, hi],
+    };
+
+    if (min !== ch.min) patch.min = min;
+    if (max !== ch.max) patch.max = max;
+    layer.setChannel(i, patch);
+    changed();
   };
 
   return (
@@ -114,42 +204,53 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
                     }}
                   />
                   <span className="truncate">{channel.label}</span>
-                  <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-default-500">
-                    {channel.min} – {channel.max}
-                  </span>
                 </div>
                 {/* Display window: values at or below the lower bound draw
                   black, at or above the upper one full colour. */}
                 {(["min", "max"] as const).map((bound) => (
-                  <label
+                  <div
                     key={bound}
                     className="flex items-center gap-2 text-xs text-default-500"
                   >
-                    <span className="w-7">{bound}</span>
+                    <span className="w-9 shrink-0">{bound}</span>
                     <input
                       aria-label={`${channel.label} ${bound === "min" ? "minimum" : "maximum"}`}
-                      className="flex-1"
+                      className="min-w-0 flex-1"
                       disabled={!channel.visible}
-                      max={layer.maxValue}
-                      min={0}
+                      max={span(channel)[1]}
+                      min={span(channel)[0]}
                       type="range"
                       value={channel[bound]}
-                      onChange={(e) => {
-                        const value = Number(e.target.value);
-
-                        // The bounds can't cross: the one being dragged stops
-                        // one short of the other.
-                        layer.setChannel(
-                          i,
-                          bound === "min"
-                            ? { min: Math.min(value, channel.max - 1) }
-                            : { max: Math.max(value, channel.min + 1) },
-                        );
-                        changed();
-                      }}
+                      onChange={(e) =>
+                        setBound(i, bound, Number(e.target.value))
+                      }
                     />
-                  </label>
+                    <NumberBox
+                      disabled={!channel.visible}
+                      label={`${channel.label} ${bound === "min" ? "minimum" : "maximum"} value`}
+                      value={channel[bound]}
+                      onCommit={(v) => setBound(i, bound, v)}
+                    />
+                  </div>
                 ))}
+                {/* What the sliders span: narrow it to where the data is */}
+                <div className="flex items-center gap-2 text-xs text-default-500">
+                  <span className="w-9 shrink-0">range</span>
+                  <span className="flex-1" />
+                  <NumberBox
+                    disabled={!channel.visible}
+                    label={`${channel.label} range start`}
+                    value={span(channel)[0]}
+                    onCommit={(v) => setRangeEnd(i, 0, v)}
+                  />
+                  <span>–</span>
+                  <NumberBox
+                    disabled={!channel.visible}
+                    label={`${channel.label} range end`}
+                    value={span(channel)[1]}
+                    onCommit={(v) => setRangeEnd(i, 1, v)}
+                  />
+                </div>
               </div>
             ))}
           </FadeScroll>
