@@ -17,6 +17,14 @@ import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useSyncVisualization } from "@/lib/hooks/useSyncVisualization";
 import { useSyncSingleMoleculeVisualization } from "@/lib/hooks/useSyncSingleMoleculeVisualization";
 import { useSyncLabelledMoleculeVisualization } from "@/lib/hooks/useSyncLabelledMoleculeVisualization";
+import { useSplitUrlParams } from "@/lib/hooks/useSplitUrlParams";
+
+/** A viewer page that can split: the split's state is kept in the URL. */
+export function SplitScreenPage({ children }: { children: React.ReactNode }) {
+  useSplitUrlParams();
+
+  return <SplitScreenContainer>{children}</SplitScreenContainer>;
+}
 
 interface SplitScreenContainerProps {
   children: React.ReactNode;

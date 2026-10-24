@@ -10,8 +10,7 @@ import { useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 import { glassButton, glassPanel } from "@/components/primitives";
-import { SharePanel } from "@/components/share-panel";
-import { flushUrlState } from "@/lib/utils/url-state-writer";
+import { SharePanel, useShareLink } from "@/components/share-panel";
 import { usePanelLabelledMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
@@ -115,23 +114,7 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
 
   // Share: copy the link to this view and show it with its QR code
   const topRightRef = useRef<HTMLDivElement>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const handleShare = async () => {
-    if (shareUrl) {
-      setShareUrl(null);
-
-      return;
-    }
-    flushUrlState();
-    const url = window.location.href;
-
-    setShareUrl(url);
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      toast.error("Couldn't copy link — copy it from the share panel");
-    }
-  };
+  const share = useShareLink();
 
   return (
     <div
@@ -202,7 +185,7 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
             className={`${buttonBaseClass} ${glassButton()}`}
             color="default"
             variant="light"
-            onPress={handleShare}
+            onPress={share.toggle}
           >
             <svg
               className="w-5 h-5"
@@ -221,11 +204,11 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
         </Tooltip>
       )}
 
-      {shareUrl && (
+      {share.url && (
         <SharePanel
           controlsRef={topRightRef}
-          url={shareUrl}
-          onClose={() => setShareUrl(null)}
+          url={share.url}
+          onClose={share.close}
         />
       )}
 

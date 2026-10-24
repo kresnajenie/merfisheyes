@@ -4,15 +4,13 @@ import { Button } from "@heroui/button";
 import { Slider } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useState, useRef, useEffect } from "react";
-import { toast } from "react-toastify";
 
 import { CameraPanel } from "./camera-panel";
 import { SingleMoleculeGenePicker } from "./single-molecule-gene-picker";
 import { useSliderRangeLocal } from "./slider-range-popover";
 import { MoleculeOpacitySlider } from "./molecule-opacity-slider";
 import { FadeScroll } from "./fade-scroll";
-import { SharePanel } from "@/components/share-panel";
-import { flushUrlState } from "@/lib/utils/url-state-writer";
+import { SharePanel, useShareLink } from "@/components/share-panel";
 
 import {
   usePanelSingleMoleculeVisualizationStore,
@@ -62,23 +60,7 @@ export function SingleMoleculeControls() {
   );
 
   // Share: copy the link to this view and show it with its QR code
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const handleShare = async () => {
-    if (shareUrl) {
-      setShareUrl(null);
-
-      return;
-    }
-    flushUrlState();
-    const url = window.location.href;
-
-    setShareUrl(url);
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      toast.error("Couldn't copy link — copy it from the share panel");
-    }
-  };
+  const share = useShareLink();
 
   // Track shift key for 45° snap on rotation slider
   useEffect(() => {
@@ -253,7 +235,7 @@ export function SingleMoleculeControls() {
             className={`${BTN} ${glassButton()}`}
             color="default"
             variant="light"
-            onPress={handleShare}
+            onPress={share.toggle}
           >
             <svg
               className="w-5 h-5"
@@ -272,11 +254,11 @@ export function SingleMoleculeControls() {
         </Tooltip>
 
         {/* Camera Panel */}
-        {shareUrl && (
+        {share.url && (
           <SharePanel
             controlsRef={topRightRef}
-            url={shareUrl}
-            onClose={() => setShareUrl(null)}
+            url={share.url}
+            onClose={share.close}
           />
         )}
 

@@ -8,6 +8,34 @@ import qrcode from "qrcode-generator";
 
 import { glassPanel } from "@/components/primitives";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
+import { flushUrlState } from "@/lib/utils/url-state-writer";
+
+/**
+ * The Share button's state: `toggle` opens the panel on the link to this view
+ * as it is now (pending URL writes flushed first) and copies it, or closes it.
+ */
+export function useShareLink() {
+  const [url, setUrl] = useState<string | null>(null);
+
+  const toggle = async () => {
+    if (url) {
+      setUrl(null);
+
+      return;
+    }
+    flushUrlState();
+    const href = window.location.href;
+
+    setUrl(href);
+    try {
+      await navigator.clipboard.writeText(href);
+    } catch {
+      toast.error("Couldn't copy link — copy it from the share panel");
+    }
+  };
+
+  return { url, toggle, close: () => setUrl(null) };
+}
 
 /** An SVG QR code of `text`, black on white with a quiet zone, as markup. */
 export function qrSvg(text: string): string {

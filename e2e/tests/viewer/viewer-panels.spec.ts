@@ -1,5 +1,6 @@
 import {
   expect,
+  imageUrl,
   libraryStoreUrl,
   SELECTORS,
   startSpatialDataServer,
@@ -286,3 +287,55 @@ test("@quick Share shows the link to this view and its QR code", async ({
   await page.getByRole("button", { name: "Share", exact: true }).click();
   await expect(panel).toBeHidden();
 });
+
+// An image on its own has the buttons the other viewers have, in both places
+// it opens
+for (const shown of [
+  {
+    name: "/image-viewer",
+    path: "image-viewer",
+    url: () => imageUrl(server, 1000),
+  },
+  {
+    name: "an image-only store",
+    path: "spatialdata-viewer",
+    url: () => storeUrl(server, { image: true }),
+  },
+]) {
+  test(`@quick ${shown.name} has Hide UI, Share and Split screen`, async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto(
+      `/${shown.path}/from-s3?url=${encodeURIComponent(shown.url())}`,
+    );
+    await expect(page.locator(SELECTORS.imageCanvas).first()).toBeVisible({
+      timeout: 120_000,
+    });
+    const share = page.getByRole("button", { name: "Share", exact: true });
+
+    // Share: the link to this view and its QR code
+    await share.click();
+    await expect(page.getByTestId("share-qr").locator("svg")).toBeVisible();
+    expect(
+      await page
+        .getByRole("textbox", { name: "Link to this view" })
+        .inputValue(),
+    ).toBe(page.url());
+    await page.getByRole("button", { name: "Close share panel" }).click();
+
+    // Hide UI hides the buttons; H brings them back
+    await page.getByRole("button", { name: "Hide UI" }).click();
+    await expect(share).toBeHidden();
+    await page.keyboard.press("h");
+    await expect(share).toBeVisible();
+
+    // Split screen: the same image again on the right
+    await page.getByRole("button", { name: "Split screen" }).click();
+    await page.getByText("Same Dataset").click();
+    await expect(page.locator(SELECTORS.imageCanvas)).toHaveCount(2, {
+      timeout: 120_000,
+    });
+  });
+}

@@ -11,6 +11,8 @@ import { WebGLErrorOverlay } from "@/components/webgl-error-overlay";
 import { LayerHost } from "@/lib/scene/LayerHost";
 import { useLayers } from "@/lib/scene/useLayers";
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
+import { ImageViewerControls } from "@/components/image-viewer-controls";
+import { SplitScreenPage } from "@/components/split-screen-container";
 import {
   imageBounds,
   openOmeZarrImage,
@@ -136,10 +138,21 @@ export function ImageViewer({
     );
   }
 
-  return (
-    <ImageScene image={image} panel={panel}>
-      {!panel && url && <ClaimDatasetBanner />}
-    </ImageScene>
+  const scene = (
+    <>
+      <ImageViewerControls />
+      <ImageScene image={image} />
+    </>
+  );
+
+  // A panel is already inside a split; the page is one that can split
+  return panel ? (
+    scene
+  ) : (
+    <SplitScreenPage>
+      {url && <ClaimDatasetBanner />}
+      {scene}
+    </SplitScreenPage>
   );
 }
 
@@ -148,17 +161,7 @@ export function ImageViewer({
  * viewers put under their points, in the image's own coordinates, so what is
  * seen here lines up with the image as an overlay.
  */
-export function ImageScene({
-  image,
-  children,
-  panel = false,
-}: {
-  image: SpatialDataImage;
-  /** Drawn over the scene, e.g. the banner that offers to claim the image. */
-  children?: React.ReactNode;
-  /** In a split view's panel: fill the panel, not the window. */
-  panel?: boolean;
-}) {
+export function ImageScene({ image }: { image: SpatialDataImage }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -231,14 +234,14 @@ export function ImageScene({
   }, [image]);
 
   return (
-    <div className={`${panel ? "absolute" : "fixed"} inset-0 overflow-hidden`}>
+    // Fills its side of the split it is always placed in
+    <div className="absolute inset-0 overflow-hidden">
       <div
         ref={containerRef}
         className="absolute inset-0"
         data-testid="image-scene-canvas"
       />
       {webglFailed && <WebGLErrorOverlay />}
-      {children}
       <LayerControls slot="panel" />
       {layers.image && (
         <SpatialScaleBar

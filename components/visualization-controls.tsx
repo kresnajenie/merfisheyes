@@ -37,8 +37,7 @@ import { useVisualizationStore } from "@/lib/stores/visualizationStore";
 import { glassButton } from "@/components/primitives";
 import { MoleculeOpacitySlider } from "@/components/molecule-opacity-slider";
 import { FadeScroll } from "@/components/fade-scroll";
-import { SharePanel } from "@/components/share-panel";
-import { flushUrlState } from "@/lib/utils/url-state-writer";
+import { SharePanel, useShareLink } from "@/components/share-panel";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { OverlayManager } from "@/components/overlay-manager";
 import { LayerControls } from "@/components/layer-controls";
@@ -187,23 +186,7 @@ export function VisualizationControls() {
   const topRightRef = useRef<HTMLDivElement>(null);
 
   // Share: copy the link to this view and show it with its QR code
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const handleShare = async () => {
-    if (shareUrl) {
-      setShareUrl(null);
-
-      return;
-    }
-    flushUrlState();
-    const url = window.location.href;
-
-    setShareUrl(url);
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      toast.error("Couldn't copy link — copy it from the share panel");
-    }
-  };
+  const share = useShareLink();
 
   const hasDeStats =
     !!dataset?.deStats || (dataset?.availableDeStatsColumns?.length ?? 0) > 0;
@@ -783,7 +766,7 @@ export function VisualizationControls() {
             className={`${buttonBaseClass} ${glassButton()}`}
             color="default"
             variant="light"
-            onPress={handleShare}
+            onPress={share.toggle}
           >
             <svg
               className="w-5 h-5"
@@ -849,11 +832,11 @@ export function VisualizationControls() {
           />
         )}
 
-        {shareUrl && (
+        {share.url && (
           <SharePanel
             controlsRef={topRightRef}
-            url={shareUrl}
-            onClose={() => setShareUrl(null)}
+            url={share.url}
+            onClose={share.close}
           />
         )}
 
