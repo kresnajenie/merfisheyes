@@ -64,22 +64,24 @@ Do this on an up-to-date `develop` that's green in CI.
 5. **Promote to `main`.** Open a PR `develop` → `main` titled `Release vX.Y.Z`,
    let CI pass, and merge it (merge commit, matching existing history).
 
-6. **Tag `main`** at the merge commit and push the tag:
+6. **The tag and the GitHub Release are made by CI.** When the merge lands
+   on `main`, [`.github/workflows/release.yml`](../.github/workflows/release.yml)
+   reads `package.json`'s version and, if `vX.Y.Z` is not tagged yet, tags
+   the merge commit and publishes the GitHub Release with that version's
+   `CHANGELOG.md` section as its notes (`scripts/release-notes.mjs`). A
+   push to `main` that keeps the version does nothing. If CHANGELOG.md has
+   no section for the version the job fails and nothing is tagged;
+   `tests/unit/release-notes.test.ts` catches that on every PR.
+
+7. **Only if that job failed**, do it by hand from the merge commit:
 
    ```bash
-   git checkout main && git pull
-   git tag -a vX.Y.Z -m "vX.Y.Z"
+   git fetch origin
+   git tag -a vX.Y.Z -m "vX.Y.Z" origin/main
    git push origin vX.Y.Z
+   node scripts/release-notes.mjs X.Y.Z > notes.md
+   gh release create vX.Y.Z --verify-tag --latest --title "vX.Y.Z" --notes-file notes.md
    ```
-
-7. **Create the GitHub Release** from the tag, with notes:
-
-   ```bash
-   gh release create vX.Y.Z --title "vX.Y.Z" --generate-notes
-   ```
-
-   `--generate-notes` builds the notes from merged PRs; paste the curated
-   `CHANGELOG.md` highlights on top.
 
 8. **If the worker or `scripts/process_*.py` changed**, rebuild and push the ECR
    image so Fargate runs the new code — see
