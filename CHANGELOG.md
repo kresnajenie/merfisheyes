@@ -8,6 +8,14 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Releases tag and publish themselves.** Merging a release into `main`
+  tags it `vX.Y.Z` from `package.json` and publishes its GitHub Release with
+  this file's section as the notes (`.github/workflows/release.yml`,
+  `scripts/release-notes.mjs`); a test keeps the version and this file in
+  step. `docs/RELEASING.md` steps 6–7.
+
 ## [0.14.0] - 2026-10-24
 
 One pipeline for preparing data: `scripts/prepare.py` for your own machine,
@@ -73,11 +81,6 @@ and images, and a viewer that fits any window.
 
 ### Added
 
-- **Releases tag and publish themselves.** Merging a release into `main`
-  tags it `vX.Y.Z` from `package.json` and publishes its GitHub Release with
-  this file's section as the notes (`.github/workflows/release.yml`,
-  `scripts/release-notes.mjs`); a test keeps the version and this file in
-  step. `docs/RELEASING.md` steps 6–7.
 - **"Upload & process on server" can run `scripts/prepare.py`** (steps 2–3
   of `docs/plans/ONE-PIPELINE.md`), behind `NEXT_PUBLIC_INGEST_PIPELINE=prepare`;
   unset, nothing changes. The worker runs the same script a person runs, in
