@@ -28,6 +28,11 @@ export interface ImageChannel {
   /** Display window: pixel values mapped to black and to full colour. */
   min: number;
   max: number;
+  /**
+   * The span the controls' sliders cover, when narrowed by hand (else the
+   * whole of the data type). Drawing ignores it.
+   */
+  range?: [number, number];
 }
 
 const CHANNEL_COLORS = [

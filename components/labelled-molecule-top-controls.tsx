@@ -6,10 +6,11 @@ import { Button } from "@heroui/button";
 import { Slider, Switch } from "@heroui/react";
 import { Tooltip } from "@heroui/tooltip";
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 import { glassButton, glassPanel } from "@/components/primitives";
+import { SharePanel, useShareLink } from "@/components/share-panel";
 import { usePanelLabelledMoleculeVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
@@ -111,17 +112,13 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
     }
   };
 
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("Link copied");
-    } catch {
-      toast.error("Couldn't copy link");
-    }
-  };
+  // Share: copy the link to this view and show it with its QR code
+  const topRightRef = useRef<HTMLDivElement>(null);
+  const share = useShareLink();
 
   return (
     <div
+      ref={topRightRef}
       data-ui-overlay
       className={`absolute top-4 z-[var(--z-rail)] flex flex-row gap-2 ${
         // Clear of the split panel's own close button.
@@ -182,12 +179,13 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
       )}
 
       {!embedded && (
-        <Tooltip content="Copy link to this view" placement="bottom">
+        <Tooltip content="Share this view (link + QR code)" placement="bottom">
           <Button
+            aria-label="Share"
             className={`${buttonBaseClass} ${glassButton()}`}
             color="default"
             variant="light"
-            onPress={handleShare}
+            onPress={share.toggle}
           >
             <svg
               className="w-5 h-5"
@@ -204,6 +202,14 @@ export default function LabelledMoleculeTopControls({ embedded }: Props) {
             </svg>
           </Button>
         </Tooltip>
+      )}
+
+      {share.url && (
+        <SharePanel
+          controlsRef={topRightRef}
+          url={share.url}
+          onClose={share.close}
+        />
       )}
 
       {isCameraOpen && (
