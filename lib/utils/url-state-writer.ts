@@ -129,3 +129,13 @@ export function readUrlVizState(): {
     rightImage: params.get("rimg"),
   };
 }
+
+/**
+ * Write any pending change now: whatever reads the link (Share) must see the
+ * view as it is, not as it was 400 ms ago.
+ */
+export function flushUrlState() {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = null;
+  flushToUrl();
+}

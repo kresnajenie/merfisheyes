@@ -138,16 +138,21 @@ test.describe("@upload image overlay", () => {
 
     await test.step("each channel has a lower and an upper bound", async () => {
       await page.locator(SELECTORS.imageButton).click();
-      const min = page.getByLabel("DAPI minimum");
-      const max = page.getByLabel("DAPI maximum");
+      const min = page.getByLabel("DAPI minimum", { exact: true });
+      const max = page.getByLabel("DAPI maximum", { exact: true });
 
       await expect(min).toBeVisible();
       await max.fill("40000");
       await min.fill("1000");
-      await expect(page.getByText("1000 – 40000")).toBeVisible();
+      const minValue = page.getByLabel("DAPI minimum value", { exact: true });
+      const maxValue = page.getByLabel("DAPI maximum value", { exact: true });
+
+      await expect(minValue).toHaveValue("1000");
+      await expect(maxValue).toHaveValue("40000");
       // The bounds can't cross
       await min.fill("65535");
-      await expect(page.getByText("39999 – 40000")).toBeVisible();
+      await expect(minValue).toHaveValue("39999");
+      await expect(maxValue).toHaveValue("40000");
     });
 
     await test.step("an image added by URL joins the account and replaces it", async () => {

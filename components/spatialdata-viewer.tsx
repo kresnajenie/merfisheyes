@@ -8,18 +8,18 @@ import {
   DatasetLoadingScreen,
 } from "@/components/dataset-loading-screen";
 import { ImageScene } from "@/components/image-viewer";
+import { ImageViewerControls } from "@/components/image-viewer-controls";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { ThreeScene } from "@/components/three-scene";
 import { VisualizationControls } from "@/components/visualization-controls";
-import { SplitScreenContainer } from "@/components/split-screen-container";
+import { SplitScreenPage } from "@/components/split-screen-container";
 import { useDatasetLoader } from "@/lib/hooks/useDatasetLoader";
 import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
-import { useSplitUrlParams } from "@/lib/hooks/useSplitUrlParams";
 import { useSMOverlayUrlSync } from "@/lib/hooks/useUrlVizSync";
 
 /**
@@ -84,10 +84,10 @@ export function SpatialDataViewer({
     panel ? (
       scene
     ) : (
-      <PageFrame>
+      <SplitScreenPage>
         {storeUrl && <ClaimDatasetBanner />}
         {scene}
-      </PageFrame>
+      </SplitScreenPage>
     );
 
   if (cells) {
@@ -108,18 +108,14 @@ export function SpatialDataViewer({
     );
   }
 
+  // An image alone: the image scene, with the buttons the other scenes have
   return (
-    elements.image && (
-      <ImageScene image={elements.image} panel={panel}>
-        {!panel && storeUrl && <ClaimDatasetBanner />}
-      </ImageScene>
+    elements.image &&
+    frame(
+      <>
+        <ImageViewerControls />
+        <ImageScene image={elements.image} />
+      </>,
     )
   );
-}
-
-/** The full page: a split view whose state is kept in the URL. */
-function PageFrame({ children }: { children: ReactNode }) {
-  useSplitUrlParams();
-
-  return <SplitScreenContainer>{children}</SplitScreenContainer>;
 }
