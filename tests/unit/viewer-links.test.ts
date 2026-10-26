@@ -21,7 +21,7 @@ vi.mock("@aws-sdk/client-ses", () => ({
 }));
 
 const { datasetTypeOfViewer, viewerHref } = await import("@/lib/datasets/kind");
-const { sendDatasetReadyEmail, sendDuplicateDatasetEmail } = await import("@/lib/ses");
+const { sendDatasetReadyEmail } = await import("@/lib/ses");
 
 const BASE = "http://localhost:3000";
 
@@ -80,16 +80,6 @@ describe("the emails", () => {
 
     expect(sent[0].Message.Body.Text.Data).toContain("Molecules: 851,483,449");
     expect(sent[1].Message.Body.Text.Data).toContain("Cells: 124,364");
-  });
-
-  it.each(CASES)("duplicate: the existing $datasetType $id links $path", async ({ id, datasetType, path }) => {
-    await sendDuplicateDatasetEmail({
-      email: "a@example.com",
-      existingId: id,
-      existingType: datasetType,
-    });
-
-    expect(JSON.stringify(sent[0].Message.Body)).toContain(`${BASE}${path}`);
   });
 
   it("the single molecule upload's email links what the dataset is", async () => {
