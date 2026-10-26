@@ -47,7 +47,7 @@ The scripts re-run as described in each folder.
 | 4 | A **pre-chunked** cell folder dropped on the Folder card (`fromLocalChunked`, then Upload & Save) | chunked cells, verbatim | `single_cell` | `/viewer` |
 | 5 | The molecule **Chunked Folder** card (browser only: it has no server mode, `app/page.tsx:534`) | molecule folder, verbatim | `single_molecule` | `/sm-viewer` |
 | 6 | Processed parts in a folder, on either card, with chunked cells or a molecule folder among them (`lib/local/save-bundle.ts`: `saveChunkedCells`, `saveMolecules`). On the server card this happens **even with the prepare flag on** (`file-upload.tsx:462`) | chunked cells, molecule folder | `single_cell`, `single_molecule` | `/viewer`, `/sm-viewer` |
-| 7 | **Upload & process on server** without `NEXT_PUBLIC_INGEST_PIPELINE=prepare` (production today), and admin Retry of such a dataset (`lib/ingest/resubmit.ts` reuses its stored params) | legacy processors on Fargate | `single_cell`, `single_molecule` | `/viewer`, `/sm-viewer` |
+| 7 | **Upload & process on server** without `NEXT_PUBLIC_INGEST_PIPELINE=prepare`, and admin Retry of such a dataset (`lib/ingest/resubmit.ts` reuses its stored params). The flag is on in dev and, since 2026-10-24, in production, so this now only reaches a Retry of an older dataset | legacy processors on Fargate | `single_cell`, `single_molecule` | `/viewer`, `/sm-viewer` |
 | 8 | **Load from S3** / admin catalog import / seed scripts registering an existing old-format folder by URL (`ensureDatasetForS3Url`) | nothing (a row pointing at the folder) | `manifest.type` or `single_molecule` | `/viewer`, `/sm-viewer` |
 
 Already producing new formats: raw data on the server card under the prepare
@@ -218,28 +218,53 @@ time on Fargate):
 | 1–5 GB | MERSCOPE Ovarian 2.7 GB | about 6 min; 15–20 on a slow link |
 | 5–35 GB | Beaumont set1 6.5 GB; uterine 35 GB | 25–30 min for 6.5 GB; about 45 min for 35 GB |
 
-### 1.7 Production
+### 1.7 Production — done on 2026-10-24, ahead of this plan
 
-- **The worker image.** Production's job definition `merfisheyes-ingest`
-  (rev 3) runs `merfisheyes-worker:latest`.
-  - On 2026-10-24 the v0.14.0 worker (`merfisheyes-worker-staging:one-pipeline`,
-    `e015155e…`) was checked against it on the legacy path, and is being
-    promoted to `:latest`. The previous image is kept as `:pre-v0.14.0`.
-  - Same output on the tiny `.h5ad`, Xenium lung cells, Xenium transcripts
-    and a lab table with a column mapping. Only the molecule manifest's
-    timestamp and temporary id differ.
-  - A lab table *without* a mapping fails on the old image and works on the
-    new one.
-- **The prepare pipeline is off in production.** `NEXT_PUBLIC_INGEST_PIPELINE`
-  is unset there, and it is baked in at build time, so turning it on needs a
-  redeploy.
-- **Not verified for production** (stated in docs and memory only):
-  - the Batch task role's read/write on the production bucket
-  - the bucket's `raw/` lifecycle rule and CORS exposing `ETag`
-  - SES keys, `CALLBACK_SECRET` and the callback base URL
-  - the 100 GiB ephemeral disk for 30 GB inputs
-  - the compute environment's 64 vCPU limit, which allows at most four
-    xlarge jobs at once
+Most of step 5 happened while this plan was being written.
+
+- **The worker image.** The v0.14.0 worker (`e015155e…`, pipeline `dcfdc3c`)
+  is now `merfisheyes-worker:latest`; the one before it is kept as
+  `:pre-v0.14.0`. Before promoting it, its **legacy** path was diffed
+  against the old image on the tiny `.h5ad`, Xenium lung cells, Xenium
+  transcripts and a lab table with a column mapping: byte-identical except
+  the molecule manifest's timestamp and temporary id. A lab table *without*
+  a mapping fails on the old image and works on the new one.
+- **The prepare pipeline is on in production.** Checked from outside by
+  reading the live bundle: the `preparePipelineEnabled()` guards are folded
+  out and the "skipping N files" string is gone.
+- **No separate production job definition is needed.** The app sends its own
+  `AWS_S3_BUCKET` with every job (`lib/batch.ts:204`), which overrides the
+  definition's. Production submits `merfisheyes-ingest`, dev submits
+  `merfisheyes-ingest-staging`, and **both share the one queue** and its
+  64-vCPU pool, so a large dev job can delay a production one.
+- **Verified, no longer assumptions:** the task role reads and writes
+  `merfisheyes-production`; the bucket's CORS exposes `ETag`; a
+  `expire-raw-ingest` lifecycle rule was added (there was none); the
+  production app user can now also track and cancel jobs and clean up
+  abandoned multipart uploads (`MerfisheyesBatchTrack`).
+- **It ran.** `sm_4T9Mpl2nwO`: Beaumont set1 molecules, a 6 GB table →
+  851,483,449 molecules × 1,067 genes, `datasetType: "spatialdata"`,
+  COMPLETE in 28 minutes, `raw/` deleted on success, a real fingerprint
+  stored, opening in `/spatialdata-viewer`. It carries **no** assigned /
+  unassigned split (D5a).
+- **Still unverified:** the 100 GiB ephemeral disk against a 30 GB input,
+  and the 64 vCPU ceiling, which allows at most four xlarge jobs at once.
+
+### 1.8 Which saves send an email
+
+Only three paths email at all:
+- server ingest, from `finalize.ts` through `lib/ses.ts`
+- the browser's Upload & Save of cells or molecules, which asks
+  `/api/send-email` or `/api/send-email-single-molecule`
+- the AnnData Zarr upload, the same way (`uploadZarrToS3.ts:241`)
+
+**An as-is upload sends nothing**: an image, a SpatialData store or a
+processed folder goes through `uploadZarrFolderToS3` and
+`/api/datasets/[id]/complete`, neither of which mails anyone. This is what
+the user hit on production on 2026-10-24 and what D6 fixes.
+
+`/api/send-email` takes an address from the browser and mails it, with no
+check that the caller owns the dataset or that the address is theirs.
 
 ## 2. Decisions
 
@@ -256,32 +281,31 @@ time on Fargate):
 - `prepare.py` would only copy them, and would have to learn image-only
   input first (§1.4).
 
-**D3. Old-format folders dropped for saving.** *Open.*
-- **(a) Convert on the server.** *Recommended.*
-  - `prepare.py` learns the chunked cell folder (step 2), and a molecule
-    folder alone.
-  - Nobody's old exports get stuck, but where the cells sit cannot be
-    recovered exactly (scale yes, offset no, §1.4). So a converted dataset
-    says so, and an overlay onto it may not line up.
-- **(b) Refuse** with a message pointing to `prepare.py` and the original
-  data.
+**D3. Old-format folders dropped for saving: warn now, convert next month.**
+*Decided by the user, 2026-10-25.*
+- **Now:** a chunked cell folder or a legacy molecule folder still saves as
+  it is, as today, with a notice on the Save dialog that the format is
+  being retired and that `scripts/prepare.py` turns it into a store.
+- **Next month:** `prepare.py` learns both (step 2) and they are converted
+  instead. A converted dataset says that where its cells sit is recovered
+  to scale but not to offset (§1.4), so an overlay onto it may not line up.
+- Nothing is refused in between.
 
-**D4. Duplicates.** *Recommended, needs a yes.*
-- **One upload fingerprint.** Define it the same in the browser and the
-  worker: SHA-256 over the files sorted by key, each contributing `key`,
-  `size` and the SHA-256 of its first, middle and last 1 MiB. That is
-  milliseconds in the browser for any size, and needs no new dependency
-  (`crypto.subtle`).
-- **Checked early.** The browser sends it with `/api/ingest/initiate`.
-  - **Your own** finished or processing dataset with the same fingerprint
-    returns 409 with its id: "Open it / Upload anyway".
-  - The worker recomputes it, and finalize checks again, **scoped to the
-    owner**.
-- **Kept.** It goes into `stats.json`, so reconcile keeps it.
-- **The current whole-file hash stays** for the record, not for blocking.
+**D4. No duplicate checking at all.** *Decided by the user, 2026-10-25.*
+- **Turn the finalize check off** (`lib/ingest/finalize.ts:67-76`): no
+  upload is failed for matching another dataset, no "Duplicate of …" email,
+  and the overlay/project redirect that hangs off it goes with it. That
+  also ends the leak of other owners' ids and titles (§1.3), so step 0 drops
+  the owner-scoping fix.
+- **The fingerprint is still computed and stored** by the worker — it is a
+  useful record and `/api/ingest/mine` shows it. It simply blocks nothing.
+- **No early client-side check** is built. Re-uploading the same file makes
+  a second dataset, which is the accepted cost.
+- The browser fingerprints and the two unused `check-duplicate` routes go in
+  step 7 with the rest of the dead code.
 
-**D5. What a preview and its saved store must agree on.** *Recommended, needs
-a yes.*
+**D5. What a preview and its saved store must agree on.** *Decided by the
+user, 2026-10-25.*
 - **Must match:**
   - the cells, in order
   - the genes, in order
@@ -292,32 +316,70 @@ a yes.*
   - each label's colour
   - embedding names
   - molecules: genes and per-gene counts
+  - **molecules: assigned and unassigned, drawn apart as they are today**
 - **Fixed in `prepare.py` or the store reader, not accepted** (§1.5):
-  - Xenium graph clustering into the table
+  - **Xenium's own clustering read out of `analysis.tar.gz`** into the
+    table — the user asked for this by name
+  - **MERSCOPE keeps its UMAP** (`cell_numeric_categories.csv`) — likewise
   - the default column chosen as the preview chooses it
   - the label sort and `uns` colours honoured
   - all-empty and coordinate columns dropped
-  - the MERSCOPE `cell_categories` rule and UMAP
+  - the MERSCOPE `cell_categories` rule
   - bool labels
 - **Accepted, and said in the Save dialog:**
   - molecules flat unless "Keep the molecules' Z" (default off, decided
-    2026-10-23)
-  - MERSCOPE's assigned / unassigned split not kept (*open*: worth an
-    extra points column?)
+    2026-10-23). The user confirmed this one is fine as it is.
 
-**D6. Waiting for a save.** *Recommended.*
+**D5a. Assigned / unassigned in the points format.** *Decided 2026-10-25;
+the spec already allows it, so this is a writer and a reader change.*
+- **The spec is fine as written** (`docs/points-zarr-spec.md`): a points
+  element MAY carry any further column (§4), names them in
+  `points:copied_columns` (§6) and may declare `spatialdata_attrs.instance_key`
+  when a column assigns points to instances. No spec change.
+- **`legacy_to_points.py` already writes it**: the `<gene>_uuuuuuuuuu.bin.gz`
+  files become a `u1` column `unassigned` (`scripts/legacy_to_points.py:106`,
+  `:133`).
+- **`transcripts_to_points.py` does not** (`:214-220` writes x, y, f and z
+  only), so every store the new pipeline has written so far — including
+  production's `sm_4T9Mpl2nwO` — has no split.
+- **`PointsLayer` does not read it either**: "unassigned" appears nowhere in
+  `lib/spatialdata/`, only in the legacy `lib/webgl/MoleculeLayer.ts`.
+- **Decided:** a `u1` column `unassigned`, not the full cell id. It matches
+  what the viewer draws, and it compresses to almost nothing because it is
+  nearly all one value; a `cell_id` enum would cost about 4 bytes per
+  molecule (≈3.4 GB on Beaumont set1). The spec leaves room to add
+  `cell_id` + `instance_key` later for per-cell queries.
+- **Source columns:** Xenium `cell_id` (`"UNASSIGNED"`), MERSCOPE `cell_id`
+  (`-1`). The molecule column mapping already carries `cellId`
+  (`lib/config/moleculeColumnMappings.ts`), so the upload dialog can ask for
+  it when it is not recognised.
+- **The viewer's controls already exist**: the SM viz store has
+  `unassignedColor`, `unassignedLocalScale` and `unassignedShape`, which
+  `MoleculeLayer` uses. `PointsLayer` has to honour the same three.
+- Stores already written keep no split; re-running `prepare.py` adds it.
+
+**D6. Waiting for a save, and an email for every save.** *Decided by the
+user, 2026-10-25.*
 - Save shows the upload bar, then "Processing on the server (about N
   min)", with N from §1.6 by size.
 - The tab can close; the email and *Your datasets* say when it is ready.
 - The preview stays open meanwhile, and "View dataset" replaces it once the
   store exists.
+- **An as-is upload emails too.** An image, a SpatialData store or a
+  processed folder never goes near Fargate and sends nothing today (§1.8),
+  which is what the user hit on production. The email moves to the server
+  step every such upload already ends in, addressed to the dataset's owner,
+  one message per save however many parts it held. `/api/send-email` and
+  `/api/send-email-single-molecule`, which mail any address anyone names,
+  are retired with it (step 6).
 
-**D7. Kill switch.** *Recommended.*
+**D7. Kill switch.** *Decided by the user, 2026-10-25: yes.*
 - `NEXT_PUBLIC_PREVIEW_SAVE=server` turns the new Save on for one release.
 - Unset means today's dialogs.
 - It goes once production has run clean for two weeks.
 
-**D8. Registering old folders by URL** (row 8). *Recommended: unchanged.*
+**D8. Registering old folders by URL** (row 8). *Decided by the user,
+2026-10-25: leave it alone.*
 - It writes nothing, and points at data that exists.
 - Converting someone's public folder is a separate question.
 
@@ -342,14 +404,15 @@ the files, sign in, resume.
 
 Each step is its own PR into develop, with its gate.
 
-### Step 0: fix what is wrong today (`fix/dedup-owner`, `fix/preview-parse`)
+### Step 0: fix what is wrong today (`fix/no-dedup`, `fix/preview-parse`)
 
 These are worth doing whatever is decided:
-- **Duplicate check scoped to the owner** (`finalize.ts`):
-  - no other user's id or title in the email
-  - no overlay or project write onto another user's dataset
-  - the stale `@unique` comments and docs fixed
-- **Molecule fingerprint awaits its counts.**
+- **Duplicate checking off** (D4, `finalize.ts:67-163`): no upload is failed
+  for matching another dataset, no "Duplicate of …" email, and the
+  overlay/project redirect that hung off it goes too. The fingerprint is
+  still computed and stored. This also ends the leak of another owner's id
+  and title. The stale `@unique` comments and docs are fixed in the same
+  commit.
 - **Preview parse fixes:**
   - nullable-string `var` index and obs columns (anndata 0.13)
   - `var` `_index` attribute honoured
@@ -423,11 +486,27 @@ The D5 fixes:
   - empty, coordinate and id columns not offered
   - bool labels
 
+And D5a, assigned / unassigned end to end:
+- `transcripts_to_points.py` reads the mapping's `cellId` column (Xenium
+  `cell_id` = `"UNASSIGNED"`, MERSCOPE `cell_id` = `-1`) and writes a `u1`
+  column `unassigned`, named in `points:copied_columns` — the same column
+  `legacy_to_points.py` already writes, so both converters agree
+- `PointsLayer` reads that column and draws the two kinds apart, honouring
+  the `unassignedColor` / `unassignedLocalScale` / `unassignedShape` the SM
+  viz store already has for `MoleculeLayer`
+- the upload dialog asks for the cell column when the table's columns are
+  not recognised, as it already asks for gene, x and y
+
 **Gate:**
-- The step 1 suite has no expected failures left, except the two D5
-  accepts.
+- The step 1 suite has no expected failures left, except the one D5
+  accept (molecules flat unless Keep Z).
 - The store and the preview are compared with the same probes, on every
   fixture.
+- A `tests/python` case: a transcripts table with a cell column gives a
+  points element whose `unassigned` counts equal the source's, and
+  `validate_store.py` passes it.
+- `tests/unit`: `PointsLayer` draws assigned and unassigned as separate
+  clouds, as `molecule-layer.test.ts` already checks for the legacy layer.
 
 ### Step 4: Save sends the files (`feat/preview-save-server`)
 
@@ -438,9 +517,11 @@ The D5 fixes:
   Save call it.
 - **The Save dialog.** It names what is sent and the expected wait (D6),
   with the images and Keep Z ticks. Signed out, it uses stash, sign in,
-  resume.
-- **D4's fingerprint,** in the browser and the worker, with the 409 for your
-  own duplicate.
+  resume. A chunked cell folder or legacy molecule folder saves as it does
+  today, with D3's notice that the format is being retired.
+- **An email for every save** (D6), sent server-side when an as-is upload
+  completes, so an image, a store or a processed folder is no longer
+  silent.
 - **Behind `NEXT_PUBLIC_PREVIEW_SAVE=server` (D7).**
 
 **Gate:** an `@upload` matrix, one case per row of §3, run with
@@ -451,21 +532,24 @@ drop, preview, Save, the worker runs, then:
 - `validate_store.py` exits 0
 - **the store equals a local `prepare.py` run on the same files, file for
   file**
-- a second identical Save returns 409
+- the owner is emailed, including for an image and for a store saved as it is
 
 The matrix extends `prepare-upload.spec.ts` and `drop-matrix-save.spec.ts`.
 
 ### Step 5: production (`docs` + console work, no code)
 
-- **The worker image with `prepare.py` on `:latest`.** Being done 2026-10-24,
-  rollback `:pre-v0.14.0`. Then a new job definition revision only if the
-  tiers need it.
-- **Verify the §1.7 list** on the production account: task role, bucket
-  lifecycle and CORS, SES, callback, ephemeral disk.
-- **`NEXT_PUBLIC_INGEST_PIPELINE=prepare` and `NEXT_PUBLIC_PREVIEW_SAVE=server`**
-  on production, then redeploy.
+**Mostly done on 2026-10-24, before the rest of the plan** (§1.7): the
+worker image, the pipeline flag, the task role, the bucket's CORS and
+lifecycle, the app user's job permissions, and a real 851-million-molecule
+run through it.
+
+What is left for this step:
+- **`NEXT_PUBLIC_PREVIEW_SAVE=server`** on production once step 4 has run on
+  dev, then redeploy.
 - **Measure the §1.6 budget on dev first, then production:** Xenium lung 2-FOV
   and Beaumont set1, Save from the preview, timed from click to "ready".
+- **Watch the shared queue.** Dev and production submit to the same one; if
+  a dev job ever delays a production save, production gets its own queue.
 
 **Gate:**
 - Both saves land within the budget.
@@ -550,4 +634,8 @@ None of these is the author's say-so:
    from the preview within §1.6's budget on dev, then on production.
 6. **What you previewed is what you saved.** The step 1 probes find no
    difference between the preview and the store on the D5 properties, apart
-   from the two accepted ones.
+   from the one accepted one (molecules flat unless Keep Z).
+7. **The molecules keep their assignment.** A points element written from a
+   transcripts table with a cell column reports the same assigned and
+   unassigned counts as the source table, and the viewer draws the two
+   apart, as the legacy layer does today (D5a).
