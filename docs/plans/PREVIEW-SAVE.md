@@ -431,24 +431,47 @@ These are worth doing whatever is decided:
 
 ### Step 1: one probe for "what the user sees" (`test/preview-store-parity`)
 
-- **Two probes into the repo:** `scripts/parity/probe-browser.mts` and
-  `probe-store.mts`, from the research harness. Each prints the D5
-  properties as JSON, from the real browser parse and the real store
-  reader.
-- **One comparator:** `diff_probes.py`.
-- **A Vitest case per fixture** runs both probes on the source and on the
-  `prepare.py` output, and compares.
-- **Fixtures:**
-  - tiny `.h5ad`
-  - Xenium lung 2-FOV, using the tiny Xenium if one is built
-  - the MERSCOPE subset
-  - the built edge `.h5ad`s
-  - a chunked folder of each generation (`tests/data/tiny/chunked/{tiny,raw}`)
+**Built 2026-10-25.** It ended up simpler than first planned: one reader in
+TypeScript instead of two scripts and a Python comparator.
+- **`tests/unit/helpers/seen.ts`** describes what a person sees, through one
+  `describe()` for both sides:
+  - `previewOf`: the worker's own parse, as a dropped file opens
+  - `storeOf`: the store, opened as the SpatialData viewer opens it
+  So a difference is always in the data, never in how it was read. The
+  opening column is `selectBestClusterColumn` on the freshly opened dataset,
+  the same call `lib/viewer/open-dataset.ts` makes for both.
+- **`tests/unit/preview-store-parity.test.ts`** compares eight properties
+  per source. Positions compare *whether* each cell is drawn (both
+  coordinates finite) and where: within the preview's two-decimal rounding
+  plus float32 precision (a CSV's 781.585 is 781.58 in the preview and
+  781.5850219… in the store).
+- **The stores are committed** (`scripts/testdata/make-tiny-parity-stores.py`
+  → `tests/data/tiny/parity/`), so CI's unit job needs no Python.
+  `tests/python/test_parity_stores.py` reruns `prepare.py` and fails, with
+  the regenerate command, when they no longer match by content.
+- **Sources:** the tiny `.h5ad`, the three step 0 `.h5ad`s, the tiny MERSCOPE
+  region; a real Xenium export when `MERFISHEYES_XENIUM` and
+  `MERFISHEYES_PREPARE_PYTHON` are set. Chunked folders join with step 2.
 
-**Gate:**
-- The suite runs in CI.
-- The D5 differences listed in §1.5 show as expected failures (`it.fails`),
-  each naming the step that removes it.
+**Measured — what agrees and what does not.** On the tiny sources 35 checks
+agree. The known differences are expected failures in the test's `KNOWN`
+list, each with its cause:
+
+| Source | Differs | Cause |
+|---|---|---|
+| tiny `.h5ad`, MERSCOPE | label colours | the store sorts labels numerically (`cluster_2` before `cluster_10`), the preview as text, so colours are dealt in another order |
+| nullable | label colours | the store labels booleans `true`/`false`, the preview `True`/`False` |
+| missing_xy | colour columns | the store offers `center_x` / `center_y` |
+| MERSCOPE | colour columns | the store offers every `cell_categories` column (adds `celltype`) and the coordinates |
+| Xenium lung (opt-in) | colour columns, opening column, colours | no `Cluster` in the store; it adds `z_level` and `nucleus_count`; it opens on `cell_area`; `transcript_counts` labels sort differently |
+
+On the Xenium lung export, cells (11,898), genes (289), expression,
+positions and embeddings all agree.
+
+**Gate, met:**
+- The suite runs in CI (40 checks).
+- Every known difference is an `it.fails` naming step 3. A fixed one fails
+  the suite until its entry is removed.
 
 ### Step 2: `prepare.py` takes every input the preview does (`feat/prepare-legacy-inputs`)
 
