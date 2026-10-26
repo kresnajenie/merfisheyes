@@ -60,6 +60,15 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **The worker image can run `prepare.py` again.** Since the shared
+  conventions file, `scripts/validate_store.py` reads
+  `docs/specs/conventions.json` when it is imported, and `prepare.py`
+  imports it on every run; the image never copied that file (neither the
+  Dockerfile nor its `.dockerignore` named it), so the next rebuild would
+  have failed every server upload at start. The image now carries it, and
+  the build runs `prepare.py --help` and imports the entrypoint, so a
+  missing file or package fails the build instead of the jobs. The image in
+  production predates the conventions file and was not affected.
 - **A MERSCOPE preview's UMAP no longer shifts cells.** A cell with no point
   in `cell_numeric_categories.csv` was skipped, moving every later point onto
   the wrong cell; and when the first cell had none, the UMAP was dropped
