@@ -2,7 +2,8 @@
 """Write a transcripts table straight into the tiled points element the viewer streams.
 
   python scripts/transcripts_to_points.py <transcripts> <store.zarr> [--name molecules]
-                                          [--columns xenium | merscope | GENE,X,Y[,Z]]
+                                          [--columns xenium | merscope | GENE,X,Y[,Z]
+                                                     | gene=G,x=X,y=Y[,z=Z][,cell=C]]
                                           [--keep-z] [--levels 8] [--tile-size 100]
 
 <transcripts> is one of
@@ -38,7 +39,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import points_zarr as pz  # noqa: E402
-from meyes_common import match_molecule_columns, should_filter_gene  # noqa: E402
+from meyes_common import match_molecule_columns, should_filter_gene, unassigned_mask  # noqa: E402
 
 KNOWN = {
     "xenium": ("feature_name", "x_location", "y_location", "z_location"),
@@ -81,9 +82,48 @@ def column_names(source: Path) -> list[str]:
     return pq.read_schema(files[0]).names
 
 
+def named_columns(columns: str | None) -> dict[str, str] | None:
+    """The roles of `gene=G,x=X,y=Y[,z=Z][,cell=C]`, or None for any other form."""
+    if not columns or "=" not in columns:
+        return None
+    roles = {}
+    for part in columns.split(","):
+        role, _, name = part.partition("=")
+        if role.strip() not in ("gene", "x", "y", "z", "cell") or not name.strip():
+            raise SystemExit("--columns gene=G,x=X,y=Y[,z=Z][,cell=C]: role=name pairs")
+        roles[role.strip()] = name.strip()
+    if not {"gene", "x", "y"} <= roles.keys():
+        raise SystemExit("--columns needs gene, x and y")
+    return roles
+
+
+def cell_column(names: list[str], columns: str | None) -> str | None:
+    """The column naming each molecule's cell, which splits the molecules into
+    assigned and unassigned (meyes_common.unassigned_mask): one named
+    `cell=…`, or MERSCOPE's cell_id. Never guessed otherwise — what marks an
+    unassigned molecule differs from table to table — and Xenium's is not
+    used, as the browser preview does not split Xenium's molecules."""
+    named = named_columns(columns)
+    if named is not None:
+        cell = named.get("cell")
+        if cell is not None and cell not in names:
+            raise SystemExit(f"cell column {cell!r} is not in the table; it has {names}")
+        return cell
+    merscope = KNOWN["merscope"]
+    if columns == "merscope" or (columns is None and {merscope[0], merscope[1], merscope[2]} <= set(names)):
+        return "cell_id" if "cell_id" in names else None
+    return None
+
+
 def resolve_columns(names: list[str], columns: str | None, feature_key: str | None = None) -> tuple[str, str, str, str | None]:
     """(gene, x, y, z | None) for the table: a known platform's, a points
-    element's, or the names given as GENE,X,Y[,Z]."""
+    element's, or the names given as GENE,X,Y[,Z] or gene=G,x=X,y=Y[,z=Z]."""
+    named = named_columns(columns)
+    if named is not None:
+        missing = [c for c in named.values() if c not in names]
+        if missing:
+            raise SystemExit(f"columns {missing} are not in the table; it has {names}")
+        return named["gene"], named["x"], named["y"], named.get("z")
     if columns in KNOWN:
         g, x, y, z = KNOWN[columns]
         return g, x, y, z if z in names else None
@@ -153,9 +193,11 @@ def convert(
 
     source, store = Path(source), Path(store)
     feature_key = parquet_source(source)[1] if source.suffix.lower() != ".csv" else None
-    gene_col, x_col, y_col, z_col = resolve_columns(column_names(source), columns, feature_key)
+    names = column_names(source)
+    gene_col, x_col, y_col, z_col = resolve_columns(names, columns, feature_key)
+    cell_col = cell_column(names, columns) if feature_key is None else None
     dims = 3 if (z_col and keep_z) else 2
-    cols = [gene_col, x_col, y_col] + ([z_col] if dims == 3 else [])
+    cols = [gene_col, x_col, y_col] + ([z_col] if dims == 3 else []) + ([cell_col] if cell_col else [])
     if dims == 3 and transformations:
         # The cells' transforms are 2-D: z, in the same unit as x, is scaled
         # as x is and not moved
@@ -203,9 +245,14 @@ def convert(
         tile_size=tile_size,
         n_levels=levels,
         transformations=transformations,
+        # Assigned or not, per molecule, in both row orders: the viewer reads
+        # a gene's molecules gene by gene and draws the two kinds apart
+        columns=[("unassigned", "u1", None)] if cell_col else [],
+        copied=["unassigned"] if cell_col else [],
     )
     # Pass 2: the molecules, in batches, each gene by its code
     total = 0
+    unassigned = 0
     for i, b in enumerate(batches(source, cols, batch_size)):
         g = pd.Series(b[gene_col]).astype(str).map(code)
         keep = g.notna().to_numpy() & np.isfinite(b[x_col].astype(np.float64)) & np.isfinite(b[y_col].astype(np.float64))
@@ -218,9 +265,14 @@ def convert(
         }
         if dims == 3:
             spill["z"] = b[z_col][keep].astype(np.float64)
+        if cell_col:
+            spill["unassigned"] = unassigned_mask(np.asarray(b[cell_col])[keep]).astype(np.uint8)
+            unassigned += int(spill["unassigned"].sum())
         w.spill(spill, seed=i, tag=f"b{i}")
         total += int(keep.sum())
     log(f"{total:,} molecules spilled; building levels")
+    if cell_col:
+        log(f"  by {cell_col}: {total - unassigned:,} assigned to a cell, {unassigned:,} not")
     w.finish()
     zarr.consolidate_metadata(str(store))
     log(f"wrote {out}")
@@ -232,7 +284,11 @@ def main(argv=None) -> int:
     ap.add_argument("transcripts", type=Path)
     ap.add_argument("store", type=Path)
     ap.add_argument("--name", default="molecules", help="the element's name under points/ (default molecules)")
-    ap.add_argument("--columns", help="xenium, merscope, or GENE,X,Y[,Z] (default: recognised from the header)")
+    ap.add_argument(
+        "--columns",
+        help="xenium, merscope, GENE,X,Y[,Z], or gene=G,x=X,y=Y[,z=Z][,cell=C] to split assigned and "
+        "unassigned molecules by C (default: recognised from the header; MERSCOPE's cell_id splits them)",
+    )
     ap.add_argument("--keep-z", action="store_true", help="keep z (for a 3D view of the molecules on their own)")
     ap.add_argument("--levels", type=int, default=8)
     ap.add_argument("--tile-size", type=float, default=100.0)

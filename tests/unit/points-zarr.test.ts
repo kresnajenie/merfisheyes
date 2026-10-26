@@ -142,4 +142,30 @@ describe("points in Zarr", () => {
       expect(el.levels[l].grid.tileSize).toBe(el.levels[l - 1].grid.tileSize * 2);
     }
   });
+
+  it("reads which of a gene's points are in no cell (spec §8.1)", async () => {
+    const el = await openPointsElement(fixtureStore(), "transcripts");
+    const ft = await el.featureTiles(0, 1);
+    const lo = ft.starts[0];
+    const hi = lo + expected.counts[1];
+
+    expect(el.readUnassigned).toBeDefined();
+    const [xyz, flags] = await Promise.all([
+      el.readXyz(0, lo, hi),
+      el.readUnassigned!(0, lo, hi),
+    ]);
+    const got: number[][] = [];
+
+    for (let i = 0; i < flags.length; i++) {
+      if (!flags[i]) continue;
+      got.push([0, 1, 2].map((k) => Math.round(xyz[i * 3 + k] * 1000) / 1000));
+    }
+    got.sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]);
+    expect(got).toEqual(expected.beta_unassigned_xyz_sorted);
+    // Every level carries it, so a coarse view splits the same way
+    const top = el.levels.length - 1;
+    const n = el.levels[top].nPoints;
+
+    expect((await el.readUnassigned!(top, 0, n)).length).toBe(n);
+  });
 });

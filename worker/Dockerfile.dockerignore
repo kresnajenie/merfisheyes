@@ -6,3 +6,6 @@
 !scripts/*.py
 !scripts/requirements.txt
 !docs/specs/schemas/*.json
+# scripts/validate_store.py reads this one at import, so prepare.py cannot
+# start without it (docs/specs/conventions.md)
+!docs/specs/conventions.json

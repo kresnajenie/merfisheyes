@@ -2,7 +2,7 @@
   "shape": [
     176
   ],
-  "data_type": "uint64",
+  "data_type": "uint8",
   "chunk_grid": {
     "name": "regular",
     "configuration": {
@@ -27,21 +27,12 @@
         ],
         "codecs": [
           {
-            "name": "numcodecs.delta",
-            "configuration": {
-              "dtype": "<u8"
-            }
-          },
-          {
-            "name": "bytes",
-            "configuration": {
-              "endian": "little"
-            }
+            "name": "bytes"
           },
           {
             "name": "blosc",
             "configuration": {
-              "typesize": 8,
+              "typesize": 1,
               "cname": "zstd",
               "clevel": 3,
               "shuffle": "shuffle",

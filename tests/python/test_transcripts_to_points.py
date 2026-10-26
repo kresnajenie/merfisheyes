@@ -114,3 +114,79 @@ def test_a_points_element_directory_with_its_feature_key(tmp_path):
         {"name": "x", "type": "space"}, {"name": "y", "type": "space"}]}}], log=lambda *_: None)
     attrs = check_element(store, df, "feature_name", "x", "y", 2)
     assert attrs["coordinateTransformations"][0]["scale"] == [4.7, 4.7]
+
+
+# ── assigned and unassigned (points-zarr-spec §8.1) ─────────────────────────
+
+
+def unassigned_of(store: Path, gene: str):
+    """A gene's `unassigned` values, read from feature_major as the viewer
+    does, with that order's column names and copied columns."""
+    g, _ = pz.open_element(store / "points" / "molecules")
+    fm = g["0"]["feature_major"]
+    codes = list(pz._col(fm, "gene")["enum_values"][:])
+    f = codes.index(gene)
+    lo, hi = (int(v) for v in g["0"]["index"]["feature_rows"][f : f + 2])
+    return pz._col(fm, "unassigned")[lo:hi], list(fm["columns"][:]), fm.attrs["points:copied_columns"]
+
+
+def test_merscope_cell_id_splits_the_molecules(tmp_path):
+    df = table(4).rename(columns={"feature_name": "gene", "x_location": "global_x", "y_location": "global_y", "z_location": "global_z"})
+    # MERSCOPE marks a molecule in no cell by -1
+    df["cell_id"] = np.where(np.arange(N) % 3 == 0, -1, np.arange(N) + 100)
+    df.to_parquet(tmp_path / "detected_transcripts.parquet")
+    store = store_at(tmp_path / "s.zarr")
+    t2p.convert(tmp_path / "detected_transcripts.parquet", store, batch_size=1000, log=lambda *_: None)
+    check_element(store, df, "gene", "global_x", "global_y", 2)
+    for gene in ("Gene0", "Gene5"):
+        got, names, copied = unassigned_of(store, gene)
+        assert "unassigned" in names and copied == ["unassigned"]
+        assert len(got) == int((df.gene == gene).sum())
+        assert int(got.sum()) == int(((df.gene == gene) & (df.cell_id == -1)).sum())
+
+
+def test_a_named_cell_column_splits_by_the_shared_rule(tmp_path):
+    df = table(5).rename(columns={"feature_name": "g", "x_location": "px", "y_location": "py"}).drop(columns=["z_location"])
+    # Xenium's own word, CosMx's 0 and blanks are no cell; ids are cells
+    words = np.array(["UNASSIGNED", "aaabbbcc-1", "0", "", "cell_7", "none"])
+    df["owner"] = words[np.arange(N) % len(words)]
+    df.to_parquet(tmp_path / "t.parquet")
+    store = store_at(tmp_path / "s.zarr")
+    with pytest.raises(SystemExit, match="not in the table"):
+        t2p.convert(tmp_path / "t.parquet", store, columns="gene=g,x=px,y=py,cell=nope", log=lambda *_: None)
+    t2p.convert(tmp_path / "t.parquet", store, columns="gene=g,x=px,y=py,cell=owner", log=lambda *_: None)
+    check_element(store, df, "g", "px", "py", 2)
+    got, _, _ = unassigned_of(store, "Gene1")
+    no_cell = df.owner.isin(["UNASSIGNED", "0", "", "none"])
+    assert int(got.sum()) == int(((df.g == "Gene1") & no_cell).sum())
+
+
+def test_xenium_and_unnamed_tables_are_not_split(tmp_path):
+    """The browser preview doesn't split Xenium's molecules, and a cell column
+    is never guessed: no `unassigned` column unless one is named."""
+    df = table(6)
+    df["cell_id"] = "UNASSIGNED"
+    df.to_parquet(tmp_path / "transcripts.parquet")
+    store = store_at(tmp_path / "s.zarr")
+    t2p.convert(tmp_path / "transcripts.parquet", store, log=lambda *_: None)
+    g, _ = pz.open_element(store / "points" / "molecules")
+    assert "unassigned" not in list(g["0"]["tile_major"]["columns"][:])
+    assert g["0"]["feature_major"].attrs["points:copied_columns"] == []
+
+
+def test_the_validator_wants_unassigned_in_feature_major(tmp_path, monkeypatch):
+    df = table(7).rename(columns={"feature_name": "gene", "x_location": "global_x", "y_location": "global_y"})
+    df["cell_id"] = np.where(np.arange(N) % 2 == 0, -1, 5)
+    df.to_parquet(tmp_path / "detected_transcripts.parquet")
+    # A writer that forgets to copy it
+    real = pz.PointsWriter.__init__
+
+    def forgetful(self, *a, **kw):
+        kw["copied"] = []
+        real(self, *a, **kw)
+
+    monkeypatch.setattr(pz.PointsWriter, "__init__", forgetful)
+    store = store_at(tmp_path / "s.zarr")
+    t2p.convert(tmp_path / "detected_transcripts.parquet", store, log=lambda *_: None)
+    with pytest.raises(AssertionError, match="unassigned is not copied"):
+        pz.validate(store / "points" / "molecules")
