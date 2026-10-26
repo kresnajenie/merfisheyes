@@ -1,0 +1,12 @@
+{
+  "attributes": {
+    "shape": [
+      300,
+      40
+    ],
+    "encoding-type": "csc_matrix",
+    "encoding-version": "0.1.0"
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

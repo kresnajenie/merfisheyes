@@ -46,11 +46,15 @@ beforeAll(() => {
 const H5AD = path.join(__dirname, "..", "data", "tiny", "h5ad");
 
 async function preview(name: string) {
-  const { workerApi } = await import("@/lib/workers/standardized-dataset.worker");
+  const { workerApi } = await import(
+    "@/lib/workers/standardized-dataset.worker"
+  );
   const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
   const file = new File([fs.readFileSync(path.join(H5AD, name))], name);
 
-  return StandardizedDataset.fromSerializedData(await workerApi.parseH5ad(file));
+  return StandardizedDataset.fromSerializedData(
+    await workerApi.parseH5ad(file),
+  );
 }
 
 /** Cell i's position, whichever shape the coordinates come in. */
@@ -77,11 +81,15 @@ describe("the preview reads anndata 0.13's nullable encodings", () => {
     const ds = await preview("nullable.h5ad");
     const columns = (ds.clusters ?? []).map((c: any) => c.column);
 
-    expect(columns).toEqual(expect.arrayContaining(["celltype", "count", "flag"]));
+    expect(columns).toEqual(
+      expect.arrayContaining(["celltype", "count", "flag"]),
+    );
     const flag = ds.clusters!.find((c: any) => c.column === "flag") as any;
 
     // pandas' labels, and "" for the missing one, as a missing category has
-    expect(flag.uniqueValues).toEqual(expect.arrayContaining(["True", "False", ""]));
+    expect(flag.uniqueValues).toEqual(
+      expect.arrayContaining(["True", "False", ""]),
+    );
   });
 });
 
@@ -91,7 +99,9 @@ describe("the preview takes the genes from the index var names", () => {
 
     // The same list the store saved from this file reads
     // (SpatialDataTableAdapter.loadGenes)
-    expect(ds.genes).toEqual([0, 1, 2, 3].map((i) => `ENSMUSG${String(i).padStart(11, "0")}`));
+    expect(ds.genes).toEqual(
+      [0, 1, 2, 3].map((i) => `ENSMUSG${String(i).padStart(11, "0")}`),
+    );
   });
 });
 
@@ -108,10 +118,13 @@ describe("the preview keeps cells that have no position", () => {
   });
 
   it("does the same for a MERSCOPE region", async () => {
-    const { workerApi } = await import("@/lib/workers/standardized-dataset.worker");
+    const { workerApi } = await import(
+      "@/lib/workers/standardized-dataset.worker"
+    );
     const { StandardizedDataset } = await import("@/lib/StandardizedDataset");
     const dir = path.join(__dirname, "..", "data", "tiny", "merscope", "tiny");
-    const read = (name: string) => fs.readFileSync(path.join(dir, name), "utf8");
+    const read = (name: string) =>
+      fs.readFileSync(path.join(dir, name), "utf8");
     // Cells 3 and 7 lose their x (rows 4 and 8, after the header)
     const metadata = read("cell_metadata.csv").split("\n");
     const original = metadata.map((line) => line.split(","));
