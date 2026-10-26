@@ -14,6 +14,7 @@ export interface Conventions {
     featureIndexColumns: string[];
     defaultColumnPriority: string[];
     notDefaultColumns: string[];
+    positionColumns: string[];
   };
   shapes: {
     cellOutlineElements: string[];
@@ -33,6 +34,12 @@ export const CONVENTIONS = data as Conventions;
 export const NOT_DEFAULT_COLUMNS = new Set(
   CONVENTIONS.tables.notDefaultColumns,
 );
+
+/**
+ * obs columns holding a cell's position: never offered as a colour, by the
+ * browser preview or the SpatialData viewer.
+ */
+export const POSITION_COLUMNS = new Set(CONVENTIONS.tables.positionColumns);
 
 /** The Point element beside a region that holds each cell's centre. */
 export function pointSiblingOf(region: string): string {

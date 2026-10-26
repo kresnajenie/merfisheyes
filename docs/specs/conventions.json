@@ -23,6 +23,27 @@
       "ion_image_pixel_y",
       "ion_image_shape_x",
       "ion_image_shape_y"
+    ],
+    "positionColumns": [
+      "center_x",
+      "centerX",
+      "center_y",
+      "centerY",
+      "center_z",
+      "centerZ",
+      "x",
+      "y",
+      "z",
+      "X",
+      "Y",
+      "Z",
+      "x_centroid",
+      "y_centroid",
+      "z_centroid",
+      "centroid_x",
+      "centroid_y",
+      "centroid_z",
+      "z_level"
     ]
   },
   "shapes": {

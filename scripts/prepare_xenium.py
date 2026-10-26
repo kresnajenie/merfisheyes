@@ -52,6 +52,38 @@ def has_images(path: Path) -> bool:
     return any((path / n).exists() for n in ("morphology_focus", "morphology_focus.ome.tif", "morphology.ome.tif"))
 
 
+GRAPHCLUST = "analysis/clustering/gene_expression_graphclust/clusters.csv"
+
+
+def graph_clusters(path: Path):
+    """10x's own clustering of the cells — Xenium Onboard Analysis'
+    graph-based clusters, `analysis/clustering/gene_expression_graphclust/
+    clusters.csv` (Barcode, Cluster) — from analysis.tar.gz or an unpacked
+    analysis/ folder, as (column name, labels by cell id); None when the
+    export has neither. The browser preview shows the same column
+    (XeniumAdapter._augmentClustersFromAnalysis), so it must survive a save."""
+    import io
+    import tarfile
+
+    import pandas as pd
+
+    unpacked = path / GRAPHCLUST
+    if unpacked.exists():
+        frame = pd.read_csv(unpacked, dtype=str)
+    elif (path / "analysis.tar.gz").exists():
+        with tarfile.open(path / "analysis.tar.gz") as archive:
+            member = next((m for m in archive.getmembers() if m.name.endswith(GRAPHCLUST)), None)
+            if member is None:
+                return None
+            frame = pd.read_csv(io.BytesIO(archive.extractfile(member).read()), dtype=str)
+    else:
+        return None
+    if frame.shape[1] < 2:
+        return None
+    ids, column = frame.columns[0], frame.columns[1]
+    return column, frame.set_index(frame[ids].str.strip())[column].str.strip()
+
+
 def read_xenium(path: Path, *, labels: bool, images: bool = True, log=print):
     try:
         from spatialdata_io import xenium
@@ -87,6 +119,16 @@ def read_xenium(path: Path, *, labels: bool, images: bool = True, log=print):
         sdata.set_table_annotates_spatialelement(
             "table", region="cell_boundaries", region_key="region", instance_key="cell_id"
         )
+    clusters = graph_clusters(path)
+    if clusters is not None and "table" in sdata.tables:
+        import pandas as pd
+
+        column, labels_by_id = clusters
+        table = sdata.tables["table"]
+        # A cell the clustering left out gets "", as in the preview
+        found = labels_by_id.reindex(table.obs["cell_id"].astype(str).to_numpy())
+        table.obs[column] = pd.Categorical(found.fillna("").to_numpy())
+        log(f"  {GRAPHCLUST}: {column}, {found.notna().sum():,} of {table.n_obs:,} cells")
     return sdata
 
 

@@ -77,7 +77,8 @@ export class MerscopeAdapter {
     await onProgress?.(25, "Loading cluster categories...");
     const catRows = await this._readTableOneOf(["cell_categories.csv"]);
     let clusterCol = null;
-    let catIndex = null;
+    let catIndex: Map<string, Record<string, string>> | null = null;
+    let categoryColumns: string[] = [];
 
     if (catRows.length) {
       // choose the ID key that is present in categories
@@ -102,14 +103,23 @@ export class MerscopeAdapter {
         "label",
         "labels",
       ]);
-      if (catIdKey && clusterCol) {
-        catIndex = new Map();
+      // Every column of cell_categories.csv joins the cells, as
+      // scripts/prepare_merscope.py keeps them all in the store; clusterCol
+      // only decides which comes first
+      if (catIdKey) {
+        catIndex = new Map<string, Record<string, string>>();
         for (const r of catRows) {
           const id = String(r[catIdKey] ?? "");
-          const lab = r[clusterCol] ?? "";
 
-          if (id) catIndex.set(id, lab);
+          if (!id) continue;
+          const labels: Record<string, string> = {};
+
+          for (const [k, v] of Object.entries(r)) {
+            if (k !== catIdKey) labels[k] = v == null ? "" : String(v);
+          }
+          catIndex.set(id, labels);
         }
+        categoryColumns = Object.keys(catRows[0]).filter((k) => k !== catIdKey);
       }
     }
 
@@ -181,9 +191,11 @@ export class MerscopeAdapter {
       const id = String(r[metaIdKey] ?? "");
       const out = { ...r };
 
-      // attach cluster label if available
-      if (catIndex && clusterCol) {
-        out[clusterCol] = catIndex.get(id) ?? "";
+      // attach the cell's category labels ("" where it has none)
+      if (catIndex) {
+        const labels = catIndex.get(id);
+
+        for (const k of categoryColumns) out[k] = labels?.[k] ?? "";
       }
 
       // attach umap for convenience (we’ll also expose as an embedding)
@@ -294,19 +306,22 @@ export class MerscopeAdapter {
     }
 
     // 7) build UMAP embedding map if present on rows
-    const haveU =
-      this._rows.length &&
-      "_umap_x" in this._rows[0] &&
-      "_umap_y" in this._rows[0];
+    // Any cell with a point (the first may have none)
+    const haveU = this._rows.some((r) => "_umap_x" in r && "_umap_y" in r);
 
     if (haveU) {
       const coords = [];
 
+      // One point per cell, in order: a cell without one is NaN (not drawn)
+      // rather than skipped, which shifted every later point onto the
+      // wrong cell
       for (const r of this._rows) {
         const x = toNum(r._umap_x),
           y = toNum(r._umap_y);
 
-        if (Number.isFinite(x) && Number.isFinite(y)) coords.push([x, y]);
+        coords.push(
+          Number.isFinite(x) && Number.isFinite(y) ? [x, y] : [NaN, NaN],
+        );
       }
       this._umap = { coordinates: coords, dimensions: 2 };
     }

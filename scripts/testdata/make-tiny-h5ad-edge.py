@@ -11,7 +11,8 @@ Outputs, in tests/data/tiny/h5ad/:
                     integer and a nullable boolean column, one of each with a
                     missing entry. The preview read none of them (0 genes).
   named_index.h5ad  a var index named `gene_ids` (Ensembl ids) beside a `gene`
-                    symbol column: var's `_index` attribute names the index.
+                    symbol column: var's `_index` attribute names the index;
+                    and colours of its own for celltype (uns).
   missing_xy.h5ad   24 cells, no obsm: positions in obs center_x / center_y, with rows
                     3 and 7 missing an x. The preview dropped those rows and
                     shifted every later position onto the wrong cell.
@@ -64,6 +65,9 @@ named = ad.AnnData(
         index=pd.Index([f"ENSMUSG{i:011d}" for i in range(len(GENES))], dtype=object, name="gene_ids"),
     ),
     obsm={"spatial": xy},
+    # Colours of its own, as scanpy stores them (one per category, in the
+    # categories' order): the preview and the store must both use them
+    uns={"celltype_colors": np.array(["#1b9e77", "#d95f02", "#7570b3"])},
 )
 named.write_h5ad(OUT / "named_index.h5ad")
 

@@ -1,10 +1,11 @@
-import { DEFAULT_COLOR_PALETTE } from "@/lib/utils/color-palette";
+import { columnPalette, compareLabels } from "@/lib/utils/color-palette";
 
 /**
  * One obs column built from a row table (cells.csv / cell_metadata.csv), in
  * the adapters' ClusterData shape: indexed representation (sorted unique
- * labels + per-cell codes) and a default palette assigned in sorted order —
- * the same order the server pipeline uses, so colours match.
+ * labels + per-cell codes) and a default palette dealt in compareLabels
+ * order — the order the SpatialData viewer deals the saved store's colours
+ * in, so a column keeps its colours when it is saved.
  */
 export interface TableObsColumn {
   column: string;
@@ -50,8 +51,11 @@ export function buildObsColumnsFromRows(
   for (const key of Object.keys(rows[0])) {
     if (exclude.has(key) || genes.has(key)) continue;
     // A column with no name is the file's row index (MERSCOPE's
-    // cell_metadata.csv starts with one), never a property of the cells
-    if (key.trim() === "" || /^Unnamed: \d+$/.test(key)) continue;
+    // cell_metadata.csv starts with one), never a property of the cells;
+    // nor is an adapter's own "_" field (a MERSCOPE row's _umap_x / _umap_y)
+    if (key.trim() === "" || /^Unnamed: \d+$/.test(key) || key.startsWith("_")) {
+      continue;
+    }
 
     const vals = new Array<string>(rows.length);
     let anyValue = false;
@@ -65,18 +69,19 @@ export function buildObsColumnsFromRows(
     }
     if (!anyValue) continue; // entirely empty column
 
-    const uniq = Array.from(new Set(vals)).sort();
+    const uniq = Array.from(new Set(vals)).sort(compareLabels);
     const index = new Map(uniq.map((u, i) => [u, i]));
     const IndexArray = uniq.length <= 65535 ? Uint16Array : Uint32Array;
     const valueIndices = new IndexArray(vals.length);
 
     for (let i = 0; i < vals.length; i++) valueIndices[i] = index.get(vals[i])!;
-    const palette: Record<string, string> = {};
-
-    uniq.forEach((u, i) => {
-      palette[u] = DEFAULT_COLOR_PALETTE[i % DEFAULT_COLOR_PALETTE.length];
+    columns.push({
+      column: key,
+      values: [],
+      valueIndices,
+      palette: columnPalette(uniq),
+      uniqueValues: uniq,
     });
-    columns.push({ column: key, values: [], valueIndices, palette, uniqueValues: uniq });
   }
 
   return columns;
