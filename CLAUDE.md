@@ -182,7 +182,7 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 
 **Standard Flow (H5AD, Xenium, MERSCOPE)**:
 
-1. **Client-side**: Parse file in web worker, calculate dataset fingerprint, check for duplicates
+1. **Client-side**: Parse file in web worker, calculate dataset fingerprint (stored, not checked: duplicates are allowed)
 2. **Process**: Browser processes data using `GeneChunkProcessor` to create chunks
 3. **Initiate Upload**: POST to `/api/datasets/initiate` with metadata and file list
    - Creates `Dataset`, `UploadSession`, and `UploadFile` records in PostgreSQL
@@ -225,7 +225,6 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 1. **Client-side Processing**:
    - `SingleMoleculeProcessor.processAndUpload()` processes dataset locally
    - Generates fingerprint via `generateSingleMoleculeFingerprint()` (gene names + per-gene molecule counts)
-   - Checks for duplicates via `/api/single-molecule/check-duplicate/[fingerprint]`
 2. **File Preparation**:
    - Creates `manifest.json.gz` with metadata (genes, dimensions, scaling factor, statistics)
    - Creates `genes/{geneName}.bin.gz` for each gene (gzipped Float32Array of normalized coordinates)
@@ -938,7 +937,7 @@ output_folder/
 
 Three main entities:
 
-- **Dataset** - Stores dataset metadata, fingerprint for deduplication, status tracking
+- **Dataset** - Stores dataset metadata, a fingerprint of what was uploaded (indexed, not unique; duplicates are allowed), status tracking
 - **UploadSession** - Tracks multi-file upload progress with expiration
 - **UploadFile** - Individual file upload status within a session
 
