@@ -8,6 +8,17 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Removed
+
+- **Duplicate uploads are no longer rejected.** A server upload whose raw
+  files hashed the same as any other dataset's was marked FAILED with
+  "Duplicate of …" and an email naming that dataset. The lookup covered every
+  owner, so it showed you other people's dataset ids and titles, and on a
+  cells-and-molecules upload it moved your molecules onto *their* dataset
+  and regrouped it into a project of yours. The same files uploaded twice
+  now make two datasets; the fingerprint is still stored as a record of what
+  was uploaded (`docs/plans/PREVIEW-SAVE.md`, D4).
+
 ### Added
 
 - **Releases tag and publish themselves.** Merging a release into `main`

@@ -303,7 +303,7 @@ Compare two datasets side by side (single-cell or single-molecule, in any combin
 - Two ingestion paths: **in-browser** (web workers) and **server-side** (AWS Batch worker) with email delivery.
 - Column remap step for single-molecule server uploads.
 - Accounts, projects, and an admin-reviewed community catalog.
-- Split-screen comparison, duplicate detection via fingerprinting, dark mode, desktop + tablet.
+- Split-screen comparison, dark mode, desktop + tablet.
 
 ---
 
