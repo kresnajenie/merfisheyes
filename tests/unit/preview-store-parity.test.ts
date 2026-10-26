@@ -80,31 +80,11 @@ const CASES: { name: string; source: string; store: () => string }[] = [
  * removed — so a fix cannot go unrecorded, nor a new difference unnoticed.
  */
 const KNOWN: Record<string, Partial<Record<Property, string>>> = {
-  tiny_h5ad: {
-    colours:
-      "step 3: the store sorts labels numerically (cluster_2 before cluster_10), the preview as text, so colours are dealt in a different order",
-  },
-  nullable: {
-    colours:
-      "step 3: the store labels booleans true/false, the preview True/False",
-  },
-  missing_xy: {
-    columns:
-      "step 3: the store offers the coordinate columns center_x / center_y",
-  },
-  merscope: {
-    columns:
-      "step 3: the store offers every cell_categories column (celltype too) and the coordinate columns",
-    colours: "step 3: the label sort, as tiny_h5ad",
-  },
   // Only with MERFISHEYES_XENIUM (measured on the 10x lung 2-FOV export)
   xenium: {
     columns:
-      "step 3: the store has no Cluster (10x's own clustering, in analysis.tar.gz, is not read) and offers z_level and nucleus_count",
-    defaultColumn:
-      "step 3: without Cluster the store opens on cell_area, a gradient",
-    colours:
-      "step 3: Cluster is missing, and transcript_counts' labels sort differently, as tiny_h5ad",
+      "open, for the user: the store also offers nucleus_count, which spatialdata-io reads from cells.zarr.zip and the preview never reads",
+    colours: "follows the columns: nucleus_count",
   },
 };
 

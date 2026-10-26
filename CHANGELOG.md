@@ -8,8 +8,48 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Changed
+
+- **A dataset keeps its colours when you save it.** The browser preview and
+  the SpatialData viewer now list a column's labels and deal its colours the
+  same way (`compareLabels`, `columnPalette` in `lib/utils/color-palette.ts`):
+  - Labels sort with their numbers by value, so `cluster_2` comes before
+    `cluster_10` in the preview too. The SpatialData viewer already did this,
+    so stores look as they did.
+  - A table's own colours (scanpy's `uns[<column>_colors]`) are used by the
+    SpatialData viewer too, not only the preview. A store that carries them
+    now shows its authors' colours.
+  - The viewer labels boolean columns `True` / `False`, as pandas and the
+    preview do.
+  - Columns that hold a cell's position (`center_x`, `x_centroid`, …: the new
+    `tables.positionColumns` in `docs/specs/conventions.json`) are not
+    offered as colours in the viewer either.
+  - A MERSCOPE preview offers every `cell_categories.csv` column, as the
+    saved store does, not just the first recognised one.
+- **A Xenium export keeps 10x's own clustering when saved.**
+  `prepare_xenium.py` reads `analysis/clustering/gene_expression_graphclust/
+  clusters.csv` from `analysis.tar.gz` (or an unpacked `analysis/` folder)
+  into the table as `Cluster`, which the preview already showed. The store
+  now opens on it, not on `cell_area`, and gets its DEG stats. Server uploads
+  send `analysis.tar.gz` (2.5 MB on a 2-FOV export). `z_level` joins the
+  position columns: it is the cell's z-plane, not a colour.
+- **A MERSCOPE region keeps its UMAP when saved.** `prepare_merscope.py`
+  reads `cell_numeric_categories.csv` into `obsm/X_umap`, one row per cell,
+  and server uploads send it.
+
+  `tests/unit/preview-store-parity.test.ts` now finds no difference between
+  a preview and its saved store on any tiny source. On a real Xenium export
+  one remains, and it is open: the store also offers `nucleus_count`, which
+  `spatialdata-io` reads from `cells.zarr.zip` and the preview never reads.
+
 ### Fixed
 
+- **A MERSCOPE preview's UMAP no longer shifts cells.** A cell with no point
+  in `cell_numeric_categories.csv` was skipped, moving every later point onto
+  the wrong cell; and when the first cell had none, the UMAP was dropped
+  altogether. A cell without one is now kept, and not drawn. The MERSCOPE
+  preview also stopped offering its internal `_umap_x` / `_umap_y` row
+  fields as colours.
 - **The browser preview showed 0 genes for an `.h5ad` written by current
   anndata** (0.13, with pandas 3), which stores the gene names and string
   columns as nullable arrays (`values` + `mask`). It also skipped every

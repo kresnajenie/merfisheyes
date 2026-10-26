@@ -6,9 +6,9 @@
 // We'll load h5wasm dynamically from CDN
 import h5wasm from "h5wasm";
 
-import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { columnPalette, compareLabels } from "../utils/color-palette";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
-import { CONVENTIONS } from "../spatialdata/conventions";
+import { CONVENTIONS, POSITION_COLUMNS } from "../spatialdata/conventions";
 
 // async function loadH5wasm() {
 //   if (h5wasm) return h5wasm;
@@ -527,9 +527,7 @@ export class H5adAdapter {
         }
       }
 
-      const uniqueValues = uniqueValuesList.sort(
-        (a, b) => a.localeCompare(b, undefined, { numeric: true }),
-      );
+      const uniqueValues = uniqueValuesList.sort(compareLabels);
 
       const sortedIndexMap = new Map<string, number>();
 
@@ -580,14 +578,8 @@ export class H5adAdapter {
 
     // Get all non-index, non-coordinate columns (the same fixed list of
     // coordinate names the server pipeline leaves out of obs/).
-    const COORDINATE_COLUMNS = new Set([
-      "center_x", "centerX", "center_y", "centerY", "center_z", "centerZ",
-      "x", "y", "z", "X", "Y", "Z",
-      "x_centroid", "y_centroid", "z_centroid",
-      "centroid_x", "centroid_y", "centroid_z",
-    ]);
     const nonIndexColumns = this.metadata.obsKeys.filter(
-      (key: string) => !key.startsWith("_") && !COORDINATE_COLUMNS.has(key),
+      (key: string) => !key.startsWith("_") && !POSITION_COLUMNS.has(key),
     );
 
     // Parse all columns
@@ -600,20 +592,6 @@ export class H5adAdapter {
     }
 
     return allClusters.length > 0 ? allClusters : [];
-  }
-
-  /**
-   * Normalize hex color to 7 characters (# + 6 hex)
-   */
-  normalizeHexColor(hex: string): string {
-    if (typeof hex !== "string") return "#808080";
-
-    // If not the expected length, cut off last 2 characters if longer than 7
-    if (hex.length !== 7 && hex.length > 7) {
-      return hex.substring(0, 7);
-    }
-
-    return hex;
   }
 
   /**
@@ -632,52 +610,32 @@ export class H5adAdapter {
   }
 
   /**
-   * Load color palette for clusters.
-   *
-   * Default colours are assigned in sorted label order (the same order the
-   * server pipeline uses, so both produce the same colours). When the file
-   * carries `uns[col + "_colors"]` with one colour per stored category —
-   * scanpy's convention is that colours follow the column's category order —
-   * those override the defaults, unless every colour is the same.
+   * Load color palette for clusters: the shared rule (columnPalette) — the
+   * default colours dealt in compareLabels order, replaced by
+   * `uns[col + "_colors"]` when the file stores one colour per category —
+   * the same rule the SpatialData viewer applies to the store saved from
+   * this file, so its colours survive the save.
    */
   async loadClusterPalette(
     clusterColumn: string,
   ): Promise<Record<string, string>> {
-    const clusters = await this.fetchObs(clusterColumn);
-    const uniqueClusters = Array.from(new Set(clusters)).sort();
-    const palette: Record<string, string> = {};
-
-    uniqueClusters.forEach((cluster, index) => {
-      palette[cluster] = this.normalizeHexColor(
-        DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length],
-      );
-    });
+    const labels = Array.from(
+      new Set((await this.fetchObs(clusterColumn)).map(String)),
+    ).sort(compareLabels);
+    let colors: unknown[] | null = null;
 
     try {
-      const colors = this.fetchUns(clusterColumn + "_colors");
-      // Non-categorical columns have no stored order: scanpy builds their
-      // categories sorted, so sorted unique is the right mapping there.
-      const stored = this.fetchObsCategories(clusterColumn) ?? uniqueClusters;
+      const stored = this.fetchUns(clusterColumn + "_colors");
 
-      if (colors && colors.length === stored.length) {
-        const normalized = colors.map((c: any) => this.normalizeHexColor(c));
-        const uniqueColors = new Set(normalized);
-
-        if (uniqueColors.size === 1 && stored.length > 1) {
-          console.log(
-            `Palette for ${clusterColumn} has only 1 unique color, using default colors`,
-          );
-        } else {
-          stored.forEach((category, index) => {
-            palette[String(category)] = normalized[index];
-          });
-        }
-      }
-    } catch (error) {
-      console.log("No colors found in uns, using default colors");
+      colors = stored ? Array.from(stored as ArrayLike<unknown>) : null;
+    } catch {
+      // No colours stored: the defaults stand
     }
 
-    return palette;
+    return columnPalette(labels, {
+      colors,
+      categories: this.fetchObsCategories(clusterColumn),
+    });
   }
 
   /**

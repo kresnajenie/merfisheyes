@@ -140,6 +140,7 @@ describe("the preview keeps cells that have no position", () => {
         ["cell_metadata.csv", metadata.join("\n")],
         ["cell_by_gene.csv", read("cell_by_gene.csv")],
         ["cell_categories.csv", read("cell_categories.csv")],
+        ["cell_numeric_categories.csv", read("cell_numeric_categories.csv")],
       ] as const
     ).map(([name, text]) => {
       const f = new File([text], name);
@@ -154,6 +155,26 @@ describe("the preview keeps cells that have no position", () => {
 
     expect(positionCount(ds)).toBe(300);
     expect(position(ds, 3).every(Number.isNaN)).toBe(true);
+    // The UMAP likewise: cell 5 has no point, cell 6 keeps its own
+    const umap = (ds as any).embeddings.umap;
+    // Points as rows, or flat x, y pairs
+    const points = umap.coordinates ?? umap;
+    const point = (i: number): number[] =>
+      Array.isArray(points)
+        ? points[i]
+        : Array.from(points.slice(i * 2, i * 2 + 2) as ArrayLike<number>);
+    const csv = read("cell_numeric_categories.csv")
+      .trim()
+      .split("\n")
+      .map((l) => l.split(","));
+    const row6 = csv
+      .find((r) => r[0] === "6")!
+      .slice(1)
+      .map(Number);
+
+    expect(point(5).every(Number.isNaN)).toBe(true);
+    expect(point(6)[0]).toBeCloseTo(row6[0], 4);
+    expect(point(6)[1]).toBeCloseTo(row6[1], 4);
     // Cell 8 is at row 9's position, its own
     const [, x8, y8] = original[9].map(Number);
 
