@@ -49,6 +49,9 @@ export function buildObsColumnsFromRows(
 
   for (const key of Object.keys(rows[0])) {
     if (exclude.has(key) || genes.has(key)) continue;
+    // A column with no name is the file's row index (MERSCOPE's
+    // cell_metadata.csv starts with one), never a property of the cells
+    if (key.trim() === "" || /^Unnamed: \d+$/.test(key)) continue;
 
     const vals = new Array<string>(rows.length);
     let anyValue = false;

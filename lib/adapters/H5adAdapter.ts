@@ -84,13 +84,64 @@ export class H5adAdapter {
   }
 
   /**
+   * A column anndata writes as a group of `values` and a boolean `mask`
+   * (true where missing): its nullable-string-array, nullable-integer and
+   * nullable-boolean encodings. anndata 0.13 with pandas 3 writes every
+   * string column this way, the index included. A missing string is "" (the
+   * label a missing category gets too), a missing number NaN, and booleans
+   * are labelled as pandas prints them.
+   */
+  private readMasked(node: any): any[] | null {
+    const encoding = String(this.attrValue(node, "encoding-type") ?? "");
+
+    if (!encoding.startsWith("nullable-")) return null;
+    const mask = node.get("mask").value as ArrayLike<unknown>;
+    const values = node.get("values").value;
+
+    if (encoding === "nullable-string-array") {
+      return Array.from(values, (v, i) =>
+        mask[i] ? "" : this.decodeBytes(v),
+      );
+    }
+    if (encoding === "nullable-boolean") {
+      return Array.from(values as ArrayLike<unknown>, (v, i) =>
+        mask[i] ? "" : v ? "True" : "False",
+      );
+    }
+
+    return Array.from(values as ArrayLike<number>, (v, i) =>
+      mask[i] ? NaN : Number(v),
+    );
+  }
+
+  /** A string column in either encoding: a plain array, or a masked group. */
+  private readStrings(node: any): string[] {
+    return (
+      this.readMasked(node) ??
+      Array.from(node.value, this.decodeBytes.bind(this))
+    );
+  }
+
+  /** The column `obs` or `var` names as its index (`_index` by default). */
+  private indexName(group: "obs" | "var"): string {
+    const named = this.attrValue(this.h5File.get(group), "_index");
+
+    return typeof named === "string" && named ? named : "_index";
+  }
+
+  /**
    * Fetch observation data (cell metadata)
    */
   async fetchObs(group: string): Promise<any[]> {
     const obs = this.h5File.get("obs");
 
-    if (group === "index") return Array.from(obs.attrs._index || []);
+    if (group === "index") {
+      return this.readStrings(obs.get(this.indexName("obs")));
+    }
     const field = obs.get(group);
+    const masked = this.readMasked(field);
+
+    if (masked) return masked;
     const keys = field.keys?.();
 
     if (keys?.includes("categories") && keys.includes("codes")) {
@@ -121,14 +172,9 @@ export class H5adAdapter {
   async fetchVar(group: string): Promise<any[]> {
     const v = this.h5File.get("var");
 
-    if (group === "index") {
-      const varIndex = v.get("_index");
-
-      return Array.from(varIndex.value, this.decodeBytes.bind(this));
-    }
-    const d = v.get(group);
-
-    return Array.from(d.value, this.decodeBytes.bind(this));
+    return this.readStrings(
+      v.get(group === "index" ? this.indexName("var") : group),
+    );
   }
 
   /**
@@ -323,25 +369,23 @@ export class H5adAdapter {
       }
     }
 
-    // Build coordinate arrays, filtering out rows with null x or y
+    // One position per cell, in obs order. A cell without a valid position
+    // keeps its row as NaN (it is not drawn): dropping the row would shift
+    // every later position onto the wrong cell's clusters and expression,
+    // and the store saved from this keeps every row too.
     const coordinates: number[][] = [];
 
     for (let i = 0; i < numRows; i++) {
-      const x = xNumbers[i];
-      const y = yNumbers[i];
+      const position = useZ
+        ? [xNumbers[i], yNumbers[i], zNumbers[i]]
+        : [xNumbers[i], yNumbers[i]];
 
-      // Skip rows with invalid x or y
-      if (x === null || y === null) continue;
-
-      if (useZ) {
-        const z = zNumbers[i];
-
-        // For 3D, also skip if z is null
-        if (z === null) continue;
-        coordinates.push([x, y, z]);
-      } else {
-        coordinates.push([x, y]);
-      }
+      // Any coordinate missing means no position at all, not half of one
+      coordinates.push(
+        position.some((v) => v === null)
+          ? position.map(() => NaN)
+          : (position as number[]),
+      );
     }
 
     return { coordinates, dimensions };
@@ -407,11 +451,18 @@ export class H5adAdapter {
   }
 
   /**
-   * Load gene list
-   * Tries multiple common column names: _index, gene, genes
+   * Load gene list: the column `var`'s `_index` attribute names (its index,
+   * `gene_ids` in a table indexed by Ensembl id), else var/_index, var/gene,
+   * var/genes — the same rule as SpatialDataTableAdapter.loadGenes, so a
+   * preview and the store saved from it list the same genes.
    */
   async loadGenes(): Promise<string[]> {
-    const possibleColumns = CONVENTIONS.tables.featureIndexColumns;
+    const possibleColumns = [
+      ...new Set([
+        this.indexName("var"),
+        ...CONVENTIONS.tables.featureIndexColumns,
+      ]),
+    ];
 
     for (const columnName of possibleColumns) {
       try {

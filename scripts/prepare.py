@@ -278,6 +278,16 @@ def prepare(
         return 3
 
     store = mapped_store(out) or out / f"{name}.zarr"
+    if not store.exists():
+        # Nothing became a store: a merfisheyes molecule folder or an image
+        # with no table to go into is not read on its own yet. Exiting 0 here
+        # left an OUT whose mapping.json named nothing, which the server took
+        # for a finished dataset.
+        log(
+            f"error: no store was written ({store.name} is missing): a merfisheyes "
+            "molecule folder or an image is only read beside a table for now"
+        )
+        return 3
     stats = {
         "input": kind,
         "store": store.name,

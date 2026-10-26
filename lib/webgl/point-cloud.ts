@@ -116,6 +116,30 @@ export function createPointCloudFromBuffers(
   // Position buffer passed directly — zero copy
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
+  // The bounds, over the cells that have a position. A cell without one is
+  // NaN (kept so every later cell stays in step with its data, and not
+  // drawn); three would otherwise compute the bounds over every position on
+  // the first frame and get NaN.
+  // (NaN fails every comparison, so it never moves a bound.)
+  const box = new THREE.Box3();
+
+  for (let i = 0; i < count; i++) {
+    const x = positions[i * 3];
+    const y = positions[i * 3 + 1];
+    const z = positions[i * 3 + 2];
+
+    if (x < box.min.x) box.min.x = x;
+    if (y < box.min.y) box.min.y = y;
+    if (z < box.min.z) box.min.z = z;
+    if (x > box.max.x) box.max.x = x;
+    if (y > box.max.y) box.max.y = y;
+    if (z > box.max.z) box.max.z = z;
+  }
+  geometry.boundingBox = box;
+  geometry.boundingSphere = box.isEmpty()
+    ? new THREE.Sphere()
+    : box.getBoundingSphere(new THREE.Sphere());
+
   // Initialize color/size/alpha buffers with defaults
   const colors = new Float32Array(count * 3); // all zeros (black)
   const sizes = new Float32Array(count).fill(1.0);

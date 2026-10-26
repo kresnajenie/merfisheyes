@@ -8,6 +8,31 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The browser preview showed 0 genes for an `.h5ad` written by current
+  anndata** (0.13, with pandas 3), which stores the gene names and string
+  columns as nullable arrays (`values` + `mask`). It also skipped every
+  nullable integer and boolean column. All of these now read; a missing
+  value is `""` (or `NaN` for a number).
+- **The preview takes the gene names from the index `var` names**: a table
+  indexed by `gene_ids` (Ensembl) listed 0 genes. It now lists what the
+  store saved from the same file lists (`SpatialDataTableAdapter.loadGenes`'s
+  rule).
+- **Cells with a missing position no longer shift every later cell.** An
+  `.h5ad` with positions in `obs`, a Xenium export or a MERSCOPE region
+  dropped such rows from the positions but kept them in the clusters and
+  expression, so after the first one every position belonged to the wrong
+  cell. They are kept with no position (not drawn), and the point cloud's
+  bounds leave them out, so three.js no longer logs "radius is NaN".
+- **MERSCOPE's unnamed first column** (the file's row index) is no longer
+  offered as a colour.
+- **`scripts/prepare.py` exits 3 when it writes no store.** A merfisheyes
+  molecule folder on its own exited 0 with a `mapping.json` naming a store
+  that was never written, which the server would have finished as an empty
+  dataset; the worker now also fails a job whose `mapping.json` names
+  nothing that exists.
+
 ### Removed
 
 - **Duplicate uploads are no longer rejected.** A server upload whose raw

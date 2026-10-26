@@ -801,6 +801,12 @@ def main():
 
     if not (out_dir / manifest_name).exists():
         fail(f"processor finished but out/{manifest_name} is missing")
+    if manifest_name == "mapping.json":
+        # The store it names must be there too, or the dataset would finish
+        # with nothing to open
+        named = json.loads((out_dir / "mapping.json").read_text()).get("cells")
+        if not named or not (out_dir / named).exists():
+            fail(f"processor finished but the store mapping.json names ({named}) is missing")
 
     out_prefix = f"datasets/{dataset_id}/"
 
