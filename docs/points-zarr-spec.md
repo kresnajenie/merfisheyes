@@ -201,6 +201,20 @@ Write it as `column_{n}` of level 0 `tile_major`, aligned to its rows, and
 append its name to `columns` and to `df:shape`. To make it available at other
 levels or in `feature_major`, gather it by `id`.
 
+### 8.1 Assigned and unassigned molecules
+
+An element MAY carry a column `unassigned`, uint8 (or bool): 1 for a molecule
+assigned to no cell, 0 for one in a cell. When it is present it MUST also be
+in `feature_major` at every level, listed in `points:copied_columns`, so a
+viewer reading one feature's rows (§7) can draw the two kinds apart. Its
+value is the level-0 `tile_major` value of the same `id`.
+
+What counts as "no cell" is decided when the element is written, from the
+source table's cell column: any number ≤ 0 (MERSCOPE −1, CosMx 0), NaN or
+empty, and the words `unassigned`, `none`, `nan`, `na`, `null` in any case;
+any other string (a Xenium cell id) is a cell. The reference writer applies
+it in `scripts/meyes_common.py` (`unassigned_mask`).
+
 ## 9. Convention entry
 
 Until this spec has a home, the element's `zarr_conventions` lists it as:

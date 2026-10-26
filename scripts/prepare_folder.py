@@ -431,12 +431,14 @@ def expand_molecules(folder: Path, molecules: Path, columns: str | None, workers
     import process_single_molecule as psm
     import transcripts_to_points
 
-    gene, x, y, z = transcripts_to_points.resolve_columns(transcripts_to_points.column_names(molecules), columns)
+    names = transcripts_to_points.column_names(molecules)
+    gene, x, y, z = transcripts_to_points.resolve_columns(names, columns)
     out = folder / "molecules"
     log(f"  {out.name}/: one file per gene from {molecules.name} ...")
     psm.process_single_molecule_data(
         input_file=str(molecules), output_folder=str(out), dataset_type="custom",
         gene_col=gene, x_col=x, y_col=y, z_col=None, num_workers=workers,
+        cell_id_col=transcripts_to_points.cell_column(names, columns),
     )
     return out
 

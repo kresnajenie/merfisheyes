@@ -7,7 +7,8 @@ Outputs into tests/data/tiny/zarr/:
   points_v1.zarr          a store holding one points element,
                           points/transcripts: 3,000 points, 4 genes, 3 levels,
                           with chunks and shards small enough that reads cross
-                          both
+                          both; a third of the points marked `unassigned`
+                          (§8.1)
   points_expected.json    what it must read back as
 
 Needs zarr >= 3 and numcodecs >= 0.16.
@@ -37,14 +38,16 @@ x = rng.uniform(0, 1000, n).astype(np.float32)
 y = rng.uniform(0, 600, n).astype(np.float32)
 z = rng.uniform(-5, 5, n).astype(np.float32)
 f = rng.choice(4, n, p=[0.6, 0.25, 0.1, 0.05]).astype(np.uint16)
+u = (rng.uniform(0, 1, n) < 1 / 3).astype(np.uint8)
 
 root = zarr.open_group(store, mode="w")
 root.attrs["spatialdata_attrs"] = {"version": "0.2"}
 root.require_group("points")
 w = pz.PointsWriter(store / "points" / "transcripts", OUT / "points_v1.tmp",
                     features=genes, dims=3, origin=(0, 0), extent=(1000, 600),
-                    tile_size=100, band_um=200, n_levels=3)
-w.spill({"x": x, "y": y, "z": z, "f": f}, seed=1, tag="a")
+                    tile_size=100, band_um=200, n_levels=3,
+                    columns=[("unassigned", "u1", None)], copied=["unassigned"])
+w.spill({"x": x, "y": y, "z": z, "f": f, "unassigned": u}, seed=1, tag="a")
 w.finish()
 zarr.consolidate_metadata(str(store))
 
@@ -61,6 +64,10 @@ expected = {
     ),
     "alpha_bbox": bbox,
     "alpha_in_bbox": int(inside.sum()),
+    "beta_unassigned_xyz_sorted": sorted(
+        [round(float(a), 3), round(float(b), 3), round(float(c), 3)]
+        for a, b, c in zip(x[(f == 1) & (u == 1)], y[(f == 1) & (u == 1)], z[(f == 1) & (u == 1)])
+    ),
 }
 (OUT / "points_expected.json").write_text(json.dumps(expected))
 print(pz.validate(store / "points" / "transcripts"))

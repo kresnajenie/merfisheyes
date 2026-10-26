@@ -8,6 +8,22 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Molecules in no cell, in the new format too.** A points element may
+  carry an `unassigned` column, copied to `feature_major`
+  (`docs/points-zarr-spec.md` §8.1). The validator checks it, and the viewer
+  draws those molecules apart, with the same Assigned / Unassigned switches,
+  colours and order as a legacy molecule folder.
+  - `prepare.py` writes the column from MERSCOPE's `cell_id` without being
+    asked, or from any cell column named with
+    `--molecule-columns gene=G,x=X,y=Y,cell=C`.
+  - A server upload's chosen cell column is passed the same way.
+  - `legacy_to_points.py` keeps a folder's split.
+  - Xenium's molecules are still not split, as before.
+  - What counts as "no cell" is one rule, `meyes_common.unassigned_mask`,
+    used by both writers.
+
 ### Changed
 
 - **A dataset keeps its colours when you save it.** The browser preview and

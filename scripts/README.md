@@ -181,6 +181,8 @@ The rule: any numeric value `≤ 0` (covers `-1` and `0`), plus `NaN`/blank and 
 common string tokens (`unassigned`, `none`, `nan`, `na`, `null`). Any other
 non-numeric string (e.g. a real Xenium cell id like `aaabbbcc-1`) counts as
 **assigned**.
+The same rule (`meyes_common.unassigned_mask`) fills the points element's
+`unassigned` column when `prepare.py` is given a cell column.
 
 #### Dataset Types:
 
@@ -389,7 +391,10 @@ Writes one SpatialData store `sample.zarr` (Zarr v3): the table in
 folder, the molecules as `points/molecules` (a tiled points element,
 straight from a transcripts table with `transcripts_to_points.py`, or from a
 per-gene folder with `legacy_to_points.py`; `--molecule-columns` names a
-table's columns when they are not Xenium's or MERSCOPE's); the image folder
+table's columns when they are not Xenium's or MERSCOPE's, and
+`gene=G,x=X,y=Y,cell=C` also names the cell column, which marks each
+molecule assigned to a cell or not in a `unassigned` column, by the rule
+below; MERSCOPE's `cell_id` does so without asking); the image folder
 and the transcripts table move to `sources/`;
 `mapping.json` names the store; with `--cluster` the Leiden clusters go
 into the table as `obs/leiden`; the DEG stats of every categorical column

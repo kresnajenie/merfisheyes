@@ -147,3 +147,16 @@ def test_keep_z_writes_3d_molecules_beside_cells_and_alone(tmp_path, monkeypatch
     assert points_axes(tmp_path / "deep", "s") == ["x", "y", "z"]
     run(raw / "transcripts.parquet", tmp_path / "alone", "--keep-z")
     assert points_axes(tmp_path / "alone", "s") == ["x", "y", "z"]
+
+
+def test_a_chosen_cell_column_goes_to_prepare_py_by_name(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    molecules(raw / "spots.parquet")
+
+    cmd = entrypoint.prepare_command(
+        "single_molecule", raw, tmp_path, tmp_path / "out", "sm_x",
+        {"columnMapping": {"gene": "Gene", "x": "X", "y": "Y", "z": "", "cellId": "cell"}}, {},
+    )
+
+    assert cmd[-2:] == ["--molecule-columns", "gene=Gene,x=X,y=Y,cell=cell"]
