@@ -46,6 +46,19 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **A test that what you preview is what you save.**
+  `tests/unit/preview-store-parity.test.ts` opens each tiny source the way
+  the browser preview does, and the store `scripts/prepare.py` writes from
+  it the way the SpatialData viewer does. It compares what a person sees:
+  cells, genes, expression, which cells are drawn and where, the colour
+  columns, the column it opens on, each label's colour, and embeddings.
+  Today's differences are expected failures, each naming its cause and the
+  step of `docs/plans/PREVIEW-SAVE.md` that removes it: the label sort,
+  boolean labels, the coordinate and category columns the store offers, and
+  Xenium's lost clustering. The committed stores
+  (`scripts/testdata/make-tiny-parity-stores.py`) are checked against a fresh
+  `prepare.py` run by `tests/python/test_parity_stores.py`. A real Xenium
+  export runs with `MERFISHEYES_XENIUM` and `MERFISHEYES_PREPARE_PYTHON`.
 - **Releases tag and publish themselves.** Merging a release into `main`
   tags it `vX.Y.Z` from `package.json` and publishes its GitHub Release with
   this file's section as the notes (`.github/workflows/release.yml`,
