@@ -295,9 +295,14 @@ export class XeniumAdapter {
       const x = toNum(r[xKey]);
       const y = toNum(r[yKey]);
 
+      // A cell without a valid centroid keeps its row as NaN (it is not
+      // drawn): dropping it would shift every later position onto the wrong
+      // cell's clusters and expression
       if (Number.isFinite(x) && Number.isFinite(y)) {
         coords.push([x, y]);
         validCount++;
+      } else {
+        coords.push([NaN, NaN]);
       }
     }
 
@@ -311,11 +316,11 @@ export class XeniumAdapter {
       );
     }
 
-    const droppedCount = numRows - validCount;
+    const unplacedCount = numRows - validCount;
 
-    if (droppedCount > 0) {
+    if (unplacedCount > 0) {
       console.warn(
-        `[XeniumAdapter] Dropped ${droppedCount} rows with invalid centroids (from ${numRows})`,
+        `[XeniumAdapter] ${unplacedCount} of ${numRows} cells have no valid centroid; kept, not drawn`,
       );
     }
 
