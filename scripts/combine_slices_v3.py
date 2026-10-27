@@ -68,7 +68,29 @@ FILE_PATTERNS = {
         'extensions': ['.csv'],
         'description': 'Cell by gene matrix'
     },
+    # The molecules of the same slice. They are not combined into one CSV the
+    # way the cells are — they are far too large — but the slice's shift is
+    # recorded beside its path in sample_offsets.json, so a later stage can
+    # place every molecule in the combined frame (scripts/slices_to_points.py).
+    'detected_transcripts': {
+        'keywords': ['transcript'],
+        'exclude': ['metadata'],
+        'extensions': ['.csv', '.parquet'],
+        'description': 'Detected transcripts (single molecule)'
+    },
 }
+
+# Directories this pipeline writes itself. A re-run must not read its own
+# output back as though it were another slice.
+OUTPUT_DIR_NAMES = {
+    'combined_output', 'mmc_output', 'mmc_output_corr', 'meyes_output',
+    'sm_output', 'sm_points', 'points',
+}
+
+
+def is_output_dir(path):
+    name = Path(path).name
+    return name in OUTPUT_DIR_NAMES or name.endswith('.zarr')
 
 
 def normalize_filename(filename):
@@ -145,7 +167,7 @@ def find_file_in_dir(directory, target_category):
     for entry in os.scandir(directory):
         if not entry.is_file():
             continue
-        if not entry.name.lower().endswith('.csv'):
+        if not entry.name.lower().endswith(('.csv', '.parquet')):
             continue
         cat, score, reason = categorize_file(entry.name)
         if cat == target_category:
@@ -179,7 +201,7 @@ def scan_dir_once(directory):
         for entry in os.scandir(directory):
             if entry.is_dir(follow_symlinks=False):
                 subdirs.append(entry.path)
-            elif entry.is_file(follow_symlinks=False) and entry.name.lower().endswith('.csv'):
+            elif entry.is_file(follow_symlinks=False) and entry.name.lower().endswith(('.csv', '.parquet')):
                 csv_names.append(entry.name)
     except PermissionError:
         pass
@@ -211,6 +233,9 @@ def discover_sample_dirs_bfs(target, t0):
     top_children = []
     for entry in os.scandir(target):
         if entry.is_dir(follow_symlinks=False):
+            if is_output_dir(entry.path):
+                log(f"  skipping '{entry.name}' (this pipeline's own output)", t0)
+                continue
             top_children.append((entry.name, entry.path))
     top_children.sort()
 
@@ -235,7 +260,7 @@ def discover_sample_dirs_bfs(target, t0):
 
             # queue subdirs for next level
             subdirs.sort()
-            queue.extend(subdirs)
+            queue.extend(d for d in subdirs if not is_output_dir(d))
         else:
             log(f"    not found (scanned {dirs_scanned} dirs)", t0)
 
@@ -334,6 +359,14 @@ else:
         if cbg_path is None:
             log(f"ERROR: No cell_by_gene file found in {d}", t_start)
             sys.exit(1)
+
+        # The slice's molecules, if it has them. Optional: a sample may be
+        # cells only, and the cell combine must not fail because of it.
+        tx_path, tx_reason = find_file_in_dir(d, "detected_transcripts")
+        if tx_path is None:
+            log(f"    no detected_transcripts in {d.name} ({tx_reason}) - cells only", t_start)
+        else:
+            log(f"    molecules: {tx_path.name}", t_start)
     
         # --- read cell_metadata ---
         t_read = time.perf_counter()
@@ -432,6 +465,8 @@ else:
             'bbox': bbox,
             'num_rows': len(valid_cell_ids),
             'sample_id': meta_path.relative_to(target).parts[0],
+            'transcripts_path': tx_path,
+            'slice_dir': d,
             'meta_columns': meta_columns,
             'metadata_id_col': metadata_id_col,
             'valid_cell_ids': valid_cell_ids,
@@ -523,6 +558,11 @@ else:
             "orig_bbox": [float(v) for v in old_bbox],
             "grid_origin": [float(origin[0]), float(origin[1])],
             "num_rows": int(info['num_rows']),
+            # Where this slice's molecules are, and the shift that puts them
+            # in the same frame as the combined cells. null when the slice
+            # has none.
+            "slice_dir": str(info['slice_dir']),
+            "transcripts": str(info['transcripts_path']) if info['transcripts_path'] else None,
         })
 
         df[x_col] += dx
@@ -549,6 +589,8 @@ else:
     with open(offsets_path, "w") as f:
         json.dump({"x_col": x_col, "y_col": y_col, "padding": padding,
                    "note": "original = combined - (dx, dy); pure per-slice translation",
+                   "molecules": "shift a slice's molecules by its (dx, dy) to put them "
+                                "in the combined cells' frame",
                    "samples": sample_offsets}, f, indent=2)
     log(f"Saved {offsets_path} ({len(sample_offsets)} slices)", t_start)
     

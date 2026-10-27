@@ -112,6 +112,11 @@ def cell_column(names: list[str], columns: str | None) -> str | None:
     merscope = KNOWN["merscope"]
     if columns == "merscope" or (columns is None and {merscope[0], merscope[1], merscope[2]} <= set(names)):
         return "cell_id" if "cell_id" in names else None
+    # The BIL h5ad family's segmented_spot_table.csv, which writes -1 for a
+    # molecule in no cell, as MERSCOPE does. `production_cell_ids` is a second
+    # segmentation's answer and is not the one the cells were counted from.
+    if "cell_ids" in names:
+        return "cell_ids"
     return None
 
 
@@ -175,8 +180,26 @@ def batches(source: Path, cols: list[str], batch_size: int):
             yield out
 
 
-def convert(
-    source,
+def source_columns(source: Path, columns: str | None) -> dict:
+    """The roles of one table's columns: gene, x, y, z | None, cell | None."""
+    source = Path(source)
+    feature_key = parquet_source(source)[1] if source.suffix.lower() != ".csv" else None
+    names = column_names(source)
+    gene, x, y, z = resolve_columns(names, columns, feature_key)
+    return {
+        "path": source,
+        "gene": gene, "x": x, "y": y, "z": z,
+        "cell": cell_column(names, columns) if feature_key is None else None,
+    }
+
+
+def convert(source, store, **kw) -> Path:
+    """One transcripts table into `store`'s points element."""
+    return convert_many([{"path": source}], store, **kw)
+
+
+def convert_many(
+    sources,
     store,
     *,
     name: str = "molecules",
@@ -186,18 +209,46 @@ def convert(
     tile_size: float = 100.0,
     transformations: list[dict] | None = None,
     batch_size: int = 2_000_000,
+    sample_key: str = "sample",
     log=print,
 ) -> Path:
+    """Several transcripts tables into ONE points element.
+
+    `sources` is a list of {"path": …, "dx": 0.0, "dy": 0.0, "sample_id": None}.
+    Each table's molecules are moved by its (dx, dy) before they are written,
+    which is how the slices of one dataset land in the frame the combined
+    cells are in — scripts/combine_slices_v3.py records exactly those shifts
+    in sample_offsets.json, and scripts/slices_to_points.py reads them.
+
+    With more than one named source every molecule also carries its
+    `sample_id` in a `sample` column, the same tag the combined cells carry
+    in `_sample_id`, so a molecule can always be told back to its slice.
+    """
     import pandas as pd
     import zarr
 
-    source, store = Path(source), Path(store)
-    feature_key = parquet_source(source)[1] if source.suffix.lower() != ".csv" else None
-    names = column_names(source)
-    gene_col, x_col, y_col, z_col = resolve_columns(names, columns, feature_key)
-    cell_col = cell_column(names, columns) if feature_key is None else None
-    dims = 3 if (z_col and keep_z) else 2
-    cols = [gene_col, x_col, y_col] + ([z_col] if dims == 3 else []) + ([cell_col] if cell_col else [])
+    store = Path(store)
+    sources = [dict(s) for s in sources]
+    if not sources:
+        raise SystemExit("no transcripts to write")
+    for src in sources:
+        src.update(source_columns(src["path"], columns))
+        src.setdefault("dx", 0.0)
+        src.setdefault("dy", 0.0)
+        src.setdefault("sample_id", None)
+
+    dims = 3 if (keep_z and all(src["z"] for src in sources)) else 2
+    # A molecule knows its slice only when every slice is named
+    ids = [src["sample_id"] for src in sources]
+    use_sample = len(sources) > 1 and all(i is not None for i in ids)
+    samples = sorted({str(i) for i in ids}) if use_sample else []
+    if use_sample and len(samples) > 255:
+        raise SystemExit(f"{len(samples)} slices: more than the sample column holds")
+    # Assigned-or-not is written only when every table can say
+    has_cell = all(src["cell"] for src in sources)
+    if any(src["cell"] for src in sources) and not has_cell:
+        log("  some tables name each molecule's cell and some do not: the column is left out")
+
     if dims == 3 and transformations:
         # The cells' transforms are 2-D: z, in the same unit as x, is scaled
         # as x is and not moved
@@ -206,28 +257,31 @@ def convert(
             for t in transformations
         ]
 
-    # Pass 1: the genes and the extent
+    # Pass 1: the genes and the extent, over every table, as placed
     genes: set[str] = set()
     lo = np.array([np.inf, np.inf])
     hi = np.array([-np.inf, -np.inf])
     rows = 0
-    for b in batches(source, [gene_col, x_col, y_col], batch_size):
-        genes.update(str(g) for g in pd.unique(pd.Series(b[gene_col]).astype(str)))
-        x, y = b[x_col].astype(np.float64), b[y_col].astype(np.float64)
-        ok = np.isfinite(x) & np.isfinite(y)
-        if ok.any():
-            lo = np.minimum(lo, [x[ok].min(), y[ok].min()])
-            hi = np.maximum(hi, [x[ok].max(), y[ok].max()])
-        rows += len(x)
+    for src in sources:
+        for b in batches(src["path"], [src["gene"], src["x"], src["y"]], batch_size):
+            genes.update(str(g) for g in pd.unique(pd.Series(b[src["gene"]]).astype(str)))
+            x = b[src["x"]].astype(np.float64) + src["dx"]
+            y = b[src["y"]].astype(np.float64) + src["dy"]
+            ok = np.isfinite(x) & np.isfinite(y)
+            if ok.any():
+                lo = np.minimum(lo, [x[ok].min(), y[ok].min()])
+                hi = np.maximum(hi, [x[ok].max(), y[ok].max()])
+            rows += len(x)
     if rows == 0 or not np.all(np.isfinite(lo)):
-        raise SystemExit(f"{source.name}: no molecules with coordinates")
+        raise SystemExit(f"{sources[0]['path'].name}: no molecules with coordinates")
     kept = sorted(g for g in genes if not should_filter_gene(g))
     dropped = len(genes) - len(kept)
     code = {g: i for i, g in enumerate(kept)}
     pad = tile_size * 0.01
     origin = (float(lo[0]) - pad, float(lo[1]) - pad)
     extent = (float(hi[0] - lo[0]) + 2 * pad, float(hi[1] - lo[1]) + 2 * pad)
-    log(f"{rows:,} molecules, {len(kept)} genes ({dropped} control/blank dropped), {dims}D, extent {extent[0]:.0f} × {extent[1]:.0f}")
+    where = f" from {len(sources)} slices" if len(sources) > 1 else ""
+    log(f"{rows:,} molecules{where}, {len(kept)} genes ({dropped} control/blank dropped), {dims}D, extent {extent[0]:.0f} × {extent[1]:.0f}")
 
     out = store / "points" / name
     if out.exists():
@@ -235,6 +289,8 @@ def convert(
     root = zarr.open_group(store, mode="a")
     root.attrs.setdefault("spatialdata_attrs", {"version": "0.2"})
     root.require_group("points")
+    extra = ([("unassigned", "u1", None)] if has_cell else []) + \
+            ([(sample_key, "u1", samples)] if use_sample else [])
     w = pz.PointsWriter(
         out,
         store.parent / f".{name}.tmp",
@@ -247,32 +303,43 @@ def convert(
         transformations=transformations,
         # Assigned or not, per molecule, in both row orders: the viewer reads
         # a gene's molecules gene by gene and draws the two kinds apart
-        columns=[("unassigned", "u1", None)] if cell_col else [],
-        copied=["unassigned"] if cell_col else [],
+        columns=extra,
+        copied=[c[0] for c in extra],
     )
-    # Pass 2: the molecules, in batches, each gene by its code
+    # Pass 2: the molecules, in batches, each gene by its code, each slice
+    # moved onto the combined frame
     total = 0
     unassigned = 0
-    for i, b in enumerate(batches(source, cols, batch_size)):
-        g = pd.Series(b[gene_col]).astype(str).map(code)
-        keep = g.notna().to_numpy() & np.isfinite(b[x_col].astype(np.float64)) & np.isfinite(b[y_col].astype(np.float64))
-        if not keep.any():
-            continue
-        spill = {
-            "x": b[x_col][keep].astype(np.float64),
-            "y": b[y_col][keep].astype(np.float64),
-            "f": g.to_numpy()[keep].astype(w.fdtype),
-        }
-        if dims == 3:
-            spill["z"] = b[z_col][keep].astype(np.float64)
-        if cell_col:
-            spill["unassigned"] = unassigned_mask(np.asarray(b[cell_col])[keep]).astype(np.uint8)
-            unassigned += int(spill["unassigned"].sum())
-        w.spill(spill, seed=i, tag=f"b{i}")
-        total += int(keep.sum())
+    seed = 0
+    for si, src in enumerate(sources):
+        cols = [src["gene"], src["x"], src["y"]] + ([src["z"]] if dims == 3 else []) + ([src["cell"]] if has_cell else [])
+        if len(sources) > 1:
+            log(f"  [{si + 1}/{len(sources)}] {src['sample_id'] or src['path'].name}: {src['path'].name} shifted by ({src['dx']:+.1f}, {src['dy']:+.1f})")
+        for b in batches(src["path"], cols, batch_size):
+            x = b[src["x"]].astype(np.float64) + src["dx"]
+            y = b[src["y"]].astype(np.float64) + src["dy"]
+            g = pd.Series(b[src["gene"]]).astype(str).map(code)
+            keep = g.notna().to_numpy() & np.isfinite(x) & np.isfinite(y)
+            seed += 1
+            if not keep.any():
+                continue
+            spill = {
+                "x": x[keep],
+                "y": y[keep],
+                "f": g.to_numpy()[keep].astype(w.fdtype),
+            }
+            if dims == 3:
+                spill["z"] = b[src["z"]][keep].astype(np.float64)
+            if has_cell:
+                spill["unassigned"] = unassigned_mask(np.asarray(b[src["cell"]])[keep]).astype(np.uint8)
+                unassigned += int(spill["unassigned"].sum())
+            if use_sample:
+                spill[sample_key] = np.full(int(keep.sum()), samples.index(str(src["sample_id"])), np.uint8)
+            w.spill(spill, seed=seed, tag=f"s{si}b{seed}")
+            total += int(keep.sum())
     log(f"{total:,} molecules spilled; building levels")
-    if cell_col:
-        log(f"  by {cell_col}: {total - unassigned:,} assigned to a cell, {unassigned:,} not")
+    if has_cell:
+        log(f"  by cell: {total - unassigned:,} assigned to a cell, {unassigned:,} not")
     w.finish()
     zarr.consolidate_metadata(str(store))
     log(f"wrote {out}")

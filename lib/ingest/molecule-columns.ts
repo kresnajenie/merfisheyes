@@ -14,6 +14,7 @@ const NAMES = {
     "gene_name",
     "target_name",
     "genes",
+    "gene_names",
   ],
   x: ["x", "x_location", "global_x", "x_um", "x_global", "x_position"],
   y: ["y", "y_location", "global_y", "y_um", "y_global", "y_position"],

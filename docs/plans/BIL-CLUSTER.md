@@ -210,6 +210,88 @@ tiled points element) — a ready-made before/after for §2.2.
 
 ---
 
+### 1.7 The pipeline run end to end on this machine (2026-10-27)
+
+`tests/bil/run_dry_run.sh` runs the cluster's stages without SLURM — the
+chain `launch_combine_mmc.sh` and `launch_process_sync.sh` build with
+`sbatch --dependency=afterok`, chained by `set -e`. Measured on a 64-core
+box, python 3.12 with `scripts/requirements.txt` pinned:
+
+**`ace-dip-tug` — 3 slices, the shape the fleet needs**
+
+| Stage | Time | Result |
+|---|---|---|
+| combine | 1 m 41 s | 407,859 cells, `sample_offsets.json`, masks p5–p80 |
+| mask | 13 s | |
+| annotate | — | reused `mmc_output/mapping_output.csv` (references are 14 GB) |
+| prepare (cells) | 17 s | `tables/table`, CSC, MMC labels merged |
+| **points (molecules)** | **8 m 28 s** | **433,023,021 molecules, 8 levels** |
+| validate | 1 m 15 s | PASS |
+
+**11 m 58 s, peak RSS 4.9 GB. 40.6 GB of CSV in → a 6.0 GB store of 2,251
+files.** Peak memory is the number that matters for the cluster: half a
+billion molecules at under 5 GB, because nothing is ever concatenated —
+each slice streams into `PointsWriter`, which spills and builds the levels
+once.
+
+Per slice, every molecule landed on its own cells (100 % inside the cells'
+box + 50 µm): `1232698492` 69.7 M molecules / 140,958 cells shifted
+(+40, +2); `1232698496` 177.7 M / 120,378 (+11241, −3); `1232698499`
+185.7 M / 146,523 (+129, −9614). 434,118,398 source rows − 1,095,377
+blanks and control probes = 433,023,021 written, exactly.
+
+**The other two families, through `prepare.py` directly** — neither has a
+combine step (`launch_h5ad_pipeline.sh` and `launch_xenium_pipeline.sh` go
+straight to processing), so `slices_to_points.py` does not apply to them:
+
+| Input | Time | Result |
+|---|---|---|
+| Xenium `Human_Pancreas` | 26 s | 103,901 cells, 377 genes, 13.9 M molecules, both boundary sets, a 6-level morphology image |
+| h5ad family `ace-low-cop` | 1 m 45 s | 151,391 cells, 500 genes, 73.9 M molecules (57.4 M in a cell, 16.5 M not) |
+
+**`ace-dip-use` is the migration case.** On this machine it is only a
+previous run's `combined_output` — no raw slices, no molecules, no
+`sample_offsets.json`, which is what all 87 existing datasets look like. Its
+cells converted (448,084 cells, DE stats on 4 obs columns) and the points
+stage refused with a message naming the combine. That is the evidence
+behind D5.
+
+**What this run changed in the code**
+
+- `combine_slices_v3.py` finds each slice's `*detected_transcripts*` with a
+  third fuzzy pattern and records its path beside that slice's `(dx, dy)` in
+  `sample_offsets.json`. The molecules are never combined into a file — the
+  combine is the only record of where they are.
+- `combine_slices_v3.py` skips the directories this pipeline writes
+  (`combined_output`, `mmc_output*`, `sm_output`, `meyes_output`, `*.zarr`).
+  Without that, a re-run over a folder holding its own output reads it back
+  as another slice and **doubles every cell**, exit 0, silently — 815,718
+  rows instead of 407,859 on `ace-dip-tug`.
+- `scripts/slices_to_points.py` is new: the stage that reads the offsets and
+  writes every slice's molecules into one element, each tagged with its
+  `sample`.
+- `transcripts_to_points.convert_many()` does the writing; `convert()` is a
+  one-line wrapper on it.
+- `gene_names` joined `MOLECULE_COLUMN_NAMES` in all three copies
+  (`meyes_common.py`, `worker/entrypoint.py`,
+  `lib/ingest/molecule-columns.ts`) — without it the h5ad family's spot
+  table is not recognised as molecules at all. `cell_ids` joined
+  `cell_column()`.
+- `tests/bil/` is the test space: 12 tests on generated fixtures (~30 s, no
+  data) plus the runner above.
+
+**Corrected from the 2026-10-26 reading.** The MapMyCells join was reported
+as silently mislabelling 84.7 % of cells. That was a test against the wrong
+table: MMC reads `combined_output`, not a raw region. Verified by compound
+id on both `ace-dip-tug` and `ace-dip-use` — every cell matched, every label
+identical. `cell_by_gene.csv`, `cell_metadata.csv` and `mapping_output.csv`
+are all in one order, so the positional merge in `prepare_folder.merge_labels`
+is correct. One narrow bug remains: `process_spatial_data.reorder_df_to_reference`
+strips the compound id at the **first** underscore, so a `_sample_id` that
+contains one (`region_0`) yields `0_101…` and `--reorder` raises. It is off
+by default, so the cluster has never hit it.
+
+
 ## 2. The format change: how gene storage differs
 
 The thing to understand before writing any code.
@@ -309,9 +391,9 @@ microns in the mosaic frame, so they should), and that the h5ad family's
 |---|---|---|
 | ~~D1~~ | ~~Is a BIL "dataset" one item or one section?~~ | **Answered (user, 2026-10-23): one item, one store** — the combined cells and every section's molecules together. That is the point of the reprocessing (§2.3). |
 | ~~D2~~ | ~~Does MapMyCells run inside the pipeline?~~ | **Answered (user, 2026-10-27): yes, inside.** So `annotate` is a CLI stage, the image carries `cell_type_mapper`, and the references are **bind-mounted, not baked in** (14 GB: `/bil/data/meyes/mapmycells-reference` on the cluster, `~/data/merfisheyes-test-data/mapmycells-reference` locally). This diverges from the app's path, which has no server-side cell typing and takes a user CSV — `prepare.py --labels` is the seam: the cluster's `annotate` stage produces the CSV that `prepare.py` consumes, so neither side grows a second implementation. |
-| ~~D3~~ | ~~How are unassigned molecules represented?~~ | **Answered by the code (`572ba19`, on develop):** a points element may carry an `unassigned` column copied into `feature_major`, with one shared rule (`meyes_common.unassigned_mask`: any number ≤ 0, NaN, blank, or the words UNASSIGNED / none / nan / na / null). A cell column is **never guessed**; MERSCOPE's `cell_id` is used when present, anything else names one through `--molecule-columns gene=G,x=X,y=Y[,z=Z],cell=C`. ⚠ The BIL MERSCOPE transcripts measured in §1.6 carry **no cell column at all**, so their molecules are written unsplit. |
-| ~~D4~~ | ~~Apptainer on PSC; S3 from compute nodes?~~ | **Decided (user, 2026-10-27): one workflow — the container does the processing *and* the S3 sync.** So `sync` is a CLI stage run inside Apptainer on the compute node, not a separate login-node job, and today's four copies of `aws s3 sync` collapse into one. ⚠ **Still to verify on the cluster** (Step 0): that Apptainer exists, that compute nodes have outbound S3, and how credentials reach the container without the `~/.aws/config` race that was fixed three times (`2c15173`). If compute nodes turn out to have no egress, `sync` becomes a dependent login-node job and this decision narrows to "one implementation, two schedulers". |
-| D5 | Re-run all 87, or only new datasets? | Decides whether §1.4's gaps must be closed before Step 5. |
+| ~~D3~~ | ~~How are unassigned molecules represented?~~ | **Answered by the code (`572ba19`, on develop):** a points element may carry an `unassigned` column copied into `feature_major`, with one shared rule (`meyes_common.unassigned_mask`: any number ≤ 0, NaN, blank, or the words UNASSIGNED / none / nan / na / null). A cell column is **never guessed**; MERSCOPE's `cell_id` is used when present, anything else names one through `--molecule-columns gene=G,x=X,y=Y[,z=Z],cell=C`. **Measured again 2026-10-27 (§1.7):** the multi-slice sets *do* carry `cell_id`, written `-1` for a molecule in no cell — 140.7 M of 433.0 M on `ace-dip-tug`. The single-region `ace-dry-dip` export does not. The BIL h5ad family's `segmented_spot_table.csv` names it `cell_ids`, now recognised. |
+| ~~D4~~ | ~~Apptainer on PSC; S3 from compute nodes?~~ | **Decided (user, 2026-10-27): one workflow — the container does the processing *and* the S3 sync.** So `sync` is a CLI stage run inside Apptainer on the compute node, not a separate login-node job, and today's four copies of `aws s3 sync` collapse into one. **Partly answered by the scripts (2026-10-27):** `launch_sm_pipeline.sh` already runs `aws s3 sync` in a `--wrap` job on `--partition=compute` after `module load aws-cli`, so compute nodes **do** have the CLI and outbound S3, and sync is already an in-pipeline stage. ⚠ **Still to verify on the cluster** (Step 0): that Apptainer exists, and how credentials reach the container without the `~/.aws/config` race that was fixed three times (`2c15173`). If compute nodes turn out to have no egress, `sync` becomes a dependent login-node job and this decision narrows to "one implementation, two schedulers". |
+| D5 | Re-run all 87, or only new datasets? | Decides whether §1.4's gaps must be closed before Step 5. **Evidence (2026-10-27): re-run.** No existing `combined_output/` on this machine holds `sample_offsets.json` — it did not exist when they were made — and without the per-slice shifts the molecules cannot be placed in the combined cells' frame. The cell half of a re-run is cheap: 1 m 41 s for `ace-dip-tug`'s three slices. |
 | D6 | Does ONE-PIPELINE step 5 (retiring the chunked processors) wait for the BIL re-run? | `scripts/bil-scripts/` still calls them. |
 
 ---
