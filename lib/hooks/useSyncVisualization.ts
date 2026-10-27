@@ -191,22 +191,23 @@ function throttledToast(message: string) {
 
 /**
  * Bidirectional sync between left (global) and right (panel) visualization stores.
- * Only active when syncEnabled and rightPanelType === "cell".
+ * Active when syncEnabled and both panels have cells open (`available`, from
+ * useSyncCapabilities): a cell folder or a SpatialData store's table, either side.
  */
 export function useSyncVisualization(
   rightVizStore: VisualizationStore,
   rightDatasetStore: DatasetStore,
+  available: boolean,
 ) {
   const syncingRef = useRef(false);
   const prevLeftRef = useRef<SyncFields | null>(null);
   const prevRightRef = useRef<SyncFields | null>(null);
 
   const syncEnabled = useSplitScreenStore((s) => s.syncEnabled);
-  const rightPanelType = useSplitScreenStore((s) => s.rightPanelType);
   const syncFromUrl = useSplitScreenStore((s) => s.syncFromUrl);
   const settlingRef = useRef(false);
 
-  const isActive = syncEnabled && rightPanelType === "cell";
+  const isActive = syncEnabled && available;
 
   useEffect(() => {
     if (!isActive) {

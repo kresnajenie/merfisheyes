@@ -53,6 +53,7 @@ function pick(state: LabelledMoleculeVisualizationState): LmSyncFields {
  */
 export function useSyncLabelledMoleculeVisualization(
   rightStore: LabelledMoleculeVisualizationStore,
+  available: boolean,
 ) {
   const syncingRef = useRef(false);
   const prevLeftRef = useRef<LmSyncFields | null>(null);
@@ -60,10 +61,10 @@ export function useSyncLabelledMoleculeVisualization(
   const settlingRef = useRef(false);
 
   const syncEnabled = useSplitScreenStore((s) => s.syncEnabled);
-  const rightPanelType = useSplitScreenStore((s) => s.rightPanelType);
   const syncFromUrl = useSplitScreenStore((s) => s.syncFromUrl);
 
-  const isActive = syncEnabled && rightPanelType === "lm";
+  // Both panels are the labelled-molecule viewer (useSyncCapabilities)
+  const isActive = syncEnabled && available;
 
   useEffect(() => {
     if (!isActive) {
