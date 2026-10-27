@@ -13,7 +13,8 @@ import { createSingleMoleculeStoreInstance } from "@/lib/stores/createSingleMole
 import { createSingleMoleculeVisualizationStoreInstance } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import { createLabelledMoleculeVisualizationStoreInstance } from "@/lib/stores/createLabelledMoleculeVisualizationStore";
 import { createLayersStoreInstance } from "@/lib/stores/createLayersStore";
-import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import { canSync, useSplitScreenStore } from "@/lib/stores/splitScreenStore";
+import { useSyncCapabilities } from "@/lib/hooks/useSyncCapabilities";
 import { useSyncVisualization } from "@/lib/hooks/useSyncVisualization";
 import { useSyncSingleMoleculeVisualization } from "@/lib/hooks/useSyncSingleMoleculeVisualization";
 import { useSyncLabelledMoleculeVisualization } from "@/lib/hooks/useSyncLabelledMoleculeVisualization";
@@ -56,17 +57,24 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
     [],
   );
 
+  // What the two panels can sync, from what each has open; each hook syncs
+  // its own kind and the button shows when any can, so the two agree
+  const syncable = useSyncCapabilities(rightPanelStores);
+
   // Bidirectional sync between left and right visualization stores
   useSyncVisualization(
     rightPanelStores.visualizationStore,
     rightPanelStores.datasetStore,
+    syncable.cells,
   );
   useSyncSingleMoleculeVisualization(
     rightPanelStores.singleMoleculeVisualizationStore,
     rightPanelStores.singleMoleculeStore,
+    syncable.molecules,
   );
   useSyncLabelledMoleculeVisualization(
     rightPanelStores.labelledMoleculeVisualizationStore,
+    syncable.labelled,
   );
 
   // Always render the same DOM tree so {children} (ThreeScene) never unmounts.
@@ -84,7 +92,7 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
 
       {isSplitMode && (
         <>
-          <ResizableDivider />
+          <ResizableDivider canSync={canSync(syncable)} />
 
           {/* Right panel — uses scoped stores via PanelProvider */}
           <PanelContext.Provider value={rightPanelStores}>

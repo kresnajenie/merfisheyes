@@ -60,6 +60,16 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **Split-screen sync is offered whenever both panels have something in
+  common.** The sync button used to show only when both panels were the same
+  viewer, and the sync itself ran only for the cell and molecule viewers. So a
+  cell dataset beside a SpatialData store (every upload since the one
+  pipeline) had no button, and two stores or two images showed a button that
+  synced nothing. Now both read what each panel has open
+  (`syncCapabilities`): cells beside cells sync cells, molecules beside
+  molecules sync genes, whichever viewer shows them. A link with `sync=1`
+  starts syncing once both panels have loaded, rather than possibly before. An
+  image on its own still has nothing to sync, so it shows no button.
 - **The worker image can run `prepare.py` again.** Since the shared
   conventions file, `scripts/validate_store.py` reads
   `docs/specs/conventions.json` when it is imported, and `prepare.py`
