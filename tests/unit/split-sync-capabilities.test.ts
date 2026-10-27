@@ -5,11 +5,14 @@ import type { PanelContent } from "@/lib/stores/splitScreenStore";
 import {
   canSync,
   hasCells,
+  hasImage,
   hasMolecules,
   syncCapabilities,
 } from "@/lib/stores/splitScreenStore";
 import { createDatasetStoreInstance } from "@/lib/stores/createDatasetStore";
+import { createLayersStoreInstance } from "@/lib/stores/createLayersStore";
 import { createSingleMoleculeStoreInstance } from "@/lib/stores/createSingleMoleculeStore";
+import { channelVisibilityChanges } from "@/lib/hooks/useSyncImageChannels";
 
 /**
  * Split-screen sync is offered for what the two panels have open, never for
@@ -17,10 +20,10 @@ import { createSingleMoleculeStoreInstance } from "@/lib/stores/createSingleMole
  * (the container hands each hook its kind and the button canSync of all), so
  * the two can no longer disagree, as they did when the button compared the
  * viewers: a cell folder beside a SpatialData store showed no button, and two
- * stores showed one that synced nothing.
+ * stores, or two images, showed one that synced nothing.
  */
 
-const none = { cells: false, molecules: false, labelled: false };
+const none = { cells: false, molecules: false, labelled: false, image: false };
 
 /** Each kind of panel, by what its stores hold once it has loaded. */
 const PANELS: Record<string, PanelContent> = {
@@ -28,9 +31,10 @@ const PANELS: Record<string, PanelContent> = {
   "cell folder with linked molecules": { ...none, cells: true, molecules: true },
   "store with cells": { ...none, cells: true },
   "store with cells and points": { ...none, cells: true, molecules: true },
+  "store with cells and an image": { ...none, cells: true, image: true },
   "store with points only": { ...none, molecules: true },
   "molecule folder (/sm-viewer)": { ...none, molecules: true },
-  "image (/image-viewer, or a store with only one)": none,
+  "image (/image-viewer, or a store with only one)": { ...none, image: true },
   "labelled molecules (/lm-viewer)": { ...none, labelled: true },
 };
 
@@ -48,9 +52,12 @@ describe("split-screen sync follows what each panel has open", () => {
       cells: l.cells && r.cells,
       molecules: l.molecules && r.molecules,
       labelled: l.labelled && r.labelled,
+      image: l.image && r.image,
     });
     // The button shows exactly when some hook runs
-    expect(canSync(caps)).toBe(caps.cells || caps.molecules || caps.labelled);
+    expect(canSync(caps)).toBe(
+      caps.cells || caps.molecules || caps.labelled || caps.image,
+    );
     // Order doesn't matter
     expect(syncCapabilities(r, l)).toEqual(caps);
   });
@@ -65,6 +72,13 @@ describe("split-screen sync follows what each panel has open", () => {
     // Hidden before: molecules in a store beside a molecule folder
     ["store with points only", "molecule folder (/sm-viewer)", "molecules"],
     ["cell folder with linked molecules", "store with cells and points", "molecules"],
+    // Shown before but synced nothing: an image's channels
+    [
+      "image (/image-viewer, or a store with only one)",
+      "image (/image-viewer, or a store with only one)",
+      "image",
+    ],
+    ["store with cells and an image", "image (/image-viewer, or a store with only one)", "image"],
   ] as const)("%s beside %s syncs %s", (left, right, kind) => {
     const caps = syncCapabilities(PANELS[left], PANELS[right]);
 
@@ -75,7 +89,7 @@ describe("split-screen sync follows what each panel has open", () => {
   it("offers nothing between panels with nothing in common", () => {
     const image = PANELS["image (/image-viewer, or a store with only one)"];
 
-    for (const other of names) {
+    for (const other of names.filter((n) => !PANELS[n].image)) {
       expect(canSync(syncCapabilities(image, PANELS[other]))).toBe(false);
     }
     expect(
@@ -132,5 +146,64 @@ describe("a panel's content is read from its stores as the sync hooks read them"
 
     store.getState().addDataset(molecules as any);
     expect(hasMolecules(store.getState())).toBe(true);
+  });
+
+  it("has an image while the scene draws an image layer", () => {
+    const store = createLayersStoreInstance();
+    const layer = { kind: "image" } as any;
+
+    expect(hasImage(store.getState())).toBe(false);
+    store.getState().setLayer("image", layer);
+    expect(hasImage(store.getState())).toBe(true);
+    store.getState().setLayer("image", null);
+    expect(hasImage(store.getState())).toBe(false);
+  });
+});
+
+describe("image sync carries which channels are on, matched by label", () => {
+  const ch = (label: string, visible: boolean) => ({ label, visible });
+
+  it("turns the other image's channels on and off as this one's", () => {
+    expect(
+      channelVisibilityChanges(
+        [ch("DAPI", true), ch("CD3", true), ch("CD8", false)],
+        [ch("DAPI", true), ch("CD3", false), ch("CD8", true)],
+      ),
+    ).toEqual([
+      { index: 1, visible: true },
+      { index: 2, visible: false },
+    ]);
+  });
+
+  it("matches by label, so two images share what they have in common", () => {
+    // A 3-channel panel beside a 6-channel one, in another order
+    expect(
+      channelVisibilityChanges(
+        [ch("CD3", true), ch("DAPI", false), ch("CD8", false)],
+        [
+          ch("DAPI", true),
+          ch("Ki67", true),
+          ch("CD20", false),
+          ch("CD3", false),
+          ch("CD8", false),
+          ch("CD45", true),
+        ],
+      ),
+    ).toEqual([
+      { index: 0, visible: false },
+      { index: 3, visible: true },
+    ]);
+  });
+
+  it("leaves a channel only one image has as it is", () => {
+    expect(
+      channelVisibilityChanges([ch("CD3", true)], [ch("Ki67", false)]),
+    ).toEqual([]);
+  });
+
+  it("has nothing to do when both already agree, so a mirrored change stops", () => {
+    const same = [ch("DAPI", true), ch("CD3", false)];
+
+    expect(channelVisibilityChanges(same, same)).toEqual([]);
   });
 });

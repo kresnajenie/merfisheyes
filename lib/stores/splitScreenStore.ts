@@ -43,6 +43,8 @@ export interface PanelContent {
   molecules: boolean;
   /** The labelled-molecule viewer, which keeps its own stores. */
   labelled: boolean;
+  /** An image layer: an image on its own, a store's, or one under cells. */
+  image: boolean;
 }
 
 type DatasetsState = {
@@ -65,11 +67,16 @@ export function hasMolecules(s: DatasetsState): boolean {
   return current(s) != null;
 }
 
+/** A panel's layers store holds an image layer (what the image sync reads). */
+export function hasImage(s: { layers: { image?: unknown } }): boolean {
+  return s.layers.image != null;
+}
+
 /**
  * What the two panels can sync: each kind both have open. Each sync hook runs
  * on its own kind and the button shows when any does, so the button never
- * shows with nothing to sync, and never hides when something could. An image
- * syncs nothing yet.
+ * shows with nothing to sync, and never hides when something could. Of an
+ * image, which channels are on.
  */
 export function syncCapabilities(
   left: PanelContent,
@@ -79,12 +86,13 @@ export function syncCapabilities(
     cells: left.cells && right.cells,
     molecules: left.molecules && right.molecules,
     labelled: left.labelled && right.labelled,
+    image: left.image && right.image,
   };
 }
 
 /** Whether the split offers sync at all. */
 export function canSync(c: PanelContent): boolean {
-  return c.cells || c.molecules || c.labelled;
+  return c.cells || c.molecules || c.labelled || c.image;
 }
 
 interface SplitScreenState {

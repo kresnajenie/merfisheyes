@@ -10,6 +10,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **Split-screen sync for images: which channels are on.** With an image in
+  both panels, switching a channel on or off in one does the same in the
+  other, matched by the channel's name, so two different images share the
+  channels they have in common. Colours, contrast and the camera stay each
+  panel's own. The change is kept in each panel's link (`img=` / `rimg=`).
 - **Molecules in no cell, in the new format too.** A points element may
   carry an `unassigned` column, copied to `feature_major`
   (`docs/points-zarr-spec.md` §8.1). The validator checks it, and the viewer
@@ -68,8 +73,7 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   synced nothing. Now both read what each panel has open
   (`syncCapabilities`): cells beside cells sync cells, molecules beside
   molecules sync genes, whichever viewer shows them. A link with `sync=1`
-  starts syncing once both panels have loaded, rather than possibly before. An
-  image on its own still has nothing to sync, so it shows no button.
+  starts syncing once both panels have loaded, rather than possibly before.
 - **The worker image can run `prepare.py` again.** Since the shared
   conventions file, `scripts/validate_store.py` reads
   `docs/specs/conventions.json` when it is imported, and `prepare.py`

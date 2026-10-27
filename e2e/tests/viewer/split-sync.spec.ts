@@ -6,6 +6,7 @@ import {
   startSpatialDataServer,
   storeUrl,
   cellsUrl,
+  libraryStoreUrl,
   SELECTORS,
 } from "../../fixtures/merfish-fixtures";
 import { type FixtureServer } from "../../helpers/fixture-server";
@@ -15,9 +16,10 @@ import { type FixtureServer } from "../../helpers/fixture-server";
  * SpatialData store, an image. The button is offered when both panels have
  * something in common (lib/stores/splitScreenStore.ts syncCapabilities) and
  * what it offers works. It used to compare the viewers instead, so a cell
- * folder beside a store showed no button, and two stores showed one that
- * synced nothing. Tagged @quick: committed tiny fixtures on a local stand-in
- * for the bucket.
+ * folder beside a store showed no button, and two stores or two images
+ * showed one that synced nothing. Of an image, sync carries which channels
+ * are on. Tagged @quick: committed tiny fixtures on a local stand-in for the
+ * bucket.
  */
 
 let server: FixtureServer;
@@ -118,9 +120,7 @@ test("@quick a shared link with sync=1 opens with sync on, and it syncs", async 
   await expect(badges(page, "gene1")).toHaveCount(2, { timeout: 30_000 });
 });
 
-test("@quick two images offer no sync, as nothing in an image syncs yet", async ({
-  page,
-}) => {
+test("@quick two images on their own offer sync", async ({ page }) => {
   await page.goto(
     split(
       store({ image: true }),
@@ -129,9 +129,60 @@ test("@quick two images offer no sync, as nothing in an image syncs yet", async 
     ),
   );
 
-  // Both panels are up before judging the button's absence
   await expect(page.locator(SELECTORS.imageCanvas)).toHaveCount(2, {
     timeout: 120_000,
   });
-  await expect(syncButton(page)).toHaveCount(0);
+  await expect(syncButton(page)).toBeVisible();
+});
+
+test("@quick two images sync which channels are on, and keep it in the link", async ({
+  page,
+}) => {
+  const codex = libraryStoreUrl(server, "codex");
+
+  await page.goto(
+    split(
+      `/spatialdata-viewer/from-s3?url=${encodeURIComponent(codex)}`,
+      codex,
+      "spatialdata",
+    ),
+  );
+
+  const button = syncButton(page);
+
+  await expect(button).toBeVisible({ timeout: 120_000 });
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+
+  // The claim banner is sized to the window, so in a half-width panel it
+  // covers the rail's Image button: put it away, as a user would
+  for (const dismiss of await page
+    .getByRole("button", { name: "Dismiss" })
+    .all()) {
+    await dismiss.click();
+  }
+
+  // One panel's channel list at a time (a click elsewhere closes it); the
+  // left panel's Image button comes first in the page
+  const imageButtons = page.locator(SELECTORS.imageButton);
+  const cd3 = page.getByLabel("Show CD3", { exact: true });
+  const openList = async (panel: 0 | 1) => {
+    await imageButtons.nth(panel).click();
+    await expect(cd3).toHaveCount(1);
+  };
+
+  await expect(imageButtons).toHaveCount(2);
+
+  // On, on the left: on, on the right, and in the right panel's link
+  await openList(0);
+  await expect(cd3).not.toBeChecked();
+  await cd3.check();
+  await openList(1);
+  await expect(cd3).toBeChecked();
+  await expect(page).toHaveURL(/[?&]rimg=/);
+
+  // Off, on the right: off, on the left
+  await cd3.uncheck();
+  await openList(0);
+  await expect(cd3).not.toBeChecked();
 });

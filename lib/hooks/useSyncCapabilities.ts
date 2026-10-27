@@ -1,6 +1,7 @@
 "use client";
 
 import type { DatasetStore } from "../stores/createDatasetStore";
+import type { LayersStore } from "../stores/createLayersStore";
 import type { SingleMoleculeStore } from "../stores/createSingleMoleculeStore";
 import type { PanelContent } from "../stores/splitScreenStore";
 
@@ -8,9 +9,11 @@ import { usePathname } from "next/navigation";
 import { useStore } from "zustand";
 
 import { useDatasetStore } from "../stores/datasetStore";
+import { layersStore } from "../stores/layersStore";
 import { useSingleMoleculeStore } from "../stores/singleMoleculeStore";
 import {
   hasCells,
+  hasImage,
   hasMolecules,
   panelTypeForViewer,
   syncCapabilities,
@@ -25,6 +28,7 @@ import {
 export function useSyncCapabilities(right: {
   datasetStore: DatasetStore;
   singleMoleculeStore: SingleMoleculeStore;
+  layersStore: LayersStore;
 }): PanelContent {
   const pathname = usePathname();
   const rightType = useSplitScreenStore((s) => s.rightPanelType);
@@ -35,11 +39,13 @@ export function useSyncCapabilities(right: {
     // The labelled-molecule viewer keeps its own stores, so it is known by
     // the page (left) and by what the right panel was opened as
     labelled: panelTypeForViewer(pathname.split("/")[1] ?? "") === "lm",
+    image: useStore(layersStore, hasImage),
   };
   const rightContent: PanelContent = {
     cells: useStore(right.datasetStore, hasCells),
     molecules: useStore(right.singleMoleculeStore, hasMolecules),
     labelled: rightType === "lm",
+    image: useStore(right.layersStore, hasImage),
   };
 
   return syncCapabilities(left, rightContent);

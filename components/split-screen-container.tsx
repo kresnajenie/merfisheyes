@@ -18,6 +18,7 @@ import { useSyncCapabilities } from "@/lib/hooks/useSyncCapabilities";
 import { useSyncVisualization } from "@/lib/hooks/useSyncVisualization";
 import { useSyncSingleMoleculeVisualization } from "@/lib/hooks/useSyncSingleMoleculeVisualization";
 import { useSyncLabelledMoleculeVisualization } from "@/lib/hooks/useSyncLabelledMoleculeVisualization";
+import { useSyncImageChannels } from "@/lib/hooks/useSyncImageChannels";
 import { useSplitUrlParams } from "@/lib/hooks/useSplitUrlParams";
 
 /** A viewer page that can split: the split's state is kept in the URL. */
@@ -76,6 +77,7 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
     rightPanelStores.labelledMoleculeVisualizationStore,
     syncable.labelled,
   );
+  useSyncImageChannels(rightPanelStores.layersStore, syncable.image);
 
   // Always render the same DOM tree so {children} (ThreeScene) never unmounts.
   // When not in split mode, the left panel takes 100% width and the right panel
