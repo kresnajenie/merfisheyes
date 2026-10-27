@@ -158,6 +158,7 @@ class PointsWriter:
         feature_key: str = "gene",
         dims: int = 3,
         columns: list[tuple[str, str, list[str] | None]] = (),
+        copied: list[str] = (),
         origin: tuple[float, float],
         extent: tuple[float, float],
         tile_size: float = 100.0,
@@ -172,6 +173,12 @@ class PointsWriter:
         self.feature_key = feature_key
         self.dims = dims
         self.columns = [tuple(c) for c in columns]
+        # Extra columns also written to feature_major (points:copied_columns),
+        # for a reader that reads a feature's rows there
+        self.copied = list(copied)
+        unknown = set(self.copied) - {c[0] for c in self.columns}
+        if unknown:
+            raise ValueError(f"copied columns {sorted(unknown)} are not among the columns")
         self.origin = (float(origin[0]), float(origin[1]))
         self.extent = (float(extent[0]), float(extent[1]))
         self.tile_size = float(tile_size)
@@ -214,7 +221,9 @@ class PointsWriter:
         return np.dtype(f)
 
     def feature_record(self):
-        return np.dtype([(a, "<f4") for a in self.axes] + [("row", "<u8"), ("id", "<u8")])
+        f = [(a, "<f4") for a in self.axes] + [("row", "<u8"), ("id", "<u8")]
+        f += [(name, np.dtype(dt).str) for name, dt, _ in self.columns if name in self.copied]
+        return np.dtype(f)
 
     # ---- pass A ---------------------------------------------------------
     def spill(self, cols: dict, seed: int, tag: str) -> dict:
@@ -425,6 +434,8 @@ class PointsWriter:
                 fr[a] = rec[a][fo]
             fr["row"] = np.arange(row, row + m, dtype=np.uint64)[fo]
             fr["id"] = ids[fo]
+            for name in self.copied:
+                fr[name] = rec[name][fo]
             fs = rec["f"][fo]
             cuts = np.flatnonzero(np.diff(fs)) + 1
             for lo, hi in zip(np.r_[0, cuts], np.r_[cuts, m]):
@@ -456,8 +467,9 @@ class PointsWriter:
         fm_cols = [(a, "f4", None, False) for a in self.axes]
         fm_cols.append((self.feature_key, self.fdtype, self.features, False))
         fm_cols.append(("id", "u8", None, True))
+        fm_cols += [(name, dt, vals, False) for name, dt, vals in self.columns if name in self.copied]
         fdf, farr = self._dataframe(level, "feature_major", n, fm_cols)
-        fdf.attrs["points:copied_columns"] = []
+        fdf.attrs["points:copied_columns"] = [c[0] for c in fm_cols[len(self.axes) + 2 :]]
         fw = _Writer(farr)
         per_feature = counts.sum(0)
         t0 = time.time()
@@ -473,6 +485,8 @@ class PointsWriter:
             cols = {a: fr[a] for a in self.axes}
             cols[self.feature_key] = np.full(len(fr), fi, self.fdtype)
             cols["id"] = fr["id"]
+            for name in self.copied:
+                cols[name] = fr[name]
             fw.append(cols)
             if fi % 50 == 0:
                 log(f"  feature-major {fi + 1}/{V} ({time.time() - t0:.0f}s)")
@@ -626,6 +640,26 @@ def validate(path, sample=200_000, seed=0) -> dict:
         fb = _take(_col(tm0, key)["codes"], ids_sorted)
         same &= bool(np.array_equal(fa, fb))
         assert same, f"level {k}: feature_major rows don't match level-0 tile_major"
+        # copied columns hold the same values as level-0 tile_major's, by id
+        tm_names = list(tm0["columns"][:])
+        for c in fm.attrs.get("points:copied_columns", []):
+            assert c in tm_names, f"level {k}: copied column {c!r} is not in level-0 tile_major"
+            va, vb = _col(fm, c), _col(tm0, c)
+            if isinstance(va, zarr.Group):
+                va, vb = va["codes"], vb["codes"]
+            assert np.array_equal(_take(va, rows)[order], _take(vb, ids_sorted)), (
+                f"level {k}: copied column {c!r} differs from level-0 tile_major"
+            )
+        # the viewer's assigned/unassigned split (spec §8.1)
+        if "unassigned" in tm_names:
+            col = _col(tm0, "unassigned")
+            assert not isinstance(col, zarr.Group) and np.dtype(col.dtype) in (np.dtype("u1"), np.dtype("bool")), (
+                "unassigned is uint8 or bool"
+            )
+            assert "unassigned" in fm.attrs.get("points:copied_columns", []), (
+                f"level {k}: unassigned is not copied to feature_major"
+            )
+            assert int(_take(col, ids_sorted).max(initial=0)) <= 1, "unassigned holds only 0 and 1"
         # nesting: this level's ids are all in the level below (checked when
         # the level below is small enough to hold its ids in memory)
         nested = None

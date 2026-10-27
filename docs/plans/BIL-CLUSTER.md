@@ -174,6 +174,40 @@ The per-sample **species** (mouse/human reference for MapMyCells, macaque → th
 human reference) and **mask percentile** travel in `csv-samples.csv` columns 2
 and 3 — on `pipeline/final-rerun`, not on `main`.
 
+### 1.6 Test data on this machine (measured 2026-10-27)
+
+Under `~/data/merfisheyes-test-data/elvis-bil-data/bil-download/`. All three are
+real BIL MERSCOPE items with **cells and molecules**, and all name their files
+`cellpose_metadata.csv` / `cellpose-cell-by-gene.csv` /
+`cellpose-detected_transcripts.csv` — **not** the canonical names, which is why
+`combine_slices_v3.py`'s fuzzy matching exists and what any new runner must keep.
+
+| Dataset | Slices | Transcripts | Reference artefacts | Use it for |
+|---|---|---|---|---|
+| `ace-dry-dip` | 1 (`region_0`, canonical names) | 1.2 GB total | `combined_output/`, `mmc_output_corr/` | the **fast loop** — whole pipeline in minutes |
+| `ace-dip-tug` | 3, all complete | 6.4 + 17 + 17 GB | `combined_output/`, **`mmc_output/` and `mmc_output_corr/`** | the **real gate** — combine, dual-method MMC, SC+SM in one store |
+| `ace-dip-tub` | 3, but `1231122263` has **no `cellpose_metadata.csv`** | 3.0 + 13 + 2.7 GB | none | the **failure case** — a slice the combiner must skip or fail loudly on |
+
+Schemas (from `ace-dry-dip/region_0`):
+
+- transcripts — `barcode_id, global_x, global_y, global_z, x, y, fov, gene,
+  transcript_id`: textbook MERSCOPE, recognised natively, and **no cell
+  column**, so molecules here are written unsplit (D3).
+- cell metadata — an unnamed index column plus `fov, volume, center_x, center_y,
+  min_x, max_x, min_y, max_y`: no `obsm/spatial`, so the `center_x/y` path
+  matters — the fallback ported into `map_my_cell.py` from `s3-update` (§1.3).
+
+`ace-dip-tug/mmc_output/` holds `mapping_output.csv`, `enriched_metadata.csv`,
+`mapping_output.json`, `query.h5ad` and `check_celltype_*.png`; the restored
+(pre-strip) `map_my_cell.py` writes exactly that set, while the tip's stripped
+version writes only the CSV — independent confirmation that the restored version
+is the one that produced this data.
+
+Also here: `~/data/merfisheyes-test-data/ace-low-bag-points/` holds the **same
+sample in both molecule formats** — `sm_output/` (legacy per-gene, including
+`*_uuuuuuuuuu.bin.gz` unassigned files) and `sm_points/sm_points.zarr` (the
+tiled points element) — a ready-made before/after for §2.2.
+
 ---
 
 ## 2. The format change: how gene storage differs
@@ -273,7 +307,10 @@ microns in the mosaic frame, so they should), and that the h5ad family's
 
 | # | Question | Why it blocks |
 |---|---|---|
-| ~~D1~~ | ~~Is a BIL "dataset" one item or one section?~~ | **Answered (user, 2026-10-23): one item, one store — the combined cells and every section's molecules together.** That is the point of the reprocessing (§2.3). |
+| ~~D1~~ | ~~Is a BIL "dataset" one item or one section?~~ | **Answered (user, 2026-10-23): one item, one store** — the combined cells and every section's molecules together. That is the point of the reprocessing (§2.3). |
+| ~~D2~~ | ~~Does MapMyCells run inside the pipeline?~~ | **Answered (user, 2026-10-27): yes, inside.** So `annotate` is a CLI stage, the image carries `cell_type_mapper`, and the references are **bind-mounted, not baked in** (14 GB: `/bil/data/meyes/mapmycells-reference` on the cluster, `~/data/merfisheyes-test-data/mapmycells-reference` locally). This diverges from the app's path, which has no server-side cell typing and takes a user CSV — `prepare.py --labels` is the seam: the cluster's `annotate` stage produces the CSV that `prepare.py` consumes, so neither side grows a second implementation. |
+| ~~D3~~ | ~~How are unassigned molecules represented?~~ | **Answered by the code (`572ba19`, on develop):** a points element may carry an `unassigned` column copied into `feature_major`, with one shared rule (`meyes_common.unassigned_mask`: any number ≤ 0, NaN, blank, or the words UNASSIGNED / none / nan / na / null). A cell column is **never guessed**; MERSCOPE's `cell_id` is used when present, anything else names one through `--molecule-columns gene=G,x=X,y=Y[,z=Z],cell=C`. ⚠ The BIL MERSCOPE transcripts measured in §1.6 carry **no cell column at all**, so their molecules are written unsplit. |
+| ~~D4~~ | ~~Apptainer on PSC; S3 from compute nodes?~~ | **Decided (user, 2026-10-27): one workflow — the container does the processing *and* the S3 sync.** So `sync` is a CLI stage run inside Apptainer on the compute node, not a separate login-node job, and today's four copies of `aws s3 sync` collapse into one. ⚠ **Still to verify on the cluster** (Step 0): that Apptainer exists, that compute nodes have outbound S3, and how credentials reach the container without the `~/.aws/config` race that was fixed three times (`2c15173`). If compute nodes turn out to have no egress, `sync` becomes a dependent login-node job and this decision narrows to "one implementation, two schedulers". |
 | D2 | Does MapMyCells run **inside** the pipeline, or stay a separate job feeding `--labels`? | Decides whether the container carries `cell_type_mapper` + the 1.3 GB / 8.2 GB references. |
 | D3 | Unassigned molecules — dropped, a `cell_id` column, or a reserved feature value? | Changes the points element's schema and the writer. |
 | D4 | Apptainer on PSC? May compute nodes reach S3 directly? | Decides packaging, and whether sync is a separate login-node stage. |

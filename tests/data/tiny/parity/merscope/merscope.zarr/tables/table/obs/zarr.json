@@ -1,0 +1,16 @@
+{
+  "attributes": {
+    "column-order": [
+      "cell_id",
+      "center_x",
+      "center_y",
+      "leiden",
+      "celltype"
+    ],
+    "_index": "cell_id",
+    "encoding-type": "dataframe",
+    "encoding-version": "0.2.0"
+  },
+  "zarr_format": 3,
+  "node_type": "group"
+}

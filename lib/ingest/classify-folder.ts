@@ -338,6 +338,14 @@ export function preparePlatformFiles(
           "nucleus_boundaries.parquet",
           "nucleus_boundaries.csv.gz",
         ),
+        // 10x's own clustering of the cells (prepare_xenium.graph_clusters),
+        // which the browser preview shows as "Cluster": the archive (2.5 MB
+        // on a 2-FOV export) or the unpacked clustering CSVs
+        ...firstOf(top, "analysis.tar.gz"),
+        ...usable.filter(
+          (e) =>
+            e.key.startsWith("analysis/clustering/") && e.key.endsWith(".csv"),
+        ),
       ],
       molecules: firstOf(
         top,
@@ -361,6 +369,8 @@ export function preparePlatformFiles(
         ...firstOf(top, "cell_by_gene.csv"),
         ...firstOf(top, "cell_metadata.csv"),
         ...firstOf(top, "cell_categories.csv"),
+        // The UMAP (prepare_merscope.read_umap), which the preview shows
+        ...firstOf(top, "cell_numeric_categories.csv"),
         ...firstOf(top, "cell_boundaries.parquet"),
       ],
       molecules: firstOf(

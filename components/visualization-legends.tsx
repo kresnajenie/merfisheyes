@@ -341,7 +341,7 @@ export const VisualizationLegends: React.FC<VisualizationLegendsProps> = ({
             {selectedColumn || "Celltypes"} ({selectedCelltypes.size}) - Clear
             All
           </div>
-          <div className="flex flex-col items-end gap-2 max-h-[calc(100vh-10rem)] overflow-y-auto px-3 py-1">
+          <div className="flex flex-col items-end gap-2 px-3 py-1">
             {Array.from(selectedCelltypes).map((celltype) => {
               const color = storeColorPalette[celltype] || "#888888";
               const hidden = hiddenCelltypes.has(celltype);

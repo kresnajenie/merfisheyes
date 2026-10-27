@@ -132,7 +132,22 @@ def write_merscope(out_dir: Path, n_cells, n_genes, dims, seed):
         w.writerow(["EntityID", "leiden", "celltype"])
         for i in range(n_cells):
             w.writerow([i, leiden[i], celltype[i]])
+    write_merscope_umap(out_dir, n_cells, seed)
     return out_dir
+
+
+def write_merscope_umap(out_dir: Path, n_cells, seed):
+    """cell_numeric_categories.csv, MERSCOPE's UMAP: one point per cell but
+    cell 5's, so a cell without one is kept in step (its own random stream:
+    the other files stay as they are)."""
+    rng = np.random.default_rng(seed + 1)
+    umap = rng.normal(size=(n_cells, 2))
+    with open(out_dir / "cell_numeric_categories.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["EntityID", "umap_X", "umap_Y"])
+        for i in range(n_cells):
+            if i != 5:
+                w.writerow([i, round(float(umap[i, 0]), 4), round(float(umap[i, 1]), 4)])
 
 
 def write_single_molecule(out: Path, n_genes, dims, seed, n_molecules):

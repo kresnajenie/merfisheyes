@@ -1,0 +1,60 @@
+name: Release
+
+# A release is a merge of develop into main (docs/RELEASING.md). When main
+# moves to a package.json version that has no tag yet, tag that commit
+# vX.Y.Z and publish its GitHub Release with the version's CHANGELOG.md
+# section. A push to main that keeps the version (a hotfix not yet bumped)
+# finds the tag already there and does nothing.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag and publish the release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the tags, to see whether this version has one
+
+      - name: Version and whether it is tagged
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already tagged; nothing to release."
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Notes from CHANGELOG.md
+        if: steps.version.outputs.tagged == 'false'
+        run: node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > "$RUNNER_TEMP/notes.md"
+
+      - name: Tag the merge commit
+        if: steps.version.outputs.tagged == 'false'
+        run: |
+          v="v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$v" -m "$v" "$GITHUB_SHA"
+          git push origin "$v"
+
+      - name: Publish the GitHub Release
+        if: steps.version.outputs.tagged == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="v${{ steps.version.outputs.version }}"
+          gh release create "$v" --verify-tag --latest --title "$v" --notes-file "$RUNNER_TEMP/notes.md"

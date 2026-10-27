@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { datasetKind, viewerBase, viewerHref } from "@/lib/datasets/kind";
+import {
+  datasetKind,
+  isAppDatasetId,
+  viewerBase,
+  viewerHref,
+} from "@/lib/datasets/kind";
 import { isOmeZarrImage } from "@/lib/upload/uploadImageToS3";
 import { fetchMappingConfig } from "@/lib/config/dataset-links";
 
@@ -41,6 +46,19 @@ describe("dataset kinds", () => {
       "/image-viewer/ds_abc",
     );
     expect(viewerHref({ datasetType: "image" })).toBeNull();
+  });
+
+  it("an app dataset is ds_ or sm_, whatever it became", () => {
+    // A molecule table from the single molecule card, made a SpatialData
+    // store by prepare.py, keeps its sm_ id and opens in that viewer
+    expect(isAppDatasetId("sm_FtBRk77t3F")).toBe(true);
+    expect(viewerHref({ id: "sm_FtBRk77t3F", datasetType: "spatialdata" })).toBe(
+      "/spatialdata-viewer/sm_FtBRk77t3F",
+    );
+    expect(isAppDatasetId("ds_abc")).toBe(true);
+    expect(isAppDatasetId("spatialdata_x")).toBe(false);
+    expect(isAppDatasetId("../ds_abc")).toBe(false);
+    expect(isAppDatasetId(undefined)).toBe(false);
   });
 });
 

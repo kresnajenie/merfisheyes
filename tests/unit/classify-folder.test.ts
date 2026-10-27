@@ -36,7 +36,9 @@ describe("datasetRelativeKey", () => {
 
   it("keeps structure below the root", () => {
     expect(
-      datasetRelativeKey(pickedFile("MyRun/cell_feature_matrix/features.tsv.gz")),
+      datasetRelativeKey(
+        pickedFile("MyRun/cell_feature_matrix/features.tsv.gz"),
+      ),
     ).toBe("cell_feature_matrix/features.tsv.gz");
   });
 
@@ -120,7 +122,9 @@ describe("classifyFolder", () => {
       "cell_feature_matrix/matrix.mtx.gz",
       "cells.csv.gz",
     ]);
-    expect(keysOf(result.singleMolecule?.files)).toEqual(["transcripts.parquet"]);
+    expect(keysOf(result.singleMolecule?.files)).toEqual([
+      "transcripts.parquet",
+    ]);
 
     // The bulky, unread files are exactly what this is for.
     expect(keysOf(result.ignored)).toEqual([
@@ -207,7 +211,9 @@ describe("fallbackSingleMoleculeFile", () => {
   });
 
   it("returns null when nothing is a csv/parquet", () => {
-    expect(fallbackSingleMoleculeFile([pickedFile("Run/image.tif")])).toBeNull();
+    expect(
+      fallbackSingleMoleculeFile([pickedFile("Run/image.tif")]),
+    ).toBeNull();
   });
 });
 
@@ -297,11 +303,13 @@ describe("preparePlatformFiles", () => {
     "transcripts.zarr.zip",
   ].map((p) => pickedFile(`outs/${p}`));
 
-  it("takes the seven files prepare.py reads of a Xenium export", () => {
+  it("takes the files prepare.py reads of a Xenium export", () => {
     const parts = preparePlatformFiles(lung);
 
     expect(parts?.format).toBe("xenium");
     expect(keysOf(parts?.cells)).toEqual([
+      // 10x's own clustering, the preview's "Cluster"
+      "analysis.tar.gz",
       "cell_boundaries.parquet",
       "cell_feature_matrix.h5",
       "cells.parquet",
@@ -339,6 +347,25 @@ describe("preparePlatformFiles", () => {
       "nucleus_boundaries.csv.gz",
     ]);
     expect(keysOf(parts?.molecules)).toEqual(["transcripts.csv.gz"]);
+  });
+
+  it("takes an unpacked analysis/ folder's clustering CSVs, not the rest", () => {
+    const parts = preparePlatformFiles(
+      [
+        "experiment.xenium",
+        "cell_feature_matrix.h5",
+        "cells.parquet",
+        "analysis/clustering/gene_expression_graphclust/clusters.csv",
+        "analysis/umap/gene_expression_2_components/projection.csv",
+      ].map((p) => pickedFile(`run/${p}`)),
+    );
+
+    expect(keysOf(parts?.cells)).toContain(
+      "analysis/clustering/gene_expression_graphclust/clusters.csv",
+    );
+    expect(keysOf(parts?.cells)).not.toContain(
+      "analysis/umap/gene_expression_2_components/projection.csv",
+    );
   });
 
   it("takes a MERSCOPE region's tables, boundaries and transcripts, no image", () => {

@@ -368,18 +368,22 @@ test("@quick CosMx store: cells placed from their shapes when the table has no o
     { timeout: 120_000 },
   );
   expect((await readHooks(page))!.stats!.pointCount, "cells").toBe(25);
-  // The Point element is read whole; of the polygons (265 MB in the real
-  // store) only the footer, by byte range, for the cells' footprint
-  const parquet = (name: string) =>
-    server.requests.filter(
+  // The cells' positions come from the Point element, read whole. The
+  // polygons are the Shapes layer's (a recognised outline element,
+  // docs/specs/conventions.json): it reads them once the view is under 1 mm
+  // across, which this tiny store always is; a real store's first view is
+  // wider and reads none
+  expect(
+    server.requests.some(
       (r) =>
-        r.status < 300 && r.path.endsWith(`/shapes/${name}/shapes.parquet`),
-    );
-
-  expect(parquet("cells_polygons_for_vitessce").some((r) => !r.range)).toBe(
-    true,
-  );
-  expect(parquet("cells_polygons").every((r) => r.range)).toBe(true);
+        r.status < 300 &&
+        !r.range &&
+        r.path.endsWith("/shapes/cells_polygons_for_vitessce/shapes.parquet"),
+    ),
+  ).toBe(true);
+  await expect(
+    page.getByRole("button", { name: "Shapes", exact: true }),
+  ).toBeVisible();
   await expect(page.locator(SELECTORS.imageButton)).toHaveCount(0);
   await selectGeneAndMeasure(
     page,

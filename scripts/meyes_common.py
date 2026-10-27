@@ -40,6 +40,31 @@ MOLECULE_COLUMN_NAMES = {
     "z": ["z", "z_location", "global_z", "z_um", "z_global", "z_position"],
 }
 
+# Cell values that mean "assigned to no cell", by platform: MERSCOPE -1,
+# Xenium "UNASSIGNED", CosMx 0 (its cells count from 1); and blanks. So any
+# number <= 0 is unassigned, as are these words; any other string (a Xenium
+# cell id such as "aaabbbcc-1") is a cell. lib/config/moleculeColumnMappings.ts
+# (isUnassignedCellId) applies the same rule in the browser.
+UNASSIGNED_TOKENS = {"unassigned", "none", "nan", "na", "null", ""}
+
+
+def unassigned_mask(cell_ids):
+    """True where a molecule is assigned to no cell (see UNASSIGNED_TOKENS)."""
+    import numpy as np
+    import pandas as pd
+
+    arr = np.asarray(cell_ids)
+    if np.issubdtype(arr.dtype, np.floating):
+        return np.isnan(arr) | (arr <= 0)
+    if np.issubdtype(arr.dtype, np.integer):
+        return arr <= 0
+    # Strings (Xenium's ids, blanks, "UNASSIGNED"), all at once: a table
+    # holds hundreds of millions of them
+    s = pd.Series(arr, dtype=object)
+    text = s.astype(str).str.strip().str.lower()
+    number = pd.to_numeric(text, errors="coerce")
+    return (s.isna() | text.isin(UNASSIGNED_TOKENS) | (number <= 0)).to_numpy(dtype=bool)
+
 
 def match_molecule_columns(columns) -> dict | None:
     """gene / x / y (and z when there is one) among `columns`, by name in any

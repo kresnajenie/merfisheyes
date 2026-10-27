@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { generatePresignedDownloadUrl } from "@/lib/s3";
+import { isAppDatasetId } from "@/lib/datasets/kind";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -24,7 +25,7 @@ export async function GET(
     const { datasetId } = await params;
     const relativeKey = request.nextUrl.searchParams.get("key");
 
-    if (!datasetId.startsWith("ds_")) {
+    if (!isAppDatasetId(datasetId)) {
       return NextResponse.json(
         { error: "Invalid dataset ID format" },
         { status: 400, headers: corsHeaders },

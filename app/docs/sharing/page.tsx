@@ -76,8 +76,52 @@ export default function SharingPage() {
     <>
       <DocHeader
         heading="Sharing on Explore"
-        lead="Explore lists datasets anyone can open. Next to our curated collection there is a Community section: datasets people submitted from their own accounts and an admin approved."
+        lead="Explore lists datasets anyone can open: our curated collection, every dataset of SpatialData-DB, and a Community section of datasets people submitted from their own accounts and an admin approved. Every dataset has a page of its own."
       />
+
+      <DocSection heading="What is on Explore" id="collections">
+        <CompareTable
+          headers={["Where it comes from", "How to find it"]}
+          labelHeader="Collection"
+          rows={[
+            [
+              "Curated",
+              "Datasets we prepared ourselves: featured atlases and the BIL collection.",
+              "The default view, plus the Featured and BIL categories.",
+            ],
+            [
+              "SpatialData-DB",
+              <>
+                Every dataset of the public{" "}
+                <a
+                  href="https://lamin.ai/scverse/spatialdata-db"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  SpatialData-DB
+                </a>{" "}
+                instance, listed from the catalogue that project publishes. Each
+                card shows the dataset&apos;s licence; many are non-commercial.
+              </>,
+              "The SpatialData-DB category. Filters by species, tissue and platform include them.",
+            ],
+            [
+              "Community",
+              "Datasets and projects people submitted from their accounts, once an admin approved them (the rest of this page).",
+              "The Community category, and the default view.",
+            ],
+          ]}
+        />
+        <Prose>
+          <p>
+            Clicking a card opens the dataset&apos;s own page: its description,
+            details and links, and its parts — cells, molecules, an image — each
+            of which opens in the viewer. Share the page&apos;s address to point
+            someone at a dataset; share a viewer link to point them at a view
+            (see <a href="/docs/viewer#links">Links keep your view</a>).
+          </p>
+        </Prose>
+      </DocSection>
 
       <DocSection heading="The path to Explore" id="overview">
         <Flow

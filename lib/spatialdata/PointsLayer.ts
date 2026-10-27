@@ -18,7 +18,10 @@ import {
   markLayerContent,
   markLayerSettled,
 } from "@/lib/utils/test-hooks";
-import { createMoleculeMaterial } from "@/lib/webgl/point-cloud";
+import {
+  createMoleculeMaterial,
+  setMoleculeOpacity,
+} from "@/lib/webgl/point-cloud";
 
 /**
  * How much to draw: a point budget and a byte budget per view, shared by
@@ -72,14 +75,31 @@ export interface GeneStyle {
   /** Dot size as createSmPointCloud takes it. */
   dotSize: number;
   shape: "circle" | "square";
+  /** Opacity, 0-1 (1 when absent). */
+  opacity?: number;
   /** THREE renderOrder of the gene's points. */
   renderOrder: number;
+  /** Draw the molecules assigned to a cell (true when absent). */
+  assigned?: boolean;
+  /**
+   * The molecules in no cell, for an element that marks them (its
+   * `unassigned` column, docs/points-zarr-spec.md §8.1): drawn in their own
+   * colour, shape and size just below the gene's assigned ones, or not at
+   * all when absent.
+   */
+  unassigned?: UnassignedStyle | null;
   /**
    * Hidden genes (the legend's eye, or cmd+click to show one alone) still
    * count towards the budget and keep what they have loaded, so showing
    * them again is instant and doesn't change anyone's level.
    */
   visible: boolean;
+}
+
+export interface UnassignedStyle {
+  color: string;
+  dotSize: number;
+  shape: "circle" | "square";
 }
 
 // Points kept in memory for tiles that have scrolled out of view, unless
@@ -111,9 +131,13 @@ interface Piece {
   level: number;
   start: number;
   count: number;
-  /** One small point cloud per chunk read, sharing `material`. */
+  /**
+   * Small point clouds, one per chunk read and kind: the assigned share
+   * `material`, the unassigned `unassignedMaterial`.
+   */
   points: THREE.Group | null;
   material: THREE.ShaderMaterial | null;
+  unassignedMaterial: THREE.ShaderMaterial | null;
   /** Rows read so far; the piece is drawn up to here. */
   loaded: number;
   loading: boolean;
@@ -174,6 +198,11 @@ export class PointsLayer extends BaseLayer {
   constructor(private element: PointsElement) {
     super();
     this.featureIndex = new Map(element.features.map((f, i) => [f, i]));
+  }
+
+  /** Whether the element marks molecules in no cell, to draw them apart. */
+  get marksUnassigned() {
+    return !!this.element.readUnassigned;
   }
 
   get visible() {
@@ -257,7 +286,12 @@ export class PointsLayer extends BaseLayer {
         (old.color !== style.color ||
           old.dotSize !== style.dotSize ||
           old.shape !== style.shape ||
-          old.renderOrder !== style.renderOrder)
+          old.opacity !== style.opacity ||
+          old.renderOrder !== style.renderOrder ||
+          old.assigned !== style.assigned ||
+          old.unassigned?.color !== style.unassigned?.color ||
+          old.unassigned?.dotSize !== style.unassigned?.dotSize ||
+          old.unassigned?.shape !== style.unassigned?.shape)
       ) {
         this.genes.set(gene, style);
         this.restyle(gene);
@@ -372,6 +406,11 @@ export class PointsLayer extends BaseLayer {
     if (p.material && style) {
       p.material.uniforms.dotSize.value =
         Math.max(style.dotSize, this.minDot) * p.growth;
+    }
+    if (p.unassignedMaterial && style) {
+      p.unassignedMaterial.uniforms.dotSize.value =
+        Math.max(style.unassigned?.dotSize ?? style.dotSize, this.minDot) *
+        p.growth;
     }
   }
 
@@ -707,6 +746,7 @@ export class PointsLayer extends BaseLayer {
         count,
         points: null,
         material: null,
+        unassignedMaterial: null,
         loaded: 0,
         loading: false,
         controller: null,
@@ -736,11 +776,15 @@ export class PointsLayer extends BaseLayer {
 
   /** The molecule shader's material, for a gene's style. */
   private material(style: GeneStyle) {
-    return createMoleculeMaterial(
+    const material = createMoleculeMaterial(
       style.color,
       Math.max(style.dotSize, this.minDot),
       style.shape,
     );
+
+    setMoleculeOpacity(material, style.opacity ?? 1);
+
+    return material;
   }
 
   /**
@@ -765,6 +809,17 @@ export class PointsLayer extends BaseLayer {
       this.root.add(group);
       p.points = group;
       p.material = this.material(style);
+      // Molecules in no cell, when the element marks them: the same reads,
+      // split into a second cloud per chunk with its own material
+      const readUnassigned = this.element.readUnassigned?.bind(this.element);
+
+      if (readUnassigned) {
+        p.unassignedMaterial = this.material({
+          ...style,
+          ...(style.unassigned ?? {}),
+        });
+      }
+      this.applyKinds(p, style);
       p.growth = 1;
       // Coarser levels first: they are small and stand in for the finer
       const controller = new AbortController();
@@ -779,20 +834,32 @@ export class PointsLayer extends BaseLayer {
           end,
           (Math.floor(lo / STREAM_ROWS) + 1) * STREAM_ROWS,
         );
-        const xyz = await this.element.readXyz(p.level, lo, hi, {
-          signal: controller.signal,
-        });
+        const opts = { signal: controller.signal };
+        const [xyz, unassigned] = await Promise.all([
+          this.element.readXyz(p.level, lo, hi, opts),
+          readUnassigned?.(p.level, lo, hi, opts),
+        ]);
 
         if (this.disposed || p.points !== group) return;
-        const geometry = new THREE.BufferGeometry();
+        const order = this.genes.get(gene)?.renderOrder ?? 0;
 
-        // Positions only: colour, size and shape are the material's uniforms
-        geometry.setAttribute("position", new THREE.BufferAttribute(xyz, 3));
-        geometry.computeBoundingSphere();
-        const points = new THREE.Points(geometry, p.material);
+        for (const [part, material, renderOrder] of unassigned
+          ? ([
+              [select(xyz, unassigned, 0), p.material!, order],
+              [select(xyz, unassigned, 1), p.unassignedMaterial!, order - 1],
+            ] as const)
+          : ([[xyz, p.material!, order]] as const)) {
+          if (part.length === 0) continue;
+          const geometry = new THREE.BufferGeometry();
 
-        points.renderOrder = this.genes.get(gene)?.renderOrder ?? 0;
-        this.uploads.push({ piece: p, points });
+          // Positions only: colour, size and shape are the material's uniforms
+          geometry.setAttribute("position", new THREE.BufferAttribute(part, 3));
+          geometry.computeBoundingSphere();
+          const points = new THREE.Points(geometry, material);
+
+          points.renderOrder = renderOrder;
+          this.uploads.push({ piece: p, points });
+        }
         lo = hi;
       }
     } catch (e) {
@@ -838,14 +905,34 @@ export class PointsLayer extends BaseLayer {
     for (const p of this.pieces.values()) {
       if (p.feature !== f || !p.points) continue;
       for (const child of p.points.children) {
-        (child as THREE.Points).renderOrder = style.renderOrder;
+        const points = child as THREE.Points;
+
+        // The gene's unassigned just below its assigned (MoleculeLayer's order)
+        points.renderOrder =
+          style.renderOrder -
+          (points.material === p.unassignedMaterial ? 1 : 0);
       }
       if (p.material) {
         (p.material.uniforms.uColor.value as THREE.Color).set(style.color);
         p.material.uniforms.uShape.value = style.shape === "square" ? 1 : 0;
+        setMoleculeOpacity(p.material, style.opacity ?? 1);
       }
+      if (p.unassignedMaterial && style.unassigned) {
+        const u = p.unassignedMaterial;
+
+        (u.uniforms.uColor.value as THREE.Color).set(style.unassigned.color);
+        u.uniforms.uShape.value = style.unassigned.shape === "square" ? 1 : 0;
+        setMoleculeOpacity(u, style.opacity ?? 1);
+      }
+      this.applyKinds(p, style);
       this.applySize(p);
     }
+  }
+
+  /** Assigned and unassigned shown or hidden by their materials: no upload. */
+  private applyKinds(p: Piece, style: GeneStyle) {
+    if (p.material) p.material.visible = style.assigned !== false;
+    if (p.unassignedMaterial) p.unassignedMaterial.visible = !!style.unassigned;
   }
 
   /** Free the least recently wanted pieces that aren't on screen. */
@@ -887,13 +974,34 @@ export class PointsLayer extends BaseLayer {
       (child as THREE.Points).geometry.dispose();
     }
     p.material?.dispose();
+    p.unassignedMaterial?.dispose();
     p.points = null;
     p.material = null;
+    p.unassignedMaterial = null;
     p.loaded = 0;
   }
 }
 
 type Rect = Pick<ViewRect, "minX" | "minY" | "maxX" | "maxY">;
+
+/** The interleaved xyz of the rows whose flag is `kind`. */
+function select(xyz: Float32Array, flags: Uint8Array, kind: 0 | 1) {
+  let n = 0;
+
+  for (let i = 0; i < flags.length; i++) if ((flags[i] ? 1 : 0) === kind) n++;
+  if (n === flags.length) return xyz;
+  const out = new Float32Array(n * 3);
+  let j = 0;
+
+  for (let i = 0; i < flags.length; i++) {
+    if ((flags[i] ? 1 : 0) !== kind) continue;
+    out[j++] = xyz[i * 3];
+    out[j++] = xyz[i * 3 + 1];
+    out[j++] = xyz[i * 3 + 2];
+  }
+
+  return out;
+}
 
 /** First index of a sorted array whose value is >= x. */
 function lowerBound(a: Uint32Array, x: number): number {

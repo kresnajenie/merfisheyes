@@ -18,6 +18,7 @@ import type { ShapesWorkerApi } from "@/lib/workers/shapes.worker";
 import * as Comlink from "comlink";
 
 import { placesAsWritten, readCoordinateSystems } from "./coordinates";
+import { pointSiblingOf } from "./conventions";
 import { geometryTypes } from "./footprint";
 import { elementNames } from "./store";
 
@@ -28,7 +29,7 @@ export function centroidSource(sd: SpatialDataStore, region: string | null) {
   if (!region?.startsWith("shapes/")) return null;
   const name = region.slice("shapes/".length);
   const names = elementNames(sd.keys, "shapes");
-  const points = `${name}_for_vitessce`;
+  const points = pointSiblingOf(name);
 
   return names.includes(points) ? `shapes/${points}` : region;
 }

@@ -114,13 +114,45 @@ def read_table(folder: Path, log):
             obs[c] = pd.Categorical(cats[c].reindex(obs.index))
         log(f"  {cats_path.name}: {list(cats.columns)}")
 
+    obsm = {"spatial": meta[["center_x", "center_y"]].to_numpy(dtype=np.float64)}
+    umap = read_umap(folder, obs.index, log)
+    if umap is not None:
+        obsm["X_umap"] = umap
+
     x = sp.csc_matrix(counts[genes].to_numpy(dtype=np.float32))
     return ad.AnnData(
         X=x,
         obs=obs,
         var=pd.DataFrame(index=pd.Index(genes, name="gene")),
-        obsm={"spatial": meta[["center_x", "center_y"]].to_numpy(dtype=np.float64)},
+        obsm=obsm,
     )
+
+
+# The UMAP columns of cell_numeric_categories.csv, as the browser preview
+# accepts them (MerscopeAdapter)
+UMAP_X = ("umap_X", "umap_x", "UMAP_X", "umap1", "x_umap")
+UMAP_Y = ("umap_Y", "umap_y", "UMAP_Y", "umap2", "y_umap")
+
+
+def read_umap(folder: Path, ids: pd.Index, log):
+    """MERSCOPE's UMAP from cell_numeric_categories.csv, one row per cell in
+    `ids` order (NaN for a cell it has no point for); None without it. The
+    browser preview shows it, so it must survive a save."""
+    import numpy as np
+    import pandas as pd
+
+    path = find(folder, "cell_numeric_categories.csv")
+    if path is None:
+        return None
+    table = pd.read_csv(path)
+    ux = next((c for c in UMAP_X if c in table.columns), None)
+    uy = next((c for c in UMAP_Y if c in table.columns), None)
+    if ux is None or uy is None:
+        return None
+    table = table.set_index(table[id_column(table)].astype(str))
+    umap = table[[ux, uy]].reindex(ids.astype(str)).to_numpy(dtype=np.float64)
+    log(f"  {path.name}: UMAP for {np.isfinite(umap).all(axis=1).sum():,} of {len(ids):,} cells")
+    return umap
 
 
 def read_boundaries(path: Path, z: int, log):

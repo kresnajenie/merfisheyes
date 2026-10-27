@@ -10,6 +10,8 @@ import { Spinner } from "@heroui/spinner";
 import NextLink from "next/link";
 import { toast } from "react-toastify";
 
+import { viewerHref } from "@/lib/datasets/kind";
+
 type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 interface Entry {
@@ -169,15 +171,12 @@ export default function AdminCommunityPage() {
 
                   <div className="flex flex-wrap gap-1">
                     {item.entries.map((e) => {
-                      const base =
-                        e.datasetType === "single_molecule"
-                          ? "/sm-viewer"
-                          : "/viewer";
-                      const href = e.s3BaseUrl
-                        ? `${base}/from-s3?url=${encodeURIComponent(e.s3BaseUrl)}`
-                        : e.datasetId
-                          ? `${base}/${e.datasetId}`
-                          : null;
+                      // The viewer of what the entry is
+                      const href = viewerHref({
+                        id: e.datasetId,
+                        datasetType: e.datasetType,
+                        s3BaseUrl: e.s3BaseUrl,
+                      });
 
                       return href ? (
                         <Button

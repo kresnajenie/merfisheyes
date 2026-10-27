@@ -4,15 +4,8 @@ import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
 import { getObjectJson, listObjectKeys, uploadBufferToS3 } from "@/lib/s3";
-import { sendDatasetReadyEmail, sendDuplicateDatasetEmail } from "@/lib/ses";
-import {
-  getOverlaySmId,
-  getOverlayImage,
-  imageOverlayFor,
-  writeOverlay,
-  writeOverlayImage,
-  groupInProject,
-} from "@/lib/ingest/overlay";
+import { sendDatasetReadyEmail } from "@/lib/ses";
+import { imageOverlayFor } from "@/lib/ingest/overlay";
 import { updateDatasetGenes } from "@/lib/datasets/read-genes";
 import { usesPreparePipeline } from "@/lib/ingest/pipeline";
 
@@ -50,144 +43,6 @@ export async function finalizeCompletedDataset(
   });
 
   if (!dataset) throw new Error(`Dataset ${datasetId} not found`);
-
-  // Dedup: the worker sends a SHA-256 hex digest of the raw upload (64 hex
-  // chars; placeholders are "raw_"/"STUB_"-prefixed). If another dataset already
-  // holds it, this is a re-upload of the identical file(s) — mark it FAILED
-  // pointing at the original rather than minting a second copy. (The fingerprint
-  // column is @unique, so at most one dataset can hold each value.)
-  //
-  // Admins are exempt: they're allowed to upload duplicates (e.g. re-processing,
-  // fixtures), so their re-upload completes normally. Its fingerprint will
-  // collide on the @unique column at the end, which the tail catch keeps as a
-  // placeholder — harmless.
-  const isAdmin =
-    dataset.owner?.role === "ADMIN" || dataset.owner?.role === "SUPER_ADMIN";
-
-  if (
-    !isAdmin &&
-    opts.fingerprint &&
-    /^[0-9a-f]{64}$/.test(opts.fingerprint) &&
-    opts.fingerprint !== dataset.fingerprint
-  ) {
-    const existing = await prisma.dataset.findFirst({
-      where: { fingerprint: opts.fingerprint, id: { not: datasetId } },
-      select: { id: true, title: true },
-    });
-
-    if (existing) {
-      // If this duplicate was uploaded with a single-molecule dataset to
-      // overlay (combined upload), redirect that overlay onto the ORIGINAL
-      // dataset instead of losing it. Skip if the original already has an
-      // overlay — don't clobber it (the email explains how to change it).
-      const dupLinkedSmId = (
-        dataset.processingParams as { linkedSmDatasetId?: unknown } | null
-      )?.linkedSmDatasetId;
-      let overlayOutcome: "attached" | "skipped" | undefined;
-
-      if (typeof dupLinkedSmId === "string" && dupLinkedSmId) {
-        try {
-          const alreadyOverlaid = await getOverlaySmId(existing.id);
-
-          if (alreadyOverlaid) {
-            overlayOutcome = "skipped";
-          } else {
-            await writeOverlay(existing.id, dupLinkedSmId);
-            // Delete the combined-upload auto-project (it grouped the now-failed
-            // duplicate) and regroup the ORIGINAL + molecules into a fresh one.
-            const autoProjects = await prisma.projectDataset.findMany({
-              where: { datasetId },
-              select: { projectId: true },
-            });
-            const projectIds = [
-              ...new Set(autoProjects.map((r) => r.projectId)),
-            ];
-
-            if (projectIds.length) {
-              await prisma.projectDataset.deleteMany({
-                where: { projectId: { in: projectIds } },
-              });
-              await prisma.project.deleteMany({
-                where: { id: { in: projectIds } },
-              });
-            }
-            if (dataset.ownerId) {
-              await groupInProject(
-                dataset.ownerId,
-                existing.title ?? "Overlay",
-                existing.id,
-                dupLinkedSmId,
-              );
-            }
-            overlayOutcome = "attached";
-          }
-        } catch (e: any) {
-          console.error(
-            "Ingest finalize: duplicate overlay redirect failed:",
-            e?.message,
-          );
-        }
-      }
-
-      // The same for an image uploaded with the duplicate: the original gets
-      // it, unless it already has one.
-      const dupLinkedImageId = (
-        dataset.processingParams as { linkedImageDatasetId?: unknown } | null
-      )?.linkedImageDatasetId;
-
-      if (typeof dupLinkedImageId === "string" && dupLinkedImageId) {
-        try {
-          const image = await imageOverlayFor(dupLinkedImageId);
-
-          if (image && !(await getOverlayImage(existing.id))) {
-            await writeOverlayImage(existing.id, image);
-          }
-        } catch (e: any) {
-          console.error(
-            "Ingest finalize: duplicate image redirect failed:",
-            e?.message,
-          );
-        }
-      }
-
-      await prisma.dataset.update({
-        where: { id: datasetId },
-        data: {
-          status: "FAILED",
-          completedAt: new Date(),
-          faultCategory: "USER",
-          errorMessage:
-            `Duplicate of already-ingested dataset ${existing.id}` +
-            (existing.title ? ` ("${existing.title}")` : "") +
-            ". Open that one instead of re-uploading.",
-        },
-      });
-      console.warn(
-        `Ingest finalize: ${datasetId} duplicates ${existing.id}; marked FAILED.`,
-      );
-
-      // Tell the owner it was a duplicate and where the original lives. Never
-      // fail the finalize over a mail error.
-      let emailed = false;
-
-      if (dataset.owner?.email) {
-        try {
-          await sendDuplicateDatasetEmail({
-            email: dataset.owner.email,
-            uploadedName: dataset.title ?? undefined,
-            existingId: existing.id,
-            existingTitle: existing.title ?? undefined,
-            overlay: overlayOutcome,
-          });
-          emailed = true;
-        } catch (e: any) {
-          console.error("Ingest finalize: duplicate email failed:", e?.message);
-        }
-      }
-
-      return { registeredFiles: 0, emailed };
-    }
-  }
 
   const outputFiles = await listObjectKeys(`datasets/${datasetId}/`);
 
@@ -303,24 +158,15 @@ export async function finalizeCompletedDataset(
     );
   }
 
-  // The canonical fingerprint replaces the raw_ placeholder. It is @unique, so
-  // a collision means an identical dataset already exists — keep the
-  // placeholder rather than failing the whole finalize (dedup policy TBD).
+  // The worker's hash of the raw upload replaces the raw_ placeholder. It is a
+  // record of what was uploaded, never checked against other datasets: the
+  // same files uploaded twice make two datasets (docs/plans/PREVIEW-SAVE.md,
+  // D4). The column is indexed, not unique.
   if (opts.fingerprint && opts.fingerprint !== dataset.fingerprint) {
-    try {
-      await prisma.dataset.update({
-        where: { id: datasetId },
-        data: { fingerprint: opts.fingerprint },
-      });
-    } catch (e: any) {
-      if (e?.code === "P2002") {
-        console.warn(
-          `Ingest finalize: fingerprint ${opts.fingerprint} already exists; keeping placeholder for ${datasetId}`,
-        );
-      } else {
-        throw e;
-      }
-    }
+    await prisma.dataset.update({
+      where: { id: datasetId },
+      data: { fingerprint: opts.fingerprint },
+    });
   }
 
   // Index the dataset's genes for gene search (best-effort — reads the
@@ -343,6 +189,12 @@ export async function finalizeCompletedDataset(
       await sendDatasetReadyEmail({
         email: dataset.owner.email,
         datasetId,
+        datasetType: prepared ? "spatialdata" : dataset.datasetType,
+        // A molecule table prepared into a store still counts molecules
+        molecules: prepared
+          ? (dataset.processingParams as { kind?: unknown } | null)?.kind ===
+            "single_molecule"
+          : dataset.datasetType === "single_molecule",
         datasetName: dataset.title ?? undefined,
         metadata: {
           numCells: opts.stats?.numCells ?? undefined,

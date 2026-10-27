@@ -11,6 +11,8 @@ import { WebGLErrorOverlay } from "@/components/webgl-error-overlay";
 import { LayerHost } from "@/lib/scene/LayerHost";
 import { useLayers } from "@/lib/scene/useLayers";
 import { ClaimDatasetBanner } from "@/components/claim-dataset-banner";
+import { ImageViewerControls } from "@/components/image-viewer-controls";
+import { SplitScreenPage } from "@/components/split-screen-container";
 import {
   imageBounds,
   openOmeZarrImage,
@@ -29,13 +31,19 @@ import { initializeScene } from "@/lib/webgl/scene-manager";
  * An image is a dataset like any other. One opened by URL is looked up in the
  * database, and when nobody owns it yet the banner offers to add it to the
  * viewer's account.
+ *
+ * `panel`: the right side of a split view. The page's registration (whose
+ * dataset is open, who owns it) belongs to the left panel, so a panel neither
+ * sets it nor counts a view, and its messages stay inside the panel.
  */
 export function ImageViewer({
   url,
   datasetId,
+  panel = false,
 }: {
   url?: string;
   datasetId?: string;
+  panel?: boolean;
 }) {
   const [image, setImage] = useState<SpatialDataImage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +81,7 @@ export function ImageViewer({
     let cancelled = false;
 
     setRegisteredId(datasetId ?? null);
-    if (!url) return;
+    if (!url || panel) return;
     const s3Url = normalizeS3Url(url);
 
     fetch(`/api/datasets/by-url?url=${encodeURIComponent(s3Url)}`)
@@ -101,7 +109,7 @@ export function ImageViewer({
 
   // One view per open (the server dedups per session and day).
   useEffect(() => {
-    if (!image || !registeredId) return;
+    if (!image || !registeredId || panel) return;
     fetch(`/api/datasets/${registeredId}/view`, { method: "POST" }).catch(
       () => {},
     );
@@ -121,14 +129,31 @@ export function ImageViewer({
   }
   if (!image) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4">
+      <div
+        className={`${panel ? "absolute" : "fixed"} inset-0 flex flex-col items-center justify-center gap-4`}
+      >
         <Spinner color="primary" size="lg" />
         <p className={subtitle({ class: "text-center" })}>Opening image...</p>
       </div>
     );
   }
 
-  return <ImageScene image={image}>{url && <ClaimDatasetBanner />}</ImageScene>;
+  const scene = (
+    <>
+      <ImageViewerControls />
+      <ImageScene image={image} />
+    </>
+  );
+
+  // A panel is already inside a split; the page is one that can split
+  return panel ? (
+    scene
+  ) : (
+    <SplitScreenPage>
+      {url && <ClaimDatasetBanner />}
+      {scene}
+    </SplitScreenPage>
+  );
 }
 
 /**
@@ -136,14 +161,7 @@ export function ImageViewer({
  * viewers put under their points, in the image's own coordinates, so what is
  * seen here lines up with the image as an overlay.
  */
-export function ImageScene({
-  image,
-  children,
-}: {
-  image: SpatialDataImage;
-  /** Drawn over the scene, e.g. the banner that offers to claim the image. */
-  children?: React.ReactNode;
-}) {
+export function ImageScene({ image }: { image: SpatialDataImage }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -216,14 +234,14 @@ export function ImageScene({
   }, [image]);
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
+    // Fills its side of the split it is always placed in
+    <div className="absolute inset-0 overflow-hidden">
       <div
         ref={containerRef}
         className="absolute inset-0"
         data-testid="image-scene-canvas"
       />
       {webglFailed && <WebGLErrorOverlay />}
-      {children}
       <LayerControls slot="panel" />
       {layers.image && (
         <SpatialScaleBar

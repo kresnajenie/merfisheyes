@@ -20,6 +20,7 @@ import { generateDatasetFingerprint } from "@/lib/utils/fingerprint";
 import { uploadChunkedToS3 } from "@/lib/upload/uploadChunkedToS3";
 import { OwnerChoice, type OwnerValue } from "@/components/owner-choice";
 import { AuthModal } from "@/components/auth-modal";
+import { reportUploadFailure } from "@/lib/upload/reportUploadFailure";
 import {
   UploadAdvancedOptions,
   uploadViewerConfig,
@@ -131,6 +132,8 @@ export function UploadSettingsModal({
     setIsProcessing(true);
     setProgress(0);
     setProgressMessage("Generating fingerprint...");
+    // The dataset, once the upload has made one: a failure marks it FAILED
+    let createdId: string | undefined;
 
     try {
       // Zarr datasets bypass the chunked pipeline entirely: presigned-POST
@@ -432,6 +435,8 @@ export function UploadSettingsModal({
         },
       });
 
+      createdId = uploadSession.datasetId;
+
       // Complete upload
       setProgressMessage("Completing upload...");
       setProgress(95);
@@ -455,6 +460,12 @@ export function UploadSettingsModal({
       toast.error(
         `Failed to process dataset: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
+      // The reason by email too, and the half-made dataset marked FAILED
+      void reportUploadFailure({
+        datasetId: createdId,
+        title: datasetName,
+        error,
+      });
       setIsProcessing(false);
       setProgress(0);
       setProgressMessage("");

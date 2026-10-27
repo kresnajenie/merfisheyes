@@ -95,6 +95,12 @@ export default defineConfig({
           // can sign in (uploads now require auth). Safe: VERCEL_ENV is unset in
           // CI/local, so it can never turn on in production.
           ALLOW_DEV_EMAIL_LOGIN: "true",
+          // No email leaves a test run. Prisma loads the .env beside the
+          // checkout (a developer's staging one) into the server, and with
+          // its SES keys every dataset-ready / failed email was really sent;
+          // set, even empty, they are never overwritten
+          AWS_SES_ACCESS_KEY_ID: "",
+          AWS_SES_SECRET_ACCESS_KEY: "",
         },
       },
 });

@@ -343,6 +343,36 @@ describe("MoleculeLayer: whole loads", () => {
     expect(toastMock.loading).toHaveBeenCalledTimes(1);
   });
 
+  it("makes molecules see-through, blending where they pile up, and opaque again", async () => {
+    const ds = new FakeDataset(
+      { a: { assigned: 4, unassigned: 2 } },
+      { streaming: true, hasUnassigned: true },
+    );
+    const layer = mount(ds.asDataset(), new THREE.Group());
+
+    await layer.sync(selection([viz("a")]));
+    const material = (key: string) =>
+      layer.pointClouds.get(key)!.material as THREE.ShaderMaterial;
+
+    // Opaque by default: the nearest molecule hides the ones behind it
+    expect(material("a:assigned").uniforms.uAlpha.value).toBe(1);
+    expect(material("a:assigned").transparent).toBe(false);
+
+    await layer.sync(selection([viz("a")], { opacity: 0.3 }));
+    for (const key of ["a:assigned", "a:unassigned"]) {
+      expect(material(key).uniforms.uAlpha.value).toBe(0.3);
+      expect(material(key).transparent).toBe(true);
+      // No depth writes, so overlapping molecules build up
+      expect(material(key).depthWrite).toBe(false);
+    }
+    // A uniform: nothing downloaded or uploaded again
+    expect(ds.fetches["a:assigned"]).toBe(1);
+
+    await layer.sync(selection([viz("a")], { opacity: 1 }));
+    expect(material("a:assigned").transparent).toBe(false);
+    expect(material("a:assigned").depthWrite).toBe(true);
+  });
+
   it("adds and removes the unassigned cloud with the global and per-gene toggles", async () => {
     const ds = new FakeDataset(
       { a: { assigned: 3, unassigned: 2 } },

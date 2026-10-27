@@ -3,6 +3,7 @@ import {
   uploadBufferToS3,
   getObjectJson,
   deleteObject,
+  listObjectKeys,
 } from "@/lib/s3";
 
 /**
@@ -16,20 +17,24 @@ import {
 const mappingKey = (scId: string) => `datasets/${scId}/mapping.json`;
 
 /**
- * Build the overlay mapping.json for a single-molecule dataset. How the viewer
+ * Build the overlay mapping.json for a molecule dataset. How the viewer
  * loads it depends on the dataset's storage:
  *   - app-uploaded (chunked, sm_ id)        → source "app", ref = dataset id
  *     (loaded via SingleMoleculeDataset.fromS3 by id / presigned API)
  *   - S3-registered (has s3BaseUrl, s3_ id) → source "s3", ref = the public URL
  *     (loaded via fromCustomS3) — fromS3(id) would 404 for these.
+ *   - a SpatialData store (what scripts/prepare.py makes of a molecule
+ *     table) → `linkFormat: "store"`: its tiled points element is drawn
  * `datasetId` is always stored so the UI can identify the overlaid dataset
  * regardless of source.
  */
 async function buildMapping(smId: string) {
   const sm = await prisma.dataset.findUnique({
     where: { id: smId },
-    select: { id: true, s3BaseUrl: true, ingestSource: true },
+    select: { id: true, s3BaseUrl: true, ingestSource: true, datasetType: true },
   });
+  const store =
+    sm?.datasetType === "spatialdata" ? { linkFormat: "store" as const } : {};
   const isS3Registered =
     sm?.ingestSource === "s3_registered" || (!!sm?.s3BaseUrl && smId.startsWith("s3_"));
 
@@ -39,6 +44,7 @@ async function buildMapping(smId: string) {
       links: { __all__: sm.s3BaseUrl },
       source: "s3" as const,
       datasetId: smId,
+      ...store,
     };
   }
 
@@ -47,7 +53,27 @@ async function buildMapping(smId: string) {
     links: { __all__: smId },
     source: "app" as const,
     datasetId: smId,
+    ...store,
   };
+}
+
+/** The molecule link's fields of a mapping.json; the rest is someone else's. */
+const MOLECULE_FIELDS = [
+  "linkColumn",
+  "links",
+  "source",
+  "datasetId",
+  "linkFormat",
+];
+
+/**
+ * Whether an app dataset is a SpatialData store with molecules: a points
+ * element in any store under its prefix.
+ */
+export async function storeHasPoints(datasetId: string): Promise<boolean> {
+  const keys = await listObjectKeys(`datasets/${datasetId}/`);
+
+  return keys.some((k) => /\.zarr\/points\/[^/]+\/zarr\.json$/.test(k.key));
 }
 
 /** The single-molecule dataset id currently overlaid on `scId`, or null. */
@@ -115,26 +141,41 @@ export async function imageOverlayFor(
     : { image: imageDatasetId, imageSource: "app", imageDatasetId };
 }
 
+/** mapping.json without its molecule link: the image, a store's `cells`… */
+async function mappingWithoutMolecules(
+  scId: string,
+): Promise<Record<string, unknown>> {
+  const mapping: Record<string, unknown> =
+    (await getObjectJson<Record<string, unknown>>(mappingKey(scId)).catch(
+      () => null,
+    )) ?? {};
+
+  for (const field of MOLECULE_FIELDS) delete mapping[field];
+
+  return mapping;
+}
+
 // The image overlay shares mapping.json with the molecule overlay but is
-// independent of it, so writing or removing the molecules keeps the image.
+// independent of it, so writing or removing the molecules keeps the image —
+// and a store's own `cells` entry
 export async function writeOverlay(scId: string, smId: string): Promise<void> {
   const mapping = await buildMapping(smId);
-  const image = await getOverlayImage(scId);
+  const rest = await mappingWithoutMolecules(scId);
 
   await uploadBufferToS3(
     mappingKey(scId),
-    Buffer.from(JSON.stringify({ ...mapping, ...image })),
+    Buffer.from(JSON.stringify({ ...rest, ...mapping })),
     "application/json",
   );
 }
 
 export async function removeOverlay(scId: string): Promise<void> {
-  const image = await getOverlayImage(scId);
+  const rest = await mappingWithoutMolecules(scId);
 
-  if (image) {
+  if (Object.keys(rest).length > 0) {
     await uploadBufferToS3(
       mappingKey(scId),
-      Buffer.from(JSON.stringify(image)),
+      Buffer.from(JSON.stringify(rest)),
       "application/json",
     );
 

@@ -11,6 +11,12 @@ export interface DatasetLinkConfig {
    */
   source?: "s3" | "app";
   /**
+   * What the `links` values are: "molecules" (default), a molecule folder of
+   * one file per gene; "store", a SpatialData store whose tiled points
+   * element is drawn (what scripts/prepare.py makes of a molecule table).
+   */
+  linkFormat?: "molecules" | "store";
+  /**
    * Public URL of an OME-Zarr multiscale image (zarr v3, axes c/y/x) drawn
    * under the cells, e.g. a stitched DAPI mosaic. Its own scale/translation
    * must place it in the cells' coordinates (microns); see

@@ -28,6 +28,9 @@ export async function pointsMoleculeDataset(
     dimensions: element.dims,
     scalingFactor: 1,
     moleculeCounts,
+    // Molecules in no cell are marked per row, so the legends and picker
+    // offer their switches; the PointsLayer draws them apart
+    hasUnassigned: !!element.readUnassigned,
     metadata: { pointsElement: element },
   });
 

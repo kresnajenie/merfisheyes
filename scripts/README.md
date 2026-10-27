@@ -181,6 +181,8 @@ The rule: any numeric value `≤ 0` (covers `-1` and `0`), plus `NaN`/blank and 
 common string tokens (`unassigned`, `none`, `nan`, `na`, `null`). Any other
 non-numeric string (e.g. a real Xenium cell id like `aaabbbcc-1`) counts as
 **assigned**.
+The same rule (`meyes_common.unassigned_mask`) fills the points element's
+`unassigned` column when `prepare.py` is given a cell column.
 
 #### Dataset Types:
 
@@ -349,6 +351,29 @@ aws s3 cp processed_molecules/ s3://your-bucket/datasets/{datasetId}/ --recursiv
 - **Lazy loading** - genes loaded on-demand when selected
 - **Consistent format** - exact same structure as browser processing
 
+## Syncing the SpatialData-DB catalog (`sync-sddb-catalog.ts`)
+
+Lists every dataset of [SpatialData-DB](https://lamin.ai/scverse/spatialdata-db)
+on Explore, from the `catalog.parquet` that `theislab/spatialdata-db-client`
+publishes on each `catalog-<date>` GitHub release. Spec:
+[docs/specs/sddb-catalog.md](../docs/specs/sddb-catalog.md).
+
+```bash
+npx tsx scripts/sync-sddb-catalog.ts --env=.env                      # dry run against the newest release
+npx tsx scripts/sync-sddb-catalog.ts --env=.env --limit=30 --apply   # a sample spread over the technologies
+npx tsx scripts/sync-sddb-catalog.ts --env=.env --apply              # everything
+npx tsx scripts/sync-sddb-catalog.ts --env=.env.prod --direct --apply
+```
+
+Each row becomes one card with one SpatialData entry; each store is
+registered as an admin-owned dataset named from the catalog. Rows are
+upserted by catalog uid, uids that left the release are unpublished, and the
+run fails unless what it published equals the release's uid set. `--env`
+reads the file literally (production passwords contain `$`), `--direct`
+uses its `DIRECT_URL`, `--tag=catalog-YYYY-MM-DD` pins a release, `--file=`
+reads a local copy. Run by hand, dev database first, then production;
+never on a schedule.
+
 ## Preparing a folder of parts (`prepare_folder.py`)
 
 An AnnData table (`.h5ad`, or `write_zarr` output in Zarr v2 or v3), a
@@ -366,7 +391,10 @@ Writes one SpatialData store `sample.zarr` (Zarr v3): the table in
 folder, the molecules as `points/molecules` (a tiled points element,
 straight from a transcripts table with `transcripts_to_points.py`, or from a
 per-gene folder with `legacy_to_points.py`; `--molecule-columns` names a
-table's columns when they are not Xenium's or MERSCOPE's); the image folder
+table's columns when they are not Xenium's or MERSCOPE's, and
+`gene=G,x=X,y=Y,cell=C` also names the cell column, which marks each
+molecule assigned to a cell or not in a `unassigned` column, by the rule
+below; MERSCOPE's `cell_id` does so without asking); the image folder
 and the transcripts table move to `sources/`;
 `mapping.json` names the store; with `--cluster` the Leiden clusters go
 into the table as `obs/leiden`; the DEG stats of every categorical column

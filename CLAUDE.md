@@ -75,6 +75,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [LOADING.md](docs/specs/LOADING.md) | `ElementStore`: one cache, cancellation, merged ranges, priority queue, budgets per reader |
 | [RENDERING.md](docs/specs/RENDERING.md) | On-demand frames, uniforms vs attributes, picking grid, draw order |
 | [BUDGETS.md](docs/specs/BUDGETS.md) | The human-time acceptance criteria and every measured number to date |
+| [conventions.md](docs/specs/conventions.md) | **Producers' names, in one file** (`conventions.json`) — default-table attribute, feature-index columns, colour priority, cell-outline element names, the `_for_vitessce` suffix, square-bin pattern, catalog spellings. **Add a name there, never as a string literal in a reader** — `tests/unit/conventions.test.ts` fails if one is. Read via `lib/spatialdata/conventions.ts`. |
 | [sddb-profile.md](docs/specs/sddb-profile.md) | The 1,884-store SpatialData-DB census against our profiles |
 | [sddb-catalog.md](docs/specs/sddb-catalog.md) | How SpatialData-DB rows become Explore cards |
 | [AUDIT-2026-10-17.md](docs/specs/AUDIT-2026-10-17.md) | The findings LOADING/RENDERING answer |
@@ -412,8 +413,9 @@ rediscovered.
 - **Loading not done** — the h5ad-zarr cell path still uses
   `PresignedFetchStore`, not `ElementStore`. [LOADING.md](docs/specs/LOADING.md)
 - **Pipeline Tier-2 divergences** — two manifest key spellings, embedding name
-  drift, **fingerprints differ between the browser and server paths so there is
-  no cross-path dedupe**. [PIPELINE-SPEC.md](docs/PIPELINE-SPEC.md)
+  drift. (Dedupe is no longer one of them: a fingerprint is **stored, not
+  checked**, and duplicate uploads are allowed — `d3499e7`.)
+  [PIPELINE-SPEC.md](docs/PIPELINE-SPEC.md)
 - **Budgets not met** — a one-event zoom still reads ~16.6 MB against a 12 MB
   target; "All" detail cannot be seamless over the internet and is labelled so.
   [BUDGETS.md](docs/specs/BUDGETS.md)

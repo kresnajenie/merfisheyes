@@ -126,6 +126,27 @@ describe("image settings in a link", () => {
     expect(to.hasWindow(1)).toBe(false);
   });
 
+  it("round-trips a narrowed slider range", () => {
+    const from = layer([true]);
+
+    from.setChannel(0, { min: 10, max: 120, range: [5, 150] });
+    const to = layer([false]);
+
+    expect(applyImageState(to, encodeImageState(from))).toBe(true);
+    expect(to.channels[0]).toMatchObject({ min: 10, max: 120, range: [5, 150] });
+  });
+
+  it("ignores a range that does not hold its window", () => {
+    const from = layer([true]);
+
+    // Written by hand: a window of 10–120 inside a range of 20–100
+    from.setChannel(0, { min: 10, max: 120, range: [20, 100] });
+    const to = layer([false]);
+
+    expect(applyImageState(to, encodeImageState(from))).toBe(false);
+    expect(to.channels[0].range).toBeUndefined();
+  });
+
   it("ignores settings written for another image", () => {
     const to = layer([false]);
 

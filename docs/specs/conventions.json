@@ -1,0 +1,78 @@
+{
+  "$schema": "./schemas/conventions.schema.json",
+  "version": 1,
+  "tables": {
+    "curatedDefaultTable": { "attribute": "metadata_general", "key": "Default Table" },
+    "fallbackTableName": "table",
+    "featureIndexColumns": ["_index", "gene", "genes"],
+    "defaultColumnPriority": [
+      "class_name",
+      "subclass_name",
+      "supertype_name",
+      "cluster_name",
+      "subcluster_name",
+      "super_cluster_name",
+      "leiden",
+      "Cluster"
+    ],
+    "notDefaultColumns": [
+      "array_row",
+      "array_col",
+      "in_tissue",
+      "ion_image_pixel_x",
+      "ion_image_pixel_y",
+      "ion_image_shape_x",
+      "ion_image_shape_y"
+    ],
+    "positionColumns": [
+      "center_x",
+      "centerX",
+      "center_y",
+      "centerY",
+      "center_z",
+      "centerZ",
+      "x",
+      "y",
+      "z",
+      "X",
+      "Y",
+      "Z",
+      "x_centroid",
+      "y_centroid",
+      "z_centroid",
+      "centroid_x",
+      "centroid_y",
+      "centroid_z",
+      "z_level"
+    ]
+  },
+  "shapes": {
+    "cellOutlineElements": ["cell_boundaries", "cell_polygons", "cells", "cells_polygons"],
+    "pointSiblingSuffix": "_for_vitessce",
+    "squareBinPattern": "square"
+  },
+  "catalog": {
+    "bucketRegions": {
+      "scverse-spatial-eu-central-1": "eu-central-1"
+    },
+    "species": {
+      "human": "Human",
+      "mouse": "Mouse",
+      "rat": "Rat",
+      "macaque": "Macaque",
+      "rhesus macaque": "Rhesus Macaque",
+      "zebrafish": "Zebrafish",
+      "golden hamster": "Golden hamster"
+    },
+    "platforms": {
+      "Visium": "Visium",
+      "VisiumHD": "Visium HD",
+      "Xenium": "Xenium",
+      "Merscope": "MERSCOPE",
+      "MERFISH": "MERFISH",
+      "SpatialTranscriptomics": "Spatial Transcriptomics",
+      "CosMx": "CosMx",
+      "Atera": "Atera"
+    }
+  }
+}

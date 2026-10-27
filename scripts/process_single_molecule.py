@@ -266,41 +266,11 @@ COLUMN_MAPPINGS = {
 UNASSIGNED_SUFFIX = "_uuuuuuuuuu"
 UNASSIGNED_CELL_ID = -1  # MERSCOPE sentinel; see compute_unassigned_mask below.
 
-# String tokens (case-insensitive) that denote an unassigned molecule.
-UNASSIGNED_TOKENS = {"unassigned", "none", "nan", "na", "null", ""}
-
-
-def compute_unassigned_mask(cell_ids):
-    """Boolean mask: True where a molecule is UNASSIGNED to a cell.
-
-    Platform conventions differ:
-      MERSCOPE (Vizgen)     -> integer -1
-      Xenium   (10x)        -> string  "UNASSIGNED"
-      CosMx    (NanoString) -> integer 0   (assigned cell_ID is >= 1, per FOV)
-    So any numeric <= 0 counts as unassigned (covers -1 and 0), plus NaN / blank
-    and the common string tokens. A non-token, non-numeric string (e.g. a Xenium
-    cell id like "aaabbbcc-1") is an ASSIGNED cell.
-    """
-    arr = np.asarray(cell_ids)
-
-    if np.issubdtype(arr.dtype, np.floating):
-        return np.isnan(arr) | (arr <= 0)
-    if np.issubdtype(arr.dtype, np.integer):
-        return arr <= 0
-
-    # Object / string dtype (e.g. Xenium cell ids).
-    def _one(v):
-        if v is None:
-            return True
-        s = str(v).strip().lower()
-        if s in UNASSIGNED_TOKENS:
-            return True
-        try:
-            return float(s) <= 0.0
-        except (ValueError, TypeError):
-            return False
-
-    return np.array([_one(v) for v in arr], dtype=bool)
+# Which cell ids mean "no cell": one rule, shared with transcripts_to_points.py
+# (scripts/meyes_common.py)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from meyes_common import UNASSIGNED_TOKENS  # noqa: E402,F401
+from meyes_common import unassigned_mask as compute_unassigned_mask  # noqa: E402
 
 
 def should_filter_gene(gene: str) -> bool:

@@ -17,6 +17,14 @@ import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useSyncVisualization } from "@/lib/hooks/useSyncVisualization";
 import { useSyncSingleMoleculeVisualization } from "@/lib/hooks/useSyncSingleMoleculeVisualization";
 import { useSyncLabelledMoleculeVisualization } from "@/lib/hooks/useSyncLabelledMoleculeVisualization";
+import { useSplitUrlParams } from "@/lib/hooks/useSplitUrlParams";
+
+/** A viewer page that can split: the split's state is kept in the URL. */
+export function SplitScreenPage({ children }: { children: React.ReactNode }) {
+  useSplitUrlParams();
+
+  return <SplitScreenContainer>{children}</SplitScreenContainer>;
+}
 
 interface SplitScreenContainerProps {
   children: React.ReactNode;
@@ -86,6 +94,7 @@ export function SplitScreenContainer({ children }: SplitScreenContainerProps) {
             >
               {/* Close button */}
               <button
+                aria-label="Close split view"
                 className="absolute top-4 right-4 z-[60] p-2 rounded-full bg-black/50 backdrop-blur-sm border border-white/20 hover:bg-white/10 transition-colors"
                 data-ui-overlay
                 onClick={closeSplit}

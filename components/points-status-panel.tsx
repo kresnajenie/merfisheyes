@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   DETAIL_BUDGET,
@@ -46,6 +46,41 @@ function Spinner() {
  * whether its view is still loading; a progress bar for the view as a whole;
  * how much to draw (Auto, More, All); and what has been read so far.
  */
+/**
+ * The panel sits at the bottom right, under the legends' column: it tells the
+ * element both are placed in how much of the bottom it takes
+ * (`--points-status-h`), so the legends stop above it and scroll instead of
+ * running under it. Gone, it gives the space back.
+ */
+function useReservedBottom() {
+  const held = useRef<{ host: HTMLElement; observer: ResizeObserver } | null>(
+    null,
+  );
+
+  return useCallback((el: HTMLElement | null) => {
+    if (held.current) {
+      held.current.observer.disconnect();
+      held.current.host.style.removeProperty("--points-status-h");
+      held.current = null;
+    }
+    const host = el?.offsetParent as HTMLElement | null | undefined;
+
+    if (!el || !host) return;
+    // Its height and bottom offset (64) plus a gap (16), less the 3rem the
+    // legends already leave at the bottom
+    const write = () =>
+      host.style.setProperty(
+        "--points-status-h",
+        `${Math.max(0, el.offsetHeight + 64 + 16 - 48)}px`,
+      );
+    const observer = new ResizeObserver(write);
+
+    write();
+    observer.observe(el);
+    held.current = { host, observer };
+  }, []);
+}
+
 export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
   // Re-rendered whenever the layer reports a change (push, no polling)
   useLayerStatus(layer);
@@ -68,6 +103,7 @@ export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
   const selected = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
   );
+  const reserve = useReservedBottom();
 
   useEffect(() => {
     try {
@@ -104,6 +140,7 @@ export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
       <button
         data-ui-overlay
         className="glass-panel absolute right-6 z-[var(--z-legends)] flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-white"
+        ref={reserve}
         data-testid="points-status"
         style={{ bottom: 64 }}
         title="Show molecule details"
@@ -130,6 +167,7 @@ export function PointsStatusPanel({ layer }: { layer: PointsLayer }) {
     <div
       data-ui-overlay
       className="glass-panel absolute right-6 z-[var(--z-legends)] w-96 rounded-xl p-3 text-xs text-white"
+      ref={reserve}
       data-testid="points-status"
       style={{ bottom: 64 }}
     >

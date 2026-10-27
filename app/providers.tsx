@@ -11,14 +11,10 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { HideUiManager } from "@/components/hide-ui-manager";
+import { keepErrorsOpen } from "@/lib/utils/keep-errors-open";
 
-// An error stays on screen until it is closed, whatever a call site asked
-// for: whoever has to act on it must get to read it (a failed upload's
-// reason used to vanish after a few seconds)
-const showError = toast.error;
-
-toast.error = ((content, options) =>
-  showError(content, { ...options, autoClose: false })) as typeof toast.error;
+// An error stays on screen until it is closed (lib/utils/keep-errors-open.ts)
+keepErrorsOpen(toast);
 
 export interface ProvidersProps {
   children: React.ReactNode;
@@ -42,18 +38,24 @@ export function Providers({ children, themeProps }: ProvidersProps) {
         <NextThemesProvider {...themeProps}>
           {children}
           <HideUiManager />
-          <ToastContainer
-          closeOnClick
-          draggable
-          pauseOnFocusLoss
-          pauseOnHover
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={true}
-          position="bottom-right"
-          rtl={false}
-          theme="dark"
-          />
+          {/* A toast is not "outside" an open dialog: closing one (an error
+              stays until it is) must not dismiss the dialog behind it, and
+              react-aria keeps it readable to screen readers while a dialog
+              is open */}
+          <div data-react-aria-top-layer="true">
+            <ToastContainer
+              closeOnClick
+              draggable
+              pauseOnFocusLoss
+              pauseOnHover
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop={true}
+              position="bottom-right"
+              rtl={false}
+              theme="dark"
+            />
+          </div>
         </NextThemesProvider>
       </HeroUIProvider>
     </SessionProvider>
