@@ -551,7 +551,10 @@ lazily from the dropped `File`s (`lib/local/open-bundle.ts`,
 `lib/spatialdata/localStore.ts`) and shows them overlaid in the ordinary
 `from-local` viewers; the extras travel in `lib/stores/localBundleStore.ts`.
 *Upload & Save* there uploads every part as it is and links them
-(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`).
+(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`), then
+asks `/api/uploads/ready` for one "ready" email to the signed-in owner for
+the whole save (`lib/upload/reportUploadReady.ts`): such a save never
+reaches the worker, whose `finalize.ts` emails the others.
 SpatialData parts in separate folders (a store without a table, a
 standalone image) join the cells' store as its elements
 (`joinedStoreFileMap`), in the preview and on save alike; several folders

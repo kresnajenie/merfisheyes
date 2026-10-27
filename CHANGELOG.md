@@ -10,6 +10,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **An email when a save uploaded as it is is ready.** An image, a SpatialData
+  store or an already-processed folder never goes to the server's worker, so
+  it never sent the "ready" email the other saves do. It now does: one email
+  per save, however many parts it holds, linking the cells first and the rest
+  below. It is sent server-side to the signed-in owner (`/api/uploads/ready`);
+  the request names only the save's datasets, never an address.
 - **Split-screen sync for images: which channels are on.** With an image in
   both panels, switching a channel on or off in one does the same in the
   other, matched by the channel's name, so two different images share the
