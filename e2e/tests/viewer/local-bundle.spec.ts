@@ -7,6 +7,8 @@ import {
   makeImageFolder,
   makeTableFolder,
   SELECTORS,
+  startSpatialDataServer,
+  storeFolderUrl,
   type BundleParts,
 } from "../../fixtures/merfish-fixtures";
 
@@ -121,7 +123,11 @@ for (const { name, parts, cells } of WITH_CELLS) {
         )
         .toEqual(
           expect.arrayContaining([
-            expect.objectContaining({ mode: "whole", done: true, failed: false }),
+            expect.objectContaining({
+              mode: "whole",
+              done: true,
+              failed: false,
+            }),
           ]),
         );
     } else {
@@ -129,6 +135,43 @@ for (const { name, parts, cells } of WITH_CELLS) {
     }
   });
 }
+
+test("@quick local preview: molecules pasted by link are drawn over it to check, not saved", async ({
+  page,
+}) => {
+  // A public store with cells AND molecules: only its molecules are lent
+  const server = await startSpatialDataServer();
+
+  try {
+    await drop(page, makeBundle({ cells: "spatialdata" }));
+    await cellsRendered(page);
+    await expect(page.locator(SELECTORS.smLayerButton)).toHaveCount(0);
+
+    // A preview of a dropped folder gets the overlay button, unsaved
+    await page.locator(SELECTORS.overlayButton).click();
+    await expect(page.getByText("Nothing here is saved")).toBeVisible();
+    await page
+      .getByLabel("Molecules by link")
+      .fill(storeFolderUrl(server, { cells: true, points: true }));
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+
+    await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible({
+      timeout: 60_000,
+    });
+    // Its points, read from the linked store; never its cells
+    const read = (pattern: RegExp) =>
+      server.requests.some((r) => r.status < 300 && pattern.test(r.path));
+
+    expect(read(/\/store\/spatialdata_v3\/cp\/store\.zarr\/points\//)).toBe(
+      true,
+    );
+    expect(
+      read(/\/store\/spatialdata_v3\/cp\/store\.zarr\/tables\/table\/obsm\//),
+    ).toBe(false);
+  } finally {
+    await server.close();
+  }
+});
 
 // The table copied out of a store has none of the store's metadata above it
 for (const which of ["table", "tables"] as const) {

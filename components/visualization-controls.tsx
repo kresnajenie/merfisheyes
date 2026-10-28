@@ -40,6 +40,7 @@ import { FadeScroll } from "@/components/fade-scroll";
 import { SharePanel, useShareLink } from "@/components/share-panel";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { OverlayManager } from "@/components/overlay-manager";
+import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import { LayerControls } from "@/components/layer-controls";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
@@ -371,11 +372,17 @@ export function VisualizationControls() {
   const overlayOwnerId = useViewerRegistrationStore((st) => st.ownerId);
   const overlayRegistered = useViewerRegistrationStore((st) => st.registered);
   const [isOverlayOpen, setIsOverlayOpen] = useState(false);
-  const canManageOverlay =
+  const canManageSaved =
     overlayRegistered &&
     !!overlayDbId &&
     !!session?.user?.id &&
     session.user.id === overlayOwnerId;
+  // A preview of a dropped folder: molecules can be drawn over it to check
+  // they line up, before it is saved (nothing is written)
+  const isLocalPreview = useLocalBundleStore(
+    (st) => !!dataset && st.anchorId === dataset.id,
+  );
+  const canManageOverlay = canManageSaved || isLocalPreview;
 
   // Read playback from global store (works for both left and right panels)
   const globalPlayback = useVisualizationStore((s) => s.celltypePlayback);
@@ -662,6 +669,7 @@ export function VisualizationControls() {
         {/* Camera Button */}
         <Tooltip content="Camera controls" placement="bottom">
           <Button
+            aria-label="Camera controls"
             className={`${buttonBaseClass} ${isCameraOpen ? "" : glassButton()}`}
             color={isCameraOpen ? "primary" : "default"}
             variant={isCameraOpen ? "shadow" : "light"}
@@ -787,7 +795,6 @@ export function VisualizationControls() {
         {/* Overlay manager modal */}
         {isOverlayOpen &&
           canManageOverlay &&
-          overlayDbId &&
           createPortal(
             <div
               className="fixed inset-0 z-[var(--z-modal-top)] flex items-center justify-center bg-black/70 p-6 backdrop-blur-md"
@@ -813,10 +820,15 @@ export function VisualizationControls() {
                 <div className="mt-4">
                   {/* The links are read when the dataset opens: reopen it so
                     an attached or removed overlay shows at once */}
-                  <OverlayManager
-                    scDatasetId={overlayDbId}
-                    onChange={() => window.location.reload()}
-                  />
+                  {canManageSaved && overlayDbId ? (
+                    <OverlayManager
+                      scDatasetId={overlayDbId}
+                      onChange={() => window.location.reload()}
+                    />
+                  ) : (
+                    // Drawn at once over the preview, which is not reloaded
+                    <OverlayManager local scDatasetId={null} />
+                  )}
                 </div>
               </div>
             </div>,
@@ -1007,10 +1019,11 @@ function LayerVisibilityButton({
               />
             </svg>
           )}
-          <span className="text-[10px] font-semibold leading-none">{label}</span>
+          <span className="text-[10px] font-semibold leading-none">
+            {label}
+          </span>
         </div>
       </Button>
     </Tooltip>
   );
 }
-

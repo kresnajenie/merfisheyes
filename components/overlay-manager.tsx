@@ -7,6 +7,8 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 
 import { ImageOverlayPicker } from "@/components/image-overlay-picker";
+import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
+import { dataUrlOf, moleculeUrlFormat } from "@/lib/overlays/moleculeSource";
 
 interface SmItem {
   id: string;
@@ -20,6 +22,7 @@ function fmtCount(n: number | null): string {
   if (!n) return "";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M molecules`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}K molecules`;
+
   return `${n} molecules`;
 }
 
@@ -27,18 +30,33 @@ function fmtCount(n: number | null): string {
  * Attach / change / remove the overlays on a single-cell dataset the user
  * owns: a single-molecule dataset drawn over the cells (searchable +
  * paginated so it scales to large libraries — it fetches one page of the
- * user's own single-molecule datasets at a time), and one of their images
- * drawn under them (see ImageOverlayPicker).
+ * user's own single-molecule datasets at a time) or public molecules by
+ * their link, and one of their images drawn under them (see
+ * ImageOverlayPicker).
+ *
+ * `local`: a preview not saved yet. Nothing is written; the molecules picked
+ * are drawn over it to check they line up (localBundleStore `check`), the
+ * way a saved overlay would draw them.
  */
 export function OverlayManager({
   scDatasetId,
+  local = false,
   onChange,
 }: {
-  scDatasetId: string;
+  scDatasetId: string | null;
+  local?: boolean;
   onChange?: (smId: string | null) => void;
 }) {
-  const [current, setCurrent] = useState<string | null>(null);
-  const [currentTitle, setCurrentTitle] = useState<string | null>(null);
+  const check = useLocalBundleStore((st) => st.check);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [savedTitle, setSavedTitle] = useState<string | null>(null);
+  const current = local
+    ? (check?.datasetId ?? check?.links.__all__ ?? null)
+    : saved;
+  const currentTitle = local ? (checkTitle(check) ?? null) : savedTitle;
+  const setCurrent = setSaved;
+  const setCurrentTitle = setSavedTitle;
+  const [linkDraft, setLinkDraft] = useState("");
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<SmItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -46,15 +64,17 @@ export function OverlayManager({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  // Current overlays (once).
+  // Current overlays (once): a dataset, or public molecules by their link
   useEffect(() => {
+    if (local || !scDatasetId) return;
     let cancelled = false;
 
     fetch(`/api/datasets/${scDatasetId}/overlay`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (cancelled) return;
-        setCurrent(d?.smDatasetId ?? null);
+        setCurrent(d?.smDatasetId ?? d?.smUrl ?? null);
+        if (!d?.smDatasetId && d?.smUrl) setCurrentTitle(d.smUrl);
       })
       .catch(() => {});
 
@@ -113,6 +133,22 @@ export function OverlayManager({
   const attach = async (smId: string, title: string | null, force = false) => {
     setBusy(true);
     try {
+      if (local) {
+        // How a saved overlay would link it, drawn over the preview only
+        const res = await fetch(`/api/datasets/${smId}/molecule-link`);
+
+        if (!res.ok) {
+          toast.error("Couldn't open those molecules.");
+
+          return;
+        }
+        useLocalBundleStore
+          .getState()
+          .set({ check: { ...(await res.json()), title: title ?? undefined } });
+        toast.success("Drawn over this preview to check. Not saved.");
+
+        return;
+      }
       const res = await fetch(`/api/datasets/${scDatasetId}/overlay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -142,7 +178,78 @@ export function OverlayManager({
     }
   };
 
+  // Public molecules by their link: a store (or the folder holding it) with
+  // a points element, a merfisheyes molecule folder, or a viewer link that
+  // opened one from S3
+  const addByLink = async (force = false) => {
+    const url = dataUrlOf(linkDraft);
+
+    if (!url) {
+      toast.error("Paste a link starting with https://");
+
+      return;
+    }
+    setBusy(true);
+    try {
+      if (local) {
+        // Checked here the way the viewer will open it
+        const linkFormat = await moleculeUrlFormat(url);
+
+        if (!linkFormat) {
+          toast.error(NO_MOLECULES);
+
+          return;
+        }
+        useLocalBundleStore.getState().set({
+          check: {
+            linkColumn: "__all__",
+            links: { __all__: url },
+            source: "s3",
+            linkFormat,
+            title: url,
+          },
+        });
+        setLinkDraft("");
+        toast.success("Drawn over this preview to check. Not saved.");
+
+        return;
+      }
+      const res = await fetch(`/api/datasets/${scDatasetId}/overlay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, force }),
+      });
+
+      if (res.status === 409) {
+        if (confirm("This dataset already has an overlay. Replace it?")) {
+          return addByLink(true);
+        }
+
+        return;
+      }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+
+        toast.error(j.error ?? NO_MOLECULES);
+
+        return;
+      }
+      setCurrent(url);
+      setCurrentTitle(url);
+      setLinkDraft("");
+      onChange?.(null);
+      toast.success("Molecules overlaid by their link.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const remove = async () => {
+    if (local) {
+      useLocalBundleStore.getState().set({ check: null });
+
+      return;
+    }
     if (!confirm("Remove the single-molecule overlay from this dataset?"))
       return;
     setBusy(true);
@@ -174,7 +281,9 @@ export function OverlayManager({
           Single-molecule overlay
         </h3>
         <p className="mt-0.5 text-xs text-default-500">
-          Render one of your single-molecule datasets on top of these cells.
+          {local
+            ? "Check how molecules line up with this preview before you save it. Nothing here is saved."
+            : "Render one of your single-molecule datasets, or public molecules by their link, on top of these cells."}
         </p>
       </div>
 
@@ -288,9 +397,52 @@ export function OverlayManager({
         </div>
       ) : null}
 
-      <div className="mt-2 border-t border-default-200 pt-4">
-        <ImageOverlayPicker scDatasetId={scDatasetId} />
-      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void addByLink();
+        }}
+      >
+        <Input
+          aria-label="Molecules by link"
+          isDisabled={busy}
+          placeholder="Add by link: https://bucket.s3.region.amazonaws.com/folder or …/store.zarr"
+          size="sm"
+          value={linkDraft}
+          onValueChange={setLinkDraft}
+        />
+        <Button
+          isDisabled={busy || !linkDraft.trim()}
+          size="sm"
+          type="submit"
+          variant="flat"
+        >
+          Add
+        </Button>
+      </form>
+
+      {!local && scDatasetId ? (
+        <div className="mt-2 border-t border-default-200 pt-4">
+          <ImageOverlayPicker scDatasetId={scDatasetId} />
+        </div>
+      ) : null}
     </div>
   );
+}
+
+const NO_MOLECULES =
+  "No molecules at that link. Paste a public SpatialData store with a points element (or the folder holding it), or a merfisheyes molecule folder, that allows this site in CORS.";
+
+/** What to call the molecules a preview is checked against. */
+function checkTitle(
+  check: {
+    title?: string;
+    datasetId?: string;
+    links: Record<string, string>;
+  } | null,
+): string | null {
+  if (!check) return null;
+
+  return check.title ?? check.datasetId ?? check.links.__all__ ?? null;
 }

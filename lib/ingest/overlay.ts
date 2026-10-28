@@ -6,6 +6,12 @@ import {
   listObjectKeys,
 } from "@/lib/s3";
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
+import {
+  rootHasPoints,
+  type MoleculeLinkFormat,
+} from "@/lib/overlays/moleculeSource";
+
+export { rootHasPoints };
 
 /**
  * A single-cell dataset can carry a single-molecule "overlay": a mapping.json
@@ -40,7 +46,7 @@ function isS3Registered(
   );
 }
 
-async function buildMapping(smId: string) {
+export async function moleculeLinkFor(smId: string) {
   const sm = await prisma.dataset.findUnique({
     where: { id: smId },
     select: {
@@ -82,21 +88,6 @@ const MOLECULE_FIELDS = [
 ];
 
 /**
- * Whether a store's root names a points element in the format the viewer
- * draws (`points:version`), from its consolidated metadata.
- */
-export function rootHasPoints(root: Record<string, any> | null | undefined) {
-  const nodes: Record<string, any> =
-    root?.consolidated_metadata?.metadata ?? {};
-
-  return Object.entries(nodes).some(
-    ([key, node]) =>
-      /^points\/[^/]+$/.test(key) &&
-      node?.attributes?.["points:version"] != null,
-  );
-}
-
-/**
  * Whether a dataset is a SpatialData store with molecules, whatever else it
  * holds: a store with cells too lends just its molecules. An uploaded store
  * is looked for in the app's bucket; one registered by its public URL is read
@@ -118,6 +109,44 @@ export async function storeHasPoints(datasetId: string): Promise<boolean> {
   return keys.some((k) => /\.zarr\/points\/[^/]+\/zarr\.json$/.test(k.key));
 }
 
+/** A dataset the user owns, or, for an admin, one the admins own; else null. */
+export async function ownedDataset(
+  id: string,
+  userId: string,
+  isAdmin: boolean,
+) {
+  const d = await prisma.dataset.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      ownerId: true,
+      adminOwned: true,
+      datasetType: true,
+      title: true,
+    },
+  });
+
+  if (!d) return null;
+  const owned = d.ownerId === userId || (isAdmin && d.adminOwned);
+
+  return owned ? d : null;
+}
+
+/**
+ * Whether a dataset has molecules an overlay can draw: a single molecule
+ * dataset, or a SpatialData store with them (what scripts/prepare.py makes of
+ * a molecule table, or a store with cells too).
+ */
+export async function hasMolecules(d: {
+  id: string;
+  datasetType: string | null;
+}): Promise<boolean> {
+  return (
+    d.datasetType === "single_molecule" ||
+    (d.datasetType === "spatialdata" && (await storeHasPoints(d.id)))
+  );
+}
+
 /** The single-molecule dataset id currently overlaid on `scId`, or null. */
 export async function getOverlaySmId(scId: string): Promise<string | null> {
   const m = await getObjectJson<{
@@ -131,6 +160,22 @@ export async function getOverlaySmId(scId: string): Promise<string | null> {
   // Prefer the explicit datasetId; fall back to links.__all__ for app-source
   // mappings written before datasetId was stored.
   return m.datasetId ?? (m.source !== "s3" ? (m.links?.__all__ ?? null) : null);
+}
+
+/**
+ * The public URL of the molecules overlaid on `scId` when they were added by
+ * their link rather than as a dataset (writeOverlayUrl), or null.
+ */
+export async function getOverlayUrl(scId: string): Promise<string | null> {
+  const m = await getObjectJson<{
+    datasetId?: string;
+    source?: string;
+    links?: Record<string, string>;
+  }>(mappingKey(scId)).catch(() => null);
+
+  return m && !m.datasetId && m.source === "s3"
+    ? (m.links?.__all__ ?? null)
+    : null;
 }
 
 /**
@@ -201,8 +246,34 @@ async function mappingWithoutMolecules(
 // The image overlay shares mapping.json with the molecule overlay but is
 // independent of it, so writing or removing the molecules keeps the image —
 // and a store's own `cells` entry
+/**
+ * Overlay the molecules at a public URL, by their link alone: no dataset is
+ * made of them. `linkFormat` is what moleculeUrlFormat found there.
+ */
+export async function writeOverlayUrl(
+  scId: string,
+  url: string,
+  linkFormat: MoleculeLinkFormat,
+): Promise<void> {
+  const rest = await mappingWithoutMolecules(scId);
+
+  await uploadBufferToS3(
+    mappingKey(scId),
+    Buffer.from(
+      JSON.stringify({
+        ...rest,
+        linkColumn: "__all__",
+        links: { __all__: url },
+        source: "s3",
+        linkFormat,
+      }),
+    ),
+    "application/json",
+  );
+}
+
 export async function writeOverlay(scId: string, smId: string): Promise<void> {
-  const mapping = await buildMapping(smId);
+  const mapping = await moleculeLinkFor(smId);
   const rest = await mappingWithoutMolecules(scId);
 
   await uploadBufferToS3(
