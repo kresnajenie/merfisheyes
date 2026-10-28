@@ -605,8 +605,18 @@ def merge_labels(table, csv: Path, log) -> None:
     instance_key = table.attrs.get("instance_key")
     if instance_key and instance_key in obs.columns:
         keys.append(obs[instance_key].astype(str))
+    # MapMyCells keys by the index (<sample>_<id> for a combined dataset);
+    # the artifact mask keys by the id the slice gave the cell
+    for column in ("cell_id", "slice_cell_id"):
+        if column in obs.columns:
+            keys.append(obs[column].astype(str))
     ids = labels["cell_id"].astype(str) if "cell_id" in labels.columns else None
-    matched = next((k for k in keys if ids is not None and set(ids) <= set(k)), None)
+    # A key is only a join when it identifies one row on each side. The ids a
+    # slice gave its cells repeat across the slices of a combined dataset, so
+    # joining on them would hand one label to several cells; the rows are in
+    # the table's order anyway, which is what the fallback uses.
+    usable = ids is not None and ids.is_unique
+    matched = next((k for k in keys if usable and k.is_unique and set(ids) <= set(k)), None)
     if matched is not None:
         labels = labels.set_index(ids).reindex(matched.to_numpy())
         log(f"  {csv.name}: matched by cell_id ({labels.index.notna().sum():,} cells)")

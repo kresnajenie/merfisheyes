@@ -83,20 +83,34 @@ def read_table(folder: Path, log):
         meta = meta.rename(columns={meta.columns[0]: "EntityID"})
         meta["EntityID"] = meta["EntityID"].astype(str)
     idc = id_column(meta)
-    ids = meta[idc].astype(str)
+    raw = meta[idc].astype(str)
     log(f"  {meta_path.name}: {len(meta):,} cells, id column {idc!r}")
 
     counts = pd.read_csv(counts_path, index_col=0, dtype={0: str})
     counts.index = counts.index.astype(str)
     genes = [g for g in counts.columns if not should_filter_gene(g)]
     log(f"  {counts_path.name}: {counts.shape[0]:,} cells × {len(genes)} genes ({counts.shape[1] - len(genes)} blanks dropped)")
-    if set(counts.index) == set(ids):
-        counts = counts.loc[ids]  # the metadata's order
+    # Align by id only when ids identify a row on both sides. A combined
+    # dataset's ids repeat across slices — 54,553 of ace-dip-vat's 474,986 do
+    # — and `.loc` on a duplicated index multiplies those rows together
+    # (474,986 cells became 584,092). The two files are written slice by
+    # slice in the same order, so position is the answer when ids repeat.
+    if raw.is_unique and counts.index.is_unique and set(counts.index) == set(raw):
+        counts = counts.loc[raw]  # the metadata's order
     elif len(counts) == len(meta):
-        log("  cell ids differ between the two files; rows taken in file order")
-        counts.index = ids.to_numpy()
+        if not raw.is_unique:
+            log(f"  cell ids repeat ({int(raw.duplicated().sum()):,}); rows taken in file order")
+        else:
+            log("  cell ids differ between the two files; rows taken in file order")
     else:
         raise SystemExit(f"{meta_path.name} has {len(meta):,} cells, {counts_path.name} {len(counts):,}: not the same cells")
+
+    # What identifies a cell here. Across combined slices that is
+    # <_sample_id>_<id>, which is what combine_slices_v3.py tags, what
+    # map_my_cell.py writes in mapping_output.csv, and what
+    # process_spatial_data.py indexes by — so labels join by id, not by luck.
+    ids = (meta["_sample_id"].astype(str) + "_" + raw) if "_sample_id" in meta.columns else raw
+    counts.index = ids.to_numpy()
 
     for c in ("center_x", "center_y"):
         if c not in meta.columns:
@@ -104,6 +118,11 @@ def read_table(folder: Path, log):
     obs = meta.drop(columns=[idc]).copy()
     obs.index = pd.Index(ids.to_numpy(), name="cell_id")
     obs.insert(0, "cell_id", ids.to_numpy())
+    # When the two differ — a combined dataset, where the index is
+    # <_sample_id>_<id> — keep the id the slice itself gave the cell, so a
+    # per-slice file (the artifact mask) still matches by id
+    if not ids.equals(raw):
+        obs.insert(1, "slice_cell_id", raw.to_numpy())
 
     cats_path = find(folder, "cell_categories.csv")
     if cats_path is not None:
