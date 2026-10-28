@@ -413,6 +413,8 @@ export function OverlayManager({
           onValueChange={setLinkDraft}
         />
         <Button
+          // The image section below has its own "Add"
+          aria-label="Add molecules by link"
           isDisabled={busy || !linkDraft.trim()}
           size="sm"
           type="submit"

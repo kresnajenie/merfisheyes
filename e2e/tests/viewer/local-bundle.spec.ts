@@ -151,9 +151,9 @@ test("@quick local preview: molecules pasted by link are drawn over it to check,
     await page.locator(SELECTORS.overlayButton).click();
     await expect(page.getByText("Nothing here is saved")).toBeVisible();
     await page
-      .getByLabel("Molecules by link")
+      .getByLabel("Molecules by link", { exact: true })
       .fill(storeFolderUrl(server, { cells: true, points: true }));
-    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByRole("button", { name: "Add molecules by link" }).click();
 
     await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible({
       timeout: 60_000,
