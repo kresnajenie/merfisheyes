@@ -35,8 +35,8 @@ This directory contains SLURM batch scripts and pipeline launchers for processin
 # Single mode output: exactly /path/to/output/
 
 # For ONE SpatialData store per dataset (cells + molecules together) — Pipeline D:
-./launch_store_pipeline.sh samples.csv --dry-run     # see what would be submitted
-./launch_store_pipeline.sh samples.csv --sync        # run it and upload
+./launch_spatialdata_pipeline.sh samples.csv --dry-run     # see what would be submitted
+./launch_spatialdata_pipeline.sh samples.csv --sync        # run it and upload
 
 # For single molecule data:
 ./launch_sm_pipeline.sh samples.csv                               # from CSV
@@ -445,10 +445,10 @@ holding the combined cells *and* every slice's molecules in one coordinate
 frame, tiled into a pyramid so the viewer reads the view instead of the gene.
 
 ```bash
-./launch_store_pipeline.sh                           # samples.csv beside this script
-./launch_store_pipeline.sh my-samples.csv --sync     # a list, and upload
-./launch_store_pipeline.sh ace-dip-tug /bil/data/18/aa/.../input   # one sample
-./launch_store_pipeline.sh samples.csv --dry-run     # print the sbatch lines, submit nothing
+./launch_spatialdata_pipeline.sh                           # samples.csv beside this script
+./launch_spatialdata_pipeline.sh my-samples.csv --sync     # a list, and upload
+./launch_spatialdata_pipeline.sh ace-dip-tug /bil/data/18/aa/.../input   # one sample
+./launch_spatialdata_pipeline.sh samples.csv --dry-run     # print the sbatch lines, submit nothing
 ```
 
 `samples.csv` is the same `sample_name,input_path` the other launchers take.
@@ -516,7 +516,7 @@ Paths, the bucket, the references and the interpreter are in one file that
 every stage sources. Override from the environment:
 
 ```bash
-MEYES_S3_BUCKET=somewhere-else ./launch_store_pipeline.sh samples.csv --sync
+MEYES_S3_BUCKET=somewhere-else ./launch_spatialdata_pipeline.sh samples.csv --sync
 ```
 
 This pipeline needs **python 3.12 with `scripts/requirements.txt` pinned** —

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# launch_store_pipeline.sh
+# launch_spatialdata_pipeline.sh
 #
 # The whole pipeline, one SLURM chain per sample:
 #
@@ -16,15 +16,18 @@
 # .bin.gz folders of the old format.
 #
 # Usage:
-#   ./launch_store_pipeline.sh                      # samples.csv beside this script
-#   ./launch_store_pipeline.sh my-samples.csv
-#   ./launch_store_pipeline.sh ace-dip-tug /bil/data/18/aa/.../input
+#   ./launch_spatialdata_pipeline.sh                      # samples.csv beside this script
+#   ./launch_spatialdata_pipeline.sh my-samples.csv
+#   ./launch_spatialdata_pipeline.sh ace-dip-tug /bil/data/18/aa/.../input
 #
 #   --sync              also upload to s3://$MEYES_S3_BUCKET (off by default)
 #   --species human     MapMyCells taxonomy (default mouse)
 #   --method correlation   MapMyCells method (default hierarchical)
 #   --skip-combine      the combined_output is already there
 #   --skip-mmc          reuse mmc_output/mapping_output.csv if present
+#   --mask-percentile N which artifact_mask_pN.csv to attach (default 25; 0 = none).
+#                       Per dataset, a third field in the sample list wins:
+#                       `sample_name,input_path,percentile`
 #   --dry-run           print the sbatch commands, submit nothing
 #
 # The sample file is `sample_name,input_path` — the same shape
@@ -44,6 +47,7 @@ METHOD="hierarchical"
 SKIP_COMBINE=false
 SKIP_MMC=false
 DRY_RUN=false
+MASK_PCT=25          # which artifact_mask_p*.csv to attach; 0 = none
 POSITIONAL=()
 
 while [ $# -gt 0 ]; do
@@ -53,6 +57,7 @@ while [ $# -gt 0 ]; do
         --method)       METHOD="$2"; shift 2 ;;
         --skip-combine) SKIP_COMBINE=true; shift ;;
         --skip-mmc)     SKIP_MMC=true; shift ;;
+        --mask-percentile) MASK_PCT="$2"; shift 2 ;;
         --dry-run)      DRY_RUN=true; shift ;;
         -h|--help)      sed -n '2,40p' "$0"; exit 0 ;;
         --*)            echo "unknown option: $1"; exit 1 ;;
@@ -99,9 +104,13 @@ $DRY_RUN && echo "MODE:      DRY RUN — nothing is submitted"
 echo ""
 
 count=0
-while IFS=',' read -r sample_name input_path || [ -n "$sample_name" ]; do
+while IFS=',' read -r sample_name input_path row_pct || [ -n "$sample_name" ]; do
     sample_name="$(echo "${sample_name:-}" | xargs)"
     input_path="$(echo "${input_path:-}" | xargs)"
+    # How hard to filter this one dataset. It is a judgement about this
+    # tissue — how much of it is empty or outside the section — so it is
+    # read per row, not guessed: `sample_name,input_path,percentile`.
+    pct="$(echo "${row_pct:-}" | xargs)"; pct="${pct:-$MASK_PCT}"
     [[ "$sample_name" =~ ^#.*$ ]] && continue
     [[ -z "$sample_name" ]] && continue
     [[ "$sample_name" == "sample_name" ]] && continue      # a header row
@@ -137,8 +146,15 @@ while IFS=',' read -r sample_name input_path || [ -n "$sample_name" ]; do
 
     # MapMyCells' labels and the combine's artifact mask, both one row per
     # cell keyed by cell_id, merged into the table's obs in this order
+    mask_args=()
+    if [ "$pct" != "0" ]; then
+        mask_args=("${combined}/artifact_mask_p${pct}.csv")
+        echo "   mask:   p${pct} (as an is_artifact column; no cell is dropped)"
+    else
+        echo "   mask:   none"
+    fi
     dep=$(submit prepare "$dep" prepare_store.sbatch "$combined" "$store_dir" "${sample_name//-/_}" \
-                 "${mmc}/mapping_output.csv" "${combined}/artifact_mask_p25.csv")
+                 "${mmc}/mapping_output.csv" "${mask_args[@]}")
     echo "   [4/7] prepare (cells) ${dep}"
 
     dep=$(submit points "$dep" slices_to_points.sbatch "$combined" "$store")

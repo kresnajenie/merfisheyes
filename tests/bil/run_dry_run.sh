@@ -16,6 +16,8 @@
 # Usage:
 #   tests/bil/run_dry_run.sh INPUT OUT NAME [--labels mapping_output.csv]
 #                                           [--reference DIR --species mouse]
+#                                           [--method correlation|hierarchical]
+#                                           [--mask-percentile N]   (0 = none)
 #                                           [--skip-combine]
 #
 #   INPUT   the sample folder holding the slices (read only)
@@ -30,12 +32,14 @@ if [ $# -lt 3 ]; then
 fi
 
 INPUT="$1"; OUT="$2"; NAME="$3"; shift 3
-LABELS=""; REFERENCE=""; SPECIES="mouse"; SKIP_COMBINE=false
+LABELS=""; REFERENCE=""; SPECIES="mouse"; SKIP_COMBINE=false; METHOD="correlation"; MASK_PCT=25
 while [ $# -gt 0 ]; do
     case "$1" in
         --labels)    LABELS="$2"; shift 2 ;;
         --reference) REFERENCE="$2"; shift 2 ;;
         --species)   SPECIES="$2"; shift 2 ;;
+        --method)    METHOD="$2"; shift 2 ;;
+        --mask-percentile) MASK_PCT="$2"; shift 2 ;;
         --skip-combine) SKIP_COMBINE=true; shift ;;
         *) echo "unknown option: $1"; exit 1 ;;
     esac
@@ -70,8 +74,9 @@ fi
 
 if [ -n "$REFERENCE" ]; then
     stage "3/6 annotate (MapMyCells)"
+    # correlation needs no cell_type_mapper; hierarchical does
     $PY -I "${ROOT}/scripts/map_my_cell.py" "$COMBINED" "$MMC" \
-        --species "$SPECIES" --reference_dir "$REFERENCE"
+        --species "$SPECIES" --reference_dir "$REFERENCE" --method "$METHOD"
     LABELS="${MMC}/mapping_output.csv"
 elif [ -n "$LABELS" ]; then
     stage "3/6 annotate — reusing ${LABELS}"
@@ -83,6 +88,9 @@ stage "4/6 prepare (cells)"
 rm -rf "$STORE_DIR"
 PREPARE_ARGS=("$COMBINED" "$STORE_DIR" --name "$NAME")
 [ -n "$LABELS" ] && PREPARE_ARGS+=(--labels "$LABELS")
+# the artifact mask rides the same path, as an is_artifact column
+MASK="${COMBINED}/artifact_mask_p${MASK_PCT}.csv"
+[ "$MASK_PCT" != "0" ] && [ -f "$MASK" ] && PREPARE_ARGS+=(--labels "$MASK") && echo "  mask: p${MASK_PCT}"
 $PY -I "${ROOT}/scripts/prepare.py" "${PREPARE_ARGS[@]}"
 
 stage "5/6 points (molecules of every slice)"

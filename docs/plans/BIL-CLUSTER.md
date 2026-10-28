@@ -293,7 +293,7 @@ chain theirs.
 | `slices_to_points.sbatch` | every slice's molecules → that store |
 | `validate_store.sbatch` | the gate: non-zero exit, nothing syncs |
 | `s3_sync_store.sbatch` | the store → `s3://bil-psc-xarr/<sample>/` |
-| `launch_store_pipeline.sh` | combine → mask → annotate → prepare → points → validate → sync |
+| `launch_spatialdata_pipeline.sh` | combine → mask → annotate → prepare → points → validate → sync |
 
 **The bucket is `bil-psc-xarr`** (`MEYES_S3_BUCKET` in `env.sh`), separate from
 the legacy `merfisheyes-bil/bil-psc-data2`. It needs public read and CORS, or

@@ -98,6 +98,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/server-side-ingestion/README.md](docs/server-side-ingestion/README.md) | **Shipped.** The "Upload & process on server" path end to end: routes, AWS Batch worker, callback, email, AWS resources, **§12 how to deploy a worker change** |
 | [docs/spatialdata/README.md](docs/spatialdata/README.md) | Opening SpatialData stores, already-processed folders, images as datasets, overlays, the `mapping.json` surface |
 | [docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md) | **Live plan: one pipeline, run by you or by the server** — the `prepare.py` contract (steps 1–3 done) |
+| [docs/spatialdata/spatialdata-pipeline-doc.md](docs/spatialdata/spatialdata-pipeline-doc.md) | **How to run the BIL pipeline**: its components, inputs, the seven stages, what it writes, how to verify a store, the artifact mask, the known gaps |
 | [docs/plans/BIL-CLUSTER.md](docs/plans/BIL-CLUSTER.md) | **Live plan: the same pipeline on the PSC cluster** — many sections in one store, the 87-dataset fleet, billion-scale molecules |
 | [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
