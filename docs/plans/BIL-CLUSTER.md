@@ -280,6 +280,40 @@ behind D5.
 - `tests/bil/` is the test space: 12 tests on generated fixtures (~30 s, no
   data) plus the runner above.
 
+### 1.9 ace-dip-vat: four slices, 646 M molecules (2026-10-28)
+
+Run with `tests/bil/run_dry_run.sh`, output in
+`~/data/merfisheyes-test-data/bil-data/merfish_data_processed/ace-dip-vat/`.
+
+| | |
+|---|---|
+| in | 60 GB, 4 slices |
+| cells | 474,986 |
+| molecules | **646,439,087** of 648,044,571 source rows (1,605,484 blanks/controls dropped) |
+| in no cell | 218,565,924 (33.8%) |
+| store | 8.8 GB, 3,034 files, 8 levels |
+| prepare + points + validate | 15 m 52 s, peak RSS 6.4 GB |
+| MapMyCells (correlation) | 474,986 cells x 5,322 clusters, ~2 min |
+| `tests/bil/verify_store.py` | every check passed |
+
+Each of the four slices placed 100% of its molecules on its own cells.
+
+**It found a real bug, which is why it was worth running.** 54,553 of those
+474,986 cell ids appear in more than one slice — the instrument numbers cells
+per slice — and `prepare_merscope.py` was the one place still treating the raw
+id as an identity. `counts.loc[ids]` on a duplicated index multiplies the
+repeated rows together: 474,986 cells against 584,092 rows of expression, and
+AnnData refused them, *after* the combine and MapMyCells had already run. The
+table is now indexed by `<_sample_id>_<id>`, the same identity
+`map_my_cell.py` and `process_spatial_data.py` use, with the slice's own id
+kept in `slice_cell_id`.
+
+A label file is now only joined on a key that is unique on both sides.
+MapMyCells' compound ids identify a cell, so they **join by id**; the artifact
+mask is keyed by the per-slice id that two slices share, so it falls back to
+the order the combine wrote it in, and says so. Pinned by
+`tests/bil/test_duplicate_cell_ids.py`.
+
 ### 1.8 The cluster scripts for this workflow (2026-10-28)
 
 `scripts/bil-scripts/` gained **Pipeline D**: the seven stages above as Slurm

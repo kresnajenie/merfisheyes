@@ -150,17 +150,24 @@ def main(argv=None) -> int:
     # the labels, joined the only way that is safe
     mmc = next((p / "mapping_output.csv" for p in sorted(folder.glob("mmc_output*"))
                 if (p / "mapping_output.csv").exists()), None)
-    if mmc is not None and "_sample_id" in table.obs:
+    if mmc is not None:
         labels = pd.read_csv(mmc, comment="#", dtype=str)
         column = next((c for c in ("class_name", "cluster_name", "supercluster_name")
                        if c in labels.columns), None)
+        # The table's index is what identifies a cell: <_sample_id>_<id> for a
+        # combined dataset, the id itself otherwise. MapMyCells keys by the
+        # same thing, so the index is the join — never a rebuilt string.
+        keys = [np.asarray(table.obs_names, dtype=str)]
+        if "_sample_id" in table.obs and "slice_cell_id" in table.obs:
+            keys.append((table.obs["_sample_id"].astype(str) + "_"
+                         + table.obs["slice_cell_id"].astype(str)).to_numpy())
         if column:
-            compound = table.obs["_sample_id"].astype(str) + "_" + table.obs["cell_id"].astype(str)
-            truth = labels.set_index("cell_id")[column].reindex(compound.to_numpy())
-            got = table.obs[column].astype(str).to_numpy() if column in table.obs else None
-            check(bool(truth.notna().all()), f"{mmc.parent.name}: every cell found by <sample>_<cell_id>")
-            if got is not None:
-                check(bool((truth.to_numpy() == got).all()),
+            by_id = labels.set_index("cell_id")[column]
+            key = next((k for k in keys if pd.Index(k).isin(by_id.index).all()), None)
+            check(key is not None, f"{mmc.parent.name}: every cell found by <sample>_<cell_id>")
+            if key is not None and column in table.obs:
+                truth = by_id.reindex(key)
+                check(bool((truth.to_numpy() == table.obs[column].astype(str).to_numpy()).all()),
                       f"{mmc.parent.name}: obs/{column} equals the mapping for every cell")
 
     print()

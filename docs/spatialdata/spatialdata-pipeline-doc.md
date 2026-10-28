@@ -147,6 +147,10 @@ Measured on `ace-dip-tug` — 3 slices, 40.6 GB of CSV, 407,859 cells,
 | validate | 2 CPU, 32 G | 1 m 15 s |
 | **total** | | **11 m 58 s, 4.9 GB peak RSS, 6.0 GB store** |
 
+`ace-dip-vat` — 4 slices, 60 GB, 474,986 cells, **646,439,087 molecules** —
+took 15 m 52 s for prepare + points + validate at 6.4 GB peak, writing an
+8.8 GB store of 3,034 files.
+
 **Memory does not grow with the molecule count** — nothing is ever
 concatenated; each slice streams in batches. **Time** is what grows.
 
@@ -267,7 +271,18 @@ Every line is `OK`, `WARN` or `FAIL`. Any `FAIL` means do not publish.
 cat <store_dir>/stats.json     # cells, genes, molecules — molecules must not be 0
 ```
 
-**Then by hand, if you want to be sure:**
+**Or all of it at once:**
+
+```bash
+python tests/bil/verify_store.py <sample_dir>
+```
+
+It checks the validator, the molecules written against the source row counts,
+that each slice's molecules landed on that slice's cells, and that the
+cell-type labels joined by `<sample>_<cell_id>`. Exit 0 or 1, so it runs over
+a fleet.
+
+**Or by hand, if you want to see it yourself:**
 
 ```python
 import sys; sys.path.insert(0, "scripts")
