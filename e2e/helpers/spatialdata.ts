@@ -195,8 +195,29 @@ export function startSpatialDataServer(
       : { bytes };
   };
 
-  return startFixtureServer((urlPath) => {
+  const resolve = (urlPath: string): Resolved => {
     const [, kind, ...rest] = urlPath.split("/");
+
+    // A folder holding a store of cells alone, whose mapping.json lends it
+    // the molecules of a store with cells too, linked by that store's folder
+    // (as a store registered by its public URL is linked)
+    if (kind === "linked") {
+      if (rest.join("/") === "mapping.json") {
+        return {
+          body: JSON.stringify({
+            cells: "store.zarr",
+            linkColumn: "__all__",
+            links: {
+              __all__: storeFolderUrl(server, { cells: true, points: true }),
+            },
+            source: "s3",
+            linkFormat: "store",
+          }),
+        };
+      }
+
+      return resolve(`/store/spatialdata_v3/c/${rest.join("/")}`);
+    }
 
     if (kind === "molecules") {
       return { file: path.join(TINY, "single-molecule", "chunked", ...rest) };
@@ -222,6 +243,9 @@ export function startSpatialDataServer(
     }
     if (kind === "medium") {
       return { file: path.join(MEDIUM, ...rest) };
+    }
+    if (kind === "parity") {
+      return { file: path.join(TINY, "parity", ...rest) };
     }
     if (kind in LIBRARY_STORES) {
       const [, ...inside] = rest;
@@ -327,7 +351,11 @@ export function startSpatialDataServer(
     root.consolidated_metadata.metadata = nodes;
 
     return { body: JSON.stringify(root) };
-  }, options).then((started) => (server = started));
+  };
+
+  return startFixtureServer(resolve, options).then(
+    (started) => (server = started),
+  );
 }
 
 /** The letters of a parts spec, in the order the paths use. */
@@ -384,6 +412,24 @@ export const LIBRARY_STORES = {
 /** URL of the Visium-shaped store (no `global` system). */
 export function visiumUrl(server: FixtureServer): string {
   return `${server.url}/visium/store.zarr`;
+}
+
+/**
+ * URL of a folder holding a store of cells alone, lent the molecules of a
+ * store that has cells too, linked by that store's folder.
+ */
+export function linkedStoreFolderUrl(server: FixtureServer): string {
+  return `${server.url}/linked/`;
+}
+
+/**
+ * URL of a store `scripts/prepare.py` wrote from a tiny source
+ * (tests/data/tiny/parity/<name>/<name>.zarr, made by
+ * make-tiny-parity-stores.py): what an upload saves. `merscope` and
+ * `tiny_h5ad` carry a UMAP.
+ */
+export function parityStoreUrl(server: FixtureServer, name: string): string {
+  return `${server.url}/parity/${name}/${name}.zarr`;
 }
 
 /** URL of the Visium HD-shaped store (square bins). */

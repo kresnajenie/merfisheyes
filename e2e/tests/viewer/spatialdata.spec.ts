@@ -10,6 +10,8 @@ import {
   visiumUrl,
   visiumHdUrl,
   libraryStoreUrl,
+  parityStoreUrl,
+  linkedStoreFolderUrl,
   selectGeneAndMeasure,
   SELECTORS,
   type DatasetEntry,
@@ -544,4 +546,58 @@ test("@quick image viewer explains a URL it can't read", async ({ page }) => {
   ).toBeVisible({
     timeout: 120_000,
   });
+});
+
+test("@quick a store's UMAP opens in the SpatialData viewer, as in the preview", async ({
+  page,
+}) => {
+  // What prepare.py saves of a MERSCOPE region: its table carries
+  // obsm/X_umap. A saved store opens here, not in /viewer, which is where its
+  // preview showed the UMAP
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(parityStoreUrl(server, "merscope"))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+
+  const open = page.getByRole("button", { name: "Open UMAP" });
+
+  await expect(open).toBeVisible();
+  await open.click();
+  await expect(page.getByRole("button", { name: "Close UMAP" })).toBeVisible();
+  await expect
+    .poll(() => served(/\/obsm\/X_umap\/c\//), {
+      message: "the UMAP should be read from the store",
+      timeout: 60_000,
+    })
+    .toBe(true);
+});
+
+test("@quick only the molecules of a store with cells too, overlaid on other cells", async ({
+  page,
+}) => {
+  // The overlay a store registered by its public URL makes: linked by its
+  // folder, with linkFormat "store" (lib/ingest/overlay.ts)
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(linkedStoreFolderUrl(server))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await expect(page.locator(SELECTORS.smLayerButton)).toBeVisible({
+    timeout: 60_000,
+  });
+  // Its molecules, read from the other store's points element; its cells
+  // stay its own
+  await expect
+    .poll(() => served(/\/store\/spatialdata_v3\/cp\/store\.zarr\/points\//), {
+      message: "the linked store's molecules should be read",
+      timeout: 60_000,
+    })
+    .toBe(true);
+  expect(
+    served(/\/store\/spatialdata_v3\/cp\/store\.zarr\/tables\/table\/obsm\//),
+    "the linked store's cells should not be read",
+  ).toBe(false);
 });

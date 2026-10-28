@@ -20,10 +20,16 @@ export async function openLinkedMolecules(
     );
     const { findPointsElements, openPointsElement } = await import("./points");
     const { pointsMoleculeDataset } = await import("./pointsMolecules");
+    const { resolveZarrUrl } = await import("./resolveUrl");
+    // A store registered by its public URL may be a folder whose mapping.json
+    // names the store, as /spatialdata-viewer/from-s3 accepts; only its points
+    // are drawn, whatever cells it has too
     const store =
       source === "app"
         ? await openSpatialDataStore(ref)
-        : await openSpatialDataStoreFromUrl(ref);
+        : await openSpatialDataStoreFromUrl(
+            (await resolveZarrUrl(ref))?.url ?? ref,
+          );
     const [name] = await findPointsElements(store);
 
     if (!name) throw new Error(`${ref} holds no molecules`);

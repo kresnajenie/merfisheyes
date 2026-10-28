@@ -5,6 +5,7 @@ import {
   deleteObject,
   listObjectKeys,
 } from "@/lib/s3";
+import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 
 /**
  * A single-cell dataset can carry a single-molecule "overlay": a mapping.json
@@ -28,17 +29,31 @@ const mappingKey = (scId: string) => `datasets/${scId}/mapping.json`;
  * `datasetId` is always stored so the UI can identify the overlaid dataset
  * regardless of source.
  */
+/** A dataset registered by its public URL (s3_), not uploaded to the app. */
+function isS3Registered(
+  id: string,
+  d: { ingestSource: string | null; s3BaseUrl: string | null } | null,
+): boolean {
+  return (
+    d?.ingestSource === "s3_registered" ||
+    (!!d?.s3BaseUrl && id.startsWith("s3_"))
+  );
+}
+
 async function buildMapping(smId: string) {
   const sm = await prisma.dataset.findUnique({
     where: { id: smId },
-    select: { id: true, s3BaseUrl: true, ingestSource: true, datasetType: true },
+    select: {
+      id: true,
+      s3BaseUrl: true,
+      ingestSource: true,
+      datasetType: true,
+    },
   });
   const store =
     sm?.datasetType === "spatialdata" ? { linkFormat: "store" as const } : {};
-  const isS3Registered =
-    sm?.ingestSource === "s3_registered" || (!!sm?.s3BaseUrl && smId.startsWith("s3_"));
 
-  if (isS3Registered && sm?.s3BaseUrl) {
+  if (isS3Registered(smId, sm) && sm?.s3BaseUrl) {
     return {
       linkColumn: "__all__",
       links: { __all__: sm.s3BaseUrl },
@@ -67,10 +82,37 @@ const MOLECULE_FIELDS = [
 ];
 
 /**
- * Whether an app dataset is a SpatialData store with molecules: a points
- * element in any store under its prefix.
+ * Whether a store's root names a points element in the format the viewer
+ * draws (`points:version`), from its consolidated metadata.
+ */
+export function rootHasPoints(root: Record<string, any> | null | undefined) {
+  const nodes: Record<string, any> =
+    root?.consolidated_metadata?.metadata ?? {};
+
+  return Object.entries(nodes).some(
+    ([key, node]) =>
+      /^points\/[^/]+$/.test(key) &&
+      node?.attributes?.["points:version"] != null,
+  );
+}
+
+/**
+ * Whether a dataset is a SpatialData store with molecules, whatever else it
+ * holds: a store with cells too lends just its molecules. An uploaded store
+ * is looked for in the app's bucket; one registered by its public URL is read
+ * there, a folder resolved to the store it names as the viewer resolves it.
  */
 export async function storeHasPoints(datasetId: string): Promise<boolean> {
+  const ds = await prisma.dataset.findUnique({
+    where: { id: datasetId },
+    select: { s3BaseUrl: true, ingestSource: true },
+  });
+
+  if (isS3Registered(datasetId, ds) && ds?.s3BaseUrl) {
+    const target = await resolveZarrUrl(ds.s3BaseUrl);
+
+    return target?.kind === "spatialdata" && rootHasPoints(target.root);
+  }
   const keys = await listObjectKeys(`datasets/${datasetId}/`);
 
   return keys.some((k) => /\.zarr\/points\/[^/]+\/zarr\.json$/.test(k.key));
@@ -85,6 +127,7 @@ export async function getOverlaySmId(scId: string): Promise<string | null> {
   }>(mappingKey(scId)).catch(() => null);
 
   if (!m) return null;
+
   // Prefer the explicit datasetId; fall back to links.__all__ for app-source
   // mappings written before datasetId was stored.
   return m.datasetId ?? (m.source !== "s3" ? (m.links?.__all__ ?? null) : null);
