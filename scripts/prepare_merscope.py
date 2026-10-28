@@ -214,7 +214,7 @@ def prepare_merscope(
     cluster: bool = False,
     url: str | None = None,
     expanded: bool = False,
-    label_csv: Path | None = None,
+    label_csv: Path | list[Path] | None = None,
     keep_z: bool = False,
     log=print,
 ):

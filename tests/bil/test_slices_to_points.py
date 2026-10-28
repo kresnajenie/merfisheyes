@@ -64,6 +64,36 @@ def test_the_store_is_valid_with_cells_and_molecules_in_it(store):
     assert (store / "points" / "molecules").exists()
 
 
+def test_stats_json_counts_the_molecules(store, dataset):
+    """prepare.py writes stats.json before this stage adds the molecules, so
+    the points stage has to bring it back in line. It is what a catalog
+    reads: a store of hundreds of millions that reports 0 is worse than no
+    sidecar at all."""
+    stats = json.loads((store.parent / "stats.json").read_text())
+    _, attrs = pz.open_element(store / "points" / "molecules")
+    assert stats["molecules"] == attrs["points:n_points"] > 0
+    assert stats["cells"] == dataset["cells"]
+
+
+def test_several_label_files_merge(combined, tmp_path, dataset):
+    """The cluster passes two: MapMyCells' labels and the artifact mask the
+    combine computed. Both are one row per cell keyed by cell_id."""
+    import anndata as ad
+
+    mask = tmp_path / "artifact_mask_p25.csv"
+    meta = pd.read_csv(combined / "cell_metadata.csv", dtype=str)
+    idc = "id" if "id" in meta.columns else meta.columns[0]
+    pd.DataFrame({"cell_id": meta[idc], "is_artifact": ["True"] * 10 + ["False"] * (len(meta) - 10)}).to_csv(mask, index=False)
+    extra = tmp_path / "labels.csv"
+    pd.DataFrame({"cell_id": meta[idc], "celltype": ["Astro"] * len(meta)}).to_csv(extra, index=False)
+
+    out = tmp_path / "two_labels"
+    run("prepare.py", combined, out, "--name", "two", "--labels", extra, "--labels", mask)
+    obs = ad.read_zarr(out / "two.zarr" / "tables" / "table").obs
+    assert "celltype" in obs.columns and "is_artifact" in obs.columns
+    assert (obs["is_artifact"].astype(str) == "True").sum() == 10
+
+
 def test_every_real_molecule_of_every_slice_is_there(element, dataset):
     """One element, all the slices, blanks and control probes left out."""
     _, attrs = pz.open_element(element)

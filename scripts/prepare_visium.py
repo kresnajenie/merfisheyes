@@ -90,7 +90,7 @@ def prepare_visium(
     cluster: bool = False,
     url: str | None = None,
     images: bool = True,
-    label_csv: Path | None = None,
+    label_csv: Path | list[Path] | None = None,
     log=print,
 ):
     path, folder = Path(path), Path(folder)

@@ -77,6 +77,25 @@ def sources(samples: list[dict], log=print) -> list[dict]:
     return out
 
 
+def refresh_stats(store: Path) -> None:
+    """Bring `stats.json` back in line with the store.
+
+    scripts/prepare.py writes that sidecar when it writes the cells, before
+    this stage adds the molecules — so left alone it says `"molecules": 0`
+    about a store holding hundreds of millions. It is what a catalog reads,
+    so it is rewritten here from the store itself.
+    """
+    import prepare
+
+    path = store.parent / "stats.json"
+    if not path.exists():
+        return
+    stats = json.loads(path.read_text())
+    stats.update(prepare.store_stats(store))
+    path.write_text(json.dumps(stats, indent=2) + "\n")
+    print(f"stats.json: molecules {stats['molecules']:,}, genes {stats['molecule_genes']}")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("combined", type=Path, help=f"the combined_output folder (holding {OFFSETS})")
@@ -104,6 +123,7 @@ def main(argv=None) -> int:
         levels=args.levels,
         tile_size=args.tile_size,
     )
+    refresh_stats(args.store)
     return 0
 
 

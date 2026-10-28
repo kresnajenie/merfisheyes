@@ -2,7 +2,7 @@
 """Prepare spatial data for MERFISHEYES: whatever you have becomes one SpatialData store.
 
   python scripts/prepare.py INPUT OUT [--name NAME] [--no-images] [--keep-z]
-                            [--cluster] [--labels CSV]
+                            [--cluster] [--labels CSV]...
                             [--molecule-columns GENE,X,Y[,Z] | gene=G,x=X,y=Y[,z=Z][,cell=C]] [--workers N]
 
 Run it on your own machine to prepare data before you drop or upload it. The
@@ -203,7 +203,7 @@ def prepare(
     name: str | None = None,
     images: bool = True,
     cluster: bool = False,
-    labels: Path | None = None,
+    labels: Path | list[Path] | None = None,
     molecule_columns: str | None = None,
     workers: int = 4,
     keep_z: bool = False,
@@ -223,7 +223,7 @@ def prepare(
     name = name or source.stem.removesuffix("_outs")
     log(f"{source.name}: {kind} → {out}/{name}.zarr")
 
-    label_csv = Path(labels).resolve() if labels else None
+    label_csv = [Path(c).resolve() for c in ([labels] if isinstance(labels, (str, Path)) else labels or [])]
     try:
         if kind == "xenium":
             import prepare_xenium
@@ -311,7 +311,9 @@ def main(argv=None) -> int:
     ap.add_argument("--no-images", action="store_true", help="leave an image that INPUT has out of the store")
     ap.add_argument("--keep-z", action="store_true", help="keep the molecules' z (3-D); by default they are flat")
     ap.add_argument("--cluster", action="store_true", help="Leiden clusters + DEGs when the table has no cell types")
-    ap.add_argument("--labels", type=Path, help="per-cell labels to add to the table (a MapMyCells CSV)")
+    ap.add_argument("--labels", type=Path, action="append",
+                    help="per-cell labels to add to the table (a MapMyCells CSV, an artifact mask); "
+                         "repeat for several, merged in the order given")
     ap.add_argument("--molecule-columns", help="a molecule table's columns as GENE,X,Y[,Z] when they are not recognised, or gene=G,x=X,y=Y[,z=Z][,cell=C] to also split assigned and unassigned molecules by C")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args(argv)

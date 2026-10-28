@@ -671,7 +671,7 @@ def prepare(
     expanded: bool = False,
     molecule_columns: str | None = None,
     images: bool = True,
-    labels: Path | None = None,
+    labels: Path | list[Path] | None = None,
     keep_z: bool = False,
     log=print,
 ) -> validate_store.Report:
@@ -712,8 +712,8 @@ def prepare(
         table = table_group(store, table_name)
         ensure_spatial(table, log)
         ensure_csc(table, log)
-        if labels is not None:
-            merge_labels(table, labels, log)
+        for csv in ([labels] if isinstance(labels, (str, Path)) else list(labels or [])):
+            merge_labels(table, Path(csv), log)
         cells_box = table_box(table)
         if cluster and not has_categorical_column(table):
             import spatialdata_cluster
@@ -813,7 +813,9 @@ def main(argv=None) -> int:
                     help="leave the image and the molecule folder beside the store, named in mapping.json, instead of inside it")
     ap.add_argument("--molecule-columns", help="a transcripts table's columns: xenium, merscope, or GENE,X,Y[,Z] (default: recognised)")
     ap.add_argument("--no-images", action="store_true", help="leave an image in the folder out of the store")
-    ap.add_argument("--labels", type=Path, help="per-cell labels (a MapMyCells CSV) to add to the table's obs")
+    ap.add_argument("--labels", type=Path, action="append",
+                    help="per-cell labels (a MapMyCells CSV, an artifact mask) to add to the table's obs; "
+                         "repeat for several, merged in the order given")
     args = ap.parse_args(argv)
     r = prepare(
         args.folder,

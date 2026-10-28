@@ -13,7 +13,8 @@
 INPUT_PATH="$1"    # e.g. /bil/data/meyes/ace-dip-use/combined_output
 OUTPUT_BASE="$2"   # e.g. /bil/data/meyes/ace-dip-use/mmc_output
 SPECIES="${3:-mouse}"  # "mouse" (default) or "human"
-REFERENCE_DIR="/bil/data/meyes/mapmycells-reference"
+METHOD="${4:-}"        # "", "hierarchical" or "correlation" (default: the script's)
+REFERENCE_DIR="${MEYES_REFERENCE:-/bil/data/meyes/mapmycells-reference}"
 
 # ── Prevent thread oversubscription ──────────────────────────
 # Each worker process should use 1 thread to avoid contention
@@ -52,12 +53,12 @@ cd ~/merfisheyes/scripts
 
 START_TIME=$SECONDS
 
-python map_my_cell.py \
-    "$INPUT_PATH" \
-    "$OUTPUT_BASE" \
-    --species "$SPECIES" \
-    --n_processors 50 \
-    --reference_dir "$REFERENCE_DIR"
+MMC_ARGS=("$INPUT_PATH" "$OUTPUT_BASE" --species "$SPECIES"
+          --n_processors 50 --reference_dir "$REFERENCE_DIR")
+# correlation needs no cell_type_mapper; hierarchical does
+[ -n "$METHOD" ] && MMC_ARGS+=(--method "$METHOD")
+
+python map_my_cell.py "${MMC_ARGS[@]}"
 
 EXIT_CODE=$?
 ELAPSED=$(( SECONDS - START_TIME ))

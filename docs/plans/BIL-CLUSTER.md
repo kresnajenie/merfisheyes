@@ -280,6 +280,50 @@ behind D5.
 - `tests/bil/` is the test space: 12 tests on generated fixtures (~30 s, no
   data) plus the runner above.
 
+### 1.8 The cluster scripts for this workflow (2026-10-28)
+
+`scripts/bil-scripts/` gained **Pipeline D**: the seven stages above as Slurm
+jobs, chained with `--dependency=afterok` exactly as the existing launchers
+chain theirs.
+
+| File | Does |
+|---|---|
+| `env.sh` | the one place paths, the bucket and the interpreter live. `meyes_run` dispatches to a venv **or** `apptainer exec`, so step 1's container is a one-variable change (`MEYES_IMAGE`). |
+| `prepare_store.sbatch` | combined cells → store, with every label CSV merged |
+| `slices_to_points.sbatch` | every slice's molecules → that store |
+| `validate_store.sbatch` | the gate: non-zero exit, nothing syncs |
+| `s3_sync_store.sbatch` | the store → `s3://bil-psc-xarr/<sample>/` |
+| `launch_store_pipeline.sh` | combine → mask → annotate → prepare → points → validate → sync |
+
+**The bucket is `bil-psc-xarr`** (`MEYES_S3_BUCKET` in `env.sh`), separate from
+the legacy `merfisheyes-bil/bil-psc-data2`. It needs public read and CORS, or
+the viewer cannot open a store by URL — a public URL cannot be listed, so the
+consolidated metadata is the only way it learns what is in the store
+(`docs/specs/store-layout.md`).
+
+Every stage was run off-cluster by executing the sbatch bodies directly, with
+their failure paths: a missing `combined_output` (exit 3), a missing
+`sample_offsets.json` (exit 3, naming the combine), a missing or empty store
+(exit 3). `--dry-run` prints the whole chain without submitting, which is the
+only way to check the dependency graph without a scheduler.
+
+**The artifact mask is kept, not applied.** The legacy chain dropped the cells
+`artifact_mask_p25.csv` flags; the new chain merges it as an `is_artifact` obs
+column (101,982 of 407,859 on `ace-dip-tug`) and keeps every cell, so the
+filtering is the viewer's to do and is reversible. `--labels` is repeatable,
+which is what carries both the mask and MapMyCells' labels. **Say so if cells
+should be dropped instead** — that is a different decision, not an oversight.
+
+**MapMyCells now measured here**: 407,859 cells against 5,322 reference
+clusters in **1 m 07 s**, 5.6 GB peak, correlation method, using the 14 GB
+reference on this machine. The `hierarchical` method additionally needs
+`cell_type_mapper`, which the image must carry. The labels it produced merged
+onto the right cells — verified by compound id, all matched, all identical.
+
+**`stats.json` is refreshed by the points stage**, which otherwise left
+`"molecules": 0` on a store holding hundreds of millions — it is the file a
+catalog reads.
+
 **Corrected from the 2026-10-26 reading.** The MapMyCells join was reported
 as silently mislabelling 84.7 % of cells. That was a test against the wrong
 table: MMC reads `combined_output`, not a raw region. Verified by compound

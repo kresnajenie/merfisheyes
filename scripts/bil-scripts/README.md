@@ -9,6 +9,7 @@ This directory contains SLURM batch scripts and pipeline launchers for processin
   - [Pipeline A: MERSCOPE Multi-Slice](#pipeline-a-merscope-multi-slice)
   - [Pipeline B: Single Molecule](#pipeline-b-single-molecule)
   - [Pipeline C: H5AD (Single Cell + Single Molecule)](#pipeline-c-h5ad-single-cell--single-molecule)
+  - [**Pipeline D: SpatialData — one store per dataset**](#pipeline-d-spatialdata--one-store-per-dataset)
 - [Input Formats](#input-formats) (see also [INPUT_REQUIREMENTS.md](INPUT_REQUIREMENTS.md) for detailed column specs)
 - [Output Structure](#output-structure)
 - [Environment Setup](#environment-setup)
@@ -32,6 +33,10 @@ This directory contains SLURM batch scripts and pipeline launchers for processin
 ./launch_pipeline.sh /path/to/input /path/to/output            # single sample (absolute paths)
 # CSV mode output:    {output_base}/{sample_name}/ (default output_base: /bil/data/meyes)
 # Single mode output: exactly /path/to/output/
+
+# For ONE SpatialData store per dataset (cells + molecules together) — Pipeline D:
+./launch_store_pipeline.sh samples.csv --dry-run     # see what would be submitted
+./launch_store_pipeline.sh samples.csv --sync        # run it and upload
 
 # For single molecule data:
 ./launch_sm_pipeline.sh samples.csv                               # from CSV
@@ -428,6 +433,110 @@ Steps 1 and 2 run in parallel. Step 3 waits for step 1. Step 4 waits for both 2 
 **Output:** Both `meyes_output/` and `sm_output/` (see above for structure).
 
 ---
+
+---
+
+## Pipeline D: SpatialData — one store per dataset
+
+**This is where new work goes.** Pipelines A–C write the legacy chunked
+format: one `.gz` per gene for the whole dataset, so drawing one gene means
+downloading every molecule of it. Pipeline D writes **one SpatialData store**
+holding the combined cells *and* every slice's molecules in one coordinate
+frame, tiled into a pyramid so the viewer reads the view instead of the gene.
+
+```bash
+./launch_store_pipeline.sh                           # samples.csv beside this script
+./launch_store_pipeline.sh my-samples.csv --sync     # a list, and upload
+./launch_store_pipeline.sh ace-dip-tug /bil/data/18/aa/.../input   # one sample
+./launch_store_pipeline.sh samples.csv --dry-run     # print the sbatch lines, submit nothing
+```
+
+`samples.csv` is the same `sample_name,input_path` the other launchers take.
+
+### The seven stages
+
+Each is a Slurm job chained with `--dependency=afterok`, so a failure stops
+everything after it and nothing half-written is published.
+
+| # | Stage | Script | Resources | Measured |
+|---|---|---|---|---|
+| 1 | combine | `combine_slices.sbatch` | 2 CPU, 64 G | 1 m 41 s, 3 slices → 407,859 cells |
+| 2 | mask | `combine_slices.sbatch --mask-only` | 2 CPU, 64 G | 13 s |
+| 3 | annotate | `map_my_cell.sbatch` | 64 CPU, 512 G | 1 m 07 s (correlation, 5.6 G peak) |
+| 4 | prepare | `prepare_store.sbatch` | 8 CPU, 128 G | 17 s |
+| 5 | points | `slices_to_points.sbatch` | 8 CPU, 128 G | 8 m 28 s, 433,023,021 molecules |
+| 6 | validate | `validate_store.sbatch` | 2 CPU, 32 G | 1 m 15 s |
+| 7 | sync | `s3_sync_store.sbatch` | 8 CPU, 8 G | — |
+
+Measured on `ace-dip-tug` (3 slices, 40.6 GB of CSV) off-cluster: **11 m 58 s
+end to end, 4.9 GB peak RSS, a 6.0 GB store**. Memory is flat in the molecule
+count — nothing is ever concatenated — so **time**, not memory, is what grows.
+
+### Output
+
+```
+/bil/data/meyes/<sample>/
+  combined_output/     cell_metadata.csv, cell_by_gene.csv,
+                       artifact_mask_p*.csv, sample_offsets.json
+  mmc_output/          mapping_output.csv + diagnostic PNGs
+  store/               <sample>.zarr   tables/table + points/molecules
+                       mapping.json, stats.json
+```
+
+**`sample_offsets.json` is the new load-bearing file.** The cells of every
+slice are combined into one frame; the molecules are far too large to
+concatenate, so they stay where they are and the combine records each
+slice's path and its exact `(dx, dy)`. `slices_to_points.sbatch` reads that
+and moves each slice's molecules onto the cells' frame. Delete it and the
+molecules cannot be placed.
+
+Only `store/` is synced — that is the whole dataset as the viewer reads it.
+
+### Options
+
+| Flag | Default | |
+|---|---|---|
+| `--sync` | off | upload to `s3://bil-psc-xarr/<sample>/` |
+| `--species` | `mouse` | MapMyCells taxonomy |
+| `--method` | `correlation` | `correlation` needs no `cell_type_mapper`; `hierarchical` does |
+| `--mask-percentile` | `25` | which `artifact_mask_p*.csv` to attach |
+| `--skip-combine` | off | `combined_output/` is already there |
+| `--skip-annotate` | off | reuse `mmc_output/mapping_output.csv`, or go without |
+| `--dry-run` | off | print the `sbatch` lines, submit nothing |
+
+**The artifact mask is attached, not applied.** It is merged as an
+`is_artifact` obs column and the cells are kept, where
+`process_spatial_data.py` dropped them. Nothing is thrown away that the
+viewer cannot filter. If you want them dropped, say so — it is a flag, not a
+rewrite.
+
+### Settings live in `env.sh`
+
+Paths, the bucket, the references and the interpreter are in one file that
+every stage sources. Override from the environment:
+
+```bash
+MEYES_S3_BUCKET=somewhere-else ./launch_store_pipeline.sh samples.csv --sync
+```
+
+This pipeline needs **python 3.12 with `scripts/requirements.txt` pinned** —
+not the `~/merfisheyes_env` the legacy scripts use. Keep both:
+
+```bash
+python3.12 -m venv ~/merfisheyes_xarr_env
+source ~/merfisheyes_xarr_env/bin/activate
+pip install -r ~/merfisheyes/scripts/requirements.txt
+```
+
+When the container lands, set `MEYES_IMAGE=/path/to/merfisheyes.sif` in
+`env.sh` and every stage runs under Apptainer instead; nothing else changes.
+
+### Tests
+
+`tests/bil/` holds 12 tests on generated fixtures (~30 s, no cluster, no
+data) plus `tests/bil/run_dry_run.sh`, which runs these same stages on one
+real dataset without Slurm.
+
 
 ## Input Formats
 
