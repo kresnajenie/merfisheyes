@@ -71,6 +71,18 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **The molecules of a store with cells too can be overlaid on another
+  dataset.** The overlay dialog listed SpatialData stores, but one registered
+  by its public URL (an Explore entry such as the 10-set mouse brain) was
+  refused as having no molecules: the check looked only in the app's own
+  bucket. It now reads such a store's metadata where it lives, and the viewer
+  opens a store linked by its folder, so its molecules are drawn over the
+  other cells while its own cells are left out.
+- **A saved SpatialData store shows its UMAP.** A store's table may carry
+  embeddings (`obsm/X_umap`), and its preview showed them, but once saved it
+  opens in the SpatialData viewer, which had no UMAP panel. It has one now,
+  for any store with cells, in a split panel too. Stores saved before this
+  show their UMAP as they are; nothing needs re-uploading.
 - **Split-screen sync is offered whenever both panels have something in
   common.** The sync button used to show only when both panels were the same
   viewer, and the sync itself ran only for the cell and molecule viewers. So a

@@ -13,6 +13,7 @@ import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { ThreeScene } from "@/components/three-scene";
+import UMAPPanel from "@/components/umap-panel";
 import { VisualizationControls } from "@/components/visualization-controls";
 import { SplitScreenPage } from "@/components/split-screen-container";
 import { useDatasetLoader } from "@/lib/hooks/useDatasetLoader";
@@ -95,6 +96,9 @@ export function SpatialDataViewer({
       <>
         <VisualizationControls />
         <ThreeScene dataset={cells} elements={elements} />
+        {/* A table's embeddings (obsm/X_umap, ...), as the cell viewer
+            shows them: a saved store opens here, its preview in /viewer */}
+        <UMAPPanel />
       </>,
     );
   }
