@@ -8,6 +8,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-29
+
 ### Added
 
 - **An email when a save uploaded as it is is ready.** An image, a SpatialData
@@ -45,6 +47,25 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   - Xenium's molecules are still not split, as before.
   - What counts as "no cell" is one rule, `meyes_common.unassigned_mask`,
     used by both writers.
+
+- **A test that what you preview is what you save.**
+  `tests/unit/preview-store-parity.test.ts` opens each tiny source the way
+  the browser preview does, and the store `scripts/prepare.py` writes from
+  it the way the SpatialData viewer does. It compares what a person sees:
+  cells, genes, expression, which cells are drawn and where, the colour
+  columns, the column it opens on, each label's colour, and embeddings.
+  Today's differences are expected failures, each naming its cause and the
+  step of `docs/plans/PREVIEW-SAVE.md` that removes it: the label sort,
+  boolean labels, the coordinate and category columns the store offers, and
+  Xenium's lost clustering. The committed stores
+  (`scripts/testdata/make-tiny-parity-stores.py`) are checked against a fresh
+  `prepare.py` run by `tests/python/test_parity_stores.py`. A real Xenium
+  export runs with `MERFISHEYES_XENIUM` and `MERFISHEYES_PREPARE_PYTHON`.
+- **Releases tag and publish themselves.** Merging a release into `main`
+  tags it `vX.Y.Z` from `package.json` and publishes its GitHub Release with
+  this file's section as the notes (`.github/workflows/release.yml`,
+  `scripts/release-notes.mjs`); a test keeps the version and this file in
+  step. `docs/RELEASING.md` steps 6–7.
 
 ### Changed
 
@@ -157,27 +178,6 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   and regrouped it into a project of yours. The same files uploaded twice
   now make two datasets; the fingerprint is still stored as a record of what
   was uploaded (`docs/plans/PREVIEW-SAVE.md`, D4).
-
-### Added
-
-- **A test that what you preview is what you save.**
-  `tests/unit/preview-store-parity.test.ts` opens each tiny source the way
-  the browser preview does, and the store `scripts/prepare.py` writes from
-  it the way the SpatialData viewer does. It compares what a person sees:
-  cells, genes, expression, which cells are drawn and where, the colour
-  columns, the column it opens on, each label's colour, and embeddings.
-  Today's differences are expected failures, each naming its cause and the
-  step of `docs/plans/PREVIEW-SAVE.md` that removes it: the label sort,
-  boolean labels, the coordinate and category columns the store offers, and
-  Xenium's lost clustering. The committed stores
-  (`scripts/testdata/make-tiny-parity-stores.py`) are checked against a fresh
-  `prepare.py` run by `tests/python/test_parity_stores.py`. A real Xenium
-  export runs with `MERFISHEYES_XENIUM` and `MERFISHEYES_PREPARE_PYTHON`.
-- **Releases tag and publish themselves.** Merging a release into `main`
-  tags it `vX.Y.Z` from `package.json` and publishes its GitHub Release with
-  this file's section as the notes (`.github/workflows/release.yml`,
-  `scripts/release-notes.mjs`); a test keeps the version and this file in
-  step. `docs/RELEASING.md` steps 6–7.
 
 ## [0.14.0] - 2026-10-24
 
@@ -1014,7 +1014,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...v0.12.0
