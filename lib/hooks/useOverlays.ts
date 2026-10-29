@@ -59,6 +59,10 @@ export function useOverlays(dataset: StandardizedDataset | null): {
   const incrementClusterVersion = usePanelVisualizationStore(
     (s) => s.incrementClusterVersion,
   );
+  // Molecules picked to check a local preview against: drawn once picked
+  const check = useLocalBundleStore((s) =>
+    dataset && s.anchorId === dataset.id ? s.check : null,
+  );
   const [elements, setElements] = useState<OpenedElements>({});
   const [linkConfig, setLinkConfig] = useState<DatasetLinkConfig | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,6 +83,7 @@ export function useOverlays(dataset: StandardizedDataset | null): {
             image: local.image,
             shapes: local.shapes,
             molecules: local.molecules,
+            check,
           }
         : null,
       getDatasetLinkConfig(dataset),
@@ -121,7 +126,7 @@ export function useOverlays(dataset: StandardizedDataset | null): {
         smStoreApi.getState().removeDataset(molecules.id);
       }
     };
-  }, [dataset]);
+  }, [dataset, check]);
 
   return { elements, linkConfig, loading };
 }

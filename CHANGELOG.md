@@ -16,6 +16,17 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   per save, however many parts it holds, linking the cells first and the rest
   below. It is sent server-side to the signed-in owner (`/api/uploads/ready`);
   the request names only the save's datasets, never an address.
+- **Overlay molecules by pasting their link.** The overlay dialog takes a
+  link as well as one of your datasets: a public SpatialData store with
+  molecules (or the folder holding it), a merfisheyes molecule folder, or a
+  merfisheyes viewer link that opened one from S3. It is checked where it
+  lives, the way the viewer opens it, and overlaid by its link alone, with no
+  dataset made of it. A store with cells too lends only its molecules.
+- **Check an overlay on a local preview before saving.** A folder dropped for
+  a browser preview now has the overlay button too. Molecules pasted by link,
+  or picked from your datasets, are drawn over the preview to see that they
+  line up. Nothing is saved, and Upload & Save still sends only the dropped
+  files.
 - **Split-screen sync for images: which channels are on.** With an image in
   both panels, switching a channel on or off in one does the same in the
   other, matched by the channel's name, so two different images share the
@@ -71,6 +82,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **A SpatialData store's link keeps its view, 2D/3D included.** The
+  SpatialData viewer, where every upload now opens, kept none of its cells'
+  view in the link, so 2D/3D, the gene, the column and the cell types were
+  lost on reload or when shared. It keeps them now (`v=`, `rv=` in the right
+  split panel), as the cell viewer does. The camera button and the 2D/3D
+  buttons also say what they are, and which mode is on, to screen readers.
 - **The molecules of a store with cells too can be overlaid on another
   dataset.** The overlay dialog listed SpatialData stores, but one registered
   by its public URL (an Explore entry such as the 10-set mouse brain) was
