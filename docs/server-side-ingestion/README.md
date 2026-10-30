@@ -244,17 +244,19 @@ secret; it never touches Postgres.
 
 ---
 
-## 9. Deduplication
+## 9. Fingerprints (no deduplication)
 
-The pre-server fingerprint was computed **client-side from processed data**, which
-we no longer have at upload time. As shipped, **the worker computes a raw-content
-fingerprint** (§5 step 4) and returns it in the `COMPLETE` callback; the app dedups
-on the `Dataset.fingerprint` `@unique` column. Re-uploading identical file(s)
-reproduces the same digest.
+**The worker computes a raw-content fingerprint** (§5 step 4) and returns it in
+the `COMPLETE` callback, and finalize stores it on `Dataset.fingerprint`, an
+indexed, **not unique**, column (migration `20261007160000_drop_fingerprint_unique`).
+Re-uploading identical file(s) reproduces the same digest.
 
-> **Known gap:** this raw fingerprint is *not* the same value the browser path
-> computes from processed data, so a dataset uploaded both ways won't be detected
-> as a duplicate across paths. Reconciling the two is deferred.
+**Nothing is checked against it.** Until 2026-10-25 finalize failed a non-admin
+upload whose fingerprint another dataset already held, emailed "Duplicate of …"
+and moved the upload's overlay onto that dataset. The lookup spanned every
+owner, so it named other users' datasets and could write to them. It was
+removed (`docs/plans/PREVIEW-SAVE.md`, D4): the same files uploaded twice make
+two datasets, and the fingerprint is a record of what was uploaded.
 
 ---
 
@@ -341,5 +343,5 @@ is on the order of **~$10** of compute, plus small ECR/CloudWatch/transfer costs
   can slot in as a chained Batch job with no rework. Not built.
 - **Per-user compute tiers** — the schema and SubmitJob path can size vCPU/RAM per
   uploader; today a single fixed job definition (4 vCPU/16 GB) is used for all.
-- **Cross-path dedup** — reconciling the raw fingerprint with the browser's
-  processed fingerprint (§9).
+- **Duplicate detection** — removed (§9); if it comes back, scope it to the
+  uploader's own datasets.

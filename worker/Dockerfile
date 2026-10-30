@@ -39,9 +39,20 @@ ENV PYTHONUNBUFFERED=1
 
 # Processors are reused verbatim; entrypoint orchestrates S3 + the run.
 COPY scripts/*.py ./scripts/
-# The schemas scripts/validate_store.py checks every store against
+# The schemas scripts/validate_store.py checks every store against, and the
+# producers' names it reads at import (docs/specs/conventions.md): without
+# the latter every prepare run dies on `import validate_store`
 COPY docs/specs/schemas ./docs/specs/schemas
+COPY docs/specs/conventions.json ./docs/specs/conventions.json
 COPY worker/entrypoint.py .
+
+# The image must be able to run what it exists to run, so a missing data
+# file, an uninstalled package or a typo fails the BUILD instead of every
+# job on Fargate. `prepare.py --help` loads the whole chain (prepare →
+# prepare_folder → validate_store), which is how the missing
+# conventions.json above would have shipped unnoticed.
+RUN /opt/prepare/bin/python scripts/prepare.py --help > /dev/null \
+    && python -c "import entrypoint"
 
 # prepare.py's version in each stats.json ("pipeline"); build with
 #   --build-arg PIPELINE_VERSION=$(git rev-parse --short HEAD)

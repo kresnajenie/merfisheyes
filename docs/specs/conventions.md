@@ -21,6 +21,7 @@ cannot disagree about a name.
 | `tables.featureIndexColumns` | the SpatialData, h5ad and h5ad-zarr adapters | `var` columns tried for feature names after the one `var` declares |
 | `tables.defaultColumnPriority` | `selectBestClusterColumn*` (`lib/utils/dataset-utils.ts`), `de-stats.ts` | obs columns chosen first as the default colouring |
 | `tables.notDefaultColumns` | the same | positional columns never chosen as the default colouring |
+| `tables.positionColumns` | `H5adAdapter` (the browser preview), `SpatialDataTableAdapter` | obs columns holding a cell's x, y or z: never offered as a colour, since the position is what is drawn |
 | `shapes.cellOutlineElements` | `cellShapesName` (`lib/spatialdata/shapes.ts`), validator | shapes elements the Shapes layer draws as outlines |
 | `shapes.pointSiblingSuffix` | `centroids.ts`, `footprint.ts`, validator | the Point element beside a region with each cell's centre and radius |
 | `shapes.squareBinPattern` | `footprint.ts` | a polygon region drawn as square bins of the grid's pitch |

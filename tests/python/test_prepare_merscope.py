@@ -132,6 +132,22 @@ def test_without_boundaries_and_with_categories(tmp_path):
     assert not (folder / "annotations").exists()  # cell types exist: no Leiden
 
 
+def test_the_umap_is_kept_one_row_per_cell(tmp_path):
+    # cell_numeric_categories.csv, which the browser preview shows; one cell
+    # has no point, and must not shift the others
+    export = make_export(tmp_path / "region_R3", boundaries=False, shuffled=False)
+    ids = pd.read_csv(export / "cell_metadata.csv")["EntityID"].astype(str).to_numpy()
+    umap = pd.DataFrame({"EntityID": ids, "umap_X": np.arange(len(ids)) * 1.0, "umap_Y": -np.arange(len(ids)) * 1.0})
+    umap.drop(index=2).to_csv(export / "cell_numeric_categories.csv", index=False)
+
+    table = prepare_merscope.read_table(export, log=lambda *_: None)
+    got = table.obsm["X_umap"]
+
+    assert got.shape == (len(ids), 2)
+    assert np.isnan(got[2]).all()
+    assert got[3].tolist() == [3.0, -3.0]
+
+
 def test_a_missing_plane_is_refused(tmp_path):
     export = make_export(tmp_path / "region_R3")
     with pytest.raises(SystemExit, match="no polygons on ZIndex 7"):

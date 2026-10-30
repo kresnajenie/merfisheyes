@@ -26,6 +26,15 @@ export interface DatasetReadyEmailParams {
     platform?: string;
     clusterCount?: number;
   };
+  /**
+   * The other datasets saved with this one (a folder's molecules and image
+   * beside its cells), linked below it, so one save sends one email.
+   */
+  alsoSaved?: {
+    datasetId: string;
+    datasetType?: string | null;
+    datasetName?: string;
+  }[];
 }
 
 /**
@@ -42,8 +51,13 @@ export async function sendDatasetReadyEmail({
   molecules,
   datasetName,
   metadata,
+  alsoSaved = [],
 }: DatasetReadyEmailParams): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const others = alsoSaved.map((d) => ({
+    name: d.datasetName || "Untitled",
+    link: `${baseUrl}${viewerHref({ id: d.datasetId, datasetType: d.datasetType ?? null })}`,
+  }));
   // The viewer of what it is (a SpatialData store, an image, cells or
   // molecules); without a type, an sm_ id is still a molecule dataset
   const isSingleMolecule = molecules ?? datasetId.startsWith("sm_");
@@ -69,7 +83,7 @@ export async function sendDatasetReadyEmail({
       Subject: { Data: subject },
       Body: {
         Text: {
-          Data: `Your dataset is ready.\n\nDataset: ${datasetName || "Untitled"}\n${countLabel}: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nOpen your dataset: ${link}`,
+          Data: `Your dataset is ready.\n\nDataset: ${datasetName || "Untitled"}\n${countLabel}: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nOpen your dataset: ${link}${others.length ? `\n\nAlso in this save:\n${others.map((o) => `${o.name}: ${o.link}`).join("\n")}` : ""}`,
         },
         Html: {
           Data: `<!DOCTYPE html>
@@ -85,7 +99,17 @@ export async function sendDatasetReadyEmail({
     <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
       <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">Your dataset is ready</p>
       <h2 style="margin: 0 0 24px 0; font-size: 22px; font-weight: 600; color: #111;">${datasetName || "Untitled Dataset"}</h2>
-      <a href="${link}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>
+      <a href="${link}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>${
+        others.length
+          ? `
+      <p style="margin: 24px 0 4px 0; font-size: 13px; color: #666;">Also in this save</p>${others
+        .map(
+          (o) => `
+      <p style="margin: 0; font-size: 14px;"><a href="${o.link}" style="color: #2563eb; text-decoration: none;">${escapeHtml(o.name)}</a></p>`,
+        )
+        .join("")}`
+          : ""
+      }
     </div>
     <div style="margin-top: 32px; padding: 16px; background: #f8f8f8; border-radius: 6px;">
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -125,89 +149,6 @@ export async function sendDatasetReadyEmail({
         </tr>
       </table>
     </div>
-  </body>
-</html>`,
-        },
-      },
-    },
-  });
-
-  await ses.send(command);
-}
-
-export interface DuplicateDatasetEmailParams {
-  email: string;
-  /** Name of the file the user just tried to (re)upload. */
-  uploadedName?: string;
-  /** The already-ingested dataset this duplicates. */
-  existingId: string;
-  existingTitle?: string;
-  /** The existing dataset's `datasetType`, for its viewer link. */
-  existingType?: string | null;
-  /**
-   * Outcome for a duplicate that was uploaded with a single-molecule dataset to
-   * overlay: "attached" — the molecules were overlaid onto the existing dataset;
-   * "skipped" — the existing dataset already had an overlay, so we left it.
-   */
-  overlay?: "attached" | "skipped";
-}
-
-/**
- * Tell the owner their upload was a duplicate of a dataset already in their
- * library, and link them to the existing one instead.
- */
-export async function sendDuplicateDatasetEmail({
-  email,
-  uploadedName,
-  existingId,
-  existingTitle,
-  existingType,
-  overlay,
-}: DuplicateDatasetEmailParams): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const link = `${baseUrl}${viewerHref({
-    id: existingId,
-    datasetType:
-      existingType ?? (existingId.startsWith("sm_") ? "single_molecule" : null),
-  })}`;
-  const existingLabel = existingTitle || "your existing dataset";
-  const overlayNote =
-    overlay === "attached"
-      ? "We overlaid the single-molecule data you uploaded with it onto this dataset."
-      : overlay === "skipped"
-        ? "This dataset already has a single-molecule overlay, so we left it as-is. To change it, open the dataset and use \u201cManage overlay,\u201d or manage it from Your Datasets."
-        : "";
-
-  const command = new SendEmailCommand({
-    Source: FROM_EMAIL,
-    Destination: { ToAddresses: [email] },
-    Message: {
-      Subject: {
-        Data: `${uploadedName || "Your upload"} is already in your library — MERFISHEYES`,
-      },
-      Body: {
-        Text: {
-          Data: `The dataset you uploaded${uploadedName ? ` (${uploadedName})` : ""} is identical to one already in your library: ${existingLabel}.\n\nWe didn't create a duplicate.${overlayNote ? ` ${overlayNote}` : ""}\n\nOpen the existing dataset: ${link}`,
-        },
-        Html: {
-          Data: `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  </head>
-  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 520px; margin: 0 auto; padding: 20px;">
-    <div style="padding: 24px 0 16px 0;">
-      <span style="font-size: 14px; font-weight: 600; color: #111; letter-spacing: 0.5px;">MERFISHEYES</span>
-    </div>
-    <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
-      <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">Already in your library</p>
-      <h2 style="margin: 0 0 12px 0; font-size: 22px; font-weight: 600; color: #111;">${existingLabel}</h2>
-      <p style="margin: 0 0 24px 0; font-size: 14px; color: #555;">The dataset you uploaded${uploadedName ? ` (<strong>${uploadedName}</strong>)` : ""} is identical to one you already have, so we didn't create a duplicate.</p>
-      ${overlayNote ? `<p style="margin: 0 0 24px 0; font-size: 14px; color: #555;">${overlayNote}</p>` : ""}
-      <a href="${link}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open the existing dataset &rarr;</a>
-    </div>
-    <div style="margin-top: 24px; font-size: 12px; color: #999; word-break: break-all;">${link}</div>
   </body>
 </html>`,
         },

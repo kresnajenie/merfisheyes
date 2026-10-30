@@ -84,6 +84,15 @@ def test_unrecognised_input_exits_2(tmp_path):
     assert run(ROOT / "README.md", tmp_path / "out") == 2
 
 
+def test_a_molecule_folder_alone_writes_no_store_and_says_so(tmp_path, capsys):
+    # It used to exit 0 with an OUT whose mapping.json named a store that was
+    # never written, which the server finished as an empty dataset
+    out = tmp_path / "out"
+    assert run(TINY / "single-molecule" / "chunked", out) == 3
+    said = capsys.readouterr()
+    assert "no store was written" in said.out + said.err
+
+
 def test_a_folder_of_parts_becomes_exactly_the_contract(tmp_path):
     parts = tmp_path / "sample"
     parts.mkdir()

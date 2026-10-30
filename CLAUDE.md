@@ -182,7 +182,7 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 
 **Standard Flow (H5AD, Xenium, MERSCOPE)**:
 
-1. **Client-side**: Parse file in web worker, calculate dataset fingerprint, check for duplicates
+1. **Client-side**: Parse file in web worker, calculate dataset fingerprint (stored, not checked: duplicates are allowed)
 2. **Process**: Browser processes data using `GeneChunkProcessor` to create chunks
 3. **Initiate Upload**: POST to `/api/datasets/initiate` with metadata and file list
    - Creates `Dataset`, `UploadSession`, and `UploadFile` records in PostgreSQL
@@ -225,7 +225,6 @@ Separate stores for each data type ([lib/stores/](lib/stores/)):
 1. **Client-side Processing**:
    - `SingleMoleculeProcessor.processAndUpload()` processes dataset locally
    - Generates fingerprint via `generateSingleMoleculeFingerprint()` (gene names + per-gene molecule counts)
-   - Checks for duplicates via `/api/single-molecule/check-duplicate/[fingerprint]`
 2. **File Preparation**:
    - Creates `manifest.json.gz` with metadata (genes, dimensions, scaling factor, statistics)
    - Creates `genes/{geneName}.bin.gz` for each gene (gzipped Float32Array of normalized coordinates)
@@ -552,7 +551,10 @@ lazily from the dropped `File`s (`lib/local/open-bundle.ts`,
 `lib/spatialdata/localStore.ts`) and shows them overlaid in the ordinary
 `from-local` viewers; the extras travel in `lib/stores/localBundleStore.ts`.
 *Upload & Save* there uploads every part as it is and links them
-(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`).
+(`lib/local/save-bundle.ts`, `components/bundle-upload-modal.tsx`), then
+asks `/api/uploads/ready` for one "ready" email to the signed-in owner for
+the whole save (`lib/upload/reportUploadReady.ts`): such a save never
+reaches the worker, whose `finalize.ts` emails the others.
 SpatialData parts in separate folders (a store without a table, a
 standalone image) join the cells' store as its elements
 (`joinedStoreFileMap`), in the preview and on save alike; several folders
@@ -938,7 +940,7 @@ output_folder/
 
 Three main entities:
 
-- **Dataset** - Stores dataset metadata, fingerprint for deduplication, status tracking
+- **Dataset** - Stores dataset metadata, a fingerprint of what was uploaded (indexed, not unique; duplicates are allowed), status tracking
 - **UploadSession** - Tracks multi-file upload progress with expiration
 - **UploadFile** - Individual file upload status within a session
 

@@ -6,9 +6,9 @@
 // We'll load h5wasm dynamically from CDN
 import h5wasm from "h5wasm";
 
-import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { columnPalette, compareLabels } from "../utils/color-palette";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
-import { CONVENTIONS } from "../spatialdata/conventions";
+import { CONVENTIONS, POSITION_COLUMNS } from "../spatialdata/conventions";
 
 // async function loadH5wasm() {
 //   if (h5wasm) return h5wasm;
@@ -84,13 +84,64 @@ export class H5adAdapter {
   }
 
   /**
+   * A column anndata writes as a group of `values` and a boolean `mask`
+   * (true where missing): its nullable-string-array, nullable-integer and
+   * nullable-boolean encodings. anndata 0.13 with pandas 3 writes every
+   * string column this way, the index included. A missing string is "" (the
+   * label a missing category gets too), a missing number NaN, and booleans
+   * are labelled as pandas prints them.
+   */
+  private readMasked(node: any): any[] | null {
+    const encoding = String(this.attrValue(node, "encoding-type") ?? "");
+
+    if (!encoding.startsWith("nullable-")) return null;
+    const mask = node.get("mask").value as ArrayLike<unknown>;
+    const values = node.get("values").value;
+
+    if (encoding === "nullable-string-array") {
+      return Array.from(values, (v, i) =>
+        mask[i] ? "" : this.decodeBytes(v),
+      );
+    }
+    if (encoding === "nullable-boolean") {
+      return Array.from(values as ArrayLike<unknown>, (v, i) =>
+        mask[i] ? "" : v ? "True" : "False",
+      );
+    }
+
+    return Array.from(values as ArrayLike<number>, (v, i) =>
+      mask[i] ? NaN : Number(v),
+    );
+  }
+
+  /** A string column in either encoding: a plain array, or a masked group. */
+  private readStrings(node: any): string[] {
+    return (
+      this.readMasked(node) ??
+      Array.from(node.value, this.decodeBytes.bind(this))
+    );
+  }
+
+  /** The column `obs` or `var` names as its index (`_index` by default). */
+  private indexName(group: "obs" | "var"): string {
+    const named = this.attrValue(this.h5File.get(group), "_index");
+
+    return typeof named === "string" && named ? named : "_index";
+  }
+
+  /**
    * Fetch observation data (cell metadata)
    */
   async fetchObs(group: string): Promise<any[]> {
     const obs = this.h5File.get("obs");
 
-    if (group === "index") return Array.from(obs.attrs._index || []);
+    if (group === "index") {
+      return this.readStrings(obs.get(this.indexName("obs")));
+    }
     const field = obs.get(group);
+    const masked = this.readMasked(field);
+
+    if (masked) return masked;
     const keys = field.keys?.();
 
     if (keys?.includes("categories") && keys.includes("codes")) {
@@ -121,14 +172,9 @@ export class H5adAdapter {
   async fetchVar(group: string): Promise<any[]> {
     const v = this.h5File.get("var");
 
-    if (group === "index") {
-      const varIndex = v.get("_index");
-
-      return Array.from(varIndex.value, this.decodeBytes.bind(this));
-    }
-    const d = v.get(group);
-
-    return Array.from(d.value, this.decodeBytes.bind(this));
+    return this.readStrings(
+      v.get(group === "index" ? this.indexName("var") : group),
+    );
   }
 
   /**
@@ -323,25 +369,23 @@ export class H5adAdapter {
       }
     }
 
-    // Build coordinate arrays, filtering out rows with null x or y
+    // One position per cell, in obs order. A cell without a valid position
+    // keeps its row as NaN (it is not drawn): dropping the row would shift
+    // every later position onto the wrong cell's clusters and expression,
+    // and the store saved from this keeps every row too.
     const coordinates: number[][] = [];
 
     for (let i = 0; i < numRows; i++) {
-      const x = xNumbers[i];
-      const y = yNumbers[i];
+      const position = useZ
+        ? [xNumbers[i], yNumbers[i], zNumbers[i]]
+        : [xNumbers[i], yNumbers[i]];
 
-      // Skip rows with invalid x or y
-      if (x === null || y === null) continue;
-
-      if (useZ) {
-        const z = zNumbers[i];
-
-        // For 3D, also skip if z is null
-        if (z === null) continue;
-        coordinates.push([x, y, z]);
-      } else {
-        coordinates.push([x, y]);
-      }
+      // Any coordinate missing means no position at all, not half of one
+      coordinates.push(
+        position.some((v) => v === null)
+          ? position.map(() => NaN)
+          : (position as number[]),
+      );
     }
 
     return { coordinates, dimensions };
@@ -407,11 +451,18 @@ export class H5adAdapter {
   }
 
   /**
-   * Load gene list
-   * Tries multiple common column names: _index, gene, genes
+   * Load gene list: the column `var`'s `_index` attribute names (its index,
+   * `gene_ids` in a table indexed by Ensembl id), else var/_index, var/gene,
+   * var/genes — the same rule as SpatialDataTableAdapter.loadGenes, so a
+   * preview and the store saved from it list the same genes.
    */
   async loadGenes(): Promise<string[]> {
-    const possibleColumns = CONVENTIONS.tables.featureIndexColumns;
+    const possibleColumns = [
+      ...new Set([
+        this.indexName("var"),
+        ...CONVENTIONS.tables.featureIndexColumns,
+      ]),
+    ];
 
     for (const columnName of possibleColumns) {
       try {
@@ -476,9 +527,7 @@ export class H5adAdapter {
         }
       }
 
-      const uniqueValues = uniqueValuesList.sort(
-        (a, b) => a.localeCompare(b, undefined, { numeric: true }),
-      );
+      const uniqueValues = uniqueValuesList.sort(compareLabels);
 
       const sortedIndexMap = new Map<string, number>();
 
@@ -529,14 +578,8 @@ export class H5adAdapter {
 
     // Get all non-index, non-coordinate columns (the same fixed list of
     // coordinate names the server pipeline leaves out of obs/).
-    const COORDINATE_COLUMNS = new Set([
-      "center_x", "centerX", "center_y", "centerY", "center_z", "centerZ",
-      "x", "y", "z", "X", "Y", "Z",
-      "x_centroid", "y_centroid", "z_centroid",
-      "centroid_x", "centroid_y", "centroid_z",
-    ]);
     const nonIndexColumns = this.metadata.obsKeys.filter(
-      (key: string) => !key.startsWith("_") && !COORDINATE_COLUMNS.has(key),
+      (key: string) => !key.startsWith("_") && !POSITION_COLUMNS.has(key),
     );
 
     // Parse all columns
@@ -549,20 +592,6 @@ export class H5adAdapter {
     }
 
     return allClusters.length > 0 ? allClusters : [];
-  }
-
-  /**
-   * Normalize hex color to 7 characters (# + 6 hex)
-   */
-  normalizeHexColor(hex: string): string {
-    if (typeof hex !== "string") return "#808080";
-
-    // If not the expected length, cut off last 2 characters if longer than 7
-    if (hex.length !== 7 && hex.length > 7) {
-      return hex.substring(0, 7);
-    }
-
-    return hex;
   }
 
   /**
@@ -581,52 +610,32 @@ export class H5adAdapter {
   }
 
   /**
-   * Load color palette for clusters.
-   *
-   * Default colours are assigned in sorted label order (the same order the
-   * server pipeline uses, so both produce the same colours). When the file
-   * carries `uns[col + "_colors"]` with one colour per stored category —
-   * scanpy's convention is that colours follow the column's category order —
-   * those override the defaults, unless every colour is the same.
+   * Load color palette for clusters: the shared rule (columnPalette) — the
+   * default colours dealt in compareLabels order, replaced by
+   * `uns[col + "_colors"]` when the file stores one colour per category —
+   * the same rule the SpatialData viewer applies to the store saved from
+   * this file, so its colours survive the save.
    */
   async loadClusterPalette(
     clusterColumn: string,
   ): Promise<Record<string, string>> {
-    const clusters = await this.fetchObs(clusterColumn);
-    const uniqueClusters = Array.from(new Set(clusters)).sort();
-    const palette: Record<string, string> = {};
-
-    uniqueClusters.forEach((cluster, index) => {
-      palette[cluster] = this.normalizeHexColor(
-        DEFAULT_COLOR_PALETTE[index % DEFAULT_COLOR_PALETTE.length],
-      );
-    });
+    const labels = Array.from(
+      new Set((await this.fetchObs(clusterColumn)).map(String)),
+    ).sort(compareLabels);
+    let colors: unknown[] | null = null;
 
     try {
-      const colors = this.fetchUns(clusterColumn + "_colors");
-      // Non-categorical columns have no stored order: scanpy builds their
-      // categories sorted, so sorted unique is the right mapping there.
-      const stored = this.fetchObsCategories(clusterColumn) ?? uniqueClusters;
+      const stored = this.fetchUns(clusterColumn + "_colors");
 
-      if (colors && colors.length === stored.length) {
-        const normalized = colors.map((c: any) => this.normalizeHexColor(c));
-        const uniqueColors = new Set(normalized);
-
-        if (uniqueColors.size === 1 && stored.length > 1) {
-          console.log(
-            `Palette for ${clusterColumn} has only 1 unique color, using default colors`,
-          );
-        } else {
-          stored.forEach((category, index) => {
-            palette[String(category)] = normalized[index];
-          });
-        }
-      }
-    } catch (error) {
-      console.log("No colors found in uns, using default colors");
+      colors = stored ? Array.from(stored as ArrayLike<unknown>) : null;
+    } catch {
+      // No colours stored: the defaults stand
     }
 
-    return palette;
+    return columnPalette(labels, {
+      colors,
+      categories: this.fetchObsCategories(clusterColumn),
+    });
   }
 
   /**

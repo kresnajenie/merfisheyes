@@ -110,6 +110,7 @@ def convert(
         features=genes,
         dims=dims,
         columns=columns,
+        copied=[c[0] for c in columns],
         origin=origin,
         extent=extent,
         tile_size=tile_size,

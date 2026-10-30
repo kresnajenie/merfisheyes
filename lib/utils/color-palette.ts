@@ -67,3 +67,49 @@ export function generateColorPalette(values: string[]): Record<string, string> {
 
   return palette;
 }
+
+/**
+ * The order a column's labels are listed and dealt colours in, everywhere:
+ * as text, with numbers by value (cluster_2 before cluster_10). The browser
+ * preview and the SpatialData viewer both sort with it, so a dataset keeps
+ * its colours when it is saved (docs/plans/PREVIEW-SAVE.md, D5).
+ */
+export function compareLabels(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
+/** A stored colour as a 7-character hex: scanpy may store "#rrggbbaa". */
+export function normalizeHexColor(hex: unknown): string {
+  if (typeof hex !== "string") return "#808080";
+
+  return hex.length > 7 ? hex.substring(0, 7) : hex;
+}
+
+/**
+ * A categorical column's colours: the default palette dealt over `labels`
+ * (already in compareLabels order), replaced by the colours the file stored
+ * for the column — scanpy's `uns[<column>_colors]`, one per category in the
+ * column's stored category order — when there is one per category and they
+ * are not all the same. `categories` defaults to `labels`: scanpy builds a
+ * plain column's categories sorted.
+ */
+export function columnPalette(
+  labels: string[],
+  stored?: { colors: unknown[] | null; categories?: string[] | null } | null,
+): Record<string, string> {
+  const palette = generateColorPalette(labels);
+  const colors = stored?.colors?.map(normalizeHexColor);
+  const categories = stored?.categories ?? labels;
+
+  if (
+    colors &&
+    colors.length === categories.length &&
+    (new Set(colors).size > 1 || categories.length === 1)
+  ) {
+    categories.forEach((category, i) => {
+      palette[String(category)] = colors[i];
+    });
+  }
+
+  return palette;
+}

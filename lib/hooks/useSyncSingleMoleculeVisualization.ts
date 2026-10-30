@@ -57,25 +57,25 @@ function throttledToast(message: string) {
 
 /**
  * Bidirectional sync between left (global) and right (panel) SM visualization stores.
- * Syncs gene selection and colors. Active when syncEnabled and the right panel
- * shows molecules: an SM viewer, or a cell viewer (whose SM overlay, if it has
- * one, lives in the same stores).
+ * Syncs gene selection and colors. Active when syncEnabled and both panels
+ * have molecules open (`available`, from useSyncCapabilities): a molecule
+ * dataset, a SpatialData store's points, or a cell dataset's linked molecules,
+ * which all live in the panel's molecule store.
  */
 export function useSyncSingleMoleculeVisualization(
   rightSMVizStore: SingleMoleculeVisualizationStore,
   rightSMDatasetStore: SingleMoleculeStore,
+  available: boolean,
 ) {
   const syncingRef = useRef(false);
   const prevLeftRef = useRef<SMSyncFields | null>(null);
   const prevRightRef = useRef<SMSyncFields | null>(null);
 
   const syncEnabled = useSplitScreenStore((s) => s.syncEnabled);
-  const rightPanelType = useSplitScreenStore((s) => s.rightPanelType);
   const syncFromUrl = useSplitScreenStore((s) => s.syncFromUrl);
   const settlingRef = useRef(false);
 
-  const isActive =
-    syncEnabled && (rightPanelType === "sm" || rightPanelType === "cell");
+  const isActive = syncEnabled && available;
 
   useEffect(() => {
     if (!isActive) {

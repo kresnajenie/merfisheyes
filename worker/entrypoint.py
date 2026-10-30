@@ -626,8 +626,14 @@ def prepare_command(kind, raw_dir: Path, work: Path, out_dir: Path, dataset_id: 
         source = find_single_molecule_input(raw_dir)
         mapping = params.get("columnMapping") or {}
         if mapping.get("gene") and mapping.get("x") and mapping.get("y"):
-            columns = [mapping["gene"], mapping["x"], mapping["y"]] + ([mapping["z"]] if mapping.get("z") else [])
-            extra = ["--molecule-columns", ",".join(str(c) for c in columns)]
+            if mapping.get("cellId"):
+                # Named, so the cell column can ride along: it splits the
+                # molecules into assigned and unassigned
+                roles = [(r, mapping[k]) for r, k in (("gene", "gene"), ("x", "x"), ("y", "y"), ("z", "z"), ("cell", "cellId")) if mapping.get(k)]
+                extra = ["--molecule-columns", ",".join(f"{r}={c}" for r, c in roles)]
+            else:
+                columns = [mapping["gene"], mapping["x"], mapping["y"]] + ([mapping["z"]] if mapping.get("z") else [])
+                extra = ["--molecule-columns", ",".join(str(c) for c in columns)]
     else:
         # The user's per-cell labels came with the upload under a reserved key
         labels = extract_annotation_csv(raw_dir, work / "annotations", chunk.get("mmcCsv"))
@@ -801,6 +807,12 @@ def main():
 
     if not (out_dir / manifest_name).exists():
         fail(f"processor finished but out/{manifest_name} is missing")
+    if manifest_name == "mapping.json":
+        # The store it names must be there too, or the dataset would finish
+        # with nothing to open
+        named = json.loads((out_dir / "mapping.json").read_text()).get("cells")
+        if not named or not (out_dir / named).exists():
+            fail(f"processor finished but the store mapping.json names ({named}) is missing")
 
     out_prefix = f"datasets/{dataset_id}/"
 

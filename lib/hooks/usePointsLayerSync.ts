@@ -41,6 +41,9 @@ export function usePointsLayerSync(layer: PointsLayer | null): void {
   const showAssigned = usePanelSingleMoleculeVisualizationStore(
     (s) => s.showAssigned,
   );
+  const showUnassigned = usePanelSingleMoleculeVisualizationStore(
+    (s) => s.showUnassigned,
+  );
   const visible = usePanelSingleMoleculeVisualizationStore(
     (s) => s.smLayerVisible,
   );
@@ -53,26 +56,41 @@ export function usePointsLayerSync(layer: PointsLayer | null): void {
     // cmd+click solo) included: they keep their share of the budget and what
     // they have loaded, so showing them again is instant
     let i = 0;
+    const size = (localScale: number) =>
+      VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
+      globalScale *
+      localScale *
+      SM_DOT_SIZE_FACTOR;
 
     for (const gene of legend) {
       const index = i++;
       const viz = selectedGenes.get(gene) ?? geneDataCache.get(gene);
 
       if (!viz) continue;
+      // The same rules as MoleculeLayer.sync: each kind by the panel's
+      // switch and the gene's own
+      const assigned = showAssigned && viz.showAssigned;
+      const unassigned =
+        layer.marksUnassigned && showUnassigned && viz.showUnassigned;
+
       genes.set(gene, {
-        visible: selectedGenes.has(gene) && viz.showAssigned,
+        visible: selectedGenes.has(gene) && (assigned || unassigned),
+        assigned,
+        unassigned: unassigned
+          ? {
+              color: viz.unassignedColor,
+              shape: viz.unassignedShape,
+              dotSize: size(viz.unassignedLocalScale),
+            }
+          : null,
         color: viz.color,
         shape: viz.assignedShape,
-        dotSize:
-          VISUALIZATION_CONFIG.SINGLE_MOLECULE_POINT_BASE_SIZE *
-          globalScale *
-          viz.localScale *
-          SM_DOT_SIZE_FACTOR,
+        dotSize: size(viz.localScale),
         opacity,
         renderOrder: moleculeRenderOrder(index),
       });
     }
-    layer.visible = visible && showAssigned;
+    layer.visible = visible;
     layer.setGenes(genes);
   }, [
     layer,
@@ -83,5 +101,6 @@ export function usePointsLayerSync(layer: PointsLayer | null): void {
     opacity,
     visible,
     showAssigned,
+    showUnassigned,
   ]);
 }

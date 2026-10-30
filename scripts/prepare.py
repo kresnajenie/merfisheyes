@@ -3,7 +3,7 @@
 
   python scripts/prepare.py INPUT OUT [--name NAME] [--no-images] [--keep-z]
                             [--cluster] [--labels CSV]
-                            [--molecule-columns GENE,X,Y[,Z]] [--workers N]
+                            [--molecule-columns GENE,X,Y[,Z] | gene=G,x=X,y=Y[,z=Z][,cell=C]] [--workers N]
 
 Run it on your own machine to prepare data before you drop or upload it. The
 server's worker is moving to this same script (docs/plans/ONE-PIPELINE.md,
@@ -278,6 +278,16 @@ def prepare(
         return 3
 
     store = mapped_store(out) or out / f"{name}.zarr"
+    if not store.exists():
+        # Nothing became a store: a merfisheyes molecule folder or an image
+        # with no table to go into is not read on its own yet. Exiting 0 here
+        # left an OUT whose mapping.json named nothing, which the server took
+        # for a finished dataset.
+        log(
+            f"error: no store was written ({store.name} is missing): a merfisheyes "
+            "molecule folder or an image is only read beside a table for now"
+        )
+        return 3
     stats = {
         "input": kind,
         "store": store.name,
@@ -302,7 +312,7 @@ def main(argv=None) -> int:
     ap.add_argument("--keep-z", action="store_true", help="keep the molecules' z (3-D); by default they are flat")
     ap.add_argument("--cluster", action="store_true", help="Leiden clusters + DEGs when the table has no cell types")
     ap.add_argument("--labels", type=Path, help="per-cell labels to add to the table (a MapMyCells CSV)")
-    ap.add_argument("--molecule-columns", help="a molecule table's columns as GENE,X,Y[,Z] when they are not recognised")
+    ap.add_argument("--molecule-columns", help="a molecule table's columns as GENE,X,Y[,Z] when they are not recognised, or gene=G,x=X,y=Y[,z=Z][,cell=C] to also split assigned and unassigned molecules by C")
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args(argv)
     return prepare(

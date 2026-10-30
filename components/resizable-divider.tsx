@@ -1,24 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
 import { Tooltip } from "@heroui/tooltip";
 
-import {
-  panelTypeForViewer,
-  useSplitScreenStore,
-} from "@/lib/stores/splitScreenStore";
-import type { PanelType } from "@/lib/stores/splitScreenStore";
+import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 
-export function ResizableDivider() {
-  const {
-    dividerPosition,
-    setDividerPosition,
-    syncEnabled,
-    toggleSync,
-    rightPanelType,
-  } = useSplitScreenStore();
-  const pathname = usePathname();
+/**
+ * The split's divider, with the sync toggle when the two panels have
+ * something in common to sync (`canSync`, from useSyncCapabilities).
+ */
+export function ResizableDivider({ canSync }: { canSync: boolean }) {
+  const { setDividerPosition, syncEnabled, toggleSync } = useSplitScreenStore();
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -54,13 +46,6 @@ export function ResizableDivider() {
     };
   }, [isDragging, setDividerPosition]);
 
-  // Which viewer the left panel is, by the page's first path segment (a
-  // missing case once fell through to "cell" and hid the sync button)
-  const leftPanelType: PanelType =
-    panelTypeForViewer(pathname.split("/")[1] ?? "") ?? "cell";
-  const showSyncButton =
-    rightPanelType !== null && leftPanelType === rightPanelType;
-
   return (
     <div
       ref={containerRef}
@@ -74,12 +59,14 @@ export function ResizableDivider() {
       <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-0.5 bg-white/30 group-hover:bg-white/50 transition-colors" />
 
       {/* Sync toggle button */}
-      {showSyncButton && (
+      {canSync && (
         <Tooltip
           content={syncEnabled ? "Disable sync" : "Enable sync"}
           placement="right"
         >
           <button
+            aria-label={syncEnabled ? "Disable sync" : "Enable sync"}
+            aria-pressed={syncEnabled}
             className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
               syncEnabled
                 ? "bg-primary/80 shadow-[0_0_12px_rgba(0,112,243,0.5)] border border-primary/60"

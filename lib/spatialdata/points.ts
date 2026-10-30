@@ -66,6 +66,17 @@ export interface PointsElement {
     hi: number,
     opts?: ReadOptions,
   ): Promise<Float32Array>;
+  /**
+   * 1 for each feature_major row [lo, hi) at a level assigned to no cell, 0
+   * for one in a cell (points-zarr-spec §8.1). Present only when the element
+   * has an `unassigned` column.
+   */
+  readUnassigned?(
+    level: number,
+    lo: number,
+    hi: number,
+    opts?: ReadOptions,
+  ): Promise<Uint8Array>;
   /** Compressed bytes read per row at a level so far (a prior before any). */
   bytesPerRow(level: number): number;
 }
@@ -313,5 +324,21 @@ export async function openPointsElement(
     },
     readXyz: (level, lo, hi, opts) =>
       interleave(level, "feature_major", lo, hi, opts?.signal),
+    ...(fmCols.has("unassigned") && {
+      readUnassigned: async (level, lo, hi, opts) => {
+        const cols = await columns(level, "feature_major");
+        const path = cols.get("unassigned");
+
+        if (!path) throw new Error(`Level ${level}: no "unassigned" column`);
+        const sig = opts?.signal ?? new AbortController().signal;
+
+        hint(sig, { tag: levelTag(level) });
+        const v = await read(path, lo, hi, sig);
+
+        return v instanceof Uint8Array
+          ? v
+          : Uint8Array.from(v as ArrayLike<number>, Number);
+      },
+    }),
   };
 }

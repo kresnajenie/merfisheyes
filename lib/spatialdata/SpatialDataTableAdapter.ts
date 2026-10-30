@@ -23,11 +23,11 @@ import type { SpatialDataStore } from "./store";
 // path is pinned to.
 import * as zarr from "zarrita-v3";
 
-import { DEFAULT_COLOR_PALETTE } from "../utils/color-palette";
+import { columnPalette, compareLabels } from "../utils/color-palette";
 import { type DeStats, parseDeStatsBuffer } from "../utils/de-stats";
 import { isCategorical as detectCategorical } from "../utils/column-type-detection";
 
-import { CONVENTIONS } from "./conventions";
+import { CONVENTIONS, POSITION_COLUMNS } from "./conventions";
 import { defaultTableName } from "./store";
 
 export type XFormat = "dense" | "csr" | "csc" | "missing";
@@ -73,6 +73,7 @@ export class SpatialDataTableAdapter {
   obsColumns: string[] = [];
   obsmKeys: string[] = [];
   varColumns: string[] = [];
+  unsKeys: string[] = [];
 
   // Names + types for cluster columns (filtered subset of obsColumns)
   clusterColumnNames: string[] = [];
@@ -169,6 +170,7 @@ export class SpatialDataTableAdapter {
     await onProgress?.(35, "Enumerating obs / obsm / var columns...");
 
     this.obsColumns = enumerateChildArrays(this.storeKeys, "obs");
+    this.unsKeys = enumerateChildArrays(this.storeKeys, "uns");
     this.obsmKeys = enumerateChildArrays(this.storeKeys, "obsm");
     this.varColumns = enumerateChildArrays(this.storeKeys, "var");
     const varm = enumerateChildArrays(this.storeKeys, "varm");
@@ -212,8 +214,14 @@ export class SpatialDataTableAdapter {
       obsIndex,
     ];
 
+    // A cell's position is what is drawn, never a colour (conventions.json,
+    // positionColumns; the browser preview leaves the same columns out)
     this.clusterColumnNames = this.obsColumns.filter(
-      (k) => !k.startsWith("_") && k !== "_index" && !notColumns.includes(k),
+      (k) =>
+        !k.startsWith("_") &&
+        k !== "_index" &&
+        !notColumns.includes(k) &&
+        !POSITION_COLUMNS.has(k),
     );
     // Type detection happens on-demand in loadClusters; default everything to
     // "categorical" pre-load so the picker can show them.
@@ -354,9 +362,7 @@ export class SpatialDataTableAdapter {
           }
         }
 
-        const uniqueValues = uniqueValuesList.sort((a, b) =>
-          a.localeCompare(b, undefined, { numeric: true }),
-        );
+        const uniqueValues = uniqueValuesList.sort(compareLabels);
         const sortedMap = new Map<string, number>();
 
         for (let i = 0; i < uniqueValues.length; i++) {
@@ -382,7 +388,9 @@ export class SpatialDataTableAdapter {
           type,
           values: [],
           valueIndices,
-          palette: isCategorical ? buildPalette(uniqueValues) : null,
+          palette: isCategorical
+            ? columnPalette(uniqueValues, await this.storedColours(columnName))
+            : null,
           uniqueValues,
         });
       } catch (e) {
@@ -649,6 +657,30 @@ export class SpatialDataTableAdapter {
     return out;
   }
 
+  /**
+   * The colours the table stores for a column (scanpy's
+   * `uns[<column>_colors]`) and the column's stored category order, which
+   * they follow; null when it stores none.
+   */
+  private async storedColours(
+    column: string,
+  ): Promise<{ colors: string[]; categories: string[] | null } | null> {
+    if (!this.unsKeys.includes(`${column}_colors`)) return null;
+    try {
+      const colors = await this.readValues(
+        await zarr.open.v3(this.root!.resolve(`uns/${column}_colors`)),
+      );
+      const categories = await zarr.open
+        .v3(this.root!.resolve(`obs/${column}/categories`))
+        .then((n) => this.readValues(n))
+        .catch(() => null);
+
+      return { colors, categories };
+    } catch {
+      return null;
+    }
+  }
+
   /** A column of annotations/: a uint16 category code per cell. */
   private async readAnnotation(
     column: string,
@@ -814,6 +846,17 @@ function enumerateChildArrays(storeKeys: string[], prefix: string): string[] {
   return Array.from(found).sort();
 }
 
+/**
+ * A value as a label. Booleans read as pandas prints them, True / False —
+ * the labels the browser preview gives them too, so a column keeps its
+ * labels (and colours) when it is saved.
+ */
+function label(value: unknown): string {
+  if (typeof value === "boolean") return value ? "True" : "False";
+
+  return String(value);
+}
+
 function arrayToStringArray(data: any): string[] {
   // zarrita returns TypedArray, string[] or a fixed-width string array.
   if (
@@ -824,7 +867,7 @@ function arrayToStringArray(data: any): string[] {
     // zarr.UnicodeStringArray / ByteStringArray
     const out: string[] = new Array(data.length);
 
-    for (let i = 0; i < data.length; i++) out[i] = String(data.get(i));
+    for (let i = 0; i < data.length; i++) out[i] = label(data.get(i));
 
     return out;
   }
@@ -832,7 +875,7 @@ function arrayToStringArray(data: any): string[] {
     const arr = data as ArrayLike<unknown>;
     const out: string[] = new Array(arr.length);
 
-    for (let i = 0; i < arr.length; i++) out[i] = String(arr[i]);
+    for (let i = 0; i < arr.length; i++) out[i] = label(arr[i]);
 
     return out;
   }
@@ -840,13 +883,3 @@ function arrayToStringArray(data: any): string[] {
   return [];
 }
 
-function buildPalette(uniqueValues: string[]): Record<string, string> {
-  const palette: Record<string, string> = {};
-
-  for (let i = 0; i < uniqueValues.length; i++) {
-    palette[uniqueValues[i]] =
-      DEFAULT_COLOR_PALETTE[i % DEFAULT_COLOR_PALETTE.length];
-  }
-
-  return palette;
-}

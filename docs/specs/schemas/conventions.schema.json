@@ -27,7 +27,8 @@
         "fallbackTableName",
         "featureIndexColumns",
         "defaultColumnPriority",
-        "notDefaultColumns"
+        "notDefaultColumns",
+        "positionColumns"
       ],
       "additionalProperties": false,
       "properties": {
@@ -56,6 +57,10 @@
         },
         "notDefaultColumns": {
           "description": "Positional or bookkeeping obs columns: offered in the picker, never the default colouring.",
+          "$ref": "#/$defs/names"
+        },
+        "positionColumns": {
+          "description": "obs columns that hold a cell's position (its x, y or z under the names producers use): never offered as a colour, since the position is what is drawn. The browser preview and the SpatialData viewer both leave them out.",
           "$ref": "#/$defs/names"
         }
       }
