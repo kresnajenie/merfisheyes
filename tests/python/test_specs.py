@@ -292,6 +292,29 @@ def test_image_axes_and_dtype_are_checked(tmp_path):
     assert any("axes" in m for m in fails(r))
 
 
+def test_ngff_04_attributes_in_a_v3_group_are_read(tmp_path):
+    """The layout older ome-zarr-py wrote (and still reads): `multiscales`
+    and `omero` at the top of a Zarr v3 group's attributes, no `ome` wrapper.
+    Read, warned about, never written — image-profile.md, and
+    lib/spatialdata/ome.ts for the viewer's copy of the rule."""
+    store = compose_store(tmp_path, points=False, shapes=False)
+    g = store / "images" / "dapi" / "zarr.json"
+    meta = json.loads(g.read_text())
+    ome = meta["attributes"].pop("ome")
+    ome["multiscales"][0]["version"] = "0.4"
+    meta["attributes"] = {k: ome[k] for k in ("multiscales", "omero") if k in ome}
+    g.write_text(json.dumps(meta))
+
+    r = validate_store.validate(store)
+
+    assert ("OK", "images/dapi") in levels(r), "the image should still validate"
+    assert not any("ome.multiscales" in m for m in fails(r))
+    assert any("not under `ome`" in m for _, _, m in r.lines), "it should be flagged"
+    # The same metadata, through the helper the readers share
+    assert validate_store.image_multiscale(meta["attributes"])["axes"]
+    assert validate_store.ome_attrs(meta["attributes"]).get("omero")
+
+
 def test_points_metadata_schema_is_enforced(tmp_path):
     store = compose_store(tmp_path, shapes=False)
     g = store / "points" / "transcripts" / "zarr.json"

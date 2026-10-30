@@ -4,6 +4,8 @@ import {
   type ZarrUploadFile,
 } from "./uploadZarrFolderToS3";
 
+import { axisNames, imageMultiscale } from "@/lib/spatialdata/ome";
+
 /**
  * Upload an OME-Zarr image folder to S3 as an image dataset, as it is: an
  * image needs no processing, the viewer reads the zarr directly. See
@@ -21,15 +23,13 @@ export type ImageUploadOptions = Omit<
 /**
  * True when a root `zarr.json` describes an OME-Zarr multiscale image the
  * viewer can draw (Zarr v3, axes c/y/x) rather than some other zarr store.
+ * Either metadata layout (`lib/spatialdata/ome.ts`).
  */
 export function isOmeZarrImage(rootJson: unknown): boolean {
-  const multiscale = (
-    rootJson as {
-      attributes?: { ome?: { multiscales?: { axes?: { name?: string }[] }[] } };
-    } | null
-  )?.attributes?.ome?.multiscales?.[0];
+  const attrs = (rootJson as { attributes?: Record<string, any> } | null)
+    ?.attributes;
 
-  return multiscale?.axes?.map((a) => a.name).join("") === "cyx";
+  return axisNames(imageMultiscale(attrs)) === "cyx";
 }
 
 export function uploadImageToS3(

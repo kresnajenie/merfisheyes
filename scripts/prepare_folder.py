@@ -57,6 +57,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import validate_store  # noqa: E402
+from validate_store import image_multiscale  # noqa: E402
 from meyes_common import should_filter_gene  # noqa: E402
 
 SPATIALDATA_ATTRS = {"version": "0.2"}
@@ -105,7 +106,7 @@ def kind_of(path: Path, molecule_columns: str | None = None) -> str | None:
             return "store"
         if (path / "obs" / "zarr.json").exists() and (path / "var" / "zarr.json").exists():
             return "table3"
-        axes = [a.get("name") for a in attrs.get("ome", {}).get("multiscales", [{}])[0].get("axes", [])]
+        axes = [a.get("name") for a in image_multiscale(attrs).get("axes", [])]
         if axes == ["c", "y", "x"]:
             return "image"
         return None
@@ -178,7 +179,7 @@ def molecules_box(folder: Path, genes: int = 3) -> Box | None:
 def image_box(image: Path) -> Box | None:
     """Level 0's scale and translation over its shape, as the viewer places it."""
     root = read_json(image / "zarr.json") or {}
-    ms = (root.get("attributes", {}).get("ome", {}).get("multiscales") or [{}])[0]
+    ms = image_multiscale(root.get("attributes"))
     datasets = ms.get("datasets") or []
     if not datasets:
         return None
@@ -225,7 +226,7 @@ def check_image_folder(image: Path, r) -> None:
     """The image's own metadata through the validator's image rules
     (docs/specs/image-profile.md), as if it sat inside a store."""
     root = read_json(image / "zarr.json") or {}
-    ms = (root.get("attributes", {}).get("ome", {}).get("multiscales") or [{}])[0]
+    ms = image_multiscale(root.get("attributes"))
     nodes = {f"images/{image.name}": root}
     for ds in ms.get("datasets") or []:
         level = read_json(image / str(ds.get("path")) / "zarr.json")
@@ -293,7 +294,7 @@ def repair_image_chunks(store: Path, log, chunk: int = CHUNK) -> list[str]:
     repaired = []
     for el in element_dirs(store, "images"):
         meta = read_json(el / "zarr.json") or {}
-        ms = (meta.get("attributes", {}).get("ome", meta.get("attributes", {})).get("multiscales") or [{}])[0]
+        ms = image_multiscale(meta.get("attributes"))
         for ds in ms.get("datasets") or []:
             level = el / str(ds.get("path"))
             src = zarr.open_array(level, mode="r")
@@ -347,7 +348,7 @@ def wrap_image(store: Path, image: Path, log) -> str:
 
     name = image.name.removesuffix(".zarr")
     root = read_json(image / "zarr.json") or {}
-    ms = (root.get("attributes", {}).get("ome", {}).get("multiscales") or [{}])[0]
+    ms = image_multiscale(root.get("attributes"))
     datasets = ms.get("datasets") or []
     if not datasets:
         raise SystemExit(f"{image.name}: no multiscale levels")
@@ -358,7 +359,10 @@ def wrap_image(store: Path, image: Path, log) -> str:
             sy, sx = float(t["scale"][-2]), float(t["scale"][-1])
         elif t.get("type") == "translation":
             ty, tx = float(t["translation"][-2]), float(t["translation"][-1])
-    channels = [c.get("label") for c in root.get("attributes", {}).get("ome", {}).get("omero", {}).get("channels", [])]
+    channels = [
+        c.get("label")
+        for c in validate_store.ome_attrs(root.get("attributes")).get("omero", {}).get("channels", [])
+    ]
     arr = da.from_zarr(str(image / str(datasets[0]["path"])))
     if arr.ndim == 2:
         arr = arr[None]

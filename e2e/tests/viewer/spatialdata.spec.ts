@@ -7,6 +7,7 @@ import {
   storeUrl,
   storeFolderUrl,
   imageUrl,
+  image04Url,
   visiumUrl,
   visiumHdUrl,
   libraryStoreUrl,
@@ -405,6 +406,32 @@ test("@quick SpatialData store with nothing to show says so", async ({
       "This SpatialData store has no cells, molecules or image to show",
     ),
   ).toBeVisible({ timeout: 120_000 });
+});
+
+test("@quick an image with 0.4 metadata in a v3 group draws, and its channel is named", async ({
+  page,
+}) => {
+  // What the CoQ1s stitcher writes: `multiscales` and `omero` at the top of
+  // `attributes`, no `ome` wrapper (docs/plans/OME-ZARR-COMPAT.md). Same
+  // pixels as the test above, so only the metadata layout differs.
+  await page.goto(
+    `/image-viewer/from-s3?url=${encodeURIComponent(image04Url(server, 50))}`,
+  );
+
+  await expect(page.locator(SELECTORS.imageCanvas)).toBeVisible({
+    timeout: 120_000,
+  });
+  await expect
+    .poll(() => litFraction(page, SELECTORS.imageCanvas), {
+      message: "the image should be drawn",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.2);
+
+  // `omero` sits beside `multiscales` in this layout, so one fallback has to
+  // find both: the channel keeps its name
+  await page.locator(SELECTORS.imageButton).click();
+  await expect(page.getByLabel("Show DAPI", { exact: true })).toBeVisible();
 });
 
 test("@quick image viewer draws an image on its own", async ({ page }) => {
