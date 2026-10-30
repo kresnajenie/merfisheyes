@@ -30,6 +30,7 @@
 import type { SpatialDataStore } from "./store";
 
 import { defaultTableName, elementNames } from "./store";
+import { imageMultiscale } from "./ome";
 
 export interface Transform {
   type: string;
@@ -386,7 +387,7 @@ export function elementTransforms(
   attrs: Record<string, any>,
 ): ElementTransforms {
   if (kind === "images" || kind === "labels") {
-    const ms = (attrs.ome ?? attrs).multiscales?.[0] ?? {};
+    const ms = imageMultiscale(attrs) ?? {};
 
     return {
       transforms: ms.coordinateTransformations ?? [],

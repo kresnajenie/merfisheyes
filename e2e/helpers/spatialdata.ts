@@ -289,6 +289,21 @@ export function startSpatialDataServer(
 
       return { body: JSON.stringify(group) };
     }
+    // The same image, its metadata written the way the CoQ1s stitcher wrote
+    // it: NGFF 0.4 attributes at the top of a Zarr v3 group, no `ome` wrapper
+    // (docs/specs/image-profile.md, docs/plans/OME-ZARR-COMPAT.md)
+    if (kind === "image04") {
+      const inner = resolve(`/image/${rest.join("/")}`);
+
+      if (!inner || !("body" in inner)) return inner;
+      const group = JSON.parse(inner.body);
+      const { multiscales, omero } = group.attributes.ome;
+
+      group.attributes = { multiscales, omero };
+      group.attributes.multiscales[0].version = "0.4";
+
+      return { body: JSON.stringify(group) };
+    }
     if (kind !== "store") return undefined;
 
     const [layout, parts, file, ...inside] = rest;
@@ -451,4 +466,12 @@ export function libraryStoreUrl(
  */
 export function imageUrl(server: FixtureServer, extent: number): string {
   return `${server.url}/image/${extent}.zarr`;
+}
+
+/**
+ * The same image with NGFF 0.4 attributes at the top of a Zarr v3 group, as
+ * the CoQ1s stitcher wrote (docs/plans/OME-ZARR-COMPAT.md). Same pixels.
+ */
+export function image04Url(server: FixtureServer, extent: number): string {
+  return `${server.url}/image04/${extent}.zarr`;
 }

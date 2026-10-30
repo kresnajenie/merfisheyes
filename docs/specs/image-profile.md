@@ -6,7 +6,8 @@ OME-Zarr group at a URL, an image dataset in the app's bucket).
 
 | Requirement | Level |
 |---|---|
-| OME-NGFF 0.5 metadata under `attributes.ome`: `multiscales[0]` with `axes` and `datasets` | MUST |
+| OME-NGFF 0.5 metadata under `attributes.ome`: `multiscales[0]` with `axes` and `datasets` | MUST for anything written here |
+| Read also: 0.4-style metadata (`multiscales` and `omero` at the top of `attributes`) inside a Zarr v3 container, as ome-zarr-py wrote before it guarded against the pair and still reads, warning `version mismatch: detected: FormatV04`. Transitional, never written. Every reader goes through `omeAttrs` (`lib/spatialdata/ome.ts`); `tests/unit/ome-layout.test.ts` holds them to it, so a store cannot load halfway | MAY |
 | Axes exactly `c, y, x`, in that order (a `z` or `t` axis is not read) | MUST |
 | Data type `uint8` or `uint16` | MUST |
 | Zarr v3 arrays; chunks at most 1024 × 1024 pixels per channel, so one tile is at most 2 MB | SHOULD (larger chunks are read whole: the skin store's 4096² chunks are 20 MB each) |
