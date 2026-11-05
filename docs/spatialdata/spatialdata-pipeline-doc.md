@@ -189,6 +189,7 @@ ace-dip-vat,/bil/data/.../input
 | Option | |
 |---|---|
 | `--sync` | upload to `s3://merfisheyes-bil/bil-psc-zarr/<sample>/` (off by default) |
+| `--lamin` | after the sync, register the store in `merfisheyes/eyes-catalog` and check it ([LAMIN.md](../plans/LAMIN.md)); needs `--sync` |
 | `--species human` | MapMyCells taxonomy (default `mouse`) |
 | `--method correlation` | MapMyCells method (default `hierarchical`) |
 | `--mask-percentile N` | default for every row; `0` attaches no mask |
@@ -222,6 +223,8 @@ All in `env.sh`, overridable from the environment:
 | `MEYES_S3_PREFIX` | `bil-psc-zarr` — the folder inside the bucket |
 | `MEYES_REFERENCE` | `/bil/data/meyes/mapmycells-reference` |
 | `MEYES_PYTHON` | `~/merfisheyes_xarr_env/bin/python` |
+| `MEYES_LAMIN_INSTANCE` | `merfisheyes/eyes-catalog` |
+| `MEYES_LAMIN_PYTHON` | `~/merfisheyes_lamin_env/bin/python` — lamindb, separate from the pinned env |
 | `MEYES_IMAGE` | empty; set it and every stage runs under Apptainer instead |
 
 ---

@@ -23,6 +23,12 @@ MEYES_S3_BUCKET="${MEYES_S3_BUCKET:-merfisheyes-bil}"
 MEYES_S3_PREFIX="${MEYES_S3_PREFIX:-bil-psc-zarr}"   # folder inside the bucket
 MEYES_S3_REGION="${MEYES_S3_REGION:-us-west-2}"
 
+# The Lamin catalog every synced store is registered in (register_lamin.sbatch).
+# Its interpreter needs lamindb, which pulls a different anndata than the
+# pinned pipeline env — so it is its own env, logged in once with `lamin login`.
+MEYES_LAMIN_INSTANCE="${MEYES_LAMIN_INSTANCE:-merfisheyes/eyes-catalog}"
+MEYES_LAMIN_PYTHON="${MEYES_LAMIN_PYTHON:-$HOME/merfisheyes_lamin_env/bin/python}"
+
 # MapMyCells references (14 GB, not in the image — bind-mounted / read in place)
 MEYES_REFERENCE="${MEYES_REFERENCE:-/bil/data/meyes/mapmycells-reference}"
 

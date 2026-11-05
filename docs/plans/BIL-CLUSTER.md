@@ -327,6 +327,7 @@ chain theirs.
 | `slices_to_points.sbatch` | every slice's molecules → that store |
 | `validate_store.sbatch` | the gate: non-zero exit, nothing syncs |
 | `s3_sync_store.sbatch` | the store → `s3://merfisheyes-bil/bil-psc-zarr/<sample>/` |
+| `register_lamin.sbatch` | that S3 path → a checked record in `merfisheyes/eyes-catalog` (`--lamin`; [LAMIN.md](LAMIN.md)) |
 | `launch_spatialdata_pipeline.sh` | combine → mask → annotate → prepare → points → validate → sync |
 
 **Stores go to the `bil-psc-zarr/` folder of `merfisheyes-bil`**

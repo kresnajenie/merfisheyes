@@ -497,6 +497,7 @@ Only `store/` is synced — that is the whole dataset as the viewer reads it.
 | Flag | Default | |
 |---|---|---|
 | `--sync` | off | upload to `s3://merfisheyes-bil/bil-psc-zarr/<sample>/` |
+| `--lamin` | off | then `register_lamin.sbatch`: record the store in the Lamin catalog and check it ([docs/plans/LAMIN.md](../../docs/plans/LAMIN.md)) |
 | `--species` | `mouse` | MapMyCells taxonomy |
 | `--method` | `correlation` | `correlation` needs no `cell_type_mapper`; `hierarchical` does |
 | `--mask-percentile` | `25` | which `artifact_mask_p*.csv` to attach |

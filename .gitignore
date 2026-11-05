@@ -154,3 +154,6 @@ bench/datasets.json
 .bench-stage/
 /public/lm-test/
 /perf/sddb/.cache/
+
+# Lamin: `lamin connect --here` writes the instance this folder is tied to
+.lamin/

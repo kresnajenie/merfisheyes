@@ -21,6 +21,8 @@
 #   ./launch_spatialdata_pipeline.sh ace-dip-tug /bil/data/18/aa/.../input
 #
 #   --sync              also upload to s3://$MEYES_S3_BUCKET (off by default)
+#   --lamin             after the sync, register the store in the Lamin catalog
+#                       ($MEYES_LAMIN_INSTANCE) and check it; needs --sync
 #   --species human     MapMyCells taxonomy (default mouse)
 #   --method correlation   MapMyCells method (default hierarchical)
 #   --skip-combine      the combined_output is already there
@@ -42,6 +44,7 @@ export MEYES_BIL_SCRIPTS="$SCRIPT_DIR"
 source "${SCRIPT_DIR}/env.sh"
 
 SYNC=false
+LAMIN=false
 SPECIES="mouse"
 METHOD="hierarchical"
 SKIP_COMBINE=false
@@ -53,6 +56,7 @@ POSITIONAL=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --sync)         SYNC=true; shift ;;
+        --lamin)        LAMIN=true; shift ;;
         --species)      SPECIES="$2"; shift 2 ;;
         --method)       METHOD="$2"; shift 2 ;;
         --skip-combine) SKIP_COMBINE=true; shift ;;
@@ -79,6 +83,7 @@ else
     exit 1
 fi
 [ -f "$SAMPLE_FILE" ] || { echo "ERROR: no sample file: $SAMPLE_FILE"; exit 1; }
+if $LAMIN && ! $SYNC; then echo "ERROR: --lamin registers what --sync uploaded; pass both"; exit 1; fi
 
 submit () {  # submit <description> <dependency|""> <script> [args...]
     local desc="$1" dep="$2"; shift 2
@@ -98,6 +103,7 @@ echo "============================================"
 echo "Samples:   $SAMPLE_FILE"
 echo "Output:    ${MEYES_BASE}/<sample>"
 echo "Bucket:    $(if $SYNC; then echo "s3://${MEYES_S3_BUCKET}/${MEYES_S3_PREFIX}"; else echo 'DISABLED (pass --sync)'; fi)"
+echo "Lamin:     $(if $LAMIN; then echo "$MEYES_LAMIN_INSTANCE"; else echo 'DISABLED (pass --lamin)'; fi)"
 echo "MapMyCells: ${METHOD}, ${SPECIES}, ${MEYES_REFERENCE}"
 echo "Python:    ${MEYES_IMAGE:-$MEYES_PYTHON}"
 $DRY_RUN && echo "MODE:      DRY RUN — nothing is submitted"
@@ -166,6 +172,10 @@ while IFS=',' read -r sample_name input_path row_pct || [ -n "$sample_name" ]; d
     if $SYNC; then
         dep=$(submit sync "$dep" s3_sync_store.sbatch "$sample_name" "$store_dir")
         echo "   [7/7] sync            ${dep}"
+        if $LAMIN; then
+            dep=$(submit lamin "$dep" register_lamin.sbatch "$sample_name")
+            echo "   [+]   lamin           ${dep}"
+        fi
     else
         echo "   [7/7] sync            skipped (pass --sync)"
     fi
