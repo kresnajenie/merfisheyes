@@ -11,8 +11,15 @@ It answers the three questions that matter, and nothing else:
 
   1. does the store pass the gate the viewer applies?
   2. is every molecule of every slice there, and no blanks?
-  3. did each slice's molecules land on that slice's cells, and did the
+  3. did each slice's molecules land on that slice's own tissue, and did the
      cell-type labels land on the right cells?
+
+Two numbers it prints are easy to read as contradicting each other. The
+per-slice percentage is about placement — whether the combine's shift put a
+slice's molecules on that slice — and is normally 100%. The "inside no cell
+boundary" figure is the segmentation's own call, and a third of a MERSCOPE
+run's transcripts falling between cells is ordinary. Neither bounds the
+other.
 
 Exit 0 when every check passes, 1 when any fails. Each line is OK or FAIL,
 so this is usable in a loop over a fleet.
@@ -135,17 +142,28 @@ def main(argv=None) -> int:
             if len(cells) == 0:
                 check(False, f"{sid}: {len(mine):,} molecules but no cells with that _sample_id")
                 continue
+            # Did this slice's molecules get moved onto this slice's tissue?
+            # The combine puts the slices ~1000 um apart on a grid, so a
+            # molecule inside its own slice's box of cell centroids was
+            # shifted correctly, and one in another slice's box was not. This
+            # is about placement only — whether a molecule is inside any one
+            # cell is the segmentation's business, reported separately below.
             inside = (
                 (mine["x"] >= cells["center_x"].min() - 100) & (mine["x"] <= cells["center_x"].max() + 100) &
                 (mine["y"] >= cells["center_y"].min() - 100) & (mine["y"] <= cells["center_y"].max() + 100)
             ).mean()
             check(inside > 0.99,
                   f"{sid}: {len(mine):>12,} molecules, {len(cells):>8,} cells, "
-                  f"{inside * 100:5.1f}% of molecules on those cells")
+                  f"{inside * 100:5.1f}% within this slice's own bounds")
 
     if "unassigned" in frame:
+        # The segmentation's own answer, carried from the transcripts table's
+        # cell_id (-1 in a MERSCOPE export). A molecule can be on the right
+        # slice and still be inside no cell: it fell between cells. This is
+        # not a placement problem and is unrelated to the check above.
         u = np.asarray(frame["unassigned"])
-        print(f"\nin no cell: {u.sum():,} of {len(u):,} ({u.mean() * 100:.1f}%)")
+        print(f"\ninside no cell boundary (the segmentation's call, not a placement problem):"
+              f" {u.sum():,} of {len(u):,} ({u.mean() * 100:.1f}%)")
 
     # the labels, joined the only way that is safe
     mmc = next((p / "mapping_output.csv" for p in sorted(folder.glob("mmc_output*"))
