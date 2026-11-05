@@ -326,11 +326,12 @@ chain theirs.
 | `prepare_store.sbatch` | combined cells → store, with every label CSV merged |
 | `slices_to_points.sbatch` | every slice's molecules → that store |
 | `validate_store.sbatch` | the gate: non-zero exit, nothing syncs |
-| `s3_sync_store.sbatch` | the store → `s3://bil-psc-zarr/<sample>/` |
+| `s3_sync_store.sbatch` | the store → `s3://merfisheyes-bil/bil-psc-zarr/<sample>/` |
 | `launch_spatialdata_pipeline.sh` | combine → mask → annotate → prepare → points → validate → sync |
 
-**The bucket is `bil-psc-zarr`** (`MEYES_S3_BUCKET` in `env.sh`), separate from
-the legacy `merfisheyes-bil/bil-psc-data2`. It needs public read and CORS, or
+**Stores go to the `bil-psc-zarr/` folder of `merfisheyes-bil`**
+(`MEYES_S3_BUCKET` + `MEYES_S3_PREFIX` in `env.sh`), beside the legacy
+`bil-psc-data2/`. The bucket needs public read and CORS, or
 the viewer cannot open a store by URL — a public URL cannot be listed, so the
 consolidated metadata is the only way it learns what is in the store
 (`docs/specs/store-layout.md`).

@@ -496,7 +496,7 @@ Only `store/` is synced — that is the whole dataset as the viewer reads it.
 
 | Flag | Default | |
 |---|---|---|
-| `--sync` | off | upload to `s3://bil-psc-zarr/<sample>/` |
+| `--sync` | off | upload to `s3://merfisheyes-bil/bil-psc-zarr/<sample>/` |
 | `--species` | `mouse` | MapMyCells taxonomy |
 | `--method` | `correlation` | `correlation` needs no `cell_type_mapper`; `hierarchical` does |
 | `--mask-percentile` | `25` | which `artifact_mask_p*.csv` to attach |

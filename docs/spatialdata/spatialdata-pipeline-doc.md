@@ -188,7 +188,7 @@ ace-dip-vat,/bil/data/.../input
 
 | Option | |
 |---|---|
-| `--sync` | upload to `s3://bil-psc-zarr/<sample>/` (off by default) |
+| `--sync` | upload to `s3://merfisheyes-bil/bil-psc-zarr/<sample>/` (off by default) |
 | `--species human` | MapMyCells taxonomy (default `mouse`) |
 | `--method correlation` | MapMyCells method (default `hierarchical`) |
 | `--mask-percentile N` | default for every row; `0` attaches no mask |
@@ -218,7 +218,8 @@ All in `env.sh`, overridable from the environment:
 | | default |
 |---|---|
 | `MEYES_BASE` | `/bil/data/meyes` — output root |
-| `MEYES_S3_BUCKET` | `bil-psc-zarr` |
+| `MEYES_S3_BUCKET` | `merfisheyes-bil` |
+| `MEYES_S3_PREFIX` | `bil-psc-zarr` — the folder inside the bucket |
 | `MEYES_REFERENCE` | `/bil/data/meyes/mapmycells-reference` |
 | `MEYES_PYTHON` | `~/merfisheyes_xarr_env/bin/python` |
 | `MEYES_IMAGE` | empty; set it and every stage runs under Apptainer instead |
