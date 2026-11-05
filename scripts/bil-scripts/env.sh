@@ -18,7 +18,7 @@ MEYES_BASE="${MEYES_BASE:-/bil/data/meyes}"
 MEYES_LOGS="${MEYES_LOGS:-/bil/users/ijenie/meyes_process_logs}"
 
 # The new bucket: one SpatialData store per dataset, read by URL
-MEYES_S3_BUCKET="${MEYES_S3_BUCKET:-bil-psc-xarr}"
+MEYES_S3_BUCKET="${MEYES_S3_BUCKET:-bil-psc-zarr}"
 MEYES_S3_PREFIX="${MEYES_S3_PREFIX:-}"          # optional folder inside the bucket
 MEYES_S3_REGION="${MEYES_S3_REGION:-us-west-2}"
 
