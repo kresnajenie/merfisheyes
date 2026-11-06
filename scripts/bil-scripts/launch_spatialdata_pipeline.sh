@@ -5,7 +5,14 @@
 # The whole pipeline, one SLURM chain per sample:
 #
 #   combine -> mask -> annotate (MapMyCells) -> prepare (cells)
-#           -> points (molecules) -> validate -> sync
+#           -> points (molecules) -> validate ─┐
+#           -> qc      (qc.json)      ─────────┼-> sync -> lamin
+#           -> catalog (catalog.json) ─────────┘
+#
+# qc and catalog run beside points/validate, after prepare (which empties
+# the store folder). Their two files sit beside the store and stats.json, go
+# up with it, and are what the Lamin record is made from — every run
+# collects its own numbers and catalog entry, nothing is filled in later.
 #
 # Each stage is submitted with --dependency=afterok on the one before,
 # so a failure stops that sample's chain and leaves the others alone.
@@ -163,14 +170,20 @@ while IFS=',' read -r sample_name input_path row_pct || [ -n "$sample_name" ]; d
                  "${mmc}/mapping_output.csv" "${mask_args[@]}")
     echo "   [4/7] prepare (cells) ${dep}"
 
-    dep=$(submit points "$dep" slices_to_points.sbatch "$combined" "$store")
+    prep="$dep"
+    qc=$(submit qc "$prep" qc_store.sbatch "$sample_name" "$store_dir" "$SPECIES" "$pct")
+    echo "   [+]   qc              ${qc}   -> qc.json"
+    cat_job=$(submit catalog "$prep" catalog_store.sbatch "$sample_name" "$store_dir")
+    echo "   [+]   catalog         ${cat_job}   -> catalog.json"
+
+    dep=$(submit points "$prep" slices_to_points.sbatch "$combined" "$store")
     echo "   [5/7] points          ${dep}"
 
     dep=$(submit validate "$dep" validate_store.sbatch "$store")
     echo "   [6/7] validate        ${dep}"
 
     if $SYNC; then
-        dep=$(submit sync "$dep" s3_sync_store.sbatch "$sample_name" "$store_dir")
+        dep=$(submit sync "${dep}:${qc}:${cat_job}" s3_sync_store.sbatch "$sample_name" "$store_dir")
         echo "   [7/7] sync            ${dep}"
         if $LAMIN; then
             dep=$(submit lamin "$dep" register_lamin.sbatch "$sample_name")

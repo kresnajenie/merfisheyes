@@ -466,7 +466,20 @@ everything after it and nothing half-written is published.
 | 4 | prepare | `prepare_store.sbatch` | 8 CPU, 128 G | 17 s |
 | 5 | points | `slices_to_points.sbatch` | 8 CPU, 128 G | 8 m 28 s, 433,023,021 molecules |
 | 6 | validate | `validate_store.sbatch` | 2 CPU, 32 G | 1 m 15 s |
+| + | qc | `qc_store.sbatch` → `store/qc.json` | 4 CPU, 32 G | 5 s (474,986 cells) |
+| + | catalog | `catalog_store.sbatch` → `store/catalog.json` | 1 CPU, 2 G | 2 s |
 | 7 | sync | `s3_sync_store.sbatch` | 8 CPU, 8 G | — |
+
+**qc** and **catalog** run beside points and validate, after prepare (which
+empties `store/`); sync waits for all three. They make the metadata part of
+every run: `qc.json` is the dataset's row of `dataset_stats.csv` (sections,
+counts per cell, artifact-mask counts, MapMyCells types per level), also
+appended to the fleet accumulator `$MEYES_STATS_CSV`; `catalog.json` is the
+dataset's `bil-completed.json` item (title, species, investigator, ...) from
+the BIL API, falling back on `$MEYES_BIL_CATALOG`. Both are synced with the
+store, the Lamin record is made from them (`--lamin`), and
+`build_bil_catalog.py` gathers the `catalog.json` files back into a
+`bil-completed.json` — nothing is typed in or collected afterwards.
 
 Measured on `ace-dip-tug` (3 slices, 40.6 GB of CSV) off-cluster: **11 m 58 s
 end to end, 4.9 GB peak RSS, a 6.0 GB store**. Memory is flat in the molecule
@@ -480,7 +493,7 @@ count — nothing is ever concatenated — so **time**, not memory, is what grow
                        artifact_mask_p*.csv, sample_offsets.json
   mmc_output/          mapping_output.csv + diagnostic PNGs
   store/               <sample>.zarr   tables/table + points/molecules
-                       mapping.json, stats.json
+                       mapping.json, stats.json, qc.json, catalog.json
 ```
 
 **`sample_offsets.json` is the new load-bearing file.** The cells of every

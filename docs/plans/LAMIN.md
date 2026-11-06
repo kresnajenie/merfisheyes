@@ -52,10 +52,32 @@ fails:
 | `public` | the entry file (`zarr.json`, `manifest.json`, `manifest.json.gz`) answers on the public URL with CORS for www.merfisheyes.com; a store's `zarr.json` has consolidated metadata |
 | `lamin` | the entry file reads back through `Artifact.get(key=…).path` |
 
-Each record gets features `bil_code`, `data_format`, `dataset_kind`,
+Each artifact gets features `bil_code`, `data_format`, `dataset_kind`,
 `species`, `tissue`, `platform`, `investigator`, `n_cells`, `n_genes`,
-`n_molecules`, `pipeline_commit`, `viewer_url`, and the project `BIL`.
-Re-running is safe: same bytes return the same record, values are replaced.
+`n_molecules`, `pipeline_commit`, `viewer_url` (+ the QC ones below on a
+store), and the project `BIL`. Re-running is safe: same bytes return the same
+record, values are replaced.
+
+**One row per dataset in the record sheet "BIL datasets"** (`ln.Record`
+of that type, named by BIL code; checks `row` and `catalog`). Lamin fills
+nothing in by itself — not artifacts' features, not records: every value
+comes from a file the pipeline wrote on that run.
+
+| from | file (beside the store, synced with it) | written by | fields |
+|---|---|---|---|
+| the store | `stats.json` | `prepare.py`, `slices_to_points.py` | `n_cells`, `n_genes`, `n_molecules`, `pipeline_commit` |
+| QC | `qc.json` | `qc_store.sbatch` (`collect_dataset_stats.py --json`) | `n_sections`, `n_genes_detected`, `median_counts_per_cell`, `mask_percentile`, `pct_artifact`, `mmc_levels` |
+| catalog | `catalog.json` | `catalog_store.sbatch` (`catalog_entry.py`, BIL API) | `title`, `species`, `tissue`, `platform`, `investigator`, `institution`, `publication_year`, `license`, `bil_url` |
+| this script | — | `register_lamin.py` | `data_format`, `viewer_url`, `store` (the artifact the viewer opens), `artifacts` (all of them) |
+
+A sheet accepts only the features its schema lists, and a schema is found by
+its content: adding a column to `SHEET_COLUMNS` makes a new schema and the
+sheet is moved onto it, rows keep their values. `--catalog` is the fallback
+for a store with no `catalog.json`, and the only source for legacy folders.
+
+`build_bil_catalog.py` turns the `catalog.json` files back into
+`bil-completed.json` for the website, so Explore and Lamin are made from the
+same file.
 
 ```bash
 python register_lamin.py ace-dip-vat --catalog bil-completed.json          # SpatialData
@@ -73,9 +95,20 @@ On the cluster, `launch_spatialdata_pipeline.sh --sync --lamin` runs
    `s3://merfisheyes-bil/bil-psc-zarr/ace-dip-vat/` (3,034 files,
    9,383,391,282 B, identical to the local store) and registered; all four
    checks pass. Store artifact `RIeFAgjpb8WpQqpW0000`.
-2. **10–20 datasets** — legacy folders from `bil-psc-data2`, registered in
-   place, to exercise the catalog at more than one dataset. Gate: every
-   artifact passes every check.
+   Backfilled 2026-11-05 with `qc.json`, `catalog.json` and the first sheet
+   row.
+2. **10–20 datasets** — done 2026-11-05. The BIL servers being down, 13 samples rebuilt from
+   their legacy `bil-psc-data2` output (`reconstruct_inputs.py`:
+   raw-shaped inputs, the old MapMyCells labels, masked cells gone so
+   `--mask-percentile 0`) run through the new pipeline locally, synced to
+   `bil-psc-zarr` and registered — with `ace-dip-vat`, 14 datasets. The
+   rebuilt `ace-dip-vat` was not synced over the store made from its raw
+   data. Gate: every artifact and sheet row passes every check. Registering
+   the legacy folders in place stays possible (`--format legacy`) and needs
+   read access to `bil-psc-data2`. Result: 70 artifacts (5 per dataset) and
+   14 sheet rows, every check passing; ace-irk-shy is cells only (its legacy
+   output had no molecules) and the three ace-owl-* Xenium sets have no
+   cell-type labels.
 3. **The cluster env** — `~/merfisheyes_lamin_env` with lamindb on PSC,
    `lamin login`, then the first `--sync --lamin` run.
 4. **Open questions** — whether the app's `Dataset` table links to Lamin

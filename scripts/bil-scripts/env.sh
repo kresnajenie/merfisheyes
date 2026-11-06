@@ -29,6 +29,12 @@ MEYES_S3_REGION="${MEYES_S3_REGION:-us-west-2}"
 MEYES_LAMIN_INSTANCE="${MEYES_LAMIN_INSTANCE:-merfisheyes/eyes-catalog}"
 MEYES_LAMIN_PYTHON="${MEYES_LAMIN_PYTHON:-$HOME/merfisheyes_lamin_env/bin/python}"
 
+# Per-run metadata written beside each store and synced with it:
+# catalog.json (catalog_store.sbatch) falls back on this file when the BIL API
+# does not answer; qc.json (qc_store.sbatch) also lands as a row here.
+MEYES_BIL_CATALOG="${MEYES_BIL_CATALOG:-$MEYES_REPO/scripts/new-datasets/bil-completed.json}"
+MEYES_STATS_CSV="${MEYES_STATS_CSV:-$MEYES_BASE/_dataset_stats/dataset_stats.csv}"
+
 # MapMyCells references (14 GB, not in the image — bind-mounted / read in place)
 MEYES_REFERENCE="${MEYES_REFERENCE:-/bil/data/meyes/mapmycells-reference}"
 

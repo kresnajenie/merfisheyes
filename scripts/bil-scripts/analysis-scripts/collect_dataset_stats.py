@@ -402,7 +402,10 @@ def parse_args():
     p.add_argument("--datasets",        nargs="+", default=None,
                    help="dataset names to scrape (defaults to every sample_name "
                         "in --samples-csv if omitted)")
-    p.add_argument("--out",             required=True, help="dataset_stats.csv accumulator")
+    p.add_argument("--out",             default=None, help="dataset_stats.csv accumulator")
+    p.add_argument("--json",            default=None,
+                   help="also write the one dataset's row to this file (qc.json beside the "
+                        "store, which the pipeline syncs and register_lamin.py reads)")
     p.add_argument("--species",         default="")
     p.add_argument("--mask-percentile", type=int, default=25)
     p.add_argument("--h5ad",            default=None,
@@ -417,6 +420,8 @@ def parse_args():
 
 def main():
     args   = parse_args()
+    if not (args.out or args.json):
+        sys.exit("--out and/or --json is required")
     meyes_base = Path(args.meyes_base)
     now    = dt.datetime.now().isoformat(timespec="seconds")
 
@@ -449,6 +454,17 @@ def main():
 
     if not rows:
         sys.exit("Nothing to write — no datasets produced usable rows.")
+
+    if args.json:
+        if len(rows) != 1:
+            sys.exit(f"--json takes one dataset, got {len(rows)}")
+        row = {k: (None if v is pd.NA or (isinstance(v, float) and np.isnan(v))
+                   else v.item() if isinstance(v, np.generic) else v)
+               for k, v in rows[0].items()}
+        Path(args.json).write_text(json.dumps(row, indent=2) + "\n")
+        print(f"Wrote {args.json}")
+    if not args.out:
+        return
 
     ds = _merge_write(Path(args.out).expanduser(),
                       pd.DataFrame(rows), DATASET_BASE_ORDER, ["dataset"])

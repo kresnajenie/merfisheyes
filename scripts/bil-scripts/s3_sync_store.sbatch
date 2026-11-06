@@ -13,9 +13,9 @@
 #
 #   sbatch s3_sync_store.sbatch <sample_name> <store_dir>
 #
-# <store_dir> is the folder holding <name>.zarr, mapping.json and
-# stats.json: all three go up, because the viewer needs the store and the
-# catalog needs the sidecars.
+# <store_dir> is the folder holding <name>.zarr, mapping.json, stats.json,
+# qc.json and catalog.json: all of it goes up, because the viewer needs the
+# store and the catalog (Lamin, the website) needs the sidecars.
 #
 # A store is tens of thousands of small files, so concurrency matters far
 # more than chunk size. Set through the environment, never with

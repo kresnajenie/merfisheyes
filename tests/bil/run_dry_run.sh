@@ -12,17 +12,20 @@
 #   prepare   the combined cells -> one SpatialData store
 #   points    every slice's molecules -> points/molecules of that same store
 #   validate  the store, by the same gate the viewer applies
+#   qc        this run's QC numbers -> store/qc.json   (qc_store.sbatch)
+#   catalog   the BIL catalog entry -> store/catalog.json (catalog_store.sbatch)
 #
 # Usage:
 #   tests/bil/run_dry_run.sh INPUT OUT NAME [--labels mapping_output.csv]
 #                                           [--reference DIR --species mouse]
 #                                           [--method correlation|hierarchical]
 #                                           [--mask-percentile N]   (0 = none)
-#                                           [--skip-combine]
+#                                           [--skip-combine] [--bil-code CODE]
 #
 #   INPUT   the sample folder holding the slices (read only)
 #   OUT     where everything is written (never inside INPUT)
 #   NAME    the store's name, OUT/store/NAME.zarr
+#   CODE    the BIL code for qc.json and catalog.json (default: OUT's folder name)
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -32,7 +35,7 @@ if [ $# -lt 3 ]; then
 fi
 
 INPUT="$1"; OUT="$2"; NAME="$3"; shift 3
-LABELS=""; REFERENCE=""; SPECIES="mouse"; SKIP_COMBINE=false; METHOD="correlation"; MASK_PCT=25
+BIL_CODE=""; LABELS=""; REFERENCE=""; SPECIES="mouse"; SKIP_COMBINE=false; METHOD="correlation"; MASK_PCT=25
 while [ $# -gt 0 ]; do
     case "$1" in
         --labels)    LABELS="$2"; shift 2 ;;
@@ -41,6 +44,7 @@ while [ $# -gt 0 ]; do
         --method)    METHOD="$2"; shift 2 ;;
         --mask-percentile) MASK_PCT="$2"; shift 2 ;;
         --skip-combine) SKIP_COMBINE=true; shift ;;
+        --bil-code)  BIL_CODE="$2"; shift 2 ;;
         *) echo "unknown option: $1"; exit 1 ;;
     esac
 done
@@ -98,6 +102,21 @@ $PY -I "${ROOT}/scripts/slices_to_points.py" "$COMBINED" "$STORE"
 
 stage "6/6 validate"
 $PY -I "${ROOT}/scripts/validate_store.py" "$STORE"
+
+# The metadata every run writes beside the store (synced with it on the cluster).
+# qc reads <base>/<code>/{combined_output,mmc_output}, so OUT is <base>/<code>.
+OUT_ABS="$(cd "$OUT" && pwd)"
+BIL_CODE="${BIL_CODE:-$(basename "$OUT_ABS")}"
+if [ -n "$LABELS" ] && [ ! -f "${MMC}/mapping_output.csv" ]; then
+    mkdir -p "$MMC" && ln -sf "$(cd "$(dirname "$LABELS")" && pwd)/$(basename "$LABELS")" "${MMC}/mapping_output.csv"
+fi
+stage "+ qc -> qc.json"
+$PY -I "${ROOT}/scripts/bil-scripts/analysis-scripts/collect_dataset_stats.py" \
+    --datasets "$(basename "$OUT_ABS")" --meyes-base "$(dirname "$OUT_ABS")" \
+    --species "$SPECIES" --mask-percentile "$MASK_PCT" --json "${STORE_DIR}/qc.json"
+stage "+ catalog -> catalog.json"
+$PY -I "${ROOT}/scripts/bil-scripts/catalog_entry.py" "$BIL_CODE" "$STORE_DIR" \
+    ${MEYES_BIL_CATALOG:+--catalog "$MEYES_BIL_CATALOG"}
 
 echo
 echo "============================================"

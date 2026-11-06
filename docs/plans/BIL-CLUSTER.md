@@ -45,7 +45,7 @@ per million molecules against the old processor's ~0.11. Beaumont set1 —
 | **A cluster runner** | Nothing. The BIL pipeline is still `scripts/bil-scripts/`: 6 bash launchers, 10 `.sbatch`, 5 inline `--wrap`, no SLURM arrays, **no state or resume**, S3 sync logic in 4 shapes, hard-coded personal paths. |
 | **Python ≥ 3.12** | BIL's venv is built on the `python/3.10.2` module (`bil-scripts/SETUP.md:5-29`). ⚠ **The pinned stack cannot run in `~/merfisheyes_env` as it stands** — verify in Step 0. |
 | **Billion-scale molecule builds** | §1.4 below. |
-| **Fleet-level publishing** | 87 BIL items currently expand to **446 catalog entries, 361 of them one-per-section**; `scripts/new-datasets/bil-completed*.json` is hand-maintained. |
+| **Fleet-level publishing** | 87 BIL items currently expand to **446 catalog entries, 361 of them one-per-section**; `scripts/new-datasets/bil-completed*.json` was hand-maintained; since 2026-11-05 every run writes its item as `catalog.json` beside the store and `build_bil_catalog.py` gathers them ([LAMIN.md](LAMIN.md)). |
 
 ### 1.3 The BIL pipeline's working state is scattered across unmerged branches
 
@@ -326,9 +326,10 @@ chain theirs.
 | `prepare_store.sbatch` | combined cells → store, with every label CSV merged |
 | `slices_to_points.sbatch` | every slice's molecules → that store |
 | `validate_store.sbatch` | the gate: non-zero exit, nothing syncs |
+| `qc_store.sbatch` / `catalog_store.sbatch` | this run's `qc.json` and `catalog.json` beside the store; sync waits for both |
 | `s3_sync_store.sbatch` | the store → `s3://merfisheyes-bil/bil-psc-zarr/<sample>/` |
 | `register_lamin.sbatch` | that S3 path → a checked record in `merfisheyes/eyes-catalog` (`--lamin`; [LAMIN.md](LAMIN.md)) |
-| `launch_spatialdata_pipeline.sh` | combine → mask → annotate → prepare → points → validate → sync |
+| `launch_spatialdata_pipeline.sh` | combine → mask → annotate → prepare → (points → validate ∥ qc ∥ catalog) → sync → lamin |
 
 **Stores go to the `bil-psc-zarr/` folder of `merfisheyes-bil`**
 (`MEYES_S3_BUCKET` + `MEYES_S3_PREFIX` in `env.sh`), beside the legacy

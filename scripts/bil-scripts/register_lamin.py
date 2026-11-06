@@ -14,6 +14,7 @@ Lamin record names are the same files.
 Layout, per format (both under s3://<bucket>/<prefix>/<sample>/):
 
   spatialdata  <name>.zarr  stats.json  mapping.json        prefix bil-psc-zarr
+               qc.json  catalog.json   (written by the pipeline on every run)
   legacy       meyes_output/            (cells, chunked)    prefix bil-psc-data2
                sm_output/<sample_id>/   (molecules, one per slice)
 
@@ -26,6 +27,12 @@ Each artifact is checked after it is saved (and only checked with --check-only):
   listing  a fresh S3 listing has the file count and bytes the record holds
   public   the entry file answers on the public HTTPS URL, with CORS for the app
   lamin    the entry file reads back through Artifact.get(key=...).path
+
+Each sample also gets one row in the record sheet "BIL datasets" (an
+ln.Record of that type, named by its BIL code): the catalog entry, the counts,
+the QC numbers and links to every artifact registered above. For a SpatialData
+store the catalog entry is its own catalog.json; --catalog is the fallback
+(and, for legacy folders, the only source).
 
 Exit 0 when every check passed, 1 when any failed, 2 on bad arguments.
 Needs: lamindb (`lamin login` once), and AWS credentials that can list the
@@ -51,6 +58,7 @@ PREFIX = {"spatialdata": "bil-psc-zarr", "legacy": "bil-psc-data2"}
 APP = "https://www.merfisheyes.com"
 CORS_ORIGIN = APP
 PROJECT = "BIL"
+SHEET = "BIL datasets"
 
 # name -> dtype. Kept flat and free-text for now; species/tissue can move to
 # bionty ontologies once the catalog settles.
@@ -67,7 +75,33 @@ FEATURES = {
     "n_molecules": int,
     "pipeline_commit": str,
     "viewer_url": str,
+    # qc.json (collect_dataset_stats.py, every run)
+    "n_sections": int,
+    "n_genes_detected": int,
+    "median_counts_per_cell": float,
+    "mask_percentile": int,
+    "pct_artifact": float,
+    "mmc_levels": str,
+    # catalog.json (catalog_entry.py, every run) — on the sheet row
+    "title": str,
+    "institution": str,
+    "publication_year": str,
+    "license": str,
+    "bil_url": str,
+    "store": ln.Artifact,           # what the viewer opens
+    "artifacts": list[ln.Artifact],  # everything registered for the dataset
 }
+# The sheet's columns, in order; bil_code is its index (the row's name).
+SHEET_COLUMNS = ["title", "species", "tissue", "platform", "investigator", "institution",
+                 "publication_year", "license", "bil_url", "data_format",
+                 "n_cells", "n_genes", "n_molecules", "n_sections", "n_genes_detected",
+                 "median_counts_per_cell", "mask_percentile", "pct_artifact", "mmc_levels",
+                 "pipeline_commit", "viewer_url", "store", "artifacts"]
+# from qc.json key -> feature
+QC_FEATURES = {"n_samples": "n_sections", "n_genes_detected": "n_genes_detected",
+               "median_counts_per_cell": "median_counts_per_cell",
+               "mask_percentile": "mask_percentile", "pct_artifact": "pct_artifact",
+               "mmc_levels": "mmc_levels"}
 
 
 @dataclass
@@ -123,8 +157,14 @@ def plan_spatialdata(sample: str, prefix: str, meta: dict) -> list[Item]:
     stats = read_json(https(prefix, f"{sample}/stats.json"))
     if stats is None:
         raise SystemExit(f"{sample}: no stats.json at {https(prefix, sample + '/stats.json')}")
+    # The pipeline's own catalog entry wins over --catalog: it is this run's
+    catalog = read_json(https(prefix, f"{sample}/catalog.json"))
+    if catalog:
+        meta.update({k: v for k, v in catalog.items() if v})
+    qc = read_json(https(prefix, f"{sample}/qc.json")) or {}
     store = stats["store"]
     values = {
+        **{f: qc[k] for k, f in QC_FEATURES.items() if qc.get(k) is not None},
         "data_format": "spatialdata",
         "n_cells": stats.get("cells"),
         "n_genes": stats.get("genes"),
@@ -134,7 +174,9 @@ def plan_spatialdata(sample: str, prefix: str, meta: dict) -> list[Item]:
     desc = (f"{meta.get('title') or sample} — SpatialData store, {stats['cells']:,} cells, "
             f"{stats['genes']} genes, {stats.get('molecules') or 0:,} molecules")
     items = [Item(f"{sample}/{store}", "single_cell", "zarr.json", "spatialdata-viewer", values, desc)]
-    for name in ("stats.json", "mapping.json"):
+    sidecars = ["stats.json", "mapping.json"]
+    sidecars += [n for n, got in (("qc.json", qc), ("catalog.json", catalog)) if got]
+    for name in sidecars:
         items.append(Item(f"{sample}/{name}", "sidecar", None, None,
                           {"data_format": "spatialdata"}, f"{sample} {name}"))
     return items
@@ -190,6 +232,67 @@ def ensure_features() -> None:
 
 def ensure_project():
     return ln.Project.filter(name=PROJECT).one_or_none() or ln.Project(name=PROJECT).save()
+
+
+def ensure_sheet():
+    """The "BIL datasets" sheet, its schema widened when SHEET_COLUMNS grew.
+
+    A sheet only takes the features its schema lists, and a schema is found by
+    its content — so the same columns give back the same schema, and new
+    columns give a new one the sheet is moved to; its rows keep their values.
+    """
+    feats = {f.name: f for f in ln.Feature.filter(name__in=["bil_code", *SHEET_COLUMNS])}
+    schema = ln.Schema([feats[n].with_config(optional=True) for n in SHEET_COLUMNS],
+                       index=feats["bil_code"]).save()
+    sheet = ln.Record.filter(name=SHEET, is_type=True).one_or_none()
+    if sheet is None:
+        return ln.Record(name=SHEET, is_type=True, schema=schema,
+                         description="One row per BIL dataset MERFISHEYES serves").save()
+    if sheet.schema_id != schema.id:
+        sheet.schema = schema
+        sheet.save()
+    return sheet
+
+
+def upsert_row(sheet, sample: str, meta: dict, values: dict, artifacts: list, store) -> ln.Record:
+    md = meta.get("metadata") or {}
+    row = {
+        "bil_code": sample,
+        "title": meta.get("title"),
+        "species": meta.get("species"),
+        "tissue": meta.get("tissue"),
+        "platform": meta.get("platform"),
+        "investigator": md.get("investigator"),
+        "institution": md.get("institution"),
+        "publication_year": md.get("publicationYear"),
+        "license": md.get("license"),
+        "bil_url": meta.get("externalLink"),
+        **{k: v for k, v in values.items() if k in SHEET_COLUMNS},
+        "store": store,
+        "artifacts": artifacts,
+    }
+    row = {k: v for k, v in row.items() if v not in (None, "", [])}
+    rec = ln.Record.filter(name=sample, type=sheet).one_or_none()
+    if rec is None:
+        return ln.Record(type=sheet, features=row).save()
+    rec.features.set_values(row)   # replaces: a re-run updates the row, never adds one
+    return rec
+
+
+def dataset_values(plan: list[Item]) -> dict:
+    """The row's numbers: the cell item's, with molecules summed over the slices."""
+    out: dict = {}
+    for it in plan:
+        if it.kind == "single_cell":
+            out.update(it.values)
+            if it.viewer:
+                out.setdefault("_viewer", it)
+    mols = [it.values.get("n_molecules") for it in plan if it.kind == "single_molecule"]
+    if any(m is not None for m in mols):
+        out["n_molecules"] = sum(m or 0 for m in mols)
+    if "data_format" not in out and plan:
+        out["data_format"] = plan[0].values.get("data_format")
+    return out
 
 
 def register(item: Item, root: str, prefix: str, sample: str, meta: dict, project) -> ln.Artifact:
@@ -265,6 +368,41 @@ def check(item: Item, root: str, prefix: str, res: Result) -> None:
         res.checks["lamin"] = f"failed: {e}"
 
 
+def sheet_row(sample, meta, plan, saved, sheet, writing, root, prefix) -> Result:
+    """Write (unless only checking) and check the sample's row in the sheet."""
+    res = Result(sample, f"{SHEET}/{sample}")
+    if writing:
+        values = dataset_values(plan)
+        main_item = values.pop("_viewer", None)
+        if main_item:
+            url = https(prefix, main_item.rel) + ("/" if main_item.entry == "manifest.json" else "")
+            values["viewer_url"] = viewer_url(main_item.viewer, url)
+        store = next((af for it, af in saved if it is main_item), None)
+        try:
+            upsert_row(sheet, sample, meta, values, [af for _, af in saved], store)
+        except Exception as e:
+            res.checks["row"] = f"failed: {type(e).__name__}: {e}"
+            return res
+    rec = ln.Record.filter(name=sample, type=sheet).one_or_none() if sheet else None
+    if rec is None:
+        res.checks["row"] = "no row"
+        return res
+    got = rec.features.get_values()
+    keys = {it.rel for it in plan}
+    linked = {a.key for a in rec.linked_artifacts.all()} if hasattr(rec, "linked_artifacts") else set()
+    have = set(got.get("artifacts") or []) | linked
+    res.uid = rec.uid
+    res.checks["row"] = "ok" if got.get("store") and keys <= have else \
+        f"store={got.get('store')} missing links: {sorted(keys - have)}"
+    res.checks["catalog"] = "ok" if got.get("title") else "no title (no catalog.json / --catalog entry)"
+    print(f"  row  {SHEET} / {sample}  {rec.uid}  " +
+          "  ".join(f"{k}={'ok' if v == 'ok' else 'FAIL'}" for k, v in res.checks.items()))
+    for k, v in res.checks.items():
+        if v != "ok":
+            print(f"      {k}: {v}")
+    return res
+
+
 def main() -> int:
     global BUCKET, REGION
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -298,12 +436,16 @@ def main() -> int:
     if writing:
         ensure_features()
         project = ensure_project()
+        sheet = ensure_sheet()
+    else:
+        sheet = ln.Record.filter(name=SHEET, is_type=True).one_or_none()
 
     results: list[Result] = []
     for sample in args.samples:
         meta = catalog.get(sample, {})
         plan = (plan_spatialdata if args.format == "spatialdata" else plan_legacy)(sample, prefix, meta)
         print(f"\n{sample}: {len(plan)} artifact(s)")
+        saved: list = []
         for item in plan:
             print(f"  {item.kind:15} {item.rel}")
             res = Result(sample, item.rel)
@@ -312,7 +454,7 @@ def main() -> int:
                 continue
             if writing:
                 try:
-                    register(item, root, prefix, sample, meta, project)
+                    saved.append((item, register(item, root, prefix, sample, meta, project)))
                 except Exception as e:
                     res.checks["register"] = f"failed: {type(e).__name__}: {e}"
                     results.append(res)
@@ -324,11 +466,14 @@ def main() -> int:
             for k, v in res.checks.items():
                 if v != "ok":
                     print(f"      {k}: {v}")
+        if args.dry_run:
+            continue
+        results.append(sheet_row(sample, meta, plan, saved, sheet, writing, root, prefix))
 
     if args.dry_run:
         return 0
     bad = [r for r in results if not r.ok]
-    print(f"\n{len(results) - len(bad)}/{len(results)} artifacts passed every check")
+    print(f"\n{len(results) - len(bad)}/{len(results)} artifacts and sheet rows passed every check")
     for r in bad:
         print(f"  FAIL {r.key}: " + "; ".join(f"{k}: {v}" for k, v in r.checks.items() if v != "ok"))
     return 1 if bad else 0

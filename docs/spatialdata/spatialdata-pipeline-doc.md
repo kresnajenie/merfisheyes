@@ -73,6 +73,9 @@ Everything lives in `scripts/`; the cluster wrappers in `scripts/bil-scripts/`.
 | `prepare.py` | a table → a store | the one entry point, also used by the web app's server. Recognises h5ad, Xenium, MERSCOPE, Visium, a molecule table, or a folder of parts, **by content** |
 | `slices_to_points.py` | every slice's molecules → `points/molecules` | reads `sample_offsets.json`; shifts each slice onto the cells' frame; refreshes `stats.json` |
 | `validate_store.py` | the gate | applies the same rules the viewer applies; non-zero exit means do not publish |
+| `bil-scripts/analysis-scripts/collect_dataset_stats.py --json` | this run's QC → `qc.json` | sections, counts per cell, genes detected, artifact-mask counts, MapMyCells types per level; also a row of the fleet CSV |
+| `bil-scripts/catalog_entry.py` | the catalog entry → `catalog.json` | one `bil-completed.json` item, from the BIL API (fallback: `$MEYES_BIL_CATALOG`, then `bil-merfish-datasets.csv`) |
+| `bil-scripts/build_bil_catalog.py` | `catalog.json` files → `bil-completed.json` | merges into an existing file by `bilCode`, keeping the website's own flags |
 
 ### The cluster wrappers
 
@@ -84,7 +87,9 @@ Everything lives in `scripts/`; the cluster wrappers in `scripts/bil-scripts/`.
 | `prepare_store.sbatch` | stage 4 |
 | `slices_to_points.sbatch` | stage 5 |
 | `validate_store.sbatch` | stage 6 |
-| `s3_sync_store.sbatch` | stage 7 |
+| `qc_store.sbatch`, `catalog_store.sbatch` | beside stages 5–6, after prepare: `qc.json` and `catalog.json` in `store/` |
+| `s3_sync_store.sbatch` | stage 7, after validate, qc and catalog |
+| `register_lamin.sbatch` | `--lamin`: the synced store → checked artifacts and a row in the "BIL datasets" sheet |
 | **`launch_spatialdata_pipeline.sh`** | **chains all seven** with `--dependency=afterok` |
 
 ### Testing
@@ -246,6 +251,8 @@ All in `env.sh`, overridable from the environment:
     <sample>.zarr            THE OUTPUT
     mapping.json             names the store
     stats.json               cells, genes, molecules, versions
+    qc.json                  this run's QC row (qc_store.sbatch)
+    catalog.json             this dataset's catalog item (catalog_store.sbatch)
 ```
 
 **Only `store/` is synced.** The bucket holds one folder per dataset.
