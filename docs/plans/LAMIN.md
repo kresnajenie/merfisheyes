@@ -9,6 +9,10 @@ them by URL; Lamin is the record of them. This is the reverse of
 Keep this file current: a step that changes a fact or a decision edits it
 in the same commit.
 
+Lamin work is part of the BIL pipeline and happens on **`bil/pipeline-dry-run`**
+(the `lamin/exploration` branch it started on was merged there and deleted,
+2026-11-06).
+
 ## 1. Facts (2026-11-05)
 
 - **Instance** `merfisheyes/eyes-catalog`, Postgres, lamindb 2.12.2,
