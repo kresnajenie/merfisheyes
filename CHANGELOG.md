@@ -8,6 +8,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-07
+
 ### Fixed
 
 - **Images whose NGFF metadata sits at the top of `attributes` now open.** A
@@ -21,6 +23,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   reaches past it. The validator says so rather than failing. We still write
   only 0.5. `docs/specs/image-profile.md` lists which layouts are read;
   `docs/plans/OME-ZARR-COMPAT.md` has the background and the measurements.
+- **A server upload keeps such an image.** The worker used to accept the
+  folder and silently leave the image out of the store. It now keeps it and
+  writes it in the 0.5 layout. The worker image is built from this release
+  (pipeline version `8bae2f8`).
 
 ## [0.15.0] - 2026-10-29
 
@@ -1028,7 +1034,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...v0.13.0
