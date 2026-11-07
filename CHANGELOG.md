@@ -8,6 +8,20 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Images whose NGFF metadata sits at the top of `attributes` now open.** A
+  Zarr v3 image written with OME-NGFF 0.4-style attributes (`multiscales` and
+  `omero` beside each other, with no `ome` wrapper) was refused — the layout
+  older versions of `ome-zarr-py` wrote, and still read. Some readers already
+  accepted it and others did not, so such a store could load halfway: its
+  placement was read while its pixels were refused. Every reader now goes
+  through one rule — `lib/spatialdata/ome.ts` in the viewer,
+  `validate_store.ome_attrs` in the scripts — and a test fails if a new reader
+  reaches past it. The validator says so rather than failing. We still write
+  only 0.5. `docs/specs/image-profile.md` lists which layouts are read;
+  `docs/plans/OME-ZARR-COMPAT.md` has the background and the measurements.
+
 ## [0.15.0] - 2026-10-29
 
 ### Added

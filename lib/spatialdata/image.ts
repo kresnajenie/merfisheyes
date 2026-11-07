@@ -5,6 +5,7 @@ import * as zarr from "zarrita-v3";
 
 import { elementNames, findZarrRoot, publicUrlStore } from "./store";
 import { fileStore } from "./localStore";
+import { axisNames, omeAttrs } from "./ome";
 import {
   type Map2,
   IDENTITY,
@@ -200,12 +201,12 @@ async function readMultiscale(
   group: zarr.Group<zarr.Readable>,
   placement: Map2 = IDENTITY,
 ): Promise<SpatialDataImage> {
-  const ome = group.attrs.ome as any;
+  const ome = omeAttrs(group.attrs);
   const multiscale = ome.multiscales[0];
-  const axisNames = multiscale.axes.map((a: { name: string }) => a.name);
+  const axes = axisNames(multiscale);
 
-  if (axisNames.join("") !== "cyx") {
-    throw new Error(`Unsupported image axes: ${axisNames.join(", ")}`);
+  if (axes !== "cyx") {
+    throw new Error(`Unsupported image axes: ${[...axes].join(", ")}`);
   }
 
   const levels: ImageLevel[] = [];
@@ -220,7 +221,7 @@ async function readMultiscale(
     }
     // Level pixel index → image units (a level's own transforms are a
     // scale and a translation: pixels of a coarser level are larger)
-    const t = chain(dataset.coordinateTransformations ?? [], axisNames);
+    const t = chain(dataset.coordinateTransformations ?? [], [...axes]);
 
     levels.push({
       array,

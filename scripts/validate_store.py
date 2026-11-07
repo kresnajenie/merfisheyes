@@ -290,14 +290,39 @@ def check_shapes(store, name: str, r: Report):
         r.warn(where, f"not a name the viewer draws as outlines ({', '.join(outlines)})")
 
 
+def ome_attrs(attrs: dict | None) -> dict:
+    """An image group's NGFF metadata, wherever the writer put it.
+
+    0.5 nests it under `ome`; some writers leave 0.4-style attributes
+    (`multiscales`, `omero`) at the top of a Zarr v3 group's attributes. Both
+    are read, only 0.5 is written — docs/specs/image-profile.md, and
+    lib/spatialdata/ome.ts for the viewer's copy of this rule.
+    """
+    attrs = attrs or {}
+
+    return attrs.get("ome", attrs)
+
+
+def image_multiscale(attrs: dict | None) -> dict:
+    """`multiscales[0]` of an image group, or `{}`."""
+    return (ome_attrs(attrs).get("multiscales") or [{}])[0]
+
+
 def check_image(store, name: str, r: Report):
     where = f"images/{name}"
     g = node(store, where)
-    ome = (g or {}).get("attributes", {}).get("ome", {})
+    attrs = (g or {}).get("attributes", {})
+    ome = ome_attrs(attrs)
     ms = (ome.get("multiscales") or [None])[0]
     if not ms:
         r.fail(where, "no ome.multiscales")
         return
+    if "ome" not in attrs:
+        r.warn(
+            where,
+            f"NGFF {ms.get('version')} metadata at the top of `attributes`, not "
+            "under `ome`, in a Zarr v3 group: read, but 0.5 nests it under `ome`",
+        )
     axes = [a.get("name") for a in ms.get("axes", [])]
     if axes != ["c", "y", "x"]:
         r.fail(where, f"axes {axes}, not c, y, x")
