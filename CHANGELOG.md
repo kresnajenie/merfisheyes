@@ -8,6 +8,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-08
+
 ### Added
 
 - **Keyboard shortcuts for what the scene draws.** `C` cells, `M` molecules,
@@ -30,6 +32,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **Transcripts and cells scale together when you zoom in (#196).** In the 2D
+  view, transcripts were drawn at their own height above or below the cells,
+  so zoomed in they grew faster than the cells, drifted off them, and those
+  below the cells were hidden. Every dot also stopped growing at 200 px, so
+  whichever layer was larger stopped first. In 2D, transcripts are now drawn
+  on the cells' plane and on top of them, and dots keep growing with the
+  zoom; the 3D view still shows each transcript's height.
 - **A dropped `.h5ad` can have an overlay checked over it.** Molecules could
   be drawn over a folder of already-processed parts to see they line up, but
   not over a plain `.h5ad` — the button was missing, because only the folder
@@ -1063,7 +1072,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...v0.14.0
