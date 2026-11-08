@@ -529,6 +529,7 @@ export class MoleculeLayer extends BaseLayer {
       this.colorOf(viz, kind),
       this.dotSize(viz, kind),
       this.shapeOf(viz, kind),
+      this.flatZ,
     );
 
     load.cloud = cloud;
@@ -610,6 +611,7 @@ export class MoleculeLayer extends BaseLayer {
         this.colorOf(viz, kind),
         this.dotSize(viz, kind),
         this.shapeOf(viz, kind),
+        this.flatZ,
       );
 
       this.place(key, cloud);

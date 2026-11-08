@@ -247,8 +247,16 @@ function mount(
   dataset: SingleMoleculeDataset,
   parent: THREE.Group,
   options?: MoleculeLayerOptions,
+  flat = false,
 ): MoleculeLayer {
   const layer = new MoleculeLayer(dataset, options);
+
+  layer.attach(sceneOf(parent, flat));
+
+  return layer;
+}
+
+function sceneOf(parent: THREE.Group, flat = false): SceneHandle {
   const scene: SceneHandle = {
     group: parent,
     camera: new THREE.PerspectiveCamera(),
@@ -260,11 +268,10 @@ function mount(
 
       return () => l.detach();
     },
+    flat,
   };
 
-  layer.attach(scene);
-
-  return layer;
+  return scene;
 }
 
 /** The onClose handler the layer gave a gene's loading toast. */
@@ -616,5 +623,43 @@ describe("MoleculeLayer: streamed loads", () => {
     // A disposed layer draws nothing more.
     await layer.sync(selection([viz("a")]));
     expect(parent.children.length).toBe(0);
+  });
+});
+
+describe("MoleculeLayer: the 2D view (#196)", () => {
+  const flatZ = (cloud: THREE.Points) =>
+    (cloud.material as THREE.ShaderMaterial).uniforms.uFlatZ.value;
+
+  it("draws whole and streamed genes on the data plane in a flat scene", async () => {
+    const ds = new FakeDataset(
+      { a: { assigned: 10 }, b: { assigned: BIG } },
+      { streaming: true },
+    );
+    const layer = mount(ds.asDataset(), new THREE.Group(), {}, true);
+
+    await layer.sync(selection([viz("a"), viz("b")]));
+
+    expect(flatZ(layer.pointClouds.get("a:assigned")!)).toBe(1);
+    expect(flatZ(layer.pointClouds.get("b:assigned")!)).toBe(1);
+    layer.dispose();
+  });
+
+  it("keeps molecules at their z in 3D, and follows the scene it joins", async () => {
+    const ds = new FakeDataset({ a: { assigned: 10 } }, { streaming: true });
+    const parent = new THREE.Group();
+    const layer = mount(ds.asDataset(), parent);
+
+    await layer.sync(selection([viz("a")]));
+    const cloud = layer.pointClouds.get("a:assigned")!;
+
+    expect(flatZ(cloud)).toBe(0);
+    // Switching 3D -> 2D rebuilds the scene and attaches the layer again;
+    // the clouds already drawn flatten without being rebuilt
+    layer.attach(sceneOf(parent, true));
+    expect(layer.pointClouds.get("a:assigned")).toBe(cloud);
+    expect(flatZ(cloud)).toBe(1);
+    layer.attach(sceneOf(parent, false));
+    expect(flatZ(cloud)).toBe(0);
+    layer.dispose();
   });
 });

@@ -16,7 +16,7 @@ import { LayerHost } from "@/lib/scene/LayerHost";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-function scene() {
+function scene(flat = false) {
   const group = new THREE.Group();
   const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
 
@@ -28,7 +28,10 @@ function scene() {
     domElement: { width: 800, height: 600 },
   } as unknown as THREE.WebGLRenderer;
 
-  return { group, host: new LayerHost(group, camera, renderer, vi.fn()) };
+  return {
+    group,
+    host: new LayerHost(group, camera, renderer, vi.fn(), undefined, flat),
+  };
 }
 
 // One gene, 100 molecules over four tiles; every third one in no cell
@@ -184,5 +187,34 @@ describe("a points element's molecules in no cell", () => {
     expect(drawn(group).has("#00ff00")).toBe(false);
     expect(reads.unassigned).toBe(0);
     layer.dispose();
+  });
+});
+
+describe("a points element in the 2D view (#196)", () => {
+  /** uFlatZ of every molecule cloud drawn, assigned and in no cell alike. */
+  function flatZ(group: THREE.Group) {
+    const values = new Set<number>();
+
+    group.traverse((o) => {
+      if (o instanceof THREE.Points) {
+        values.add((o.material as THREE.ShaderMaterial).uniforms.uFlatZ.value);
+      }
+    });
+
+    return values;
+  }
+
+  it("is drawn on the data plane, and at its z in 3D", async () => {
+    for (const flat of [true, false]) {
+      const { group, host } = scene(flat);
+      const layer = new PointsLayer(element(true).el);
+
+      host.attach(layer);
+      layer.setGenes(new Map([["Gene", style()]]));
+      await settle(host);
+      expect(drawn(group).size).toBe(2);
+      expect(flatZ(group)).toEqual(new Set([flat ? 1 : 0]));
+      layer.dispose();
+    }
   });
 });
