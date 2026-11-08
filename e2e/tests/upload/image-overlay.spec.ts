@@ -159,9 +159,9 @@ test.describe("@upload image overlay", () => {
       await page.locator(SELECTORS.overlayButton).click();
       await page.getByLabel("Image URL").fill(`${server.url}/missing.zarr`);
       await page.getByRole("button", { name: "Add", exact: true }).click();
-      await expect(
-        page.getByText("Couldn't read an image at that URL"),
-      ).toBeVisible();
+      // The link is resolved before it is opened now (an image, or the image
+      // inside a store), so nothing readable there is what it reports
+      await expect(page.getByText("No OME-Zarr image there")).toBeVisible();
       expect((await stored()).image).toBe(image);
 
       await page.getByLabel("Image URL").fill(second);

@@ -188,6 +188,15 @@ export default function ViewerPage() {
             ],
             ["Select a cell type", "Double-click one of its cells"],
             ["Hide the controls for a screenshot", "Press H"],
+            [
+              "Show or hide a layer",
+              "Press C for cells, M for molecules, I for the image, P for cell polygons",
+            ],
+            ["See every shortcut", "Press ?"],
+            [
+              "Recolour several cell types or genes at once",
+              "Shift- or ⌘-click their chips in the legend, then pick one colour, Spread or Shuffle",
+            ],
           ]}
         />
       </DocSection>

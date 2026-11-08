@@ -13,6 +13,8 @@ import {
 } from "@/lib/hooks/usePanelStores";
 import { GeneScalebar } from "@/components/gene-scalebar";
 import { ChannelScalebar } from "@/components/channel-scalebar";
+import { LegendColorActions } from "@/components/legend-color-actions";
+import { useLegendSelection } from "@/lib/hooks/useLegendSelection";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
 import {
   ColorPicker,
@@ -195,6 +197,17 @@ export const VisualizationLegends: React.FC<VisualizationLegendsProps> = ({
   // Don't render if nothing is selected
   const hasGene = !!selectedGene;
   const hasCelltypes = selectedCelltypes.size > 0;
+  // The chips in the order they are drawn, which is what a shift range
+  // means (lib/hooks/useLegendSelection.ts)
+  const celltypeList = useMemo(
+    () => Array.from(selectedCelltypes),
+    [selectedCelltypes],
+  );
+  const {
+    selected: picked,
+    onChipClick,
+    clear: clearPicked,
+  } = useLegendSelection(celltypeList);
   const showScalebar =
     (mode.includes("gene") && selectedGene) ||
     (mode.includes("celltype") &&
@@ -341,10 +354,17 @@ export const VisualizationLegends: React.FC<VisualizationLegendsProps> = ({
             {selectedColumn || "Celltypes"} ({selectedCelltypes.size}) - Clear
             All
           </div>
+          <LegendColorActions
+            apply={handleClusterColorChange}
+            selected={celltypeList.filter((c) => picked.has(c))}
+            taken={Object.values(storeColorPalette)}
+            onDone={clearPicked}
+          />
           <div className="flex flex-col items-end gap-2 px-3 py-1">
             {Array.from(selectedCelltypes).map((celltype) => {
               const color = storeColorPalette[celltype] || "#888888";
               const hidden = hiddenCelltypes.has(celltype);
+              const isPicked = picked.has(celltype);
 
               return (
                 <Popover
@@ -356,17 +376,25 @@ export const VisualizationLegends: React.FC<VisualizationLegendsProps> = ({
                 >
                   <PopoverTrigger>
                     <div
-                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer hover:scale-105 hover:ring-2 hover:ring-white/60"
+                      className={`group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer hover:scale-105 hover:ring-2 hover:ring-white/60 ${
+                        isPicked ? "ring-2 ring-white" : ""
+                      }`}
+                      data-testid="celltype-chip"
                       style={{
                         backgroundColor: color,
                         opacity: hidden ? 0.4 : 1,
                       }}
                       title={
                         hasDeStats
-                          ? "Right-click to rank DEGs for this celltype"
-                          : undefined
+                          ? "Shift- or \u2318-click to pick several; right-click to rank DEGs for this celltype"
+                          : "Shift- or \u2318-click to pick several"
                       }
-                      onClick={() => setOpenPopoverCelltype(celltype)}
+                      onClick={(e) => {
+                        // Shift / \u2318 pick several chips to recolour at once;
+                        // a plain click opens this chip's own picker
+                        if (onChipClick(celltype, e)) return;
+                        setOpenPopoverCelltype(celltype);
+                      }}
                       onContextMenu={(e) => {
                         // Right-click → make this the DEG target and open
                         // the DEG panel. No-op (native menu) when the
