@@ -969,6 +969,7 @@ export function ThreeScene({
           (pointCloudRef.current?.geometry.getAttribute("color") as
             | THREE.BufferAttribute
             | undefined) ?? null,
+        viewMode === "2D",
       );
       const sceneHandle = host.handle;
 

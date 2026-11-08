@@ -29,6 +29,11 @@ export abstract class BaseLayer implements Layer {
     residentBytes: Infinity,
   };
   protected disposed = false;
+  /**
+   * The `uFlatZ` uniform of every point material this layer makes, shared
+   * by reference: 1 in a flat (2D) scene, set on attach.
+   */
+  protected readonly flatZ = { value: 0 };
 
   private listeners = new Set<() => void>();
   private notifyScheduled = false;
@@ -37,6 +42,7 @@ export abstract class BaseLayer implements Layer {
     if (this.disposed) throw new Error(`${this.kind} layer is disposed`);
     if (this.scene) this.detach();
     this.scene = scene;
+    this.flatZ.value = scene.flat ? 1 : 0;
     scene.group.add(this.root);
     this.onAttach(scene);
     this.changed();

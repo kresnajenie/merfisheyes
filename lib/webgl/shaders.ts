@@ -22,18 +22,22 @@ const vertexBody = `
     // height in CSS pixels, which turns world units into pixels
     uniform float uWorldSized;
     uniform float uHalfHeight;
+    // 1: draw on the data plane (z = 0), as molecules are in the 2D view,
+    // so they sit on their cells, not above them and nearer the camera (#196)
+    uniform float uFlatZ;
     uniform vec3 uTargetCenter;
     uniform float uTargetFilterEnabled;
     varying float vTargetDist;
 
     void main() {
-        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vec3 pos = vec3(position.xy, position.z * (1.0 - uFlatZ));
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
 
         // World-space distance from the orbit target, only when the filter
         // is on: the second matrix multiply is otherwise skipped.
         vTargetDist = 0.0;
         if (uTargetFilterEnabled > 0.5) {
-            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vec4 worldPos = modelMatrix * vec4(pos, 1.0);
             vTargetDist = distance(worldPos.xyz, uTargetCenter);
         }
 
@@ -60,11 +64,17 @@ const vertexBody = `
         // to their 1px minimum, but some draw nothing at all, so the default
         // ~0.1px dots left the canvas empty (issue #147). Points below the
         // cull above still drop out; everything else stays visible.
-        // A real-size cell may fill much of the view when zoomed in (the GPU
-        // still caps a point, typically at 1024 px or more)
-        gl_PointSize = clamp(px, 1.0, uWorldSized > 0.5 ? 8192.0 : 200.0) * uPixelRatio;
+        // No ceiling of our own: one would stop the larger of two layers
+        // growing first, so cells and molecules would drift apart in size as
+        // you zoom in (#196). The GPU still caps a point, typically at 1024 px
+        // or more
+        gl_PointSize = clamp(px, 1.0, 8192.0) * uPixelRatio;
 
         gl_Position = projectionMatrix * mvPosition;
+        // On the plane, molecules tie in depth with the cells, which are
+        // drawn after them (transparent) and would hide them: nudge them
+        // ahead in depth only, so they stay on top without moving or growing
+        gl_Position.z -= uFlatZ * 1e-5 * gl_Position.w;
     }
 `;
 
