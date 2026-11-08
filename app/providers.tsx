@@ -11,6 +11,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { HideUiManager } from "@/components/hide-ui-manager";
+import { ShortcutManager } from "@/components/shortcut-manager";
 import { keepErrorsOpen } from "@/lib/utils/keep-errors-open";
 
 // An error stays on screen until it is closed (lib/utils/keep-errors-open.ts)
@@ -38,6 +39,7 @@ export function Providers({ children, themeProps }: ProvidersProps) {
         <NextThemesProvider {...themeProps}>
           {children}
           <HideUiManager />
+          <ShortcutManager />
           {/* A toast is not "outside" an open dialog: closing one (an error
               stays until it is) must not dismiss the dialog behind it, and
               react-aria keeps it readable to screen readers while a dialog
