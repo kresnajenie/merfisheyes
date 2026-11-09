@@ -202,6 +202,41 @@ own.
 
 ---
 
+## Agent API and OAuth tests (database)
+
+`tests/unit/agent-oauth-db.test.ts` checks what an agent may see and the
+authorization server ([docs/specs/MCP-PROTOCOL.md](docs/specs/MCP-PROTOCOL.md))
+against a real, migrated PostgreSQL: unpublished, internal, unapproved and
+other people's rows never come back; a grant limited to projects reaches only
+those; Explore's list, detail and facets follow the same rule; and the code
+flow — PKCE, single-use codes, resource binding, refresh rotation with reuse
+detection, revocation, the consent form's checks. It **empties the tables it
+uses**, so give it a database of its own. CI's unit-tests job runs it
+against a Postgres service container (`.github/workflows/test.yml`);
+locally, without `TEST_DATABASE_URL`, `npm test` skips it.
+
+```bash
+npm run test:infra:up      # or any throwaway Postgres
+DATABASE_URL=postgresql://merfish:merfish@localhost:5433/merfisheyes_test \
+DIRECT_URL=$DATABASE_URL npx prisma migrate deploy
+TEST_DATABASE_URL=postgresql://merfish:merfish@localhost:5433/merfisheyes_test \
+  npx vitest run tests/unit/agent-oauth-db.test.ts
+```
+
+The consent flow in a browser — sign in, allow an agent one project, use
+its token, disconnect it on `/account` — is
+`e2e/tests/upload/agent-consent.spec.ts` (`@upload`). It needs only the
+database, so it also runs without Docker against any migrated Postgres:
+`DATABASE_URL=… DIRECT_URL=… E2E_AGENT=1 npx playwright test
+e2e/tests/upload/agent-consent.spec.ts`.
+
+The pure rules (redirect URIs, PKCE, the fetch guard, sidecar files) are in
+`tests/unit/agent-oauth-rules.test.ts` and run with `npm test`. The sidecar
+JSON schemas are checked by `python -m pytest tests/python/test_sidecars.py`
+and, against live folders, `python scripts/validate_sidecars.py <folder|url>…`.
+
+---
+
 ## Performance regression
 
 ```bash

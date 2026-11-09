@@ -1,0 +1,29 @@
+{
+  "input": "folder",
+  "store": "ace_owl_cup.zarr",
+  "cells": 1138,
+  "genes": 300,
+  "molecules": 733102,
+  "molecule_genes": 300,
+  "dims": 2,
+  "images": [],
+  "de_stats": [
+    "control_codeword_counts",
+    "control_probe_counts",
+    "counts_qc_pass",
+    "nucleus_count",
+    "segmentation_method",
+    "unassigned_codeword_counts"
+  ],
+  "pipeline": "93ab1c0",
+  "packages": {
+    "anndata": "0.13.4",
+    "numpy": "2.4.6",
+    "pandas": "3.1.0",
+    "pyarrow": "26.0.0",
+    "scipy": "1.18.1",
+    "spatialdata": "0.8.0",
+    "spatialdata-io": "0.7.1",
+    "zarr": "3.4.1"
+  }
+}

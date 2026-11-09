@@ -34,7 +34,7 @@ def should_filter_gene(gene: str) -> bool:
 # (Gene, X, Y, Z). worker/entrypoint.py and lib/ingest/molecule-columns.ts
 # recognise the same names — tests keep the three equal.
 MOLECULE_COLUMN_NAMES = {
-    "gene": ["gene", "feature_name", "feature", "target", "gene_name", "target_name", "genes"],
+    "gene": ["gene", "feature_name", "feature", "target", "gene_name", "target_name", "genes", "gene_names"],
     "x": ["x", "x_location", "global_x", "x_um", "x_global", "x_position"],
     "y": ["y", "y_location", "global_y", "y_um", "y_global", "y_position"],
     "z": ["z", "z_location", "global_z", "z_um", "z_global", "z_position"],

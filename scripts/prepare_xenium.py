@@ -143,7 +143,7 @@ def prepare_xenium(
     url: str | None = None,
     expanded: bool = False,
     images: bool = True,
-    label_csv: Path | None = None,
+    label_csv: Path | list[Path] | None = None,
     keep_z: bool = False,
     log=print,
 ):
