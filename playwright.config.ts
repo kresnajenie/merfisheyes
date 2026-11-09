@@ -95,6 +95,9 @@ export default defineConfig({
           // can sign in (uploads now require auth). Safe: VERCEL_ENV is unset in
           // CI/local, so it can never turn on in production.
           ALLOW_DEV_EMAIL_LOGIN: "true",
+          // The OAuth issuer is the origin the browser sees: the consent
+          // form is refused from any other (docs/specs/MCP-PROTOCOL.md §6).
+          OAUTH_ISSUER: BASE_URL,
           // No email leaves a test run. Prisma loads the .env beside the
           // checkout (a developer's staging one) into the server, and with
           // its SES keys every dataset-ready / failed email was really sent;

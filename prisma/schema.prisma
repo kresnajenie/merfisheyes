@@ -32,6 +32,7 @@ model User {
   catalogDatasets CatalogDataset[]
   datasets        Dataset[]
   projects        Project[]
+  oauthGrants     OAuthGrant[]
 
   @@map("users")
 }
@@ -91,6 +92,94 @@ model LoginAttempt {
 
   @@index([identifier, kind, createdAt])
   @@map("login_attempts")
+}
+
+// ─── Agents: OAuth 2.1 authorization server (docs/specs/MCP-PROTOCOL.md §6) ─
+// NextAuth stays the login; these record what a person allowed an agent to
+// do. Every client is public (no secret); codes and tokens are stored only as
+// SHA-256 hashes.
+
+// An agent application. `id` is the client_id: a generated one for a
+// dynamically registered client, or the HTTPS URL of a Client ID Metadata
+// Document (whose fields are cached here until expiresAt).
+model OAuthClient {
+  id           String    @id @db.VarChar(1000)
+  kind         String    @db.VarChar(20) // "registered" | "metadata_document"
+  name         String    @db.VarChar(200)
+  uri          String?   @db.VarChar(1000)
+  logoUri      String?   @map("logo_uri") @db.VarChar(1000)
+  redirectUris String[]  @map("redirect_uris")
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  grants OAuthGrant[]
+
+  @@map("oauth_clients")
+}
+
+// What one person allowed one client: scopes and reach (every project, or
+// the listed ones). Consenting again updates it; revoking it revokes every
+// token issued under it.
+model OAuthGrant {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  clientId    String    @map("client_id") @db.VarChar(1000)
+  scopes      String[]
+  allProjects Boolean   @default(true) @map("all_projects")
+  projectIds  String[]  @default([]) @map("project_ids")
+  resource    String    @db.VarChar(1000)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  codes  OAuthCode[]
+  tokens OAuthToken[]
+
+  @@unique([userId, clientId])
+  @@map("oauth_grants")
+}
+
+// An authorization code: single use, minutes long, bound to the redirect
+// URI, the PKCE challenge and the resource it was asked for.
+model OAuthCode {
+  codeHash      String    @id @map("code_hash") @db.VarChar(64)
+  grantId       String    @map("grant_id")
+  redirectUri   String    @map("redirect_uri") @db.VarChar(1000)
+  codeChallenge String    @map("code_challenge") @db.VarChar(128)
+  resource      String    @db.VarChar(1000)
+  scopes        String[]
+  expiresAt     DateTime  @map("expires_at")
+  usedAt        DateTime? @map("used_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([grantId])
+  @@map("oauth_codes")
+}
+
+// An access or refresh token. A refresh token is rotated on use (usedAt set,
+// a new one issued); presenting a used one revokes the grant.
+model OAuthToken {
+  id        String    @id @default(cuid())
+  grantId   String    @map("grant_id")
+  kind      String    @db.VarChar(10) // "access" | "refresh"
+  tokenHash String    @unique @map("token_hash") @db.VarChar(64)
+  resource  String    @db.VarChar(1000)
+  scopes    String[]
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  grant OAuthGrant @relation(fields: [grantId], references: [id], onDelete: Cascade)
+
+  @@index([grantId])
+  @@map("oauth_tokens")
 }
 
 // ─── Catalog ────────────────────────────────────────────────────

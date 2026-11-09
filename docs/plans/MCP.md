@@ -9,7 +9,7 @@ anything the person could do on the site, within computational reason.
 
 This file is the brief for every session working on it: the facts, the
 decisions taken, the steps with their gates. **Status (2026-11-08): steps
-1–2 done.** Keep it
+1–3 done.** Keep it
 current: a step that changes a fact or a decision edits this file in the
 same commit. Branch: `feature/mcp` (from `bil/pipeline-dry-run`). The
 contract the steps build is [docs/specs/MCP-PROTOCOL.md](../specs/MCP-PROTOCOL.md).
@@ -184,7 +184,7 @@ function; a server relay to a tab (remote MCP) needs an external pub/sub
 | D6 | Any MCP client eventually; Claude Code first for testing; nothing client-specific in the core | **taken** |
 | D7 | Write tools in v1: anything the person can do on the site, within computational reason; destructive actions confirmed | **taken** |
 | D8 | Catalog from the Explore DB + sidecar JSON; no Lamin | **taken** |
-| D9 | OAuth server: library or hand-built on Prisma | open (step 3) |
+| D9 | OAuth server hand-built on Prisma (`lib/oauth/`), not a library: the MCP profile is narrow (public clients, code + PKCE S256, refresh rotation, CIMD + DCR), no maintained Node library fits Next route handlers without an Express shim, and every rule is pinned by `tests/unit/agent-oauth-*.test.ts` | **taken** (step 3) |
 | D10 | Where the package lives: `packages/merfisheyes-mcp` in this repo vs its own repo | open (step 4) |
 | D11 | Tool names carry the `meyes_` prefix (`meyes_search_datasets`, …): short, already the repo's shorthand, still distinct beside other servers | **taken** 2026-11-08 |
 | D12 | The tool list of MCP-PROTOCOL §3 is approved for v1; more tier-2 analysis and tier-3 compute tools come later (pinned P2) | **taken** 2026-11-08 |
@@ -235,7 +235,7 @@ and shared with `/api/ingest/mine`. Sidecar files are fetched through
 addresses). Gate: `tests/unit/agent-oauth-db.test.ts` on a real
 PostgreSQL — the catalog, dataset and project visibility cases, Explore's
 list, detail and facets against the same rule; a deliberately broken
-internal-row rule fails it. It
+reach rule and a deliberately broken internal-row rule each fail it. It
 runs in CI: the unit-tests job starts a Postgres service, migrates it and
 sets `TEST_DATABASE_URL` (`.github/workflows/test.yml`).
 Behaviour that changed on purpose: internal rows no longer appear in
@@ -252,6 +252,34 @@ helper that every agent route uses. Settle D9 at the start.
 
 **Gate:** tests for PKCE, expiry, refresh, revoke, scope denial, project
 restriction; an e2e run of the consent flow.
+
+**Done (2026-11-06), following the MCP authorization draft read that
+day** (CIMD preferred, DCR kept, PKCE S256 only, RFC 8707 resource
+binding, RFC 9207 `iss`, rotating refresh tokens). Migration
+`20261106211012_agent_oauth` (four tables, additive). `lib/oauth/`
+(config, crypto, clients, flow, http); `/oauth/authorize` (sign-in, then
+consent: client name and host, redirect host, a warning for loopback-only
+clients, scopes in words, all projects or chosen ones);
+`/api/oauth/{authorize,token,register,revoke}`; discovery at
+`/.well-known/oauth-authorization-server` and
+`/.well-known/oauth-protected-resource[/api/agent/v1]` (rewrites in
+`next.config.js`); *Connected agents* on `/account`
+(`/api/account/agents`). Each deployment sets `OAUTH_ISSUER` (else
+`NEXT_PUBLIC_APP_URL`) to its own origin. Gate: 22 database tests
+(PKCE, single-use codes with replay revocation, resource binding,
+rotation with reuse detection, narrowing-only refresh, expiry, revoke,
+disconnect, scope challenges 401/403, the consent POST's origin,
+signature, expiry and person checks, discovery fields) and 13 pure-rule
+tests; type-check, lint and `next build` clean; a smoke run of the built
+app over HTTP (discovery through the rewrites, the 401 challenge,
+registration, the signed-out redirect to sign-in, an untrusted redirect
+refused). And in a browser, `e2e/tests/upload/agent-consent.spec.ts` (2026-11-08):
+sign in, register an agent, the consent page names it, its return host and
+the loopback warning; allow one project; swap the code; the token reaches
+that project and not another; Disconnect on `/account` refuses it at once.
+It runs in CI's e2e-upload job (tag `@upload`) and locally on any migrated
+database with `E2E_AGENT=1` — no Docker needed. The e2e server now sets
+`OAUTH_ISSUER` to its own origin (`playwright.config.ts`).
 
 ### Step 4 — The MCP package (read tools)
 

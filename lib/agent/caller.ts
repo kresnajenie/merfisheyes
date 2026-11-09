@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { isAdminRole } from "@/lib/explore/visibility";
-import { PUBLIC_SCOPE, type Scope } from "@/lib/oauth/config";
+import { PUBLIC_SCOPE, type Scope, resources } from "@/lib/oauth/config";
+import { verifyAccessToken } from "@/lib/oauth/flow";
 import { unauthorized } from "@/lib/agent/respond";
 
 /**
@@ -36,12 +37,26 @@ export async function resolveCaller(req: Request): Promise<Caller | Response> {
   const header = req.headers.get("authorization");
 
   if (header) {
-    // No access tokens are issued yet (the authorization server is step 3 of
-    // docs/plans/MCP.md); a token is refused, never ignored.
-    return unauthorized(
-      "invalid_token",
-      "the access token is invalid, expired, revoked, or for another resource",
-    );
+    const m = /^Bearer\s+(\S+)$/i.exec(header);
+    const token = m && (await verifyAccessToken(m[1], resources()[0]));
+
+    if (!token)
+      return unauthorized(
+        "invalid_token",
+        "the access token is invalid, expired, revoked, or for another resource",
+      );
+
+    return {
+      kind: "user",
+      userId: token.userId,
+      role: token.role,
+      isAdmin: isAdminRole(token.role),
+      via: "oauth",
+      scopes: new Set(token.scopes),
+      projects: token.projects,
+      grantId: token.grantId,
+      clientName: token.clientName,
+    };
   }
   const session = await auth();
 

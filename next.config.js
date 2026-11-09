@@ -55,6 +55,24 @@ const nextConfig = {
       permanent: false,
     }));
   },
+  // OAuth discovery for agents (docs/specs/MCP-PROTOCOL.md §6.1): the
+  // well-known paths RFC 8414 and RFC 9728 fix, served by API routes.
+  async rewrites() {
+    return [
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: "/api/oauth/metadata",
+      },
+      {
+        source: "/.well-known/oauth-protected-resource/:path*",
+        destination: "/api/oauth/protected-resource?path=:path*",
+      },
+      {
+        source: "/.well-known/oauth-protected-resource",
+        destination: "/api/oauth/protected-resource",
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
