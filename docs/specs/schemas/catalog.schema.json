@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kresnajenie/merfisheyes/blob/develop/docs/specs/schemas/catalog.schema.json",
+  "title": "catalog.json",
+  "description": "One BIL dataset's catalog entry, written beside the store by scripts/bil-scripts/catalog_entry.py: the shape of one bil-completed.json item without entries or genes, plus provenance. Fields come from bil-merfish-datasets.csv, then a bil-completed.json, then the BIL API, later sources winning. When no source knows the code the file holds only bilCode (plus source and written_at). Producers may add fields; readers ignore what they do not know.",
+  "type": "object",
+  "required": ["bilCode"],
+  "properties": {
+    "bilCode": { "type": "string", "pattern": "^[a-z]+-[a-z]+-[a-z]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "species": { "type": "string", "minLength": 1 },
+    "tissue": { "type": "string", "minLength": 1 },
+    "platform": {
+      "type": "string",
+      "minLength": 1,
+      "description": "As the source says it — the BIL API reports \"other\" for some Xenium datasets."
+    },
+    "externalLink": { "type": "string", "format": "uri" },
+    "publicationLink": { "type": "string", "format": "uri" },
+    "metadata": {
+      "type": "object",
+      "description": "Open display bag, mirroring CatalogDataset.metadata. The keys below are the ones the BIL API fills; others may appear.",
+      "properties": {
+        "publicationYear": { "type": "string" },
+        "investigator": { "type": "string" },
+        "institution": { "type": "string" },
+        "coInvestigators": { "type": "array", "items": { "type": "string" } },
+        "funding": { "type": "string" },
+        "age": { "type": "string" },
+        "sex": { "type": "string" },
+        "genotype": { "type": "string" },
+        "license": { "type": "string" },
+        "technique": { "type": "string" }
+      }
+    },
+    "source": {
+      "type": "object",
+      "description": "Field name -> which source supplied it.",
+      "additionalProperties": { "enum": ["bil-csv", "bil-completed.json", "bil-api"] }
+    },
+    "written_at": { "type": "string", "format": "date-time" }
+  }
+}

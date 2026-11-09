@@ -80,6 +80,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [sddb-catalog.md](docs/specs/sddb-catalog.md) | How SpatialData-DB rows become Explore cards |
 | [AUDIT-2026-10-17.md](docs/specs/AUDIT-2026-10-17.md) | The findings LOADING/RENDERING answer |
 | [SECOND-IMPLEMENTER-2026-10-17.md](docs/specs/SECOND-IMPLEMENTER-2026-10-17.md) | What a fresh agent found missing when adding a kind from the contract alone — the contract's backlog |
+| [MCP-PROTOCOL.md](docs/specs/MCP-PROTOCOL.md) | **Agents (draft 0.1)**: what an agent may see (`lib/agent/visibility.ts` — datasets have no visibility flag on the site), the tool catalogue, the `/api/agent/v1` API, the OAuth 2.1 server (`lib/oauth/`), the bridge to a tab. `stats.json`/`qc.json`/`catalog.json` schemas beside it, checked by `scripts/validate_sidecars.py` |
 
 ### Formats and pipelines
 
@@ -103,6 +104,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
 | [docs/plans/LAMIN.md](docs/plans/LAMIN.md) | Live plan: our datasets recorded in the Lamin instance `merfisheyes/eyes-catalog`, in place on S3 — `register_lamin.py` |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
+| [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: an agent (any MCP client) that drives a MERFISHEYES tab — local MCP + bridge, OAuth, Agent panel (step 1 done) |
 | [docs/labelled-single-molecule.md](docs/labelled-single-molecule.md) | `/lm-viewer` — molecules with N categorical labels, no expression matrix |
 | [docs/sc-sm-one-space.md](docs/sc-sm-one-space.md) | SC+SM overlay; `__all__` ships, per-sample mode is future work |
 | [docs/SM-STREAMING-PLAN.md](docs/SM-STREAMING-PLAN.md) | Streaming the legacy per-gene `bin.gz` files |

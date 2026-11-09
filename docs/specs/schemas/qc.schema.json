@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kresnajenie/merfisheyes/blob/develop/docs/specs/schemas/qc.schema.json",
+  "title": "qc.json",
+  "description": "One dataset's row of the fleet QC table, written beside the store by scripts/bil-scripts/qc_store.sbatch (collect_dataset_stats.py --json). A value the run could not determine is null. The per-level columns n_<level> and mean_boot_<level> follow mmc_levels, which varies with the MapMyCells taxonomy: iterate over mmc_levels, never hard-code the levels. Producers may add columns; readers ignore what they do not know.",
+  "type": "object",
+  "required": ["dataset", "n_samples", "n_cells", "n_genes", "scraped_at"],
+  "properties": {
+    "dataset": { "type": "string", "pattern": "^[a-z]+-[a-z]+-[a-z]+$", "description": "The BIL code." },
+    "species": { "type": ["string", "null"] },
+    "n_samples": { "type": "integer", "minimum": 1, "description": "Sections (slices) combined into the store." },
+    "n_cells": { "type": "integer", "minimum": 0 },
+    "n_genes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Genes of the counts matrix — may include blank and control probes, unlike stats.json genes."
+    },
+    "n_genes_detected": { "type": ["integer", "null"], "minimum": 0 },
+    "n_genes_imaged": { "type": ["integer", "null"], "minimum": 0 },
+    "total_counts": { "type": ["number", "null"], "minimum": 0 },
+    "mean_counts_per_cell": { "type": ["number", "null"], "minimum": 0 },
+    "median_counts_per_cell": { "type": ["number", "null"], "minimum": 0 },
+    "mask_percentile": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "0 when no artifact mask was applied."
+    },
+    "n_artifact": { "type": ["integer", "null"], "minimum": 0 },
+    "pct_artifact": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+    "scraped_at": { "type": "string", "description": "Local time of the QC run, ISO 8601 without zone." },
+    "mmc_methods": { "type": ["string", "null"] },
+    "mmc_levels": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z_]+(,[a-z_]+)*$",
+      "description": "Comma-separated taxonomy levels, in no fixed order."
+    },
+    "mean_corr": { "type": ["number", "null"] }
+  },
+  "patternProperties": {
+    "^n_[a-z_]+$": { "type": ["integer", "null"], "minimum": 0 },
+    "^mean_boot_[a-z_]+$": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+  }
+}
