@@ -10,6 +10,7 @@ import {
   parseGeneTokens,
 } from "@/lib/explore/query";
 import { viewerHref } from "@/lib/datasets/kind";
+import { ownedDatasetsWhere } from "@/lib/datasets/owner";
 
 /**
  * List the signed-in user's own datasets for the "Your uploads" strip on
@@ -100,9 +101,7 @@ export async function GET(request: NextRequest) {
     // Ownership scope, reused for the where clause and the facet queries.
     const ownerScope: Prisma.DatasetWhereInput = {
       status: { notIn: ["UPLOADING", "FAILED"] as const },
-      ...(isAdmin
-        ? { OR: [{ ownerId: session.user.id }, { adminOwned: true }] }
-        : { ownerId: session.user.id }),
+      ...ownedDatasetsWhere(session.user.id, isAdmin),
     };
 
     const insensitive = Prisma.QueryMode.insensitive;

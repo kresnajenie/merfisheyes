@@ -202,6 +202,32 @@ own.
 
 ---
 
+## Agent API tests (database)
+
+`tests/unit/agent-oauth-db.test.ts` checks what an agent may see
+([docs/specs/MCP-PROTOCOL.md](docs/specs/MCP-PROTOCOL.md) §2) against a real,
+migrated PostgreSQL: unpublished, internal, unapproved and other people's
+rows never come back, and Explore's list, detail and facets follow the same
+rule. It **empties the tables it
+uses**, so give it a database of its own. CI's unit-tests job runs it
+against a Postgres service container (`.github/workflows/test.yml`);
+locally, without `TEST_DATABASE_URL`, `npm test` skips it.
+
+```bash
+npm run test:infra:up      # or any throwaway Postgres
+DATABASE_URL=postgresql://merfish:merfish@localhost:5433/merfisheyes_test \
+DIRECT_URL=$DATABASE_URL npx prisma migrate deploy
+TEST_DATABASE_URL=postgresql://merfish:merfish@localhost:5433/merfisheyes_test \
+  npx vitest run tests/unit/agent-oauth-db.test.ts
+```
+
+The pure rules (the fetch guard, sidecar files, paging) are in
+`tests/unit/agent-oauth-rules.test.ts` and run with `npm test`. The sidecar
+JSON schemas are checked by `python -m pytest tests/python/test_sidecars.py`
+and, against live folders, `python scripts/validate_sidecars.py <folder|url>…`.
+
+---
+
 ## Performance regression
 
 ```bash

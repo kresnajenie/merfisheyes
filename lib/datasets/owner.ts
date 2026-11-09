@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 /**
  * Resolve a dataset's owner tuple from the actor + their choice.
  *
@@ -22,4 +24,18 @@ export function resolveDatasetOwner({
   return adminClaim
     ? { ownerId: null, adminOwned: true }
     : { ownerId: userId, adminOwned: false };
+}
+
+/**
+ * The datasets that are a person's own: their personal ones, plus the
+ * admin-owned (shared) ones when they are an admin. "My datasets" on the
+ * account page and in the agent API (lib/agent/visibility.ts).
+ */
+export function ownedDatasetsWhere(
+  userId: string,
+  isAdmin: boolean,
+): Prisma.DatasetWhereInput {
+  return isAdmin
+    ? { OR: [{ ownerId: userId }, { adminOwned: true }] }
+    : { ownerId: userId };
 }

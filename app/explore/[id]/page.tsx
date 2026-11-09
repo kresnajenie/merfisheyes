@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { catalogRowWhere, isAdminRole } from "@/lib/explore/visibility";
 import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
 import { ExploreEditButton } from "@/components/explore/explore-edit-button";
 
@@ -11,12 +13,13 @@ interface Props {
 export default async function DatasetPage({ params }: Props) {
   const { id } = await params;
 
-  const dataset = await prisma.catalogDataset.findUnique({
-    where: { id },
+  const session = await auth();
+  const dataset = await prisma.catalogDataset.findFirst({
+    where: { AND: [{ id }, catalogRowWhere(isAdminRole(session?.user?.role))] },
     include: { entries: { orderBy: { sortOrder: "asc" } } },
   });
 
-  if (!dataset || !dataset.isPublished) {
+  if (!dataset) {
     notFound();
   }
 

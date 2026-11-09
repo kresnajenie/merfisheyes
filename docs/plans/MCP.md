@@ -8,8 +8,8 @@ and the person's own projects are both in reach, and the agent may do
 anything the person could do on the site, within computational reason.
 
 This file is the brief for every session working on it: the facts, the
-decisions taken, the steps with their gates. **Status (2026-11-08): step 1
-done.** Keep it
+decisions taken, the steps with their gates. **Status (2026-11-08): steps
+1–2 done.** Keep it
 current: a step that changes a fact or a decision edits this file in the
 same commit. Branch: `feature/mcp` (from `bil/pipeline-dry-run`). The
 contract the steps build is [docs/specs/MCP-PROTOCOL.md](../specs/MCP-PROTOCOL.md).
@@ -97,7 +97,7 @@ MCP-PROTOCOL §3.2. Facts that shaped the design:
   (MCP-PROTOCOL §2, `lib/agent/visibility.ts`).
 - **The catalog rule was implemented five times and disagreed**: the
   facets route and the Explore detail pages (`/explore/[id]`,
-  `/explore/bil/[code]`) showed internal rows to anyone. Step 2 makes it one rule,
+  `/explore/bil/[code]`) showed internal rows to anyone. Now one rule,
   `lib/explore/visibility.ts`, used by all of them and the agent API.
 - **Admin power differs**: on datasets it covers admin-owned ones only;
   on projects any admin opens any project. An agent gets neither — it sees
@@ -223,6 +223,24 @@ missing files tolerated), genes, my projects. Stateless, bounded, cached.
 
 **Gate:** unit tests prove unpublished, unapproved and other people's
 private rows never come back; Explore's results are unchanged.
+
+**Done (2026-11-06).** `lib/explore/visibility.ts` (the catalog rule) and
+`lib/explore/search.ts` (Explore's search, moved out of the route) — now
+used by `/api/explore`, `/api/explore/[id]`, `/api/catalog/facets`, the
+SSR Explore page and both detail pages. `lib/agent/` (caller, visibility,
+sidecars, shapes, responses) and eleven routes under `/api/agent/v1`
+(MCP-PROTOCOL §4). `ownedDatasetsWhere` moved to `lib/datasets/owner.ts`
+and shared with `/api/ingest/mine`. Sidecar files are fetched through
+`lib/net/limited-fetch.ts` (HTTPS, S3 hosts only, 256 KB, 5 s, no private
+addresses). Gate: `tests/unit/agent-oauth-db.test.ts` on a real
+PostgreSQL — the catalog, dataset and project visibility cases, Explore's
+list, detail and facets against the same rule; a deliberately broken
+internal-row rule fails it. It
+runs in CI: the unit-tests job starts a Postgres service, migrates it and
+sets `TEST_DATABASE_URL` (`.github/workflows/test.yml`).
+Behaviour that changed on purpose: internal rows no longer appear in
+`/api/catalog/facets` or on `/explore/[id]`, `/explore/bil/[code]` for
+non-admins.
 
 ### Step 3 — OAuth authorization server
 
