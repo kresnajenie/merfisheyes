@@ -29,6 +29,15 @@ const session = vi.fn(async (): Promise<unknown> => null);
 
 vi.mock("@/lib/auth", () => ({ auth: () => session() }));
 
+// Client ID Metadata Documents are fetched over the network; a test answers
+// for the site's own document (app/oauth/merfisheyes-mcp.json).
+const fetched = vi.fn();
+
+vi.mock("@/lib/net/limited-fetch", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/net/limited-fetch")>()),
+  limitedFetch: (url: string, opts: unknown) => fetched(url, opts),
+}));
+
 describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
   process.env.DATABASE_URL = DB;
   process.env.OAUTH_ISSUER = ISSUER;
@@ -58,6 +67,7 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
     "oauth/authorize": () => import("@/app/api/oauth/authorize/route"),
     "oauth/metadata": () => import("@/app/api/oauth/metadata/route"),
     "oauth/protected-resource": () => import("@/app/api/oauth/protected-resource/route"),
+    "oauth/merfisheyes-mcp.json": () => import("@/app/oauth/merfisheyes-mcp.json/route"),
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const route = (p: keyof typeof ROUTES): Promise<any> => ROUTES[p]();
@@ -540,6 +550,46 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
 
       expect(res.status).toBe(429);
       expect(res.headers.get("retry-after")).toBeTruthy();
+    });
+  });
+
+  describe("our own package's client document (step 4)", () => {
+    it("is one the authorization server accepts, naming the site as publisher", async () => {
+      const prev = process.env.OAUTH_ISSUER;
+
+      process.env.OAUTH_ISSUER = "https://meyes.example";
+      try {
+        const doc = await (await route("oauth/merfisheyes-mcp.json")).GET();
+        const body = await doc.text();
+
+        fetched.mockImplementation(async (url: string) =>
+          url === "https://meyes.example/oauth/merfisheyes-mcp.json"
+            ? { status: 200, body, headers: doc.headers }
+            : { status: 404, body: "", headers: new Headers() },
+        );
+        const clientId = JSON.parse(body).client_id;
+
+        expect(clientId).toBe("https://meyes.example/oauth/merfisheyes-mcp.json");
+        const v = await flow.validateAuthorize(
+          new URLSearchParams({
+            response_type: "code",
+            client_id: clientId,
+            redirect_uri: "http://127.0.0.1:61234/callback",
+            code_challenge: createHash("sha256").update("p".repeat(43)).digest("base64url"),
+            code_challenge_method: "S256",
+          }),
+        );
+
+        if (!("request" in v)) throw new Error(`refused: ${v.redirect}`);
+        expect(v.request).toMatchObject({
+          clientName: "MERFISHEYES MCP",
+          clientKind: "metadata_document",
+          clientHost: "meyes.example",
+          loopbackOnly: true,
+        });
+      } finally {
+        process.env.OAUTH_ISSUER = prev;
+      }
     });
   });
 

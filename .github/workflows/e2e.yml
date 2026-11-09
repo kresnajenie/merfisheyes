@@ -69,6 +69,10 @@ jobs:
           cache: "npm"
       - run: npm ci
       - run: npx prisma generate
+      # The agent spec drives the built MCP package over stdio.
+      - name: Build the MCP package
+        run: npm ci && npm run build
+        working-directory: packages/merfisheyes-mcp
       # ubuntu-latest already ships the browser system libraries, so skip the
       # slow/flaky `--with-deps` apt step and just fetch the browser binary.
       - run: npx playwright install chromium
