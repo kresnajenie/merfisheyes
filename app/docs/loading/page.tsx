@@ -228,7 +228,8 @@ export default function LoadingPage() {
             <b>Upload &amp; Save</b> from this preview uploads every part
             exactly as it is — nothing is processed — each as its own dataset in
             one project, or as that one store, and the saved link opens with the
-            same overlays. Dropping the same folder on{" "}
+            same overlays. Once it is all up you get one email with a link to
+            it. Dropping the same folder on{" "}
             <b>Upload &amp; process on server</b> does the same without opening
             it first. Raw cells (H5AD, Xenium, MERSCOPE) beside processed parts
             are shown on their own here; use{" "}

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { catalogRowWhere, isAdminRole } from "@/lib/explore/visibility";
+import { catalogRowWhere } from "@/lib/explore/visibility";
+import { isAdminRole } from "@/lib/admin-auth";
 
 // GET /api/explore/[id] — one catalog dataset, FULL row (including the genes
 // array the list payload omits). Used by detail views that started from a

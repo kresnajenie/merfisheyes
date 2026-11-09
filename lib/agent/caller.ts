@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { isAdminRole } from "@/lib/explore/visibility";
+import { isAdminRole } from "@/lib/admin-auth";
 import { PUBLIC_SCOPE, type Scope, resources } from "@/lib/oauth/config";
 import { verifyAccessToken } from "@/lib/oauth/flow";
 import { unauthorized } from "@/lib/agent/respond";

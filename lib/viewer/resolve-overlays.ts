@@ -61,6 +61,12 @@ export interface LocalOverlays {
   image: SpatialDataImage | null;
   shapes: (() => Promise<unknown>) | null;
   molecules: SingleMoleculeDataset | null;
+  /**
+   * Molecules chosen to check the preview against, by the link a saved
+   * overlay would write (`__all__`): drawn instead of any dropped beside the
+   * cells, and never saved.
+   */
+  check?: DatasetLinkConfig | null;
 }
 
 const imageOnly = (
@@ -77,18 +83,47 @@ export async function resolveOverlays(
   // An image is placed in raw coordinates; a normalized scene has none
   const raw = dataset.normalized === false;
 
+  const everyCell = async (
+    ref: string,
+    source: "s3" | "app",
+    linkFormat?: DatasetLinkConfig["linkFormat"],
+  ) => {
+    if (!ref) return;
+    on.loading(true);
+    try {
+      const molecules = await io.loadMolecules(ref, source, linkFormat);
+
+      if (on.stale()) return;
+      on.element(moleculeElements(molecules));
+      if (source === "s3") on.source(ref);
+    } catch (error) {
+      console.warn("Failed to load SM overlay dataset:", error);
+    } finally {
+      on.loading(false);
+    }
+  };
+
   if (local) {
     if (local.image && !raw) {
       on.warn(
         "The image is not drawn: these cells were saved with normalized coordinates, and an image is placed in the original ones.",
       );
     }
+    const check = local.check?.linkColumn === "__all__" ? local.check : null;
+
     on.element({
       image: raw ? (local.image ?? undefined) : undefined,
       shapes: (local.shapes as OpenedElements["shapes"]) ?? undefined,
-      ...moleculeElements(local.molecules),
+      ...(check ? {} : moleculeElements(local.molecules)),
     });
     on.link(null);
+    if (check) {
+      await everyCell(
+        check.links.__all__,
+        check.source ?? "s3",
+        check.linkFormat,
+      );
+    }
 
     return;
   }
@@ -114,26 +149,6 @@ export async function resolveOverlays(
       if (!on.stale()) on.element({ image: opened });
     } catch (error) {
       console.warn("Failed to load overlay image:", error);
-    }
-  };
-
-  const everyCell = async (
-    ref: string,
-    source: "s3" | "app",
-    linkFormat?: DatasetLinkConfig["linkFormat"],
-  ) => {
-    if (!ref) return;
-    on.loading(true);
-    try {
-      const molecules = await io.loadMolecules(ref, source, linkFormat);
-
-      if (on.stale()) return;
-      on.element(moleculeElements(molecules));
-      if (source === "s3") on.source(ref);
-    } catch (error) {
-      console.warn("Failed to load SM overlay dataset:", error);
-    } finally {
-      on.loading(false);
     }
   };
 

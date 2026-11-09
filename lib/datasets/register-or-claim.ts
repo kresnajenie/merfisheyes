@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeS3Url } from "@/lib/utils/viewer-config";
 import { fetchJsonFromS3 } from "@/lib/catalog/derive-genes";
 import { resolveDatasetOwner } from "@/lib/datasets/owner";
+import { imageMultiscale } from "@/lib/spatialdata/ome";
 
 export interface RegisterOrClaimResult {
   dataset: Dataset;
@@ -82,7 +83,7 @@ export async function ensureDatasetForS3Url(
     const zarrRoot = await fetchJsonFromS3(`${base}/zarr.json`);
 
     if (
-      zarrRoot?.attributes?.ome?.multiscales ||
+      imageMultiscale(zarrRoot?.attributes) ||
       (!zarrRoot && kind === "image")
     ) {
       const dataset = await prisma.dataset.create({

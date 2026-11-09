@@ -8,8 +8,90 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-08
+
 ### Added
 
+- **Keyboard shortcuts for what the scene draws.** `C` cells, `M` molecules,
+  `I` the image, `P` cell polygons, and `?` for the list of them, which greys
+  out what this view hasn't got. `H` (hide every control) is in the list too.
+  Keys are ignored while you are typing, and act on the main viewer — a split
+  screen's right panel keeps its own buttons.
+- **Recolour several cell types or genes at once.** Shift-click a range of
+  legend chips, or ⌘/ctrl-click to pick them one by one, and give them all one
+  colour — then **Spread** to make them different again, keeping away from the
+  colours around them, or **Shuffle** for another arrangement. A plain click
+  still opens that chip's own colour picker. Both legends work this way.
+- **Overlay an image by pasting its link.** The image picker takes a link as
+  well as one of your own images: an OME-Zarr image, or a SpatialData store
+  (or the folder holding it) with an image among its cells, molecules and
+  shapes — only the image is drawn, the way a pasted molecule link lends only
+  its points. A store with several images asks which one. An image that is
+  the link itself still joins your account; one taken out of a store is drawn
+  by its link alone, with no dataset made of it.
+
+### Fixed
+
+- **Transcripts and cells scale together when you zoom in (#196).** In the 2D
+  view, transcripts were drawn at their own height above or below the cells,
+  so zoomed in they grew faster than the cells, drifted off them, and those
+  below the cells were hidden. Every dot also stopped growing at 200 px, so
+  whichever layer was larger stopped first. In 2D, transcripts are now drawn
+  on the cells' plane and on top of them, and dots keep growing with the
+  zoom; the 3D view still shows each transcript's height.
+- **A dropped `.h5ad` can have an overlay checked over it.** Molecules could
+  be drawn over a folder of already-processed parts to see they line up, but
+  not over a plain `.h5ad` — the button was missing, because only the folder
+  path marked the preview's cells. It is there now, for any cells opened from
+  disk. Nothing is saved either way: Upload & Save still sends only what was
+  dropped.
+
+## [0.15.1] - 2026-11-07
+
+### Fixed
+
+- **Images whose NGFF metadata sits at the top of `attributes` now open.** A
+  Zarr v3 image written with OME-NGFF 0.4-style attributes (`multiscales` and
+  `omero` beside each other, with no `ome` wrapper) was refused — the layout
+  older versions of `ome-zarr-py` wrote, and still read. Some readers already
+  accepted it and others did not, so such a store could load halfway: its
+  placement was read while its pixels were refused. Every reader now goes
+  through one rule — `lib/spatialdata/ome.ts` in the viewer,
+  `validate_store.ome_attrs` in the scripts — and a test fails if a new reader
+  reaches past it. The validator says so rather than failing. We still write
+  only 0.5. `docs/specs/image-profile.md` lists which layouts are read;
+  `docs/plans/OME-ZARR-COMPAT.md` has the background and the measurements.
+- **A server upload keeps such an image.** The worker used to accept the
+  folder and silently leave the image out of the store. It now keeps it and
+  writes it in the 0.5 layout. The worker image is built from this release
+  (pipeline version `8bae2f8`).
+
+## [0.15.0] - 2026-10-29
+
+### Added
+
+- **An email when a save uploaded as it is is ready.** An image, a SpatialData
+  store or an already-processed folder never goes to the server's worker, so
+  it never sent the "ready" email the other saves do. It now does: one email
+  per save, however many parts it holds, linking the cells first and the rest
+  below. It is sent server-side to the signed-in owner (`/api/uploads/ready`);
+  the request names only the save's datasets, never an address.
+- **Overlay molecules by pasting their link.** The overlay dialog takes a
+  link as well as one of your datasets: a public SpatialData store with
+  molecules (or the folder holding it), a merfisheyes molecule folder, or a
+  merfisheyes viewer link that opened one from S3. It is checked where it
+  lives, the way the viewer opens it, and overlaid by its link alone, with no
+  dataset made of it. A store with cells too lends only its molecules.
+- **Check an overlay on a local preview before saving.** A folder dropped for
+  a browser preview now has the overlay button too. Molecules pasted by link,
+  or picked from your datasets, are drawn over the preview to see that they
+  line up. Nothing is saved, and Upload & Save still sends only the dropped
+  files.
+- **Split-screen sync for images: which channels are on.** With an image in
+  both panels, switching a channel on or off in one does the same in the
+  other, matched by the channel's name, so two different images share the
+  channels they have in common. Colours, contrast and the camera stay each
+  panel's own. The change is kept in each panel's link (`img=` / `rimg=`).
 - **Molecules in no cell, in the new format too.** A points element may
   carry an `unassigned` column, copied to `feature_major`
   (`docs/points-zarr-spec.md` §8.1). The validator checks it, and the viewer
@@ -23,6 +105,25 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   - Xenium's molecules are still not split, as before.
   - What counts as "no cell" is one rule, `meyes_common.unassigned_mask`,
     used by both writers.
+
+- **A test that what you preview is what you save.**
+  `tests/unit/preview-store-parity.test.ts` opens each tiny source the way
+  the browser preview does, and the store `scripts/prepare.py` writes from
+  it the way the SpatialData viewer does. It compares what a person sees:
+  cells, genes, expression, which cells are drawn and where, the colour
+  columns, the column it opens on, each label's colour, and embeddings.
+  Today's differences are expected failures, each naming its cause and the
+  step of `docs/plans/PREVIEW-SAVE.md` that removes it: the label sort,
+  boolean labels, the coordinate and category columns the store offers, and
+  Xenium's lost clustering. The committed stores
+  (`scripts/testdata/make-tiny-parity-stores.py`) are checked against a fresh
+  `prepare.py` run by `tests/python/test_parity_stores.py`. A real Xenium
+  export runs with `MERFISHEYES_XENIUM` and `MERFISHEYES_PREPARE_PYTHON`.
+- **Releases tag and publish themselves.** Merging a release into `main`
+  tags it `vX.Y.Z` from `package.json` and publishes its GitHub Release with
+  this file's section as the notes (`.github/workflows/release.yml`,
+  `scripts/release-notes.mjs`); a test keeps the version and this file in
+  step. `docs/RELEASING.md` steps 6–7.
 
 ### Changed
 
@@ -60,6 +161,33 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **A SpatialData store's link keeps its view, 2D/3D included.** The
+  SpatialData viewer, where every upload now opens, kept none of its cells'
+  view in the link, so 2D/3D, the gene, the column and the cell types were
+  lost on reload or when shared. It keeps them now (`v=`, `rv=` in the right
+  split panel), as the cell viewer does. The camera button and the 2D/3D
+  buttons also say what they are, and which mode is on, to screen readers.
+- **The molecules of a store with cells too can be overlaid on another
+  dataset.** The overlay dialog listed SpatialData stores, but one registered
+  by its public URL (an Explore entry such as the 10-set mouse brain) was
+  refused as having no molecules: the check looked only in the app's own
+  bucket. It now reads such a store's metadata where it lives, and the viewer
+  opens a store linked by its folder, so its molecules are drawn over the
+  other cells while its own cells are left out.
+- **A saved SpatialData store shows its UMAP.** A store's table may carry
+  embeddings (`obsm/X_umap`), and its preview showed them, but once saved it
+  opens in the SpatialData viewer, which had no UMAP panel. It has one now,
+  for any store with cells, in a split panel too. Stores saved before this
+  show their UMAP as they are; nothing needs re-uploading.
+- **Split-screen sync is offered whenever both panels have something in
+  common.** The sync button used to show only when both panels were the same
+  viewer, and the sync itself ran only for the cell and molecule viewers. So a
+  cell dataset beside a SpatialData store (every upload since the one
+  pipeline) had no button, and two stores or two images showed a button that
+  synced nothing. Now both read what each panel has open
+  (`syncCapabilities`): cells beside cells sync cells, molecules beside
+  molecules sync genes, whichever viewer shows them. A link with `sync=1`
+  starts syncing once both panels have loaded, rather than possibly before.
 - **The worker image can run `prepare.py` again.** Since the shared
   conventions file, `scripts/validate_store.py` reads
   `docs/specs/conventions.json` when it is imported, and `prepare.py`
@@ -108,27 +236,6 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   and regrouped it into a project of yours. The same files uploaded twice
   now make two datasets; the fingerprint is still stored as a record of what
   was uploaded (`docs/plans/PREVIEW-SAVE.md`, D4).
-
-### Added
-
-- **A test that what you preview is what you save.**
-  `tests/unit/preview-store-parity.test.ts` opens each tiny source the way
-  the browser preview does, and the store `scripts/prepare.py` writes from
-  it the way the SpatialData viewer does. It compares what a person sees:
-  cells, genes, expression, which cells are drawn and where, the colour
-  columns, the column it opens on, each label's colour, and embeddings.
-  Today's differences are expected failures, each naming its cause and the
-  step of `docs/plans/PREVIEW-SAVE.md` that removes it: the label sort,
-  boolean labels, the coordinate and category columns the store offers, and
-  Xenium's lost clustering. The committed stores
-  (`scripts/testdata/make-tiny-parity-stores.py`) are checked against a fresh
-  `prepare.py` run by `tests/python/test_parity_stores.py`. A real Xenium
-  export runs with `MERFISHEYES_XENIUM` and `MERFISHEYES_PREPARE_PYTHON`.
-- **Releases tag and publish themselves.** Merging a release into `main`
-  tags it `vX.Y.Z` from `package.json` and publishes its GitHub Release with
-  this file's section as the notes (`.github/workflows/release.yml`,
-  `scripts/release-notes.mjs`); a test keeps the version and this file in
-  step. `docs/RELEASING.md` steps 6–7.
 
 ## [0.14.0] - 2026-10-24
 
@@ -965,7 +1072,10 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...v0.16.0
+[0.15.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...v0.15.1
+[0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.11.0...v0.12.0

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { catalogFacets } from "@/lib/explore/search";
-import { isAdminRole } from "@/lib/explore/visibility";
+import { isAdminRole } from "@/lib/admin-auth";
 
 /**
  * Distinct species / tissue / platform values already used across the published

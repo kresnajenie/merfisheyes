@@ -780,6 +780,7 @@ export class PointsLayer extends BaseLayer {
       style.color,
       Math.max(style.dotSize, this.minDot),
       style.shape,
+      this.flatZ,
     );
 
     setMoleculeOpacity(material, style.opacity ?? 1);

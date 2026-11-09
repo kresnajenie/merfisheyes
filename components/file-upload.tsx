@@ -874,6 +874,8 @@ export function FileUpload({
       molecules: opened.cells ? (opened.molecules ?? null) : null,
       image: opened.image ?? null,
       shapes: opened.shapes ?? null,
+      // Nothing checked against yet: that is the overlay dialog's
+      check: null,
     });
 
     if (opened.cells) {
@@ -1228,6 +1230,12 @@ export function FileUpload({
         const sc = dataset as StandardizedDataset;
 
         cellStore.addDataset(sc);
+        // These cells are the preview's anchor, so molecules can be drawn
+        // over them to check they line up (the overlay dialog's local mode).
+        // No `bundle`: nothing here was processed, so there is nothing to
+        // save as it is — only the dropped file, as before.
+        useLocalBundleStore.getState().reset();
+        useLocalBundleStore.getState().set({ anchorId: sc.id });
         markDatasetLoaded({
           pointCount: sc.getPointCount(),
           geneCount: sc.genes.length,

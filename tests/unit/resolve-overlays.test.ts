@@ -81,6 +81,40 @@ describe("resolveOverlays", () => {
     expect(n.got.warn?.[0]).toMatch(/not drawn/);
   });
 
+  it("draws the molecules a local preview is checked against, instead of the dropped ones", async () => {
+    const { io, on, got } = fakes();
+    const dropped = molecules("local");
+    const folder = "https://bucket.example/spatialdata/all_sets";
+
+    await resolveOverlays(
+      dataset(),
+      {
+        image,
+        shapes: null,
+        molecules: dropped,
+        check: {
+          linkColumn: "__all__",
+          links: { __all__: folder },
+          source: "s3",
+          linkFormat: "store",
+        },
+      },
+      null,
+      io,
+      on,
+    );
+    // The dropped image stays; the dropped molecules give way
+    expect(got.element?.[0]).toEqual({ image, shapes: undefined });
+    expect(io.loadMolecules).toHaveBeenCalledWith(folder, "s3", "store");
+    expect(got.element?.[1]).toMatchObject({ molecules: { id: folder } });
+    expect(
+      got.element?.some((e: any) => e.molecules?.id === "local"),
+    ).toBe(false);
+    // Nothing is looked up for a preview: it has no saved mapping
+    expect(io.fetchMapping).not.toHaveBeenCalled();
+    expect(io.fetchAppMapping).not.toHaveBeenCalled();
+  });
+
   it("takes the hardcoded registry as the link and looks no further", async () => {
     const { io, on, got } = fakes();
     const registry = { linkColumn: "batch", links: { a: "u" } };

@@ -6,7 +6,8 @@ import {
   featuredCatalog,
   searchCatalog,
 } from "@/lib/explore/search";
-import { type ExploreCategory, isAdminRole } from "@/lib/explore/visibility";
+import { type ExploreCategory } from "@/lib/explore/visibility";
+import { isAdminRole } from "@/lib/admin-auth";
 
 // GET /api/explore — public endpoint for browsing published datasets.
 //

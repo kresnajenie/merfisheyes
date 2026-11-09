@@ -1,38 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { datasetKind } from "@/lib/datasets/kind";
 import {
   getOverlaySmId,
+  getOverlayUrl,
   getOverlayImage,
+  hasMolecules,
+  ownedDataset,
   writeOverlay,
+  writeOverlayUrl,
   writeOverlayImage,
   imageOverlayFor,
   type ImageOverlay,
   removeOverlay,
   groupInProject,
-  storeHasPoints,
 } from "@/lib/ingest/overlay";
+import { imageUrlTargets } from "@/lib/overlays/imageSource";
+import { dataUrlOf, moleculeUrlFormat } from "@/lib/overlays/moleculeSource";
 
 // Manage the overlays on a single-cell dataset the user owns: a
 // single-molecule dataset drawn over the cells, and an image drawn under them.
-//   GET    → { smDatasetId | null, image | null }
-//   POST   { smDatasetId, force? } → attach/replace (409 if one exists and !force)
-//   PATCH  { imageDatasetId } | { image: url | null } → set or clear the image overlay
+//   GET    → { smDatasetId | null, smUrl | null, image | null }
+//   POST   { smDatasetId, force? } | { url, force? } → attach/replace (409 if
+//          one exists and !force); a url is a public store, a folder holding
+//          one, or a molecule folder, overlaid by its link alone
+//   PATCH  { imageDatasetId } | { image: url | null, imageName? } → set or
+//          clear the image overlay; a url may be an image, or a store (or a
+//          folder holding one) whose image alone is taken — `imageName`
+//          picks between several, else the first
 //   DELETE → detach the molecules (leaves the project grouping and image intact)
-
-async function ownedDataset(id: string, userId: string, isAdmin: boolean) {
-  const d = await prisma.dataset.findUnique({
-    where: { id },
-    select: { id: true, ownerId: true, adminOwned: true, datasetType: true, title: true },
-  });
-
-  if (!d) return null;
-  const owned = d.ownerId === userId || (isAdmin && d.adminOwned);
-
-  return owned ? d : null;
-}
 
 export async function GET(
   _req: NextRequest,
@@ -44,6 +41,7 @@ export async function GET(
 
   return NextResponse.json({
     smDatasetId: await getOverlaySmId(datasetId),
+    smUrl: await getOverlayUrl(datasetId),
     image: image?.image ?? null,
     imageDatasetId: image?.imageDatasetId ?? null,
   });
@@ -81,9 +79,9 @@ export async function PATCH(
     }
   } else if (body.image !== null) {
     const raw = typeof body.image === "string" ? body.image.trim() : "";
-    const url = URL.canParse(raw) ? new URL(raw) : null;
+    const url = dataUrlOf(raw);
 
-    if (!url || !/^https?:$/.test(url.protocol)) {
+    if (!url) {
       return NextResponse.json(
         {
           error:
@@ -92,7 +90,35 @@ export async function PATCH(
         { status: 400 },
       );
     }
-    image = { image: url.href.replace(/\/+$/, "") };
+    // A link may name an image, or a store (or a folder holding one) that
+    // has one among its other elements: only its image is overlaid. The
+    // element itself is stored, so the viewer opens it as a standalone image.
+    const found = await imageUrlTargets(url);
+
+    if (found.length === 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No OME-Zarr image there. Give an image, or a SpatialData store or folder holding one — and check it is public.",
+        },
+        { status: 400 },
+      );
+    }
+    const chosen =
+      typeof body.imageName === "string" && body.imageName
+        ? found.find((f) => f.name === body.imageName)
+        : found[0];
+
+    if (!chosen) {
+      return NextResponse.json(
+        {
+          error: `That store has no image named "${body.imageName}"`,
+          images: found.map((f) => f.name),
+        },
+        { status: 400 },
+      );
+    }
+    image = { image: chosen.url };
   }
 
   const sc = await ownedDataset(datasetId, session.user.id, isAdmin);
@@ -128,11 +154,16 @@ export async function POST(
     session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
   const { datasetId } = await params;
   const body = await req.json().catch(() => ({}));
-  const smDatasetId = typeof body.smDatasetId === "string" ? body.smDatasetId : "";
+  const smDatasetId =
+    typeof body.smDatasetId === "string" ? body.smDatasetId : "";
+  const pasted = typeof body.url === "string" ? dataUrlOf(body.url) : null;
   const force = body.force === true;
 
-  if (!smDatasetId) {
-    return NextResponse.json({ error: "smDatasetId is required" }, { status: 400 });
+  if (!smDatasetId && !pasted) {
+    return NextResponse.json(
+      { error: "Give smDatasetId, or the url of public molecules" },
+      { status: 400 },
+    );
   }
 
   const sc = await ownedDataset(datasetId, session.user.id, isAdmin);
@@ -147,23 +178,43 @@ export async function POST(
     );
   }
 
-  const sm = await ownedDataset(smDatasetId, session.user.id, isAdmin);
-  // Molecules: a single molecule dataset, or a SpatialData store that has
-  // them (what scripts/prepare.py makes of a molecule table)
-  const molecules =
-    sm?.datasetType === "single_molecule" ||
-    (sm?.datasetType === "spatialdata" &&
-      smDatasetId !== datasetId &&
-      (await storeHasPoints(smDatasetId)));
+  // What is overlaid now, by dataset or by link: replaced only when asked
+  const existing =
+    (await getOverlaySmId(datasetId)) ?? (await getOverlayUrl(datasetId));
 
-  if (!sm || !molecules) {
+  // Public molecules by their link alone: checked where they live, the way
+  // the viewer will open them, so a wrong or private link fails here
+  if (pasted && !smDatasetId) {
+    const linkFormat = await moleculeUrlFormat(pasted);
+
+    if (!linkFormat) {
+      return NextResponse.json(
+        {
+          error:
+            "No molecules at that link. Give a public SpatialData store with a points element (or the folder holding it), or a merfisheyes molecule folder, that allows this site in CORS.",
+        },
+        { status: 400 },
+      );
+    }
+    if (existing && existing !== pasted && !force) {
+      return NextResponse.json(
+        { error: "overlay_exists", smDatasetId: existing },
+        { status: 409 },
+      );
+    }
+    await writeOverlayUrl(datasetId, pasted, linkFormat);
+
+    return NextResponse.json({ ok: true, url: pasted, linkFormat });
+  }
+
+  const sm = await ownedDataset(smDatasetId, session.user.id, isAdmin);
+
+  if (!sm || smDatasetId === datasetId || !(await hasMolecules(sm))) {
     return NextResponse.json(
       { error: "Pick a dataset of yours with molecules" },
       { status: 400 },
     );
   }
-
-  const existing = await getOverlaySmId(datasetId);
 
   if (existing && existing !== smDatasetId && !force) {
     return NextResponse.json(

@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { catalogRowWhere, isAdminRole } from "@/lib/explore/visibility";
+import { catalogRowWhere } from "@/lib/explore/visibility";
+import { isAdminRole } from "@/lib/admin-auth";
 import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
 import { ExploreEditButton } from "@/components/explore/explore-edit-button";
 

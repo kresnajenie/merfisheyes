@@ -48,6 +48,18 @@ interface InitiateZarrRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    // Uploads require sign-in so the dataset is always owned — checked
+    // before anything is signed. Admins may opt into collective "admin"
+    // ownership via asAdmin.
+    const session = await auth();
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Sign in to upload" },
+        { status: 401, headers: corsHeaders },
+      );
+    }
+
     const body: InitiateZarrRequest = await request.json();
     const { fingerprint, metadata, totalFiles } = body;
 
@@ -98,16 +110,6 @@ export async function POST(request: NextRequest) {
       Expires: 3600,
     });
 
-    // Uploads require sign-in so the dataset is always owned. Admins may opt
-    // into collective "admin" ownership via asAdmin.
-    const session = await auth();
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: "Sign in to upload" },
-        { status: 401, headers: corsHeaders },
-      );
-    }
     const isAdmin =
       session.user.role === "ADMIN" || session.user.role === "SUPER_ADMIN";
     const { ownerId, adminOwned } = resolveDatasetOwner({

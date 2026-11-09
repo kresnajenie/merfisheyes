@@ -119,6 +119,7 @@ export function CameraPanel({
     };
 
     document.addEventListener("mousedown", handleClickOutside);
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onClose, controlsRef]);
 
@@ -142,7 +143,13 @@ export function CameraPanel({
             variant="light"
             onPress={onClose}
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg
+              className="w-3 h-3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
             </svg>
           </Button>
@@ -238,13 +245,16 @@ export function CameraPanel({
             value={sceneRotation}
             onChange={(v) => {
               let val = v as number;
+
               if ((window as any).__shiftHeld) {
                 val = Math.round(val / 45) * 45;
               }
               setSceneRotation(val);
             }}
           />
-          <p className="text-[10px] text-default-400 mt-1">Hold Shift for 45° snapping</p>
+          <p className="text-[10px] text-default-400 mt-1">
+            Hold Shift for 45° snapping
+          </p>
         </div>
 
         {/* Flip */}
@@ -275,9 +285,12 @@ export function CameraPanel({
         {/* 2D/3D Toggle — always available; 2D datasets render as a flat plane in 3D. */}
         {setViewMode && viewMode && (
           <div>
-            <span className="text-xs text-default-500 mb-2 block">View Mode</span>
+            <span className="text-xs text-default-500 mb-2 block">
+              View Mode
+            </span>
             <div className="flex gap-2">
               <Button
+                aria-pressed={viewMode === "2D"}
                 className="flex-1 text-xs"
                 color={viewMode === "2D" ? "primary" : "default"}
                 size="sm"
@@ -287,6 +300,7 @@ export function CameraPanel({
                 2D
               </Button>
               <Button
+                aria-pressed={viewMode === "3D"}
                 className="flex-1 text-xs"
                 color={viewMode === "3D" ? "primary" : "default"}
                 size="sm"
@@ -331,8 +345,8 @@ export function CameraPanel({
             </button>
             {exportBoxOpen && (
               <ExportBoxSection
-                heightMm={exportBox.heightMm}
                 enabled={exportBox.enabled}
+                heightMm={exportBox.heightMm}
                 resetCenter={exportBox.resetCenter}
                 setEnabled={exportBox.setEnabled}
                 setHeightMm={exportBox.setHeightMm}
@@ -425,7 +439,7 @@ function OwnerDefaultsSection() {
   // three-scene renders the overlay from. Present only when a mapping.json
   // "__all__" overlay has loaded.
   const smOverlay = usePanelSingleMoleculeStore((s) =>
-    s.currentDatasetId ? s.datasets.get(s.currentDatasetId) ?? null : null,
+    s.currentDatasetId ? (s.datasets.get(s.currentDatasetId) ?? null) : null,
   );
   const smSelectedGenes = usePanelSingleMoleculeVisualizationStore(
     (s) => s.selectedGenes,
@@ -445,7 +459,6 @@ function OwnerDefaultsSection() {
         ? saved.filter((g) => overlayUniqueGenes.includes(g))
         : Array.from(smSelectedGenes.keys()),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [smOverlay?.id]);
 
   // Categorical columns selectable as the default (priority) cell-type column.
@@ -461,7 +474,6 @@ function OwnerDefaultsSection() {
         getEffectiveColumnType(name, dataset, store.columnTypeOverrides) ===
         "categorical",
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset, store.columnTypeOverrides, store.clusterVersion]);
 
   const userId = session?.user?.id ?? null;
@@ -623,9 +635,10 @@ function SMOwnerDefaultsSection() {
     )?.defaultGenes;
 
     setDefaultGenes(
-      saved && saved.length > 0 ? saved : Array.from(store.selectedGenes.keys()),
+      saved && saved.length > 0
+        ? saved
+        : Array.from(store.selectedGenes.keys()),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const userId = session?.user?.id ?? null;
@@ -761,7 +774,6 @@ function AlignNumberInput({
   // Sync from the store when the field isn't being edited (e.g. sample switch).
   useEffect(() => {
     if (!focused) setStr(toDisplay(value));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, displayFactor, focused]);
 
   return (
@@ -778,7 +790,9 @@ function AlignNumberInput({
         setFocused(false);
         const n = parseFloat(str);
 
-        setStr(Number.isFinite(n) ? toDisplay(n / displayFactor) : toDisplay(value));
+        setStr(
+          Number.isFinite(n) ? toDisplay(n / displayFactor) : toDisplay(value),
+        );
       }}
       onFocus={() => setFocused(true)}
       onValueChange={(v) => {
@@ -822,6 +836,7 @@ function SampleAlignSection() {
       dataset.allClusterColumnNames?.length > 0
         ? dataset.allClusterColumnNames
         : (dataset.clusters ?? []).map((c) => c.column);
+
     return all.filter(
       (name) =>
         getEffectiveColumnType(name, dataset, columnTypeOverrides) ===
@@ -834,6 +849,7 @@ function SampleAlignSection() {
     const pick = candidates.includes("_sample_id")
       ? "_sample_id"
       : candidates[0];
+
     setTransformColumn(pick);
   }, [candidates, transformColumn, setTransformColumn]);
 
@@ -841,6 +857,7 @@ function SampleAlignSection() {
     if (!dataset || !transformColumn) return;
     if (dataset.clusters?.some((c) => c.column === transformColumn)) return;
     let cancelled = false;
+
     setLoading(true);
     loadClusterColumn(dataset, transformColumn)
       .then((added) => {
@@ -853,6 +870,7 @@ function SampleAlignSection() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };
@@ -860,6 +878,7 @@ function SampleAlignSection() {
 
   const cluster = useMemo(() => {
     if (!dataset || !transformColumn) return null;
+
     return dataset.clusters?.find((c) => c.column === transformColumn) ?? null;
   }, [dataset, transformColumn, clusterVersion]);
 
@@ -869,9 +888,8 @@ function SampleAlignSection() {
       cluster.uniqueValues && cluster.uniqueValues.length > 0
         ? cluster.uniqueValues.slice()
         : Array.from(new Set(cluster.values.map(String)));
-    return raw.sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true }),
-    );
+
+    return raw.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [cluster]);
 
   useEffect(() => {
@@ -893,6 +911,7 @@ function SampleAlignSection() {
     setExporting(true);
     try {
       let centroids = null;
+
       if (cluster) {
         centroids = computeSampleCentroids(dataset.spatial, cluster);
       }
@@ -904,6 +923,7 @@ function SampleAlignSection() {
       );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
+
       a.href = url;
       a.download = "spatial_aligned.bin.gz";
       document.body.appendChild(a);
@@ -1007,9 +1027,7 @@ function SampleAlignSection() {
       <div className="flex items-center gap-1">
         <Button
           className="flex-1 text-xs"
-          isDisabled={
-            !activeSampleId || !sampleTransforms.has(activeSampleId)
-          }
+          isDisabled={!activeSampleId || !sampleTransforms.has(activeSampleId)}
           size="sm"
           variant="flat"
           onPress={() => activeSampleId && clearSampleTransform(activeSampleId)}
@@ -1067,6 +1085,7 @@ function ExportBoxSection({
   // toward "0.5") without the store rounding/clamping every keystroke.
   const [wStr, setWStr] = useState(String(widthMm));
   const [hStr, setHStr] = useState(String(heightMm));
+
   useEffect(() => {
     setWStr(String(widthMm));
   }, [widthMm]);
@@ -1076,11 +1095,13 @@ function ExportBoxSection({
 
   const commitW = () => {
     const n = parseFloat(wStr);
+
     if (Number.isFinite(n) && n > 0) setWidthMm(n);
     else setWStr(String(widthMm));
   };
   const commitH = () => {
     const n = parseFloat(hStr);
+
     if (Number.isFinite(n) && n > 0) setHeightMm(n);
     else setHStr(String(heightMm));
   };

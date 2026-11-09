@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { X, Eye, EyeOff } from "lucide-react";
 import { Switch } from "@heroui/switch";
 import { Tooltip } from "@heroui/tooltip";
@@ -22,6 +22,8 @@ import {
   ColorPickerSelection,
 } from "@/components/ui/shadcn-io/color-picker";
 import { FadeScroll } from "@/components/fade-scroll";
+import { LegendColorActions } from "@/components/legend-color-actions";
+import { useLegendSelection } from "@/lib/hooks/useLegendSelection";
 
 interface SingleMoleculeLegendsProps {
   // When true, render without the outer absolute positioning so the parent
@@ -72,6 +74,18 @@ export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
       selectedGenes.size,
     );
   }, [selectedGenesLegend, selectedGenes]);
+
+  // The chips in the order they are drawn, which is what a shift range
+  // means. Before the early return below: hooks run on every render.
+  const legendGeneNames = useMemo(
+    () => Array.from(selectedGenesLegend),
+    [selectedGenesLegend],
+  );
+  const {
+    selected: picked,
+    onChipClick,
+    clear: clearPicked,
+  } = useLegendSelection(legendGeneNames);
 
   // Don't render if no genes are in legend
   if (selectedGenesLegend.size === 0) {
@@ -172,6 +186,12 @@ export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
         >
           Selected Genes ({selectedGenesLegend.size}) - Clear All
         </div>
+        <LegendColorActions
+          apply={handleColorChange}
+          selected={legendGeneNames.filter((g) => picked.has(g))}
+          taken={legendGenesArray.map(({ geneViz }) => geneViz?.color ?? "")}
+          onDone={clearPicked}
+        />
         <div className="flex flex-col items-end gap-2 px-3 py-1">
           {legendGenesArray.map(({ gene, geneViz, isVisible }) => {
             if (!geneViz) return null;
@@ -195,19 +215,27 @@ export const SingleMoleculeLegends: React.FC<SingleMoleculeLegendsProps> = ({
                 }}
               >
                 <Tooltip
-                  content="Click to change color and size"
+                  content="Click to change color and size; shift- or \u2318-click to pick several"
                   delay={0}
                   placement="left"
                 >
                   <PopoverTrigger>
                     <div
-                      className="group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer hover:scale-105 hover:ring-2 hover:ring-white/60"
+                      className={`group flex items-center gap-2 px-4 py-2 rounded-full transition-all cursor-pointer hover:scale-105 hover:ring-2 hover:ring-white/60 ${
+                        picked.has(gene) ? "ring-2 ring-white" : ""
+                      }`}
+                      data-testid="gene-chip"
                       style={{
                         backgroundColor: isVisible
                           ? geneViz.color
                           : `${geneViz.color}80`, // 50% opacity when hidden
                       }}
-                      onClick={() => setOpenPopoverGene(gene)}
+                      onClick={(e) => {
+                        // Shift / \u2318 pick several chips to recolour at once;
+                        // a plain click opens this chip's own picker
+                        if (onChipClick(gene, e)) return;
+                        setOpenPopoverGene(gene);
+                      }}
                     >
                       {/* Eye toggle for visibility — ⌘/Ctrl/Alt-click to solo */}
                       <button

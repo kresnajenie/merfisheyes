@@ -13,14 +13,19 @@ import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
 import { ThreeScene } from "@/components/three-scene";
+import UMAPPanel from "@/components/umap-panel";
 import { VisualizationControls } from "@/components/visualization-controls";
 import { SplitScreenPage } from "@/components/split-screen-container";
 import { useDatasetLoader } from "@/lib/hooks/useDatasetLoader";
 import {
   usePanelSingleMoleculeStore,
   usePanelSingleMoleculeVisualizationStore,
+  usePanelVisualizationStore,
 } from "@/lib/hooks/usePanelStores";
-import { useSMOverlayUrlSync } from "@/lib/hooks/useUrlVizSync";
+import {
+  useCellVizUrlSync,
+  useSMOverlayUrlSync,
+} from "@/lib/hooks/useUrlVizSync";
 
 /**
  * Viewer for a SpatialData zarr store: by dataset id (uploaded to our S3) or
@@ -61,6 +66,14 @@ export function SpatialDataViewer({
 
   useSMOverlayUrlSync(!!smOverlayDataset, smOverlayDataset, smVizStore);
 
+  // The cells' view in the link (v=, rv= in the right split panel), as the
+  // cell viewer keeps it: 2D/3D, gene, column, cell types, so a shared link
+  // opens as it was left
+  const vizStore = usePanelVisualizationStore();
+  const cellsForUrl = loaded?.cells ?? null;
+
+  useCellVizUrlSync(!!cellsForUrl, cellsForUrl, vizStore);
+
   if (error) {
     return panel ? (
       <DatasetErrorScreen error={error} variant="panel" />
@@ -95,6 +108,9 @@ export function SpatialDataViewer({
       <>
         <VisualizationControls />
         <ThreeScene dataset={cells} elements={elements} />
+        {/* A table's embeddings (obsm/X_umap, ...), as the cell viewer
+            shows them: a saved store opens here, its preview in /viewer */}
+        <UMAPPanel />
       </>,
     );
   }

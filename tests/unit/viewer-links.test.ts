@@ -83,6 +83,10 @@ describe("the emails", () => {
   });
 
   it("the single molecule upload's email links what the dataset is", async () => {
+    // Its owner asks, signed in (the route refuses anyone else).
+    vi.doMock("@/lib/auth", () => ({
+      auth: async () => ({ user: { id: "u1", email: "a@example.com" } }),
+    }));
     vi.doMock("@/lib/prisma", () => ({
       prisma: {
         dataset: {
@@ -91,6 +95,8 @@ describe("the emails", () => {
             numCells: 10,
             numGenes: 2,
             datasetType: "spatialdata",
+            ownerId: "u1",
+            adminOwned: false,
           })),
         },
       },

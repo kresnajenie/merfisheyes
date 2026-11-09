@@ -26,6 +26,15 @@ export interface DatasetReadyEmailParams {
     platform?: string;
     clusterCount?: number;
   };
+  /**
+   * The other datasets saved with this one (a folder's molecules and image
+   * beside its cells), linked below it, so one save sends one email.
+   */
+  alsoSaved?: {
+    datasetId: string;
+    datasetType?: string | null;
+    datasetName?: string;
+  }[];
 }
 
 /**
@@ -42,8 +51,13 @@ export async function sendDatasetReadyEmail({
   molecules,
   datasetName,
   metadata,
+  alsoSaved = [],
 }: DatasetReadyEmailParams): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const others = alsoSaved.map((d) => ({
+    name: d.datasetName || "Untitled",
+    link: `${baseUrl}${viewerHref({ id: d.datasetId, datasetType: d.datasetType ?? null })}`,
+  }));
   // The viewer of what it is (a SpatialData store, an image, cells or
   // molecules); without a type, an sm_ id is still a molecule dataset
   const isSingleMolecule = molecules ?? datasetId.startsWith("sm_");
@@ -69,7 +83,7 @@ export async function sendDatasetReadyEmail({
       Subject: { Data: subject },
       Body: {
         Text: {
-          Data: `Your dataset is ready.\n\nDataset: ${datasetName || "Untitled"}\n${countLabel}: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nOpen your dataset: ${link}`,
+          Data: `Your dataset is ready.\n\nDataset: ${datasetName || "Untitled"}\n${countLabel}: ${metadata?.numCells?.toLocaleString() || "N/A"}\nGenes: ${metadata?.numGenes?.toLocaleString() || "N/A"}\nPlatform: ${metadata?.platform || "N/A"}\n\nOpen your dataset: ${link}${others.length ? `\n\nAlso in this save:\n${others.map((o) => `${o.name}: ${o.link}`).join("\n")}` : ""}`,
         },
         Html: {
           Data: `<!DOCTYPE html>
@@ -85,7 +99,17 @@ export async function sendDatasetReadyEmail({
     <div style="border-top: 1px solid #e0e0e0; padding-top: 24px;">
       <p style="margin: 0 0 4px 0; font-size: 14px; color: #666;">Your dataset is ready</p>
       <h2 style="margin: 0 0 24px 0; font-size: 22px; font-weight: 600; color: #111;">${datasetName || "Untitled Dataset"}</h2>
-      <a href="${link}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>
+      <a href="${link}" style="display: inline-block; background: #2563eb; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 500; font-size: 15px;">Open Dataset &rarr;</a>${
+        others.length
+          ? `
+      <p style="margin: 24px 0 4px 0; font-size: 13px; color: #666;">Also in this save</p>${others
+        .map(
+          (o) => `
+      <p style="margin: 0; font-size: 14px;"><a href="${o.link}" style="color: #2563eb; text-decoration: none;">${escapeHtml(o.name)}</a></p>`,
+        )
+        .join("")}`
+          : ""
+      }
     </div>
     <div style="margin-top: 32px; padding: 16px; background: #f8f8f8; border-radius: 6px;">
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">

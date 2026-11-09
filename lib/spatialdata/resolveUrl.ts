@@ -6,6 +6,8 @@
  * `cells` entry of the mapping.json in the folder (a name inside it, or a
  * full URL), else a store named after the folder (`sample/sample.zarr`).
  */
+import { imageMultiscale } from "./ome";
+
 export interface ZarrTarget {
   kind: "spatialdata" | "image";
   /** The store or image itself, without a trailing slash. */
@@ -29,7 +31,7 @@ async function zarrKind(url: string): Promise<Omit<ZarrTarget, "url"> | null> {
   const attrs = root?.attributes;
 
   if (attrs?.spatialdata_attrs) return { kind: "spatialdata", root };
-  if (attrs?.ome?.multiscales) return { kind: "image", root };
+  if (imageMultiscale(attrs)) return { kind: "image", root };
 
   return null;
 }

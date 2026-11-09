@@ -12,6 +12,7 @@ import {
 import { uploadChunkedToS3 } from "@/lib/upload/uploadChunkedToS3";
 import { uploadImageToS3 } from "@/lib/upload/uploadImageToS3";
 import { uploadZarrFolderToS3 } from "@/lib/upload/uploadZarrFolderToS3";
+import { reportUploadReady } from "@/lib/upload/reportUploadReady";
 import { openSpatialDataStoreFromFiles } from "@/lib/spatialdata/localStore";
 import {
   findPointsElements,
@@ -387,6 +388,10 @@ export async function saveLocalBundle({
     : saved.moleculesId
       ? `/sm-viewer/${saved.moleculesId}`
       : `/image-viewer/${saved.imageId}`;
+
+  // One "ready" email for the whole save, the cells (which show the rest)
+  // first: none of its parts is processed on the server, which emails
+  await reportUploadReady(ids);
 
   return saved;
 }
