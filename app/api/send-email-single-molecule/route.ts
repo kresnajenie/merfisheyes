@@ -2,6 +2,7 @@ import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { requireUploadOwner } from "@/lib/admin-auth";
 import { viewerHref } from "@/lib/datasets/kind";
 
 const ses = new SESClient({
@@ -14,13 +15,27 @@ const ses = new SESClient({
 
 const FROM_EMAIL = process.env.SES_FROM_EMAIL || "noreply@merfisheyes.com";
 
+// Only the dataset's signed-in owner may ask, and the mail goes to their own
+// account address: an `email` in the body is ignored (it used to be the
+// recipient, which let anyone send our mail to anyone).
 export async function POST(request: NextRequest) {
   try {
-    const { email, datasetId } = await request.json();
+    const { datasetId } = await request.json();
 
-    if (!email || !datasetId) {
+    if (!datasetId) {
       return NextResponse.json(
-        { error: "Email and datasetId are required" },
+        { error: "datasetId is required" },
+        { status: 400 },
+      );
+    }
+    const owner = await requireUploadOwner(String(datasetId));
+
+    if (owner.error) return owner.error;
+    const email = owner.session.user.email;
+
+    if (!email) {
+      return NextResponse.json(
+        { error: "Your account has no email address" },
         { status: 400 },
       );
     }

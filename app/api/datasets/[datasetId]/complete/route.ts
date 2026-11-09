@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { requireUploadOwner } from "@/lib/admin-auth";
 import { generateManifestUrl } from "@/lib/s3";
 import { updateDatasetGenes } from "@/lib/datasets/read-genes";
 
@@ -35,6 +36,11 @@ export async function POST(
         { status: 400, headers: corsHeaders },
       );
     }
+
+    // Only the dataset's signed-in owner, for an upload of this dataset.
+    const owner = await requireUploadOwner(datasetId, uploadId);
+
+    if (owner.error) return owner.error;
 
     // Verify dataset exists and belongs to this upload session
     const dataset = await prisma.dataset.findUnique({

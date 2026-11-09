@@ -179,8 +179,8 @@ and ensures the bucket before the tests run. The tests verify the saved dataset
 is `COMPLETE` via the API and that reloading it from S3 matches the expected
 metadata and counts.
 
-> Auth is **not** required — the upload API routes are open; only DB + S3 are
-> needed.
+> Every upload route needs a signed-in owner; the specs sign in with the
+> `dev-email` provider (`e2e/helpers/auth.ts`), which the e2e server turns on.
 
 `e2e/tests/upload/image-overlay.spec.ts` (also `@upload`) saves a dataset,
 adds an image to the account from the image viewer's banner, picks it in the
