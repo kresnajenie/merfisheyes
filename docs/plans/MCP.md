@@ -185,10 +185,12 @@ function; a server relay to a tab (remote MCP) needs an external pub/sub
 | D7 | Write tools in v1: anything the person can do on the site, within computational reason; destructive actions confirmed | **taken** |
 | D8 | Catalog from the Explore DB + sidecar JSON; no Lamin | **taken** |
 | D9 | OAuth server hand-built on Prisma (`lib/oauth/`), not a library: the MCP profile is narrow (public clients, code + PKCE S256, refresh rotation, CIMD + DCR), no maintained Node library fits Next route handlers without an Express shim, and every rule is pinned by `tests/unit/agent-oauth-*.test.ts` | **taken** (step 3) |
-| D10 | Where the package lives: `packages/merfisheyes-mcp` in this repo vs its own repo | open (step 4) |
+| D10 | The package lives in this repo, `packages/merfisheyes-mcp`, as its own folder with its own `package.json` and CI job (not an npm workspace: the site's install and Vercel build stay as they are). The package, the site's bridge executor and the protocol change together, in one PR; the package is published to npm from that folder under its own version | **taken** 2026-11-09 |
 | D11 | Tool names carry the `meyes_` prefix (`meyes_search_datasets`, …): short, already the repo's shorthand, still distinct beside other servers | **taken** 2026-11-08 |
 | D12 | The tool list of MCP-PROTOCOL §3 is approved for v1; more tier-2 analysis and tier-3 compute tools come later (pinned P2) | **taken** 2026-11-08 |
 | D13 | Gaps in the BIL stores' DE stats (QC columns on ace-owl-\*, no cluster DE on ace-low-\*) are accepted as they are; the tools account for them, the pipeline is not changed for this | **taken** 2026-11-08 |
+| D14 | Rate limits, in shared storage (serverless instances share nothing), checked in `lib/agent/route.ts` and the OAuth routes, answering 429 with the wait: agent API 60/min per IP without a token, 300/min per grant and 10,000/day per user with one; S3- or Batch-touching calls (detail, status) 30/min per caller; `/api/oauth/register` 10/hour per IP; `/api/oauth/token` 30/min per client and IP; consent decisions 20/hour per user. Built at the start of step 4, before the pipeline branch merges | **taken** 2026-11-08 |
+| D15 | Personal datasets stay "anyone with the link" (any id opens on the site); the agent API keeps its stricter rule (MCP-PROTOCOL §2) | **taken** 2026-11-08 |
 
 ## 8. Steps
 
@@ -283,9 +285,14 @@ database with `E2E_AGENT=1` — no Docker needed. The e2e server now sets
 
 ### Step 4 — The MCP package (read tools)
 
-Stdio server on `@modelcontextprotocol/sdk`; loopback OAuth; token
-storage; the catalog and project tools of step 2; the §4 instructions.
-Settle D10 at the start.
+Stdio server on the MCP TypeScript SDK v2 (`@modelcontextprotocol/server`);
+loopback OAuth; token storage; the catalog and project tools of step 2; the
+§4 instructions. In `packages/merfisheyes-mcp` (D10).
+
+**Done first, before the pipeline branch merged (2026-11-09):** the rate
+limits of D14 (`lib/rate-limit.ts`, migration
+`20261109081522_agent_rate_limits`, MCP-PROTOCOL §6.5), tested in
+`tests/unit/agent-oauth-db.test.ts`.
 
 **Gate:** MCP Inspector lists the tools; in Claude Code (`claude mcp add`)
 an agent finds a public dataset and one of the user's own.

@@ -182,6 +182,20 @@ model OAuthToken {
   @@map("oauth_tokens")
 }
 
+// Rate limits for the agent API and the OAuth routes (docs/plans/MCP.md
+// D14): one counter per key per fixed window, raised by one atomic upsert.
+// Shared state for the same reason as LoginAttempt: serverless instances
+// share no memory. Old windows are swept as calls come in.
+model RateLimitCounter {
+  key         String   @db.VarChar(300)
+  windowStart DateTime @map("window_start")
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit_counters")
+}
+
 // ─── Catalog ────────────────────────────────────────────────────
 
 model CatalogDataset {

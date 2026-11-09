@@ -1,5 +1,12 @@
 import { OAuthError, exchangeCode, refresh } from "@/lib/oauth/flow";
-import { formParams, oauthError, oauthJson, preflight } from "@/lib/oauth/http";
+import {
+  formParams,
+  oauthError,
+  oauthJson,
+  preflight,
+  rateLimited,
+} from "@/lib/oauth/http";
+import { LIMITS, checkRateLimits, clientIp } from "@/lib/rate-limit";
 
 // POST /api/oauth/token — the code exchange and the refresh
 // (docs/specs/MCP-PROTOCOL.md §6.4). Public clients: client_id, no secret.
@@ -9,6 +16,9 @@ export async function POST(req: Request) {
 
   if (!clientId)
     return oauthError("invalid_client", "client_id is required", 401);
+  const limited = await checkRateLimits(LIMITS.token(clientId, clientIp(req)));
+
+  if (!limited.ok) return rateLimited(limited.retryAfter);
   try {
     switch (p.get("grant_type")) {
       case "authorization_code": {

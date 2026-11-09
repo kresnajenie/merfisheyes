@@ -40,6 +40,8 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
   // The route handlers under test, by their path below app/api.
   const ROUTES = {
     "agent/v1/catalog/search": () => import("@/app/api/agent/v1/catalog/search/route"),
+    "agent/v1/catalog/facets": () => import("@/app/api/agent/v1/catalog/facets/route"),
+    "oauth/register": () => import("@/app/api/oauth/register/route"),
     "agent/v1/catalog/[id]": () => import("@/app/api/agent/v1/catalog/[id]/route"),
     "agent/v1/catalog/[id]/genes": () => import("@/app/api/agent/v1/catalog/[id]/genes/route"),
     "agent/v1/datasets/[id]": () => import("@/app/api/agent/v1/datasets/[id]/route"),
@@ -63,11 +65,14 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
   const call = async (
     path: string,
     handler: Parameters<typeof route>[0],
-    opts: { token?: string; params?: Record<string, string>; query?: string } = {},
+    opts: { token?: string; params?: Record<string, string>; query?: string; ip?: string } = {},
   ) => {
     const mod = await route(handler);
     const req = new Request(`${ISSUER}${path}${opts.query ? `?${opts.query}` : ""}`, {
-      headers: opts.token ? { authorization: `Bearer ${opts.token}` } : {},
+      headers: {
+        ...(opts.token ? { authorization: `Bearer ${opts.token}` } : {}),
+        ...(opts.ip ? { "x-forwarded-for": opts.ip } : {}),
+      },
     });
 
     return (mod.GET as (r: Request, c?: unknown) => Promise<Response>)(
@@ -77,6 +82,7 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
   };
 
   async function reset() {
+    await prisma.rateLimitCounter.deleteMany();
     await prisma.oAuthToken.deleteMany();
     await prisma.oAuthCode.deleteMany();
     await prisma.oAuthGrant.deleteMany();
@@ -489,6 +495,51 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
       const grant = await prisma.oAuthGrant.findFirstOrThrow({ where: { clientId: client.client_id } });
 
       expect(grant).toMatchObject({ allProjects: false, projectIds: ["pA1"] });
+    });
+  });
+
+  describe("rate limits (D14)", () => {
+    it("count per key and window, and say how long to wait", async () => {
+      const { checkRateLimits } = await import("@/lib/rate-limit");
+      const t = new Date("2026-11-09T12:00:30Z");
+      const limit = [{ key: "test:a", limit: 3, windowSeconds: 60 }];
+
+      for (let i = 0; i < 3; i++) expect((await checkRateLimits(limit, t)).ok).toBe(true);
+      const over = await checkRateLimits(limit, t);
+
+      expect(over).toEqual({ ok: false, key: "test:a", retryAfter: 30 });
+      expect((await checkRateLimits([{ ...limit[0], key: "test:b" }], t)).ok).toBe(true);
+      expect((await checkRateLimits(limit, new Date("2026-11-09T12:01:00Z"))).ok).toBe(true);
+    });
+
+    it("the agent API refuses the 61st anonymous call a minute from one address", async () => {
+      const facets = () => call("/api/agent/v1/catalog/facets", "agent/v1/catalog/facets", { ip: "203.0.113.7" });
+
+      for (let i = 0; i < 60; i++) expect((await facets()).status).toBe(200);
+      const res = await facets();
+
+      expect(res.status).toBe(429);
+      expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+      expect((await res.json()).error).toBe("rate_limited");
+      // another address is not affected
+      expect((await call("/api/agent/v1/catalog/facets", "agent/v1/catalog/facets", { ip: "203.0.113.8" })).status).toBe(200);
+    });
+
+    it("registration allows ten clients an hour from one address", async () => {
+      const register = async () =>
+        (await route("oauth/register")).POST(
+          new Request(`${ISSUER}/api/oauth/register`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9" },
+            body: JSON.stringify({ redirect_uris: ["http://127.0.0.1/cb"] }),
+          }),
+        );
+
+      for (let i = 0; i < 10; i++) expect((await register()).status).toBe(201);
+      const res = await register();
+
+      expect(res.status).toBe(429);
+      expect(res.headers.get("retry-after")).toBeTruthy();
     });
   });
 

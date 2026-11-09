@@ -271,6 +271,16 @@ the scope to ask for (§6.5) and the client steps up.
 | No token, or invalid / expired / revoked / wrong-resource token | 401, `WWW-Authenticate: Bearer resource_metadata="…", scope="…"` |
 | Valid token, scope missing | 403, `WWW-Authenticate: Bearer error="insufficient_scope", scope="<all scopes this call needs>", resource_metadata="…"` |
 | Not visible (§2) | 404 |
+| Over a rate limit | 429, `Retry-After: <seconds>`, `{ "error": "rate_limited", "message": … }` |
+
+**Rate limits** (`lib/rate-limit.ts`, counted in Postgres since serverless
+instances share nothing; fixed windows): without a token 60 calls a minute
+per address; with one 300 a minute per grant and 10,000 a day per person;
+`GET /catalog/{id}`, `GET /datasets/{id}` and `GET /me/datasets/{id}/status`
+(they read S3 or ask AWS Batch) 30 a minute per caller. On the
+authorization server: registration 10 an hour per address, the token
+endpoint 30 a minute per client and address, consent decisions 20 an hour
+per person.
 
 ## 7. The bridge (step 5)
 

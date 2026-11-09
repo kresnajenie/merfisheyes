@@ -29,6 +29,19 @@ export function oauthError(error: string, description: string, status = 400) {
   return oauthJson({ error, error_description: description }, status);
 }
 
+/** 429 over a rate limit (docs/plans/MCP.md D14), with Retry-After. */
+export function rateLimited(retryAfter: number) {
+  const res = oauthError(
+    "rate_limited",
+    `too many requests: wait ${retryAfter} s before trying again`,
+    429,
+  );
+
+  res.headers.set("Retry-After", String(retryAfter));
+
+  return res;
+}
+
 /** A token or revocation request's parameters: form-encoded as the RFCs say,
  * JSON accepted too. */
 export async function formParams(req: Request): Promise<URLSearchParams> {

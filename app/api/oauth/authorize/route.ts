@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { issuer } from "@/lib/oauth/config";
 import { verifySigned } from "@/lib/oauth/crypto";
+import { LIMITS, checkRateLimits } from "@/lib/rate-limit";
 import {
   type AuthorizeRequest,
   OAuthError,
@@ -43,6 +44,14 @@ export async function POST(request: Request) {
 
   if (session?.user?.id !== signed.userId)
     return page("You are signed in as someone else. Start again.", 403);
+  const limited = await checkRateLimits(LIMITS.consent(signed.userId));
+
+  if (!limited.ok) {
+    return page(
+      `Too many tries. Wait ${limited.retryAfter} s and start again.`,
+      429,
+    );
+  }
   const { req } = signed;
 
   if (form.get("decision") !== "approve") {

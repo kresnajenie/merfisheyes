@@ -64,6 +64,16 @@ export function insufficientScope(scopes: Scope[]) {
   });
 }
 
+/** 429: over a rate limit; says how long to wait (Retry-After, seconds). */
+export function tooManyRequests(retryAfter: number) {
+  return problem(
+    429,
+    "rate_limited",
+    `too many requests: wait ${retryAfter} s before trying again, and make fewer calls (page through results instead of repeating them)`,
+    { "Retry-After": String(retryAfter) },
+  );
+}
+
 export function notFound(what: string) {
   return problem(404, "not_found", `no ${what} with that id is visible to you`);
 }

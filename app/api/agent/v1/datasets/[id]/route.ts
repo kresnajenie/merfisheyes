@@ -22,4 +22,5 @@ export const GET = agentRoute<{ id: string }>(
 
     return NextResponse.json(await datasetDetailOut(dataset, owned));
   },
+  { expensive: true },
 );

@@ -17,4 +17,5 @@ export const GET = agentRoute<{ id: string }>(
 
     return NextResponse.json(await catalogDetailOut(row));
   },
+  { expensive: true },
 );

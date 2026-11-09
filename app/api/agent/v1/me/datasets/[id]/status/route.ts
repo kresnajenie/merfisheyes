@@ -29,4 +29,5 @@ export const GET = agentRoute<{ id: string }>(
       faultCategory: dataset.faultCategory,
     });
   },
+  { expensive: true },
 );
