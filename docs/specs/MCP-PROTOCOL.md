@@ -77,6 +77,8 @@ destructive (needs `confirm: true`), `I` idempotent.
 | `meyes_get_processing_status` | `projects:read` | api | R I | Status and progress of a dataset being processed. |
 | `meyes_list_projects` | `projects:read` | api | R I | The caller's projects in scope, with member datasets. |
 | `meyes_get_project` | `projects:read` | api | R I | One project with its datasets. |
+| `meyes_sign_in` | — | local | W I | Starts the browser sign-in (§6.4): returns the link, opens a tab where it can; the answer comes back to the package's loopback listener. `scopes` asks for more (step-up). |
+| `meyes_sign_out` | — | local | W I | Revokes the grant's tokens and forgets them. |
 
 ### 3.2 Account writes (step 7)
 
@@ -225,6 +227,12 @@ All clients are public (no secret). In the order the spec gives:
    Cached by HTTP headers, at most a day.
 2. **Dynamic registration**: `redirect_uris` (required), `client_name`;
    returns a `client_id`.
+
+Our own package, `merfisheyes-mcp`, identifies by the site's document
+`<issuer>/oauth/merfisheyes-mcp.json` (`app/oauth/merfisheyes-mcp.json`;
+loopback redirect, any port), so its consent page names the site as
+publisher. Against an `http://` issuer (a local server), which cannot be
+fetched as a document, it registers (2.).
 
 Redirect URIs are HTTPS or loopback (`http://127.0.0.1`, `http://[::1]`,
 `http://localhost`). Matching is exact, except that a loopback URI may use

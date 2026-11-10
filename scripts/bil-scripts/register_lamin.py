@@ -15,6 +15,11 @@ Layout, per format (both under s3://<bucket>/<prefix>/<sample>/):
 
   spatialdata  <name>.zarr  stats.json  mapping.json        prefix bil-psc-zarr
                qc.json  catalog.json   (written by the pipeline on every run)
+
+One artifact per SpatialData dataset: the store. The four JSON files beside it
+are not artifacts of their own — every field of theirs is a column of the
+dataset's sheet row, and the row also holds each file whole (stats_json,
+qc_json, catalog_json, mapping_json), so nothing in them is only in S3.
   legacy       meyes_output/            (cells, chunked)    prefix bil-psc-data2
                sm_output/<sample_id>/   (molecules, one per slice)
 
@@ -30,7 +35,8 @@ Each artifact is checked after it is saved (and only checked with --check-only):
 
 Each sample also gets one row in the record sheet "BIL datasets" (an
 ln.Record of that type, named by its BIL code): the catalog entry, the counts,
-the QC numbers and links to every artifact registered above. For a SpatialData
+the QC numbers, the four JSON files whole, and links to every artifact
+registered above. For a SpatialData
 store the catalog entry is its own catalog.json; --catalog is the fallback
 (and, for legacy folders, the only source).
 
@@ -65,7 +71,7 @@ SHEET = "BIL datasets"
 FEATURES = {
     "bil_code": str,
     "data_format": str,      # spatialdata | merfisheyes-chunked
-    "dataset_kind": str,     # single_cell | single_molecule | sidecar
+    "dataset_kind": str,     # single_cell | single_molecule
     "species": str,
     "tissue": str,
     "platform": str,
@@ -82,37 +88,71 @@ FEATURES = {
     "mask_percentile": int,
     "pct_artifact": float,
     "mmc_levels": str,
+    "mmc_methods": str,
+    "n_cluster": int,
+    "mean_boot_cluster": float,
+    "n_genes_imaged": int,
+    "total_counts": float,
+    "mean_counts_per_cell": float,
+    "n_artifact": int,
+    # stats.json (prepare.py, every run) beyond the counts
+    "n_molecule_genes": int,
+    "dims": int,
     # catalog.json (catalog_entry.py, every run) — on the sheet row
     "title": str,
     "institution": str,
     "publication_year": str,
     "license": str,
     "bil_url": str,
+    "abstract": str,
+    "technique": str,
+    "funding": str,
+    "age": str,
+    "sex": str,
+    # each JSON file beside the store, whole — on the sheet row
+    "stats_json": dict,
+    "qc_json": dict,
+    "catalog_json": dict,
+    "mapping_json": dict,
     "store": ln.Artifact,           # what the viewer opens
     "artifacts": list[ln.Artifact],  # everything registered for the dataset
 }
 # The sheet's columns, in order; bil_code is its index (the row's name).
 SHEET_COLUMNS = ["title", "species", "tissue", "platform", "investigator", "institution",
-                 "publication_year", "license", "bil_url", "data_format",
-                 "n_cells", "n_genes", "n_molecules", "n_sections", "n_genes_detected",
-                 "median_counts_per_cell", "mask_percentile", "pct_artifact", "mmc_levels",
-                 "pipeline_commit", "viewer_url", "store", "artifacts"]
+                 "publication_year", "license", "bil_url", "technique", "funding", "age", "sex",
+                 "abstract", "data_format",
+                 "n_cells", "n_genes", "n_molecules", "n_molecule_genes", "dims", "n_sections",
+                 "n_genes_detected", "n_genes_imaged", "total_counts", "mean_counts_per_cell",
+                 "median_counts_per_cell", "mask_percentile", "n_artifact", "pct_artifact",
+                 "mmc_methods", "mmc_levels", "n_cluster", "mean_boot_cluster",
+                 "pipeline_commit", "viewer_url", "store", "artifacts",
+                 "stats_json", "qc_json", "catalog_json", "mapping_json"]
 # from qc.json key -> feature
 QC_FEATURES = {"n_samples": "n_sections", "n_genes_detected": "n_genes_detected",
                "median_counts_per_cell": "median_counts_per_cell",
                "mask_percentile": "mask_percentile", "pct_artifact": "pct_artifact",
-               "mmc_levels": "mmc_levels"}
+               "mmc_levels": "mmc_levels", "mmc_methods": "mmc_methods",
+               "n_cluster": "n_cluster", "mean_boot_cluster": "mean_boot_cluster",
+               "n_genes_imaged": "n_genes_imaged", "total_counts": "total_counts",
+               "mean_counts_per_cell": "mean_counts_per_cell", "n_artifact": "n_artifact"}
+# from stats.json key -> feature
+STATS_FEATURES = {"cells": "n_cells", "genes": "n_genes", "molecules": "n_molecules",
+                  "molecule_genes": "n_molecule_genes", "dims": "dims", "pipeline": "pipeline_commit"}
+# the JSON files beside a SpatialData store, each kept whole on the row
+SIDECARS = {"stats.json": "stats_json", "qc.json": "qc_json",
+            "catalog.json": "catalog_json", "mapping.json": "mapping_json"}
 
 
 @dataclass
 class Item:
     """One thing to register: a folder or a file under the storage root."""
     rel: str                 # path below s3://bucket/prefix/
-    kind: str                # single_cell | single_molecule | sidecar
+    kind: str                # single_cell | single_molecule
     entry: str | None        # file inside a folder to read back; None for a file
     viewer: str | None = None
-    values: dict = field(default_factory=dict)
+    values: dict = field(default_factory=dict)   # on the artifact and the sheet row
     description: str = ""
+    row: dict = field(default_factory=dict)      # on the sheet row only (the JSON files)
 
 
 @dataclass
@@ -154,32 +194,23 @@ def viewer_url(viewer: str, url: str) -> str:
 # ── what to register, per format ─────────────────────────────
 
 def plan_spatialdata(sample: str, prefix: str, meta: dict) -> list[Item]:
-    stats = read_json(https(prefix, f"{sample}/stats.json"))
+    files = {name: read_json(https(prefix, f"{sample}/{name}")) for name in SIDECARS}
+    stats, qc, catalog = files["stats.json"], files["qc.json"] or {}, files["catalog.json"]
     if stats is None:
         raise SystemExit(f"{sample}: no stats.json at {https(prefix, sample + '/stats.json')}")
     # The pipeline's own catalog entry wins over --catalog: it is this run's
-    catalog = read_json(https(prefix, f"{sample}/catalog.json"))
     if catalog:
         meta.update({k: v for k, v in catalog.items() if v})
-    qc = read_json(https(prefix, f"{sample}/qc.json")) or {}
     store = stats["store"]
     values = {
         **{f: qc[k] for k, f in QC_FEATURES.items() if qc.get(k) is not None},
+        **{f: stats[k] for k, f in STATS_FEATURES.items() if stats.get(k) is not None},
         "data_format": "spatialdata",
-        "n_cells": stats.get("cells"),
-        "n_genes": stats.get("genes"),
-        "n_molecules": stats.get("molecules"),
-        "pipeline_commit": stats.get("pipeline"),
     }
     desc = (f"{meta.get('title') or sample} — SpatialData store, {stats['cells']:,} cells, "
             f"{stats['genes']} genes, {stats.get('molecules') or 0:,} molecules")
-    items = [Item(f"{sample}/{store}", "single_cell", "zarr.json", "spatialdata-viewer", values, desc)]
-    sidecars = ["stats.json", "mapping.json"]
-    sidecars += [n for n, got in (("qc.json", qc), ("catalog.json", catalog)) if got]
-    for name in sidecars:
-        items.append(Item(f"{sample}/{name}", "sidecar", None, None,
-                          {"data_format": "spatialdata"}, f"{sample} {name}"))
-    return items
+    row = {SIDECARS[name]: got for name, got in files.items() if got}
+    return [Item(f"{sample}/{store}", "single_cell", "zarr.json", "spatialdata-viewer", values, desc, row)]
 
 
 def plan_legacy(sample: str, prefix: str, meta: dict) -> list[Item]:
@@ -267,6 +298,11 @@ def upsert_row(sheet, sample: str, meta: dict, values: dict, artifacts: list, st
         "publication_year": md.get("publicationYear"),
         "license": md.get("license"),
         "bil_url": meta.get("externalLink"),
+        "abstract": meta.get("description"),
+        "technique": md.get("technique"),
+        "funding": md.get("funding"),
+        "age": md.get("age"),
+        "sex": md.get("sex"),
         **{k: v for k, v in values.items() if k in SHEET_COLUMNS},
         "store": store,
         "artifacts": artifacts,
@@ -285,6 +321,7 @@ def dataset_values(plan: list[Item]) -> dict:
     for it in plan:
         if it.kind == "single_cell":
             out.update(it.values)
+            out.update(it.row)
             if it.viewer:
                 out.setdefault("_viewer", it)
     mols = [it.values.get("n_molecules") for it in plan if it.kind == "single_molecule"]
@@ -395,6 +432,10 @@ def sheet_row(sample, meta, plan, saved, sheet, writing, root, prefix) -> Result
     res.checks["row"] = "ok" if got.get("store") and keys <= have else \
         f"store={got.get('store')} missing links: {sorted(keys - have)}"
     res.checks["catalog"] = "ok" if got.get("title") else "no title (no catalog.json / --catalog entry)"
+    files = {k for it in plan for k in it.row}   # the JSON files read beside the store
+    if files:
+        res.checks["files"] = "ok" if all(got.get(k) for k in files) else \
+            f"not on the row: {sorted(k for k in files if not got.get(k))}"
     print(f"  row  {SHEET} / {sample}  {rec.uid}  " +
           "  ".join(f"{k}={'ok' if v == 'ok' else 'FAIL'}" for k, v in res.checks.items()))
     for k, v in res.checks.items():

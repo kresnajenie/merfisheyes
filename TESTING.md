@@ -230,6 +230,12 @@ database, so it also runs without Docker against any migrated Postgres:
 `DATABASE_URL=… DIRECT_URL=… E2E_AGENT=1 npx playwright test
 e2e/tests/upload/agent-consent.spec.ts`.
 
+The agent package itself — `packages/merfisheyes-mcp`, built — is driven
+over stdio as an agent would by `e2e/tests/upload/agent-mcp.spec.ts`
+(public search, sign-in through the browser for one project, sign-out);
+build it first (`npm ci && npm run build` in that folder). Its own unit
+tests run there with `npm test` (CI's `MCP package` job).
+
 The pure rules (redirect URIs, PKCE, the fetch guard, sidecar files) are in
 `tests/unit/agent-oauth-rules.test.ts` and run with `npm test`. The sidecar
 JSON schemas are checked by `python -m pytest tests/python/test_sidecars.py`

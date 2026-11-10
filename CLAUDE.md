@@ -104,7 +104,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
 | [docs/plans/LAMIN.md](docs/plans/LAMIN.md) | Live plan: our datasets recorded in the Lamin instance `merfisheyes/eyes-catalog`, in place on S3 — `register_lamin.py` |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
-| [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: an agent (any MCP client) that drives a MERFISHEYES tab — local MCP + bridge, OAuth, Agent panel (steps 1–3 done). One catalog visibility rule now: `lib/explore/visibility.ts` |
+| [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: an agent (any MCP client) that drives a MERFISHEYES tab — local MCP + bridge, OAuth, Agent panel (steps 1–4 done; the package is `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
 | [docs/labelled-single-molecule.md](docs/labelled-single-molecule.md) | `/lm-viewer` — molecules with N categorical labels, no expression matrix |
 | [docs/sc-sm-one-space.md](docs/sc-sm-one-space.md) | SC+SM overlay; `__all__` ships, per-sample mode is future work |
 | [docs/SM-STREAMING-PLAN.md](docs/SM-STREAMING-PLAN.md) | Streaming the legacy per-gene `bin.gz` files |
@@ -358,6 +358,8 @@ lib/
 
 components/     79 files + docs/ explore/ plots/ admin/ account/ ui/ auth/
 worker/         Dockerfile + entrypoint.py (the Batch job)
+packages/       merfisheyes-mcp — the agents' MCP server (own package.json, CI job;
+                excluded from the site's tsconfig)
 scripts/        Python processors, prepare_*, validate_store, points_zarr,
                 parity/, perf/, testdata/, bil-scripts/ (HPC SLURM)
 tests/          unit/ (38 Vitest), python/, fixtures/, data/ (tiny committed)

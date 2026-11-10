@@ -8,8 +8,8 @@ and the person's own projects are both in reach, and the agent may do
 anything the person could do on the site, within computational reason.
 
 This file is the brief for every session working on it: the facts, the
-decisions taken, the steps with their gates. **Status (2026-11-08): steps
-1–3 done.** Keep it
+decisions taken, the steps with their gates. **Status (2026-11-09): steps
+1–4 done.** Keep it
 current: a step that changes a fact or a decision edits this file in the
 same commit. Branch: `feature/mcp` (from `bil/pipeline-dry-run`). The
 contract the steps build is [docs/specs/MCP-PROTOCOL.md](../specs/MCP-PROTOCOL.md).
@@ -191,6 +191,8 @@ function; a server relay to a tab (remote MCP) needs an external pub/sub
 | D13 | Gaps in the BIL stores' DE stats (QC columns on ace-owl-\*, no cluster DE on ace-low-\*) are accepted as they are; the tools account for them, the pipeline is not changed for this | **taken** 2026-11-08 |
 | D14 | Rate limits, in shared storage (serverless instances share nothing), checked in `lib/agent/route.ts` and the OAuth routes, answering 429 with the wait: agent API 60/min per IP without a token, 300/min per grant and 10,000/day per user with one; S3- or Batch-touching calls (detail, status) 30/min per caller; `/api/oauth/register` 10/hour per IP; `/api/oauth/token` 30/min per client and IP; consent decisions 20/hour per user. Built at the start of step 4, before the pipeline branch merges | **taken** 2026-11-08 |
 | D15 | Personal datasets stay "anyone with the link" (any id opens on the site); the agent API keeps its stricter rule (MCP-PROTOCOL §2) | **taken** 2026-11-08 |
+| D16 | The package is `@merfisheyes/mcp` on npm, under the `merfisheyes` npm organisation (created 2026-11-10, two-factor on) so it outlives any one maintainer; run with `npx -y @merfisheyes/mcp` (the command it installs is `merfisheyes-mcp`). First published by hand once the live site has the agent API (after `develop` → `main` and `OAUTH_ISSUER` in Production); later releases from GitHub Actions (npm trusted publishing). Until then it runs from the repository (`node packages/merfisheyes-mcp/dist/index.js`) | **taken** 2026-11-10 (publishing open) |
+| D17 | Tokens are kept in a file only the person can read (`~/.config/merfisheyes-mcp/credentials.json`, 0600, written atomically), keyed by issuer — not the OS keychain, which needs native modules `npx` cannot rely on | **taken** 2026-11-09 |
 
 ## 8. Steps
 
@@ -296,6 +298,39 @@ limits of D14 (`lib/rate-limit.ts`, migration
 
 **Gate:** MCP Inspector lists the tools; in Claude Code (`claude mcp add`)
 an agent finds a public dataset and one of the user's own.
+
+**Done (2026-11-09).** `packages/merfisheyes-mcp` (npm name
+`@merfisheyes/mcp`, not yet published — D16): stdio server on
+`@modelcontextprotocol/server` 2.4; eleven tools (the nine of
+MCP-PROTOCOL §3.1 plus `meyes_sign_in`, `meyes_sign_out`); server
+instructions carrying §4's rules for what exists so far; sign-in as an
+OAuth public client per the MCP spec (discovery with issuer checks, the
+site's Client ID Metadata Document `app/oauth/merfisheyes-mcp.json` over
+HTTPS, registration over http, PKCE, `resource`, `iss` checked, refresh
+rotation) answered on a loopback listener — the tool returns the link at
+once and the listener finishes in the background; tokens in a 0600 file
+(D17); `merfisheyes-mcp login | logout | whoami` for a terminal. Root
+`tsconfig` excludes `packages/`; CI: an `MCP package` job (build + tests),
+and the upload E2E job builds it. Gate:
+- MCP Inspector (CLI) lists the eleven tools with their annotations and
+  returns an out-of-range argument as a readable tool error.
+- `e2e/tests/upload/agent-mcp.spec.ts`: the built package over stdio
+  against the site — public search with no sign-in; told to sign in;
+  signed in through a browser allowing one project; reaches that project
+  and its dataset and no other; signs out.
+- In Claude Code (`claude -p --mcp-config … --strict-mcp-config`, a local
+  site): asked to find a public mouse hippocampus dataset and the person's
+  own datasets, it called `meyes_search_datasets`, `meyes_whoami` and
+  `meyes_list_my_datasets` and answered both from the site.
+- Package unit tests (sign-in against a stand-in server: forged state and
+  foreign `iss` refused, PKCE, rotation, revoke, file mode; paging under
+  the character limit); a database test that the authorization server
+  accepts the site's own client document.
+
+Not yet: the live site answers only once `develop` is released; until
+then the package is pointed at staging with
+`MERFISHEYES_URL=https://dev.merfisheyes.com` (which needs `OAUTH_ISSUER`
+set there).
 
 ### Step 5 — The bridge and tier-1 view control
 
