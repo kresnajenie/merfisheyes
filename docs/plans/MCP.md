@@ -191,7 +191,7 @@ function; a server relay to a tab (remote MCP) needs an external pub/sub
 | D13 | Gaps in the BIL stores' DE stats (QC columns on ace-owl-\*, no cluster DE on ace-low-\*) are accepted as they are; the tools account for them, the pipeline is not changed for this | **taken** 2026-11-08 |
 | D14 | Rate limits, in shared storage (serverless instances share nothing), checked in `lib/agent/route.ts` and the OAuth routes, answering 429 with the wait: agent API 60/min per IP without a token, 300/min per grant and 10,000/day per user with one; S3- or Batch-touching calls (detail, status) 30/min per caller; `/api/oauth/register` 10/hour per IP; `/api/oauth/token` 30/min per client and IP; consent decisions 20/hour per user. Built at the start of step 4, before the pipeline branch merges | **taken** 2026-11-08 |
 | D15 | Personal datasets stay "anyone with the link" (any id opens on the site); the agent API keeps its stricter rule (MCP-PROTOCOL §2) | **taken** 2026-11-08 |
-| D16 | The package is `merfisheyes-mcp` on npm (free on 2026-11-09), run with `npx -y merfisheyes-mcp`; publishing waits on an npm account. Until then it runs from the repository (`node packages/merfisheyes-mcp/dist/index.js`) | **taken** 2026-11-09 (publishing open) |
+| D16 | The package is `@merfisheyes/mcp` on npm, under the `merfisheyes` npm organisation (created 2026-11-10, two-factor on) so it outlives any one maintainer; run with `npx -y @merfisheyes/mcp` (the command it installs is `merfisheyes-mcp`). First published by hand once the live site has the agent API (after `develop` → `main` and `OAUTH_ISSUER` in Production); later releases from GitHub Actions (npm trusted publishing). Until then it runs from the repository (`node packages/merfisheyes-mcp/dist/index.js`) | **taken** 2026-11-10 (publishing open) |
 | D17 | Tokens are kept in a file only the person can read (`~/.config/merfisheyes-mcp/credentials.json`, 0600, written atomically), keyed by issuer — not the OS keychain, which needs native modules `npx` cannot rely on | **taken** 2026-11-09 |
 
 ## 8. Steps
@@ -300,7 +300,7 @@ limits of D14 (`lib/rate-limit.ts`, migration
 an agent finds a public dataset and one of the user's own.
 
 **Done (2026-11-09).** `packages/merfisheyes-mcp` (npm name
-`merfisheyes-mcp`, not yet published — D16): stdio server on
+`@merfisheyes/mcp`, not yet published — D16): stdio server on
 `@modelcontextprotocol/server` 2.4; eleven tools (the nine of
 MCP-PROTOCOL §3.1 plus `meyes_sign_in`, `meyes_sign_out`); server
 instructions carrying §4's rules for what exists so far; sign-in as an

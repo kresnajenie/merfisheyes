@@ -1,5 +1,5 @@
 {
-  "name": "merfisheyes-mcp",
+  "name": "@merfisheyes/mcp",
   "version": "0.1.0",
   "description": "MCP server for MERFISHEYES: search spatial transcriptomics datasets and work with your projects from an AI agent",
   "license": "MIT",

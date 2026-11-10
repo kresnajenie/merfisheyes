@@ -1,4 +1,4 @@
-# merfisheyes-mcp
+# @merfisheyes/mcp
 
 An [MCP](https://modelcontextprotocol.io) server for
 [MERFISHEYES](https://www.merfisheyes.com), the web viewer for spatial
@@ -14,7 +14,7 @@ and gets short answers back.
 Claude Code:
 
 ```bash
-claude mcp add merfisheyes -- npx -y merfisheyes-mcp
+claude mcp add merfisheyes -- npx -y @merfisheyes/mcp
 ```
 
 Claude Desktop, Cursor and other clients — add to the client's MCP settings:
@@ -22,7 +22,7 @@ Claude Desktop, Cursor and other clients — add to the client's MCP settings:
 ```json
 {
   "mcpServers": {
-    "merfisheyes": { "command": "npx", "args": ["-y", "merfisheyes-mcp"] }
+    "merfisheyes": { "command": "npx", "args": ["-y", "@merfisheyes/mcp"] }
   }
 }
 ```
@@ -38,7 +38,7 @@ claude mcp add merfisheyes -- node /path/to/merfisheyes/packages/merfisheyes-mcp
 ## Signing in
 
 Public catalog tools work without an account. For your own data, ask the
-agent to sign in (or run `npx merfisheyes-mcp login` in a terminal): a
+agent to sign in (or run `npx @merfisheyes/mcp login` in a terminal): a
 MERFISHEYES page opens, you sign in as usual, and choose what the agent may
 reach — **all your projects or only the ones you pick**. Disconnect it any
 time from your account page on MERFISHEYES, or with `merfisheyes-mcp logout`.
