@@ -56,6 +56,14 @@ fails:
 | `public` | the entry file (`zarr.json`, `manifest.json`, `manifest.json.gz`) answers on the public URL with CORS for www.merfisheyes.com; a store's `zarr.json` has consolidated metadata |
 | `lamin` | the entry file reads back through `Artifact.get(key=…).path` |
 
+**One artifact per SpatialData dataset: the store.** The JSON files beside it
+are not artifacts of their own (they were until 2026-11-09, five per dataset);
+every field of theirs is a column of the dataset's sheet row, and the row also
+holds each file whole (`stats_json`, `qc_json`, `catalog_json`,
+`mapping_json`, check `files`), so the Artifacts tab is the file inventory
+and the "BIL datasets" sheet is where the metadata is read. A legacy dataset
+is one artifact per folder (cells, each slice's molecules).
+
 Each artifact gets features `bil_code`, `data_format`, `dataset_kind`,
 `species`, `tissue`, `platform`, `investigator`, `n_cells`, `n_genes`,
 `n_molecules`, `pipeline_commit`, `viewer_url` (+ the QC ones below on a
@@ -63,15 +71,16 @@ store), and the project `BIL`. Re-running is safe: same bytes return the same
 record, values are replaced.
 
 **One row per dataset in the record sheet "BIL datasets"** (`ln.Record`
-of that type, named by BIL code; checks `row` and `catalog`). Lamin fills
+of that type, named by BIL code; checks `row`, `catalog` and `files`). Lamin fills
 nothing in by itself — not artifacts' features, not records: every value
 comes from a file the pipeline wrote on that run.
 
 | from | file (beside the store, synced with it) | written by | fields |
 |---|---|---|---|
-| the store | `stats.json` | `prepare.py`, `slices_to_points.py` | `n_cells`, `n_genes`, `n_molecules`, `pipeline_commit` |
-| QC | `qc.json` | `qc_store.sbatch` (`collect_dataset_stats.py --json`) | `n_sections`, `n_genes_detected`, `median_counts_per_cell`, `mask_percentile`, `pct_artifact`, `mmc_levels` |
-| catalog | `catalog.json` | `catalog_store.sbatch` (`catalog_entry.py`, BIL API) | `title`, `species`, `tissue`, `platform`, `investigator`, `institution`, `publication_year`, `license`, `bil_url` |
+| the store | `stats.json` | `prepare.py`, `slices_to_points.py` | `n_cells`, `n_genes`, `n_molecules`, `n_molecule_genes`, `dims`, `pipeline_commit`; whole as `stats_json` |
+| QC | `qc.json` | `qc_store.sbatch` (`collect_dataset_stats.py --json`) | `n_sections`, `n_genes_detected`, `n_genes_imaged`, `total_counts`, `mean_counts_per_cell`, `median_counts_per_cell`, `mask_percentile`, `n_artifact`, `pct_artifact`, `mmc_methods`, `mmc_levels`, `n_cluster`, `mean_boot_cluster`; whole as `qc_json` |
+| catalog | `catalog.json` | `catalog_store.sbatch` (`catalog_entry.py`, BIL API) | `title`, `species`, `tissue`, `platform`, `technique`, `investigator`, `institution`, `funding`, `age`, `sex`, `publication_year`, `license`, `bil_url`, `abstract`; whole as `catalog_json` |
+| the viewer's link | `mapping.json` | `prepare.py` | whole as `mapping_json` |
 | this script | — | `register_lamin.py` | `data_format`, `viewer_url`, `store` (the artifact the viewer opens), `artifacts` (all of them) |
 
 A sheet accepts only the features its schema lists, and a schema is found by
@@ -113,9 +122,19 @@ On the cluster, `launch_spatialdata_pipeline.sh --sync --lamin` runs
    14 sheet rows, every check passing; ace-irk-shy is cells only (its legacy
    output had no molecules) and the three ace-owl-* Xenium sets have no
    cell-type labels.
+   2026-11-09: reduced to one artifact per dataset — all 14 re-registered
+   with the full columns (every check passing, each `*_json` column equal to
+   its file in S3), then the 56 JSON-file records deleted with
+   `delete(permanent=True, storage=False)`; the files are still in S3 and
+   public. 14 artifacts.
 3. **The cluster env** — `~/merfisheyes_lamin_env` with lamindb on PSC,
    `lamin login`, then the first `--sync --lamin` run.
-4. **Open questions** — whether the app's `Dataset` table links to Lamin
-   records or Explore queries Lamin directly; species/tissue as `bionty`
-   ontology terms instead of free text; whether R2 replaces S3 for serving;
-   whether sessions are tracked as Lamin runs (`ln.track()`).
+4. **Decisions (2026-11-09)** —
+   - Explore keeps reading the app's `Dataset` table; reading Lamin directly
+     is for later, if it makes sense then.
+   - species and tissue stay free text, not `bionty` ontology terms.
+   - S3 serves; R2 stays unused.
+   - No `ln.track()` for now: only `register_lamin.py` runs where lamindb is
+     installed, so the lineage would show registration, not processing. It is
+     worth turning on if raw inputs and processing steps are ever recorded
+     in Lamin too.
