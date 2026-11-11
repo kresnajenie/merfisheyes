@@ -323,7 +323,13 @@ async function loadStore(
   if (elementNames(store.keys, "tables").length > 0) {
     cells = await loadSpatialDataCells(store, id, name, onProgress, folder);
     if (isCancelled()) return null;
-    await applyCellOpenState({ dataset: cells, config: null, store: viz });
+    // The owner's saved defaults (3D, colours, column), as for any cells: a
+    // server upload is a store, and its defaults were read but dropped (#206)
+    await applyCellOpenState({
+      dataset: cells,
+      config: registration.viewerConfig,
+      store: viz,
+    });
   }
   const elements = await openElements(store, {
     id,
