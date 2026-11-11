@@ -72,6 +72,7 @@ are paged (`limit`, `offset`, `next_offset`).
 | `MERFISHEYES_URL` | `https://www.merfisheyes.com` | Another deployment, e.g. `https://dev.merfisheyes.com` (staging) or `http://localhost:3000` |
 | `MERFISHEYES_CREDENTIALS` | see above | Where tokens are kept |
 | `MERFISHEYES_NO_BROWSER` | unset | Never open a browser; only print the sign-in link |
+| `MERFISHEYES_VERCEL_BYPASS` | unset | Only for a deployment behind Vercel's Deployment Protection (staging): its *Protection Bypass for Automation* secret, sent with every request. The package then registers itself instead of using the site's client document. Keep it on your machine |
 
 ## Develop
 
