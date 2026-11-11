@@ -1,5 +1,8 @@
 # SpatialData stores
 
+> Preparing BIL data on the cluster — the seven stages, how to run them and
+> how to check the result — is [spatialdata-pipeline-doc.md](spatialdata-pipeline-doc.md).
+
 MERFISH Eyes can open a [SpatialData](https://spatialdata.scverse.org) zarr
 store directly from S3 at `/spatialdata-viewer`, reading it lazily and **as
 written** — the store is never converted or modified. Anything the viewer

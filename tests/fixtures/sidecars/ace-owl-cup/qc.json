@@ -1,0 +1,17 @@
+{
+  "dataset": "ace-owl-cup",
+  "species": null,
+  "n_samples": 1,
+  "n_cells": 1138,
+  "n_genes": 300,
+  "n_genes_detected": 300,
+  "n_genes_imaged": null,
+  "total_counts": 418576.0,
+  "mean_counts_per_cell": 367.817,
+  "median_counts_per_cell": 285.0,
+  "mask_percentile": 0,
+  "n_artifact": null,
+  "pct_artifact": null,
+  "scraped_at": "2026-11-05T15:34:57",
+  "mmc_methods": null
+}

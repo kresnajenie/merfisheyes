@@ -25,6 +25,7 @@ export class LayerHost {
     renderer: THREE.WebGLRenderer,
     invalidate: () => void,
     cellColors?: () => THREE.BufferAttribute | null,
+    flat = false,
   ) {
     this.handle = {
       group,
@@ -34,6 +35,7 @@ export class LayerHost {
       view: () => this.view(),
       attach: (layer) => this.attach(layer),
       cellColors,
+      flat,
     };
   }
 

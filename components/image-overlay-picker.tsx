@@ -1,5 +1,7 @@
 "use client";
 
+import type { ImageTarget } from "@/lib/overlays/imageSource";
+
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
@@ -33,6 +35,8 @@ export function ImageOverlayPicker({ scDatasetId }: { scDatasetId: string }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
+  // A pasted store held more than one image: which one to draw
+  const [choices, setChoices] = useState<ImageTarget[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,50 +125,86 @@ export function ImageOverlayPicker({ scDatasetId }: { scDatasetId: string }) {
     }
   };
 
-  const addByUrl = async () => {
-    const url = urlDraft.trim().replace(/\/+$/, "");
-
-    if (!url) return;
+  /**
+   * Attach one image found at a pasted link. An image that IS the link joins
+   * the account, so it is listed here from now on; one taken out of a store
+   * is drawn by its URL alone, with no dataset made of it — the store is not
+   * an image, and neither is one element of it.
+   */
+  const attachFound = async (target: ImageTarget) => {
     setBusy(true);
     try {
-      // Open it the way the viewer will, so a wrong URL, a private bucket or
-      // an unsupported image is caught here rather than as a missing layer.
+      // Open it the way the viewer will, so a private bucket or an
+      // unsupported image is caught here rather than as a missing layer.
       try {
         const { openOmeZarrImage } = await import("@/lib/spatialdata/image");
 
-        await openOmeZarrImage(url);
+        await openOmeZarrImage(target.url);
       } catch {
         toast.error(
-          "Couldn't read an image at that URL. It must be a public OME-Zarr image (Zarr v3, axes c/y/x) that allows this site in CORS.",
+          "Couldn't read that image. It must be a public OME-Zarr image (Zarr v3, axes c/y/x) that allows this site in CORS.",
         );
 
         return;
       }
 
-      // Add it to the account, so it is listed here from now on. An image
-      // someone else already owns can still be drawn, by its URL.
-      const reg = await fetch("/api/datasets/register-s3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, kind: "image" }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
+      const reg = target.name
+        ? null
+        : await fetch("/api/datasets/register-s3", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: target.url, kind: "image" }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null);
       const mine = reg?.dataset?.datasetType === "image" && !reg.ownedByOther;
       const saved = await save(
-        mine ? { imageDatasetId: reg.dataset.id } : { image: url },
+        mine ? { imageDatasetId: reg.dataset.id } : { image: target.url },
       );
 
       if (!saved?.image) return;
       setCurrent({ image: saved.image, datasetId: saved.imageDatasetId });
       setCurrentTitle(mine ? reg.dataset.title : null);
       setUrlDraft("");
+      setChoices(null);
       void fetchPage();
       toast.success(
         mine
           ? "Image added to your account and attached. Reload the viewer to see it."
           : "Image overlay attached. Reload the viewer to see it.",
       );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addByUrl = async () => {
+    const url = urlDraft.trim().replace(/\/+$/, "");
+
+    if (!url) return;
+    setBusy(true);
+    setChoices(null);
+    try {
+      // The link may be an image, or a store (or a folder holding one) with
+      // an image among its cells, molecules and the rest: only the image is
+      // taken (lib/overlays/imageSource.ts).
+      const { imageUrlTargets } = await import("@/lib/overlays/imageSource");
+      const found = await imageUrlTargets(url);
+
+      if (found.length === 0) {
+        toast.error(
+          "No OME-Zarr image there. Give an image, or a SpatialData store or folder holding one — and check it is public and allows this site in CORS.",
+        );
+
+        return;
+      }
+      if (found.length > 1) {
+        // Several images in the store: the user says which one
+        setChoices(found);
+
+        return;
+      }
+      await attachFound(found[0]);
     } finally {
       setBusy(false);
     }
@@ -297,6 +337,7 @@ export function ImageOverlayPicker({ scDatasetId }: { scDatasetId: string }) {
       <div className="flex items-center gap-2">
         <Input
           aria-label="Image URL"
+          description="An image, or a SpatialData store (or folder) with one — only its image is drawn"
           placeholder="Add by URL: https://bucket.s3.region.amazonaws.com/folder/image.zarr"
           size="sm"
           value={urlDraft}
@@ -312,6 +353,34 @@ export function ImageOverlayPicker({ scDatasetId }: { scDatasetId: string }) {
           Add
         </Button>
       </div>
+
+      {choices ? (
+        <div className="flex flex-col gap-1 rounded-lg border border-default-200 p-2">
+          <span className="text-xs text-default-500">
+            That store has {choices.length} images. Which one?
+          </span>
+          {choices.map((choice) => (
+            <Button
+              key={choice.url}
+              className="justify-start"
+              isDisabled={busy}
+              size="sm"
+              variant="flat"
+              onPress={() => attachFound(choice)}
+            >
+              {choice.name}
+            </Button>
+          ))}
+          <Button
+            className="self-start"
+            size="sm"
+            variant="light"
+            onPress={() => setChoices(null)}
+          >
+            Cancel
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

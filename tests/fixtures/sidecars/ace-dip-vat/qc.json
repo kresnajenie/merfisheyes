@@ -1,0 +1,22 @@
+{
+  "dataset": "ace-dip-vat",
+  "species": "mouse",
+  "n_samples": 4,
+  "n_cells": 474986,
+  "n_genes": 315,
+  "n_genes_detected": 315,
+  "n_genes_imaged": null,
+  "total_counts": 466919962.0,
+  "mean_counts_per_cell": 983.018,
+  "median_counts_per_cell": 804.0,
+  "mask_percentile": 25,
+  "n_artifact": 118875,
+  "pct_artifact": 25.027,
+  "scraped_at": "2026-11-05T15:12:14",
+  "mmc_methods": "hierarchical",
+  "mmc_levels": "cluster,class,subclass,supertype",
+  "n_cluster": 3357,
+  "n_class": 34,
+  "n_subclass": 316,
+  "n_supertype": 1067
+}

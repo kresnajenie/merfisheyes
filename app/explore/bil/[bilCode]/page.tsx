@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { catalogRowWhere } from "@/lib/explore/visibility";
+import { isAdminRole } from "@/lib/admin-auth";
 import { DatasetDetailPage } from "@/components/explore/dataset-detail-page";
 import { ExploreEditButton } from "@/components/explore/explore-edit-button";
 
@@ -11,12 +14,15 @@ interface Props {
 export default async function BilDatasetPage({ params }: Props) {
   const { bilCode } = await params;
 
-  const dataset = await prisma.catalogDataset.findUnique({
-    where: { bilCode },
+  const session = await auth();
+  const dataset = await prisma.catalogDataset.findFirst({
+    where: {
+      AND: [{ bilCode }, catalogRowWhere(isAdminRole(session?.user?.role))],
+    },
     include: { entries: { orderBy: { sortOrder: "asc" } } },
   });
 
-  if (!dataset || !dataset.isPublished) {
+  if (!dataset) {
     notFound();
   }
 

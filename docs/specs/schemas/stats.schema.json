@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kresnajenie/merfisheyes/blob/develop/docs/specs/schemas/stats.schema.json",
+  "title": "stats.json",
+  "description": "What scripts/prepare.py found in the store it wrote (store_stats); scripts/slices_to_points.py refreshes molecules and molecule_genes. Written beside the store. Producers may add fields; readers ignore what they do not know.",
+  "type": "object",
+  "required": ["input", "store", "pipeline", "packages"],
+  "properties": {
+    "input": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What prepare.py recognised the input as: merscope, xenium, visium, h5ad, folder, …"
+    },
+    "store": {
+      "type": "string",
+      "pattern": "\\.zarr$",
+      "description": "The store's folder name, beside this file."
+    },
+    "cells": { "type": "integer", "minimum": 0, "description": "Rows of the default table's X." },
+    "genes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Columns of the default table's X (blank and control probes already filtered)."
+    },
+    "molecules": { "type": "integer", "minimum": 0, "description": "Sum of points:n_points over the tiled points elements; 0 when there are none." },
+    "molecule_genes": { "type": "integer", "minimum": 0, "description": "Categories of the points feature column (may include blanks)." },
+    "dims": { "enum": [2, 3] },
+    "images": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Names of the store's image elements, sorted."
+    },
+    "de_stats": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "obs columns whose DE stats the table carries (uns/merfisheyes_de; varm/de_mean__<col>, varm/de_pct__<col>). Absent when the store has no table."
+    },
+    "pipeline": { "type": "string", "description": "Git short sha of the code that wrote the store." },
+    "packages": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Package name -> version."
+    }
+  }
+}

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { isAdminRole, requireUser } from "@/lib/admin-auth";
+import { ownedDatasetsWhere } from "@/lib/datasets/owner";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -17,6 +19,11 @@ export async function GET(
   { params }: { params: Promise<{ fingerprint: string }> },
 ) {
   try {
+    // Only among the caller's own datasets: answering for anyone's told a
+    // stranger the id and title of a dataset whose file they could hash.
+    const { error, session } = await requireUser();
+
+    if (error) return error;
     const { fingerprint } = await params;
 
     if (!fingerprint || fingerprint.length < 10 || fingerprint.length > 64) {
@@ -30,6 +37,7 @@ export async function GET(
     const existingDataset = await prisma.dataset.findFirst({
       where: {
         fingerprint,
+        ...ownedDatasetsWhere(session.user.id, isAdminRole(session.user.role)),
         datasetType: "single_molecule",
         status: {
           in: ["COMPLETE", "PROCESSING"], // Only check completed/processing datasets

@@ -1230,6 +1230,12 @@ export function FileUpload({
         const sc = dataset as StandardizedDataset;
 
         cellStore.addDataset(sc);
+        // These cells are the preview's anchor, so molecules can be drawn
+        // over them to check they line up (the overlay dialog's local mode).
+        // No `bundle`: nothing here was processed, so there is nothing to
+        // save as it is — only the dropped file, as before.
+        useLocalBundleStore.getState().reset();
+        useLocalBundleStore.getState().set({ anchorId: sc.id });
         markDatasetLoaded({
           pointCount: sc.getPointCount(),
           geneCount: sc.genes.length,

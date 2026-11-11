@@ -1,0 +1,33 @@
+{
+  "bilCode": "ace-owl-cup",
+  "title": "Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.004.CX - 1382042951",
+  "description": "This dataset includes spatial transcriptomics data from the basal ganglia of the white-ear tufted marmoset (Callithrix jacchus) as part of the Human and Mammalian Brain Atlas (HMBA) project. It includes 300 genes chosen to discriminate basal ganglia cell types in concert with HMBA spatial transcriptomics and RNASeq data in marmoset, macaque and human. The HMBA data will form a foundation for understanding basal ganglia cell types across species.",
+  "species": "Marmoset",
+  "tissue": "Brain",
+  "platform": "other",
+  "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-owl-cup",
+  "metadata": {
+    "publicationYear": "2025",
+    "investigator": "Lein, Ed",
+    "institution": "Allen Institute for Brain Science",
+    "coInvestigators": [
+      "Zeng, Hongkui",
+      "Long, Brian"
+    ],
+    "funding": "National Institutes of Health — 1-UM1-MH130981-01",
+    "age": "5.7 Years",
+    "sex": "Male",
+    "license": "CC-BY-4.0",
+    "technique": "other"
+  },
+  "source": {
+    "title": "bil-api",
+    "description": "bil-api",
+    "species": "bil-api",
+    "tissue": "bil-api",
+    "platform": "bil-api",
+    "externalLink": "bil-api",
+    "metadata": "bil-api"
+  },
+  "written_at": "2026-11-05T23:34:58+00:00"
+}

@@ -609,8 +609,18 @@ def merge_labels(table, csv: Path, log) -> None:
     instance_key = table.attrs.get("instance_key")
     if instance_key and instance_key in obs.columns:
         keys.append(obs[instance_key].astype(str))
+    # MapMyCells keys by the index (<sample>_<id> for a combined dataset);
+    # the artifact mask keys by the id the slice gave the cell
+    for column in ("cell_id", "slice_cell_id"):
+        if column in obs.columns:
+            keys.append(obs[column].astype(str))
     ids = labels["cell_id"].astype(str) if "cell_id" in labels.columns else None
-    matched = next((k for k in keys if ids is not None and set(ids) <= set(k)), None)
+    # A key is only a join when it identifies one row on each side. The ids a
+    # slice gave its cells repeat across the slices of a combined dataset, so
+    # joining on them would hand one label to several cells; the rows are in
+    # the table's order anyway, which is what the fallback uses.
+    usable = ids is not None and ids.is_unique
+    matched = next((k for k in keys if usable and k.is_unique and set(ids) <= set(k)), None)
     if matched is not None:
         labels = labels.set_index(ids).reindex(matched.to_numpy())
         log(f"  {csv.name}: matched by cell_id ({labels.index.notna().sum():,} cells)")
@@ -675,7 +685,7 @@ def prepare(
     expanded: bool = False,
     molecule_columns: str | None = None,
     images: bool = True,
-    labels: Path | None = None,
+    labels: Path | list[Path] | None = None,
     keep_z: bool = False,
     log=print,
 ) -> validate_store.Report:
@@ -716,8 +726,8 @@ def prepare(
         table = table_group(store, table_name)
         ensure_spatial(table, log)
         ensure_csc(table, log)
-        if labels is not None:
-            merge_labels(table, labels, log)
+        for csv in ([labels] if isinstance(labels, (str, Path)) else list(labels or [])):
+            merge_labels(table, Path(csv), log)
         cells_box = table_box(table)
         if cluster and not has_categorical_column(table):
             import spatialdata_cluster
@@ -817,7 +827,9 @@ def main(argv=None) -> int:
                     help="leave the image and the molecule folder beside the store, named in mapping.json, instead of inside it")
     ap.add_argument("--molecule-columns", help="a transcripts table's columns: xenium, merscope, or GENE,X,Y[,Z] (default: recognised)")
     ap.add_argument("--no-images", action="store_true", help="leave an image in the folder out of the store")
-    ap.add_argument("--labels", type=Path, help="per-cell labels (a MapMyCells CSV) to add to the table's obs")
+    ap.add_argument("--labels", type=Path, action="append",
+                    help="per-cell labels (a MapMyCells CSV, an artifact mask) to add to the table's obs; "
+                         "repeat for several, merged in the order given")
     args = ap.parse_args(argv)
     r = prepare(
         args.folder,

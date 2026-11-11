@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { requireUploadOwner } from "@/lib/admin-auth";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
@@ -27,6 +28,11 @@ export async function POST(
         { status: 400, headers: corsHeaders },
       );
     }
+
+    // Only the dataset's signed-in owner, for an upload of this dataset.
+    const owner = await requireUploadOwner(datasetId, uploadId);
+
+    if (owner.error) return owner.error;
 
     // Decode fileKey (it comes URL-encoded)
     const decodedFileKey = decodeURIComponent(fileKey);

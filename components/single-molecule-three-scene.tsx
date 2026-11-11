@@ -250,7 +250,14 @@ export function SingleMoleculeThreeScene({
     // The layers join through the host, which ticks them from the scene
     // loop. The genes: point sizes follow the camera inside the shader
     // (dotSize * proj11 / -z), so nothing has to be updated per frame.
-    host = new LayerHost(innerGroup, camera, renderer, init.invalidate);
+    host = new LayerHost(
+      innerGroup,
+      camera,
+      renderer,
+      init.invalidate,
+      undefined,
+      viewMode === "2D",
+    );
     invalidateRef.current = init.invalidate;
 
     init.animate();

@@ -8,6 +8,44 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-08
+
+### Added
+
+- **Keyboard shortcuts for what the scene draws.** `C` cells, `M` molecules,
+  `I` the image, `P` cell polygons, and `?` for the list of them, which greys
+  out what this view hasn't got. `H` (hide every control) is in the list too.
+  Keys are ignored while you are typing, and act on the main viewer — a split
+  screen's right panel keeps its own buttons.
+- **Recolour several cell types or genes at once.** Shift-click a range of
+  legend chips, or ⌘/ctrl-click to pick them one by one, and give them all one
+  colour — then **Spread** to make them different again, keeping away from the
+  colours around them, or **Shuffle** for another arrangement. A plain click
+  still opens that chip's own colour picker. Both legends work this way.
+- **Overlay an image by pasting its link.** The image picker takes a link as
+  well as one of your own images: an OME-Zarr image, or a SpatialData store
+  (or the folder holding it) with an image among its cells, molecules and
+  shapes — only the image is drawn, the way a pasted molecule link lends only
+  its points. A store with several images asks which one. An image that is
+  the link itself still joins your account; one taken out of a store is drawn
+  by its link alone, with no dataset made of it.
+
+### Fixed
+
+- **Transcripts and cells scale together when you zoom in (#196).** In the 2D
+  view, transcripts were drawn at their own height above or below the cells,
+  so zoomed in they grew faster than the cells, drifted off them, and those
+  below the cells were hidden. Every dot also stopped growing at 200 px, so
+  whichever layer was larger stopped first. In 2D, transcripts are now drawn
+  on the cells' plane and on top of them, and dots keep growing with the
+  zoom; the 3D view still shows each transcript's height.
+- **A dropped `.h5ad` can have an overlay checked over it.** Molecules could
+  be drawn over a folder of already-processed parts to see they line up, but
+  not over a plain `.h5ad` — the button was missing, because only the folder
+  path marked the preview's cells. It is there now, for any cells opened from
+  disk. Nothing is saved either way: Upload & Save still sends only what was
+  dropped.
+
 ## [0.15.1] - 2026-11-07
 
 ### Fixed
@@ -1034,7 +1072,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.13.0...v0.14.0

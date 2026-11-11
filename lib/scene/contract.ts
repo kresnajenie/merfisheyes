@@ -51,6 +51,11 @@ export interface SceneHandle {
    * Absent in a scene without cells.
    */
   cellColors?: () => THREE.BufferAttribute | null;
+  /**
+   * The 2D view: everything is drawn on the data plane (z = 0), so molecules
+   * with a z sit on their cells instead of above them. False in 3D.
+   */
+  flat?: boolean;
 }
 
 export type LayerPhase = "idle" | "loading" | "ready" | "error";

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
 import { AccountWorkspace } from "@/components/account/account-workspace";
+import { ConnectedAgents } from "@/components/account/connected-agents";
 import { title, subtitle } from "@/components/primitives";
 
 export const metadata = {
@@ -28,6 +29,7 @@ export default async function AccountPage() {
       <Suspense>
         <AccountWorkspace />
       </Suspense>
+      <ConnectedAgents />
     </div>
   );
 }

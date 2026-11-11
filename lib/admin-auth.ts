@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Verify the current request is from any authenticated user.
@@ -50,7 +51,7 @@ export async function requireSuperAdmin() {
   return { error: null, session };
 }
 
-function isAdminRole(role: string | null | undefined): boolean {
+export function isAdminRole(role: string | null | undefined): boolean {
   return role === "ADMIN" || role === "SUPER_ADMIN";
 }
 
@@ -76,4 +77,48 @@ export function ownerOrAdminError(
   if (dataset.adminOwned && isAdminRole(session?.user?.role)) return null;
 
   return new Response("Forbidden", { status: 403 });
+}
+
+/**
+ * For the calls an upload makes as it goes — marking files done, progress,
+ * completing it, the "ready" email: the signed-in owner of the dataset (as
+ * ownerOrAdminError), and, when an uploadId is given, an upload session that
+ * belongs to this dataset. These routes used to trust whoever knew the ids.
+ * Returns the session, or a Response to send back.
+ */
+export async function requireUploadOwner(
+  datasetId: string,
+  uploadId?: string | null,
+) {
+  const { error, session } = await requireUser();
+
+  if (error) return { error, session: null };
+
+  const dataset = await prisma.dataset.findUnique({
+    where: { id: datasetId },
+    select: { ownerId: true, adminOwned: true },
+  });
+
+  if (!dataset) {
+    return { error: new Response("Not found", { status: 404 }), session: null };
+  }
+  const denied = ownerOrAdminError(dataset, session);
+
+  if (denied) return { error: denied, session: null };
+
+  if (uploadId) {
+    const upload = await prisma.uploadSession.findUnique({
+      where: { id: uploadId },
+      select: { datasetId: true },
+    });
+
+    if (upload?.datasetId !== datasetId) {
+      return {
+        error: new Response("Upload not found", { status: 404 }),
+        session: null,
+      };
+    }
+  }
+
+  return { error: null, session };
 }

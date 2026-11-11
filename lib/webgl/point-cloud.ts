@@ -31,15 +31,20 @@ function filterUniforms() {
  * The material of a molecule cloud: one colour, size, alpha and shape for
  * the whole cloud, as uniforms, so restyling it uploads nothing. Opaque:
  * the depth test rejects molecules hidden behind closer ones.
+ *
+ * `flatZ` is the layer's `uFlatZ` uniform, shared by reference with every
+ * cloud of that layer, so the scene flattens them all in one assignment.
  */
 export function createMoleculeMaterial(
   colorHex: string,
   dotSize: number,
   shape: "circle" | "square" = "circle",
+  flatZ: { value: number } = { value: 0 },
 ): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: {
       ...filterUniforms(),
+      uFlatZ: flatZ,
       dotSize: { value: dotSize },
       uColor: { value: new THREE.Color(colorHex) },
       uAlpha: { value: 1.0 },
@@ -187,6 +192,7 @@ export function createSmPointCloud(
   colorHex: string,
   dotSize: number,
   shape: "circle" | "square" = "circle",
+  flatZ?: { value: number },
 ): THREE.Points {
   const geometry = new THREE.BufferGeometry();
 
@@ -197,7 +203,7 @@ export function createSmPointCloud(
 
   return new THREE.Points(
     geometry,
-    createMoleculeMaterial(colorHex, dotSize, shape),
+    createMoleculeMaterial(colorHex, dotSize, shape, flatZ),
   );
 }
 
@@ -216,6 +222,7 @@ export function createStreamingSmPointCloud(
   colorHex: string,
   dotSize: number,
   shape: "circle" | "square" = "circle",
+  flatZ?: { value: number },
 ): THREE.Points {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(capacity * 3);
@@ -230,7 +237,7 @@ export function createStreamingSmPointCloud(
 
   const points = new THREE.Points(
     geometry,
-    createMoleculeMaterial(colorHex, dotSize, shape),
+    createMoleculeMaterial(colorHex, dotSize, shape, flatZ),
   );
 
   // Only the filled prefix is drawn, so let three skip frustum culling until
