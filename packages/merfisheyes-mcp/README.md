@@ -61,7 +61,7 @@ Tokens are kept in `~/.config/merfisheyes-mcp/credentials.json`
 | `meyes_list_facets` | no | The species, tissue and platform spellings filters use |
 | `meyes_get_dataset` | no¹ | One dataset: viewer links, cells, genes, molecules, sections, cell-type levels, DE columns, QC |
 | `meyes_list_genes` | no¹ | A dataset's genes, filtered by a name fragment |
-| `meyes_open_view` | no¹ | Open a dataset in your browser already showing what you asked: genes coloured, a cell-type column, 2D or 3D |
+| `meyes_open_view` | no¹ | A link to a dataset in the viewer already showing what you asked: genes coloured, a cell-type column, 2D or 3D, dot size, opacity, or two datasets side by side in split screen. Opens a tab only when you ask |
 | `meyes_sign_in` / `meyes_sign_out` | — | Connect or disconnect your account |
 | `meyes_whoami` | — | Who is signed in, and what the agent may do |
 | `meyes_list_my_datasets` | yes | Your datasets and their processing status |
@@ -79,7 +79,8 @@ are paged (`limit`, `offset`, `next_offset`).
 |---|---|---|
 | `MERFISHEYES_URL` | `https://www.merfisheyes.com` | Another deployment, e.g. `https://dev.merfisheyes.com` (staging) or `http://localhost:3000` |
 | `MERFISHEYES_CREDENTIALS` | see above | Where tokens are kept |
-| `MERFISHEYES_NO_BROWSER` | unset | Never open a browser; only print the sign-in link |
+| `MERFISHEYES_NO_BROWSER` | unset | Never open a browser; only give links |
+| `MERFISHEYES_SIGN_IN_WAIT_MS` | `120000` | How long sign-in waits for you in the browser before handing back the link |
 | `MERFISHEYES_VERCEL_BYPASS` | unset | Only for a deployment behind Vercel's Deployment Protection (staging): its *Protection Bypass for Automation* secret, sent with every request. The package then registers itself instead of using the site's client document. Keep it on your machine |
 
 ## Develop

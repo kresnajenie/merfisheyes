@@ -404,6 +404,30 @@ the part of step 5 that needs no bridge. Gate: unit tests
 came back from the viewer with `Slc17a7` applied and its expression range
 filled in, and section 609889HK01 drew Gad1 and Slc17a7 in 3D.
 
+**Third manual test, the live site (2026-11-12), and what followed.** The
+tools answered search, details, "show me gene X" and "are you signed in"
+in seconds. Three of five questions had no tool, and Claude Code left the
+tools for the shell: it read molecule manifests and DE files from S3 and
+decoded them by hand ("most abundant genes", twice) and read slice lists
+("the combined atlas") — 1–1½ minutes each against seconds, against §1's
+principle, and impossible in a client without a shell. What it lacked —
+gene abundance, dataset structure (one slice or combined, slice count,
+obs columns and their values), counts per facet, and the plot panel's
+numbers (cell-type counts, a gene's expression by cell type) — is step
+6's analysis tools, served by the agent API from the files the site
+already writes. Data problems it met are in §10 (E10–E14).
+
+Changed after it (package only): `meyes_open_view` returns a link and
+opens a tab only with `open=true`, which the instructions reserve for an
+explicit ask, one tab per request (three genes had opened three tabs);
+it takes `compare` for split screen (`split`/`splitS3Url`, `splitType`,
+`sync`, `rv=`), `dot_size` and `opacity` / `unselected_opacity`;
+`meyes_sign_in` waits up to two minutes for the person and answers who
+is signed in. Opening the plot panel from a link was dropped: the
+person wants the agent to use what the panel computes, which is step 6.
+Gate: unit tests; on the live site a split screen of two ace-den-fog
+sections came up with two panels, both genes on each, cameras synced.
+
 ### Step 5 — The bridge and tier-1 view control
 
 Tab side: *Connect agent*, pairing code, WebSocket to `127.0.0.1`, the
@@ -515,3 +539,9 @@ catalog) is a later step; this log is what such a sweep would add to.
 | E7 | 2026-11-11 | Catalog entry "Re-activation of neurogenic niches" | A "Xenium Human Breast Cancer (molecules)" entry is attached that does not belong to it | that catalog row's entries | open |
 | E8 | 2026-11-11 | ace-den-fog | 702 genes in the store; the description says 500 were profiled | check which is right; the description or the store | to check |
 | E9 | 2026-11-11 | Catalog entry "Mouse Brain Saggital 10 Slices" | Typo in the title: "Saggital" for "Sagittal" | that catalog row's title | open |
+| E10 | 2026-11-12 | Developing mouse atlas (P28) | No combined dataset: its sections are ~57 single-slice entries (ace-low-\*, ace-lot-\*), e.g. ace-low-bag holds one slice, 140,542 cells; the combined developing datasets that exist (ace-let-law/lax/lay, ace-met-war) are P0/P4 | combine the P28 slices (`combine_slices_v3.py`) and register it | open |
+| E11 | 2026-11-12 | ace-let-law, ace-let-lax, ace-let-lay, ace-met-war | Combined datasets with no cell count recorded and no molecule views | their `stats.json`; molecules per slice | open |
+| E12 | 2026-11-12 | ace-met-war | Titled "741564", unlike its siblings' naming | its catalog title | open |
+| E13 | 2026-11-12 | BIL legacy datasets | No sidecar files (`stats.json`, `catalog.json`, `qc.json`), so no counts, slice numbers or cell-type levels reach the agent or the cards | reprocessing with the BIL pipeline writes them | open |
+| E14 | 2026-11-12 | Tissue facet | Brain regions are separate tissues (Hippocampal formation, Cerebral cortex, Striatum, …), so tissue="Brain" misses them | a tissue hierarchy, or "Brain" on region datasets too | open |
+

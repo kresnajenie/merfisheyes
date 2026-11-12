@@ -26,7 +26,8 @@ const INSTRUCTIONS = `MERFISHEYES (${SITE}) is a web viewer for spatial transcri
 
 - Public catalog tools (meyes_search_datasets, meyes_list_facets, meyes_get_dataset, meyes_list_genes) need no sign-in. The person's own data needs meyes_sign_in once; ask only for the scopes the task needs.
 - Prefer what MERFISHEYES already records over computing it yourself: meyes_get_dataset returns the counts, cell-type levels, DE columns and QC each store's own files hold. Never fetch raw per-cell data to answer something a tool answers.
-- To show the person something, call meyes_open_view: it opens the dataset in their browser with the genes, column and 2D/3D they asked for. Otherwise give them viewer links (viewerUrl). Do not describe a scene you cannot see.
+- To show the person something, call meyes_open_view: it returns a link to the viewer already set up (genes, column, cell types, 2D/3D, dot size, opacity). Give them the link. Pass open=true only when they ask to open it now, and never open more than one tab per request: for several views give links, and for two views to compare use one split screen (compare=…). Do not describe a scene you cannot see.
+- When the person asks to sign in, or asks for their own projects or datasets while signed out, call meyes_sign_in: it opens the sign-in page and waits for them.
 - Lists are paged: use limit/offset and next_offset rather than repeating a call. Calls are rate-limited; a 429 says how long to wait.
 - Not every column with DE stats is a cell type (some stores carry QC columns too); group by annotation columns.`;
 

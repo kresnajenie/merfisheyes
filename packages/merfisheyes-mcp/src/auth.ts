@@ -200,8 +200,16 @@ function keep(
 
 /** Open a URL in the person's browser; quietly does nothing where none can be
  * opened (the link is also returned to the agent to show). */
-export function openBrowser(url: string): void {
-  if (process.env.MERFISHEYES_NO_BROWSER) return;
+/** Open a link in the person's browser. Returns whether a browser was
+ * likely opened (false: told not to, or a Linux machine with no display). */
+export function openBrowser(url: string): boolean {
+  if (process.env.MERFISHEYES_NO_BROWSER) return false;
+  if (
+    process.platform === "linux" &&
+    !process.env.DISPLAY &&
+    !process.env.WAYLAND_DISPLAY
+  )
+    return false;
   const [cmd, args] =
     process.platform === "darwin"
       ? ["open", [url]]
@@ -214,8 +222,11 @@ export function openBrowser(url: string): void {
     spawn(cmd, args, { stdio: "ignore", detached: true })
       .on("error", () => {})
       .unref();
+
+    return true;
   } catch {
     // no browser here: the agent shows the link instead
+    return false;
   }
 }
 

@@ -1,7 +1,12 @@
 import { expect, it } from "vitest";
 
 import { compactCard } from "../src/tools/catalog.js";
-import { toBase64Url, viewState, viewerKind } from "../src/tools/view.js";
+import {
+  splitParams,
+  toBase64Url,
+  viewState,
+  viewerKind,
+} from "../src/tools/view.js";
 
 /** Decode as the site does (fromBase64Url, lib/utils/url-visualization-state.ts). */
 const decode = (v: string) =>
@@ -94,4 +99,43 @@ it("cuts a search card to one viewer link per kind, with the counts", () => {
   expect(
     compactCard({ ...card, entries: card.entries.slice(0, 3) }).entryCounts,
   ).toBeUndefined();
+});
+
+it("sets dot size and opacity where each viewer keeps them", () => {
+  expect(
+    viewState("cells", {
+      genes: ["Gad1"],
+      dotSize: 2,
+      opacity: 0.5,
+      unselectedOpacity: 0.1,
+    }),
+  ).toEqual({
+    g: "Gad1",
+    m: ["gene"],
+    sz: 2,
+    av: { expressionAlphaMin: 0.5, expressionAlphaMax: 0.5, greyedOutAlpha: 0.1 },
+  });
+  expect(viewState("molecules", { genes: [], dotSize: 3 })).toEqual({ gs: 3 });
+});
+
+it("points the split screen's right panel at a store or an app dataset", () => {
+  const store = "https://bucket.s3.amazonaws.com/a/meyes_output";
+  const fromS3 = new URL(
+    `https://x.test/viewer/from-s3?url=${encodeURIComponent(store)}`,
+  );
+  const p = splitParams(fromS3)!;
+
+  expect(p.splitType).toBe("cell");
+  // written encoded twice: the viewer decodes it once more after reading
+  const read = new URL(
+    `https://x.test/viewer?${new URLSearchParams(p).toString()}`,
+  ).searchParams.get("splitS3Url")!;
+
+  expect(decodeURIComponent(read)).toBe(store);
+  expect(splitParams(new URL("https://x.test/sm-viewer/sm_abc"))).toEqual({
+    split: "sm_abc",
+    splitType: "sm",
+  });
+  expect(splitParams(new URL("https://x.test/spatialdata-viewer/from-s3?url=a"))).toBeNull();
+  expect(splitParams(new URL("https://x.test/image-viewer/from-s3?url=a"))).toBeNull();
 });
