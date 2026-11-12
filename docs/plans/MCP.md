@@ -490,6 +490,76 @@ from claude.ai.
   actually ask for (every recurring tier-3 request is a tier-2 candidate,
   §4).
 
+### Next, from 2026-11-12: publish, then real analyses
+
+Steps 1–4 and the link-built views let an agent explore the site the way
+a person can. The goal is analyses a person could not do by clicking.
+The third manual test showed what stands between the two: the numbers an
+analysis needs exist in files the pipeline writes, but no tool serves
+them, so the agent fetched and decoded them itself. The order below
+serves them first, through the agent API, before any bridge — it works
+in every client, with no tab open, in seconds.
+
+**A · Publish 0.1 (by the 2026-11-14 demo).**
+1. PR `feature/mcp` → `develop`; CI green; merge.
+2. Release `develop` → `main`: brings the molecule-opacity link field
+   (until then the live molecule viewer ignores `op`) and the account
+   page's agent list.
+3. `npm publish` from `packages/merfisheyes-mcp` by hand (`npm login`,
+   two-factor); then on a clean machine `claude mcp add --scope user
+   merfisheyes -- npx -y @merfisheyes/mcp` lists the 12 tools. The
+   README's "until published" section goes.
+4. A demo script: prompts the tools answer directly (search, detail,
+   views, split screen, sign-in, projects). Not yet: "most abundant",
+   "which dataset combines the slices" — those are B.
+5. Later: publishing from GitHub Actions (npm trusted publishing) on an
+   `mcp-v*` tag; semver, a minor version per batch of new tools.
+
+**B · Analyses from what a store records (step 6, first half; no bridge).**
+New agent-API routes (`/api/agent/v1/datasets/{id}/…`, `expensive` rate
+tier, cached per store) reading the files the pipeline already writes,
+and a tool for each. Every answer says where its numbers come from, and
+"not recorded for this dataset" when the file is missing — never a guess.
+
+| Tool | Answers | Read from |
+|---|---|---|
+| `meyes_dataset_structure` | one slice or combined; slices and their ids; obs columns with type and number of values; embeddings; images; molecule sections | `obs/metadata.json`, `_sample_id`, manifest, `stats.json`, store metadata |
+| `meyes_gene_stats` | per gene: total counts, cells expressing, molecules (in and out of cells); "most abundant", "is X expressed" | DE stats (counts × means), molecule `manifest.json` `molecule_counts` |
+| `meyes_composition` | cells per category of a column, overall or per slice — the plot panel's bar plot | DE stats category sizes, obs columns |
+| `meyes_gene_by_group` | a gene's mean and % expressing per category — the plot panel's gene × cell type | DE stats |
+| `meyes_markers` | top genes per category against the rest | DE stats (fold change and % computed on the server) |
+| `meyes_compare` | two datasets, slices or conditions: composition and gene differences | the above, per side |
+
+Charts: each analysis tool can return a Vega-Lite spec with its rows
+(D4), which Claude Desktop and claude.ai draw. Gate: each number equals
+the viewer's (plot panel, legend) on a legacy and a SpatialData fixture;
+an answer stays under the character limit; a store missing a file gets
+"not recorded", tested.
+
+**C · Data the analyses can stand on (in parallel; BIL-CLUSTER.md).**
+Most of B's "not recorded" answers are E1–E14: legacy BIL datasets
+without sidecars, missing counts, no combined P28 atlas, facet
+spellings. Reprocessing with `prepare.py` / the BIL pipeline writes
+`stats.json`, `catalog.json`, `qc.json` and DE for every store; B is
+built against stores that have them and falls back on the others. An
+agent sweep — a scripted run of the read tools over the whole catalog —
+fills §10 instead of waiting for an agent to stumble on each error.
+
+**D · The bridge (step 5) and the Agent panel (step 6, second half).**
+What links cannot do: change a tab already open, read what the person is
+looking at ("what's selected?", "this region"), analyses of an arbitrary
+selection the browser holds, and plots drawn inside MERFISHEYES. After B,
+so the panel shows B's numbers rather than inventing its own.
+
+**E · Compute and writes (step 7).** What no file records: DE between
+arbitrary selections, neighbourhoods, spatial statistics — on the server
+(Batch, with a confirm and a cost) or in the tab. Write tools for
+projects and dataset metadata. Then steps 8–9 as written.
+
+Rule for all of it: a new tool is added beside the 0.1 tools, never by
+changing what they return; each ships with its tests and a live check,
+and the package's minor version goes up with it.
+
 ## 9. Risks
 
 - **Visibility leak**: one shared query (step 2), tested.

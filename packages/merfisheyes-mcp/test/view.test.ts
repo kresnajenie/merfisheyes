@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { compactCard } from "../src/tools/catalog.js";
 import {
   splitParams,
+  unsupported,
   toBase64Url,
   viewState,
   viewerKind,
@@ -113,9 +114,18 @@ it("sets dot size and opacity where each viewer keeps them", () => {
     g: "Gad1",
     m: ["gene"],
     sz: 2,
-    av: { expressionAlphaMin: 0.5, expressionAlphaMax: 0.5, greyedOutAlpha: 0.1 },
+    av: {
+      expressionAlphaMin: 0.5,
+      expressionAlphaMax: 0.5,
+      greyedOutAlpha: 0.1,
+    },
   });
-  expect(viewState("molecules", { genes: [], dotSize: 3 })).toEqual({ gs: 3 });
+  expect(
+    viewState("molecules", { genes: [], dotSize: 3, opacity: 0.35 }),
+  ).toEqual({
+    gs: 3,
+    op: 0.35,
+  });
 });
 
 it("points the split screen's right panel at a store or an app dataset", () => {
@@ -136,6 +146,30 @@ it("points the split screen's right panel at a store or an app dataset", () => {
     split: "sm_abc",
     splitType: "sm",
   });
-  expect(splitParams(new URL("https://x.test/spatialdata-viewer/from-s3?url=a"))).toBeNull();
-  expect(splitParams(new URL("https://x.test/image-viewer/from-s3?url=a"))).toBeNull();
+  expect(
+    splitParams(new URL("https://x.test/spatialdata-viewer/from-s3?url=a")),
+  ).toBeNull();
+  expect(
+    splitParams(new URL("https://x.test/image-viewer/from-s3?url=a")),
+  ).toBeNull();
+});
+
+it("names the settings a viewer cannot take, never claiming them", () => {
+  const all = {
+    genes: [],
+    mode3d: true,
+    dotSize: 2,
+    opacity: 0.5,
+    unselectedOpacity: 0.1,
+  };
+
+  expect(unsupported("cells", all)).toEqual([]);
+  expect(unsupported("molecules", all)).toEqual(["unselected opacity"]);
+  expect(unsupported("none", all)).toEqual([
+    "3D",
+    "dot size",
+    "opacity",
+    "unselected opacity",
+  ]);
+  expect(unsupported("molecules", { genes: [], opacity: 0.35 })).toEqual([]);
 });

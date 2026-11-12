@@ -129,6 +129,7 @@ export function viewState(
         true,
       ]);
     if (s.dotSize !== undefined) state.gs = s.dotSize;
+    if (s.opacity !== undefined) state.op = s.opacity;
   } else return null;
   if (s.mode3d) state.vm = "3D";
 
@@ -154,6 +155,32 @@ export function splitParams(right: URL): Record<string, string> | null {
 
   return null;
 }
+
+/** Settings a viewer of this kind has no place for in its link: reported,
+ * never claimed as applied. */
+export function unsupported(kind: ViewerKind, s: ViewSettings): string[] {
+  const asked: [string, boolean][] = [
+    ["3D", !!s.mode3d],
+    ["dot size", s.dotSize !== undefined],
+    ["opacity", s.opacity !== undefined],
+    ["unselected opacity", s.unselectedOpacity !== undefined],
+  ];
+  const none = new Set(
+    kind === "none"
+      ? ["3D", "dot size", "opacity", "unselected opacity"]
+      : kind === "molecules"
+        ? ["unselected opacity"]
+        : [],
+  );
+
+  return asked.filter(([k, on]) => on && none.has(k)).map(([k]) => k);
+}
+
+const WHY: Record<ViewerKind, string> = {
+  none: "an image viewer takes no settings from a link",
+  molecules: "a molecule viewer has no cells to pick out",
+  cells: "",
+};
 
 class ViewError extends Error {}
 
@@ -306,6 +333,7 @@ async function buildSide(
     url,
     kind,
     genes,
+    ignored: unsupported(kind, shared as ViewSettings),
     state: viewState(kind, {
       ...shared,
       genes,
@@ -363,10 +391,12 @@ Examples:
           .describe("Dot size multiplier: 1 is the default, 2 twice as big"),
         opacity: z
           .number()
-          .min(0)
+          .min(0.01)
           .max(1)
           .optional()
-          .describe("Opacity of coloured cells, 0–1 (cells viewer)"),
+          .describe(
+            "Opacity, 0.01–1: of coloured cells (cells viewer) or of every molecule (molecule viewer)",
+          ),
         unselected_opacity: z
           .number()
           .min(0)
@@ -426,11 +456,24 @@ Examples:
 
         if (a.open) openBrowser(link);
 
+        const ignoredOn = (side: typeof left | null) =>
+          new Set(side?.ignored ?? []);
+        const notApplied = new Set([
+          ...ignoredOn(left),
+          ...(right ? ignoredOn(right) : []),
+        ]);
+        // A setting counts as applied only where every panel took it.
+        const applied = (name: string) => !notApplied.has(name);
         const extras = [
-          a.view === "3D" && "3D",
-          a.dot_size !== undefined && `dot size ×${a.dot_size}`,
-          a.opacity !== undefined && `opacity ${a.opacity}`,
+          a.view === "3D" && applied("3D") && "3D",
+          a.dot_size !== undefined &&
+            applied("dot size") &&
+            `dot size ×${a.dot_size}`,
+          a.opacity !== undefined &&
+            applied("opacity") &&
+            `opacity ${a.opacity}`,
           a.unselected_opacity !== undefined &&
+            applied("unselected opacity") &&
             `other cells at opacity ${a.unselected_opacity}`,
           right && (a.sync ? "cameras synced" : "cameras independent"),
         ].filter(Boolean);
@@ -443,6 +486,23 @@ Examples:
             "",
             link,
             "",
+            ...(notApplied.size
+              ? [
+                  `Not applied: ${[
+                    ...(left.ignored.length
+                      ? [
+                          `${right ? "left panel: " : ""}${left.ignored.join(", ")} (${WHY[left.kind]})`,
+                        ]
+                      : []),
+                    ...(right?.ignored.length
+                      ? [
+                          `right panel: ${right.ignored.join(", ")} (${WHY[right.kind]})`,
+                        ]
+                      : []),
+                  ].join("; ")}. Tell the person.`,
+                  "",
+                ]
+              : []),
             a.open
               ? "Opened in a browser tab. If none opened (no browser on this computer), give the person the link."
               : "Give the person this link; it was not opened.",

@@ -51,6 +51,7 @@ export interface SMVizUrlState {
   vm?: ViewMode; // viewMode
   sa?: boolean; // global showAssigned
   su?: boolean; // global showUnassigned
+  op?: number; // moleculeOpacity, 0-1 (omitted at 1)
 }
 
 // --- Base64URL helpers (Unicode-safe) ---
@@ -262,6 +263,7 @@ export function encodeSMVizState(state: {
   viewMode: ViewMode;
   showAssigned: boolean;
   showUnassigned: boolean;
+  moleculeOpacity?: number;
 }): string | null {
   const obj: SMVizUrlState = {};
 
@@ -304,6 +306,8 @@ export function encodeSMVizState(state: {
   if (state.viewMode !== "2D") obj.vm = state.viewMode;
   if (!state.showAssigned) obj.sa = false;
   if (!state.showUnassigned) obj.su = false;
+  if (state.moleculeOpacity !== undefined && state.moleculeOpacity !== 1)
+    obj.op = state.moleculeOpacity;
 
   if (Object.keys(obj).length === 0) return null;
 
@@ -320,6 +324,7 @@ export function decodeSMVizState(encoded: string): SMVizUrlState | null {
   if (obj.vm !== undefined && obj.vm !== "2D" && obj.vm !== "3D") return null;
   if (obj.sa !== undefined && typeof obj.sa !== "boolean") return null;
   if (obj.su !== undefined && typeof obj.su !== "boolean") return null;
+  if (obj.op !== undefined && typeof obj.op !== "number") return null;
 
   return obj;
 }
