@@ -5,6 +5,7 @@ import * as z from "zod/v4";
 import { apiGet } from "../api.js";
 import { openBrowser, signOut, startSignIn } from "../auth.js";
 import { DEFAULT_SCOPES, SITE } from "../config.js";
+import { credentialsPath } from "../credentials.js";
 import {
   type Page,
   join,
@@ -93,14 +94,20 @@ Call it when a tool says sign-in is needed, or with more scopes when a tool says
       },
     },
     async ({ scopes }) => {
-      const signIn = await startSignIn([
-        ...new Set([...DEFAULT_SCOPES, ...(scopes ?? [])]),
-      ]);
+      const asked = [...new Set([...DEFAULT_SCOPES, ...(scopes ?? [])])];
+      const signIn = await startSignIn(asked);
 
       openBrowser(signIn.url);
 
       return text(
-        `Ask the person to open this link, sign in to MERFISHEYES and choose what to allow:\n\n${signIn.url}\n\nThe link works for 10 minutes and only on this computer. When they are done, call meyes_whoami.`,
+        [
+          `Ask the person to open this link, sign in to MERFISHEYES and choose what to allow:`,
+          ``,
+          signIn.url,
+          ``,
+          `It asks for: ${asked.join(", ")} (${DEFAULT_SCOPES.join(" and ")} are always included).`,
+          `The link works for 10 minutes and only on this computer. When they are done, call meyes_whoami.`,
+        ].join("\n"),
       );
     },
   );
@@ -150,7 +157,7 @@ Call it when a tool says sign-in is needed, or with more scopes when a tool says
               `May: ${me.scopes.join(", ")}.`,
               `Projects: ${me.projects === "all" ? "all of theirs" : `${me.projects.length} chosen (${me.projects.join(", ")})`}.`,
             ].join("\n")
-          : `Not signed in to ${SITE}. Public catalog tools work; call meyes_sign_in for the person's own data.`,
+          : `Not signed in to ${SITE} (no saved sign-in in ${credentialsPath()}). Public catalog tools work; call meyes_sign_in for the person's own data.`,
       );
     },
   );

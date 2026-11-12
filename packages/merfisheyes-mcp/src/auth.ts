@@ -206,7 +206,8 @@ export function openBrowser(url: string): void {
     process.platform === "darwin"
       ? ["open", [url]]
       : process.platform === "win32"
-        ? ["cmd", ["/c", "start", "", url]]
+        ? // not `cmd /c start`: cmd cuts a link at its first "&"
+          ["rundll32", ["url.dll,FileProtocolHandler", url]]
         : ["xdg-open", [url]];
 
   try {

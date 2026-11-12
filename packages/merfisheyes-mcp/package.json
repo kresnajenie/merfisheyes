@@ -4,15 +4,23 @@
   "description": "MCP server for MERFISHEYES: search spatial transcriptomics datasets and work with your projects from an AI agent",
   "license": "MIT",
   "type": "module",
-  "bin": { "merfisheyes-mcp": "dist/index.js" },
-  "files": ["dist", "README.md"],
+  "bin": {
+    "merfisheyes-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "prepublishOnly": "npm run build && npm test"
   },
-  "engines": { "node": ">=20.3" },
+  "engines": {
+    "node": ">=20.3"
+  },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
     "zod": "^4.2.0"
@@ -23,5 +31,14 @@
     "tsx": "^4.19.2",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kresnajenie/merfisheyes.git",
+    "directory": "packages/merfisheyes-mcp"
+  },
+  "homepage": "https://www.merfisheyes.com",
+  "publishConfig": {
+    "access": "public"
   }
 }

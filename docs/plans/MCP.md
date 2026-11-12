@@ -327,10 +327,82 @@ and the upload E2E job builds it. Gate:
   the character limit); a database test that the authorization server
   accepts the site's own client document.
 
-Not yet: the live site answers only once `develop` is released; until
-then the package is pointed at staging with
-`MERFISHEYES_URL=https://dev.merfisheyes.com` (which needs `OAUTH_ISSUER`
-set there).
+Released to the live site on 2026-11-10 (PR #202): the package works
+against www.merfisheyes.com from a checkout; npm publishing (D16) is
+still to do.
+
+**First manual test, on staging (2026-11-10 → 11).** A person on a Mac,
+the package from branch `feature/mcp` (commit `93dcf87` added
+`MERFISHEYES_VERCEL_BYPASS`, since staging sits behind Vercel's Deployment
+Protection), driven from Claude Code in VS Code.
+
+Worked:
+- The package built on the Mac (Node ≥ 20.3) and Claude Code listed the
+  `meyes_*` tools.
+- Catalog search through Claude worked on staging's real catalog
+  ("mouse brain": 1,332 with `species`/`tissue` filters, 1,349 free text),
+  with paging.
+
+Failed — fix before the next test:
+- **F1 · Terminal sign-in stopped at the consent page** with "the
+  redirect_uri is not one this client registered". The code on both sides
+  agrees (registration lists `http://127.0.0.1/callback`, the site accepts
+  any loopback port, the E2E passes), so the cause is not found yet. The
+  leading suspect is the link losing `redirect_uri` on its way through the
+  Vercel and Google logins. `validateAuthorize` gives the same message for
+  a missing `redirect_uri` as for a wrong one, so the page should tell
+  them apart.
+- **F2 · Claude Code's package was not signed in, and registered a new
+  client.** The package registers only when its credentials file holds
+  nothing for the issuer, so that process found no saved sign-in. This is
+  consistent with F1, but the terminal and Claude Code reading different
+  files (or different issuers) is not ruled out. `whoami` should print the
+  credentials path and the issuer it looked under.
+- **F3 · The scopes surprise.** `meyes_sign_in` with
+  `scopes=["projects:read"]` asked for `catalog:read projects:read`. Adding
+  `catalog:read` is deliberate (DEFAULT_SCOPES), but the tool's answer
+  should say so.
+- **F4 · Setup friction.** Commands with a `# comment` broke in zsh
+  (interactive comments are off; the apostrophe opened a quote). The
+  README's commands must have no inline comments, and should give
+  `node -v` (≥ 20.3) as the first step.
+
+Problems in the site's data that the agent ran into are logged in §10.
+
+Decided after it: manual testing moves off staging, whose Vercel login,
+bypass secret and separate database add failure points that are not the
+package's. Since `develop` was released on 2026-11-10 (PR #202, which
+carries #205), the live site has the agent API, and testing moved there.
+
+**Second manual test, on the live site (2026-11-11).** Same Mac, package
+from `feature/mcp`, no settings (the default, www.merfisheyes.com; the
+site's Client ID Metadata Document, no registration). Passed: sign-in,
+then in Claude Code the person's two projects (and their datasets),
+catalog search ("mouse brain": 1,335) and one dataset's detail — F1 and
+F2 did not recur, so both were staging's.
+
+Found:
+- **F5 · A search page of 5, not 20.** `many()` halves a page until it is
+  under `CHARACTER_LIMIT`; an item that lists every molecule section
+  (58 for ace-den-fog) makes the page too long. The search item should
+  say how many sections and leave their links to `meyes_get_dataset`.
+- Data problems: logged in §10.
+- The account page's agent list was reworded to be short: name,
+  permissions, which projects, last used.
+
+**Polish for the demo (2026-11-11).** F3–F5 fixed in the package: search
+cards keep one viewer link per kind with the counts (`compactCard`), so a
+page holds 20; `meyes_sign_in` says what it asks for and that
+`catalog:read projects:read` are always included; `whoami` names the
+credentials file it read; the README has no inline comments and starts
+with `node -v`; on Windows the browser opens through `rundll32` (`cmd
+/c start` cut links at the first `&`). New tool **`meyes_open_view`**
+(MCP-PROTOCOL §3.1): opens a dataset in the person's browser with genes,
+column, cell types and 2D/3D set through the viewer's `v=` link state —
+the part of step 5 that needs no bridge. Gate: unit tests
+(`test/view.test.ts`); against the live site, ace-den-fog's cells link
+came back from the viewer with `Slc17a7` applied and its expression range
+filled in, and section 609889HK01 drew Gad1 and Slc17a7 in 3D.
 
 ### Step 5 — The bridge and tier-1 view control
 
@@ -421,3 +493,25 @@ from claude.ai.
   resolved addresses, then `fetch` resolves again — a narrowed, not closed,
   window. Acceptable for public metadata; revisit if anything secret is
   ever fetched this way.
+
+## 10. Site errors the agent finds (running log)
+
+Until the agent API, these errors could only be found by reading the
+database or S3 directly. An agent sees the site as a visitor does, one
+dataset at a time, so it notices typos, wrong names, duplicates and
+inconsistencies in passing. **Add each one here when it is met**: date,
+where, what, and what fixing it touches. Mark it fixed with the commit
+instead of deleting it. A deliberate sweep (an agent walking the whole
+catalog) is a later step; this log is what such a sweep would add to.
+
+| # | Found | Where | What | Fix touches | Status |
+|---|---|---|---|---|---|
+| E1 | 2026-11-10 | Catalog cards | No cell and/or gene count on some cards: two SpatialData-DB stores have neither; the BIL MERSCOPE atlas entries (ace-low-bar, ace-low-zip, ace-den-fog) have no cell count, though ace-low-bar has a cells viewer | the stores' `stats.json`, or how the card reads it | open |
+| E2 | 2026-11-10 | Search ranking | For "mouse brain" the BIL MERFISH atlases come 4th and 5th, behind CUT&Tag and ATAC entries with no counts | `lib/explore/search.ts` ordering | open |
+| E3 | 2026-11-10 | Platform facet | `xenium` and `Xenium` both listed, splitting the filter | catalog rows; canonical spellings in `docs/specs/conventions.md` | open |
+| E4 | 2026-11-10 | Species facet | `Drosophila` / `Drosophila melanogaster`; `Macaque` / `Rhesus Macaque` | as E3 | open |
+| E5 | 2026-11-10 | Tissue facet | `otak` (Malay/Indonesian for "brain"); `Whole embryo, heart` (two values in one) | as E3 | open |
+| E6 | 2026-11-11 | Species facet | `Mouse` and `Mice` both listed; `Mice` + `Brain` finds nothing | as E3 | open |
+| E7 | 2026-11-11 | Catalog entry "Re-activation of neurogenic niches" | A "Xenium Human Breast Cancer (molecules)" entry is attached that does not belong to it | that catalog row's entries | open |
+| E8 | 2026-11-11 | ace-den-fog | 702 genes in the store; the description says 500 were profiled | check which is right; the description or the store | to check |
+| E9 | 2026-11-11 | Catalog entry "Mouse Brain Saggital 10 Slices" | Typo in the title: "Saggital" for "Sagittal" | that catalog row's title | open |

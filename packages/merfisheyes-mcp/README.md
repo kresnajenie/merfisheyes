@@ -11,6 +11,12 @@ and gets short answers back.
 
 ## Use it
 
+You need Node.js 20.3 or newer. Check with:
+
+```bash
+node -v
+```
+
 Claude Code:
 
 ```bash
@@ -28,11 +34,12 @@ Claude Desktop, Cursor and other clients — add to the client's MCP settings:
 ```
 
 Until the package is published to npm, run it from a checkout of the
-MERFISHEYES repository:
+MERFISHEYES repository. In `packages/merfisheyes-mcp`:
 
 ```bash
-cd packages/merfisheyes-mcp && npm ci && npm run build
-claude mcp add merfisheyes -- node /path/to/merfisheyes/packages/merfisheyes-mcp/dist/index.js
+npm ci
+npm run build
+claude mcp add merfisheyes -- node "$(pwd)/dist/index.js"
 ```
 
 ## Signing in
@@ -54,6 +61,7 @@ Tokens are kept in `~/.config/merfisheyes-mcp/credentials.json`
 | `meyes_list_facets` | no | The species, tissue and platform spellings filters use |
 | `meyes_get_dataset` | no¹ | One dataset: viewer links, cells, genes, molecules, sections, cell-type levels, DE columns, QC |
 | `meyes_list_genes` | no¹ | A dataset's genes, filtered by a name fragment |
+| `meyes_open_view` | no¹ | Open a dataset in your browser already showing what you asked: genes coloured, a cell-type column, 2D or 3D |
 | `meyes_sign_in` / `meyes_sign_out` | — | Connect or disconnect your account |
 | `meyes_whoami` | — | Who is signed in, and what the agent may do |
 | `meyes_list_my_datasets` | yes | Your datasets and their processing status |
@@ -78,10 +86,14 @@ are paged (`limit`, `offset`, `next_offset`).
 
 ```bash
 npm ci
-npm run build      # strict TypeScript → dist/
-npm test           # unit tests (sign-in against a stand-in server, paging)
+npm run build
+npm test
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
+
+`build` compiles strict TypeScript into `dist/`; `test` runs the unit tests
+(sign-in against a stand-in server, paging, viewer links); the inspector
+lets you call each tool by hand.
 
 The end-to-end test — this package over stdio against the site, signing in
 through a browser — is `e2e/tests/upload/agent-mcp.spec.ts` in the

@@ -79,6 +79,7 @@ destructive (needs `confirm: true`), `I` idempotent.
 | `meyes_get_project` | `projects:read` | api | R I | One project with its datasets. |
 | `meyes_sign_in` | — | local | W I | Starts the browser sign-in (§6.4): returns the link, opens a tab where it can; the answer comes back to the package's loopback listener. `scopes` asks for more (step-up). |
 | `meyes_sign_out` | — | local | W I | Revokes the grant's tokens and forgets them. |
+| `meyes_open_view` | `catalog:read` (`projects:read` for the person's own) | local | R I | Opens one of a dataset's viewer links in the person's browser with genes, a cell-type column and chosen types, and 2D/3D already set, through the link's `v=` state (`lib/utils/url-visualization-state.ts`) — no bridge. Gene names are corrected to the dataset's spelling first (the viewer applies only an exact match); one gene or two (co-expression) in a cells viewer, up to ten coloured genes in a molecule viewer. Only links on the site the package talks to are opened. Returns the link either way. |
 
 ### 3.2 Account writes (step 7)
 

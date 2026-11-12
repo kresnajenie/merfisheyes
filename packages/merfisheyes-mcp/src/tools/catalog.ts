@@ -29,6 +29,9 @@ interface Entry {
 }
 
 interface Card {
+  /** Viewer links per kind, when `entries` was cut to one per kind
+   * (compactCard). */
+  entryCounts?: Record<string, number>;
   id: string;
   title: string;
   species: string | null;
@@ -96,6 +99,30 @@ interface Detail {
 /** App datasets have prefixed ids; anything else is a catalog row or BIL code. */
 export const isDatasetId = (id: string) => /^(ds|sm|s3)_/.test(id);
 
+const KIND_LABEL: Record<string, string> = {
+  single_cell: "cells",
+  single_molecule: "molecules",
+  image: "images",
+};
+
+/**
+ * A search card keeps one viewer link per kind and says how many there are
+ * in all: an atlas with 58 molecule sections otherwise fills a page alone,
+ * and the page is halved under CHARACTER_LIMIT until only a few cards fit.
+ * meyes_get_dataset lists every link.
+ */
+export function compactCard(c: Card): Card {
+  if (c.entries.length <= 3) return c;
+  const entryCounts: Record<string, number> = {};
+  const entries = c.entries.filter((e) => {
+    entryCounts[e.kind] = (entryCounts[e.kind] ?? 0) + 1;
+
+    return entryCounts[e.kind] === 1;
+  });
+
+  return { ...c, entries, entryCounts };
+}
+
 const cardMd = (c: Card) =>
   [
     `## ${c.title} (${c.id})`,
@@ -105,8 +132,18 @@ const cardMd = (c: Card) =>
       ? [`- Matching genes: ${c.matchedGenes.join(", ")}`]
       : []),
     ...c.entries.map(
-      (e) => `- ${e.label} (${e.kind}): ${e.viewerUrl ?? "no viewer link"}`,
+      (e) =>
+        `- ${e.label} (${KIND_LABEL[e.kind] ?? e.kind}): ${e.viewerUrl ?? "no viewer link"}`,
     ),
+    ...(c.entryCounts
+      ? [
+          `- Viewer links: ${Object.entries(c.entryCounts)
+            .map(([k, v]) => `${v} for ${KIND_LABEL[k] ?? k}`)
+            .join(
+              ", ",
+            )} (one per kind shown; meyes_get_dataset lists them all)`,
+        ]
+      : []),
   ].join("\n");
 
 function detailMd(d: Detail): string {
@@ -261,12 +298,16 @@ Use meyes_get_dataset for one dataset in detail.`,
         ctx.mcpReq.signal,
       );
 
-      return many(a.response_format, page, {
-        heading: "MERFISHEYES datasets",
-        item: cardMd,
-        empty:
-          "No dataset matches. Loosen a filter, check the spelling with meyes_list_facets, or search genes with `genes` (fragments) instead of `genes_exact`.",
-      });
+      return many(
+        a.response_format,
+        { ...page, items: page.items.map(compactCard) },
+        {
+          heading: "MERFISHEYES datasets",
+          item: cardMd,
+          empty:
+            "No dataset matches. Loosen a filter, check the spelling with meyes_list_facets, or search genes with `genes` (fragments) instead of `genes_exact`.",
+        },
+      );
     },
   );
 
