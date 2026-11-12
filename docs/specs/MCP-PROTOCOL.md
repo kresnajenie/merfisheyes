@@ -77,8 +77,9 @@ destructive (needs `confirm: true`), `I` idempotent.
 | `meyes_get_processing_status` | `projects:read` | api | R I | Status and progress of a dataset being processed. |
 | `meyes_list_projects` | `projects:read` | api | R I | The caller's projects in scope, with member datasets. |
 | `meyes_get_project` | `projects:read` | api | R I | One project with its datasets. |
-| `meyes_sign_in` | — | local | W I | Starts the browser sign-in (§6.4): returns the link, opens a tab where it can; the answer comes back to the package's loopback listener. `scopes` asks for more (step-up). |
+| `meyes_sign_in` | — | local | W I | Starts the browser sign-in (§6.4): opens the page in a tab where it can and waits up to two minutes (`MERFISHEYES_SIGN_IN_WAIT_MS`) for the answer on the package's loopback listener, then says who is signed in; with no browser, or past the wait, it returns the link. `scopes` asks for more (step-up). |
 | `meyes_sign_out` | — | local | W I | Revokes the grant's tokens and forgets them. |
+| `meyes_open_view` | `catalog:read` (`projects:read` for the person's own) | local | R I | A link to one of a dataset's viewer links with genes, a cell-type column and chosen types, 2D/3D, dot size and opacity already set, through the link's `v=` state (`lib/utils/url-visualization-state.ts`) — no bridge. `compare` puts a second dataset (or part) in the right panel of a split screen (`split`/`splitS3Url`, `splitType`, `sync`, `rv=`; `lib/hooks/useSplitUrlParams.ts`), cells and molecule viewers only. Gene names are corrected to the dataset's spelling first (the viewer applies only an exact match); one gene or two (co-expression) in a cells viewer, up to ten coloured genes in a molecule viewer. Returns the link; opens one browser tab only with `open=true`, which the agent passes only when the person asks. Only links on the site the package talks to. |
 
 ### 3.2 Account writes (step 7)
 

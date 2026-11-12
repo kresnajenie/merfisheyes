@@ -276,6 +276,10 @@ export function applySMVizState(
   if (decoded.vm) {
     store.setViewMode(decoded.vm);
   }
+
+  if (decoded.op !== undefined) {
+    store.setMoleculeOpacity(decoded.op);
+  }
 }
 
 /**
@@ -485,6 +489,7 @@ export function useSMVizUrlSync(
     viewMode,
     showAssigned,
     showUnassigned,
+    moleculeOpacity,
   } = store;
 
   useEffect(() => {
@@ -497,6 +502,7 @@ export function useSMVizUrlSync(
       viewMode,
       showAssigned,
       showUnassigned,
+      moleculeOpacity,
     });
 
     scheduleUrlUpdate(panel, encoded);
@@ -509,6 +515,7 @@ export function useSMVizUrlSync(
     viewMode,
     showAssigned,
     showUnassigned,
+    moleculeOpacity,
   ]);
 
   return { hasUrlState, hasUrlStateRef };
@@ -617,6 +624,7 @@ export function useSMOverlayUrlSync(
     viewMode,
     showAssigned,
     showUnassigned,
+    moleculeOpacity,
   } = store;
 
   useEffect(() => {
@@ -629,6 +637,7 @@ export function useSMOverlayUrlSync(
       viewMode,
       showAssigned,
       showUnassigned,
+      moleculeOpacity,
     });
 
     scheduleUrlUpdate(slot, encoded);
@@ -641,6 +650,7 @@ export function useSMOverlayUrlSync(
     viewMode,
     showAssigned,
     showUnassigned,
+    moleculeOpacity,
   ]);
 
   // The right panel's slot goes away with the panel.

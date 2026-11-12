@@ -81,6 +81,7 @@ test.describe("@upload agent via MCP", () => {
         "meyes_list_genes",
         "meyes_list_my_datasets",
         "meyes_list_projects",
+        "meyes_open_view",
         "meyes_search_datasets",
         "meyes_sign_in",
         "meyes_sign_out",

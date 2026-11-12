@@ -1,4 +1,4 @@
-import { API_BASE, NAME, VERSION } from "./config.js";
+import { API_BASE, NAME, VERSION, siteHeaders } from "./config.js";
 import { accessToken } from "./auth.js";
 
 /**
@@ -65,6 +65,7 @@ export async function apiGet<T>(
         headers: {
           accept: "application/json",
           "user-agent": `${NAME}/${VERSION}`,
+          ...siteHeaders(),
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
         signal: AbortSignal.any([

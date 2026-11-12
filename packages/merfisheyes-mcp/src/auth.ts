@@ -7,6 +7,8 @@ import {
   DEFAULT_SCOPES,
   SIGN_IN_TIMEOUT_MS,
   SITE,
+  VERCEL_BYPASS,
+  siteHeaders,
 } from "./config.js";
 import { type Saved, load, store } from "./credentials.js";
 
@@ -39,10 +41,22 @@ let discovered: Promise<Discovered> | null = null;
 
 async function getJson(url: string): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
-    headers: { accept: "application/json" },
+    headers: { accept: "application/json", ...siteHeaders() },
     signal: AbortSignal.timeout(15_000),
+    redirect: "manual",
   });
 
+  // Discovery documents are public: a redirect or a 401 here means the whole
+  // site is behind a login (Vercel's Deployment Protection on staging).
+  if ((res.status >= 300 && res.status < 400) || res.status === 401) {
+    throw new Error(
+      `${url} answered ${res.status}: the site is behind a login. ${
+        siteHeaders()["x-vercel-protection-bypass"]
+          ? "MERFISHEYES_VERCEL_BYPASS is set but was not accepted; check the secret."
+          : "For a Vercel-protected deployment, set MERFISHEYES_VERCEL_BYPASS to its Protection Bypass for Automation secret."
+      }`,
+    );
+  }
   if (!res.ok) throw new Error(`${url} answered ${res.status}`);
 
   return (await res.json()) as Record<string, unknown>;
@@ -99,15 +113,18 @@ async function clientIdFor(server: ServerMetadata): Promise<string> {
   if (saved?.clientId) return saved.clientId;
   let clientId: string;
 
+  // Behind Deployment Protection the site cannot fetch its own document
+  // either, so register instead.
   if (
     server.client_id_metadata_document_supported &&
-    server.issuer.startsWith("https://")
+    server.issuer.startsWith("https://") &&
+    !VERCEL_BYPASS
   ) {
     clientId = `${server.issuer}/oauth/merfisheyes-mcp.json`;
   } else if (server.registration_endpoint) {
     const res = await fetch(server.registration_endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...siteHeaders() },
       body: JSON.stringify({
         client_name: "MERFISHEYES MCP",
         redirect_uris: [`http://127.0.0.1${REDIRECT_PATH}`],
@@ -149,6 +166,7 @@ async function tokenRequest(
     headers: {
       "content-type": "application/x-www-form-urlencoded",
       accept: "application/json",
+      ...siteHeaders(),
     },
     body: new URLSearchParams(form),
     signal: AbortSignal.timeout(15_000),
@@ -182,21 +200,33 @@ function keep(
 
 /** Open a URL in the person's browser; quietly does nothing where none can be
  * opened (the link is also returned to the agent to show). */
-export function openBrowser(url: string): void {
-  if (process.env.MERFISHEYES_NO_BROWSER) return;
+/** Open a link in the person's browser. Returns whether a browser was
+ * likely opened (false: told not to, or a Linux machine with no display). */
+export function openBrowser(url: string): boolean {
+  if (process.env.MERFISHEYES_NO_BROWSER) return false;
+  if (
+    process.platform === "linux" &&
+    !process.env.DISPLAY &&
+    !process.env.WAYLAND_DISPLAY
+  )
+    return false;
   const [cmd, args] =
     process.platform === "darwin"
       ? ["open", [url]]
       : process.platform === "win32"
-        ? ["cmd", ["/c", "start", "", url]]
+        ? // not `cmd /c start`: cmd cuts a link at its first "&"
+          ["rundll32", ["url.dll,FileProtocolHandler", url]]
         : ["xdg-open", [url]];
 
   try {
     spawn(cmd, args, { stdio: "ignore", detached: true })
       .on("error", () => {})
       .unref();
+
+    return true;
   } catch {
     // no browser here: the agent shows the link instead
+    return false;
   }
 }
 
@@ -381,7 +411,10 @@ export async function signOut(): Promise<boolean> {
   if (server.revocation_endpoint) {
     await fetch(server.revocation_endpoint, {
       method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...siteHeaders(),
+      },
       body: new URLSearchParams({
         token: saved.refreshToken ?? saved.accessToken ?? "",
         client_id: saved.clientId,

@@ -4,7 +4,8 @@ import * as z from "zod/v4";
 
 import { apiGet } from "../api.js";
 import { openBrowser, signOut, startSignIn } from "../auth.js";
-import { DEFAULT_SCOPES, SITE } from "../config.js";
+import { DEFAULT_SCOPES, SIGN_IN_WAIT_MS, SITE } from "../config.js";
+import { credentialsPath } from "../credentials.js";
 import {
   type Page,
   join,
@@ -75,7 +76,7 @@ export function registerAccountTools(server: McpServer) {
     "meyes_sign_in",
     {
       title: "Sign in to MERFISHEYES",
-      description: `Start signing the person in to MERFISHEYES, so tools can reach their own projects and datasets. Returns a link: show it to the person and ask them to open it (a browser tab is also opened when possible), sign in, and choose what to allow — all their projects or chosen ones. Then call meyes_whoami to confirm.
+      description: `Start signing the person in to MERFISHEYES, so tools can reach their own projects and datasets. Opens a MERFISHEYES sign-in page in the person's browser, where they sign in and choose what to allow — all their projects or chosen ones — and waits up to two minutes for them, then says who is signed in. If they take longer, or no browser could be opened, it returns the link to give them; call meyes_whoami once they are done.
 Call it when a tool says sign-in is needed, or with more scopes when a tool says its permission is missing. Public catalog tools work without it.`,
       inputSchema: z.strictObject({
         scopes: z
@@ -92,15 +93,76 @@ Call it when a tool says sign-in is needed, or with more scopes when a tool says
         openWorldHint: true,
       },
     },
-    async ({ scopes }) => {
-      const signIn = await startSignIn([
-        ...new Set([...DEFAULT_SCOPES, ...(scopes ?? [])]),
+    async ({ scopes }, ctx) => {
+      const asked = [...new Set([...DEFAULT_SCOPES, ...(scopes ?? [])])];
+      const signIn = await startSignIn(asked);
+      const link = [
+        signIn.url,
+        ``,
+        `It asks for: ${asked.join(", ")} (${DEFAULT_SCOPES.join(" and ")} are always included).`,
+      ];
+
+      // No browser opened here: hand the link over at once.
+      if (!openBrowser(signIn.url))
+        return text(
+          [
+            `Ask the person to open this link, sign in to MERFISHEYES and choose what to allow:`,
+            ``,
+            ...link,
+            `The link works for 10 minutes and only on this computer. When they are done, call meyes_whoami.`,
+          ].join("\n"),
+        );
+
+      // A sign-in page is open in their browser: wait for their answer, so
+      // the agent can say who is signed in without another round.
+      const outcome = await Promise.race([
+        signIn.done.then(
+          () => "done" as const,
+          (e: Error) => e,
+        ),
+        new Promise<"waiting">((r) => {
+          const t = setTimeout(() => r("waiting"), SIGN_IN_WAIT_MS);
+
+          ctx.mcpReq.signal.addEventListener("abort", () => {
+            clearTimeout(t);
+            r("waiting");
+          });
+        }),
       ]);
 
-      openBrowser(signIn.url);
+      if (outcome === "done") {
+        const me = await apiGet<{
+          signedIn: boolean;
+          name?: string | null;
+          email?: string | null;
+          scopes: string[];
+          projects: "all" | string[];
+        }>("/me", {}, ctx.mcpReq.signal);
+
+        return text(
+          me.signedIn
+            ? `Signed in to ${SITE} as ${me.name ?? me.email}. This agent may: ${me.scopes.join(", ")}; projects: ${me.projects === "all" ? "all of theirs" : `${me.projects.length} chosen`}.`
+            : `The sign-in finished but ${SITE} does not recognise it. Call meyes_sign_in again.`,
+        );
+      }
+      if (outcome instanceof Error)
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Sign-in did not complete: ${outcome.message}. Call meyes_sign_in to try again.`,
+            },
+          ],
+        };
 
       return text(
-        `Ask the person to open this link, sign in to MERFISHEYES and choose what to allow:\n\n${signIn.url}\n\nThe link works for 10 minutes and only on this computer. When they are done, call meyes_whoami.`,
+        [
+          `A MERFISHEYES sign-in page is open in the person's browser and has not been answered yet. If they cannot see it, give them this link:`,
+          ``,
+          ...link,
+          `It works for 10 minutes, only on this computer. When they are done, call meyes_whoami.`,
+        ].join("\n"),
       );
     },
   );
@@ -150,7 +212,7 @@ Call it when a tool says sign-in is needed, or with more scopes when a tool says
               `May: ${me.scopes.join(", ")}.`,
               `Projects: ${me.projects === "all" ? "all of theirs" : `${me.projects.length} chosen (${me.projects.join(", ")})`}.`,
             ].join("\n")
-          : `Not signed in to ${SITE}. Public catalog tools work; call meyes_sign_in for the person's own data.`,
+          : `Not signed in to ${SITE} (no saved sign-in in ${credentialsPath()}). Public catalog tools work; call meyes_sign_in for the person's own data.`,
       );
     },
   );

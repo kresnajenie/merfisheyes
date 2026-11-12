@@ -21,7 +21,7 @@ const when = (iso: string | null) =>
 
 /** The agents this person allowed (docs/specs/MCP-PROTOCOL.md §6.4), each
  * with what it may do and a Disconnect button. Renders nothing when there
- * are none. */
+ * are none. Kept short: name, what it can do, which projects, last used. */
 export function ConnectedAgents() {
   const [agents, setAgents] = useState<Agent[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -46,11 +46,9 @@ export function ConnectedAgents() {
 
   return (
     <section className="mt-12">
-      <h2 className="text-lg font-semibold">Connected agents</h2>
-      <p className="mt-1 text-sm text-default-500">
-        AI agents you allowed to use MERFISHEYES as you. Disconnecting one stops
-        it at once.
-      </p>
+      <h2 className="text-lg font-semibold">
+        AI agents connected to your account
+      </h2>
       <ul className="mt-4 divide-y divide-default-200 rounded-xl border border-default-200">
         {agents.map((a) => (
           <li key={a.id} className="flex items-start justify-between gap-4 p-4">
@@ -69,15 +67,24 @@ export function ConnectedAgents() {
                 )}
               </p>
               <p className="mt-1 text-default-600">
+                Permissions:{" "}
                 {a.scopes
                   .filter((s) => s !== "catalog:read")
                   .map((s) => SCOPES[s] ?? s)
-                  .join(" · ") || "Public catalog only"}
+                  .join(" · ") || "Search the public catalog"}
               </p>
+              {a.scopes.includes("projects:read") && (
+                <p className="mt-1 text-default-600">
+                  Projects:{" "}
+                  {a.projects === "all"
+                    ? "All your projects"
+                    : a.projects.join(", ")}
+                </p>
+              )}
               <p className="mt-1 text-default-500">
-                Projects: {a.projects === "all" ? "all" : a.projects.join(", ")}{" "}
-                · connected {when(a.connectedAt)} · last used{" "}
-                {when(a.lastUsedAt)}
+                {a.lastUsedAt
+                  ? `Last used ${when(a.lastUsedAt)}`
+                  : "Not used yet"}
               </p>
             </div>
             <Button
