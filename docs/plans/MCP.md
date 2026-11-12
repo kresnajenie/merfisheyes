@@ -8,11 +8,87 @@ and the person's own projects are both in reach, and the agent may do
 anything the person could do on the site, within computational reason.
 
 This file is the brief for every session working on it: the facts, the
-decisions taken, the steps with their gates. **Status (2026-11-09): steps
-1–4 done.** Keep it
-current: a step that changes a fact or a decision edits this file in the
+decisions taken, the steps with their gates. **Status (2026-11-12): steps
+1–4 done, released 2026-11-10; the work is now organised by the five
+pillars of §0 — A (publish 0.1) under way.** Keep it current: a step that changes a fact or a decision edits this file in the
 same commit. Branch: `feature/mcp` (from `bil/pipeline-dry-run`). The
 contract the steps build is [docs/specs/MCP-PROTOCOL.md](../specs/MCP-PROTOCOL.md).
+
+## 0. The pillars
+
+Steps 1–4 and the link-built views let an agent explore the site the way
+a person can. The goal is analyses a person could not do by clicking.
+The third manual test showed what stands between the two: the numbers an
+analysis needs exist in files the pipeline writes, but no tool serves
+them, so the agent fetched and decoded them itself. The order below
+serves them first, through the agent API, before any bridge — it works
+in every client, with no tab open, in seconds.
+
+### Pillar A — Publish 0.1 (by the 2026-11-14 demo)
+
+1. PR `feature/mcp` → `develop`; CI green; merge.
+2. Release `develop` → `main`: brings the molecule-opacity link field
+   (until then the live molecule viewer ignores `op`) and the account
+   page's agent list.
+3. `npm publish` from `packages/merfisheyes-mcp` by hand (`npm login`,
+   two-factor); then on a clean machine `claude mcp add --scope user
+   merfisheyes -- npx -y @merfisheyes/mcp` lists the 12 tools. The
+   README's "until published" section goes.
+4. A demo script: prompts the tools answer directly (search, detail,
+   views, split screen, sign-in, projects). Not yet: "most abundant",
+   "which dataset combines the slices" — those are B.
+5. Later: publishing from GitHub Actions (npm trusted publishing) on an
+   `mcp-v*` tag; semver, a minor version per batch of new tools.
+
+### Pillar B — Analyses from what a store records (step 6, first half; no bridge)
+
+New agent-API routes (`/api/agent/v1/datasets/{id}/…`, `expensive` rate
+tier, cached per store) reading the files the pipeline already writes,
+and a tool for each. Every answer says where its numbers come from, and
+"not recorded for this dataset" when the file is missing — never a guess.
+
+| Tool | Answers | Read from |
+|---|---|---|
+| `meyes_dataset_structure` | one slice or combined; slices and their ids; obs columns with type and number of values; embeddings; images; molecule sections | `obs/metadata.json`, `_sample_id`, manifest, `stats.json`, store metadata |
+| `meyes_gene_stats` | per gene: total counts, cells expressing, molecules (in and out of cells); "most abundant", "is X expressed" | DE stats (counts × means), molecule `manifest.json` `molecule_counts` |
+| `meyes_composition` | cells per category of a column, overall or per slice — the plot panel's bar plot | DE stats category sizes, obs columns |
+| `meyes_gene_by_group` | a gene's mean and % expressing per category — the plot panel's gene × cell type | DE stats |
+| `meyes_markers` | top genes per category against the rest | DE stats (fold change and % computed on the server) |
+| `meyes_compare` | two datasets, slices or conditions: composition and gene differences | the above, per side |
+
+Charts: each analysis tool can return a Vega-Lite spec with its rows
+(D4), which Claude Desktop and claude.ai draw. Gate: each number equals
+the viewer's (plot panel, legend) on a legacy and a SpatialData fixture;
+an answer stays under the character limit; a store missing a file gets
+"not recorded", tested.
+
+### Pillar C — Data the analyses can stand on (in parallel; BIL-CLUSTER.md)
+
+Most of B's "not recorded" answers are E1–E14: legacy BIL datasets
+without sidecars, missing counts, no combined P28 atlas, facet
+spellings. Reprocessing with `prepare.py` / the BIL pipeline writes
+`stats.json`, `catalog.json`, `qc.json` and DE for every store; B is
+built against stores that have them and falls back on the others. An
+agent sweep — a scripted run of the read tools over the whole catalog —
+fills §10 instead of waiting for an agent to stumble on each error.
+
+### Pillar D — The bridge (step 5) and the Agent panel (step 6, second half)
+
+What links cannot do: change a tab already open, read what the person is
+looking at ("what's selected?", "this region"), analyses of an arbitrary
+selection the browser holds, and plots drawn inside MERFISHEYES. After B,
+so the panel shows B's numbers rather than inventing its own.
+
+### Pillar E — Compute and writes (step 7)
+
+What no file records: DE between
+arbitrary selections, neighbourhoods, spatial statistics — on the server
+(Batch, with a confirm and a cost) or in the tab. Write tools for
+projects and dataset metadata. Then steps 8–9 as written.
+
+**Rule for every pillar:** a new tool is added beside the 0.1 tools, never by
+changing what they return; each ships with its tests and a live check,
+and the package's minor version goes up with it.
 
 ## 1. The principle: the browser does the work, the agent directs it
 
@@ -193,6 +269,7 @@ function; a server relay to a tab (remote MCP) needs an external pub/sub
 | D15 | Personal datasets stay "anyone with the link" (any id opens on the site); the agent API keeps its stricter rule (MCP-PROTOCOL §2) | **taken** 2026-11-08 |
 | D16 | The package is `@merfisheyes/mcp` on npm, under the `merfisheyes` npm organisation (created 2026-11-10, two-factor on) so it outlives any one maintainer; run with `npx -y @merfisheyes/mcp` (the command it installs is `merfisheyes-mcp`). First published by hand once the live site has the agent API (after `develop` → `main` and `OAUTH_ISSUER` in Production); later releases from GitHub Actions (npm trusted publishing). Until then it runs from the repository (`node packages/merfisheyes-mcp/dist/index.js`) | **taken** 2026-11-10 (publishing open) |
 | D17 | Tokens are kept in a file only the person can read (`~/.config/merfisheyes-mcp/credentials.json`, 0600, written atomically), keyed by issuer — not the OS keychain, which needs native modules `npx` cannot rely on | **taken** 2026-11-09 |
+| D18 | The work after step 4 is organised by five pillars (§0): A publish 0.1, B analyses from what a store records, C data, D bridge and Agent panel, E compute and writes. B — the analysis half of step 6, served by the agent API from files the pipeline writes — comes **before** the bridge (step 5): it works in every client with no tab open, and the third manual test showed it is what agents lacked. New tools are added beside the 0.1 tools, never by changing what those return | **taken** 2026-11-12 |
 
 ## 8. Steps
 
@@ -490,75 +567,10 @@ from claude.ai.
   actually ask for (every recurring tier-3 request is a tier-2 candidate,
   §4).
 
-### Next, from 2026-11-12: publish, then real analyses
+### After step 4
 
-Steps 1–4 and the link-built views let an agent explore the site the way
-a person can. The goal is analyses a person could not do by clicking.
-The third manual test showed what stands between the two: the numbers an
-analysis needs exist in files the pipeline writes, but no tool serves
-them, so the agent fetched and decoded them itself. The order below
-serves them first, through the agent API, before any bridge — it works
-in every client, with no tab open, in seconds.
-
-**A · Publish 0.1 (by the 2026-11-14 demo).**
-1. PR `feature/mcp` → `develop`; CI green; merge.
-2. Release `develop` → `main`: brings the molecule-opacity link field
-   (until then the live molecule viewer ignores `op`) and the account
-   page's agent list.
-3. `npm publish` from `packages/merfisheyes-mcp` by hand (`npm login`,
-   two-factor); then on a clean machine `claude mcp add --scope user
-   merfisheyes -- npx -y @merfisheyes/mcp` lists the 12 tools. The
-   README's "until published" section goes.
-4. A demo script: prompts the tools answer directly (search, detail,
-   views, split screen, sign-in, projects). Not yet: "most abundant",
-   "which dataset combines the slices" — those are B.
-5. Later: publishing from GitHub Actions (npm trusted publishing) on an
-   `mcp-v*` tag; semver, a minor version per batch of new tools.
-
-**B · Analyses from what a store records (step 6, first half; no bridge).**
-New agent-API routes (`/api/agent/v1/datasets/{id}/…`, `expensive` rate
-tier, cached per store) reading the files the pipeline already writes,
-and a tool for each. Every answer says where its numbers come from, and
-"not recorded for this dataset" when the file is missing — never a guess.
-
-| Tool | Answers | Read from |
-|---|---|---|
-| `meyes_dataset_structure` | one slice or combined; slices and their ids; obs columns with type and number of values; embeddings; images; molecule sections | `obs/metadata.json`, `_sample_id`, manifest, `stats.json`, store metadata |
-| `meyes_gene_stats` | per gene: total counts, cells expressing, molecules (in and out of cells); "most abundant", "is X expressed" | DE stats (counts × means), molecule `manifest.json` `molecule_counts` |
-| `meyes_composition` | cells per category of a column, overall or per slice — the plot panel's bar plot | DE stats category sizes, obs columns |
-| `meyes_gene_by_group` | a gene's mean and % expressing per category — the plot panel's gene × cell type | DE stats |
-| `meyes_markers` | top genes per category against the rest | DE stats (fold change and % computed on the server) |
-| `meyes_compare` | two datasets, slices or conditions: composition and gene differences | the above, per side |
-
-Charts: each analysis tool can return a Vega-Lite spec with its rows
-(D4), which Claude Desktop and claude.ai draw. Gate: each number equals
-the viewer's (plot panel, legend) on a legacy and a SpatialData fixture;
-an answer stays under the character limit; a store missing a file gets
-"not recorded", tested.
-
-**C · Data the analyses can stand on (in parallel; BIL-CLUSTER.md).**
-Most of B's "not recorded" answers are E1–E14: legacy BIL datasets
-without sidecars, missing counts, no combined P28 atlas, facet
-spellings. Reprocessing with `prepare.py` / the BIL pipeline writes
-`stats.json`, `catalog.json`, `qc.json` and DE for every store; B is
-built against stores that have them and falls back on the others. An
-agent sweep — a scripted run of the read tools over the whole catalog —
-fills §10 instead of waiting for an agent to stumble on each error.
-
-**D · The bridge (step 5) and the Agent panel (step 6, second half).**
-What links cannot do: change a tab already open, read what the person is
-looking at ("what's selected?", "this region"), analyses of an arbitrary
-selection the browser holds, and plots drawn inside MERFISHEYES. After B,
-so the panel shows B's numbers rather than inventing its own.
-
-**E · Compute and writes (step 7).** What no file records: DE between
-arbitrary selections, neighbourhoods, spatial statistics — on the server
-(Batch, with a confirm and a cost) or in the tab. Write tools for
-projects and dataset metadata. Then steps 8–9 as written.
-
-Rule for all of it: a new tool is added beside the 0.1 tools, never by
-changing what they return; each ships with its tests and a live check,
-and the package's minor version goes up with it.
+The work from here is organised by the pillars at the top of this file
+(§0): steps 5–9 below are their detail.
 
 ## 9. Risks
 
