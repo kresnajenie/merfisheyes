@@ -102,6 +102,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/spatialdata/spatialdata-pipeline-doc.md](docs/spatialdata/spatialdata-pipeline-doc.md) | **How to run the BIL pipeline**: its components, inputs, the seven stages, what it writes, how to verify a store, the artifact mask, the known gaps |
 | [docs/plans/BIL-CLUSTER.md](docs/plans/BIL-CLUSTER.md) | **Live plan: the same pipeline on the PSC cluster** — many sections in one store, the 87-dataset fleet, billion-scale molecules |
 | [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
+| [docs/plans/METADATA.md](docs/plans/METADATA.md) | **Live plan: one metadata schema — SpatialData-DB's — for every dataset**: ontology terms validated with bionty, written into the store's root attributes, verified in Lamin, published as the query index Explore and the agents read (planned 2026-11-14) |
 | [docs/plans/LAMIN.md](docs/plans/LAMIN.md) | Live plan: our datasets recorded in the Lamin instance `merfisheyes/eyes-catalog`, in place on S3 — `register_lamin.py` |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
 | [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: an agent (any MCP client) that drives a MERFISHEYES tab — local MCP + bridge, OAuth, Agent panel (steps 1–4 done; the package is `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
