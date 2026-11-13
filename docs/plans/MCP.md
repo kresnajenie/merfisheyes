@@ -32,7 +32,8 @@ in every client, with no tab open, in seconds.
    page's agent list.
 3. `npm publish` from `packages/merfisheyes-mcp` by hand (`npm login`,
    two-factor); then on a clean machine `claude mcp add --scope user
-   merfisheyes -- npx -y @merfisheyes/mcp` lists the 12 tools. The
+   merfisheyes -- npx -y @merfisheyes/mcp@latest` lists the 12 tools
+   (`@latest`, so `npx` does not keep running a cached older version). The
    README's "until published" section goes.
 4. A demo script: prompts the tools answer directly (search, detail,
    views, split screen, sign-in, projects). Not yet: "most abundant",

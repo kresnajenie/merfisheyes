@@ -17,35 +17,44 @@ You need Node.js 20.3 or newer. Check with:
 node -v
 ```
 
-Claude Code:
+Claude Code, from any folder:
 
 ```bash
-claude mcp add merfisheyes -- npx -y @merfisheyes/mcp
+claude mcp add --scope user merfisheyes -- npx -y @merfisheyes/mcp@latest
 ```
+
+`--scope user` makes the tools available in every Claude Code session, not
+only in the folder you ran it from; `@latest` picks up new versions when
+they are published. Start a new Claude Code session and type `/mcp`:
+`merfisheyes` is listed with its tools.
 
 Claude Desktop, Cursor and other clients — add to the client's MCP settings:
 
 ```json
 {
   "mcpServers": {
-    "merfisheyes": { "command": "npx", "args": ["-y", "@merfisheyes/mcp"] }
+    "merfisheyes": {
+      "command": "npx",
+      "args": ["-y", "@merfisheyes/mcp@latest"]
+    }
   }
 }
 ```
 
-Until the package is published to npm, run it from a checkout of the
-MERFISHEYES repository. In `packages/merfisheyes-mcp`:
+To run your own changes instead, from a checkout of the
+[MERFISHEYES repository](https://github.com/kresnajenie/merfisheyes), in
+`packages/merfisheyes-mcp`:
 
 ```bash
 npm ci
 npm run build
-claude mcp add merfisheyes -- node "$(pwd)/dist/index.js"
+claude mcp add --scope user merfisheyes -- node "$(pwd)/dist/index.js"
 ```
 
 ## Signing in
 
 Public catalog tools work without an account. For your own data, ask the
-agent to sign in (or run `npx @merfisheyes/mcp login` in a terminal): a
+agent to sign in (or run `npx -y @merfisheyes/mcp@latest login` in a terminal): a
 MERFISHEYES page opens, you sign in as usual, and choose what the agent may
 reach — **all your projects or only the ones you pick**. Disconnect it any
 time from your account page on MERFISHEYES, or with `merfisheyes-mcp logout`.
