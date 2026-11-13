@@ -51,6 +51,31 @@ npm run build
 claude mcp add --scope user merfisheyes -- node "$(pwd)/dist/index.js"
 ```
 
+## Your own data, without uploading it
+
+Open a folder on your computer in the MERFISHEYES viewer:
+
+```bash
+npx -y @merfisheyes/mcp@latest view ./my-sample.zarr
+```
+
+Or ask the agent ("show my sample in MERFISHEYES"): it calls
+`meyes_open_local`. The folder is served from your computer on
+`127.0.0.1` — only to the MERFISHEYES site, only under a random address,
+read-only, only while the command or the agent runs — and the viewer in
+your browser reads it from there. Nothing is uploaded, and the folder's
+address is never sent to the site.
+
+It opens a SpatialData store (`.zarr`, Zarr v3 with consolidated
+metadata) or a folder holding one, a folder MERFISHEYES processed
+(`manifest.json`), or an OME-Zarr image. An `.h5ad` or raw MERSCOPE /
+Xenium output needs converting first (`scripts/prepare.py` in the
+repository writes a SpatialData store).
+
+In Chrome, the first time, allow www.merfisheyes.com to reach apps on
+this device when it asks; without it the browser does not let the page
+read the folder.
+
 ## Signing in
 
 Public catalog tools work without an account. For your own data, ask the
@@ -71,6 +96,7 @@ Tokens are kept in `~/.config/merfisheyes-mcp/credentials.json`
 | `meyes_get_dataset` | no¹ | One dataset: viewer links, cells, genes, molecules, sections, cell-type levels, DE columns, QC |
 | `meyes_list_genes` | no¹ | A dataset's genes, filtered by a name fragment |
 | `meyes_open_view` | no¹ | A link to a dataset in the viewer already showing what you asked: genes coloured, a cell-type column, 2D or 3D, dot size, opacity, or two datasets side by side in split screen. Opens a tab only when you ask |
+| `meyes_open_local` | no | A folder on your computer in the viewer, served from your machine (never uploaded) |
 | `meyes_sign_in` / `meyes_sign_out` | — | Connect or disconnect your account |
 | `meyes_whoami` | — | Who is signed in, and what the agent may do |
 | `meyes_list_my_datasets` | yes | Your datasets and their processing status |
@@ -89,6 +115,7 @@ are paged (`limit`, `offset`, `next_offset`).
 | `MERFISHEYES_URL` | `https://www.merfisheyes.com` | Another deployment, e.g. `https://dev.merfisheyes.com` (staging) or `http://localhost:3000` |
 | `MERFISHEYES_CREDENTIALS` | see above | Where tokens are kept |
 | `MERFISHEYES_NO_BROWSER` | unset | Never open a browser; only give links |
+| `MERFISHEYES_LOCAL_PORT` | a free port | The port `view` and `meyes_open_local` serve folders on |
 | `MERFISHEYES_SIGN_IN_WAIT_MS` | `120000` | How long sign-in waits for you in the browser before handing back the link |
 | `MERFISHEYES_VERCEL_BYPASS` | unset | Only for a deployment behind Vercel's Deployment Protection (staging): its *Protection Bypass for Automation* secret, sent with every request. The package then registers itself instead of using the site's client document. Keep it on your machine |
 

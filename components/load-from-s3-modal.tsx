@@ -12,10 +12,8 @@ import {
   Spinner,
 } from "@heroui/react";
 import { useRouter } from "next/navigation";
-import { ungzip } from "pako";
 
-import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
-import { parseS3Url, testManifestAccess } from "@/lib/utils/s3-url-parser";
+import { viewerPathForUrl } from "@/lib/viewer/viewer-for-url";
 
 interface LoadFromS3ModalProps {
   isOpen: boolean;
@@ -39,139 +37,14 @@ export function LoadFromS3Modal({
     try {
       setIsLoading(true);
       setError(null);
-      setValidationStep("Validating S3 URL...");
+      const path = await viewerPathForUrl(s3Url, {
+        datasetType,
+        onStep: setValidationStep,
+      });
 
-      // Parse and normalize S3 URL
-      const parsed = parseS3Url(s3Url);
-
-      console.log("Parsed S3 URL:", parsed);
-
-      setValidationStep("Testing manifest access...");
-
-      // Test if manifest exists (tries .gz first, then .json)
-      const manifestTest = await testManifestAccess(parsed.baseUrl);
-
-      if (!manifestTest.exists) {
-        // Not a merfisheyes folder: a SpatialData store, an OME-Zarr image,
-        // or a folder holding a store. Each is read as it is by its viewer.
-        setValidationStep("Looking for a SpatialData store or an image...");
-        const target = await resolveZarrUrl(parsed.baseUrl);
-
-        if (!target) {
-          throw new Error(
-            `Nothing to open at that URL. Please ensure:\n` +
-              `1. The URL is a merfisheyes folder (manifest.json or manifest.json.gz), a SpatialData store or an OME-Zarr image (zarr.json), or a folder holding a store\n` +
-              `2. A folder names its store in mapping.json ("cells"), or the store is named after the folder (sample/sample.zarr)\n` +
-              `3. The S3 bucket/folder has public read access\n` +
-              `4. CORS is configured to allow requests from ${window.location.origin}`,
-          );
-        }
-        // A store's link keeps the URL as entered: the viewer finds the
-        // store in a folder the same way.
-        router.push(
-          target.kind === "image"
-            ? `/image-viewer/from-s3?url=${encodeURIComponent(target.url)}`
-            : `/spatialdata-viewer/from-s3?url=${encodeURIComponent(parsed.baseUrl)}`,
-        );
-        onClose();
-
-        return;
-      }
-
-      setValidationStep("Downloading and parsing manifest...");
-
-      // Download and parse manifest to detect dataset type
-      const response = await fetch(manifestTest.url);
-
-      if (!response.ok) {
-        throw new Error(`Failed to download manifest: ${response.statusText}`);
-      }
-
-      let manifestJson: string;
-
-      // Check if it's gzipped based on URL
-      if (manifestTest.url.endsWith(".gz")) {
-        const manifestCompressed = await response.arrayBuffer();
-
-        manifestJson = ungzip(new Uint8Array(manifestCompressed), {
-          to: "string",
-        });
-      } else {
-        manifestJson = await response.text();
-      }
-
-      const manifest = JSON.parse(manifestJson);
-
-      console.log("Manifest loaded:", manifest);
-
-      // Always detect the type from the manifest's own fields — that is the
-      // reliable signal. The `datasetType` prop is only the homepage's mode
-      // toggle, and it must NOT override a manifest that clearly says
-      // otherwise: pasting a single-molecule URL while the toggle sits on
-      // "single cell" used to force the cell viewer, which then crashed on a
-      // molecule manifest. We only fall back to the toggle when the manifest
-      // is genuinely ambiguous.
-      //
-      // Reliable, mutually-exclusive fields (see scripts/process_*.py):
-      //   SM manifest → genes.unique_gene_names, statistics.total_molecules
-      //   SC manifest → statistics.total_cells, files.expression_chunks
-      // Do NOT key off `manifest.type`: both pipelines write the *format*
-      // there ("h5ad" | "xenium" | "merscope"), so "merscope"/"xenium" appear
-      // on both kinds and can't discriminate.
-      const looksSingleMolecule =
-        Boolean(manifest.genes?.unique_gene_names) ||
-        manifest.statistics?.total_molecules != null;
-      const looksSingleCell =
-        manifest.statistics?.total_cells != null ||
-        manifest.files?.expression_chunks != null;
-
-      let detectedType: "single_cell" | "single_molecule";
-
-      if (looksSingleMolecule && !looksSingleCell) {
-        detectedType = "single_molecule";
-      } else if (looksSingleCell && !looksSingleMolecule) {
-        detectedType = "single_cell";
-      } else if (datasetType) {
-        // Ambiguous or self-contradictory manifest — defer to the mode toggle.
-        detectedType = datasetType;
-      } else {
-        throw new Error(
-          "Could not determine from the manifest whether this is a single-cell " +
-            "or single-molecule dataset.",
-        );
-      }
-
-      console.log("Detected dataset type:", detectedType);
-
-      // The toggle said one thing but the manifest is another — we route by the
-      // manifest (correct), but tell the user so the different viewer isn't a
-      // surprise.
-      if (datasetType && detectedType !== datasetType) {
-        setValidationStep(
-          `This is a ${
-            detectedType === "single_molecule"
-              ? "single-molecule"
-              : "single-cell"
-          } dataset — opening the matching viewer…`,
-        );
-      }
-
-      setValidationStep("Loading dataset...");
-
-      // Encode base URL to pass in URL parameter
-      const encodedBaseUrl = encodeURIComponent(parsed.baseUrl);
-
-      // Navigate to appropriate viewer with custom S3 URL
-      if (detectedType === "single_molecule") {
-        router.push(`/sm-viewer/from-s3?url=${encodedBaseUrl}`);
-      } else {
-        router.push(`/viewer/from-s3?url=${encodedBaseUrl}`);
-      }
-
-      // Close modal
+      router.push(path);
       onClose();
     } catch (err) {
-      console.error("Error loading from S3:", err);
       setError(
         err instanceof Error ? err.message : "Failed to load dataset from S3",
       );

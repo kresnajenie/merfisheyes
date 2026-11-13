@@ -25,6 +25,7 @@ import {
   openSpatialDataStoreFromUrl,
 } from "@/lib/spatialdata/store";
 import { normalizeS3Url, type ViewerConfig } from "@/lib/utils/viewer-config";
+import { lookupByUrl } from "@/lib/datasets/lookup-by-url";
 
 export type DatasetKind = "cell" | "sm" | "spatialdata";
 
@@ -87,13 +88,9 @@ async function registrationByUrl(url: string): Promise<DatasetRegistration> {
   const s3Url = normalizeS3Url(url);
 
   try {
-    const r = await fetch(
-      `/api/datasets/by-url?url=${encodeURIComponent(s3Url)}`,
-    );
+    const j = await lookupByUrl(s3Url);
 
-    if (r.ok) {
-      const j = await r.json();
-
+    if (j) {
       if (j.registered) {
         return {
           dbId: j.id,
