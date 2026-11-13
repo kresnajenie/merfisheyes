@@ -9,6 +9,7 @@ import { toast } from "react-toastify";
 
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { glassPanel } from "@/components/primitives";
+import { isLocalUrl } from "@/lib/utils/local-url";
 
 const EMAIL_CODE_PROVIDER_ID = "email-code";
 const CODE_LENGTH = 6;
@@ -37,7 +38,9 @@ export function ClaimDatasetBanner() {
   const isAdmin =
     session?.user?.role === "ADMIN" || session?.user?.role === "SUPER_ADMIN";
   // "Not owned yet" = unclaimed (no personal owner and not admin-owned).
-  const notOwned = !!s3Url && ownerId == null && !adminOwned;
+  // Data on this computer is never offered for an account.
+  const notOwned =
+    !!s3Url && !isLocalUrl(s3Url) && ownerId == null && !adminOwned;
 
   async function claim(asAdmin = false) {
     if (!s3Url) return;

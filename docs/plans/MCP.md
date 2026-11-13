@@ -8,87 +8,260 @@ and the person's own projects are both in reach, and the agent may do
 anything the person could do on the site, within computational reason.
 
 This file is the brief for every session working on it: the facts, the
-decisions taken, the steps with their gates. **Status (2026-11-12): steps
-1–4 done, released 2026-11-10; the work is now organised by the five
-pillars of §0 — A (publish 0.1) under way.** Keep it current: a step that changes a fact or a decision edits this file in the
+decisions taken, the steps with their gates. **Status (2026-11-14): steps
+1–4 done and released; 0.1.0 on npm; D1a built, not committed. After the
+meeting with Tim Treis: metadata has its own plan
+([METADATA.md](METADATA.md)), and the site itself becomes the MCP server
+(pillar E).** Keep it current: a step that changes a fact or a decision edits this file in the
 same commit. Branch: `feature/mcp` (from `bil/pipeline-dry-run`). The
 contract the steps build is [docs/specs/MCP-PROTOCOL.md](../specs/MCP-PROTOCOL.md).
 
 ## 0. The pillars
 
-Steps 1–4 and the link-built views let an agent explore the site the way
-a person can. The goal is analyses a person could not do by clicking.
-The third manual test showed what stands between the two: the numbers an
-analysis needs exist in files the pipeline writes, but no tool serves
-them, so the agent fetched and decoded them itself. The order below
-serves them first, through the agent API, before any bridge — it works
-in every client, with no tab open, in seconds.
+**Where 0.1 stands.** `@merfisheyes/mcp` 0.1.0 is on npm (2026-11-13):
+an agent can search the catalog, read a person's projects, and hand them
+viewer links set up as asked (genes, columns, 2D/3D, split screen). That
+is the site used the way a person uses it, faster. It is not yet what a
+researcher would install it for.
 
-### Pillar A — Publish 0.1 (by the 2026-11-14 demo)
+**The two goals (2026-11-13, after a demo with a collaborator).**
 
-1. PR `feature/mcp` → `develop`; CI green; merge.
-2. Release `develop` → `main`: brings the molecule-opacity link field
-   (until then the live molecule viewer ignores `op`) and the account
-   page's agent list.
-3. `npm publish` from `packages/merfisheyes-mcp` by hand (`npm login`,
-   two-factor); then on a clean machine `claude mcp add --scope user
-   merfisheyes -- npx -y @merfisheyes/mcp` lists the 12 tools. The
-   README's "until published" section goes.
-4. A demo script: prompts the tools answer directly (search, detail,
-   views, split screen, sign-in, projects). Not yet: "most abundant",
-   "which dataset combines the slices" — those are B.
-5. Later: publishing from GitHub Actions (npm trusted publishing) on an
-   `mcp-v*` tag; semver, a minor version per batch of new tools.
+1. **Research the library.** One question across everything MERFISHEYES
+   holds — *"Alzheimer's is associated with gene X: compare every mouse
+   brain sample aged 1 month to 1 year that has X"* — answered by a query
+   over standardised metadata and per-dataset statistics on the server,
+   returning a collection the person can compare, view and keep. Never by
+   an agent walking S3 paths and computing on files.
+2. **MERFISHEYES on your own data.** A researcher analysing data on their
+   own machine — in Python, R, a notebook, with an agent — opens it in the
+   MERFISHEYES viewer on `localhost`: nothing uploaded, the same viewer,
+   driven by the agent as part of the analysis (show the spatial
+   projection of cells and molecules without the bad FOV, colour by the
+   pseudotime it just computed, capture the figures for the deck). Not a
+   Python package: an npm package and a browser.
 
-### Pillar B — Analyses from what a store records (step 6, first half; no bridge)
+**What the ecosystem already has.** SpatialData-DB (Tim Treis, Theis lab;
+`theislab/spatialdata-db-client`) publishes, per release: a catalog in a
+versioned schema (`_catalog_schema.py`, schema 3) with ontology ids and
+hierarchies (`organism_id`, `tissue_id` + `tissue_system`/`tissue_organ`,
+`disease_id` + `disease_class`/`disease_group`), `development_stage`,
+`timepoint_days`, `genotype`, `treatment`, `condition`, a technology
+vocabulary, `tier`, `review_status`; a **gene index** (`gene_index.parquet`:
+one row per dataset × gene, `total_counts`, `fraction_obs_detected`); a
+feature index; cohort "primers" (shared embeddings, UMAPs, QC per cohort,
+e.g. `mouse-brain-imaging`); and **its own MCP server** (Python: query by
+facets and ranges, datasets expressing genes, describe, cite, download a
+cohort). Goal 1 is that, for MERFISHEYES's library, plus what only
+MERFISHEYES does: show it. So the metadata model is theirs unless the
+conversation with Tim says otherwise (D20), and the two MCP servers are
+meant to sit side by side in one agent: theirs to fetch and analyse a
+cohort in Python, ours to find across both libraries and to look.
 
-New agent-API routes (`/api/agent/v1/datasets/{id}/…`, `expensive` rate
-tier, cached per store) reading the files the pipeline already writes,
-and a tool for each. Every answer says where its numbers come from, and
-"not recorded for this dataset" when the file is missing — never a guess.
+**After the meeting with Tim Treis (2026-11-14).** SpatialData-DB is the
+gold standard for what the site and the MCP should be; what MERFISHEYES
+adds is the viewer. Three things follow:
 
-| Tool | Answers | Read from |
-|---|---|---|
-| `meyes_dataset_structure` | one slice or combined; slices and their ids; obs columns with type and number of values; embeddings; images; molecule sections | `obs/metadata.json`, `_sample_id`, manifest, `stats.json`, store metadata |
-| `meyes_gene_stats` | per gene: total counts, cells expressing, molecules (in and out of cells); "most abundant", "is X expressed" | DE stats (counts × means), molecule `manifest.json` `molecule_counts` |
-| `meyes_composition` | cells per category of a column, overall or per slice — the plot panel's bar plot | DE stats category sizes, obs columns |
-| `meyes_gene_by_group` | a gene's mean and % expressing per category — the plot panel's gene × cell type | DE stats |
-| `meyes_markers` | top genes per category against the rest | DE stats (fold change and % computed on the server) |
-| `meyes_compare` | two datasets, slices or conditions: composition and gene differences | the above, per side |
+- **Metadata** — SDDB's schema and ontologies, validated with bionty,
+  written into every store, recorded in Lamin with verification, and
+  published as a query index of all public datasets that filters and
+  agents start from. That is a plan of its own:
+  [METADATA.md](METADATA.md). Pillar B queries what it builds.
+- **The MCP lives on the site.** Tim's model: no install — an agent adds
+  the site's `/mcp` address as a connector, the server's own
+  instructions teach it the site, and long work runs asynchronously with
+  the agent checking back. (Their published client still ships a stdio
+  server; the hosted form is what Tim described.) So the site serves the
+  same tools at `www.merfisheyes.com/mcp` (pillar E), and the npm package
+  becomes the **local companion**: what needs the person's own machine —
+  files on disk, the local viewer (pillar D).
+- **Nothing changes for local use** except that a store carries its own
+  metadata, so a store opened from disk shows it.
 
-Charts: each analysis tool can return a Vega-Lite spec with its rows
-(D4), which Claude Desktop and claude.ai draw. Gate: each number equals
-the viewer's (plot panel, legend) on a legacy and a SpatialData fixture;
-an answer stays under the character limit; a store missing a file gets
-"not recorded", tested.
+### Pillar A — Publish 0.1 — done
 
-### Pillar C — Data the analyses can stand on (in parallel; BIL-CLUSTER.md)
+`@merfisheyes/mcp@0.1.0` on npm 2026-11-13; install is one line
+(`claude mcp add --scope user merfisheyes -- npx -y
+@merfisheyes/mcp@latest`). Left: PR #210 (README); 0.1.1 says "needs Node
+20.3" instead of failing silently on older Node; the release
+`develop` → `main` (molecule opacity in links, account page wording);
+publishing from GitHub Actions later.
 
-Most of B's "not recorded" answers are E1–E14: legacy BIL datasets
-without sidecars, missing counts, no combined P28 atlas, facet
-spellings. Reprocessing with `prepare.py` / the BIL pipeline writes
-`stats.json`, `catalog.json`, `qc.json` and DE for every store; B is
-built against stores that have them and falls back on the others. An
-agent sweep — a scripted run of the read tools over the whole catalog —
-fills §10 instead of waiting for an agent to stumble on each error.
+### Pillar B — Research the library (goal 1)
 
-### Pillar D — The bridge (step 5) and the Agent panel (step 6, second half)
+Everything here runs on the server over the **query index** that
+[METADATA.md](METADATA.md) builds (steps 6–7: SDDB's catalog format for
+every public dataset, plus a gene index); a tool call is one query, its
+answer a table, a count and a breakdown — no file reads. Items 1–2 below
+are METADATA.md's to build; 3–6 are this plan's.
 
-What links cannot do: change a tab already open, read what the person is
-looking at ("what's selected?", "this region"), analyses of an arbitrary
-selection the browser holds, and plots drawn inside MERFISHEYES. After B,
-so the panel shows B's numbers rather than inventing its own.
+1. **One metadata model for every dataset** — SDDB's catalog schema as
+   columns (not a JSON blob) on the catalog: BIL, community and personal
+   datasets carry the same fields as SDDB rows. The SDDB sync imports all
+   of them (today it maps a subset and keeps the rest in `metadata`).
+   Region queries follow the UBERON hierarchy ("brain" finds hippocampus);
+   age queries use `timepoint_days`.
+2. **One gene index** — dataset × gene, total counts and fraction of cells
+   detected, from SDDB's `gene_index.parquet` for theirs and from our
+   pipeline's statistics for ours (pillar C). "Has gene X" means measured;
+   "expresses X" means a fraction above a threshold, and the tool says
+   which it used.
+3. **`meyes_find`** — structured filters (organism, region with
+   descendants, age range in days, sex, disease and its class, genotype,
+   treatment, technology, genes measured / expressed with a minimum
+   fraction, tier) plus text; answers the count, a breakdown by the
+   facets that matter, and the first rows. Replaces paging through search
+   to count.
+4. **Collections** — a found set saved with its query (so it can be
+   re-run as the library grows), opened on the site, shared, and
+   compared. Stored as a project for now; a collection page later.
+5. **Compare a collection** — one table: for each dataset, gene X's
+   fraction and counts, cells, age, genotype, region; per cell type when
+   the dataset records it. Views: a split screen for two, a grid of links
+   for more.
+6. **Per-dataset statistics served** (the analysis half of step 6, now
+   inside this pillar): structure (one slice or combined, slices, obs
+   columns and values), gene stats, composition, gene by cell type,
+   markers — read from the files the pipeline writes; "not recorded for
+   this dataset" when they are missing, never a guess.
 
-### Pillar E — Compute and writes (step 7)
+Gate: the Alzheimer's-style question above answered in one `meyes_find`
+plus one compare call on the live site, with the numbers checked against
+the stores; no S3 read by the agent.
 
-What no file records: DE between
-arbitrary selections, neighbourhoods, spatial statistics — on the server
-(Batch, with a confirm and a cost) or in the tab. Write tools for
-projects and dataset metadata. Then steps 8–9 as written.
+### Pillar C — Metadata and statistics: [METADATA.md](METADATA.md)
 
-**Rule for every pillar:** a new tool is added beside the 0.1 tools, never by
-changing what they return; each ships with its tests and a live check,
-and the package's minor version goes up with it.
+Its own plan since 2026-11-14: SDDB's schema (M1), metadata in the store,
+in Lamin and in the index (M2), bionty validation and verification (M3),
+the query index (M4), the gene index (M5), the backfill of what exists,
+and a site built to filter. This plan keeps one part: **the sweep** — a
+scripted run of the read tools over the whole catalog that fills §10 and
+checks every row against the schema, instead of waiting for an agent to
+trip over each error.
+
+### Pillar D — MERFISHEYES on your own data (goal 2)
+
+The package grows a local mode. Rule 1 holds: **one viewer** — the local
+viewer is the site's viewer code, never a fork.
+
+1. **Serve and open (prototype, days).** `merfisheyes-mcp view <path>`
+   and a tool `meyes_local_open(path)`: the package serves the folder on
+   `127.0.0.1` with CORS and byte ranges (as `e2e/helpers/fixture-server.ts`
+   does for the tests) and opens the site's viewer on that URL. The
+   browser reads the files from the person's machine; nothing is
+   uploaded. Opens what the viewer opens by URL: SpatialData Zarr v3
+   stores, MERFISHEYES folders, OME-Zarr images. Known limits, to measure:
+   needs the internet for the page; Chrome asks once to let the site
+   reach `localhost` (local network access); Safari to be tried; an
+   `.h5ad` needs a conversion first (find the shortest one from an
+   analysis: `adata.write_zarr`, or `prepare.py`).
+
+   **D1a done (2026-11-13; not yet released).** Site: `/open?url=` picks
+   the viewer for any URL with the logic the "Load from URL" dialog had
+   (`lib/viewer/viewer-for-url.ts`, now its one implementation); a URL on
+   this computer (`lib/utils/local-url.ts`) is never sent to the site —
+   the five `by-url` lookups go through `lib/datasets/lookup-by-url.ts`,
+   which skips it, the claim banner hides, and analytics drops it
+   (`components/site-analytics.tsx`). Package: `src/local/serve.ts`
+   (127.0.0.1 only, a random token per folder, inside the folder only —
+   symlinks included —, GET/HEAD with byte ranges, CORS for `SITE` only,
+   the Host header checked, Chrome's private-network preflight answered),
+   `merfisheyes-mcp view <folder>`, the tool `meyes_open_local`. Gate:
+   package unit tests (serving and every refusal); `e2e/tests/viewer/open-url.spec.ts`
+   (`/open` routes a store, a cells folder and a molecules folder served
+   on 127.0.0.1, passes `v=` on, makes no `by-url` request, shows no claim
+   banner); the package's server and `/open` together on a local site, all
+   three in the right viewer. Measured on the live site before `/open`
+   existed: the viewer reads a store from 127.0.0.1 once Chrome's
+   local-network-access permission is granted; without it Chrome blocks
+   the request ("Permission was denied … loopback address space").
+   Left for D1b: `.h5ad` and raw instrument output; Safari and Firefox
+   tried on a Mac.
+2. **A standalone viewer.** A second build target of the same viewer
+   components — static files, no server, no account — shipped as its own
+   npm package and served by the local mode next to the data: offline,
+   no permission prompt, same origin.
+3. **A live session.** Because the package serves the page, page and
+   agent share an origin: a WebSocket without pairing codes. Tools:
+   `meyes_view_set` (colour by gene or column, hide categories — the bad
+   FOV —, filter, camera, split), `meyes_view_state` (what is shown and
+   selected), `meyes_snapshot` (a PNG at a chosen size with its legend —
+   for figures and decks). This is the bridge of step 5, built where it
+   is easiest first.
+4. **The agent's results in the view.** Columns the agent computed —
+   pseudotime, clusters, labels — pushed by cell id (a CSV or parquet
+   beside the data) and shown without rewriting the store; cell sets
+   highlighted or hidden.
+5. **Fit an analysis.** The reference workflow (a collaborator's, 2026-11-13):
+   define radial glia vs immature neurons from pseudotime, UMAP and a
+   molecule gradient; output UMAP, spatial projection of cells and
+   molecules, dot plots and pseudotime, the bad FOV removed, gradient
+   genes plotted, all in a `.pptx`. The agent does the statistics in
+   Python; MERFISHEYES draws the spatial views and hands back snapshots
+   for the deck.
+
+Gate: that workflow end to end on a real dataset, the spatial figures in
+the deck coming from `meyes_snapshot`, nothing leaving the machine.
+
+### Pillar E — The site is the MCP server (a connector, no install)
+
+1. **`www.merfisheyes.com/mcp`** — a remote MCP server (Streamable HTTP,
+   stateless, so it runs on Vercel's functions) serving the same tools as
+   the package. Signing in is the OAuth server we already run (steps
+   2–3): the connector discovers it from the site, registers through our
+   client metadata document or registration, and the person approves on
+   the consent page they know; the token's resource becomes the `/mcp`
+   address. Works in claude.ai, Claude Desktop and Claude Code connectors
+   and any client that takes a URL — nothing installed.
+2. **One implementation of every tool.** The package and `/mcp` must not
+   grow two copies of the tool descriptions and formatting: the tool
+   definitions move to one module that both import, each with its own
+   way of reaching the data (the package over the agent API; `/mcp` in
+   process).
+3. **Taught by the site.** The server instructions are the manual: when
+   to use which tool, what the index holds, what the viewer can show.
+   Versioned with the site, so every connector learns a change at once.
+4. **Asynchronous work.** A sweep, a collection compared across hundreds
+   of datasets, a processing job: started by one call that returns at
+   once, with the agent checking back (MCP's tasks, or a job id and a
+   status tool), and progress the person can see on the site.
+5. **A tab on the site, driven from the connector.** The live session of
+   pillar D3, relayed through the site to a tab the person has open (the
+   old step 5 bridge, without localhost or pairing codes), and the Agent
+   panel showing B's numbers in MERFISHEYES.
+
+6. **An agent on the site.** What Tim described (confirmed by the user,
+   2026-11-14): the person's agent, through the connector, talks to an
+   agent that lives on the site and knows it — asks it a research
+   question, and the site's agent works through the index, the stores and
+   the viewer and answers, asynchronously. The person installs nothing.
+   Its shape (one MCP tool that hands a request to the site's agent, or
+   agent-to-agent messages), the model it runs, and who pays for it are
+   open; E1–E4 are its plumbing either way.
+
+Order inside the pillar: 1–3 first (they carry the 0.1 tools as they
+are), 4 with B's long queries, 5 after D3, 6 once 1–4 work.
+
+### Pillar F — Compute and writes
+
+What no file records — DE between arbitrary selections, neighbourhoods,
+spatial statistics — on the server (Batch, with a confirm and a cost) or
+in the local session; write tools for projects, collections and dataset
+metadata. Step 7, then steps 8–9 as written.
+
+### Order
+
+A is done; D1a is built. Next, in parallel:
+- **METADATA.md steps 1–4** (schema on paper, bionty validation, metadata
+  in the store, Lamin verification) — the foundation for B.
+- **E1–E3** — the site as the MCP server, carrying the 0.1 tools, so a
+  person adds a URL instead of installing anything.
+- **D1b** — `.h5ad` and raw instrument output for the local viewer.
+
+Then **B** on METADATA.md's index (steps 6–7), **D2–D5**, **E4–E5**, **F**.
+
+**Rule for every pillar:** a new tool is added beside the 0.1 tools,
+never by changing what they return; each ships with its tests and a live
+check, and the package's minor version goes up with it.
 
 ## 1. The principle: the browser does the work, the agent directs it
 
@@ -270,6 +443,11 @@ function; a server relay to a tab (remote MCP) needs an external pub/sub
 | D16 | The package is `@merfisheyes/mcp` on npm, under the `merfisheyes` npm organisation (created 2026-11-10, two-factor on) so it outlives any one maintainer; run with `npx -y @merfisheyes/mcp` (the command it installs is `merfisheyes-mcp`). First published by hand once the live site has the agent API (after `develop` → `main` and `OAUTH_ISSUER` in Production); later releases from GitHub Actions (npm trusted publishing). Until then it runs from the repository (`node packages/merfisheyes-mcp/dist/index.js`) | **taken** 2026-11-10 (publishing open) |
 | D17 | Tokens are kept in a file only the person can read (`~/.config/merfisheyes-mcp/credentials.json`, 0600, written atomically), keyed by issuer — not the OS keychain, which needs native modules `npx` cannot rely on | **taken** 2026-11-09 |
 | D18 | The work after step 4 is organised by five pillars (§0): A publish 0.1, B analyses from what a store records, C data, D bridge and Agent panel, E compute and writes. B — the analysis half of step 6, served by the agent API from files the pipeline writes — comes **before** the bridge (step 5): it works in every client with no tab open, and the third manual test showed it is what agents lacked. New tools are added beside the 0.1 tools, never by changing what those return | **taken** 2026-11-12 |
+| D19 | The MCP serves two goals: research across the whole library (queries over standardised metadata and per-dataset statistics, on the server, returning collections) and MERFISHEYES on a researcher's own data (the viewer on `localhost`, driven by their agent inside an analysis). The pillars of §0 are rewritten around them; D18's order is replaced by §0's | **taken** 2026-11-13 |
+| D20 | MERFISHEYES's metadata model is SpatialData-DB's catalog schema (ontology ids and hierarchies, `timepoint_days`, genotype, treatment, condition, technology vocabulary) and its gene index, for every dataset, not a schema of our own | **taken** 2026-11-14, after the meeting with Tim Treis; carried out by [METADATA.md](METADATA.md) (M1–M7) |
+| D21 | Local use is an npm package and a browser, not a Python package; it serves the site's viewer code (one viewer, never a fork): first the hosted viewer reading `127.0.0.1`, then a standalone build of the same components shipped with the package | **taken** 2026-11-13 (the standalone build's shape open) |
+| D22 | The site serves the MCP at `www.merfisheyes.com/mcp` (remote, Streamable HTTP, our OAuth server) as the main way agents reach MERFISHEYES; the npm package is the local companion (files on disk, the local viewer) and a fallback for clients without remote MCP | **taken** 2026-11-14 |
+| D23 | One implementation of each tool's definition (name, description, schema, formatting) shared by the package and `/mcp` | **taken** 2026-11-14 (the module's shape open, pillar E2) |
 
 ## 8. Steps
 
@@ -547,6 +725,8 @@ reference analysis run end to end, its token count recorded in
 with the result shown in the panel.
 
 ### Step 9 — Other clients and remote MCP
+
+*Now pillar E (2026-11-14): the remote server comes first, not last.*
 
 Claude Desktop and another MCP client against the stdio server. Then
 `/api/mcp` (stateless Streamable HTTP), the MCP-spec OAuth discovery and

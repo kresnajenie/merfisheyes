@@ -102,9 +102,10 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/spatialdata/spatialdata-pipeline-doc.md](docs/spatialdata/spatialdata-pipeline-doc.md) | **How to run the BIL pipeline**: its components, inputs, the seven stages, what it writes, how to verify a store, the artifact mask, the known gaps |
 | [docs/plans/BIL-CLUSTER.md](docs/plans/BIL-CLUSTER.md) | **Live plan: the same pipeline on the PSC cluster** — many sections in one store, the 87-dataset fleet, billion-scale molecules |
 | [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
+| [docs/plans/METADATA.md](docs/plans/METADATA.md) | **Live plan: one metadata schema — SpatialData-DB's — for every dataset**: ontology terms validated with bionty, written into the store's root attributes, verified in Lamin, published as the query index Explore and the agents read (planned 2026-11-14) |
 | [docs/plans/LAMIN.md](docs/plans/LAMIN.md) | Live plan: our datasets recorded in the Lamin instance `merfisheyes/eyes-catalog`, in place on S3 — `register_lamin.py` |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
-| [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: an agent (any MCP client) that drives a MERFISHEYES tab — local MCP + bridge, OAuth, Agent panel (steps 1–4 done; the package is `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
+| [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: MERFISHEYES for agents, by pillars (§0) — research the library, MERFISHEYES on your own data (`merfisheyes-mcp view`), the site as the MCP server at `/mcp` (steps 1–4 done; `@merfisheyes/mcp` 0.1.0 on npm, `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
 | [docs/labelled-single-molecule.md](docs/labelled-single-molecule.md) | `/lm-viewer` — molecules with N categorical labels, no expression matrix |
 | [docs/sc-sm-one-space.md](docs/sc-sm-one-space.md) | SC+SM overlay; `__all__` ships, per-sample mode is future work |
 | [docs/SM-STREAMING-PLAN.md](docs/SM-STREAMING-PLAN.md) | Streaming the legacy per-gene `bin.gz` files |

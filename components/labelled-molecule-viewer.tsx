@@ -25,6 +25,7 @@ import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 import { carrySelections, sameCarry } from "@/lib/utils/lm-selection";
+import { lookupByUrl } from "@/lib/datasets/lookup-by-url";
 
 /** Columns the three menus need before the scene can draw. */
 const REQUIRED_COLUMNS = ["gene", "domain", "cell"];
@@ -143,13 +144,9 @@ function LabelledMoleculeViewer({ s3Url, embedded }: Props) {
         };
 
         try {
-          const res = await fetch(
-            `/api/datasets/by-url?url=${encodeURIComponent(url)}`,
-          );
+          const j = await lookupByUrl(url);
 
-          if (res.ok) {
-            const j = await res.json();
-
+          if (j) {
             config = (j?.viewerConfig as ViewerConfig | null) ?? null;
             setProjectId((j?.projectId as string | null) ?? null);
             register({
