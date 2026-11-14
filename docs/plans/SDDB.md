@@ -1,7 +1,8 @@
 # Plan: MERFISHEYES on SpatialData-DB
 
-Open the 1,778 datasets of [SpatialData-DB](https://spatialdata-db-web.pages.dev/)
-in MERFISHEYES, streamed from their storage, with the same loading,
+Open the datasets of [SpatialData-DB](https://www.spatialdata-db.com/)
+(1,778 when this plan began; 12,159 in `catalog-2026-11-08`, all of them on
+Explore since 2026-11-11) in MERFISHEYES, streamed from their storage, with the same loading,
 rendering and format rules as everything else
 ([docs/PHILOSOPHY.md](../PHILOSOPHY.md), [docs/specs/](../specs/)).
 
@@ -350,6 +351,18 @@ and the page, and the unit tests on fixtures cut from the release
 User decisions (2026-10-19): sync only when told, dev database first, then
 production, no schedule; every store listed, mixed into "All".
 
+Synced since (sync history; how to bump in `docs/specs/sddb-catalog.md`):
+
+| Release | Rows | On production | Notes |
+|---|---:|---|---|
+| `catalog-2026-10-20` | 3,222 | 2026-10-21 | first sync |
+| `catalog-2026-11-01` | 8,471 | 2026-11-07 | +5,327 / −78; 9 technologies got display names; 1,536 licences reclassified upstream |
+| `catalog-2026-11-08` | 12,159 | 2026-11-11 | +3,696 / −8, mostly MIBI and IMC (`float32` images: cells open, image not drawn); upstream removed `thumbnail_url`, so the sync no longer writes thumbnails |
+
+Each bump: `scripts/sddb_release_diff.py` report in `perf/sddb/RELEASE-DIFF-<date>.md`,
+dev first (0 registration failures on every run so far), then the user
+runs production after a snapshot of the `sddb` rows.
+
 Deferred from the list below, each its own step: the static explore index
 behind a CDN, the gene-query parity test, the `/spatialdata-viewer/sddb/<uid>`
 route and Lamin proxy backend, the nightly perf run, the cron. A card opens
@@ -460,6 +473,22 @@ one of 2026-10-18), the perf suite on the 1.46 M-cell CosMx store, and the
 UI's wording ("gene", "DEG") for proteins, peaks and ions — the user's
 decision: tables and images first, no DEGs for now.
 
+### Step 6: previews on the cards — open, waiting on the maintainer
+
+The cards have no image. The catalog never carried one (`thumbnail_url`
+empty, then removed in `catalog-2026-11-08`); their website draws previews
+from content-hashed sprite sheets (`/sprites/s-<hash>.webp`, 480×360 tiles
+placed by `--sx/--sy` in each page's HTML), which change on every site
+build. Asked of Tim Treis (2026-11-07): a stable per-dataset preview URL in
+the catalog, whether we may copy the images to our bucket or should link,
+and whether a noncommercial dataset's preview is noncommercial too (1,618
+rows are). Fallback, prototyped in `scripts/sddb_previews.py` (not merged):
+render a 480×360 card from the store itself — the smallest image level,
+else the table's `obsm/spatial` — 30 of 34 sampled stores drawn, ~100 KB
+read and ~1 s each; theirs crop to the tissue and overlay the spots, ours
+do not yet. `scripts/check_preview_urls.py` is the gate for either route
+(200, `image/*`, 4:3, not blank, coverage per technology).
+
 ### Later, out of this plan
 
 - Parquet points (Xenium transcripts) by row group, or conversion with
@@ -517,6 +546,8 @@ told. List every place you had to touch outside the files the step names.
 7. May we poll the catalog releases nightly, or will the release workflow
    (`rebuild-site.yml`, a deploy hook) ping a MERFISHEYES endpoint too?
 8. Will `thumbnail_url`, `published_at` and `sddb_version` be filled
-   (all null in `catalog-2026-10-16`)?
+   (all null in `catalog-2026-10-16`)? Partly answered by
+   `catalog-2026-11-08`: `thumbnail_url` and `sddb_version` were removed.
+   The preview question is now step 6.
 9. Are the 110 stores in the instance but not in the catalog meant to stay
    unlisted (49 Visium HD, 48 older top-level, 9 Visium, 2 Xenium)?
