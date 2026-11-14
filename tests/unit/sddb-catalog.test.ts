@@ -3,7 +3,7 @@
  * file in their schema reads, a row becomes exactly one card, a file in a
  * different schema is refused, and a uid that left the release is unpublished.
  * Fixture: tests/data/sddb/catalog-fixture.parquet, the first rows of release
- * catalog-2026-10-20 (scripts/testdata/make-sddb-catalog-fixture.py).
+ * catalog-2026-11-08 (scripts/testdata/make-sddb-catalog-fixture.py).
  */
 import { describe, expect, it } from "vitest";
 
@@ -25,7 +25,7 @@ describe("readCatalogFile", () => {
     const file = await readCatalogFile(FIXTURE);
 
     expect(file.rows.length).toBe(3);
-    expect(file.generatedAt).toBe("2026-10-20");
+    expect(file.generatedAt).toBe("2026-11-08");
     expect(file.missingColumns).toEqual([]);
     for (const c of REQUIRED_COLUMNS) expect(file.rows[0][c]).toBeTruthy();
     expect(READ_COLUMNS.every((c) => c in file.rows[0])).toBe(true);
@@ -61,37 +61,39 @@ describe("mapCatalogRow", () => {
   it("turns a release row into one card with one spatialdata entry", async () => {
     const { rows, generatedAt } = await readCatalogFile(FIXTURE);
     const m = mapCatalogRow(rows[0], {
-      release: "catalog-2026-10-20",
+      release: "catalog-2026-11-08",
       generatedAt,
     });
 
-    expect(m.uid).toBe("hODmVoyNFahbWd1X0000");
+    expect(m.uid).toBe("VkGigAlvHGdpmGVG0000");
     expect(m.data).toMatchObject({
-      title: "GSM8641107",
+      title: "GSM9778330",
       species: "Human",
-      tissue: "Pancreas",
+      tissue: "Dorsolateral prefrontal cortex",
       platform: "Visium",
       source: "sddb",
-      sddbUid: "hODmVoyNFahbWd1X0000",
-      license: "unknown",
+      sddbUid: "VkGigAlvHGdpmGVG0000",
+      license: "ncbi-geo-policy",
       licenseNoncommercial: false,
-      sourceRelease: "catalog-2026-10-20",
-      sourceGeneratedAt: "2026-10-20",
-      numCells: 3571,
-      numGenes: 19144,
-      publicationLink: "https://doi.org/10.1016/j.celrep.2025.116827",
+      sourceRelease: "catalog-2026-11-08",
+      sourceGeneratedAt: "2026-11-08",
+      numCells: 4992,
+      numGenes: 36601,
+      publicationLink: null,
       isPublished: true,
       isBil: false,
       isCommunity: false,
     });
     expect(m.data.tags).toContain("spatialdata-db");
+    // A sync must never clear a thumbnail set by an admin or a preview job
+    expect(m.data).not.toHaveProperty("thumbnailUrl");
     expect(m.data.metadata.cardUrl).toMatch(/^https:\/\/lamin\.ai\//);
-    expect(m.data.metadata.storeSize).toBe("79.2 MB");
+    expect(m.data.metadata.storeSize).toBe("33.1 MB");
     expect(m.entry).toEqual({
       label: "Visium store",
       datasetType: "spatialdata",
       s3BaseUrl:
-        "https://scverse-spatial-eu-central-1.s3.eu-central-1.amazonaws.com/.lamindb/hODmVoyNFahbWd1X.zarr",
+        "https://scverse-spatial-eu-central-1.s3.eu-central-1.amazonaws.com/.lamindb/VkGigAlvHGdpmGVG.zarr",
     });
   });
 
@@ -116,6 +118,12 @@ describe("mapCatalogRow", () => {
     expect(
       mapCatalogRow({ ...base, technology: "VisiumHD" } as never, { release: "r", generatedAt: null }).data.platform,
     ).toBe("Visium HD");
+    // Both PhenoCycler-Fusion generations are one platform on Explore.
+    for (const technology of ["PhenoCyclerFusion1", "PhenoCyclerFusion2"]) {
+      expect(
+        mapCatalogRow({ ...base, technology } as never, { release: "r", generatedAt: null }).data.platform,
+      ).toBe("PhenoCycler-Fusion");
+    }
   });
 
   it("refuses a row without a uid or a store", () => {

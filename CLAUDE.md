@@ -101,7 +101,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md) | **Live plan: one pipeline, run by you or by the server** — the `prepare.py` contract (steps 1–3 done) |
 | [docs/spatialdata/spatialdata-pipeline-doc.md](docs/spatialdata/spatialdata-pipeline-doc.md) | **How to run the BIL pipeline**: its components, inputs, the seven stages, what it writes, how to verify a store, the artifact mask, the known gaps |
 | [docs/plans/BIL-CLUSTER.md](docs/plans/BIL-CLUSTER.md) | **Live plan: the same pipeline on the PSC cluster** — many sections in one store, the 87-dataset fleet, billion-scale molecules |
-| [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
+| [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–5 done, all 12,159 datasets on Explore; step 6, previews, open) |
 | [docs/plans/LAMIN.md](docs/plans/LAMIN.md) | Live plan: our datasets recorded in the Lamin instance `merfisheyes/eyes-catalog`, in place on S3 — `register_lamin.py` |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
 | [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: an agent (any MCP client) that drives a MERFISHEYES tab — local MCP + bridge, OAuth, Agent panel (steps 1–4 done; the package is `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
@@ -313,6 +313,14 @@ applies the same coordinate-system rule the viewer does.
   (`datasetKind`, `viewerBase`, `viewerHref`) — never compare the string
   yourself. Kinds are `single_cell | single_molecule | image`; `"spatialdata"`
   is single cell that opens in its own viewer; old rows hold raw format names.
+- **Production database**: credentials live in `.env.prod` beside the main
+  checkout (git-ignored, never committed). Scripts take it with
+  `--env=<path>` and `--direct` (its `DIRECT_URL`, the IPv4 pooler; the
+  direct host is IPv6-only). **Never `source` it in a shell**: the password
+  holds characters the shell rewrites, and Prisma then fails with
+  "Authentication failed". Writes to production are run by the user, after a
+  snapshot of the rows they touch; agents prepare the command and the dry
+  run.
 - **Auth**: NextAuth v5, Google sign-in, Prisma adapter. Admin surfaces under
   `/admin` and `/api/admin`.
 - **Storage**: S3 (`merfisheyes-staging`), `raw/{id}/` (7-day lifecycle) and
