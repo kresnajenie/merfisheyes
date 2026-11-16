@@ -7,7 +7,9 @@ import {
 } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { randomBytes } from "node:crypto";
-import { basename, join, resolve, sep } from "node:path";
+import { createRequire } from "node:module";
+import { basename, dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { SITE } from "../config.ts";
 
@@ -39,7 +41,52 @@ const TYPES: Record<string, string> = {
   parquet: "application/vnd.apache.parquet",
   csv: "text/csv",
   png: "image/png",
+  html: "text/html; charset=utf-8",
+  js: "text/javascript; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  txt: "text/plain; charset=utf-8",
+  svg: "image/svg+xml",
+  ico: "image/x-icon",
+  woff: "font/woff",
+  woff2: "font/woff2",
+  map: "application/json",
 };
+
+/**
+ * The standalone viewer's files (pillar D2, `packages/merfisheyes-viewer`,
+ * built with `next build`): MERFISHEYES_VIEWER_DIR, else the installed
+ * `@merfisheyes/viewer` package, else the copy built in this repository.
+ * Null when none is there — then links open the site's viewer instead.
+ * MERFISHEYES_VIEWER=site always uses the site.
+ */
+export function findViewer(): string | null {
+  if (process.env.MERFISHEYES_VIEWER === "site") return null;
+  const ok = (dir: string) => existsSync(join(dir, "open", "index.html"));
+  const candidates: string[] = [];
+
+  if (process.env.MERFISHEYES_VIEWER_DIR)
+    candidates.push(resolve(process.env.MERFISHEYES_VIEWER_DIR));
+  try {
+    candidates.push(
+      join(
+        dirname(
+          createRequire(import.meta.url).resolve(
+            "@merfisheyes/viewer/package.json",
+          ),
+        ),
+        "out",
+      ),
+    );
+  } catch {
+    // not installed
+  }
+  // src/local or dist/local → packages/merfisheyes-viewer/out
+  candidates.push(
+    fileURLToPath(new URL("../../../merfisheyes-viewer/out", import.meta.url)),
+  );
+
+  return candidates.find(ok) ?? null;
+}
 
 /** A folder's store when the folder only holds one: `sample/` with a single
  * `*.zarr` inside, no manifest and no zarr.json of its own. Otherwise the
@@ -92,6 +139,23 @@ export class LocalServer {
   private port = 0;
   private readonly roots = new Map<string, { root: string; name: string }>();
   private readonly origin = new URL(SITE).origin;
+  /** The standalone viewer served beside the data, or null (the site's). */
+  readonly viewerDir: string | null;
+
+  constructor(opts: { viewerDir?: string | null } = {}) {
+    this.viewerDir =
+      opts.viewerDir === undefined ? findViewer() : opts.viewerDir;
+  }
+
+  /** The link that opens a shared folder: the standalone viewer on this
+   * same address when there is one, else the site's `/open`. */
+  link(share: Share): string {
+    const url = encodeURIComponent(share.url);
+
+    return this.viewerDir
+      ? `http://127.0.0.1:${this.port}/open/?url=${url}`
+      : `${SITE}/open?url=${url}`;
+  }
 
   /** Serve a folder (starting the server on first use); the same folder
    * twice gives the same address. */
@@ -187,11 +251,8 @@ export class LocalServer {
     const [token, name, ...rest] = parts;
     const share = token ? this.roots.get(token) : undefined;
 
-    if (
-      !share ||
-      name !== share.name ||
-      rest.some((p) => p === ".." || /[\\/]/.test(p))
-    )
+    if (!share) return this.viewerFile(parts, req, res);
+    if (name !== share.name || rest.some((p) => p === ".." || /[\\/]/.test(p)))
       return send(404);
     let file: string;
 
@@ -206,6 +267,40 @@ export class LocalServer {
     const st = statSync(file);
 
     if (!st.isFile()) return send(404);
+    this.sendFile(file, st.size, req, res);
+  }
+
+  /** A file of the standalone viewer: `/open/` → `open/index.html`, `/` →
+   * the open page; nothing outside the viewer's folder. */
+  private viewerFile(
+    parts: string[],
+    req: import("node:http").IncomingMessage,
+    res: import("node:http").ServerResponse,
+  ) {
+    const notFound = () =>
+      res.writeHead(404, { "content-type": "text/plain" }).end();
+
+    if (!this.viewerDir || parts.some((p) => p === ".." || /[\\/]/.test(p)))
+      return notFound();
+    if (parts.length === 0)
+      return res.writeHead(302, { location: "/open/" }).end();
+    let file = join(this.viewerDir, ...parts);
+
+    if (existsSync(file) && statSync(file).isDirectory())
+      file = join(file, "index.html");
+    if (!existsSync(file) || !statSync(file).isFile()) return notFound();
+    this.sendFile(file, statSync(file).size, req, res);
+  }
+
+  private sendFile(
+    file: string,
+    size: number,
+    req: import("node:http").IncomingMessage,
+    res: import("node:http").ServerResponse,
+  ) {
+    const st = { size };
+    const send = (status: number) =>
+      res.writeHead(status, { "content-type": "text/plain" }).end();
     const range = parseRange(req.headers.range, st.size);
 
     if (range === "bad") {
@@ -233,9 +328,8 @@ export class LocalServer {
   }
 }
 
-/** The link that opens a shared folder in the site's viewer. */
-export const openLink = (share: Share) =>
-  `${SITE}/open?url=${encodeURIComponent(share.url)}`;
+/** The link that opens a shared folder (see LocalServer.link). */
+export const openLink = (share: Share) => local.link(share);
 
 /** One server per process: the CLI's, or the MCP server's for its tools. */
 export const local = new LocalServer();

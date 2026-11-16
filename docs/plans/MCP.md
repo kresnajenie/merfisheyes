@@ -96,8 +96,9 @@ are METADATA.md's to build; 3–6 are this plan's.
 
 **The contract to design against** (from the metadata session,
 2026-11-16; METADATA.md step 1 draft, `docs/specs/metadata.md` and
-`docs/specs/schemas/metadata.schema.json` on `feature/metadata`, not yet
-reviewed): the index is `catalog.parquet` in SDDB's format — all 93 SDDB
+`docs/specs/schemas/metadata.schema.json` on `feature/metadata`,
+committed f6bb3bd 2026-11-16; a count-matrix hash column is coming, for
+spotting the same data twice, not for search): the index is `catalog.parquet` in SDDB's format — all 93 SDDB
 schema-3 columns in their order and types, then 25 `meyes_*` columns;
 20 required (`uid`, `canonical_key`, `organism`/`organism_id`,
 `tissue`/`tissue_id`, `technology`, `vendor`, `assay`,
@@ -223,6 +224,30 @@ viewer is the site's viewer code, never a fork.
    components — static files, no server, no account — shipped as its own
    npm package and served by the local mode next to the data: offline,
    no permission prompt, same origin.
+
+   **D2 built (2026-11-16; not committed).** `packages/merfisheyes-viewer`:
+   a second Next.js project (`output: "export"`, Turbopack rooted at the
+   repository) whose pages re-export the site's own (`/viewer/from-s3`,
+   `/sm-viewer/from-s3`, `/spatialdata-viewer/from-s3`,
+   `/image-viewer/from-s3`, `/open`) inside a bare layout — the site's
+   styles and `Providers` with `noAccount` (no session fetched), no
+   navbar, footer or analytics. `next build` → `out/`: 19 MB, 128 files.
+   The package's local server serves it from the same 127.0.0.1 port as
+   the data (a path that is not a share token is a viewer file), and
+   `LocalServer.link` opens `/open/` there; the viewer is found through
+   `MERFISHEYES_VIEWER_DIR`, an installed `@merfisheyes/viewer`, or the
+   repository's build, else links fall back to the site's `/open`
+   (`MERFISHEYES_VIEWER=site` forces that). Gate: package tests (26,
+   including the viewer served beside the data and refusals outside its
+   folder); headless, with no permission granted and no site: a SpatialData
+   store, a cells folder and a molecules folder each opened in its viewer,
+   **no request left 127.0.0.1**, the only 404s the viewer's own probes for
+   optional files (`manifest.json`, `mapping.json`). Distribution (decided
+   2026-11-16): `@merfisheyes/viewer` is its own npm package (`files:
+   ["out"]`, built on publish) and a dependency of `@merfisheyes/mcp` —
+   added to the MCP's `package.json` in the release that first publishes
+   the viewer (until it is on npm, the dependency would break every
+   install). Open: a CI job that builds it.
 3. **A live session.** Because the package serves the page, page and
    agent share an origin: a WebSocket without pairing codes. Tools:
    `meyes_view_set` (colour by gene or column, hide categories — the bad

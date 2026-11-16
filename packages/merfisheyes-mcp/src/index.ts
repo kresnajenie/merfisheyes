@@ -100,7 +100,9 @@ async function cli(command: string): Promise<number> {
           "",
           `  ${link}`,
           "",
-          `In Chrome, the first time: allow ${new URL(SITE).host} to reach apps on this device when it asks.`,
+          local.viewerDir
+            ? "The viewer runs from this computer too: nothing goes to the internet."
+            : `In Chrome, the first time: allow ${new URL(SITE).host} to reach apps on this device when it asks.`,
           "Press Ctrl+C to stop.",
         ].join("\n"),
       );

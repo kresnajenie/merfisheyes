@@ -19,7 +19,7 @@ export function registerLocalTools(server: McpServer) {
       title: "Open a folder from this computer in the viewer",
       description: `Open data on the person's own computer in the MERFISHEYES viewer, without uploading it: the folder is served on 127.0.0.1 (only to the MERFISHEYES site, only while this server runs) and the viewer reads it from there.
 Opens what the viewer reads: a SpatialData store (.zarr, Zarr v3 with consolidated metadata), a folder holding one, a MERFISHEYES-processed folder (manifest.json), or an OME-Zarr image. Not yet: an .h5ad file or raw MERSCOPE/Xenium output — convert those first (scripts/prepare.py in the MERFISHEYES repository writes a SpatialData store).
-Returns a link; set open=true only when the person asked to open it now. In Chrome the first time, the person must allow ${new URL(SITE).host} to reach apps on this device.
+Returns a link; set open=true only when the person asked to open it now. The viewer itself is served from their computer too when the standalone viewer is installed; otherwise the site's viewer reads the folder, and in Chrome the person must allow ${new URL(SITE).host} to reach apps on this device the first time.
 Examples: "show my sample in MERFISHEYES" -> path="/data/run1/sample.zarr"; "open the output folder" -> path="./out".`,
       inputSchema: z.strictObject({
         path: z
@@ -57,7 +57,9 @@ Examples: "show my sample in MERFISHEYES" -> path="/data/run1/sample.zarr"; "ope
             open
               ? "Opened in a browser tab. If none opened, give the person the link."
               : "Give the person this link; it was not opened.",
-            `In Chrome, the first time: allow ${new URL(SITE).host} to reach apps on this device when it asks, or the viewer cannot read the folder.`,
+            local.viewerDir
+              ? "The viewer runs from this computer too (the standalone viewer): nothing goes to the internet."
+              : `In Chrome, the first time: allow ${new URL(SITE).host} to reach apps on this device when it asks, or the viewer cannot read the folder.`,
           ].join("\n"),
         );
       } catch (e) {

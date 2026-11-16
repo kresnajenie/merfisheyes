@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 process.env.MERFISHEYES_URL = "https://www.merfisheyes.com";
 
-const { LocalServer, parseRange, storeIn, openLink } = await import(
+const { LocalServer, parseRange, storeIn } = await import(
   "../src/local/serve.js"
 );
 
@@ -43,7 +43,8 @@ function get(
 
 let dir: string;
 let secret: string;
-const srv = new LocalServer();
+// The site's viewer (no standalone one), as before pillar D2.
+const srv = new LocalServer({ viewerDir: null });
 let base = "";
 
 beforeAll(async () => {
@@ -72,7 +73,7 @@ describe("serving a folder from this computer", () => {
     expect(storeIn(join(dir, "sample"))).toBe(
       join(dir, "sample", "sample.zarr"),
     );
-    expect(openLink({ path: "", url: base })).toBe(
+    expect(srv.link({ path: "", url: base })).toBe(
       `https://www.merfisheyes.com/open?url=${encodeURIComponent(base)}`,
     );
   });
@@ -156,5 +157,50 @@ describe("serving a folder from this computer", () => {
     expect(parseRange("bytes=-100", 10)).toEqual({ start: 0, end: 9 });
     expect(parseRange("items=0-1", 10)).toBe("bad");
     expect(parseRange("bytes=-", 10)).toBe("bad");
+  });
+});
+
+describe("the standalone viewer, served beside the data", () => {
+  const viewer = mkdtempSync(join(tmpdir(), "meyes-viewer-"));
+  const app = new LocalServer({ viewerDir: viewer });
+  let data = "";
+
+  beforeAll(async () => {
+    mkdirSync(join(viewer, "open"), { recursive: true });
+    mkdirSync(join(viewer, "_next", "static"), { recursive: true });
+    writeFileSync(join(viewer, "open", "index.html"), "<html>open</html>");
+    writeFileSync(join(viewer, "_next", "static", "a.js"), "console.log(1)");
+    data = (await app.share(join(dir, "sample"))).url;
+  });
+  afterAll(() => app.close());
+
+  it("links to its own open page on the same address as the data", () => {
+    const link = app.link({ path: "", url: data });
+    const origin = new URL(data).origin;
+
+    expect(link).toBe(`${origin}/open/?url=${encodeURIComponent(data)}`);
+  });
+
+  it("serves the viewer's pages and scripts, and still the data", async () => {
+    const h = { host: new URL(data).host };
+    const origin = new URL(data).origin;
+    const page = await get(`${origin}/open/`, h);
+
+    expect(page.status).toBe(200);
+    expect(page.headers["content-type"]).toContain("text/html");
+    expect(
+      (await get(`${origin}/_next/static/a.js`, h)).headers["content-type"],
+    ).toContain("text/javascript");
+    expect((await get(`${origin}/`, h)).headers.location).toBe("/open/");
+    expect((await get(`${data}/zarr.json`, h)).status).toBe(200);
+  });
+
+  it("refuses anything outside the viewer's folder", async () => {
+    const h = { host: new URL(data).host };
+    const origin = new URL(data).origin;
+
+    expect((await get(`${origin}/../secret.txt`, h)).status).toBe(404);
+    expect((await get(`${origin}/%2E%2E%2Fsecret.txt`, h)).status).toBe(404);
+    expect((await get(`${origin}/nothing/here`, h)).status).toBe(404);
   });
 });

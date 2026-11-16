@@ -20,6 +20,9 @@ keepErrorsOpen(toast);
 export interface ProvidersProps {
   children: React.ReactNode;
   themeProps?: ThemeProviderProps;
+  /** The standalone viewer (packages/merfisheyes-viewer): no account, so
+   * no session is fetched — everyone is signed out. */
+  noAccount?: boolean;
 }
 
 declare module "@react-types/shared" {
@@ -30,11 +33,15 @@ declare module "@react-types/shared" {
   }
 }
 
-export function Providers({ children, themeProps }: ProvidersProps) {
+export function Providers({
+  children,
+  themeProps,
+  noAccount,
+}: ProvidersProps) {
   const router = useRouter();
 
   return (
-    <SessionProvider>
+    <SessionProvider {...(noAccount ? { session: null } : {})}>
       <HeroUIProvider navigate={router.push}>
         <NextThemesProvider {...themeProps}>
           {children}
