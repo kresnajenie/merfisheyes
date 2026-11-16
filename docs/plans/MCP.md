@@ -94,6 +94,43 @@ every public dataset, plus a gene index); a tool call is one query, its
 answer a table, a count and a breakdown — no file reads. Items 1–2 below
 are METADATA.md's to build; 3–6 are this plan's.
 
+**The contract to design against** (from the metadata session,
+2026-11-16; METADATA.md step 1 draft, `docs/specs/metadata.md` and
+`docs/specs/schemas/metadata.schema.json` on `feature/metadata`, not yet
+reviewed): the index is `catalog.parquet` in SDDB's format — all 93 SDDB
+schema-3 columns in their order and types, then 25 `meyes_*` columns;
+20 required (`uid`, `canonical_key`, `organism`/`organism_id`,
+`tissue`/`tissue_id`, `technology`, `vendor`, `assay`,
+`validation_status`, `n_obs`, `n_features`, `zarr_url`, `published_at`,
+`title`, `meyes_id`, `meyes_source` (curated | bil | community),
+`meyes_kind`, `meyes_page_url`, `meyes_viewer_url`). SDDB's rows sit in
+the same index unchanged. Hierarchy: `tissue_system`/`tissue_organ` and
+`disease_class`/`disease_group` for facets; for any term, an
+`ontology_rollup.json` (term id → ancestors present) — "brain finds
+hippocampus" is `tissue_id == X or X ∈ rollup[tissue_id].ancestors_present`.
+M6: one row per store, sections in `meyes_sections` (list of
+{id, sample_id, donor_id, timepoint, timepoint_days, meyes_sex, n_obs,
+n_transcripts}). M9: only stores enter the index. Postgres mirrors the
+same snake_case names (public on `CatalogDataset`, private on `Dataset`).
+Gene index: SDDB's `gene_index.parquet` columns plus `gene_search.parquet`
+— not designed yet.
+
+*Changed later the same day (METADATA.md M10, M11):* the interim required
+set is 16 columns — `uid`, `technology`, `vendor` and `assay` are only
+recommended on our rows until everything is reprocessed, so B's tools must
+not depend on them (or on a Lamin uid) for our rows: identify them by
+`canonical_key` (`bil:<code>` / `meyes:<id>`) or `meyes_id`. `tier` is
+null on our rows. All our data is reprocessed by the BIL pipeline, which
+writes the store metadata and registers it in Lamin afresh — today's
+`eyes-catalog` is not the target. The grouping facets are our own
+convention (`conventions.json` `metadata.groupings`: ordered anchor lists,
+12 tissue systems, 40 organs, 8 disease classes, 39 disease groups, taken
+from the terms SDDB's release uses): a "brain" filter is
+`tissue_organ == brain`; descendant queries on any other term use the
+`ontology_rollup.json` the index build writes (`docs/specs/metadata.md` §7.6). Open: where the index is published, how often it is
+rebuilt. B's tools wait for step 6; searches against today's catalog
+cannot pass B's gate until the reprocessed data and index are live.
+
 1. **One metadata model for every dataset** — SDDB's catalog schema as
    columns (not a JSON blob) on the catalog: BIL, community and personal
    datasets carry the same fields as SDDB rows. The SDDB sync imports all
@@ -176,6 +213,12 @@ viewer is the site's viewer code, never a fork.
    the request ("Permission was denied … loopback address space").
    Left for D1b: `.h5ad` and raw instrument output; Safari and Firefox
    tried on a Mac.
+
+   **D1b decided (2026-11-16): both, in order** — first the agent converts
+   `.h5ad` and raw MERSCOPE/Xenium output with `scripts/prepare.py` and
+   opens the store it writes, so the collaborator can work now; later the
+   viewer reads them directly (h5ad with sparse `X`, raw folders over a
+   URL), with no conversion.
 2. **A standalone viewer.** A second build target of the same viewer
    components — static files, no server, no account — shipped as its own
    npm package and served by the local mode next to the data: offline,
@@ -240,6 +283,30 @@ the deck coming from `meyes_snapshot`, nothing leaving the machine.
 
 Order inside the pillar: 1–3 first (they carry the 0.1 tools as they
 are), 4 with B's long queries, 5 after D3, 6 once 1–4 work.
+
+**E1–E3 built (2026-11-16; not committed, not released).** `/mcp`
+(`app/mcp/route.ts`, `lib/mcp/server.ts`): Streamable HTTP, stateless,
+sign-in required (decided 2026-11-16: the connector signs in when added;
+public-only use stays open through the package and the site). A second
+OAuth resource `<issuer>/mcp` (`lib/oauth/config.ts`); the tools reach the
+agent API in process as the verified caller (`lib/agent/in-process.ts`,
+`trustCaller` in `lib/agent/caller.ts`). One implementation (D23): the
+package's tools take a `Host` (`src/host.ts`: site, `get`, optional
+`open`, a sign-in hint); sign-in/out moved to `src/tools/signin.ts`
+(package only); instructions (`src/instructions.ts`) and failure messages
+(`src/errors.ts`) shared. The site imports the package's TypeScript
+source: its relative imports are written `.ts` and the package compiles
+with `rewriteRelativeImportExtensions` (its published build is unchanged);
+the site's tsconfig allows `.ts` imports. Fixed on the way: the
+protected-resource metadata ignored its path (`?path=` rewrite) and
+answered every path with the agent API's; now a `[...path]` route, 404
+for an unknown path. Gate so far: package tests (23); `tests/unit/mcp-server.test.ts`
+(the server over HTTP with a stand-in API: instructions, the 10 tools,
+no `open`, API failures as tool errors); a local site answers 401 with the
+`/mcp` metadata and serves that metadata; `e2e/tests/upload/agent-remote-mcp.spec.ts`
+for CI (consent for `/mcp` limited to one project, tools as that person,
+a `/mcp` token refused by the agent API, disconnect refuses it). Left for
+the gate: that suite in CI, then connecting from claude.ai once released.
 
 ### Pillar F — Compute and writes
 

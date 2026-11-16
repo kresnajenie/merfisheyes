@@ -204,7 +204,7 @@ authorization server adds consent, grants and tokens.
 |---|---|
 | Issuer | the site origin (`NEXT_PUBLIC_APP_URL`), no path |
 | AS metadata (RFC 8414) | `/.well-known/oauth-authorization-server` |
-| Protected resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/agent/v1` |
+| Protected resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource` (the agent API), `/.well-known/oauth-protected-resource/api/agent/v1`, `/.well-known/oauth-protected-resource/mcp`; any other path is 404 (`lib/oauth/protected-resource.ts`) |
 | Authorization | `/oauth/authorize` (a page: sign-in, then consent) |
 | Token | `/api/oauth/token` |
 | Revocation (RFC 7009) | `/api/oauth/revoke` |
@@ -291,6 +291,31 @@ per address; with one 300 a minute per grant and 10,000 a day per person;
 authorization server: registration 10 an hour per address, the token
 endpoint 30 a minute per client and address, consent decisions 20 an hour
 per person.
+
+## 6.6 The remote MCP server (`/mcp`, plan pillar E)
+
+`POST|GET|DELETE /mcp`: MCP over Streamable HTTP, stateless (a fresh
+server per request, `createMcpHandler`; `lib/mcp/server.ts`). Two
+protected resources now: the agent API (`<issuer>/api/agent/v1`) and the
+connector (`<issuer>/mcp`); a token is for exactly one (RFC 8707), so a
+`/mcp` token is refused by the agent API and the other way round.
+
+- **Sign-in is required.** A request without `Authorization` is answered
+  401 with `WWW-Authenticate: Bearer resource_metadata="<issuer>/.well-known/oauth-protected-resource/mcp", scope="catalog:read projects:read"`
+  — how a connector discovers the authorization server and signs the
+  person in (the same consent page). The site's session cookie is never
+  accepted at `/mcp`.
+- **Tools:** the package's own definitions (one implementation, D23):
+  catalog, account reads and `meyes_open_view` (no `open` option); not
+  `meyes_sign_in` / `meyes_sign_out` / `meyes_open_local`, which need the
+  person's computer. Instructions: the package's text for a connector
+  (`packages/merfisheyes-mcp/src/instructions.ts`).
+- **Data:** the tools call the agent API's route handlers in process
+  (`lib/agent/in-process.ts`) as the caller `/mcp` verified, handed over
+  through a `WeakMap` keyed by the request object (`trustCaller`) that only
+  server code can fill — the same visibility, scopes, rate limits and
+  answers as over HTTP; failures become tool errors with the connector's
+  advice (reconnect, not `meyes_sign_in`).
 
 ## 7. The bridge (step 5)
 

@@ -2,10 +2,10 @@ import type { McpServer } from "@modelcontextprotocol/server";
 
 import * as z from "zod/v4";
 
-import { openBrowser } from "../auth.js";
-import { SITE } from "../config.js";
-import { text } from "../format.js";
-import { local, openLink } from "../local/serve.js";
+import { openBrowser } from "../auth.ts";
+import { SITE } from "../config.ts";
+import { text } from "../format.ts";
+import { local, openLink } from "../local/serve.ts";
 
 /**
  * meyes_open_local: a folder on the person's computer in the MERFISHEYES

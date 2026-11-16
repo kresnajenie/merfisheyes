@@ -9,7 +9,7 @@ import { createServer, type Server } from "node:http";
 import { randomBytes } from "node:crypto";
 import { basename, join, resolve, sep } from "node:path";
 
-import { SITE } from "../config.js";
+import { SITE } from "../config.ts";
 
 /**
  * MERFISHEYES on your own data (MCP.md §0, pillar D1): a folder on this

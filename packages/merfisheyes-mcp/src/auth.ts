@@ -9,8 +9,8 @@ import {
   SITE,
   VERCEL_BYPASS,
   siteHeaders,
-} from "./config.js";
-import { type Saved, load, store } from "./credentials.js";
+} from "./config.ts";
+import { type Saved, load, store } from "./credentials.ts";
 
 /**
  * Signing in to MERFISHEYES as an OAuth 2.1 public client, as the MCP

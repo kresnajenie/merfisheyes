@@ -1,0 +1,29 @@
+/**
+ * The server instructions — the manual an agent reads when it connects
+ * (MCP.md pillar E3). One text for both servers: `local` adds what only the
+ * package on the person's computer can do (sign in there, open a browser
+ * tab, serve their own folders).
+ */
+export function instructions(site: string, local: boolean): string {
+  return [
+    `MERFISHEYES (${site}) is a web viewer for spatial transcriptomics: cells, molecules, cell outlines and microscopy images, at up to billions of molecules. These tools find datasets and read the person's own projects; the site does the heavy work.`,
+    "",
+    local
+      ? "- Public catalog tools (meyes_search_datasets, meyes_list_facets, meyes_get_dataset, meyes_list_genes) need no sign-in. The person's own data needs meyes_sign_in once; ask only for the scopes the task needs."
+      : "- The person signed in to MERFISHEYES when they added this connector; meyes_whoami says as whom and which projects this agent may reach.",
+    "- Prefer what MERFISHEYES already records over computing it yourself: meyes_get_dataset returns the counts, cell-type levels, DE columns and QC each store's own files hold. Never fetch raw per-cell data to answer something a tool answers.",
+    local
+      ? "- To show the person something, call meyes_open_view: it returns a link to the viewer already set up (genes, column, cell types, 2D/3D, dot size, opacity). Give them the link. Pass open=true only when they ask to open it now, and never open more than one tab per request: for several views give links, and for two views to compare use one split screen (compare=…). Do not describe a scene you cannot see."
+      : "- To show the person something, call meyes_open_view: it returns a link to the viewer already set up (genes, column, cell types, 2D/3D, dot size, opacity). Give them the link; for two views to compare, use one split screen (compare=…). Do not describe a scene you cannot see.",
+    ...(local
+      ? [
+          "- Data on the person's own computer (a .zarr store, a MERFISHEYES folder, an OME-Zarr image) opens with meyes_open_local: it is served from their machine to the viewer, never uploaded. Use it, not an upload, when they ask to see their local data.",
+          "- When the person asks to sign in, or asks for their own projects or datasets while signed out, call meyes_sign_in: it opens the sign-in page and waits for them.",
+        ]
+      : [
+          "- Data on the person's own computer cannot be reached from here: the @merfisheyes/mcp package (npx -y @merfisheyes/mcp@latest view <folder>) opens it in the viewer without uploading it.",
+        ]),
+    "- Lists are paged: use limit/offset and next_offset rather than repeating a call. Calls are rate-limited; a 429 says how long to wait.",
+    "- Not every column with DE stats is a cell type (some stores carry QC columns too); group by annotation columns.",
+  ].join("\n");
+}

@@ -1,6 +1,6 @@
 import * as z from "zod/v4";
 
-import { CHARACTER_LIMIT } from "./config.js";
+import { CHARACTER_LIMIT } from "./config.ts";
 
 /**
  * How results are returned: markdown for the model to read (default) or JSON
