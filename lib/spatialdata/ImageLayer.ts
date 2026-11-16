@@ -115,6 +115,11 @@ export class ImageLayer extends BaseLayer {
   readonly kind = "image" as const;
   readonly channels: ImageChannel[];
   readonly maxValue: number;
+  /** The image's name in its store, and the store's images to choose from. */
+  readonly name: string;
+  readonly siblings: NonNullable<SpatialDataImage["siblings"]>;
+  /** A colour photograph (H&E), which can be drawn in grey. */
+  readonly rgb: boolean;
   /** Called when channel settings change on their own (auto contrast). */
   onChange?: () => void;
 
@@ -137,6 +142,7 @@ export class ImageLayer extends BaseLayer {
     uColor: { value: THREE.Color[] };
     uWindow: { value: THREE.Vector2[] };
     uOn: { value: boolean[] };
+    uGray: { value: boolean };
   };
   private fragmentShader: string;
   private queue: { tile: Tile; channel: number }[] = [];
@@ -156,6 +162,9 @@ export class ImageLayer extends BaseLayer {
     const count = image.levels[0].array.shape[0];
     const rgb = isRgb(image);
 
+    this.name = image.name;
+    this.siblings = image.siblings ?? [];
+    this.rgb = rgb;
     this.channels = Array.from({ length: count }, (_, i) => ({
       label: image.channelLabels[i] ?? `Channel ${i}`,
       color:
@@ -177,6 +186,7 @@ export class ImageLayer extends BaseLayer {
       uColor: { value: perSlot(() => new THREE.Color()) },
       uWindow: { value: perSlot(() => new THREE.Vector2()) },
       uOn: { value: perSlot(() => false) },
+      uGray: { value: false },
     };
     // Sampler arrays can't be indexed by a loop variable in GLSL ES 3, so
     // the per-slot code is written out.
@@ -189,6 +199,7 @@ export class ImageLayer extends BaseLayer {
       uniform vec3 uColor[${MAX_VISIBLE_CHANNELS}];
       uniform vec2 uWindow[${MAX_VISIBLE_CHANNELS}];
       uniform bool uOn[${MAX_VISIBLE_CHANNELS}];
+      uniform bool uGray;
       in vec2 vUv;
       out vec4 fragColor;
       void main() {
@@ -201,6 +212,8 @@ export class ImageLayer extends BaseLayer {
         }`,
           )
           .join("\n")}
+        // Luma (Rec. 601), so the image does not compete with the colours on it
+        if (uGray) rgb = vec3(dot(rgb, vec3(0.299, 0.587, 0.114)));
         fragColor = vec4(rgb, 1.0);
       }`;
 
@@ -261,6 +274,15 @@ export class ImageLayer extends BaseLayer {
   }
   set visible(v: boolean) {
     this._visible = v;
+    this.changed();
+  }
+
+  /** Drawn in grey instead of its own colours. */
+  get grayscale() {
+    return this.sharedUniforms.uGray.value;
+  }
+  set grayscale(v: boolean) {
+    this.sharedUniforms.uGray.value = v;
     this.changed();
   }
 

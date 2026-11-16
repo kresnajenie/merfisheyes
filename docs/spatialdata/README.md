@@ -304,6 +304,12 @@ and the placement is one matrix on the layer.
   values at or below it draw black) and an upper bound (`max`, values at or
   above it draw full colour). Only the first channel is on to start with;
   its window starts at 0 to the 99.9th percentile of the coarsest level.
+- A store with more than one image that can be placed with the cells (an
+  Atera store: `he_image` beside `morphology`) lists them in that panel; the
+  one drawn first is still the finest (`chooseImage`). A colour photograph
+  (`isRgb`) has a **Greyscale** box (Rec. 601 luma in the shader). The
+  choice replaces the scene's image element through the panel's layers
+  store (`replaceElement`), until the viewer opens another dataset.
 - What is set there is kept in the link (`img=`, or `rimg=` in the right
   split panel) once something is changed, so a copied link opens looking the
   same. An untouched image leaves the link alone.

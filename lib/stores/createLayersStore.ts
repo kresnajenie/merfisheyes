@@ -8,6 +8,13 @@ export type Layers = Partial<Record<ElementKind, Layer>>;
 export interface LayersState {
   layers: Layers;
   setLayer: (kind: ElementKind, layer: Layer | null) => void;
+  /**
+   * An element chosen in place of the one the viewer opened (another image
+   * of the same store), by kind. `useLayers` draws it instead, until the
+   * viewer hands over a different element.
+   */
+  replaced: Partial<Record<ElementKind, unknown>>;
+  replaceElement: (kind: ElementKind, opened: unknown | null) => void;
 }
 
 /**
@@ -28,6 +35,17 @@ export function createLayersStoreInstance() {
         else delete layers[kind];
 
         return { layers };
+      }),
+    replaced: {},
+    replaceElement: (kind, opened) =>
+      set((state) => {
+        if ((state.replaced[kind] ?? null) === opened) return state;
+        const replaced = { ...state.replaced };
+
+        if (opened) replaced[kind] = opened;
+        else delete replaced[kind];
+
+        return { replaced };
       }),
   }));
 }

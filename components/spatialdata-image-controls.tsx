@@ -3,15 +3,18 @@
 import type { ImageChannel, ImageLayer } from "@/lib/spatialdata/ImageLayer";
 
 import { useEffect, useReducer, useRef, useState } from "react";
+import { toast } from "react-toastify";
 
 import { FadeScroll } from "@/components/fade-scroll";
 import { glassButton, glassPanel } from "@/components/primitives";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
-import { usePanelId } from "@/lib/hooks/usePanelStores";
+import { usePanelId, usePanelLayersApi } from "@/lib/hooks/usePanelStores";
 import { useLayerStatus } from "@/lib/scene/useLayerStatus";
 import {
   applyImageState,
+  encodeImageChoice,
   encodeImageState,
+  imageNameInState,
 } from "@/lib/spatialdata/imageUrlState";
 import {
   readUrlVizState,
@@ -80,6 +83,19 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
   useClickOutside([root], () => setOpen(false), open);
 
   const slot = usePanelId() === "right" ? "rightImage" : "image";
+  const layersApi = usePanelLayersApi();
+
+  // Another image of the same store, drawn in place of this one
+  const switchTo = async (name: string) => {
+    const sibling = layer.siblings.find((s) => s.name === name);
+
+    if (!sibling || name === layer.name) return;
+    try {
+      layersApi.getState().replaceElement("image", await sibling.open());
+    } catch (error) {
+      toast.error(`Could not open ${name}: ${(error as Error).message}`);
+    }
+  };
 
   // The layer pushes its changes (auto contrast once it has seen the data)
   useLayerStatus(layer);
@@ -89,7 +105,13 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
   useEffect(() => {
     const fromUrl = readUrlVizState()[slot];
 
-    if (fromUrl) applyImageState(layer, fromUrl);
+    if (fromUrl) {
+      const named = imageNameInState(fromUrl);
+
+      // Written for another image of this store: open that one first
+      if (named && named !== layer.name) void switchTo(named);
+      else applyImageState(layer, fromUrl);
+    }
     rerender();
   }, [layer, slot]);
 
@@ -181,6 +203,39 @@ export function SpatialDataImageControls({ layer }: { layer: ImageLayer }) {
               />
               Show image
             </label>
+            {layer.siblings.length > 1 && (
+              <label className="flex items-center gap-2 text-sm">
+                Image
+                <select
+                  aria-label="Image"
+                  className="min-w-0 flex-1 rounded bg-default-100 px-1 py-0.5 text-xs text-foreground"
+                  value={layer.name}
+                  onChange={(e) => {
+                    scheduleUrlUpdate(slot, encodeImageChoice(e.target.value));
+                    void switchTo(e.target.value);
+                  }}
+                >
+                  {layer.siblings.map((s) => (
+                    <option key={s.name} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {layer.rgb && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  checked={layer.grayscale}
+                  type="checkbox"
+                  onChange={(e) => {
+                    layer.grayscale = e.target.checked;
+                    changed();
+                  }}
+                />
+                Greyscale
+              </label>
+            )}
             {layer.channels.map((channel, i) => (
               <div key={i} className="flex flex-col gap-1">
                 <div className="flex items-center gap-2 text-sm">

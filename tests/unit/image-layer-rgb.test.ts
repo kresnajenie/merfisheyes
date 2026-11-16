@@ -96,6 +96,18 @@ describe("ImageLayer and colour photographs", () => {
     expect([0, 1, 2].map((i) => layer.hasWindow(i))).toEqual([true, true, true]);
   });
 
+  it("draws a photograph in grey when asked, and only a photograph offers it", () => {
+    const layer = new ImageLayer(image(["r", "g", "b"]).img);
+    const uniforms = (layer as unknown as { sharedUniforms: { uGray: { value: boolean } } })
+      .sharedUniforms;
+
+    expect(layer.rgb).toBe(true);
+    expect(layer.grayscale).toBe(false);
+    layer.grayscale = true;
+    expect(uniforms.uGray.value).toBe(true);
+    expect(new ImageLayer(image(["DAPI", "CD45"], { perChunk: 1 }).img).rgb).toBe(false);
+  });
+
   it("reads each tile's chunk once and gives every channel its own plane", async () => {
     const { img, reads } = image(["r", "g", "b"]);
     const layer = new ImageLayer(img);

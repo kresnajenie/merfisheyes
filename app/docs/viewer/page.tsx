@@ -273,7 +273,10 @@ export default function ViewerPage() {
             The <b>Image</b> button shows or hides the image and sets, for each
             channel, whether it is on, its colour, and its display range: values
             at or below the lower bound draw black, at or above the upper bound
-            full colour.
+            full colour. A store with more than one image (an H&amp;E photograph
+            beside a fluorescence stain) lists them there to choose from, and a
+            photograph has a <b>Greyscale</b> box, so its colours do not compete
+            with the gene&apos;s.
           </p>
         </Prose>
         <Callout>

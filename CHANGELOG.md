@@ -8,6 +8,20 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Choose which image of a store is drawn, and draw a photograph in grey.**
+  A store with more than one image (an Atera store's H&E photograph beside
+  its fluorescence stain) lists them in the Image panel, and an H&E image has
+  a **Greyscale** box so its colours do not compete with the gene's. Both are
+  kept in the link.
+
+### Changed
+
+- **Genes and numerical columns are coloured with viridis by default**
+  (it was blue–white–red). A link or saved view that names a colormap keeps
+  it; one made with the old default and never changed now opens in viridis.
+
 ## [0.16.0] - 2026-11-08
 
 ### Added

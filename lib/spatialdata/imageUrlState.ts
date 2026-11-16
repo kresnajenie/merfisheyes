@@ -14,6 +14,10 @@ import {
 interface ImageUrlState {
   /** Only present, as false, when the whole image is hidden. */
   s?: false;
+  /** Which image of the store, where it has more than one to choose from. */
+  n?: string;
+  /** Only present, as 1, when a colour photograph is drawn in grey. */
+  g?: 1;
   /**
    * Per channel: on, colour, and its window (lower, upper bound) once it has
    * one, then its sliders' range when narrowed. A channel never looked at
@@ -40,8 +44,22 @@ export function encodeImageState(layer: ImageLayer): string {
   };
 
   if (!layer.visible) state.s = false;
+  if (layer.siblings.length > 1) state.n = layer.name;
+  if (layer.grayscale) state.g = 1;
 
   return toBase64Url(state);
+}
+
+/** Settings that only name an image: what a link holds right after a switch. */
+export function encodeImageChoice(name: string): string {
+  return toBase64Url({ n: name, c: [] } satisfies ImageUrlState);
+}
+
+/** The image the settings in a link were written for, when they name one. */
+export function imageNameInState(encoded: string): string | undefined {
+  const name = fromBase64Url<ImageUrlState>(encoded)?.n;
+
+  return typeof name === "string" ? name : undefined;
 }
 
 /**
@@ -77,6 +95,7 @@ export function applyImageState(layer: ImageLayer, encoded: string): boolean {
     return false;
   }
   layer.visible = state.s !== false;
+  layer.grayscale = state.g === 1;
   state.c.forEach(([on, color, min, max, lo, hi], i) =>
     layer.setChannel(i, {
       visible: !!on,

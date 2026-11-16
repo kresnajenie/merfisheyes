@@ -16,6 +16,7 @@ import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloudFromBuffers,
   setCellFootprint,
+  setCellOpacity,
   updateHalfHeight,
   updatePointCloudAttributes,
   updateDotSize,
@@ -249,6 +250,7 @@ export function ThreeScene({
     greyedOutAlpha,
     expressionAlphaMin,
     expressionAlphaMax,
+    hideZeroExpression,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     sceneRotation,
@@ -300,6 +302,14 @@ export function ThreeScene({
       invalidateRef.current();
     }
   }, [scLayerVisible]);
+
+  // The cells' opacity: a uniform of the cloud, so the slider uploads nothing.
+  // pointCloudVersion re-applies it to a cloud built after the value was set.
+  useEffect(() => {
+    if (!pointCloudRef.current) return;
+    setCellOpacity(pointCloudRef.current, alphaScale);
+    invalidateRef.current();
+  }, [alphaScale, pointCloudVersion]);
 
   // Tour player — drives camera + SM gene selection from the loaded tour JSON.
   // No-op until the user uploads a tour file and presses Play.
@@ -1310,6 +1320,7 @@ export function ThreeScene({
         expressionAlphaMax,
         pointSizeMultiplierMin,
         pointSizeMultiplierMax,
+        hideZeroExpression,
       };
 
       // Determine which visualization to use based on mode array
@@ -1426,7 +1437,7 @@ export function ThreeScene({
             gene2Changed ? setGene2ScaleMin : undefined,
             gene2Changed ? setGene2ScaleMax : undefined,
             coexpressSwapped,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             selectedColumn,
             effectiveCelltypes,
@@ -1467,7 +1478,7 @@ export function ThreeScene({
             selectedGene,
             selectedColumn,
             effectiveCelltypes,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             geneScaleMin,
             geneScaleMax,
@@ -1503,7 +1514,7 @@ export function ThreeScene({
           result = await updateGeneVisualization(
             dataset,
             selectedGene,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             geneScaleMin,
             geneScaleMax,
@@ -1527,7 +1538,7 @@ export function ThreeScene({
           ? updateNumericalCelltypeVisualization(
               dataset,
               selectedColumn,
-              alphaScale,
+              1, // opacity is the cloud's uOpacity uniform
               sizeScale,
               numericalScaleMin,
               numericalScaleMax,
@@ -1541,7 +1552,7 @@ export function ThreeScene({
               selectedColumn,
               effectiveCelltypes,
               colorPalette,
-              alphaScale,
+              1, // opacity is the cloud's uOpacity uniform
               sizeScale,
               adv,
             );
@@ -1590,7 +1601,6 @@ export function ThreeScene({
     geneEverywhere,
     hiddenCelltypes,
     colorPalette,
-    alphaScale,
     geneScaleMin,
     geneScaleMax,
     geneScaleMode,
@@ -1605,6 +1615,7 @@ export function ThreeScene({
     greyedOutAlpha,
     expressionAlphaMin,
     expressionAlphaMax,
+    hideZeroExpression,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     pinnedTooltipColumns,
