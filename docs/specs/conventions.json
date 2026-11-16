@@ -72,7 +72,16 @@
       "MERFISH": "MERFISH",
       "SpatialTranscriptomics": "Spatial Transcriptomics",
       "CosMx": "CosMx",
-      "Atera": "Atera"
+      "Atera": "Atera",
+      "MIBI": "MIBI",
+      "MALDI-MSI": "MALDI-MSI",
+      "PhenoCyclerFusion1": "PhenoCycler-Fusion",
+      "PhenoCyclerFusion2": "PhenoCycler-Fusion",
+      "StereoSeq": "Stereo-seq",
+      "IMC": "IMC",
+      "CODEX": "CODEX",
+      "spatial-CUT&Tag": "spatial-CUT&Tag",
+      "spatial-ATAC-seq": "spatial-ATAC-seq"
     }
   }
 }

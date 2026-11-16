@@ -1,7 +1,9 @@
 # The SpatialData-DB catalog on Explore
 
-Status: decided 2026-10-21 (`docs/plans/SDDB.md`, step 4). Measured on
-release `catalog-2026-10-20` (3,222 rows).
+Status: decided 2026-10-21 (`docs/plans/SDDB.md`, step 4). First measured
+on release `catalog-2026-10-20` (3,222 rows). Production now carries
+`catalog-2026-11-08`: 12,159 published cards (synced 2026-11-11; the
+2026-11-01 release with 8,471 went out on 2026-11-07).
 
 ## Decision
 
@@ -31,6 +33,12 @@ required set in `lib/sddb/catalog-schema.ts`, pinned to a release tag.
 | details | `card_url`, `tier`, `assay`, `product`, `chemistry_version`, `sample_id`, `study_id`, `canonical_key`, `development_stage`, `capture_area`, `default_table`, `n_transcripts`, `size_bytes`, `publication_year`, `license_url`, `collections` in `metadata` |
 | entry | `datasetType: "spatialdata"`, `s3BaseUrl` = `zarr_url` rewritten from `s3://bucket/key` to the bucket's HTTPS URL (region from a bucket table; unknown bucket → the sync fails) |
 | provenance | `sddbUid` (upsert key), `sourceRelease` (the tag), `sourceGeneratedAt` (`sddb_generated_at` from the file) |
+| thumbnail | **never written.** The catalog has no preview (`thumbnail_url` was empty in every release and was removed in `catalog-2026-11-08`), so the sync leaves `thumbnailUrl` alone and never clears one set by an admin or a preview job |
+
+Technologies and organisms are spelt through `docs/specs/conventions.json`
+(`catalog.platforms`, `catalog.species`); a value without an entry is shown
+as written (capitalised for organisms). PhenoCyclerFusion1 and 2 share one
+platform, "PhenoCycler-Fusion".
 
 Every store is also registered as an admin-owned `Dataset` row through the
 same path as the viewer's "Add this dataset" banner
@@ -68,6 +76,50 @@ database); a partial run unpublishes nothing and skips the gate.
 
 A second run on the same release is a no-op. Idempotence and the gate are
 what make the file, not our database, the source of truth.
+
+### Bumping to a new release (the checklist)
+
+1. Download the new and the pinned `catalog.parquet` and run
+   `python scripts/sddb_release_diff.py <old-dir> <new-dir> --out perf/sddb/RELEASE-DIFF-<date>.md`:
+   rows added/removed, columns added/removed, values with no convention,
+   kept rows whose fields changed. Check upstream's
+   `src/sddb/_catalog_schema.py` `REQUIRED_COLUMNS` at the new tag.
+2. Add display names for new technologies to `conventions.json` if the raw
+   spelling reads badly; bump `PINNED_RELEASE`; re-cut the fixture
+   (`scripts/testdata/make-sddb-catalog-fixture.py <release-dir>`) and update
+   `tests/unit/sddb-catalog.test.ts`.
+3. Dev database: dry run, `--limit=60 --apply`, then the full `--apply`.
+4. Production (the user runs it): snapshot the `sddb` rows
+   (`npx tsx scripts/snapshot-sddb-rows.ts .cache/sddb-snapshots/prod-before-<tag>.json --env=<.env.prod> --direct`),
+   dry run, `--apply`.
+
+Run the scripts from a checkout of the branch, with `--env=<file>` (and
+`--direct` for production). **Never `source .env.prod` in a shell**: the
+password contains characters the shell rewrites and the connection then
+fails with "Authentication failed"; the scripts read the file literally.
+
+### Measured
+
+| Run | Rows | New stores registered | Failures | Wall time |
+|---|---:|---:|---:|---:|
+| dev, catalog-2026-11-01 (from 67 rows) | 8,471 | 8,404 | 0 | 60 min |
+| dev, same release again (idempotence) | 8,471 | 0 | 0 | 49 min, 0 rows changed |
+| dev, catalog-2026-11-08 | 12,159 | 3,695 | 0 | 74 min |
+
+A re-run still re-reads every store's root to confirm its registration,
+hence ~1 h even with nothing new; skipping stores already registered is the
+open improvement. With 12k cards, Explore stays inside the 1 s budget of
+`BUDGETS.md` (remote dev database): a page ~270 ms, page 300 ~335 ms,
+facets ~200 ms, free-text or gene search ~550 ms.
+
+### Known limits
+
+- MIBI, IMC (and a few Visium) stores carry `float32` images, which
+  `lib/spatialdata/image.ts` refuses (uint8/uint16 only): the cells open, and
+  the image is reported as a problem rather than drawn.
+- Previews: none yet (see the plan). Their website draws previews from
+  content-hashed sprite sheets, which are not a published contract; a
+  stable per-dataset URL has been asked of the SpatialData-DB maintainer.
 
 ## On Explore
 

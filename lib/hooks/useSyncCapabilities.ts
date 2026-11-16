@@ -3,7 +3,7 @@
 import type { DatasetStore } from "../stores/createDatasetStore";
 import type { LayersStore } from "../stores/createLayersStore";
 import type { SingleMoleculeStore } from "../stores/createSingleMoleculeStore";
-import type { PanelContent } from "../stores/splitScreenStore";
+import type { PanelContent, SyncKinds } from "../stores/splitScreenStore";
 
 import { usePathname } from "next/navigation";
 import { useStore } from "zustand";
@@ -29,7 +29,7 @@ export function useSyncCapabilities(right: {
   datasetStore: DatasetStore;
   singleMoleculeStore: SingleMoleculeStore;
   layersStore: LayersStore;
-}): PanelContent {
+}): SyncKinds {
   const pathname = usePathname();
   const rightType = useSplitScreenStore((s) => s.rightPanelType);
 

@@ -53,10 +53,14 @@ describe("split-screen sync follows what each panel has open", () => {
       molecules: l.molecules && r.molecules,
       labelled: l.labelled && r.labelled,
       image: l.image && r.image,
+      // A gene across kinds: cells beside molecules without cells
+      genes:
+        (l.cells && !r.cells && r.molecules) ||
+        (r.cells && !l.cells && l.molecules),
     });
     // The button shows exactly when some hook runs
     expect(canSync(caps)).toBe(
-      caps.cells || caps.molecules || caps.labelled || caps.image,
+      caps.cells || caps.molecules || caps.labelled || caps.image || caps.genes,
     );
     // Order doesn't matter
     expect(syncCapabilities(r, l)).toEqual(caps);
@@ -79,6 +83,11 @@ describe("split-screen sync follows what each panel has open", () => {
       "image",
     ],
     ["store with cells and an image", "image (/image-viewer, or a store with only one)", "image"],
+    // Hidden before: cells beside molecules share their genes
+    ["store with cells", "molecule folder (/sm-viewer)", "genes"],
+    ["molecule folder (/sm-viewer)", "cell folder (/viewer)", "genes"],
+    ["cell folder (/viewer)", "store with points only", "genes"],
+    ["cell folder with linked molecules", "molecule folder (/sm-viewer)", "genes"],
   ] as const)("%s beside %s syncs %s", (left, right, kind) => {
     const caps = syncCapabilities(PANELS[left], PANELS[right]);
 
@@ -92,14 +101,16 @@ describe("split-screen sync follows what each panel has open", () => {
     for (const other of names.filter((n) => !PANELS[n].image)) {
       expect(canSync(syncCapabilities(image, PANELS[other]))).toBe(false);
     }
-    expect(
-      canSync(
-        syncCapabilities(
-          PANELS["store with cells"],
-          PANELS["molecule folder (/sm-viewer)"],
-        ),
-      ),
-    ).toBe(false);
+  });
+
+  it("leaves the gene to the cells when both panels have cells", () => {
+    const caps = syncCapabilities(
+      PANELS["store with cells"],
+      PANELS["store with cells and points"],
+    );
+
+    expect(caps.cells).toBe(true);
+    expect(caps.genes).toBe(false);
   });
 });
 
