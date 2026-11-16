@@ -25,7 +25,8 @@ cannot disagree about a name.
 | `shapes.cellOutlineElements` | `cellShapesName` (`lib/spatialdata/shapes.ts`), validator | shapes elements the Shapes layer draws as outlines |
 | `shapes.pointSiblingSuffix` | `centroids.ts`, `footprint.ts`, validator | the Point element beside a region with each cell's centre and radius |
 | `shapes.squareBinPattern` | `footprint.ts` | a polygon region drawn as square bins of the grid's pitch |
-| `catalog.bucketRegions`, `catalog.species`, `catalog.platforms` | `lib/sddb/catalog-row.ts` | a SpatialData-DB catalog row's URL and spellings on Explore |
+| `catalog.bucketRegions`, `catalog.species`, `catalog.platforms` | `lib/sddb/catalog-row.ts` | a SpatialData-DB catalog row's URL and spellings on Explore (`species` and `platforms` give way to ontology ids when Explore reads the query index: [`metadata.md`](metadata.md) §7) |
+| `metadata.sddb`, `metadata.ontologies`, `metadata.licenses`, `metadata.keyPrefixes`, `metadata.groupings` | `tests/python/test_specs.py` today; the bionty validator, the pipeline and the index build from step 2 on ([`docs/plans/METADATA.md`](../plans/METADATA.md)) | the SpatialData-DB release, vocabularies and ontology versions our metadata follows, the licence ids and labels, our key prefixes, our tissue and disease grouping anchors ([`metadata.md`](metadata.md) §1, §7.6) |
 
 ## Adding one
 

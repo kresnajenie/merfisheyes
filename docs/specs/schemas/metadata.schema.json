@@ -1,0 +1,1675 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kresnajenie/merfisheyes/blob/develop/docs/specs/schemas/metadata.schema.json",
+  "title": "MERFISHEYES dataset metadata",
+  "description": "The metadata a MERFISHEYES store carries in its root zarr.json attributes (docs/specs/metadata.md). metadata_general and metadata_<technology> are SpatialData-DB's blocks, written as they write them; meyes_metadata holds the ontology ids and our columns, named as the query index names them; meyes_provenance says who wrote it and what validated it. $defs/indexRow is one row of the query index: SpatialData-DB catalog schema 3 plus meyes_ columns. x-meyes-level is our profile's level for the column (required, recommended, optional, derived by the index build, n/a); x-sddb-dtype is the column's dtype in their _catalog_schema.py. Producers may add keys; readers ignore what they do not know.",
+  "type": "object",
+  "required": [
+    "metadata_general",
+    "meyes_metadata",
+    "meyes_provenance"
+  ],
+  "properties": {
+    "metadata_general": {
+      "$ref": "#/$defs/metadataGeneral"
+    },
+    "meyes_metadata": {
+      "$ref": "#/$defs/meyesMetadata"
+    },
+    "meyes_provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "patternProperties": {
+    "^metadata_(?!general$)[a-z_]+$": {
+      "$ref": "#/$defs/technologyBlock"
+    }
+  },
+  "$defs": {
+    "metadataGeneral": {
+      "description": "SpatialData-DB's metadata_general (General Metadata Version 0.3.2): labels, not ids. Keys we do not write: Database Version, Count Matrix Hash; SpatialData-IO Version only when spatialdata-io read the input.",
+      "type": "object",
+      "required": [
+        "Product",
+        "Assay",
+        "Biomaterial Type",
+        "Organism",
+        "Tissue",
+        "Modality",
+        "Disease",
+        "Default Table",
+        "General Metadata Version"
+      ],
+      "properties": {
+        "Product": {
+          "type": "string"
+        },
+        "Assay": {
+          "type": "string"
+        },
+        "Biomaterial Type": {
+          "type": "string"
+        },
+        "Organism": {
+          "type": "string"
+        },
+        "Tissue": {
+          "type": "string"
+        },
+        "Modality": {
+          "type": "string"
+        },
+        "Dataset Url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Publication Date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Sample ID at Source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Disease": {
+          "type": "string"
+        },
+        "Default Table": {
+          "type": "string"
+        },
+        "DOI": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "PubMed ID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Publication Year": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Publication Verify Status": {
+          "enum": [
+            "verified",
+            "provisional",
+            "no_associated_publication",
+            null
+          ]
+        },
+        "HnE Image Available": {
+          "type": "boolean"
+        },
+        "IF Image Available": {
+          "type": "boolean"
+        },
+        "FTU Annotation Available": {
+          "type": "boolean"
+        },
+        "License": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The licence's label (`CC BY 4.0`), not its id."
+        },
+        "Development Stage": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Donor ID": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Preservation Method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Number of Transcripts": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "SpatialData Repr": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "SpatialData-IO Version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "Image Width px": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "Image Height px": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "MPP": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "General Metadata Version": {
+          "const": "0.3.2"
+        }
+      }
+    },
+    "technologyBlock": {
+      "description": "SpatialData-DB's per-technology block, e.g. metadata_merscope {\"Merscope Metadata Version\": \"0.1.0\"} for MERFISH and MERSCOPE stores.",
+      "type": "object"
+    },
+    "meyesMetadata": {
+      "description": "Every index column that is a fact about the data, named as in $defs/indexRow, plus version. Columns about where or when the store is published (uid, zarr_url, card_url, size_bytes, published_at, meyes_id, meyes_*_url, validation_status) are not here: they belong to the index and Lamin.",
+      "type": "object",
+      "required": [
+        "version",
+        "canonical_key",
+        "organism",
+        "organism_id",
+        "tissue",
+        "tissue_id",
+        "n_obs",
+        "n_features",
+        "title",
+        "meyes_kind"
+      ],
+      "properties": {
+        "version": {
+          "const": "1"
+        },
+        "canonical_key": {
+          "$ref": "#/$defs/indexRow/properties/canonical_key"
+        },
+        "study_id": {
+          "$ref": "#/$defs/indexRow/properties/study_id"
+        },
+        "collection_name": {
+          "$ref": "#/$defs/indexRow/properties/collection_name"
+        },
+        "organism": {
+          "$ref": "#/$defs/indexRow/properties/organism"
+        },
+        "organism_id": {
+          "$ref": "#/$defs/indexRow/properties/organism_id"
+        },
+        "tissue": {
+          "$ref": "#/$defs/indexRow/properties/tissue"
+        },
+        "tissue_id": {
+          "$ref": "#/$defs/indexRow/properties/tissue_id"
+        },
+        "disease": {
+          "$ref": "#/$defs/indexRow/properties/disease"
+        },
+        "disease_id": {
+          "$ref": "#/$defs/indexRow/properties/disease_id"
+        },
+        "development_stage": {
+          "$ref": "#/$defs/indexRow/properties/development_stage"
+        },
+        "technology": {
+          "$ref": "#/$defs/indexRow/properties/technology"
+        },
+        "vendor": {
+          "$ref": "#/$defs/indexRow/properties/vendor"
+        },
+        "variant": {
+          "$ref": "#/$defs/indexRow/properties/variant"
+        },
+        "assay": {
+          "$ref": "#/$defs/indexRow/properties/assay"
+        },
+        "panel_size": {
+          "$ref": "#/$defs/indexRow/properties/panel_size"
+        },
+        "license": {
+          "$ref": "#/$defs/indexRow/properties/license"
+        },
+        "license_url": {
+          "$ref": "#/$defs/indexRow/properties/license_url"
+        },
+        "license_noncommercial": {
+          "$ref": "#/$defs/indexRow/properties/license_noncommercial"
+        },
+        "license_redistributable": {
+          "$ref": "#/$defs/indexRow/properties/license_redistributable"
+        },
+        "license_unknown": {
+          "$ref": "#/$defs/indexRow/properties/license_unknown"
+        },
+        "non_integer_counts": {
+          "$ref": "#/$defs/indexRow/properties/non_integer_counts"
+        },
+        "n_obs": {
+          "$ref": "#/$defs/indexRow/properties/n_obs"
+        },
+        "n_features": {
+          "$ref": "#/$defs/indexRow/properties/n_features"
+        },
+        "total_counts": {
+          "$ref": "#/$defs/indexRow/properties/total_counts"
+        },
+        "title": {
+          "$ref": "#/$defs/indexRow/properties/title"
+        },
+        "pathological": {
+          "$ref": "#/$defs/indexRow/properties/pathological"
+        },
+        "product": {
+          "$ref": "#/$defs/indexRow/properties/product"
+        },
+        "modality": {
+          "$ref": "#/$defs/indexRow/properties/modality"
+        },
+        "modalities": {
+          "$ref": "#/$defs/indexRow/properties/modalities"
+        },
+        "biomaterial_type": {
+          "$ref": "#/$defs/indexRow/properties/biomaterial_type"
+        },
+        "chemistry_version": {
+          "$ref": "#/$defs/indexRow/properties/chemistry_version"
+        },
+        "staining_method": {
+          "$ref": "#/$defs/indexRow/properties/staining_method"
+        },
+        "preservation_method": {
+          "$ref": "#/$defs/indexRow/properties/preservation_method"
+        },
+        "hne_image": {
+          "$ref": "#/$defs/indexRow/properties/hne_image"
+        },
+        "if_image": {
+          "$ref": "#/$defs/indexRow/properties/if_image"
+        },
+        "ftu_annotation": {
+          "$ref": "#/$defs/indexRow/properties/ftu_annotation"
+        },
+        "mpp": {
+          "$ref": "#/$defs/indexRow/properties/mpp"
+        },
+        "image_width": {
+          "$ref": "#/$defs/indexRow/properties/image_width"
+        },
+        "image_height": {
+          "$ref": "#/$defs/indexRow/properties/image_height"
+        },
+        "magnification": {
+          "$ref": "#/$defs/indexRow/properties/magnification"
+        },
+        "sdata_repr": {
+          "$ref": "#/$defs/indexRow/properties/sdata_repr"
+        },
+        "n_transcripts": {
+          "$ref": "#/$defs/indexRow/properties/n_transcripts"
+        },
+        "publication_date": {
+          "$ref": "#/$defs/indexRow/properties/publication_date"
+        },
+        "doi": {
+          "$ref": "#/$defs/indexRow/properties/doi"
+        },
+        "pmid": {
+          "$ref": "#/$defs/indexRow/properties/pmid"
+        },
+        "publication_year": {
+          "$ref": "#/$defs/indexRow/properties/publication_year"
+        },
+        "publication_verify_status": {
+          "$ref": "#/$defs/indexRow/properties/publication_verify_status"
+        },
+        "sample_id": {
+          "$ref": "#/$defs/indexRow/properties/sample_id"
+        },
+        "donor_id": {
+          "$ref": "#/$defs/indexRow/properties/donor_id"
+        },
+        "disease_details": {
+          "$ref": "#/$defs/indexRow/properties/disease_details"
+        },
+        "default_table": {
+          "$ref": "#/$defs/indexRow/properties/default_table"
+        },
+        "dataset_url": {
+          "$ref": "#/$defs/indexRow/properties/dataset_url"
+        },
+        "collections": {
+          "$ref": "#/$defs/indexRow/properties/collections"
+        },
+        "sample_title": {
+          "$ref": "#/$defs/indexRow/properties/sample_title"
+        },
+        "timepoint": {
+          "$ref": "#/$defs/indexRow/properties/timepoint"
+        },
+        "timepoint_kind": {
+          "$ref": "#/$defs/indexRow/properties/timepoint_kind"
+        },
+        "timepoint_days": {
+          "$ref": "#/$defs/indexRow/properties/timepoint_days"
+        },
+        "treatment": {
+          "$ref": "#/$defs/indexRow/properties/treatment"
+        },
+        "genotype": {
+          "$ref": "#/$defs/indexRow/properties/genotype"
+        },
+        "condition": {
+          "$ref": "#/$defs/indexRow/properties/condition"
+        },
+        "obs_unit": {
+          "$ref": "#/$defs/indexRow/properties/obs_unit"
+        },
+        "observation_unit": {
+          "$ref": "#/$defs/indexRow/properties/observation_unit"
+        },
+        "unit_size_um": {
+          "$ref": "#/$defs/indexRow/properties/unit_size_um"
+        },
+        "observation_unit_source": {
+          "$ref": "#/$defs/indexRow/properties/observation_unit_source"
+        },
+        "segmentation_source": {
+          "$ref": "#/$defs/indexRow/properties/segmentation_source"
+        },
+        "segmentation_method": {
+          "$ref": "#/$defs/indexRow/properties/segmentation_method"
+        },
+        "meyes_kind": {
+          "$ref": "#/$defs/indexRow/properties/meyes_kind"
+        },
+        "meyes_description": {
+          "$ref": "#/$defs/indexRow/properties/meyes_description"
+        },
+        "meyes_sex": {
+          "$ref": "#/$defs/indexRow/properties/meyes_sex"
+        },
+        "meyes_sex_id": {
+          "$ref": "#/$defs/indexRow/properties/meyes_sex_id"
+        },
+        "meyes_development_stage_id": {
+          "$ref": "#/$defs/indexRow/properties/meyes_development_stage_id"
+        },
+        "meyes_n_sections": {
+          "$ref": "#/$defs/indexRow/properties/meyes_n_sections"
+        },
+        "meyes_sections": {
+          "$ref": "#/$defs/indexRow/properties/meyes_sections"
+        },
+        "meyes_dims": {
+          "$ref": "#/$defs/indexRow/properties/meyes_dims"
+        },
+        "meyes_de_columns": {
+          "$ref": "#/$defs/indexRow/properties/meyes_de_columns"
+        },
+        "meyes_pipeline": {
+          "$ref": "#/$defs/indexRow/properties/meyes_pipeline"
+        },
+        "meyes_pipeline_input": {
+          "$ref": "#/$defs/indexRow/properties/meyes_pipeline_input"
+        },
+        "meyes_bil_code": {
+          "$ref": "#/$defs/indexRow/properties/meyes_bil_code"
+        },
+        "meyes_investigator": {
+          "$ref": "#/$defs/indexRow/properties/meyes_investigator"
+        },
+        "meyes_co_investigators": {
+          "$ref": "#/$defs/indexRow/properties/meyes_co_investigators"
+        },
+        "meyes_institution": {
+          "$ref": "#/$defs/indexRow/properties/meyes_institution"
+        },
+        "meyes_funding": {
+          "$ref": "#/$defs/indexRow/properties/meyes_funding"
+        },
+        "meyes_tags": {
+          "$ref": "#/$defs/indexRow/properties/meyes_tags"
+        },
+        "meyes_n_molecule_genes": {
+          "$ref": "#/$defs/indexRow/properties/meyes_n_molecule_genes"
+        },
+        "meyes_cell_type_method": {
+          "$ref": "#/$defs/indexRow/properties/meyes_cell_type_method"
+        },
+        "meyes_cell_type_levels": {
+          "$ref": "#/$defs/indexRow/properties/meyes_cell_type_levels"
+        }
+      }
+    },
+    "provenance": {
+      "description": "Mirrors SpatialData-DB's sddb_provenance for stores we write.",
+      "type": "object",
+      "required": [
+        "canonical_key",
+        "written_at",
+        "validation"
+      ],
+      "properties": {
+        "canonical_key": {
+          "type": "string"
+        },
+        "study_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pipeline": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Git short sha of the code that wrote the store."
+        },
+        "input": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "written_at": {
+          "type": "string",
+          "description": "ISO 8601, UTC."
+        },
+        "sources": {
+          "type": "object",
+          "description": "Column -> where its value came from: bil-api, bil-csv, owner, curator, store, agent-proposed (confirmed by a person), sddb.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "validation": {
+          "type": "object",
+          "required": [
+            "status",
+            "at",
+            "sources"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "pass",
+                "fail",
+                "not_validated"
+              ]
+            },
+            "at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bionty": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "bionty version."
+            },
+            "sources": {
+              "type": "object",
+              "description": "Ontology -> version used, equal to conventions.json metadata.ontologies.",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "errors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "packages": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "section": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The section's name in the store (the _sample_id of its cells)."
+        },
+        "sample_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "donor_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timepoint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timepoint_days": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "meyes_sex": {
+          "enum": [
+            "male",
+            "female",
+            null
+          ]
+        },
+        "n_obs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "n_transcripts": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "indexRow": {
+      "description": "One row of the query index (catalog.parquet): SpatialData-DB catalog schema 3 (all 93 columns, their order) then the meyes_ columns. `required` is the interim set, while the fleet is reprocessed; x-meyes-required-after-reprocessing lists the columns that join it when that is done (METADATA.md M10), which makes SpatialData-DB's six required columns required again.",
+      "type": "object",
+      "required": [
+        "canonical_key",
+        "organism",
+        "organism_id",
+        "tissue",
+        "tissue_id",
+        "validation_status",
+        "n_obs",
+        "n_features",
+        "zarr_url",
+        "published_at",
+        "title",
+        "meyes_id",
+        "meyes_source",
+        "meyes_kind",
+        "meyes_page_url",
+        "meyes_viewer_url"
+      ],
+      "x-meyes-required-after-reprocessing": [
+        "uid",
+        "technology",
+        "vendor",
+        "assay"
+      ],
+      "properties": {
+        "uid": {
+          "description": "Lamin artifact uid of the store in merfisheyes/eyes-catalog. Required once the fleet is reprocessed and registered (FINAL_REQUIRED).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "canonical_key": {
+          "description": "`bil:<code>` for a BIL dataset, else `meyes:<CatalogDataset id>`.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+:.+$",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "study_id": {
+          "description": "Same scheme as canonical_key; `doi:<doi>` when the dataset is one of a paper's.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9]+:.+$",
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "collection_name": {
+          "description": "Slug of the dataset's first collection.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "organism": {
+          "description": "bionty Organism name, lower case, as SDDB writes it (`mouse`, `human`, `macaque`).",
+          "type": "string",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "organism_id": {
+          "description": "NCBITaxon CURIE.",
+          "type": "string",
+          "pattern": "^NCBITaxon:[0-9]+$",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "tissue": {
+          "description": "UBERON term name; `unknown` when not stated.",
+          "type": "string",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "tissue_id": {
+          "description": "UBERON CURIE; null only when tissue is `unknown`.",
+          "type": "string",
+          "pattern": "^UBERON:[0-9]{7}$",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "disease": {
+          "description": "MONDO term name, `normal`, or `unknown`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "disease_id": {
+          "description": "MONDO CURIE, PATO:0000461 for `normal`, null for `unknown`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^(MONDO:[0-9]{7}|PATO:0000461)$",
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "development_stage": {
+          "description": "HsapDv / MmusDv term name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "tissue_system": {
+          "description": "From the pinned UBERON graph and SDDB's tissue anchor table.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "tissue_system_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^UBERON:[0-9]{7}$",
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "tissue_organ": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "tissue_organ_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^UBERON:[0-9]{7}$",
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "disease_class": {
+          "description": "From the pinned MONDO graph and SDDB's disease anchor table.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "disease_class_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^MONDO:[0-9]{7}$",
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "disease_group": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "disease_group_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^MONDO:[0-9]{7}$",
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "technology": {
+          "description": "An id of technology.json (`merfish`, `vizgen_merscope`, `10x_xenium`, …). Required once the fleet is reprocessed (FINAL_REQUIRED).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9_]+$",
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "vendor": {
+          "description": "The technology's vendor_id in technology.json. Required once the fleet is reprocessed (FINAL_REQUIRED).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9_]+$",
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "variant": {
+          "description": "One of the technology's variant ids.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "assay": {
+          "description": "The technology's first legacy_assay label in technology.json. Required once the fleet is reprocessed (FINAL_REQUIRED).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "panel_size": {
+          "description": "Genes in the panel (imaging technologies).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "Int64"
+        },
+        "validation_status": {
+          "description": "`pass` once bionty passes every ontology column (M3).",
+          "type": "string",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "tier": {
+          "description": "Not filled until SDDB's tier rule is known (open).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "license": {
+          "description": "Licence vocabulary id (SPDX style, SDDB's ids plus ours).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "license_url": {
+          "description": "From the licence vocabulary.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "license_noncommercial": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "boolean"
+        },
+        "license_redistributable": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "boolean"
+        },
+        "license_unknown": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "boolean"
+        },
+        "non_integer_counts": {
+          "description": "True when X holds non-integer values; the pipeline knows.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "boolean"
+        },
+        "n_obs": {
+          "description": "Rows of the default table (cells).",
+          "type": "integer",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "Int64"
+        },
+        "n_features": {
+          "description": "Columns of the default table (genes, blanks and controls filtered).",
+          "type": "integer",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "Int64"
+        },
+        "total_counts": {
+          "description": "Sum of X.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "Float64"
+        },
+        "zarr_url": {
+          "description": "`s3://bucket/key.zarr` of the store, as SDDB writes it.",
+          "type": "string",
+          "pattern": "^s3://[^/]+/.+\\.zarr/?$",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "card_url": {
+          "description": "The store's artifact page in Lamin eyes-catalog.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "vitessce_url": {
+          "description": "Null: the viewer link is meyes_viewer_url.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "size_bytes": {
+          "description": "Bytes of the store, from the S3 listing.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "Int64"
+        },
+        "published_at": {
+          "description": "ISO 8601 time the row first entered the index.",
+          "type": "string",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "slug": {
+          "description": "SDDB's pattern: slug(assay)-slug(tissue)-lower(uid).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "title": {
+          "type": "string",
+          "x-meyes-level": "required",
+          "x-sddb-dtype": "string"
+        },
+        "pathological": {
+          "description": "False for `normal`, true for a MONDO disease, null for `unknown`.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "boolean"
+        },
+        "low_obs": {
+          "description": "n_obs < 100.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "boolean"
+        },
+        "review_status": {
+          "description": "`under_review` while a review is open (M3), else null.",
+          "type": "string",
+          "enum": [
+            "under_review",
+            null
+          ],
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "string"
+        },
+        "review_reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "product": {
+          "description": "The vendor's product name (`MERSCOPE`, `MERFISH`, `In Situ Gene Expression`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "modality": {
+          "description": "`RNA`, `protein`, … (SDDB's labels).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "modalities": {
+          "description": "`[\"RNA\"]`, …",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "list[string]"
+        },
+        "biomaterial_type": {
+          "description": "`Specimen from Organism`, `Organoid`, `Cell Culture`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "chemistry_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "staining_method": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "list[string]"
+        },
+        "preservation_method": {
+          "description": "`FFPE`, `Fresh Frozen`, …",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "hne_image": {
+          "description": "The store has an H&E image element.",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "boolean"
+        },
+        "if_image": {
+          "description": "The store has a fluorescence image element (DAPI, PolyT, morphology).",
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "boolean"
+        },
+        "ftu_annotation": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "boolean"
+        },
+        "mpp": {
+          "description": "Microns per pixel of the full-resolution image.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "Float64"
+        },
+        "image_width": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "Int64"
+        },
+        "image_height": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "Int64"
+        },
+        "magnification": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "sdata_repr": {
+          "description": "print(sdata) of the store, written by our formatter (spatialdata 0.8 cannot read our points).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "n_transcripts": {
+          "description": "Molecules in the store's points elements, all sections.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "Int64"
+        },
+        "capture_area": {
+          "description": "Visium HD only.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "publication_date": {
+          "description": "YYYY-MM-DD the data was published at its source (BIL submission date).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "doi": {
+          "description": "The paper's DOI, bare (`10.1038/…`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^10\\.[0-9]{4,9}/\\S+$",
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "pmid": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "publication_year": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9]{4}$",
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "publication_verify_status": {
+          "description": "`verified`, `provisional` or `no_associated_publication`.",
+          "type": "string",
+          "enum": [
+            "verified",
+            "provisional",
+            "no_associated_publication",
+            null
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "sample_id": {
+          "description": "The source's id for the sample: the BIL code for a BIL store.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "donor_id": {
+          "description": "Set when every section has the same donor; else per section.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "database_version": {
+          "description": "SDDB's own version; null (ours is meyes_pipeline).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "sddb_id": {
+          "description": "SDDB's own id; null.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "disease_details": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "default_table": {
+          "description": "The table the viewer reads (`table`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "dataset_url": {
+          "description": "The source's page (the BIL dataset page).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "collections": {
+          "description": "Collection slugs.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "list[string]"
+        },
+        "sample_title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "timepoint": {
+          "description": "The source's text (`28.0 Days`, `20.0 Gestational weeks`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "timepoint_kind": {
+          "description": "`age` (postnatal), `stage` (prenatal), `post_event`, `other`.",
+          "type": "string",
+          "enum": [
+            "age",
+            "stage",
+            "post_event",
+            "other",
+            null
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "timepoint_days": {
+          "description": "Days since birth (age) or since conception (stage).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "Float64"
+        },
+        "treatment": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "genotype": {
+          "description": "Free text, as SDDB (`C57BL/6J`, `WT`).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "condition": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "obs_unit": {
+          "description": "`cells` for every MERFISHEYES store today.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "observation_unit": {
+          "description": "`cell`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "unit_size_um": {
+          "description": "Null for cells.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "Float64"
+        },
+        "observation_unit_source": {
+          "description": "`technology_map`, as SDDB for stores whose table does not record it.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "segmentation_source": {
+          "description": "`depositor` (cells came from the depositor's table) or `vendor` (the instrument's output).",
+          "type": "string",
+          "enum": [
+            "depositor",
+            "vendor",
+            "spatialdata-db",
+            null
+          ],
+          "x-meyes-level": "recommended",
+          "x-sddb-dtype": "string"
+        },
+        "segmentation_method": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "same_section_group": {
+          "description": "10x re-releases only.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "same_section_relation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "same_section_release": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "same_section_panel_of": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "list[string]"
+        },
+        "meyes_id": {
+          "description": "The CatalogDataset id: the Explore page.",
+          "type": "string",
+          "x-meyes-level": "required"
+        },
+        "meyes_source": {
+          "description": "Explore category: `curated`, `bil`, `community`.",
+          "type": "string",
+          "enum": [
+            "curated",
+            "bil",
+            "community"
+          ],
+          "x-meyes-level": "required"
+        },
+        "meyes_kind": {
+          "description": "`single_cell`, `single_molecule` or `image` (lib/datasets/kind.ts).",
+          "type": "string",
+          "enum": [
+            "single_cell",
+            "single_molecule",
+            "image"
+          ],
+          "x-meyes-level": "required"
+        },
+        "meyes_page_url": {
+          "description": "https://www.merfisheyes.com/explore/<meyes_id>",
+          "type": "string",
+          "x-meyes-level": "required"
+        },
+        "meyes_viewer_url": {
+          "description": "Opens the store in the viewer.",
+          "type": "string",
+          "x-meyes-level": "required"
+        },
+        "meyes_description": {
+          "description": "Free text; SDDB rows have none (their collections carry abstracts).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended"
+        },
+        "meyes_sex": {
+          "description": "`male`, `female`, `mixed sex` (PATO names); SDDB has no sex column.",
+          "type": "string",
+          "enum": [
+            "male",
+            "female",
+            "mixed sex",
+            null
+          ],
+          "x-meyes-level": "recommended"
+        },
+        "meyes_sex_id": {
+          "description": "PATO CURIE: PATO:0000384 male, PATO:0000383 female, PATO:0001338 mixed sex.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^PATO:[0-9]{7}$",
+          "x-meyes-level": "recommended"
+        },
+        "meyes_development_stage_id": {
+          "description": "HsapDv / MmusDv CURIE of development_stage (SDDB publishes the name only).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^(HsapDv|MmusDv):[0-9]{7}$",
+          "x-meyes-level": "recommended"
+        },
+        "meyes_n_sections": {
+          "description": "Sections in the store (M6).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "recommended"
+        },
+        "meyes_sections": {
+          "description": "One entry per section: id, sample_id, donor_id, timepoint, n_obs, n_transcripts (M6).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/section"
+          },
+          "x-meyes-level": "recommended"
+        },
+        "meyes_dims": {
+          "description": "2 or 3.",
+          "enum": [
+            2,
+            3,
+            null
+          ],
+          "x-meyes-level": "recommended"
+        },
+        "meyes_de_columns": {
+          "description": "obs columns with DE statistics in the store.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "recommended"
+        },
+        "meyes_thumbnail_url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended"
+        },
+        "meyes_pipeline": {
+          "description": "Git short sha of the code that wrote the store; null for a store we did not write.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "recommended"
+        },
+        "meyes_pipeline_input": {
+          "description": "What prepare.py recognised the input as.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional"
+        },
+        "meyes_bil_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional"
+        },
+        "meyes_investigator": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional"
+        },
+        "meyes_co_investigators": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "optional"
+        },
+        "meyes_institution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional"
+        },
+        "meyes_funding": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional"
+        },
+        "meyes_tags": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "optional"
+        },
+        "meyes_n_molecule_genes": {
+          "description": "Genes in the points elements (may include blanks).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "optional"
+        },
+        "meyes_cell_type_method": {
+          "description": "e.g. `MapMyCells hierarchical`.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "optional"
+        },
+        "meyes_cell_type_levels": {
+          "description": "Taxonomy levels present as obs columns.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "optional"
+        }
+      }
+    }
+  }
+}

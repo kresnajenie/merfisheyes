@@ -13,7 +13,11 @@ departs only where our data does not fit (multi-section stores,
 molecules at billion scale) — each departure recorded in §3.
 
 This file is the brief for every session working on it. **Status
-(2026-11-14): planned after the meeting with Tim Treis; no step started.**
+(2026-11-16): step 1 drafted — [`docs/specs/metadata.md`](../specs/metadata.md),
+its schema `docs/specs/schemas/metadata.schema.json`, the pins in
+`conventions.json` `metadata`, and the gate's evidence
+[`metadata-inventory.md`](../specs/metadata-inventory.md)
+(`scripts/metadata/inventory.py`); awaiting review.**
 Keep it current: a step that changes a fact or a decision edits this
 file in the same commit. Branch: `feature/metadata`, from `develop` (the
 pipeline parts touch `scripts/` and `scripts/bil-scripts/`, so they
@@ -90,6 +94,23 @@ rebuild the worker image — CLAUDE.md §8). Related plans:
   Phenotype, …), ExperimentalFactor (EFO), DevelopmentalStage (human and
   mouse), Ethnicity (HANCESTRO); `validate`, synonyms and abbreviations,
   versioned `Source`s.
+- **What they pin** (read from `scverse/spatialdata-db` 2026-11-13; in
+  `conventions.json` `metadata.ontologies`): NCBITaxon 2023-06-20 and
+  Ensembl release-112 (organism names), UBERON 2024-08-07, MONDO
+  2024-06-04, HsapDv / MmusDv 2024-05-28, EFO 3.70.0, PATO 2024-03-28, CL
+  2024-05-15. bionty's defaults are newer (Ensembl release-116), so every
+  lookup names its version.
+- **Their stores carry labels, not ids.** `metadata_general` (General
+  Metadata Version 0.3.0–0.3.2, 25 keys over 83 sampled stores) says
+  `"Organism": "mouse"`, `"Tissue": "brain"`; no ontology id is in any
+  store. The ids are in their Lamin features (named as the
+  `metadata_general` keys, typed to bionty: `Organism`, `Tissue`,
+  `Disease`, `Development Stage`, `Assay` → EFO) and in `catalog.parquet`.
+  No sex column or feature exists.
+- **They list multi-section data per section**: the Zhuang whole-brain
+  MERFISH is one row per section (`canonical_key`
+  `abc:Zhuang-ABCA-1.010`), grouped by `study_id` `abc:Zhuang-ABCA-1`;
+  they tag it `merfish` (academic) and Yao et al. 2023's `vizgen_merscope`.
 - **Their agent surface**: the Python client's CLI and stdio MCP server
   (`sddb-mcp`: `query`, `describe`, `genes`, `features`, `facets`,
   `cite`, `download`). Tim described a hosted, connector-style MCP at the
@@ -109,9 +130,16 @@ rebuild the worker image — CLAUDE.md §8). Related plans:
 - **Legacy folders** carry `manifest.json`: technical, no biology.
 - **Lamin** `merfisheyes/eyes-catalog` (LAMIN.md): BIL datasets
   registered by `scripts/bil-scripts/register_lamin.py`, bionty available
-  but not yet used to validate.
+  but not yet used to validate. What is registered there now is not
+  migrated: the reprocessed fleet is registered afresh (step 5).
 - **SDDB rows on Explore** (`docs/specs/sddb-catalog.md`): a subset of
   their columns mapped to ours, the rest kept in `metadata`.
+- **Production's own rows (2026-11-16)**: 92 BIL, 56 curated (47 of them
+  BIL Xenium, `ace-owl-*`), 1 community. No BIL row opens a store yet (all
+  legacy chunked folders); 2 curated rows do. All 92 BIL rows say
+  platform "MERFISH", which does not name the instrument. 62 reprocessed
+  BIL stores with sidecars exist on the workstation. Per-row counts:
+  `docs/specs/metadata-inventory.md`.
 
 ## 3. Decisions
 
@@ -122,8 +150,12 @@ rebuild the worker image — CLAUDE.md §8). Related plans:
 | M3 | Terms are validated with bionty against the same ontology sources and versions SDDB pins, in the pipeline (Python) on the way in. A dataset published through our publishing system is public once bionty passes it; a person's review is expected but not required — bionty is the gate when nobody reviews | **taken** 2026-11-14 |
 | M4 | One query index of every public dataset, in SDDB's catalog format plus our columns, published with each change; the site's filters and the MCP's queries start there | **taken** 2026-11-14 |
 | M5 | A gene index for our datasets in SDDB's `gene_index` / `gene_search` format, so "datasets that measure / express X" is one lookup across both libraries | **taken** 2026-11-14 |
-| M6 | A dataset shown in one view keeps all its sections in one store and is **one catalog row**, its sections listed (`meyes_sections`); after reprocessing, a dataset's cells and molecules are in that same store. Sections shown separately are separate stores and rows | **taken, tentatively** 2026-11-14 — the user is not certain; revisit when the reprocessed BIL stores and SDDB's per-sample columns are compared |
+| M6 | A dataset shown in one view keeps all its sections in one store and is **one catalog row**, its sections listed (`meyes_sections`); after reprocessing, a dataset's cells and molecules are in that same store. Sections shown separately are separate stores and rows | **taken, tentatively** 2026-11-14 — the user is not certain; revisit when the reprocessed BIL stores and SDDB's per-sample columns are compared. 2026-11-16: kept for step 1 with per-section facts nested in `meyes_sections`, knowing SDDB lists the Zhuang ABCA data per section; still revisited before step 6 |
 | M7 | Private datasets are never in the public index; an owner's queries read Postgres with the same columns | **taken** 2026-11-14 |
+| M8 | Our stores carry the ontology ids: `metadata_general` and the per-technology block exactly as SDDB writes them (labels), and a sibling root attribute `meyes_metadata` with every id and our columns under the index's column names, plus `meyes_provenance`. SDDB's blocks are never redefined | **taken** 2026-11-16 |
+| M9 | A row enters the public index only when its dataset is a store (`zarr_url` is required). Legacy chunked datasets keep the same columns in Postgres and stay on Explore until reprocessed | **taken** 2026-11-16 |
+| M10 | All our data is reprocessed for this schema (step 5). Until that is done the required set is relaxed to what search and the MCP need — organism and tissue with ids, counts, title, a store and our links (16 columns); `uid`, `technology`, `vendor`, `assay` are recommended and become required at step 5's gate | **taken** 2026-11-16 |
+| M11 | The tissue system / organ and disease class / group facets use our own anchor lists (`conventions.json` `metadata.groupings`), built from the terms SDDB's release uses; first anchor in list order among the term and its ancestors wins | **taken** 2026-11-16 |
 
 ## 4. Steps
 
@@ -146,14 +178,26 @@ ontology ids.
 count of fields each can fill today; reviewed against SDDB's
 `_catalog_schema.py` column by column.
 
+*Drafted 2026-11-16, awaiting review.* The profile covers all 93 of their
+columns (each with a level; `test_metadata_schema_profiles_sddb_schema_3`
+fails if one is missing or its dtype differs) plus 25 `meyes_*` columns;
+16 are required while the fleet is reprocessed (M10), 20 after. All 149
+production rows are counted in `metadata-inventory.md`: BIL rows fill a
+median of 13 of 16 required columns today and all 16 once they open their
+reprocessed store; what they lack today is the store itself.
+`technology`/`vendor`/`assay` need the instrument, which "MERFISH" does
+not name — recommended until reprocessing. The spelling maps in `conventions.json`
+(`catalog.species`, `catalog.platforms`) stay until step 6, when Explore
+reads the index; `metadata.md` §7.1 and §7.3 are what replaces them.
+
 ### Step 2 — Validation with bionty
 
 `scripts/metadata/validate_metadata.py` (in `meyes-prepare`'s
 environment): reads a dataset's metadata, validates each ontology field
 with bionty against the pinned sources, standardises synonyms ("mouse"
 → *Mus musculus*, NCBITaxon:10090), fills the hierarchy columns from the
-ontology (tissue system and organ, disease class and group — SDDB's
-`ontology_rollup.json` logic), and writes a report. `prepare.py` calls it;
+ontology (tissue system and organ, disease class and group — our anchor
+lists, M11, `metadata.md` §7.6), and writes a report. `prepare.py` calls it;
 an invalid term is exit code **4** (invalid), with the closest terms in
 the message.
 
@@ -182,18 +226,29 @@ passes it (M3); an open review marks it, it does not hide it.
 **Gate:** in `eyes-catalog`, a query by organism and tissue id returns
 the BIL datasets; a dataset bionty rejects is held back.
 
-### Step 5 — Backfill what exists
+### Step 5 — Reprocess everything, and backfill on the way
 
-The ~87-dataset BIL fleet, community submissions and older public
-datasets: an agent proposes the ontology terms, ages, genotypes and
-conditions from titles, descriptions, BIL and GEO records, each with the
-source text it came from; a person confirms or corrects (in Lamin or a
-review sheet). Unconfirmed fields stay null, not guessed. Clears MCP.md
-§10's E1–E14 where they are metadata.
+**Every dataset we serve is reprocessed** into a store carrying this
+metadata (M10): the BIL fleet (92 rows, plus the 47 `ace-owl-*` Xenium
+rows listed as curated), the other curated rows and community
+submissions. The pipeline on `bil/pipeline-dry-run` is updated to write
+the metadata (step 3) and to sync and register each store in Lamin (step
+4); what eyes-catalog holds today is replaced, not migrated.
 
-**Gate:** every public row has organism, tissue and assay ids; the share
-of rows with age and disease recorded; the review list empty or each
-item explained.
+Before a dataset's run, its metadata is backfilled into its input
+(`catalog.json`): an agent proposes the ontology terms, the instrument
+(`merfish` or `vizgen_merscope`), ages, genotypes and conditions from
+titles, descriptions, BIL and GEO records, each with the source text it
+came from; a person confirms or corrects (a review sheet). Unconfirmed
+fields stay null, not guessed. Clears MCP.md §10's E1–E14 where they are
+metadata. A legacy chunked dataset enters the index (M9) once its store is
+published.
+
+**Gate:** every public dataset is a store with the metadata, registered;
+every public row has organism and tissue ids and a technology; the share
+of rows with age and disease recorded; the review list empty or each item
+explained. Then the interim requirement ends: `uid`, `technology`,
+`vendor`, `assay` become required (`metadata.md` §3).
 
 ### Step 6 — The query index
 
@@ -244,9 +299,15 @@ agrees.
 - Who reviews metadata, and where (Lamin's UI, a sheet, an admin page) — review is expected, not required (M3).
 - How often the index is rebuilt (on each change, or a nightly release
   like SDDB's).
-- Which bionty source versions SDDB pins, so ours match term for term.
+- ~~Which bionty source versions SDDB pins~~ — answered 2026-11-16 (§2;
+  `conventions.json` `metadata.ontologies`).
 - Whether SDDB's `metadata_general` keys are meant to become a scverse
   convention — if so, follow it there.
+- Nice to have from Tim, not blocking: their anchor tables (to compare
+  with ours, M11) and the `cmh1:` count-matrix hash algorithm. Their
+  `tier` (bronze/silver) grades their own conversions; we leave it null.
+- The instrument behind each BIL "MERFISH" dataset (`merfish` or
+  `vizgen_merscope`): part of step 5's backfill.
 
 ## 6. Risks
 

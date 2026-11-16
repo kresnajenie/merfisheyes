@@ -83,6 +83,81 @@ def test_conventions_file_matches_its_schema():
     assert validate_store.default_table(attrs, ["a", "b"]) == "b"
 
 
+# SpatialData-DB's REQUIRED_COLUMNS (src/sddb/_catalog_schema.py, schema 3).
+SDDB_REQUIRED = ["uid", "technology", "assay", "organism", "validation_status", "zarr_url"]
+
+
+def metadata_example() -> dict:
+    """Root attributes of the reprocessed ace-dip-van store, as docs/specs/metadata.md §4 lays them out
+    (values from its catalog.json and stats.json; section ids abbreviated)."""
+    return {
+        "metadata_general": {
+            "Product": "MERSCOPE", "Assay": "Vizgen MERSCOPE", "Biomaterial Type": "Specimen from Organism",
+            "Organism": "mouse", "Tissue": "brain", "Modality": "RNA", "Disease": "unknown",
+            "Default Table": "table", "Dataset Url": "https://api.brainimagelibrary.org/web/view?bildid=ace-dip-van",
+            "Sample ID at Source": "ace-dip-van", "License": "CC BY-NC 4.0", "Development Stage": "13-week-old stage",
+            "HnE Image Available": False, "IF Image Available": False, "FTU Annotation Available": False,
+            "Number of Transcripts": 472686422, "General Metadata Version": "0.3.2",
+        },
+        "metadata_merscope": {"Merscope Metadata Version": "0.1.0"},
+        "meyes_metadata": {
+            "version": "1", "canonical_key": "bil:ace-dip-van", "study_id": "bil:ace-dip-van",
+            "title": "MERFISH Imaging of mesocorticolimbic regions in the mouse brain (infected with EcoHIV virus; systemic)",
+            "organism": "mouse", "organism_id": "NCBITaxon:10090",
+            "tissue": "brain", "tissue_id": "UBERON:0000955",
+            "disease": "unknown", "disease_id": None,
+            "development_stage": "13-week-old stage", "meyes_development_stage_id": "MmusDv:0000159",
+            "technology": "vizgen_merscope", "vendor": "vizgen", "assay": "Vizgen MERSCOPE",
+            "n_obs": 243224, "n_features": 300, "n_transcripts": 472686422,
+            "timepoint": "91.0 Days", "timepoint_kind": "age", "timepoint_days": 91.0,
+            "genotype": "C57BL/6J", "condition": "EcoHIV infection, systemic",
+            "meyes_sex": "male", "meyes_sex_id": "PATO:0000384", "license": "CC-BY-NC-4.0",
+            "meyes_kind": "single_cell", "meyes_n_sections": 3,
+            "meyes_dims": 2, "meyes_sections": [{"id": "s1"}, {"id": "s2"}, {"id": "s3"}],
+        },
+        "meyes_provenance": {
+            "canonical_key": "bil:ace-dip-van", "pipeline": "93ab1c0", "input": "merscope",
+            "written_at": "2026-11-16T00:00:00Z",
+            "validation": {"status": "pass", "at": "2026-11-16T00:00:00Z",
+                           "sources": {"organism": "ncbitaxon 2023-06-20", "tissue": "uberon 2024-08-07"}},
+        },
+    }
+
+
+def test_metadata_schema_profiles_sddb_schema_3():
+    """docs/specs/schemas/metadata.schema.json: every index column has a level, SpatialData-DB's
+    required columns stay required, the pinned ontologies are the ones the spec names, and a
+    store's root attributes laid out as the spec says validate — a wrong id does not."""
+    import jsonschema
+
+    schema = json.loads((ROOT / "docs" / "specs" / "schemas" / "metadata.schema.json").read_text())
+    jsonschema.Draft202012Validator.check_schema(schema)
+    row = schema["$defs"]["indexRow"]
+    cols = row["properties"]
+    assert all(p["x-meyes-level"] in ("required", "recommended", "optional", "derived", "n/a")
+               for p in cols.values())
+    sddb = [c for c in cols if not c.startswith("meyes_")]
+    assert len(sddb) == 93 and all("x-sddb-dtype" in cols[c] for c in sddb)
+    # Their required columns are ours too: now, or once the fleet is reprocessed (METADATA.md M10)
+    assert set(SDDB_REQUIRED) <= set(row["required"]) | set(row["x-meyes-required-after-reprocessing"])
+    pins = validate_store.CONVENTIONS["metadata"]
+    assert pins["sddb"]["catalogSchemaVersion"] == 3
+    assert schema["$defs"]["metadataGeneral"]["properties"]["General Metadata Version"]["const"] == \
+        pins["sddb"]["generalMetadataVersion"]
+
+    v = jsonschema.Draft202012Validator(schema)
+    good = metadata_example()
+    v.validate(good)
+    bad = json.loads(json.dumps(good))
+    bad["meyes_metadata"]["tissue_id"] = "brain"
+    with pytest.raises(jsonschema.ValidationError):
+        v.validate(bad)
+    no_id = json.loads(json.dumps(good))
+    del no_id["meyes_metadata"]["organism_id"]
+    with pytest.raises(jsonschema.ValidationError):
+        v.validate(no_id)
+
+
 def test_modality_fixtures_pass():
     """The stores shaped like SpatialData-DB's CODEX, MALDI-MSI and CosMx ones
     (scripts/testdata/make-tiny-modalities.py): a dense X, a feature index
