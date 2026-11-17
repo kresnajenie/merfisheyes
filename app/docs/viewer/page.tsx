@@ -276,7 +276,9 @@ export default function ViewerPage() {
             full colour. A store with more than one image (an H&amp;E photograph
             beside a fluorescence stain) lists them there to choose from, and a
             photograph has a <b>Greyscale</b> box, so its colours do not compete
-            with the gene&apos;s.
+            with the gene&apos;s. <b>On top</b> draws a second image over the
+            first, seen through at the opacity you set, so the H&amp;E and the
+            stain can be looked at together.
           </p>
         </Prose>
         <Callout>

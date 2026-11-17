@@ -310,6 +310,13 @@ and the placement is one matrix on the layer.
   (`isRgb`) has a **Greyscale** box (Rec. 601 luma in the shader). The
   choice replaces the scene's image element through the panel's layers
   store (`replaceElement`), until the viewer opens another dataset.
+- **On top** draws a second image over the first: `ImageLayer.setOverlay`
+  makes a child layer that lives and dies with its parent, with its own
+  channels, greyscale and an `opacity` (0.5 to start). Its tiles blend in the
+  opaque pass, above the image under it and below the shapes' fill, and are
+  drawn finest first with a stencil mark, so a coarse tile kept up under a
+  finer one is not blended in a second time (the renderer has a stencil
+  buffer for this). In the link it is `o` inside `img=`.
 - What is set there is kept in the link (`img=`, or `rimg=` in the right
   split panel) once something is changed, so a copied link opens looking the
   same. An untouched image leaves the link alone.

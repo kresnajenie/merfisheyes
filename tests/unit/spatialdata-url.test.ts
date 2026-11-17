@@ -5,6 +5,7 @@ import {
   encodeImageChoice,
   encodeImageState,
   imageNameInState,
+  overlayNameInState,
 } from "@/lib/spatialdata/imageUrlState";
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 
@@ -180,6 +181,31 @@ describe("image settings in a link", () => {
       false,
     );
     expect(imageNameInState("not-a-state")).toBeUndefined();
+  });
+
+  it("round-trips the image drawn over it, with its opacity and settings", () => {
+    const names = ["morphology", "he_image"];
+    const from = layer([true], "morphology", names);
+
+    from.overlay = { ...layer([true, true, true], "he_image", names), opacity: 0.3 };
+    from.overlay.grayscale = true;
+    const link = encodeImageState(from);
+
+    expect(overlayNameInState(link)).toBe("he_image");
+    expect(overlayNameInState(encodeImageState(layer([true])))).toBeUndefined();
+
+    // The viewer opens the image the link names, then the settings go on
+    const to = layer([false], "morphology", names);
+
+    to.overlay = { ...layer([false, false, false], "he_image", names), opacity: 0.5 };
+    expect(applyImageState(to, link)).toBe(true);
+    expect(to.overlay.opacity).toBe(0.3);
+    expect(to.overlay.grayscale).toBe(true);
+
+    // Written for another image on top: this one keeps what it has
+    to.overlay = { ...layer([false], "other", names), opacity: 0.5 };
+    expect(applyImageState(to, link)).toBe(true);
+    expect(to.overlay.opacity).toBe(0.5);
   });
 
   it("ignores settings written for another image", () => {

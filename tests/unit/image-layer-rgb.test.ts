@@ -108,6 +108,43 @@ describe("ImageLayer and colour photographs", () => {
     expect(new ImageLayer(image(["DAPI", "CD45"], { perChunk: 1 }).img).rgb).toBe(false);
   });
 
+  it("draws a second image over the first, blended once per pixel", async () => {
+    const layer = new ImageLayer(image(["DAPI"], { perChunk: 1 }).img);
+    const scene = host();
+
+    scene.attach(layer);
+    layer.setOverlay(image(["r", "g", "b"]).img);
+    const over = layer.overlay!;
+
+    expect(over.opacity).toBe(0.5);
+    scene.tick();
+    await flush();
+    scene.tick();
+    const tiles = (l: ImageLayer) =>
+      (l as any).root.children as THREE.Mesh<any, THREE.ShaderMaterial>[];
+
+    expect(tiles(over).length).toBeGreaterThan(0);
+    for (const mesh of tiles(over)) {
+      // Above the image under it, below the shapes' fill
+      expect(mesh.renderOrder).toBeGreaterThan(-1000);
+      expect(mesh.renderOrder).toBeLessThan(-999.5);
+      expect(mesh.material.blending).toBe(THREE.CustomBlending);
+      expect(mesh.material.stencilWrite).toBe(true);
+    }
+    for (const mesh of tiles(layer)) {
+      expect(mesh.renderOrder).toBeLessThanOrEqual(-1000);
+      expect(mesh.material.stencilWrite).toBe(false);
+    }
+
+    // Hidden with the image under it, and gone with it
+    layer.visible = false;
+    scene.tick();
+    expect((over as any).root.visible).toBe(false);
+    layer.setOverlay(null);
+    expect(layer.overlay).toBeNull();
+    expect((over as any).root.parent).toBeNull();
+  });
+
   it("reads each tile's chunk once and gives every channel its own plane", async () => {
     const { img, reads } = image(["r", "g", "b"]);
     const layer = new ImageLayer(img);

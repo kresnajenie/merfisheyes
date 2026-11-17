@@ -28,11 +28,13 @@ interface ImageUrlState {
     | [0 | 1, string, number, number]
     | [0 | 1, string, number, number, number, number]
   )[];
+  /** The image drawn over this one: its own settings, and `a`, its opacity. */
+  o?: ImageUrlState & { n: string; a: number };
 }
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
-export function encodeImageState(layer: ImageLayer): string {
+function stateOf(layer: ImageLayer): ImageUrlState {
   const state: ImageUrlState = {
     c: layer.channels.map((ch, i) =>
       ch.range
@@ -43,9 +45,23 @@ export function encodeImageState(layer: ImageLayer): string {
     ),
   };
 
+  if (layer.grayscale) state.g = 1;
+
+  return state;
+}
+
+export function encodeImageState(layer: ImageLayer): string {
+  const state = stateOf(layer);
+
   if (!layer.visible) state.s = false;
   if (layer.siblings.length > 1) state.n = layer.name;
-  if (layer.grayscale) state.g = 1;
+  if (layer.overlay) {
+    state.o = {
+      ...stateOf(layer.overlay),
+      n: layer.overlay.name,
+      a: Math.round(layer.overlay.opacity * 100) / 100,
+    };
+  }
 
   return toBase64Url(state);
 }
@@ -62,13 +78,15 @@ export function imageNameInState(encoded: string): string | undefined {
   return typeof name === "string" ? name : undefined;
 }
 
-/**
- * Apply settings from a link. Ones written for an image with a different
- * number of channels, or that do not make sense for this one, are ignored.
- */
-export function applyImageState(layer: ImageLayer, encoded: string): boolean {
-  const state = fromBase64Url<ImageUrlState>(encoded);
+/** The image a link draws over the first one, when it has one. */
+export function overlayNameInState(encoded: string): string | undefined {
+  const name = fromBase64Url<ImageUrlState>(encoded)?.o?.n;
 
+  return typeof name === "string" ? name : undefined;
+}
+
+/** Channel settings that make sense for this layer; applied if so. */
+function applyChannels(layer: ImageLayer, state: ImageUrlState): boolean {
   if (
     !Array.isArray(state?.c) ||
     state.c.length !== layer.channels.length ||
@@ -94,7 +112,6 @@ export function applyImageState(layer: ImageLayer, encoded: string): boolean {
   ) {
     return false;
   }
-  layer.visible = state.s !== false;
   layer.grayscale = state.g === 1;
   state.c.forEach(([on, color, min, max, lo, hi], i) =>
     layer.setChannel(i, {
@@ -104,6 +121,29 @@ export function applyImageState(layer: ImageLayer, encoded: string): boolean {
       ...(lo !== undefined && { range: [lo, hi!] as [number, number] }),
     }),
   );
+
+  return true;
+}
+
+/**
+ * Apply settings from a link. Ones written for an image with a different
+ * number of channels, or that do not make sense for this one, are ignored.
+ * Those of the image drawn over it go to the layer's overlay, once the
+ * caller has opened the one the link names (`overlayNameInState`).
+ */
+export function applyImageState(layer: ImageLayer, encoded: string): boolean {
+  const state = fromBase64Url<ImageUrlState>(encoded);
+
+  if (!state || !applyChannels(layer, state)) return false;
+  layer.visible = state.s !== false;
+  if (
+    layer.overlay &&
+    state.o?.n === layer.overlay.name &&
+    applyChannels(layer.overlay, state.o) &&
+    Number.isFinite(state.o.a)
+  ) {
+    layer.overlay.opacity = state.o.a;
+  }
 
   return true;
 }

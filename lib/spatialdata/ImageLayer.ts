@@ -122,6 +122,14 @@ export class ImageLayer extends BaseLayer {
   readonly rgb: boolean;
   /** Called when channel settings change on their own (auto contrast). */
   onChange?: () => void;
+  /**
+   * Another image of the store drawn over this one and seen through (H&E
+   * over a fluorescence image). It lives and dies with this layer.
+   */
+  overlay: ImageLayer | null = null;
+  /** This layer is another's overlay; and whether that one is shown. */
+  private over = false;
+  private shown = true;
 
   /** Image units → the scene; the group's matrix, so tiles stay axis-aligned. */
   readonly placement: Map2;
@@ -143,6 +151,7 @@ export class ImageLayer extends BaseLayer {
     uWindow: { value: THREE.Vector2[] };
     uOn: { value: boolean[] };
     uGray: { value: boolean };
+    uOpacity: { value: number };
   };
   private fragmentShader: string;
   private queue: { tile: Tile; channel: number }[] = [];
@@ -187,6 +196,7 @@ export class ImageLayer extends BaseLayer {
       uWindow: { value: perSlot(() => new THREE.Vector2()) },
       uOn: { value: perSlot(() => false) },
       uGray: { value: false },
+      uOpacity: { value: 1 },
     };
     // Sampler arrays can't be indexed by a loop variable in GLSL ES 3, so
     // the per-slot code is written out.
@@ -200,6 +210,7 @@ export class ImageLayer extends BaseLayer {
       uniform vec2 uWindow[${MAX_VISIBLE_CHANNELS}];
       uniform bool uOn[${MAX_VISIBLE_CHANNELS}];
       uniform bool uGray;
+      uniform float uOpacity;
       in vec2 vUv;
       out vec4 fragColor;
       void main() {
@@ -214,7 +225,7 @@ export class ImageLayer extends BaseLayer {
           .join("\n")}
         // Luma (Rec. 601), so the image does not compete with the colours on it
         if (uGray) rgb = vec3(dot(rgb, vec3(0.299, 0.587, 0.114)));
-        fragColor = vec4(rgb, 1.0);
+        fragColor = vec4(rgb, uOpacity);
       }`;
 
     this.blank = this.makeTexture(
@@ -274,6 +285,38 @@ export class ImageLayer extends BaseLayer {
   }
   set visible(v: boolean) {
     this._visible = v;
+    if (this.overlay) {
+      this.overlay.shown = v;
+      this.overlay.changed();
+    }
+    this.changed();
+  }
+
+  /** How much of an overlay covers the image under it (0 to 1). */
+  get opacity() {
+    return this.sharedUniforms.uOpacity.value;
+  }
+  set opacity(v: number) {
+    this.sharedUniforms.uOpacity.value = Math.min(Math.max(v, 0), 1);
+    this.changed();
+  }
+
+  /** Draw another image over this one (null takes it away). */
+  setOverlay(image: SpatialDataImage | null) {
+    if (this.disposed) return;
+    this.overlay?.dispose();
+    this.overlay = null;
+    if (image) {
+      const over = new ImageLayer(image);
+
+      over.over = true;
+      over.shown = this._visible;
+      over.sharedUniforms.uOpacity.value = 0.5;
+      over.setBudget(this.budget);
+      over.subscribe(() => this.changed());
+      if (this.scene) over.attach(this.scene);
+      this.overlay = over;
+    }
     this.changed();
   }
 
@@ -289,10 +332,18 @@ export class ImageLayer extends BaseLayer {
   protected onAttach(scene: SceneHandle) {
     this.camera = scene.camera;
     this.renderer = scene.renderer;
+    this.overlay?.attach(scene);
+  }
+
+  protected onDetach() {
+    this.overlay?.detach();
   }
 
   status(): LayerStatus {
-    const loading = this.activeLoads > 0 || this.queue.length > 0;
+    const loading =
+      this.activeLoads > 0 ||
+      this.queue.length > 0 ||
+      this.overlay?.status().phase === "loading";
 
     return {
       phase: loading ? "loading" : "ready",
@@ -318,11 +369,13 @@ export class ImageLayer extends BaseLayer {
 
   setBudget(budget: LayerBudget) {
     super.setBudget(budget);
+    this.overlay?.setBudget(budget);
     this.changed();
   }
 
   /** Cancel every chunk read, queued or in flight; what arrived stays. */
   abort() {
+    this.overlay?.abort();
     for (const { tile, channel } of this.queue) tile.loading[channel] = false;
     this.queue = [];
     for (const tile of this.tiles.values()) {
@@ -368,6 +421,8 @@ export class ImageLayer extends BaseLayer {
   }
 
   dispose() {
+    this.overlay?.dispose();
+    this.overlay = null;
     super.dispose();
     for (const tile of this.tiles.values()) this.disposeTile(tile);
     this.tiles.clear();
@@ -377,6 +432,7 @@ export class ImageLayer extends BaseLayer {
   tick(frame: FrameInfo) {
     if (this.disposed || !this.scene) return;
     this.update(frame.view);
+    this.overlay?.tick(frame);
   }
 
   /**
@@ -403,7 +459,8 @@ export class ImageLayer extends BaseLayer {
   /** Choose the level and chunks for the current view, and show what's loaded. */
   private update(sceneView: ViewRect | null) {
     this.frame++;
-    this.root.visible = this._visible && this.channels.some((c) => c.visible);
+    this.root.visible =
+      this._visible && this.shown && this.channels.some((c) => c.visible);
     if (!this.root.visible) return;
 
     const view = sceneView && this.toImageView(sceneView);
@@ -484,7 +541,7 @@ export class ImageLayer extends BaseLayer {
    * the chosen level, first content, a settled view. No-op in production.
    */
   private report(level: number, wanted: Set<Tile>) {
-    if (!hooksEnabled()) return;
+    if (!hooksEnabled() || this.over) return;
     let drawn = 0;
 
     for (const tile of this.tiles.values()) if (tile.mesh.visible) drawn++;
@@ -597,11 +654,24 @@ export class ImageLayer extends BaseLayer {
         side: THREE.DoubleSide,
         depthTest: false,
         depthWrite: false,
+        // An overlay is blended once per pixel: its finer tiles are drawn
+        // first and mark the stencil, so the coarser ones under them (kept
+        // up while finer ones arrive) do not add to it a second time.
+        ...(this.over && {
+          blending: THREE.CustomBlending,
+          blendSrc: THREE.SrcAlphaFactor,
+          blendDst: THREE.OneMinusSrcAlphaFactor,
+          stencilWrite: true,
+          stencilFunc: THREE.NotEqualStencilFunc,
+          stencilRef: 1,
+          stencilZPass: THREE.ReplaceStencilOp,
+        }),
       }),
     );
 
-    // Behind the points, finer levels over coarser ones
-    mesh.renderOrder = -1000 - l;
+    // Behind the points, finer levels over coarser ones. An overlay sits
+    // between the image under it and the shapes' fill (-999.5).
+    mesh.renderOrder = this.over ? -999.9 + l * 0.001 : -1000 - l;
     mesh.visible = false;
     this.root.add(mesh);
 

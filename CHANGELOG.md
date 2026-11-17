@@ -15,12 +15,18 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   its fluorescence stain) lists them in the Image panel, and an H&E image has
   a **Greyscale** box so its colours do not compete with the gene's. Both are
   kept in the link.
+- **Two images of a store together.** *On top* in the Image panel draws a
+  second image over the first (H&E over the fluorescence stain, or the other
+  way round), seen through at an opacity you set, with its own channels and
+  greyscale. Kept in the link.
 
 ### Changed
 
 - **Genes and numerical columns are coloured with viridis by default**
   (it was blue–white–red). A link or saved view that names a colormap keeps
   it; one made with the old default and never changed now opens in viridis.
+- **Cell outlines show from further out.** They are drawn once the view is
+  under 2 mm across (it was 1 mm), with up to 80,000 at once.
 
 ## [0.16.0] - 2026-11-08
 

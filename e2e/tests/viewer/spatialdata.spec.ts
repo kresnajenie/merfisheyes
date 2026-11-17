@@ -222,7 +222,7 @@ test("@quick a store's other images can be chosen, drawn in grey, and kept in th
   });
   await page.locator(SELECTORS.imageButton).click();
   const chooser = page.getByLabel("Image", { exact: true });
-  const grey = page.getByLabel("Greyscale");
+  const grey = page.getByLabel("Greyscale", { exact: true });
 
   await expect(chooser).toHaveValue("tiny_full_image");
   await expect(chooser.locator("option")).toHaveText([
@@ -253,7 +253,44 @@ test("@quick a store's other images can be chosen, drawn in grey, and kept in th
     "tiny_hires_image",
     { timeout: 120_000 },
   );
-  await expect(page.getByLabel("Greyscale")).toBeChecked();
+  await expect(page.getByLabel("Greyscale", { exact: true })).toBeChecked();
+
+  // A second image over the first, seen through, and kept in the link too
+  const onTop = page.getByLabel("Image on top", { exact: true });
+
+  await expect(onTop.locator("option")).toHaveText([
+    "Nothing",
+    "tiny_full_image",
+    "tiny_lowres_image",
+  ]);
+  await onTop.selectOption("tiny_lowres_image");
+  await expect
+    .poll(() => served(/\/images\/tiny_lowres_image\/s\d\/c\//), {
+      message: "the image on top should be read",
+    })
+    .toBe(true);
+  const opacity = page.getByLabel("Opacity of the image on top");
+
+  await expect(opacity).toHaveValue("0.5");
+  const beforeOpacity = img();
+
+  await opacity.fill("0.3");
+  await page.getByLabel("On top: Greyscale").check();
+  await expect.poll(img).not.toBe(beforeOpacity);
+  // The link is written a moment after the last change
+  await page.waitForTimeout(1000);
+
+  await page.reload();
+  await page.locator(SELECTORS.imageButton).click();
+  await expect(page.getByLabel("Image on top", { exact: true })).toHaveValue(
+    "tiny_lowres_image",
+    { timeout: 120_000 },
+  );
+  await expect(page.getByLabel("Opacity of the image on top")).toHaveValue(
+    "0.3",
+  );
+  await expect(page.getByLabel("On top: Greyscale")).toBeChecked();
+  await expect(page.getByLabel("Greyscale", { exact: true })).toBeChecked();
 });
 
 test("@quick Visium HD store: the bins drawn as squares of their real size", async ({
@@ -464,7 +501,7 @@ test("@quick CosMx store: cells placed from their shapes when the table has no o
   expect((await readHooks(page))!.stats!.pointCount, "cells").toBe(25);
   // The cells' positions come from the Point element, read whole. The
   // polygons are the Shapes layer's (a recognised outline element,
-  // docs/specs/conventions.json): it reads them once the view is under 1 mm
+  // docs/specs/conventions.json): it reads them once the view is under 2 mm
   // across, which this tiny store always is; a real store's first view is
   // wider and reads none
   expect(

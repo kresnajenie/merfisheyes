@@ -346,7 +346,7 @@ OK   mapping.json: names the store only`}
                 <p>
                   As above: drop <code>sample/</code> on the single cell{" "}
                   <b>Folder</b> card, <b>Upload &amp; Save</b>, or sync it to a
-                  bucket. Zoomed in below 1 mm the cell polygons draw over the
+                  bucket. Zoomed in below 2 mm the cell polygons draw over the
                   image; the molecules stream by view.
                 </p>
               ),
