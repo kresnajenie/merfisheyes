@@ -11,6 +11,7 @@ export type CheckOverlay = DatasetLinkConfig & {
 import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { SpatialDataImage } from "@/lib/spatialdata/image";
 import type { CellPolygons } from "@/lib/spatialdata/shapes";
+import type { StoreMetadata } from "@/lib/spatialdata/metadata";
 
 import { create } from "zustand";
 
@@ -30,6 +31,8 @@ interface LocalBundleState {
   molecules: SingleMoleculeDataset | null;
   image: SpatialDataImage | null;
   shapes: (() => Promise<CellPolygons>) | null;
+  /** What the dropped store says about itself (its root attributes). */
+  metadata: StoreMetadata | null;
   /**
    * Molecules picked to check the preview against (the overlay dialog's
    * local mode): drawn over the cells instead of any dropped with them, and
@@ -46,6 +49,7 @@ const initial = {
   molecules: null,
   image: null,
   shapes: null,
+  metadata: null,
   check: null,
 };
 
