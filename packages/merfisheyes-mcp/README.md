@@ -66,15 +66,22 @@ read-only, only while the command or the agent runs — and the viewer in
 your browser reads it from there. Nothing is uploaded, and the folder's
 address is never sent to the site.
 
-It opens a SpatialData store (`.zarr`, Zarr v3 with consolidated
-metadata) or a folder holding one, a folder MERFISHEYES processed
-(`manifest.json`), or an OME-Zarr image. An `.h5ad` or raw MERSCOPE /
-Xenium output needs converting first (`scripts/prepare.py` in the
-repository writes a SpatialData store).
+It opens a SpatialData store (`.zarr`) or a folder holding one, a folder
+MERFISHEYES processed (`manifest.json`), or an OME-Zarr image as they are.
+An `.h5ad` (with `obsm["spatial"]`), a Xenium export, a MERSCOPE region,
+a Visium output or a molecule table (`.parquet` / `.csv` with gene, x, y)
+is first converted once by MERFISHEYES's own pipeline into a SpatialData
+store in a cache folder (`~/.cache/merfisheyes/converted`, or
+`MERFISHEYES_CACHE`), and reused until the input changes; the input is
+never changed. Converting needs Python 3.12 with the pipeline's packages:
+`pip install -r` the `requirements.txt` the package carries (the error
+message gives its path), or set `MERFISHEYES_PYTHON` to a Python that has
+them.
 
-In Chrome, the first time, allow www.merfisheyes.com to reach apps on
-this device when it asks; without it the browser does not let the page
-read the folder.
+The viewer itself comes with it (`@merfisheyes/viewer`) and is served from
+your computer too, so nothing goes to the internet. Without it, links open
+the site's viewer instead, and in Chrome you allow www.merfisheyes.com to
+reach apps on this device the first time.
 
 ## Signing in
 
@@ -116,6 +123,9 @@ are paged (`limit`, `offset`, `next_offset`).
 | `MERFISHEYES_CREDENTIALS` | see above | Where tokens are kept |
 | `MERFISHEYES_NO_BROWSER` | unset | Never open a browser; only give links |
 | `MERFISHEYES_LOCAL_PORT` | a free port | The port `view` and `meyes_open_local` serve folders on |
+| `MERFISHEYES_PYTHON` | `python3` | The Python that converts `.h5ad` and raw instrument output |
+| `MERFISHEYES_CACHE` | the platform's cache folder | Where converted stores are kept |
+| `MERFISHEYES_VIEWER` | unset | `site`: open the site's viewer even when the standalone one is installed |
 | `MERFISHEYES_SIGN_IN_WAIT_MS` | `120000` | How long sign-in waits for you in the browser before handing back the link |
 | `MERFISHEYES_VERCEL_BYPASS` | unset | Only for a deployment behind Vercel's Deployment Protection (staging): its *Protection Bypass for Automation* secret, sent with every request. The package then registers itself instead of using the site's client document. Keep it on your machine |
 

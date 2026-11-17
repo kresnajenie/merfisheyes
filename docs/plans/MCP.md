@@ -220,6 +220,27 @@ viewer is the site's viewer code, never a fork.
    opens the store it writes, so the collaborator can work now; later the
    viewer reads them directly (h5ad with sparse `X`, raw folders over a
    URL), with no conversion.
+
+   **D1b, first part, built (2026-11-16; not committed).** `src/local/convert.ts`:
+   `LocalServer.open(path)` shares a viewable folder as it is; anything
+   else is converted once by `prepare.py` (the same pipeline as the
+   server) into `<cache>/<name>-<id>` (`~/.cache/merfisheyes/converted`,
+   `MERFISHEYES_CACHE`; decided 2026-11-16: a cache, never beside the
+   input), reused while the input's size and times are unchanged. Python:
+   `MERFISHEYES_PYTHON`, else `python3`; missing Python or packages, an
+   unrecognised input (exit 2) or an invalid store (exit 4) each say what
+   to do. The npm package carries the pipeline (`scripts/bundle-python.mjs`
+   copies `prepare.py`, the 18 scripts it runs, `requirements.txt`,
+   `conventions.json` and the schemas into `python/` on publish); from a
+   checkout it uses the repository's `scripts/`. Gate: package tests (30;
+   `test/convert.test.ts` with a stand-in Python: reuse, re-conversion after
+   a change, the error messages, every script `prepare.py` imports
+   bundled); on real data, `merfisheyes-mcp view` of an 18 MB pseudotime
+   `.h5ad` (3,534 cells × 275 genes, 11 categorical columns incl. `fov`)
+   converted with the bundled pipeline in 3.4 s, opened in the standalone
+   viewer with no request leaving 127.0.0.1, and reused in 0.2 s the
+   second time; an existing 1.4 GB store with ~10 sections opened locally
+   as it is.
 2. **A standalone viewer.** A second build target of the same viewer
    components — static files, no server, no account — shipped as its own
    npm package and served by the local mode next to the data: offline,

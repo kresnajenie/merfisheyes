@@ -12,6 +12,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SITE } from "../config.ts";
+import { type Converted, convert, viewable } from "./convert.ts";
 
 /**
  * MERFISHEYES on your own data (MCP.md §0, pillar D1): a folder on this
@@ -177,6 +178,21 @@ export class LocalServer {
     this.roots.set(token, { root, name });
 
     return { path: folder, url: this.address(token, name) };
+  }
+
+  /** Open anything: a folder the viewer reads is shared as it is; anything
+   * else (an .h5ad, a Xenium export, a MERSCOPE region, a molecule table)
+   * is converted once into the cache (convert.ts) and that is shared. */
+  async open(
+    path: string,
+    onLine?: (line: string) => void,
+  ): Promise<{ share: Share; converted: Converted | null }> {
+    const abs = resolve(path);
+
+    if (viewable(abs)) return { share: await this.share(abs), converted: null };
+    const converted = await convert(abs, { onLine });
+
+    return { share: await this.share(converted.folder), converted };
   }
 
   shared(): Share[] {

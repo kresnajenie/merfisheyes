@@ -9,6 +9,7 @@
   },
   "files": [
     "dist",
+    "python",
     "README.md"
   ],
   "scripts": {
@@ -16,7 +17,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test && node scripts/bundle-python.mjs"
   },
   "engines": {
     "node": ">=20.3"

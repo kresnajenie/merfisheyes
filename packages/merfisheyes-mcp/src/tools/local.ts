@@ -18,7 +18,7 @@ export function registerLocalTools(server: McpServer) {
     {
       title: "Open a folder from this computer in the viewer",
       description: `Open data on the person's own computer in the MERFISHEYES viewer, without uploading it: the folder is served on 127.0.0.1 (only to the MERFISHEYES site, only while this server runs) and the viewer reads it from there.
-Opens what the viewer reads: a SpatialData store (.zarr, Zarr v3 with consolidated metadata), a folder holding one, a MERFISHEYES-processed folder (manifest.json), or an OME-Zarr image. Not yet: an .h5ad file or raw MERSCOPE/Xenium output — convert those first (scripts/prepare.py in the MERFISHEYES repository writes a SpatialData store).
+Opens a SpatialData store (.zarr), a folder holding one, a MERFISHEYES-processed folder (manifest.json) or an OME-Zarr image as they are; an .h5ad (with obsm['spatial']), a Xenium export, a MERSCOPE region, a Visium output or a molecule table (.parquet/.csv with gene, x, y) is first converted once by MERFISHEYES's pipeline into a store in a cache folder (the input is never changed; reused until the input changes). Converting needs Python with the pipeline's packages; a large input takes minutes.
 Returns a link; set open=true only when the person asked to open it now. The viewer itself is served from their computer too when the standalone viewer is installed; otherwise the site's viewer reads the folder, and in Chrome the person must allow ${new URL(SITE).host} to reach apps on this device the first time.
 Examples: "show my sample in MERFISHEYES" -> path="/data/run1/sample.zarr"; "open the output folder" -> path="./out".`,
       inputSchema: z.strictObject({
@@ -27,7 +27,7 @@ Examples: "show my sample in MERFISHEYES" -> path="/data/run1/sample.zarr"; "ope
           .min(1)
           .max(4096)
           .describe(
-            "The folder: absolute, or relative to where this server was started",
+            "The folder or file: absolute, or relative to where this server was started",
           ),
         open: z
           .boolean()
@@ -43,13 +43,20 @@ Examples: "show my sample in MERFISHEYES" -> path="/data/run1/sample.zarr"; "ope
     },
     async ({ path, open }) => {
       try {
-        const share = await local.share(path);
+        const { share, converted } = await local.open(path);
         const link = openLink(share);
 
         if (open) openBrowser(link);
 
         return text(
           [
+            ...(converted
+              ? [
+                  converted.reused
+                    ? `${path} was converted before and has not changed since: reusing ${converted.folder}.`
+                    : `Converted ${path} with MERFISHEYES's pipeline in ${Math.round(converted.seconds)} s into ${converted.folder} (the input is unchanged).`,
+                ]
+              : []),
             `Serving ${share.path} from this computer (nothing is uploaded; only while this MCP server runs).`,
             "",
             link,

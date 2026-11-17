@@ -12,6 +12,8 @@
  * Nothing is ever written to stdout but the protocol.
  */
 /* eslint-disable no-console -- stderr is this server's only log: stdout carries the protocol */
+import { resolve } from "node:path";
+
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 
@@ -19,6 +21,7 @@ import { apiGet } from "./api.ts";
 import { openBrowser, signOut, startSignIn } from "./auth.ts";
 import { NAME, SITE, VERSION } from "./config.ts";
 import { credentialsPath } from "./credentials.ts";
+import { viewable } from "./local/convert.ts";
 import { local, openLink } from "./local/serve.ts";
 import type { Host } from "./host.ts";
 import { instructions } from "./instructions.ts";
@@ -87,12 +90,27 @@ async function cli(command: string): Promise<number> {
       const path = args.find((a) => !a.startsWith("--"));
 
       if (!path) {
-        console.error("Usage: merfisheyes-mcp view <folder> [--no-open]");
+        console.error(
+          "Usage: merfisheyes-mcp view <folder | .h5ad | Xenium/MERSCOPE folder | molecule table> [--no-open]",
+        );
 
         return 2;
       }
-      const share = await local.share(path);
+      if (!viewable(resolve(path)))
+        console.error(
+          `Converting ${path} with MERFISHEYES's pipeline (once; reused until it changes)…`,
+        );
+      const { share, converted } = await local.open(path, (line) =>
+        console.error(`  ${line}`),
+      );
       const link = openLink(share);
+
+      if (converted)
+        console.error(
+          converted.reused
+            ? `Reusing the earlier conversion in ${converted.folder}.`
+            : `Converted in ${Math.round(converted.seconds)} s into ${converted.folder}.`,
+        );
 
       console.error(
         [
