@@ -351,7 +351,12 @@ def metadata_values(item: Item) -> dict:
         if entity == "DevelopmentalStage":
             organism = m.get("organism")
             pin_key = "developmentStageHuman" if organism == "human" else "developmentStageMouse"
-        values[feature] = ontology_record(registry, oid, pinned_source(entity, PINS[pin_key], organism))
+        try:
+            values[feature] = ontology_record(registry, oid, pinned_source(entity, PINS[pin_key], organism))
+        except Exception as e:  # noqa: BLE001 — one missing term must not stop the registration
+            # e.g. SpatialData-DB's technology.json names EFO ids (MERSCOPE EFO:0022956) that the
+            # EFO version they pin (3.70.0) does not have: that feature is left unset, said here
+            print(f"    note: {feature} {oid} not set — {type(e).__name__}: {e}")
     return values
 
 

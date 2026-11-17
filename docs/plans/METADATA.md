@@ -274,9 +274,21 @@ bionty sources are newer than SDDB's pins (UBERON 2026-06-23, MONDO
 2026-09-01, Ensembl release-116, …) and the pinned versions are not in it:
 the script adds them as non-current `bt.Source`s and makes the records from
 them, leaving the instance's defaults alone. `--dry-run` shows each store's
-validation status and ids. The first real run (ace-dip-van, then stop) waits
-on uploading its updated `zarr.json`. Who reviews, and the review state, are
-still open.
+validation status and ids. Who reviews, and the review state, are still
+open.
+
+*First store, 2026-11-17:* ace-dip-van's metadata built, passed bionty,
+its root `zarr.json` copied to S3 (single key, byte-identical to the local
+store), registered: artifact `N8eVbF41CKh2RHE30001` (a new version — the
+root file changed), every check passing. `ln.Artifact.filter(Organism=mouse,
+Tissue=brain)` returns it; its features: mouse, brain, 13-week-old stage,
+male, validation `pass`, `bil:ace-dip-van`, `vizgen_merscope`, the matrix
+hash. The five pinned Sources were added non-current; the instance's
+defaults are unchanged. **SDDB's pins disagree with each other**: 12 of the
+20 EFO ids in their `technology.json` (MERSCOPE EFO:0022956, Visium HD,
+CosMx, Stereo-seq, …) are not in the EFO version they pin (3.70.0), so the
+typed `Assay` is left unset for those (the script says so and goes on;
+`technology` holds the id) — a question for Tim. The other 61 stores wait.
 
 ### Handoff to the BIL pipeline sessions (2026-11-17)
 
@@ -304,6 +316,14 @@ For the sessions that reprocess the fleet (`bil/pipeline-dry-run`; the
   as `prepare.py --metadata`), else it is a backfill item.
 - **Images**: the worker image and the cluster's apptainer image must
   include `scripts/metadata/`.
+- **Updating metadata on a store already in S3 needs a single-key copy, not
+  a sync** (decided 2026-11-17: `s3_sync_store.sbatch` keeps
+  `aws s3 sync --size-only`). The sync compares sizes only, so an in-place
+  rewrite of a store's root `zarr.json` that keeps its length — a verdict
+  flipped by `validate_metadata.py --write`, a corrected id, a re-release —
+  is skipped with no error, and S3 keeps the old bytes. After any such edit:
+  `aws s3 cp <store>/zarr.json s3://merfisheyes-bil/bil-psc-zarr/<code>/<name>.zarr/zarr.json --content-type application/json`,
+  then re-register.
 
 ### Step 5 — Reprocess everything, and backfill on the way
 
