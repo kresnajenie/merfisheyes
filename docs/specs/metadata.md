@@ -1,6 +1,6 @@
 # Dataset metadata: our profile of SpatialData-DB catalog schema 3
 
-Status: **draft, 2026-11-16** — step 1 of [`docs/plans/METADATA.md`](../plans/METADATA.md).
+Status: **2026-11-17** — step 1 of [`docs/plans/METADATA.md`](../plans/METADATA.md).
 Measured against SpatialData-DB release `catalog-2026-11-12` (12,575 rows,
 `catalog_schema_version: 3`, `technology.json` 3.0.0), the root `zarr.json` of
 83 of their stores (4 per technology), their Lamin instance
@@ -29,6 +29,7 @@ ours are named `meyes_*` (M1). Every place we depart is listed in §9.
 | Ontologies | the bionty `Source`s SpatialData-DB marks `currently_used` (read 2026-11-13) | `conventions.json` `metadata.ontologies` |
 | Licences | their five ids we may meet plus two of ours (§9 X4) | `conventions.json` `metadata.licenses` |
 | Facet groupings | our own anchor lists for tissue system / organ and disease class / group, built from the terms their release uses (§7.6) | `conventions.json` `metadata.groupings` |
+| Spellings the pipeline maps without bionty | our spellings → term name and id (organism, tissue, sex, disease); technology → vendor, assay, product, EFO id; what names a technology (`stats.json` `input`, a platform spelling — never "MERFISH" alone) | `conventions.json` `metadata.terms`, `technologies`, `technologyFrom` |
 
 The ontology sources, from `scverse/spatialdata-db`:
 
@@ -54,7 +55,7 @@ jacchus is `white-tufted-ear marmoset` in both.
 
 | Layer | Holds | Written by | Read by |
 |---|---|---|---|
-| **The store**, root `zarr.json` attributes | `metadata_general` and `metadata_<technology>` as SpatialData-DB writes them (labels); `meyes_metadata` (the ids and our columns); `meyes_provenance` (§4) | the pipeline (`prepare.py`, the BIL pipeline), step 3 | the viewer's info panel (any store, from S3 or disk), `validate_store.py` |
+| **The store**, root `zarr.json` attributes | `metadata_general` and `metadata_<technology>` as SpatialData-DB writes them (labels); `meyes_metadata` (the ids and our columns); `meyes_provenance` (§4) | the pipeline, without bionty: `scripts/metadata/build_metadata.py`, called by `prepare.py` and the BIL pipeline's metadata stage (`not_validated`); then `scripts/metadata/validate_metadata.py` on the Lamin side, with bionty, writes the verdict | the viewer's info panel (any store, from S3 or disk), `validate_store.py` (`--require-metadata` for publishing), `register_lamin.py` |
 | **Lamin** `merfisheyes/eyes-catalog` | one artifact per store, annotated with ontology-typed features under SpatialData-DB's feature names (§5); `validation_status`; the review state | the pipeline's sync, once it writes this metadata (steps 4–5); what is registered today is replaced then | the index build; people reviewing |
 | **The query index** `catalog.parquet` | one row per public store: §3's columns, SpatialData-DB's first then `meyes_*` | `build_index.py`, step 6 | Explore's filters, `/api/agent/v1/catalog/search`, the MCP |
 | **Postgres** | the same columns on `CatalogDataset` (public) and `Dataset` (private, M7), plus everything only the app needs: owner, projects, publishing and upload state, views | rebuilt from the index (public), the owner's edits (private) | the site's per-request reads |
@@ -271,7 +272,6 @@ The root `zarr.json` `attributes` of a store we write, beside `spatialdata_attrs
   },
   "meyes_provenance": {
     "canonical_key": "bil:ace-dip-van", "pipeline": "93ab1c0", "input": "merscope",
-    "written_at": "…",
     "sources": { "organism": "bil-api", "technology": "store", "…": "…" },
     "validation": { "status": "pass", "at": "…", "bionty": "…",
                     "sources": { "organism": "ncbitaxon 2023-06-20", "tissue": "uberon 2024-08-07" } }
@@ -293,7 +293,7 @@ The root `zarr.json` `attributes` of a store we write, beside `spatialdata_attrs
   with the store and a store opened from disk can be filtered by them. Its
   `version` is this profile's.
 - **`meyes_provenance`** mirrors their `sddb_provenance`: what wrote the store,
-  where each value came from (`bil-api`, `bil-csv`, `owner`, `curator`, `store`,
+  where each value came from (`bil-api`, `bil-csv`, `input` (a `--metadata` file), `owner`, `curator`, `store`,
   `agent` confirmed by a person, `sddb`), what bionty checked it against, and
   `matrix_hash`: how `meyes_matrix_hash` was computed (version, the matrix and
   gene names hashed, cells, non-zeros) and its 64-entry sketch (§7.7).
@@ -321,6 +321,15 @@ afresh. The records then use SpatialData-DB's feature names, which are the
 | `Product`, `Modality`, `License`, `Biomaterial Type`, `Preservation Method`, … | `cat[ULabel]` |
 | `Genotype`, `Donor ID`, `Timepoint`, `Timepoint Kind`, `Condition`, `Treatment`, `Sample ID at Source`, `Study ID` | `str` |
 | `Timepoint Days` | `float` |
+
+Always recorded, whatever the verdict: `validation_status` (`pass`, `fail`,
+`not_validated`, `absent`), `canonical_key`, `meyes_matrix_hash`,
+`technology`. The typed features above are set only when the store's
+`meyes_provenance.validation.status` is `pass`; their records are made from
+the pinned versions (§1), which `register_lamin.py` adds to the instance as
+non-current bionty Sources when they are missing — eyes-catalog's current
+sources are newer (UBERON 2026-06-23, MONDO 2026-09-01, Ensembl
+release-116), and its defaults are left as they are.
 
 Our own features keep `meyes_*` names. They have no sex feature; ours is
 `meyes_sex` (`cat[bionty.Phenotype]`). These replace eyes-catalog's

@@ -194,6 +194,58 @@ def test_matrix_hash_names_the_same_data_the_same():
     assert 0.1 < mh.sketch_overlap(whole, half) < 0.6   # true Jaccard 200/600 = 0.33
 
 
+def test_build_metadata_writes_the_four_blocks(tmp_path):
+    """scripts/metadata/build_metadata.py (docs/specs/metadata.md §4): from a BIL-shaped
+    catalog.json and the store, the root attributes gain metadata_general (labels),
+    metadata_merscope, meyes_metadata (ids, counts, hash) and meyes_provenance; they pass the
+    schema; spatialdata_attrs and the consolidated metadata are untouched; validate_store
+    warns until bionty has checked the terms, fails with --require-metadata, and fails when
+    the metadata no longer matches the table."""
+    sys.path.insert(0, str(ROOT / "scripts" / "metadata"))
+    import build_metadata
+
+    store = compose_store(tmp_path)
+    (tmp_path / "mapping.json").write_text(json.dumps({"cells": store.name}))
+    (tmp_path / "stats.json").write_text(json.dumps({
+        "input": "merscope", "store": store.name, "molecules": 1234, "dims": 2, "de_stats": [],
+        "pipeline": "abc1234", "packages": {"anndata": "0.13.4"}}))
+    (tmp_path / "catalog.json").write_text(json.dumps({
+        "bilCode": "ace-xyz-abc", "title": "A tiny mouse brain", "species": "Mouse", "tissue": "Brain",
+        "platform": "MERFISH", "externalLink": "https://api.brainimagelibrary.org/web/view?bildid=ace-xyz-abc",
+        "metadata": {"age": "20.0 Gestational weeks", "sex": "Female", "genotype": "Strain_Name='C57Bl/6J'",
+                     "license": "CC-BY-SA-4.0", "investigator": "Doe, Jane"},
+        "source": {"title": "bil-api", "species": "bil-api", "metadata": "bil-api"}}))
+    before = json.loads((store / "zarr.json").read_text())
+    r = validate_store.validate(store)
+    assert ("WARN", "metadata") in levels(r) and not r.failed
+
+    s, blocks = build_metadata.build(tmp_path)
+    build_metadata.write(s, blocks)
+    root = json.loads((store / "zarr.json").read_text())
+    attrs = root["attributes"]
+    assert attrs["spatialdata_attrs"] == before["attributes"]["spatialdata_attrs"]
+    assert root["consolidated_metadata"] == before["consolidated_metadata"]
+    g, m, p = attrs["metadata_general"], attrs["meyes_metadata"], attrs["meyes_provenance"]
+    assert attrs["metadata_merscope"] == {"Merscope Metadata Version": "0.1.0"}
+    assert (g["Organism"], g["Tissue"], g["Assay"], g["License"]) == ("mouse", "brain", "Vizgen MERSCOPE", "CC BY-SA 4.0")
+    assert (m["organism_id"], m["tissue_id"], m["technology"], m["vendor"]) == \
+        ("NCBITaxon:10090", "UBERON:0000955", "vizgen_merscope", "vizgen")
+    assert (m["canonical_key"], m["sample_id"], m["genotype"]) == ("bil:ace-xyz-abc", "ace-xyz-abc", "C57BL/6J")
+    assert (m["timepoint_kind"], m["timepoint_days"]) == ("stage", 126.0)   # GW20 = 18 weeks post-fertilization
+    assert (m["meyes_sex"], m["meyes_sex_id"], m["disease"]) == ("female", "PATO:0000383", "unknown")
+    assert m["meyes_matrix_hash"].startswith("mh1:") and m["n_transcripts"] == 1234
+    assert p["validation"]["status"] == "not_validated" and p["sources"]["organism"] == "bil-api"
+    assert not validate_store.schema_errors(
+        {k: v for k, v in attrs.items() if k.startswith(("metadata_", "meyes_"))}, "metadata.schema.json")
+
+    r = validate_store.validate(store)
+    assert not r.failed and ("OK", "metadata") in levels(r)
+    assert validate_store.validate(store, require_metadata=True).failed   # not validated yet
+    attrs["meyes_metadata"]["n_obs"] += 1
+    (store / "zarr.json").write_text(json.dumps(root))
+    assert any("stale" in f for f in fails(validate_store.validate(store)))
+
+
 def test_modality_fixtures_pass():
     """The stores shaped like SpatialData-DB's CODEX, MALDI-MSI and CosMx ones
     (scripts/testdata/make-tiny-modalities.py): a dense X, a feature index

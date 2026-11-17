@@ -85,6 +85,21 @@
         "merfish": { "attribute": "metadata_merscope", "versionKey": "Merscope Metadata Version", "version": "0.1.0" },
         "vizgen_merscope": { "attribute": "metadata_merscope", "versionKey": "Merscope Metadata Version", "version": "0.1.0" },
         "10x_xenium": { "attribute": "metadata_xenium", "versionKey": "Xenium Metadata Version", "version": "0.2.0" }
+      },
+      "provenanceAttribute": "sddb_provenance",
+      "generalKeys": {
+        "product": "Product", "assay": "Assay", "biomaterial_type": "Biomaterial Type",
+        "organism": "Organism", "tissue": "Tissue", "modality": "Modality", "disease": "Disease",
+        "development_stage": "Development Stage", "dataset_url": "Dataset Url",
+        "publication_date": "Publication Date", "sample_id": "Sample ID at Source",
+        "default_table": "Default Table",
+        "doi": "DOI", "pmid": "PubMed ID", "publication_year": "Publication Year",
+        "publication_verify_status": "Publication Verify Status",
+        "hne_image": "HnE Image Available", "if_image": "IF Image Available",
+        "ftu_annotation": "FTU Annotation Available", "license": "License",
+        "donor_id": "Donor ID", "preservation_method": "Preservation Method",
+        "n_transcripts": "Number of Transcripts", "sdata_repr": "SpatialData Repr",
+        "image_width": "Image Width px", "image_height": "Image Height px", "mpp": "MPP"
       }
     },
     "ontologies": {
@@ -109,6 +124,50 @@
       "CC-BY-SA-4.0": { "label": "CC BY-SA 4.0", "url": "https://creativecommons.org/licenses/by-sa/4.0/", "noncommercial": false, "redistributable": true, "meyes": true }
     },
     "keyPrefixes": { "bil": "bil", "meyes": "meyes" },
+    "terms": {
+      "organism": {
+        "mouse": ["mouse", "NCBITaxon:10090"],
+        "mice": ["mouse", "NCBITaxon:10090"],
+        "human": ["human", "NCBITaxon:9606"],
+        "rat": ["rat", "NCBITaxon:10116"],
+        "macaque": ["macaque", "NCBITaxon:9544"],
+        "rhesus macaque": ["macaque", "NCBITaxon:9544"],
+        "marmoset": ["white-tufted-ear marmoset", "NCBITaxon:9483"],
+        "white-tufted-ear marmoset": ["white-tufted-ear marmoset", "NCBITaxon:9483"]
+      },
+      "tissue": {
+        "brain": ["brain", "UBERON:0000955"],
+        "brainstem": ["brainstem", "UBERON:0002298"],
+        "breast": ["breast", "UBERON:0000310"],
+        "skin": ["skin of body", "UBERON:0002097"],
+        "skin of body": ["skin of body", "UBERON:0002097"],
+        "whole embryo": ["embryo", "UBERON:0000922"],
+        "embryo": ["embryo", "UBERON:0000922"]
+      },
+      "sex": {
+        "male": ["male", "PATO:0000384"],
+        "female": ["female", "PATO:0000383"],
+        "mixed sex": ["mixed sex", "PATO:0001338"]
+      },
+      "disease": {
+        "normal": ["normal", "PATO:0000461"],
+        "healthy": ["normal", "PATO:0000461"],
+        "control": ["normal", "PATO:0000461"]
+      }
+    },
+    "technologies": {
+      "merfish": { "vendor": "academic", "assay": "MERFISH", "product": "MERFISH", "modality": "RNA", "efo": "EFO:0008992" },
+      "vizgen_merscope": { "vendor": "vizgen", "assay": "Vizgen MERSCOPE", "product": "MERSCOPE", "modality": "RNA", "efo": "EFO:0022956" },
+      "10x_xenium": { "vendor": "10x_genomics", "assay": "10x Xenium", "product": "In Situ Gene Expression", "modality": "RNA", "efo": "EFO:0022615" },
+      "10x_visium": { "vendor": "10x_genomics", "assay": "Visium Spatial Gene Expression", "product": "Spatial Gene Expression", "modality": "RNA", "efo": "EFO:0010961" },
+      "10x_visium_hd": { "vendor": "10x_genomics", "assay": "Visium HD", "product": "HD Spatial Gene Expression", "modality": "RNA", "efo": "EFO:0920058" },
+      "stomics_stereo_seq": { "vendor": "bgi_group", "assay": "Stereo-seq", "product": "Stereo-seq", "modality": "RNA", "efo": "EFO:0920125" },
+      "bruker_cosmx": { "vendor": "bruker", "assay": "CosMx", "product": "CosMx SMI", "modality": "RNA", "efo": "EFO:0022994" }
+    },
+    "technologyFrom": {
+      "input": { "merscope": "vizgen_merscope", "xenium": "10x_xenium", "visium": "10x_visium" },
+      "platform": { "xenium": "10x_xenium", "merscope": "vizgen_merscope", "stereo-seq": "stomics_stereo_seq", "visium": "10x_visium", "visium hd": "10x_visium_hd", "cosmx": "bruker_cosmx" }
+    },
     "groupings": {
       "tissueSystems": [
         ["UBERON:0000922", "embryo"],

@@ -16,6 +16,18 @@
       "type": "object",
       "additionalProperties": { "type": "string", "minLength": 1 }
     },
+    "termTable": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "prefixItems": [
+          { "type": "string", "minLength": 1 },
+          { "type": "string", "pattern": "^[A-Za-z]+:[0-9]+$" }
+        ],
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
     "anchors": {
       "description": "Ordered [ontology id, label] pairs.",
       "type": "array",
@@ -122,12 +134,12 @@
     "metadata": {
       "description": "What docs/specs/metadata.md pins: the SpatialData-DB catalog release and vocabularies a MERFISHEYES row and store follow, the ontology sources and versions bionty validates against (SpatialData-DB's, read from their Lamin instance), and the licence vocabulary.",
       "type": "object",
-      "required": ["sddb", "ontologies", "licenses", "keyPrefixes", "groupings"],
+      "required": ["sddb", "ontologies", "licenses", "keyPrefixes", "terms", "technologies", "technologyFrom", "groupings"],
       "additionalProperties": false,
       "properties": {
         "sddb": {
           "type": "object",
-          "required": ["catalogSchemaVersion", "release", "technologyVocabularyVersion", "generalMetadataVersion", "technologyBlocks"],
+          "required": ["catalogSchemaVersion", "release", "technologyVocabularyVersion", "generalMetadataVersion", "technologyBlocks", "provenanceAttribute", "generalKeys"],
           "additionalProperties": false,
           "properties": {
             "catalogSchemaVersion": { "type": "integer", "minimum": 1 },
@@ -147,6 +159,16 @@
                   "version": { "type": "string", "minLength": 1 }
                 }
               }
+            },
+            "provenanceAttribute": {
+              "description": "The root attribute in which SpatialData-DB records that it converted a store (sddb_provenance). We never write it (metadata.md §4).",
+              "type": "string",
+              "minLength": 1
+            },
+            "generalKeys": {
+              "description": "Index column → the metadata_general key that states it, as a label (metadata.md §4). Read where the store's own block (meyes_metadata) is missing a column: a SpatialData-DB store carries only metadata_general.",
+              "type": "object",
+              "additionalProperties": { "type": "string", "minLength": 1 }
             }
           }
         },
@@ -182,6 +204,38 @@
         "keyPrefixes": {
           "description": "Our prefixes of canonical_key and study_id (SpatialData-DB's are source registries: geo, bia, abc, …).",
           "$ref": "#/$defs/spellings"
+        },
+        "terms": {
+          "description": "Our spellings (lower case) → [term name, ontology id], for the values a rule may map without a person (docs/specs/metadata.md §7). The pipeline writes these without bionty; the Lamin-side check (scripts/metadata/validate_metadata.py) confirms them with bionty.",
+          "type": "object",
+          "required": ["organism", "tissue", "sex", "disease"],
+          "additionalProperties": { "$ref": "#/$defs/termTable" }
+        },
+        "technologies": {
+          "description": "technology.json id → what a store and a row say for it: vendor id, the legacy assay label, SpatialData-DB's Product label, modality, EFO id.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["vendor", "assay", "product", "modality"],
+            "additionalProperties": false,
+            "properties": {
+              "vendor": { "type": "string", "minLength": 1 },
+              "assay": { "type": "string", "minLength": 1 },
+              "product": { "type": "string", "minLength": 1 },
+              "modality": { "type": "string", "minLength": 1 },
+              "efo": { "type": ["string", "null"], "pattern": "^EFO:[0-9]{7}$" }
+            }
+          }
+        },
+        "technologyFrom": {
+          "description": "What names one technology: stats.json `input` (the instrument's own output), or a platform spelling (lower case). \"MERFISH\" is deliberately absent: it does not name the instrument.",
+          "type": "object",
+          "required": ["input", "platform"],
+          "additionalProperties": false,
+          "properties": {
+            "input": { "$ref": "#/$defs/spellings" },
+            "platform": { "$ref": "#/$defs/spellings" }
+          }
         },
         "groupings": {
           "description": "Our anchor lists for the derived facet columns tissue_system, tissue_organ, disease_class and disease_group (docs/specs/metadata.md §7.6). A term's group is the first anchor, in list order, that is the term or one of its ancestors in the pinned UBERON / MONDO graph (is_a, part_of); the lists run specific before general. No organ anchor → the system; no anchor at all → the fallback label with a null id.",

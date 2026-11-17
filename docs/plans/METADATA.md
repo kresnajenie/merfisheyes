@@ -13,11 +13,9 @@ departs only where our data does not fit (multi-section stores,
 molecules at billion scale) — each departure recorded in §3.
 
 This file is the brief for every session working on it. **Status
-(2026-11-16): step 1 drafted — [`docs/specs/metadata.md`](../specs/metadata.md),
-its schema `docs/specs/schemas/metadata.schema.json`, the pins in
-`conventions.json` `metadata`, and the gate's evidence
-[`metadata-inventory.md`](../specs/metadata-inventory.md)
-(`scripts/metadata/inventory.py`); awaiting review.**
+(2026-11-17): step 1 done (`f6bb3bd`, `63c4d0b`); steps 2 and 3 built and
+tested on the 62 reprocessed BIL stores; step 4 built, its first run against
+eyes-catalog pending.** Spec: [`docs/specs/metadata.md`](../specs/metadata.md).
 Keep it current: a step that changes a fact or a decision edits this
 file in the same commit. Branch: `feature/metadata`, from `develop` (the
 pipeline parts touch `scripts/` and `scripts/bil-scripts/`, so they
@@ -147,7 +145,7 @@ rebuild the worker image — CLAUDE.md §8). Related plans:
 |---|---|---|
 | M1 | MERFISHEYES uses SpatialData-DB's catalog schema (version 3, pinned; column names, vocabularies, ontology sources and versions) for every dataset. Our additions are new columns in a `meyes_` namespace, never a redefinition of theirs | **taken** 2026-11-14 |
 | M2 | Where metadata lives: **the store** (root attributes, SDDB's keys) — the copy that travels; **Lamin `eyes-catalog`** — the validated record, with verification; **the query index** — derived, what queries read; **Postgres** — the app's own database, which Lamin does not replace: accounts, ownership, projects, upload and processing state, views, private datasets, and the site's per-request reads (Lamin is a separate service the site would call on every page; it records datasets, not users) | **taken** 2026-11-14 |
-| M3 | Terms are validated with bionty against the same ontology sources and versions SDDB pins, in the pipeline (Python) on the way in. A dataset published through our publishing system is public once bionty passes it; a person's review is expected but not required — bionty is the gate when nobody reviews | **taken** 2026-11-14 |
+| M3 | Terms are validated with bionty against the same ontology sources and versions SDDB pins. A dataset published through our publishing system is public once bionty passes it; a person's review is expected but not required — bionty is the gate when nobody reviews | **taken** 2026-11-14. **Amended 2026-11-17**: bionty lives on the Lamin side, not in the pipeline. The pipeline writes the metadata unvalidated (`not_validated`); `validate_metadata.py`, run where lamindb is, checks it before the store is registered and writes the verdict into the store and Lamin |
 | M4 | One query index of every public dataset, in SDDB's catalog format plus our columns, published with each change; the site's filters and the MCP's queries start there | **taken** 2026-11-14 |
 | M5 | A gene index for our datasets in SDDB's `gene_index` / `gene_search` format, so "datasets that measure / express X" is one lookup across both libraries | **taken** 2026-11-14 |
 | M6 | A dataset shown in one view keeps all its sections in one store and is **one catalog row**, its sections listed (`meyes_sections`); after reprocessing, a dataset's cells and molecules are in that same store. Sections shown separately are separate stores and rows | **taken, tentatively** 2026-11-14 — the user is not certain; revisit when the reprocessed BIL stores and SDDB's per-sample columns are compared. 2026-11-16: kept for step 1 with per-section facts nested in `meyes_sections`, knowing SDDB lists the Zhuang ABCA data per section; still revisited before step 6 |
@@ -193,25 +191,62 @@ reads the index; `metadata.md` §7.1 and §7.3 are what replaces them.
 
 ### Step 2 — Validation with bionty
 
-`scripts/metadata/validate_metadata.py` (in `meyes-prepare`'s
-environment): reads a dataset's metadata, validates each ontology field
-with bionty against the pinned sources, standardises synonyms ("mouse"
-→ *Mus musculus*, NCBITaxon:10090), fills the hierarchy columns from the
-ontology (tissue system and organ, disease class and group — our anchor
-lists, M11, `metadata.md` §7.6), and writes a report. `prepare.py` calls it;
-an invalid term is exit code **4** (invalid), with the closest terms in
-the message.
+`scripts/metadata/validate_metadata.py`, **on the Lamin side** (the
+`meyes-lamin` environment; M3 as amended 2026-11-17 — bionty is not in the
+pipeline): reads a store's `meyes_metadata`, checks organism, tissue,
+disease, sex and development stage against the pinned sources by name,
+synonym or id, standardises them ("Macaque" → `macaque`, NCBITaxon:9544),
+fills `development_stage` from `timepoint_days`, and with `--write` puts the
+standardised values and the verdict (`meyes_provenance.validation`) back
+into the store. Exit 0 pass, 3 incomplete (organism or tissue unknown), 4
+invalid, with the closest terms in the message. The hierarchy columns
+(M11) are the index build's (step 6), where the full ontology graph is.
 
-**Gate:** the tiny fixtures pass; a wrong tissue fails with suggestions;
-the result equals SDDB's for a handful of their own rows.
+**Gate:** a wrong tissue fails with suggestions; the BIL fleet passes.
+
+*Done 2026-11-17.* `tests/python/test_metadata_bionty.py` (5 tests, run in
+`meyes-lamin`; skipped where bionty is absent). All 62 reprocessed BIL
+stores' metadata (built, not written) pass: 54 mouse stores get a
+development stage, macaque and marmoset have no stage ontology, and two
+human ages (`234.0 days`, `NA Gestational weeks`) match no term — backfill
+items. bionty's search is exact, so suggestions come from a fuzzy match over
+names and synonyms. Several Ensembl entries share one NCBITaxon id (mouse
+strains): the name that agrees with the id is kept. Not compared yet with
+SDDB's values for their own rows.
 
 ### Step 3 — Into the store
 
-`prepare.py` and the BIL pipeline write the validated metadata into the
+`prepare.py` and the BIL pipeline write the metadata into the
 store's root attributes (SDDB's keys), with the count-matrix hash (M12,
 `scripts/metadata/matrix_hash.py`), whole and per section; `validate_store.py` checks it
 against the JSON Schema; the viewer shows it (an info panel) for any
 store, including one opened from disk.
+
+The pipeline side (2026-11-17): `scripts/metadata/build_metadata.py OUT`
+writes the four blocks from `catalog.json`, `qc.json`, `stats.json`, the
+store and an optional `--metadata FILE` (what a person supplies, as index
+columns), mapping spellings to ids only through `conventions.json`
+`metadata.terms` / `technologies` / `technologyFrom`, and marks it
+`not_validated`. `prepare.py` calls it after `stats.json` (new
+`--metadata`; a failure is logged, the exit code is unchanged) — the worker
+image now copies `scripts/metadata/` (rebuild it, CLAUDE.md §8). The BIL
+pipeline has a new **metadata** stage (`metadata_store.sbatch`) after
+points, qc and catalog and before validate, since the mask, MapMyCells and
+points stages change the store after `prepare.py`; the cluster's
+apptainer image needs `scripts/metadata/` too. `validate_store.py` checks
+the blocks (WARN when missing or not validated; FAIL with
+`--require-metadata`, and always when `n_obs` × `n_features` disagree with
+the table). Dry run over the 62 local stores: all build, all pass the
+schema; 6 get `vizgen_merscope` from `input: merscope`, 56 have no
+technology yet; 42 s (243 k cells) to 235 s each, the matrix hash being
+most of it. Test: `test_build_metadata_writes_the_four_blocks`.
+
+The viewer side (2026-11-17): `readStoreMetadata` (`lib/spatialdata/metadata.ts`,
+`tests/unit/store-metadata.test.ts`) reads the four blocks from the root
+`zarr.json` the store is opened with, ours over SpatialData-DB's labels, and
+the info button ("About this dataset") in each viewer's top-right row shows
+them: by id, by URL, and from disk (`/viewer|sm-viewer|image-viewer/from-local`).
+A SpatialData-DB store shows its `metadata_general` labels.
 
 **Gate:** a store copied to another bucket, and to a laptop, opens with
 its metadata shown; `validate_store.py --mapping` passes on the BIL
@@ -227,6 +262,48 @@ passes it (M3); an open review marks it, it does not hide it.
 
 **Gate:** in `eyes-catalog`, a query by organism and tissue id returns
 the BIL datasets; a dataset bionty rejects is held back.
+
+*Built 2026-11-17, not yet run against eyes-catalog.* `register_lamin.py`
+reads the store's root `zarr.json` from S3 and always records
+`validation_status` (`pass` | `fail` | `not_validated` | `absent`),
+`canonical_key`, `meyes_matrix_hash`, `technology` and the plain columns
+(`Genotype`, `Timepoint`, `Timepoint Days`, `Study ID`, …); the typed
+features (`Organism`, `Tissue`, `Disease`, `Development Stage`, `Assay`,
+`meyes_sex`) only when the store's validation passed. eyes-catalog's current
+bionty sources are newer than SDDB's pins (UBERON 2026-06-23, MONDO
+2026-09-01, Ensembl release-116, …) and the pinned versions are not in it:
+the script adds them as non-current `bt.Source`s and makes the records from
+them, leaving the instance's defaults alone. `--dry-run` shows each store's
+validation status and ids. The first real run (ace-dip-van, then stop) waits
+on uploading its updated `zarr.json`. Who reviews, and the review state, are
+still open.
+
+### Handoff to the BIL pipeline sessions (2026-11-17)
+
+For the sessions that reprocess the fleet (`bil/pipeline-dry-run`; the
+"spatialdata pipeline" and "Restore BIL processed data from s3" chats):
+
+- **What is in S3 now** (`s3://merfisheyes-bil/bil-psc-zarr/`): 63 stores —
+  `ace-dip-vat` from raw on the cluster, 62 rebuilt from legacy output
+  (`reconstruct_inputs.py` → `~/data/bil-data/rebuilt/`, `prepare.py` →
+  `~/data/bil-data/processed/<code>/store/`). The local copies equal S3 file
+  for file (root `zarr.json` and the four sidecars, checked 2026-11-17).
+  None carries metadata yet.
+- **What this branch adds to `scripts/bil-scripts/`** (identical files on
+  both branches until now): a `metadata` stage (`metadata_store.sbatch`,
+  after points, qc and catalog, before validate) running
+  `scripts/metadata/build_metadata.py`; `register_lamin.py` reads the
+  store's metadata and sets typed features. Between sync and register,
+  run `scripts/metadata/validate_metadata.py --write` (needs lamindb, i.e.
+  the cluster's Lamin env) on the store before it is synced — or on the
+  local copy, then sync the one changed `zarr.json`.
+- **The instrument is lost in the rebuild**: 56 of the 62 went through
+  `prepare.py` as `input: folder`, so `technology` is unknown for them.
+  If `reconstruct_inputs.py` knows the source was MERSCOPE output, record
+  it (an input `metadata.json` with `"technology": "vizgen_merscope"`, passed
+  as `prepare.py --metadata`), else it is a backfill item.
+- **Images**: the worker image and the cluster's apptainer image must
+  include `scripts/metadata/`.
 
 ### Step 5 — Reprocess everything, and backfill on the way
 

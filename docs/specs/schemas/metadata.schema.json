@@ -27,11 +27,9 @@
   },
   "$defs": {
     "metadataGeneral": {
-      "description": "SpatialData-DB's metadata_general (General Metadata Version 0.3.2): labels, not ids. Keys we do not write: Database Version, Count Matrix Hash; SpatialData-IO Version only when spatialdata-io read the input.",
+      "description": "SpatialData-DB's metadata_general (General Metadata Version 0.3.2): labels, not ids. Product and Assay are written when the technology is known (required again after reprocessing, M10). Keys we do not write: Database Version, Count Matrix Hash; SpatialData-IO Version only when spatialdata-io read the input.",
       "type": "object",
       "required": [
-        "Product",
-        "Assay",
         "Biomaterial Type",
         "Organism",
         "Tissue",
@@ -475,7 +473,6 @@
       "type": "object",
       "required": [
         "canonical_key",
-        "written_at",
         "validation"
       ],
       "properties": {
@@ -503,7 +500,7 @@
         },
         "written_at": {
           "type": "string",
-          "description": "ISO 8601, UTC."
+          "description": "ISO 8601, UTC. Optional: the pipeline does not write it, so the same input gives the same bytes."
         },
         "sources": {
           "type": "object",

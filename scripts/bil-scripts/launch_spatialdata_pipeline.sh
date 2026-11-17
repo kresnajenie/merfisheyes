@@ -179,6 +179,10 @@ while IFS=',' read -r sample_name input_path row_pct || [ -n "$sample_name" ]; d
     dep=$(submit points "$prep" slices_to_points.sbatch "$combined" "$store")
     echo "   [5/7] points          ${dep}"
 
+    # The metadata reads catalog.json, qc.json and the final table (docs/specs/metadata.md)
+    dep=$(submit metadata "${dep}:${qc}:${cat_job}" metadata_store.sbatch "$store_dir")
+    echo "   [+]   metadata        ${dep}   -> the store's root attributes"
+
     dep=$(submit validate "$dep" validate_store.sbatch "$store")
     echo "   [6/7] validate        ${dep}"
 
