@@ -137,6 +137,8 @@ def states(row: dict, store: dict | None, reg: tuple | None) -> dict[str, str]:
     s["meyes_dims"] = "have" if st.get("dims") else from_store if has_store else "missing"
     s["meyes_de_columns"] = "have" if "de_stats" in st else from_store if has_store else "missing"
     s["meyes_pipeline"] = "have" if st.get("pipeline") else "missing"
+    # No pipeline writes it yet; any store can have it computed (matrix_hash.py)
+    s["meyes_matrix_hash"] = "derive" if has_store else "missing"
     return s
 
 

@@ -16,13 +16,13 @@ The states (have / derive / fetch / person / missing) are defined in the script'
 docstring; "filled" is have + derive. SpatialData-DB rows are not here: they are
 their own rows, already in schema 3.
 
-149 rows; profile: 16 required, 44 recommended columns counted (docs/specs/schemas/metadata.schema.json). 'with store' = once the row opens its reprocessed store (62 stores, 0 registered in Lamin).
+149 rows; profile: 16 required, 45 recommended columns counted (docs/specs/schemas/metadata.schema.json). 'with store' = once the row opens its reprocessed store (62 stores, 0 registered in Lamin).
 
 | source | rows | required filled (median, min–max) | recommended filled (median, min–max) | rows with a store | required with store (median) | recommended with store (median) |
 |---|---|---|---|---|---|---|
-| bil | 92 | 13 (12–13) of 16 | 20 (9–20) of 44 | 59 | 16 | 31 |
-| curated | 56 | 13 (11–16) of 16 | 20 (14–22) of 44 | 3 | 16 | 34 |
-| community | 1 | 12 (12–12) of 16 | 11 (11–11) of 44 | 0 | — | — |
+| bil | 92 | 13 (12–13) of 16 | 20 (9–20) of 45 | 59 | 16 | 32 |
+| curated | 56 | 13 (11–16) of 16 | 20 (14–23) of 45 | 3 | 16 | 35 |
+| community | 1 | 12 (12–12) of 16 | 11 (11–11) of 45 | 0 | — | — |
 
 ## By column (today)
 
@@ -89,6 +89,7 @@ have / derive / fetch / person / missing, per source
 | `meyes_sections` | recommended | 0 / 0 / 0 / 0 / 92 | 0 / 2 / 0 / 0 / 54 | 0 / 0 / 0 / 0 / 1 |
 | `meyes_dims` | recommended | 0 / 0 / 0 / 0 / 92 | 0 / 2 / 0 / 0 / 54 | 0 / 0 / 0 / 0 / 1 |
 | `meyes_de_columns` | recommended | 0 / 0 / 0 / 0 / 92 | 0 / 2 / 0 / 0 / 54 | 0 / 0 / 0 / 0 / 1 |
+| `meyes_matrix_hash` | recommended | 0 / 0 / 0 / 0 / 92 | 0 / 2 / 0 / 0 / 54 | 0 / 0 / 0 / 0 / 1 |
 | `meyes_pipeline` | recommended | 0 / 0 / 0 / 0 / 92 | 0 / 0 / 0 / 0 / 56 | 0 / 0 / 0 / 0 / 1 |
 
 ## By row
@@ -101,7 +102,7 @@ have / derive / fetch / person / missing, per source
 | bil |  | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque | 12 | 9 | — | 0 | 7 |
 | bil |  | VA00265 300-gene MERFISH results of human visual cortex (GW24 & GW34) | 12 | 9 | — | 0 | 7 |
 | bil | ace-can-ill | VA00265 300-gene MERFISH results of a GW20 human prefrontal cortex | 13 | 17 | — | 1 | 6 |
-| bil | ace-can-imp | VA00265 300-gene MERFISH results of a GW34 human prefrontal cortex | 13 | 19 | 16 / 29 | 1 | 6 |
+| bil | ace-can-imp | VA00265 300-gene MERFISH results of a GW34 human prefrontal cortex | 13 | 19 | 16 / 30 | 1 | 6 |
 | bil | ace-can-ink | VA00265 300-gene MERFISH results of a GW24 human prefrontal cortex | 13 | 17 | — | 1 | 6 |
 | bil | ace-den-fix | Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 638850 | 13 | 20 | — | 1 | 6 |
 | bil | ace-den-fog | Mouse whole-brain transcriptomic cell type atlas - MERSCOPE v1: 609889 | 13 | 20 | — | 1 | 6 |
@@ -110,14 +111,14 @@ have / derive / fetch / person / missing, per source
 | bil | ace-dip-tub | MERFISH Imaging of mesocorticolimbic regions in the mouse brain (Chron | 13 | 20 | — | 1 | 6 |
 | bil | ace-dip-tug | MERFISH Imaging of mesocorticolimbic regions in the mouse brain (Chron | 13 | 20 | — | 1 | 6 |
 | bil | ace-dip-use | MERFISH Imaging of mesocorticolimbic regions in the mouse brain (infec | 13 | 20 | — | 1 | 6 |
-| bil | ace-dip-van | MERFISH Imaging of mesocorticolimbic regions in the mouse brain (infec | 13 | 20 | 16 / 35 | 1 | 6 |
+| bil | ace-dip-van | MERFISH Imaging of mesocorticolimbic regions in the mouse brain (infec | 13 | 20 | 16 / 36 | 1 | 6 |
 | bil | ace-dip-vat | MERFISH Imaging of mesocorticolimbic regions in the mouse brain (infec | 13 | 20 | — | 1 | 6 |
 | bil | ace-dry-dip | VA00265 300-gene MERFISH results of an infancy stage human prefrontal  | 13 | 19 | — | 1 | 6 |
 | bil | ace-dry-dog | VA00265 300-gene MERFISH results of a GW24 human visual cortex | 13 | 17 | — | 1 | 6 |
 | bil | ace-dry-dry | VA00265 300-gene MERFISH results of a GW34 human visual cortex | 13 | 19 | — | 1 | 6 |
-| bil | ace-dry-dub | VA00265 300-gene MERFISH results of an infancy stage human visual cort | 13 | 19 | 16 / 34 | 1 | 6 |
-| bil | ace-dud-vex | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque:  | 13 | 19 | 16 / 34 | 1 | 6 |
-| bil | ace-dud-vow | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque:  | 13 | 19 | 16 / 34 | 1 | 6 |
+| bil | ace-dry-dub | VA00265 300-gene MERFISH results of an infancy stage human visual cort | 13 | 19 | 16 / 35 | 1 | 6 |
+| bil | ace-dud-vex | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque:  | 13 | 19 | 16 / 35 | 1 | 6 |
+| bil | ace-dud-vow | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque:  | 13 | 19 | 16 / 35 | 1 | 6 |
 | bil | ace-dud-wag | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque:  | 13 | 19 | — | 1 | 6 |
 | bil | ace-dud-war | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque:  | 13 | 19 | — | 1 | 6 |
 | bil | ace-dud-was | Subcortical Spatial Transcriptomic Atlas of the Adult Rhesus Macaque:  | 13 | 19 | — | 1 | 6 |
@@ -129,77 +130,77 @@ have / derive / fetch / person / missing, per source
 | bil | ace-irk-saw | Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001. | 13 | 19 | — | 1 | 6 |
 | bil | ace-irk-say | Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001. | 13 | 19 | — | 1 | 6 |
 | bil | ace-irk-set | Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001. | 13 | 19 | — | 1 | 6 |
-| bil | ace-irk-shy | Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001. | 13 | 19 | 16 / 34 | 1 | 6 |
+| bil | ace-irk-shy | Spatial Transcriptomic Atlas of Adult Human Basal Ganglia: H22.30.001. | 13 | 19 | 16 / 35 | 1 | 6 |
 | bil | ace-let-law | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | — | 1 | 6 |
 | bil | ace-let-lax | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | — | 1 | 6 |
 | bil | ace-let-lay | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | — | 1 | 6 |
-| bil | ace-lot-all | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-web | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-wet | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-who | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-wig | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-win | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-wit | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-yes | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-yet | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-lot-zoo | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-ace | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-act | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-add | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-age | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-aim | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-air | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-and | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-ant | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-ape | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-arm | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-art | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-ash | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-ask | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bad | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bag | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-ban | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bar | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bat | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bay | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bed | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 17 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bet | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bid | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-big | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bin | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bit | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bog | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-boo | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-box | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bud | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bug | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bun | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-bus | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cab | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-can | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cap | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-car | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cat | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cop | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cot | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cow | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cry | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-cub | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 31 | 1 | 6 |
-| bil | ace-low-zip | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 17 | 16 / 31 | 1 | 6 |
+| bil | ace-lot-all | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-web | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-wet | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-who | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-wig | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-win | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-wit | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-yes | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-yet | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-lot-zoo | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-ace | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-act | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-add | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-age | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-aim | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-air | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-and | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-ant | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-ape | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-arm | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-art | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-ash | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-ask | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bad | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bag | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-ban | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bar | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bat | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bay | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bed | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 17 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bet | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bid | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-big | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bin | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bit | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bog | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-boo | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-box | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bud | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bug | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bun | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-bus | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cab | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-can | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cap | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-car | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cat | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cop | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cot | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cow | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cry | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-cub | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | 16 / 32 | 1 | 6 |
+| bil | ace-low-zip | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 17 | 16 / 32 | 1 | 6 |
 | bil | ace-met-war | Developing mouse whole-brain transcriptomic cell type atlas - MERSCOPE | 13 | 20 | — | 1 | 6 |
 | community |  | Re-activation of neurogenic niches | 12 | 11 | — | 1 | 6 |
 | curated |  | Allen Brain Mouse Whole-Brain Transcriptomic Cell Type Atlas | 11 | 14 | — | 0 | 3 |
 | curated |  | Drosophila Embryo and Larva in 3D (Flysta3D) | 11 | 14 | — | 0 | 5 |
 | curated |  | Human Breast Cancer, Cells and Molecules (Xenium) | 14 | 16 | — | 0 | 3 |
 | curated |  | Human Embryo Atlas, CS12–CS23 (HESTA) | 14 | 14 | — | 0 | 3 |
-| curated |  | Human Skin, Cells, Polygons and Molecules (Xenium) | 16 | 22 | — | 0 | 3 |
-| curated |  | Mouse Brain Saggital 10 Slices | 13 | 16 | — | 0 | 7 |
+| curated |  | Human Skin, Cells, Polygons and Molecules (Xenium) | 16 | 23 | — | 0 | 3 |
+| curated |  | Mouse Brain Saggital 10 Slices | 13 | 17 | — | 0 | 7 |
 | curated |  | Mouse Organogenesis Sections (MOSTA) | 14 | 14 | — | 0 | 3 |
 | curated |  | Mouse Organogenesis in 3D (MOSTA-3D) | 11 | 16 | — | 1 | 4 |
 | curated |  | Planarian Whole-Body Regeneration in 3D (PRISTA4D) | 11 | 16 | — | 1 | 4 |
 | curated | ace-owl-cry | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-cub | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
-| curated | ace-owl-cup | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | 16 / 34 | 1 | 2 |
+| curated | ace-owl-cup | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | 16 / 35 | 1 | 2 |
 | curated | ace-owl-cut | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-day | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-den | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
@@ -214,7 +215,7 @@ have / derive / fetch / person / missing, per source
 | curated | ace-owl-dud | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-dug | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-ear | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
-| curated | ace-owl-eat | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | 16 / 34 | 1 | 2 |
+| curated | ace-owl-eat | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | 16 / 35 | 1 | 2 |
 | curated | ace-owl-eel | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-egg | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-elf | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
@@ -225,7 +226,7 @@ have / derive / fetch / person / missing, per source
 | curated | ace-owl-far | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-fat | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-fed | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
-| curated | ace-owl-few | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | 16 / 34 | 1 | 2 |
+| curated | ace-owl-few | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | 16 / 35 | 1 | 2 |
 | curated | ace-owl-fib | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-fig | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |
 | curated | ace-owl-fin | Spatial transcriptomic atlas of the marmoset basal ganglia: CJ23.56.00 | 13 | 20 | — | 1 | 2 |

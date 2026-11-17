@@ -156,6 +156,7 @@ rebuild the worker image — CLAUDE.md §8). Related plans:
 | M9 | A row enters the public index only when its dataset is a store (`zarr_url` is required). Legacy chunked datasets keep the same columns in Postgres and stay on Explore until reprocessed | **taken** 2026-11-16 |
 | M10 | All our data is reprocessed for this schema (step 5). Until that is done the required set is relaxed to what search and the MCP need — organism and tissue with ids, counts, title, a store and our links (16 columns); `uid`, `technology`, `vendor`, `assay` are recommended and become required at step 5's gate | **taken** 2026-11-16 |
 | M11 | The tissue system / organ and disease class / group facets use our own anchor lists (`conventions.json` `metadata.groupings`), built from the terms SDDB's release uses; first anchor in list order among the term and its ancestors wins | **taken** 2026-11-16 |
+| M12 | Every store gets a count-matrix hash, `meyes_matrix_hash` (`mh1:`, `metadata.md` §7.7; reference `scripts/metadata/matrix_hash.py`), whole and per section, so re-releases are found: equal hashes group rows as SpatialData-DB's `same_section_group` / `rerelease`; near matches (the hash's cell sketch, per-gene totals from the gene index) are proposals a person confirms | **taken** 2026-11-16 |
 
 ## 4. Steps
 
@@ -180,7 +181,7 @@ count of fields each can fill today; reviewed against SDDB's
 
 *Drafted 2026-11-16, awaiting review.* The profile covers all 93 of their
 columns (each with a level; `test_metadata_schema_profiles_sddb_schema_3`
-fails if one is missing or its dtype differs) plus 25 `meyes_*` columns;
+fails if one is missing or its dtype differs) plus 26 `meyes_*` columns;
 16 are required while the fleet is reprocessed (M10), 20 after. All 149
 production rows are counted in `metadata-inventory.md`: BIL rows fill a
 median of 13 of 16 required columns today and all 16 once they open their
@@ -207,7 +208,8 @@ the result equals SDDB's for a handful of their own rows.
 ### Step 3 — Into the store
 
 `prepare.py` and the BIL pipeline write the validated metadata into the
-store's root attributes (SDDB's keys); `validate_store.py` checks it
+store's root attributes (SDDB's keys), with the count-matrix hash (M12,
+`scripts/metadata/matrix_hash.py`), whole and per section; `validate_store.py` checks it
 against the JSON Schema; the viewer shows it (an info panel) for any
 store, including one opened from disk.
 
@@ -256,7 +258,8 @@ explained. Then the interim requirement ends: `uid`, `technology`,
 release (theirs) to `index/catalog.parquet` in SDDB's format plus the
 `meyes_` columns, with `ontology_rollup.json` and `technology.json`
 alongside, versioned like their releases (`release_info.json`), published
-to the public bucket on each change. Postgres's catalog columns are
+to the public bucket on each change. Rows with equal matrix hashes are
+grouped as re-releases (`same_section_group`, M12). Postgres's catalog columns are
 rebuilt from it (a migration adds the columns). The site's Explore and
 `/api/agent/v1/catalog/search` query the index, not pages.
 
@@ -268,7 +271,9 @@ the numbers equal Postgres's; the agent's search returns the same rows.
 
 Our pipeline's statistics give a gene index in SDDB's format for our
 stores (`stats.json` → `gene_index` rows: total counts and fraction of
-cells detected); `gene_search.parquet` for both libraries together.
+cells detected); `gene_search.parquet` for both libraries together. The
+per-gene totals also flag likely re-releases across both catalogs
+(near-equal vectors; a person confirms, M12).
 
 **Gate:** "mouse brain datasets that express X above 5 % of cells"
 answered across SDDB and MERFISHEYES from the index files alone.

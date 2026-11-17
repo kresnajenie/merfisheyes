@@ -191,16 +191,23 @@ filled in the inventory.
 | `timepoint`, `timepoint_kind`, `timepoint_days` | recommended | §7.4 |
 | `genotype` | recommended | free text, as SpatialData-DB (`C57BL/6J`; BIL's `Strain_Name='…'` unwrapped) |
 
+**Re-releases**
+
+| Column | Level | A MERFISHEYES row |
+|---|---|---|
+| `same_section_group` | derived | rows holding the same matrix (§7.7): the newest member's `uid` (its `canonical_key` until uids exist); null outside a group |
+| `same_section_relation` | derived | `rerelease` within a group, as SpatialData-DB writes it |
+
 **SpatialData-DB's own bookkeeping** (n/a, null): `sddb_id`, `database_version`,
-`capture_area` (Visium HD), `same_section_group`, `same_section_relation`,
-`same_section_release`, `same_section_panel_of` (10x re-releases).
+`capture_area` (Visium HD), `same_section_release` (Space Ranger release),
+`same_section_panel_of` (10x).
 
 Their release also carries seven columns not in the schema (`n_cells`,
 `median_transcripts_per_cell`, `median_genes_per_cell`, `decoded_transcripts`,
 `imaged_area`, `onboard_version`, `panel`: Atera, 4–19 rows). We do not write
 them.
 
-### 3.2 Our columns (`meyes_*`, 25)
+### 3.2 Our columns (`meyes_*`, 26)
 
 | Column | Level | Meaning |
 |---|---|---|
@@ -213,7 +220,8 @@ them.
 | `meyes_sex`, `meyes_sex_id` | recommended | PATO: `male` 0000384, `female` 0000383, `mixed sex` 0001338 |
 | `meyes_development_stage_id` | recommended | the HsapDv / MmusDv id of `development_stage` |
 | `meyes_n_sections` | recommended | sections in the store |
-| `meyes_sections` | recommended | one struct per section: `id` (its `_sample_id`), `sample_id`, `donor_id`, `timepoint`, `timepoint_days`, `meyes_sex`, `n_obs`, `n_transcripts` (M6) |
+| `meyes_sections` | recommended | one struct per section: `id` (its `_sample_id`), `sample_id`, `donor_id`, `timepoint`, `timepoint_days`, `meyes_sex`, `n_obs`, `n_transcripts`, `meyes_matrix_hash` (M6) |
+| `meyes_matrix_hash` | recommended | `mh1:` + SHA-256 of the default table's counts, the same however the matrix is stored or ordered (§7.7); equal hashes = the same data |
 | `meyes_dims` | recommended | 2 or 3 |
 | `meyes_de_columns` | recommended | obs columns with DE statistics (`stats.json` `de_stats`) |
 | `meyes_thumbnail_url` | recommended | the card's image |
@@ -257,7 +265,9 @@ The root `zarr.json` `attributes` of a store we write, beside `spatialdata_attrs
     "technology": "vizgen_merscope", "vendor": "vizgen", "assay": "Vizgen MERSCOPE",
     "timepoint": "91.0 Days", "timepoint_kind": "age", "timepoint_days": 91.0,
     "genotype": "C57BL/6J", "meyes_sex": "male", "meyes_sex_id": "PATO:0000384",
-    "license": "CC-BY-NC-4.0", "n_obs": 243224, "n_features": 300, "…": "…"
+    "license": "CC-BY-NC-4.0", "n_obs": 243224, "n_features": 300,
+    "meyes_matrix_hash": "mh1:d0ff37d6072dd0d8ef11bae317b5fa6e573f59364d40c61962dd183432dfb025",
+    "…": "…"
   },
   "meyes_provenance": {
     "canonical_key": "bil:ace-dip-van", "pipeline": "93ab1c0", "input": "merscope",
@@ -273,7 +283,7 @@ The root `zarr.json` `attributes` of a store we write, beside `spatialdata_attrs
   Title Case, **labels not ids** (their stores carry no ontology ids at all —
   the ids live in their Lamin and their catalog). Of their 25 keys we write
   every one we know, and not `Database Version` or `Count Matrix Hash`
-  (theirs; §9 X9). `License` is the licence's label (`CC BY 4.0`), as in their
+  (theirs; §9 X9 — our hash is `meyes_matrix_hash`). `License` is the licence's label (`CC BY 4.0`), as in their
   stores, not its id.
 - **`metadata_<technology>`**: the block their converter writes for the
   technology (`conventions.json` `technologyBlocks`). For MERFISH and
@@ -284,7 +294,9 @@ The root `zarr.json` `attributes` of a store we write, beside `spatialdata_attrs
   `version` is this profile's.
 - **`meyes_provenance`** mirrors their `sddb_provenance`: what wrote the store,
   where each value came from (`bil-api`, `bil-csv`, `owner`, `curator`, `store`,
-  `agent` confirmed by a person, `sddb`), and what bionty checked it against.
+  `agent` confirmed by a person, `sddb`), what bionty checked it against, and
+  `matrix_hash`: how `meyes_matrix_hash` was computed (version, the matrix and
+  gene names hashed, cells, non-zeros) and its 64-entry sketch (§7.7).
 - We never write `sddb_provenance` or `sddb`: those say SpatialData-DB
   converted the store.
 
@@ -470,16 +482,61 @@ X11):
 Lists grow by adding entries; reordering changes groupings, so a change is a
 spec change. If SpatialData-DB publishes their tables, we compare and adopt.
 
+### 7.7 The count-matrix hash and re-releases
+
+Data gets re-released: reprocessed, re-uploaded, published again under
+another accession, one section on its own. The hash says when two stores hold
+the same matrix whatever their bytes (decided 2026-11-16, M12). Reference:
+[`scripts/metadata/matrix_hash.py`](../../scripts/metadata/matrix_hash.py);
+`test_matrix_hash_names_the_same_data_the_same` pins it.
+
+**mh1**, over the default table's counts (`X`, or a counts layer when `X` is
+normalised — recorded in `meyes_provenance.matrix_hash.matrix`):
+
+1. Gene names stripped and lower-cased; they must be unique.
+2. Each value rounded half-even to 6 decimals; integers written without a
+   fraction (`3`), others as Python's shortest repr (`0.25`); zeros left out.
+3. Each cell: its non-zero `gene\tvalue\n` lines sorted by gene; the cell's
+   digest is the first 16 bytes of their SHA-256 (a cell with no counts hashes
+   the empty string).
+4. The digests sorted, after the bytes `mh1\n`, SHA-256 → `mh1:<hex>`.
+
+So storage (CSR, CSC, dense, chunks, compression), dtype width, cell order,
+gene order and genes with no counts do not change it; any count does. Cell
+names, annotations and coordinates are not in it. Each section gets its own
+(`meyes_sections[].meyes_matrix_hash`), so a section re-released alone is
+found too. Measured on `ace-dip-van` (243,224 cells, 39.9 M non-zeros, 3
+sections): 38 s and 1.7 GB in plain Python — a few minutes for a 4 M-cell
+store; the pipeline computes it while the matrix is in memory.
+
+**Near matches** — a re-release with some cells filtered, or renormalised:
+
+- **The sketch**: the 64 smallest cell digests, kept in `meyes_provenance`.
+  Two sketches estimate the share of cells two stores have in common
+  (`sketch_overlap`), for free from the digests above.
+- **Per-gene totals**: the gene index (step 7) holds each dataset's total
+  counts and fraction of cells detected per gene — for SpatialData-DB's
+  datasets too, from their published `gene_index.parquet`. Near-equal vectors
+  on the shared genes flag a likely re-release across both catalogs without
+  opening a store.
+
+**How a match is used** (the index build, step 6): rows with equal
+`meyes_matrix_hash` form a `same_section_group` with relation `rerelease`;
+a near match is a proposal a person confirms before it groups. Search can
+then show one row per group. SpatialData-DB's `Count Matrix Hash` (`cmh1:`)
+uses an unpublished algorithm; if they publish it we compute it as well and
+match their rows exactly.
+
 ## 8. What today's rows can fill
 
 From [`metadata-inventory.md`](metadata-inventory.md): the interim 16
-required and 44 recommended columns counted; "filled" is a value present or
+required and 45 recommended columns counted; "filled" is a value present or
 made by a fixed rule from one.
 
 | Rows | Count | Required filled (median) | Recommended filled (median) | Once they open their reprocessed store |
 |---|---|---|---|---|
-| BIL | 92 | 13 of 16 | 20 of 44 | 59 have one: 16 of 16, 31 recommended |
-| curated | 56 (47 of them BIL Xenium, `ace-owl-*`) | 13 | 20 | 3 have one: 16, 34 |
+| BIL | 92 | 13 of 16 | 20 of 45 | 59 have one: 16 of 16, 32 recommended |
+| curated | 56 (47 of them BIL Xenium, `ace-owl-*`) | 13 | 20 | 3 have one: 16, 35 |
 | community | 1 | 12 | 11 | — |
 
 - **Every row has organism and tissue** that a rule maps (except five curated
@@ -507,8 +564,8 @@ made by a fixed rule from one.
 | X5 | Sex: `meyes_sex`, `meyes_sex_id` (PATO) | They have no sex column or feature; BIL records it for 84 of 92 |
 | X6 | `meyes_development_stage_id` | Their catalog publishes the stage's name only (their Lamin feature is typed) |
 | X7 | Prenatal `timepoint_days` is days post-fertilization, `timepoint_kind` `stage`; gestational weeks shifted by two | Their rows disagree (`E16.5` stage 16.5; `9 weeks of gestation` age 63; `GW_18` age null) |
-| X8 | `vitessce_url`, `sddb_id`, `database_version`, `same_section_*`, `capture_area` null; `card_url` is our Lamin page | Theirs, or not our data |
-| X9 | `metadata_general` without `Database Version` and `Count Matrix Hash`; `SpatialData Repr` from our formatter | Their database's; the hash (`cmh1:`, a fingerprint of the count matrix that tells when two datasets hold the same matrix) has an unpublished algorithm and is not needed for search; spatialdata 0.8 cannot read our points element |
+| X8 | `vitessce_url`, `sddb_id`, `database_version`, `same_section_release`, `same_section_panel_of`, `capture_area` null; `same_section_group` / `relation` filled from our matrix hash, not from 10x library records; `card_url` is our Lamin page | Theirs, or not our data |
+| X9 | `metadata_general` without `Database Version` and `Count Matrix Hash`; `SpatialData Repr` from our formatter | Their database's; their hash's algorithm (`cmh1:`) is unpublished, so ours is `meyes_matrix_hash` (`mh1:`, §7.7) in `meyes_metadata`; spatialdata 0.8 cannot read our points element |
 | X10 | `meyes_description` | Their rows have no description column |
 | X11 | Our own grouping anchors (§7.6) and `tier` null | Their anchor tables and tier rule are unpublished; our anchors are the terms their release uses, so groupings agree where both have a term |
 | X12 | Interim required set (M10): `uid`, `technology`, `vendor`, `assay` recommended until the fleet is reprocessed; ids required throughout | What search and the MCP need now is organism, tissue and a store; the instrument is a person's call for most rows today. Their validator still passes the combined index (it refuses only an all-null required column) |

@@ -432,6 +432,9 @@
         "meyes_de_columns": {
           "$ref": "#/$defs/indexRow/properties/meyes_de_columns"
         },
+        "meyes_matrix_hash": {
+          "$ref": "#/$defs/indexRow/properties/meyes_matrix_hash"
+        },
         "meyes_pipeline": {
           "$ref": "#/$defs/indexRow/properties/meyes_pipeline"
         },
@@ -557,6 +560,50 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "matrix_hash": {
+          "type": "object",
+          "description": "How meyes_matrix_hash was computed (metadata.md §7.7).",
+          "required": [
+            "version",
+            "matrix",
+            "genes",
+            "n_cells",
+            "n_nonzero"
+          ],
+          "properties": {
+            "version": {
+              "const": "mh1"
+            },
+            "matrix": {
+              "type": "string",
+              "description": "What was hashed: `X`, or `layers/<name>` when X is not counts."
+            },
+            "genes": {
+              "enum": [
+                "symbol",
+                "ensembl"
+              ],
+              "description": "The gene names hashed, lower-cased."
+            },
+            "n_cells": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "n_nonzero": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sketch": {
+              "type": "array",
+              "description": "The 64 smallest per-cell hashes (16 hex digits each), sorted: a bottom-k sketch to estimate the share of cells two stores have in common.",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "maxItems": 64
+            }
+          }
         }
       }
     },
@@ -614,6 +661,14 @@
             "null"
           ],
           "minimum": 0
+        },
+        "meyes_matrix_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^mh1:[0-9a-f]{64}$",
+          "description": "The section's own matrix hash, so one section re-released alone is found."
         }
       }
     },
@@ -1425,23 +1480,25 @@
           "x-sddb-dtype": "string"
         },
         "same_section_group": {
-          "description": "10x re-releases only.",
+          "description": "Re-release group: rows whose matrix is the same (equal meyes_matrix_hash, or a near match a person confirmed). The newest member's uid (canonical_key until uids exist). metadata.md §7.7.",
           "type": [
             "string",
             "null"
           ],
-          "x-meyes-level": "n/a",
+          "x-meyes-level": "derived",
           "x-sddb-dtype": "string"
         },
         "same_section_relation": {
+          "description": "`rerelease` within a group, as SpatialData-DB writes it; null outside one.",
           "type": [
             "string",
             "null"
           ],
-          "x-meyes-level": "n/a",
+          "x-meyes-level": "derived",
           "x-sddb-dtype": "string"
         },
         "same_section_release": {
+          "description": "Space Ranger release; 10x only.",
           "type": [
             "string",
             "null"
@@ -1450,6 +1507,7 @@
           "x-sddb-dtype": "string"
         },
         "same_section_panel_of": {
+          "description": "10x only.",
           "type": [
             "array",
             "null"
@@ -1576,6 +1634,15 @@
             "string",
             "null"
           ],
+          "x-meyes-level": "recommended"
+        },
+        "meyes_matrix_hash": {
+          "description": "`mh1:` + sha256 of the default table's counts, independent of storage, cell order and gene order (metadata.md §7.7). Equal hashes = the same matrix.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^mh1:[0-9a-f]{64}$",
           "x-meyes-level": "recommended"
         },
         "meyes_pipeline": {
