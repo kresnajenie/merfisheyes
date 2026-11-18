@@ -13,9 +13,11 @@ departs only where our data does not fit (multi-section stores,
 molecules at billion scale) — each departure recorded in §3.
 
 This file is the brief for every session working on it. **Status
-(2026-11-17): step 1 done (`f6bb3bd`, `63c4d0b`); steps 2 and 3 built and
-tested on the 62 reprocessed BIL stores; step 4 built, its first run against
-eyes-catalog pending.** Spec: [`docs/specs/metadata.md`](../specs/metadata.md).
+(2026-11-18): steps 1–4 done; step 5 done for the 63 BIL stores in S3, the
+rest waits on the reprocessing now running; steps 6 and 7 built and
+published to `bil-psc-zarr/.index/` (each with a gate half still open);
+steps 8–9 not started. `feature/metadata` is pushed, no PR yet; the worker
+and cluster images are not rebuilt.** Spec: [`docs/specs/metadata.md`](../specs/metadata.md).
 Keep it current: a step that changes a fact or a decision edits this
 file in the same commit. Branch: `feature/metadata`, from `develop` (the
 pipeline parts touch `scripts/` and `scripts/bil-scripts/`, so they
