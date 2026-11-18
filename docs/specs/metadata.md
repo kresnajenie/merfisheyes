@@ -545,6 +545,33 @@ then show one row per group. SpatialData-DB's `Count Matrix Hash` (`cmh1:`)
 uses an unpublished algorithm; if they publish it we compute it as well and
 match their rows exactly.
 
+### 7.8 The gene index
+
+Beside `catalog.parquet` (`scripts/metadata/build_gene_index.py`, M5), in
+SpatialData-DB's formats:
+
+| File | Rows | Columns |
+|---|---|---|
+| `gene_index.parquet` | one per (dataset of ours, gene) | their `GENE_INDEX_COLUMNS` — `symbol`, `feature_id`, `uid`, `total_counts`, `fraction_obs_detected` — plus `meyes_id`. The numbers come from the store's `X` (column sum; non-zero cells ÷ `n_obs`); for a dataset the index knows only from Explore the genes are the site's gene list and the numbers are null (measured, not quantified) |
+| `gene_search.parquet` | one per gene entity over **every** index row, ours and SpatialData-DB's live ones | `entity_id`, `feature_id`, `symbols` (lower case), `n_datasets`, `bitset`: bit *i*, little-endian, is `catalog.parquet`'s row *i* |
+| `gene_search_meta.json` | — | `meyes_ids` and `dataset_uids` in row order, `order_hash`, `n_entities`, `n_datasets` |
+
+- **Their bitsets, re-ordered.** SpatialData-DB's release bitsets are
+  little-endian over their `dataset_uids` (determined from data: a cow
+  gene decodes to their 4 cow datasets) and their `order_hash` is SHA-256
+  of the uids joined by `,`. Ours re-orders each bitset onto our rows,
+  dropping their datasets that are not on the site.
+- **Our genes join their entities** by symbol, choosing the entity of the
+  dataset's organism (Ensembl prefix: `ENSMUSG` mouse, `ENSG0` human,
+  `ENSMMUG` macaque, `ENSCJAG` marmoset); a symbol no entity of that
+  organism lists becomes its own entity, as theirs do for symbols they
+  could not resolve. No bionty lookup: their resolution is reused.
+- **Departures**: `meyes_id` added to `gene_index` (the join key every row
+  has; `uid` is null where a dataset has no Lamin record); `order_hash`
+  hashes the `meyes_ids`, for the same reason; their own
+  `gene_index.parquet` (1 GB, per dataset × gene with counts) is not
+  copied — "expresses X above 5 %" for their datasets is read from theirs.
+
 ## 8. What today's rows can fill
 
 From [`metadata-inventory.md`](metadata-inventory.md): the interim 16

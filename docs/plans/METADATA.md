@@ -422,6 +422,17 @@ per-gene totals also flag likely re-releases across both catalogs
 **Gate:** "mouse brain datasets that express X above 5 % of cells"
 answered across SDDB and MERFISHEYES from the index files alone.
 
+*Built and published 2026-11-18* (`scripts/metadata/build_gene_index.py`;
+`metadata.md` §7.8), beside the index in `.index/<date>/` and `latest/`:
+`gene_index.parquet` 63,710 rows over 151 of our 165 datasets (29,500 with
+counts, from the 63 stores; 14 Explore-only datasets have no gene list),
+`gene_search.parquet` 764,753 entities over all 12,740 rows (4,522 of our
+genes joined SpatialData-DB's entities, 205 new), `gene_search_meta.json`.
+Checks: their validator passes `gene_index`; their bitsets survive the
+re-ordering exactly (cow GAD1 → the same 4 datasets); "mouse brain stores
+expressing Rab3b in > 5 % of cells" → 55. The gate's cross-library half
+needs their `gene_index.parquet` (1 GB) read by row group, not done.
+
 ### Step 8 — A site built to filter
 
 Explore gets the facets the index carries: organism, tissue as a tree
