@@ -195,7 +195,24 @@ community 1. Groupings are filled for every row (`organism == mouse &
 tissue_organ == spinal cord` → 392). `same_section_group` is filled from
 equal `meyes_matrix_hash` (no groups yet). Rebuilt after each publish
 batch and nightly; dated copies under `.index/<date>/`. B no longer needs
-a fallback search for rows missing from the index. Open: where the index is published, how often it is
+a fallback search for rows missing from the index.
+
+*The gene index is published (2026-11-18, `docs/specs/metadata.md` §7.8 on
+`feature/metadata`), beside the catalog:* `gene_index.parquet` (63,710
+rows: `symbol`, `feature_id` (Ensembl id, else the symbol), `uid`,
+`total_counts`, `fraction_obs_detected`, `meyes_id`) for our datasets only
+(151 of 165; counts for the 63 stores, null for Explore-only rows —
+measured, not quantified), joined to the catalog on `meyes_id`;
+`gene_search.parquet` (764,753 entities: `entity_id`, `feature_id`,
+`symbols` lower case, `n_datasets`, `bitset` — little-endian over
+`catalog.parquet`'s row order, 1,593 bytes) over all 12,740 live rows;
+`gene_search_meta.json` (`meyes_ids` in row order, `order_hash` =
+sha256 of them joined by commas — check it before trusting a bitset).
+"Measures X": the entities whose symbols contain x (Ensembl prefix by
+organism: ENSMUSG mouse, ENSG0 human) → bitset → catalog rows. "Expresses
+X in > p of cells": `gene_index` for ours; SDDB's own 1 GB `gene_index`
+(by row group) for theirs. Checked by the metadata session: mouse Gad1 →
+2,537 datasets; mouse brain stores expressing Rab3b > 5 % → 55. Open: where the index is published, how often it is
 rebuilt. B's tools wait for step 6; searches against today's catalog
 cannot pass B's gate until the reprocessed data and index are live.
 
@@ -480,6 +497,27 @@ viewer is the site's viewer code, never a fork.
    value, coloured by the label, show only "radial glia-like" → 1,052
    visible cells (the file's count), a snapshot with that legend; adding
    it again refused.
+
+   **Framing and molecules (2026-11-18; not committed).** Snapshots are
+   framed on the cells drawn in colour by default (`frame: "visible"`; the
+   camera moved to their bounding box, keeping the viewing direction, then
+   put back) or exactly as the person sees it (`"current"`); `set` takes
+   `fit` to zoom the live view. The scene registers a handle (camera,
+   controls, point positions) in `lib/agent/view-targets.ts`. Molecules:
+   the molecule viewer's panel and molecules drawn over cells register
+   too (from `useSMVizUrlSync` / `useSMOverlayUrlSync`); `state` reports the
+   genes shown with their colours; `set` takes `molecules: {show, add,
+   remove, colors, opacity, size}` through the molecule store's own
+   actions (overlay molecules still loading are waited for, up to a
+   minute); snapshots work in the molecule viewer and list molecule genes
+   in the legend. Checked: framing on immature neurons spread over three
+   sections 178 → 323 drawn pixels (the frame must span the sections); the
+   tiny molecule folder — show exactly two genes with a colour and size,
+   legend, unknown gene refused; molecules over cells on the e2e fixture
+   store — show two genes, recolour, opacity 0.6, snapshot legend. Seen on
+   the way, not the agent's: the points of `neurogenesis2026/igfbpl1_gate.zarr`
+   (tiled points, 1.4 GB) never load in the viewer at all — for the
+   viewer / reprocessing work.
 5. **Fit an analysis.** The reference workflow (a collaborator's, 2026-11-13):
    define radial glia vs immature neurons from pseudotime, UMAP and a
    molecule gradient; output UMAP, spatial projection of cells and

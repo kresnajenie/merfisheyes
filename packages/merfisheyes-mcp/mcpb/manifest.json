@@ -60,11 +60,11 @@
     },
     {
       "name": "meyes_view_set",
-      "description": "Change the open view: colour by a gene or column, show only / hide values (e.g. a bad FOV), dot size, 2D/3D"
+      "description": "Change the open view: colour cells by a gene or column, show only / hide values (e.g. a bad FOV), molecules shown and their colours, dot size, 2D/3D, zoom to what is shown"
     },
     {
       "name": "meyes_view_snapshot",
-      "description": "A PNG of the open view with its legend, saved to a file and shown to Claude"
+      "description": "A PNG of the open view, framed on what is shown, with its legend (cells and molecules) \u2014 saved to a file and shown to Claude"
     },
     {
       "name": "meyes_view_add_column",

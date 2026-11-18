@@ -52,7 +52,8 @@ Use it before meyes_view_set to learn the exact column and value names. Needs a 
     "meyes_view_set",
     {
       title: "Change the open view",
-      description: `Change the MERFISHEYES view open in the person's browser: colour by a gene or by a column (cell type, cluster, pseudotime, fov, …), show only some values of the current categorical column or hide some (e.g. a bad FOV), show all again, dot size, 2D or 3D, reset the camera. Answers with the view's state afterwards.
+      description: `Change the MERFISHEYES view open in the person's browser — cells: colour by a gene or by a column (cell type, cluster, pseudotime, fov, …), show only some values of the current categorical column or hide some (e.g. a bad FOV), show all again, dot size, 2D or 3D, reset the camera. Answers with the view's state afterwards.
+Molecules (the molecule viewer, or molecules drawn over cells): molecules={show:["Gad1","Slc17a7"], colors:{...}, opacity, size}.
 Names must be the dataset's own (meyes_view_state lists them); gene names are matched without regard to case.
 Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide fov 5" -> column="fov", hide=["5"] then column="celltype"; "only radial glia and immature neurons" -> column="celltype", show_only=["radial glia","immature"].`,
       inputSchema: z.strictObject({
@@ -98,12 +99,51 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
           .boolean()
           .optional()
           .describe("Fit the data in view again"),
+        molecules: z
+          .strictObject({
+            show: z
+              .array(z.string().min(1).max(100))
+              .max(30)
+              .optional()
+              .describe(
+                "Exactly these genes' molecules drawn (others removed)",
+              ),
+            add: z.array(z.string().min(1).max(100)).max(30).optional(),
+            remove: z.array(z.string().min(1).max(100)).max(30).optional(),
+            colors: z
+              .record(z.string(), z.string().regex(/^#[0-9a-fA-F]{6}$/))
+              .optional()
+              .describe('Colours per gene, e.g. {"Gad1": "#ff3da5"}'),
+            opacity: z.number().min(0.01).max(1).optional(),
+            size: z
+              .number()
+              .min(0.1)
+              .max(10)
+              .optional()
+              .describe("Molecule size multiplier"),
+          })
+          .optional()
+          .describe(
+            "The molecules on show — in the molecule viewer, or molecules drawn over the cells",
+          ),
+        fit: z
+          .boolean()
+          .optional()
+          .describe(
+            "Zoom the view to the cells drawn in colour (after show_only / hide, the ones kept)",
+          ),
       }),
       annotations: ACT,
     },
     async (a) => {
       try {
-        return text(JSON.stringify(await local.command("set", a), null, 2));
+        return text(
+          JSON.stringify(
+            await local.command("set", a, a.molecules ? 90_000 : 30_000),
+            null,
+            2,
+          ),
+        );
       } catch (e) {
         return fail(e);
       }
@@ -114,7 +154,7 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
     "meyes_view_snapshot",
     {
       title: "Picture of the open view",
-      description: `A PNG of the MERFISHEYES view open in the person's browser, as drawn, with a legend beside it (the visible categories and their colours, or the gene and its colour scale). Returned as an image you can look at, and saved to a file — save_to (a .png path, e.g. in the folder of a slide deck being made) or MERFISHEYES's snapshots folder. Use it to check a view before showing it, and for figures.`,
+      description: `A PNG of the MERFISHEYES view open in the person's browser, framed on the cells drawn (or exactly as the person sees it, frame=current), with a legend beside it (the visible categories and their colours, or the gene and its colour scale). Returned as an image you can look at, and saved to a file — save_to (a .png path, e.g. in the folder of a slide deck being made) or MERFISHEYES's snapshots folder. Use it to check a view before showing it, and for figures.`,
       inputSchema: z.strictObject({
         save_to: z
           .string()
@@ -132,10 +172,16 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
           .describe(
             "Width of the scene in pixels (the legend is added beside it)",
           ),
+        frame: z
+          .enum(["visible", "current"])
+          .default("visible")
+          .describe(
+            "visible: framed on the cells drawn in colour (the person's camera is put back after); current: exactly the person's view",
+          ),
       }),
       annotations: ACT,
     },
-    async ({ save_to, width }) => {
+    async ({ save_to, width, frame }) => {
       try {
         const shot = await local.command<{
           png_base64: string;
@@ -144,7 +190,8 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
           legend?: { value: string; color: string }[];
           gene?: string;
           column?: string;
-        }>("snapshot", { width }, 60_000);
+          molecules?: { gene: string; color: string }[];
+        }>("snapshot", { width, frame }, 60_000);
         const file = save_to
           ? resolve(save_to)
           : join(
@@ -169,7 +216,12 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
                 `Saved ${shot.width}×${shot.height} PNG to ${file}.`,
                 shot.gene
                   ? `Coloured by gene ${shot.gene}.`
-                  : `Coloured by ${shot.column}: ${(shot.legend ?? []).map((l) => l.value).join(", ")}.`,
+                  : shot.column
+                    ? `Coloured by ${shot.column}: ${(shot.legend ?? []).map((l) => l.value).join(", ")}.`
+                    : "",
+                shot.molecules?.length
+                  ? `Molecules: ${shot.molecules.map((m) => m.gene).join(", ")}.`
+                  : "",
               ].join("\n"),
             },
           ],

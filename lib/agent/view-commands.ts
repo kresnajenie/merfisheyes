@@ -1,7 +1,13 @@
 import type { CellVizUrlState } from "@/lib/utils/url-visualization-state";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
-import { primaryTarget, type CellsTarget } from "@/lib/agent/view-targets";
+import {
+  moleculesTarget,
+  primaryTarget,
+  sceneFor,
+  type CellsTarget,
+  type MoleculesTarget,
+} from "@/lib/agent/view-targets";
 import { applyCellVizState } from "@/lib/hooks/useUrlVizSync";
 import { colormapRgb } from "@/lib/utils/colormaps";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
@@ -119,12 +125,183 @@ function visibleCells(d: StandardizedDataset, s: VizState): number {
   return count;
 }
 
+/**
+ * Move the camera so the cells drawn in colour fill the view (all cells when
+ * nothing is picked out), keeping the viewing direction. Returns how to put
+ * the camera back.
+ */
+function fitToVisible(t: CellsTarget, data: StandardizedDataset): () => void {
+  const scene = sceneFor(t.panel);
+  const camera = scene?.camera();
+  const controls = scene?.controls();
+  const pos = scene?.positions();
+
+  if (!scene || !camera || !controls || !pos)
+    throw new ViewCommandError("The scene is not ready to be framed yet.");
+  const s = t.store();
+  const pick = drawn(data, s);
+  const c = s.selectedColumn
+    ? data.clusters?.find((k) => k.column === s.selectedColumn)
+    : null;
+  const keep = pick?.others && c ? new Set(pick.values) : null;
+  const n = Math.min(cellCount(data), pos.length / 3);
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+
+  for (let i = 0; i < n; i++) {
+    if (keep && !keep.has(String(getClusterValue(c as never, i)))) continue;
+    for (let k = 0; k < 3; k++) {
+      const v = pos[i * 3 + k];
+
+      if (v < lo[k]) lo[k] = v;
+      if (v > hi[k]) hi[k] = v;
+    }
+  }
+  if (!Number.isFinite(lo[0]))
+    throw new ViewCommandError("No cells are drawn to frame.");
+  const center = lo.map((v, k) => (v + hi[k]) / 2);
+  const before = {
+    position: camera.position.clone(),
+    target: controls.target.clone(),
+  };
+  const fov = ((camera.fov ?? 50) * Math.PI) / 180;
+  const aspect = camera.aspect ?? 1;
+  const w = Math.max(hi[0] - lo[0], 1e-6);
+  const h = Math.max(hi[1] - lo[1], 1e-6);
+  // the height that fits both extents, with a margin
+  const fitH = Math.max(h, w / aspect) * 1.12;
+  const distance = fitH / 2 / Math.tan(fov / 2) + (hi[2] - lo[2]) / 2;
+  const dir = {
+    x: camera.position.x - controls.target.x,
+    y: camera.position.y - controls.target.y,
+    z: camera.position.z - controls.target.z,
+  };
+  const len = Math.hypot(dir.x, dir.y, dir.z) || 1;
+
+  controls.target.set(center[0], center[1], center[2]);
+  camera.position.copy({
+    x: center[0] + (dir.x / len) * distance,
+    y: center[1] + (dir.y / len) * distance,
+    z: center[2] + (dir.z / len) * distance,
+  });
+  controls.update();
+
+  return () => {
+    camera.position.copy(before.position);
+    controls.target.copy(before.target);
+    controls.update();
+  };
+}
+
+/** The molecules on show: genes drawn (with colours), opacity, size. */
+function moleculesState(t: MoleculesTarget) {
+  const d = t.dataset();
+  const s = t.store();
+
+  if (!d) return { loading: true };
+
+  return {
+    over_cells: t.overlay,
+    genes_available: d.uniqueGenes.length,
+    shown: [...s.selectedGenes.values()].map((g) => ({
+      gene: g.gene,
+      color: g.color,
+    })),
+    in_legend_but_hidden: [...s.selectedGenesLegend].filter(
+      (g) => !s.selectedGenes.has(g),
+    ),
+    opacity: s.moleculeOpacity,
+    size: s.globalScale,
+    view: s.viewMode,
+    layer_visible: s.smLayerVisible,
+    examples: d.uniqueGenes.slice(0, 30),
+  };
+}
+
+export interface MoleculesArgs {
+  /** Exactly these genes drawn (others removed). */
+  show?: string[];
+  add?: string[];
+  remove?: string[];
+  colors?: Record<string, string>;
+  opacity?: number;
+  size?: number;
+}
+
+/** Change the molecules on show through the molecule store's own actions;
+ * gene names matched to the dataset's without regard to case. */
+async function moleculesSet(t: MoleculesTarget, a: MoleculesArgs) {
+  // Molecules over cells load after the cells: wait for them a while.
+  for (let i = 0; i < 120 && !t.dataset(); i++)
+    await new Promise((r) => setTimeout(r, 500));
+  const d = t.dataset();
+
+  if (!d)
+    throw new ViewCommandError(
+      "The molecules are still loading; try again in a moment.",
+    );
+  const fix = (g: string) => {
+    const hit = d.uniqueGenes.find((x) => x.toLowerCase() === g.toLowerCase());
+
+    if (!hit) {
+      const near = d.uniqueGenes
+        .filter((x) => x.toLowerCase().includes(g.toLowerCase().slice(0, 3)))
+        .slice(0, 8);
+
+      throw new ViewCommandError(
+        `No molecules of "${g}" in this dataset.${near.length ? ` Near: ${near.join(", ")}.` : ""}`,
+      );
+    }
+
+    return hit;
+  };
+  const show = a.show?.map(fix);
+  const add = a.add?.map(fix) ?? [];
+  const remove = a.remove?.map(fix) ?? [];
+  const s = t.store();
+
+  if (show) {
+    for (const g of [...s.selectedGenesLegend])
+      if (!show.includes(g)) s.removeGene(g);
+    await frames();
+    for (const g of show) {
+      const now = t.store();
+
+      if (now.selectedGenes.has(g)) continue;
+      if (now.selectedGenesLegend.has(g)) now.toggleGeneVisibility(g);
+      else now.addGene(g, a.colors?.[g]);
+    }
+  }
+  for (const g of add)
+    if (!t.store().selectedGenes.has(g)) t.store().addGene(g, a.colors?.[g]);
+  for (const g of remove) t.store().removeGene(g);
+  await frames();
+  for (const [g, color] of Object.entries(a.colors ?? {}))
+    t.store().setGeneColor(fix(g), color);
+  if (a.opacity !== undefined) t.store().setMoleculeOpacity(a.opacity);
+  if (a.size !== undefined) t.store().setGlobalScale(a.size);
+}
+
 /** What is shown: dataset, colouring, hidden values, columns and values. */
 export function viewState() {
+  const mol = moleculesTarget();
+  const cells = primaryTarget();
+
+  if (!cells && mol) {
+    const d = mol.dataset();
+
+    return {
+      viewer: "molecules",
+      dataset: d?.name ?? null,
+      opened: new URLSearchParams(window.location.search).get("url"),
+      molecules: moleculesState(mol),
+    };
+  }
   const { data, store } = target();
   const s = store();
 
   return {
+    ...(mol ? { molecules: moleculesState(mol) } : {}),
     viewer: "cells",
     dataset: data.name,
     // the data this tab shows (the address the package serves it at)
@@ -166,12 +343,31 @@ export interface ViewSetArgs {
   dot_size?: number;
   view?: "2D" | "3D";
   reset_camera?: boolean;
+  /** Zoom the view to the cells drawn in colour. */
+  fit?: boolean;
+  /** The molecules on show (the molecule viewer, or molecules over cells). */
+  molecules?: MoleculesArgs;
 }
 
 /** Change the view; answers with the state afterwards. Each change goes
  * through the store's own actions; the colour column is applied only when
  * it changes (changing it resets what is picked out). */
 export async function viewSet(a: ViewSetArgs) {
+  const mol = moleculesTarget();
+
+  if (a.molecules) {
+    if (!mol)
+      throw new ViewCommandError("No molecules are drawn in this view.");
+    await moleculesSet(mol, a.molecules);
+  }
+  if (!primaryTarget()) {
+    // The molecule viewer: no cells to change.
+    if (a.view) mol?.store().setViewMode(a.view);
+    if (a.dot_size !== undefined) mol?.store().setGlobalScale(a.dot_size);
+    await frames(3);
+
+    return viewState();
+  }
   const { data, store } = target();
   const s = store();
   let gene: string | null = null;
@@ -283,6 +479,10 @@ export async function viewSet(a: ViewSetArgs) {
     }
   }
   if (a.reset_camera) store().resetCamera();
+  if (a.fit) {
+    await frames(2);
+    fitToVisible(target(), data);
+  }
   await frames(3);
 
   return viewState();
@@ -293,15 +493,29 @@ export async function viewSet(a: ViewSetArgs) {
  * (the visible categories and their colours, or the gene and its colour
  * scale). PNG, base64.
  */
-export async function viewSnapshot(a: { width?: number } = {}) {
-  const { data, store } = target();
-  const s = store();
+export async function viewSnapshot(
+  a: { width?: number; frame?: "visible" | "current" } = {},
+) {
+  const cellsT = primaryTarget();
+  const mol = moleculesTarget();
+
+  if (!cellsT && !mol)
+    throw new ViewCommandError("No dataset is open in this tab yet.");
+  const data = cellsT?.dataset() ?? null;
+  const s = cellsT?.store() ?? null;
   const canvas = document.querySelector(
-    '[data-testid="sc-scene-canvas"] canvas',
+    cellsT
+      ? '[data-testid="sc-scene-canvas"] canvas'
+      : '[data-testid="sm-scene-canvas"] canvas',
   ) as HTMLCanvasElement | null;
 
-  if (!canvas) throw new ViewCommandError("No scene is drawn in this tab yet.");
-  await frames(2);
+  if (!canvas || (cellsT && !data))
+    throw new ViewCommandError("No scene is drawn in this tab yet.");
+  // Framed on the cells drawn (the default), then the person's camera back.
+  const restore =
+    cellsT && data && a.frame !== "current" ? fitToVisible(cellsT, data) : null;
+
+  await frames(4);
   const scene = await createImageBitmap(
     await new Promise<Blob>((done, fail) =>
       canvas.toBlob(
@@ -310,24 +524,29 @@ export async function viewSnapshot(a: { width?: number } = {}) {
       ),
     ),
   );
+
+  restore?.();
   const width = Math.min(Math.max(a.width ?? scene.width, 400), 3000);
   const k = width / scene.width;
   const sceneH = Math.round(scene.height * k);
   const u = Math.max(1, width / 1200); // legend scale
   const legendW = Math.round(260 * u);
-  const gene = s.mode.includes("gene") ? s.selectedGene : null;
-  const column = s.selectedColumn;
-  const values = gene ? null : columnValues(data, s, column);
+  const gene = s && s.mode.includes("gene") ? s.selectedGene : null;
+  const column = s?.selectedColumn ?? null;
+  const values = gene || !s || !data ? null : columnValues(data, s, column);
   // a gene, or a numeric column: a colour scale; a categorical one: swatches
-  const scale = gene ?? (values ? null : column);
-  const cluster = column
-    ? data.clusters?.find((c) => c.column === column)
-    : null;
-  const pick = gene ? null : drawn(data, s);
+  const scale = s ? (gene ?? (values ? null : column)) : null;
+  const cluster =
+    column && data ? data.clusters?.find((c) => c.column === column) : null;
+  const pick = gene || !s || !data ? null : drawn(data, s);
   const shown = pick ? pick.values : [];
   const rows = Math.min(shown.length, 40);
+  const molGenes = mol ? [...mol.store().selectedGenes.values()] : [];
   const legendH = Math.round(
-    (60 + (scale ? 70 : rows * 22 + (shown.length > rows ? 22 : 0))) * u,
+    (60 +
+      (scale ? 70 : rows * 22 + (shown.length > rows ? 22 : 0)) +
+      (molGenes.length ? 40 + Math.min(molGenes.length, 20) * 22 : 0)) *
+      u,
   );
   const out = document.createElement("canvas");
 
@@ -340,45 +559,57 @@ export async function viewSnapshot(a: { width?: number } = {}) {
   ctx.drawImage(scene, 0, 0, width, sceneH);
   const x = width + 16 * u;
   let y = 28 * u;
+  const swatch = (label: string, color: string) => {
+    y += 22 * u;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y - 11 * u, 12 * u, 12 * u);
+    ctx.fillStyle = "#ddd";
+    ctx.fillText(label.slice(0, 28), x + 20 * u, y);
+  };
 
   ctx.fillStyle = "#fff";
   ctx.font = `600 ${15 * u}px sans-serif`;
-  ctx.fillText(data.name.slice(0, 32), x, y);
-  y += 22 * u;
+  ctx.fillText((data?.name ?? mol?.dataset()?.name ?? "").slice(0, 32), x, y);
   ctx.font = `${13 * u}px sans-serif`;
-  ctx.fillStyle = "#bbb";
-  ctx.fillText(gene ? `gene: ${gene}` : `colour: ${column ?? "—"}`, x, y);
-  y += 16 * u;
   const legend: { value: string; color: string }[] = [];
 
-  if (scale) {
-    const bw = legendW - 40 * u;
-
-    for (let i = 0; i < bw; i++) {
-      const [r, g, b] = colormapRgb(s.colormap, i / bw);
-
-      ctx.fillStyle = `rgb(${r * 255},${g * 255},${b * 255})`;
-      ctx.fillRect(x + i, y, 1, 14 * u);
-    }
+  if (s) {
+    y += 22 * u;
     ctx.fillStyle = "#bbb";
-    ctx.fillText("low", x, y + 32 * u);
-    ctx.fillText("high", x + bw - 28 * u, y + 32 * u);
-  } else {
-    for (const v of shown.slice(0, rows)) {
-      const color = s.colorPalette?.[v] ?? cluster?.palette?.[v] ?? "#999";
+    ctx.fillText(gene ? `gene: ${gene}` : `colour: ${column ?? "—"}`, x, y);
+    y += 16 * u;
+    if (scale) {
+      const bw = legendW - 40 * u;
 
-      legend.push({ value: v, color });
-      y += 22 * u;
-      ctx.fillStyle = color;
-      ctx.fillRect(x, y - 11 * u, 12 * u, 12 * u);
-      ctx.fillStyle = "#ddd";
-      ctx.fillText(v.slice(0, 28), x + 20 * u, y);
+      for (let i = 0; i < bw; i++) {
+        const [r, g, b] = colormapRgb(s.colormap, i / bw);
+
+        ctx.fillStyle = `rgb(${r * 255},${g * 255},${b * 255})`;
+        ctx.fillRect(x + i, y, 1, 14 * u);
+      }
+      ctx.fillStyle = "#bbb";
+      ctx.fillText("low", x, y + 32 * u);
+      ctx.fillText("high", x + bw - 28 * u, y + 32 * u);
+      y += 40 * u;
+    } else {
+      for (const v of shown.slice(0, rows)) {
+        const color = s.colorPalette?.[v] ?? cluster?.palette?.[v] ?? "#999";
+
+        legend.push({ value: v, color });
+        swatch(v, color);
+      }
+      if (shown.length > rows) {
+        y += 22 * u;
+        ctx.fillStyle = "#888";
+        ctx.fillText(`+ ${shown.length - rows} more`, x, y);
+      }
     }
-    if (shown.length > rows) {
-      y += 22 * u;
-      ctx.fillStyle = "#888";
-      ctx.fillText(`+ ${shown.length - rows} more`, x, y);
-    }
+  }
+  if (molGenes.length) {
+    y += 30 * u;
+    ctx.fillStyle = "#bbb";
+    ctx.fillText("molecules", x, y);
+    for (const g of molGenes.slice(0, 20)) swatch(g.gene, g.color);
   }
   const dataUrl = out.toDataURL("image/png");
 
@@ -386,9 +617,10 @@ export async function viewSnapshot(a: { width?: number } = {}) {
     png_base64: dataUrl.slice(dataUrl.indexOf(",") + 1),
     width: out.width,
     height: out.height,
-    ...(gene
-      ? { gene, colormap: s.colormap }
-      : { column, legend, hidden: [...s.hiddenCelltypes] }),
+    ...(gene ? { gene, colormap: s!.colormap } : s ? { column, legend } : {}),
+    ...(molGenes.length
+      ? { molecules: molGenes.map((g) => ({ gene: g.gene, color: g.color })) }
+      : {}),
   };
 }
 
@@ -504,7 +736,9 @@ export async function runViewCommand(command: string, args: unknown) {
     case "set":
       return viewSet((args ?? {}) as ViewSetArgs);
     case "snapshot":
-      return viewSnapshot((args ?? {}) as { width?: number });
+      return viewSnapshot(
+        (args ?? {}) as { width?: number; frame?: "visible" | "current" },
+      );
     case "add_column":
       return viewAddColumn(args as AddColumnArgs);
     default:
