@@ -182,7 +182,20 @@ lists its store — 12,575 SDDB + our 63 = 12,638 rows (12.4 MB); every row
 has `meyes_id`, `meyes_page_url` and `meyes_viewer_url`. The 102 Explore
 rows without a store stay out (`explore_rows_without_a_store`). Personal
 indexes are deferred (M14) until the data moves to Lamin's R2; private
-search stays on Postgres / the agent API (M7). Open: where the index is published, how often it is
+search stays on Postgres / the agent API (M7).
+
+*Every live row (2026-11-18, M9 amended, M15):* the index now covers all
+12,740 live Explore rows — the 102 without a checked store included, with
+what their Explore row knows. Two required columns say how far to trust a
+row: `meyes_format` (`spatialdata` | `merfisheyes-chunked`) and
+`meyes_metadata_from` (`store`: bionty-checked, `validation_status pass` |
+`explore`: the site's free text, `not_validated` | `sddb`). B's tools say
+which kind each hit is. By source: sddb 12,575, bil 92, curated 72,
+community 1. Groupings are filled for every row (`organism == mouse &
+tissue_organ == spinal cord` → 392). `same_section_group` is filled from
+equal `meyes_matrix_hash` (no groups yet). Rebuilt after each publish
+batch and nightly; dated copies under `.index/<date>/`. B no longer needs
+a fallback search for rows missing from the index. Open: where the index is published, how often it is
 rebuilt. B's tools wait for step 6; searches against today's catalog
 cannot pass B's gate until the reprocessed data and index are live.
 
@@ -448,6 +461,25 @@ viewer is the site's viewer code, never a fork.
    pseudotime, clusters, labels — pushed by cell id (a CSV or parquet
    beside the data) and shown without rewriting the store; cell sets
    highlighted or hidden.
+
+   **D4 built (2026-11-18; not committed).** `meyes_view_add_column`: the
+   agent writes its results to a CSV or TSV (pandas' `to_csv()` as is: an
+   unnamed first column of cell ids; or `cell_id` / `obs_names` /
+   `barcode` / `index`; or no ids and one row per cell in order) and the
+   package (`src/local/table.ts`) sends them to the open view, which joins
+   them to its cells by the obs index (`SpatialDataTableAdapter.loadCellIds`,
+   new) and adds them as columns built by `clusterColumnFrom` — extracted
+   from the reader's `loadClusters`, so a column from a store and one from
+   an agent are built alike (type detection, palette). Cells missing from
+   the file get "" (a missing label); a column of the same name is refused
+   unless `replace`. Nothing in the store changes. Gate: package tests
+   (42, incl. `test/table.test.ts`); site unit tests (717) after the
+   extraction; through the MCP tools on the 3,534-cell pseudotime store:
+   an agent-style pandas CSV for 3,181 cells (a 3-way label from
+   pseudotime, a score) matched 3,181 of 3,181 by id, 353 cells without a
+   value, coloured by the label, show only "radial glia-like" → 1,052
+   visible cells (the file's count), a snapshot with that legend; adding
+   it again refused.
 5. **Fit an analysis.** The reference workflow (a collaborator's, 2026-11-13):
    define radial glia vs immature neurons from pseudotime, UMAP and a
    molecule gradient; output UMAP, spatial projection of cells and

@@ -18,7 +18,7 @@ export function instructions(site: string, local: boolean): string {
     ...(local
       ? [
           "- Data on the person's own computer (a .zarr store, a MERFISHEYES folder, an OME-Zarr image) opens with meyes_open_local: it is served from their machine to the viewer, never uploaded. Use it, not an upload, when they ask to see their local data.",
-          "- Once the person has the view from meyes_open_local open, drive it: meyes_view_state (what it shows, column and value names), meyes_view_set (colour by a gene or column, show only / hide values such as a bad FOV, dot size, 2D/3D), meyes_view_snapshot (a PNG with legend, saved to a file and shown to you — look at it before describing the view, and use it for figures).",
+          "- Once the person has the view from meyes_open_local open, drive it: meyes_view_state (what it shows, column and value names), meyes_view_set (colour by a gene or column, show only / hide values such as a bad FOV, dot size, 2D/3D), meyes_view_snapshot (a PNG with legend, saved to a file and shown to you — look at it before describing the view, and use it for figures). Results you compute (pseudotime, labels, scores) go into the view with meyes_view_add_column from a CSV keyed by cell id; then colour by them, hide values and snapshot as with the dataset's own columns.",
           "- When the person asks to sign in, or asks for their own projects or datasets while signed out, call meyes_sign_in: it opens the sign-in page and waits for them.",
         ]
       : [

@@ -119,6 +119,7 @@ Tokens are kept in `~/.config/merfisheyes-mcp/credentials.json`
 | `meyes_view_state` | no | What the open local view shows: colouring, hidden values, columns and their values |
 | `meyes_view_set` | no | Change the open local view: colour by a gene or column, show only / hide values (a bad FOV), dot size, 2D/3D |
 | `meyes_view_snapshot` | no | A PNG of the open local view with its legend, saved and shown to the agent |
+| `meyes_view_add_column` | no | Add the agent's own results (pseudotime, labels, scores) to the open view from a CSV keyed by cell id, without changing your data |
 | `meyes_sign_in` / `meyes_sign_out` | — | Connect or disconnect your account |
 | `meyes_whoami` | — | Who is signed in, and what the agent may do |
 | `meyes_list_my_datasets` | yes | Your datasets and their processing status |

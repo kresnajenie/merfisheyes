@@ -6,6 +6,7 @@ import { applyCellVizState } from "@/lib/hooks/useUrlVizSync";
 import { colormapRgb } from "@/lib/utils/colormaps";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { getClusterValue } from "@/lib/StandardizedDataset";
+import { clusterColumnFrom } from "@/lib/spatialdata/SpatialDataTableAdapter";
 
 /**
  * What an agent can do to an open view (docs/plans/MCP.md pillar D3): read
@@ -391,6 +392,110 @@ export async function viewSnapshot(a: { width?: number } = {}) {
   };
 }
 
+export interface AddColumnArgs {
+  /** Per-cell ids, matched to the dataset's own; absent: values in cell order. */
+  ids?: string[];
+  columns: { name: string; values: string[] }[];
+  /** Replace a column of the same name instead of refusing. */
+  replace?: boolean;
+  /** Colour by the first added column. */
+  color_by?: boolean;
+}
+
+/**
+ * Add columns computed elsewhere (an agent's pseudotime, labels, scores —
+ * pillar D4) to the open view, without touching the store: joined to the
+ * cells by id (the obs index) or taken in cell order; a cell with no value
+ * gets "" (a missing label). Built like a column read from a store
+ * (`clusterColumnFrom`): the same type detection and palette.
+ */
+export async function viewAddColumn(a: AddColumnArgs) {
+  const { data, store } = target();
+  const n = cellCount(data);
+  const existing = new Set(columnNames(data));
+
+  for (const c of a.columns)
+    if (existing.has(c.name) && !a.replace)
+      throw new ViewCommandError(
+        `The view already has a column "${c.name}"; pass replace=true to replace it, or use another name.`,
+      );
+  let order: number[];
+  let unmatched = 0;
+
+  if (a.ids) {
+    const adapter = data.adapter as
+      | { loadCellIds?: () => Promise<string[] | null> }
+      | undefined;
+    const cellIds = await adapter?.loadCellIds?.();
+
+    if (!cellIds)
+      throw new ViewCommandError(
+        "This dataset's cells have no ids the viewer can read: give the values in cell order instead (one per cell, no id column).",
+      );
+    const at = new Map(cellIds.map((id, i) => [id, i]));
+
+    order = a.ids.map((id) => {
+      const i = at.get(id);
+
+      if (i === undefined) unmatched++;
+
+      return i ?? -1;
+    });
+    if (unmatched === a.ids.length)
+      throw new ViewCommandError(
+        `None of the ids match this dataset's cells. Yours look like ${a.ids
+          .slice(0, 3)
+          .map((v) => `"${v}"`)
+          .join(", ")}; the dataset's look like ${cellIds
+          .slice(0, 3)
+          .map((v) => `"${v}"`)
+          .join(", ")}.`,
+      );
+  } else {
+    for (const c of a.columns)
+      if (c.values.length !== n)
+        throw new ViewCommandError(
+          `"${c.name}" has ${c.values.length} values but the dataset has ${n} cells; give one value per cell in cell order, or add an id column.`,
+        );
+    order = Array.from({ length: n }, (_, i) => i);
+  }
+
+  const built = a.columns.map((c) => {
+    const full = new Array<string>(n).fill("");
+
+    for (let r = 0; r < c.values.length; r++)
+      if (order[r] >= 0) full[order[r]] = String(c.values[r] ?? "");
+
+    return clusterColumnFrom(c.name, full);
+  });
+
+  if (a.replace && data.clusters)
+    data.clusters = data.clusters.filter(
+      (k) => !a.columns.some((c) => c.name === k.column),
+    );
+  data.addClusters(built as never);
+  for (const b of built) {
+    if (!data.allClusterColumnNames.includes(b.column))
+      data.allClusterColumnNames.push(b.column);
+    data.allClusterColumnTypes[b.column] = b.type;
+  }
+  store().incrementClusterVersion();
+  await frames(2);
+  if (a.color_by) await viewSet({ column: a.columns[0].name });
+
+  return {
+    added: built.map((b) => ({
+      name: b.column,
+      type: b.type,
+      n_values: b.uniqueValues?.length ?? 0,
+    })),
+    cells: n,
+    matched: a.ids ? a.ids.length - unmatched : n,
+    unmatched,
+    cells_without_a_value: n - (a.ids ? a.ids.length - unmatched : n),
+  };
+}
+
 /** Run one command the package sent. */
 export async function runViewCommand(command: string, args: unknown) {
   switch (command) {
@@ -400,6 +505,8 @@ export async function runViewCommand(command: string, args: unknown) {
       return viewSet((args ?? {}) as ViewSetArgs);
     case "snapshot":
       return viewSnapshot((args ?? {}) as { width?: number });
+    case "add_column":
+      return viewAddColumn(args as AddColumnArgs);
     default:
       throw new ViewCommandError(`Unknown command "${command}".`);
   }

@@ -31,7 +31,10 @@ import { instructions } from "./instructions.ts";
 import { registerAccountTools } from "./tools/account.ts";
 import { registerCatalogTools } from "./tools/catalog.ts";
 import { registerLocalTools } from "./tools/local.ts";
-import { registerSessionTools } from "./tools/session.ts";
+import {
+  registerAddColumnTool,
+  registerSessionTools,
+} from "./tools/session.ts";
 import { registerSignInTools } from "./tools/signin.ts";
 import { registerViewTools } from "./tools/view.ts";
 
@@ -55,6 +58,7 @@ function createServer(): McpServer {
   registerViewTools(server, host);
   registerLocalTools(server);
   registerSessionTools(server);
+  registerAddColumnTool(server);
 
   return server;
 }

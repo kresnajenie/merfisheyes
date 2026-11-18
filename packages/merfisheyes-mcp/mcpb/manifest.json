@@ -67,6 +67,10 @@
       "description": "A PNG of the open view with its legend, saved to a file and shown to Claude"
     },
     {
+      "name": "meyes_view_add_column",
+      "description": "Add results Claude computed (pseudotime, labels, scores) to the open view from a CSV keyed by cell id"
+    },
+    {
       "name": "meyes_open_view",
       "description": "A viewer link set up as asked: genes, cell types, 2D/3D, split screen"
     },

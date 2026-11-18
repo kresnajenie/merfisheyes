@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import * as z from "zod/v4";
@@ -8,6 +8,7 @@ import * as z from "zod/v4";
 import { text } from "../format.ts";
 import { cacheRoot } from "../local/convert.ts";
 import { local } from "../local/serve.ts";
+import { idColumn, parseTable } from "../local/table.ts";
 
 /**
  * The live session (MCP.md pillar D3): the agent reads, changes and
@@ -173,6 +174,97 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
             },
           ],
         };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+  );
+}
+
+export function registerAddColumnTool(server: McpServer) {
+  server.registerTool(
+    "meyes_view_add_column",
+    {
+      title: "Add your results to the open view",
+      description: `Add columns you computed (pseudotime, new clusters, labels such as "radial glia" / "immature", scores) to the MERFISHEYES view open in the person's browser, without changing their data: they then behave like the dataset's own columns — colour by them, show only or hide values, snapshot.
+Write the results to a CSV or TSV first: one row per cell, a header, an id column that matches the dataset's cell ids (pandas' df.to_csv() writes the index as the first column, which is used) and one column per result. Without an id column, give exactly one row per cell in the dataset's cell order. Cells missing from the file get an empty value.
+Example: df[["pseudotime","fate"]].to_csv("/tmp/results.csv") then file="/tmp/results.csv", color_by=true.`,
+      inputSchema: z.strictObject({
+        file: z.string().min(1).max(4096).describe("The CSV or TSV"),
+        id_column: z
+          .string()
+          .max(200)
+          .optional()
+          .describe(
+            "The column with cell ids (default: an unnamed first column, or cell_id / obs_names / barcode / index)",
+          ),
+        columns: z
+          .array(z.string().max(200))
+          .max(50)
+          .optional()
+          .describe("Which columns to add (default: all but the id column)"),
+        color_by: z
+          .boolean()
+          .default(false)
+          .describe("Colour by the first added column"),
+        replace: z
+          .boolean()
+          .default(false)
+          .describe("Replace a column of the same name already in the view"),
+      }),
+      annotations: ACT,
+    },
+    async ({ file, id_column, columns, color_by, replace }) => {
+      try {
+        const path = resolve(file);
+        const { header, rows } = parseTable(readFileSync(path, "utf8"));
+        const id = idColumn(header, id_column);
+        const wanted = (columns ?? header.filter((_, i) => i !== id)).map(
+          (name) => {
+            const i = header.indexOf(name);
+
+            if (i < 0)
+              throw new Error(
+                `No column "${name}" in ${path}; its columns: ${header.join(", ")}.`,
+              );
+
+            return { name, i };
+          },
+        );
+
+        if (!wanted.length)
+          throw new Error(`${path} has no column to add besides the ids.`);
+        const result = await local.command<{
+          added: { name: string; type: string; n_values: number }[];
+          cells: number;
+          matched: number;
+          unmatched: number;
+          cells_without_a_value: number;
+        }>(
+          "add_column",
+          {
+            ids: id === null ? undefined : rows.map((r) => r[id] ?? ""),
+            columns: wanted.map(({ name, i }) => ({
+              name,
+              values: rows.map((r) => r[i] ?? ""),
+            })),
+            color_by,
+            replace,
+          },
+          120_000,
+        );
+
+        return text(
+          [
+            `Added to the open view: ${result.added.map((c) => `${c.name} (${c.type}, ${c.n_values} distinct values)`).join("; ")}.`,
+            id === null
+              ? `Values taken in cell order (${result.cells} cells).`
+              : `Matched ${result.matched} of ${rows.length} rows to the dataset's ${result.cells} cells by "${header[id] || "the first column"}"${result.unmatched ? `; ${result.unmatched} ids matched no cell` : ""}${result.cells_without_a_value ? `; ${result.cells_without_a_value} cells have no value` : ""}.`,
+            color_by
+              ? `Coloured by ${result.added[0].name}.`
+              : "Colour by them with meyes_view_set.",
+          ].join("\n"),
+        );
       } catch (e) {
         return fail(e);
       }
