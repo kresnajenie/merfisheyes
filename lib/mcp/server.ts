@@ -7,7 +7,7 @@ import { registerCatalogTools } from "@/packages/merfisheyes-mcp/src/tools/catal
 import { registerViewTools } from "@/packages/merfisheyes-mcp/src/tools/view.ts";
 
 /** The version `/mcp` reports: the package's, whose tools it serves. */
-export const MCP_SERVER_VERSION = "0.1.0";
+export const MCP_SERVER_VERSION = "0.2.0";
 
 /**
  * The site's MCP server for one request (MCP.md pillar E): the npm

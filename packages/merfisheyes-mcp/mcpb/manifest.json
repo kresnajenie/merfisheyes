@@ -1,0 +1,116 @@
+{
+  "manifest_version": "0.3",
+  "name": "merfisheyes",
+  "display_name": "MERFISHEYES",
+  "version": "0.0.0",
+  "description": "Open your own spatial transcriptomics data in the MERFISHEYES viewer \u2014 nothing uploaded \u2014 and search the MERFISHEYES catalog.",
+  "long_description": "Ask Claude to show your data: a SpatialData store, an .h5ad, a Xenium export, a MERSCOPE region or a molecule table on this computer opens in the MERFISHEYES viewer in your browser, served from this computer only. Data that is not a store yet is converted by MERFISHEYES's own pipeline; the first time, Claude asks you before MERFISHEYES downloads its converter (Python and the pipeline's packages, about 1.3 GB, into its own folder \u2014 nothing installed system-wide). Claude can also search the public MERFISHEYES catalog, hand you viewer links set up as you ask, and \u2014 once you sign in \u2014 read your MERFISHEYES projects.",
+  "author": {
+    "name": "MERFISHEYES",
+    "url": "https://www.merfisheyes.com"
+  },
+  "homepage": "https://www.merfisheyes.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kresnajenie/merfisheyes"
+  },
+  "icon": "icon.png",
+  "license": "MIT",
+  "keywords": [
+    "spatial transcriptomics",
+    "MERFISH",
+    "Xenium",
+    "SpatialData",
+    "viewer"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "server/dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server/dist/index.js"
+      ],
+      "env": {
+        "MERFISHEYES_VIEWER_DIR": "${__dirname}/server/viewer",
+        "MERFISHEYES_PYTHON": "${user_config.python}"
+      }
+    }
+  },
+  "user_config": {
+    "python": {
+      "type": "file",
+      "title": "Python for converting raw data (optional)",
+      "description": "Leave empty: the first time you open raw data, MERFISHEYES asks, then sets up its own converter. Pick a Python only if you already have one with MERFISHEYES's pipeline packages.",
+      "required": false
+    }
+  },
+  "tools": [
+    {
+      "name": "meyes_open_local",
+      "description": "Open data on this computer in the MERFISHEYES viewer (converting .h5ad / Xenium / MERSCOPE / molecule tables once)"
+    },
+    {
+      "name": "meyes_setup_converter",
+      "description": "The one-time converter setup (Python and pipeline packages), only after you agree"
+    },
+    {
+      "name": "meyes_open_view",
+      "description": "A viewer link set up as asked: genes, cell types, 2D/3D, split screen"
+    },
+    {
+      "name": "meyes_search_datasets",
+      "description": "Search the public MERFISHEYES catalog"
+    },
+    {
+      "name": "meyes_list_facets",
+      "description": "Species, tissue and platform spellings for filters"
+    },
+    {
+      "name": "meyes_get_dataset",
+      "description": "One catalog dataset in detail"
+    },
+    {
+      "name": "meyes_list_genes",
+      "description": "A dataset's genes"
+    },
+    {
+      "name": "meyes_sign_in",
+      "description": "Sign in to MERFISHEYES to reach your own projects"
+    },
+    {
+      "name": "meyes_sign_out",
+      "description": "Sign out of MERFISHEYES"
+    },
+    {
+      "name": "meyes_whoami",
+      "description": "Who is signed in"
+    },
+    {
+      "name": "meyes_list_my_datasets",
+      "description": "Your MERFISHEYES datasets"
+    },
+    {
+      "name": "meyes_get_processing_status",
+      "description": "Where an upload is in processing"
+    },
+    {
+      "name": "meyes_list_projects",
+      "description": "Your MERFISHEYES projects"
+    },
+    {
+      "name": "meyes_get_project",
+      "description": "One of your projects"
+    }
+  ],
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=20.3.0"
+    }
+  }
+}

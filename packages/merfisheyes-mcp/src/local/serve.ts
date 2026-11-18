@@ -233,8 +233,16 @@ export class LocalServer {
       res.writeHead(status, { "content-type": "text/plain" }).end(body);
     };
 
-    // Only this address: a DNS name rebound to 127.0.0.1 is refused.
-    if (req.headers.host !== `127.0.0.1:${this.port}`) return send(403);
+    // Only this computer's own names for itself (what a browser, or an
+    // editor forwarding the port, sends): a DNS name rebound to 127.0.0.1
+    // is refused.
+    const hosts = [
+      `127.0.0.1:${this.port}`,
+      `localhost:${this.port}`,
+      `[::1]:${this.port}`,
+    ];
+
+    if (!hosts.includes(req.headers.host ?? "")) return send(403);
 
     res.setHeader("Access-Control-Allow-Origin", this.origin);
     res.setHeader("Vary", "Origin");

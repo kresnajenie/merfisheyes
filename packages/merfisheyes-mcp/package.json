@@ -1,14 +1,16 @@
 {
   "name": "@merfisheyes/mcp",
-  "version": "0.1.0",
-  "description": "MCP server for MERFISHEYES: search spatial transcriptomics datasets and work with your projects from an AI agent",
+  "version": "0.2.0",
+  "description": "MERFISHEYES for agents and for your own data: search the spatial transcriptomics catalog, and open your own data (.h5ad, Xenium, MERSCOPE, SpatialData) in the MERFISHEYES viewer on your computer",
   "license": "MIT",
   "type": "module",
   "bin": {
+    "merfisheyes": "dist/index.js",
     "merfisheyes-mcp": "dist/index.js"
   },
   "files": [
     "dist",
+    "overrides",
     "python",
     "README.md"
   ],
@@ -17,7 +19,8 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",
-    "prepublishOnly": "npm run build && npm test && node scripts/bundle-python.mjs"
+    "prepublishOnly": "npm run build && npm test && node scripts/bundle-python.mjs",
+    "mcpb": "npm run build && node scripts/build-mcpb.mjs"
   },
   "engines": {
     "node": ">=20.3"

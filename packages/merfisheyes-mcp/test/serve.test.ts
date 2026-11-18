@@ -144,6 +144,14 @@ describe("serving a folder from this computer", () => {
     expect((await get(`${base}/zarr.json`, h, "PUT")).status).toBe(405);
   });
 
+  it("answers this computer's names for itself, port forwarding included", async () => {
+    const port = new URL(base).port;
+
+    expect(
+      (await get(`${base}/zarr.json`, { host: `localhost:${port}` })).status,
+    ).toBe(200);
+  });
+
   it("refuses a request addressed to another host name (DNS rebinding)", async () => {
     const r = await get(`${base}/zarr.json`, { host: "evil.example.com" });
 

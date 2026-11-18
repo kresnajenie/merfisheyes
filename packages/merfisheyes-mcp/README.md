@@ -53,11 +53,16 @@ claude mcp add --scope user merfisheyes -- node "$(pwd)/dist/index.js"
 
 ## Your own data, without uploading it
 
-Open a folder on your computer in the MERFISHEYES viewer:
+Install once, then open anything — a SpatialData store, an `.h5ad`, a
+Xenium export, a MERSCOPE region, a molecule table — in the MERFISHEYES
+viewer on your computer:
 
 ```bash
-npx -y @merfisheyes/mcp@latest view ./my-sample.zarr
+npm install -g @merfisheyes/mcp
+merfisheyes view my_sample.h5ad
 ```
+
+(Or without installing: `npx -y @merfisheyes/mcp@latest view my_sample.h5ad`.)
 
 Or ask the agent ("show my sample in MERFISHEYES"): it calls
 `meyes_open_local`. The folder is served from your computer on
@@ -73,10 +78,16 @@ a Visium output or a molecule table (`.parquet` / `.csv` with gene, x, y)
 is first converted once by MERFISHEYES's own pipeline into a SpatialData
 store in a cache folder (`~/.cache/merfisheyes/converted`, or
 `MERFISHEYES_CACHE`), and reused until the input changes; the input is
-never changed. Converting needs Python 3.12 with the pipeline's packages:
-`pip install -r` the `requirements.txt` the package carries (the error
-message gives its path), or set `MERFISHEYES_PYTHON` to a Python that has
-them.
+never changed. Converting runs MERFISHEYES's own Python pipeline, which
+needs a one-time setup: Python 3.12 and the pipeline's pinned packages
+(about 1.3 GB), downloaded into MERFISHEYES's own folder, plus
+[uv](https://docs.astral.sh/uv/) (about 15 MB, from its official release,
+checksum verified) when the computer has none. Nothing is installed
+system-wide, and it never happens without asking: `merfisheyes view`
+asks "Set it up now?", an agent asks you before calling its setup tool,
+and `merfisheyes setup` does it directly. Viewing data that is already a
+store needs none of it. To use a Python you already have instead, set
+`MERFISHEYES_PYTHON`.
 
 The viewer itself comes with it (`@merfisheyes/viewer`) and is served from
 your computer too, so nothing goes to the internet. Without it, links open
@@ -123,7 +134,8 @@ are paged (`limit`, `offset`, `next_offset`).
 | `MERFISHEYES_CREDENTIALS` | see above | Where tokens are kept |
 | `MERFISHEYES_NO_BROWSER` | unset | Never open a browser; only give links |
 | `MERFISHEYES_LOCAL_PORT` | a free port | The port `view` and `meyes_open_local` serve folders on |
-| `MERFISHEYES_PYTHON` | `python3` | The Python that converts `.h5ad` and raw instrument output |
+| `MERFISHEYES_PYTHON` | its own, after the one-time setup | The Python that converts `.h5ad` and raw instrument output |
+| `MERFISHEYES_UV` | found, or downloaded by the setup | The uv that builds that Python |
 | `MERFISHEYES_CACHE` | the platform's cache folder | Where converted stores are kept |
 | `MERFISHEYES_VIEWER` | unset | `site`: open the site's viewer even when the standalone one is installed |
 | `MERFISHEYES_SIGN_IN_WAIT_MS` | `120000` | How long sign-in waits for you in the browser before handing back the link |

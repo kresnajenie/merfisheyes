@@ -11,7 +11,7 @@ export const SITE = (
 export const API_BASE = `${SITE}/api/agent/v1`;
 
 export const NAME = "merfisheyes-mcp";
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 /** What sign-in asks for when nothing more is needed (MCP-PROTOCOL §6.3). */
 export const DEFAULT_SCOPES = ["catalog:read", "projects:read"];

@@ -2,6 +2,9 @@
 /**
  * merfisheyes-mcp — an MCP server (stdio) for MERFISHEYES.
  *
+ *   merfisheyes view DATA      open data on this computer in the viewer
+ *                              (also: merfisheyes-mcp …; the same program)
+ *   merfisheyes setup          the one-time converter setup (asks nothing)
  *   merfisheyes-mcp            serve MCP on stdio (what an agent runs)
  *   merfisheyes-mcp login      sign in from a terminal, then exit
  *   merfisheyes-mcp logout     sign out
@@ -21,7 +24,7 @@ import { apiGet } from "./api.ts";
 import { openBrowser, signOut, startSignIn } from "./auth.ts";
 import { NAME, SITE, VERSION } from "./config.ts";
 import { credentialsPath } from "./credentials.ts";
-import { viewable } from "./local/convert.ts";
+import { SetupNeeded, setupPipeline, viewable } from "./local/convert.ts";
 import { local, openLink } from "./local/serve.ts";
 import type { Host } from "./host.ts";
 import { instructions } from "./instructions.ts";
@@ -52,6 +55,18 @@ function createServer(): McpServer {
   registerLocalTools(server);
 
   return server;
+}
+
+/** A yes/no question in a terminal; "no" when there is no terminal. */
+async function confirm(question: string): Promise<boolean> {
+  if (!process.stdin.isTTY) return false;
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  const answer = (await rl.question(question)).trim().toLowerCase();
+
+  rl.close();
+
+  return answer === "" || answer === "y" || answer === "yes";
 }
 
 async function cli(command: string): Promise<number> {
@@ -100,9 +115,20 @@ async function cli(command: string): Promise<number> {
         console.error(
           `Converting ${path} with MERFISHEYES's pipeline (once; reused until it changes)…`,
         );
-      const { share, converted } = await local.open(path, (line) =>
-        console.error(`  ${line}`),
-      );
+      const opened = await local
+        .open(path, (line) => console.error(`  ${line}`))
+        .catch(async (e) => {
+          if (!(e instanceof SetupNeeded)) throw e;
+          console.error(`\n${e.message}\n`);
+          if (!(await confirm("Set it up now? [Y/n] ")))
+            throw new Error(
+              "Not set up. Run `merfisheyes setup` when you are ready, then `merfisheyes view` again.",
+            );
+          await setupPipeline((line) => console.error(`  ${line}`));
+
+          return local.open(path, (line) => console.error(`  ${line}`));
+        });
+      const { share, converted } = opened;
       const link = openLink(share);
 
       if (converted)
@@ -131,9 +157,16 @@ async function cli(command: string): Promise<number> {
         process.once("SIGINT", () => local.close().then(() => done(0))),
       );
     }
+    case "setup": {
+      const python = await setupPipeline((line) => console.error(`  ${line}`));
+
+      console.error(`MERFISHEYES's converter is ready (Python at ${python}).`);
+
+      return 0;
+    }
     default:
       console.error(
-        `Unknown command "${command}". Commands: login, logout, whoami, view; none serves MCP on stdio.`,
+        `Unknown command "${command}". Commands: view, setup, login, logout, whoami; none serves MCP on stdio.`,
       );
 
       return 2;

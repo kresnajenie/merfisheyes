@@ -128,7 +128,25 @@ convention (`conventions.json` `metadata.groupings`: ordered anchor lists,
 12 tissue systems, 40 organs, 8 disease classes, 39 disease groups, taken
 from the terms SDDB's release uses): a "brain" filter is
 `tissue_organ == brain`; descendant queries on any other term use the
-`ontology_rollup.json` the index build writes (`docs/specs/metadata.md` §7.6). Open: where the index is published, how often it is
+`ontology_rollup.json` the index build writes (`docs/specs/metadata.md` §7.6).
+
+*Re-releases (METADATA.md M12, 2026-11-16):* `meyes_matrix_hash`
+(`mh1:` + SHA-256 of the default table's counts, independent of format,
+dtype, cell and gene order; also per section in `meyes_sections[]`)
+identifies the same data published twice; such rows share SDDB's
+`same_section_group` with `same_section_relation = rerelease` (exact
+hashes grouped automatically, near matches proposed for a person to
+confirm). For B's search: collapse a group to its newest member with "also
+published as …" from the others. Not a search key — lookups stay on
+`canonical_key` / `meyes_id`.
+
+*First store end to end (2026-11-17):* ace-dip-van carries its metadata in
+its root `zarr.json` on S3, passed bionty, and is registered in
+`eyes-catalog` with typed features (`feature/metadata`, pushed, head
+771ab60; no PR yet — the other 61 BIL stores are re-run once the
+structures settle). Filter technology by the `technology` string id, not
+Lamin's typed `Assay` (unset where SDDB's EFO ids are missing from the
+pinned EFO). Store metadata is deterministic (no timestamp). Open: where the index is published, how often it is
 rebuilt. B's tools wait for step 6; searches against today's catalog
 cannot pass B's gate until the reprocessed data and index are live.
 
@@ -241,6 +259,73 @@ viewer is the site's viewer code, never a fork.
    viewer with no request leaving 127.0.0.1, and reused in 0.2 s the
    second time; an existing 1.4 GB store with ~10 sections opened locally
    as it is.
+
+   **Easy install and Claude Desktop (2026-11-17; not committed).** Asked
+   for: one install, one command, and a chat (no Claude Code) that can
+   process and show raw data. (1) The pipeline's Python sets itself up:
+   `pipelinePython` uses `MERFISHEYES_PYTHON`, else a private environment
+   uv builds once beside the cache (Python 3.12 + the pinned
+   `requirements.txt`; rebuilt only when the pins change; ~1.3 GB), else
+   `python3`; `findUv` also looks where uv's installers put it, since an
+   app started from the Dock does not have a terminal's PATH. Measured with
+   real uv from nothing: environment + first conversion 14 s, the next
+   3.2 s. The package installs a `merfisheyes` command (`merfisheyes view
+   data.h5ad`; `merfisheyes-mcp` stays) and is 0.2.0. Publishing order:
+   `@merfisheyes/viewer`, then the MCP with it as a dependency. (2) A
+   Claude Desktop extension (`.mcpb`, `npm run mcpb` →
+   `build/merfisheyes-0.2.0.mcpb`, 8.2 MB, 27.6 MB unpacked): the package,
+   its production dependencies, the standalone viewer (`server/viewer`,
+   `MERFISHEYES_VIEWER_DIR`) and the pipeline (`server/python`); one
+   optional setting (a Python); manifest validated by `mcpb`. A claude.ai
+   web chat cannot reach a person's files without a helper on their
+   computer that the site relays to (pillar E5), so Desktop is the
+   no-Claude-Code route for local data. Gate so far: the unpacked bundle
+   run as Desktop runs it (13 tools; the Python setting unset) converted a
+   57 MB `.h5ad` in 4 s and served it with no request leaving 127.0.0.1.
+   **The setup asks, then does itself (2026-11-17).** The person should
+   not set up the agent's infrastructure: converting before the setup is
+   done answers `SetupNeeded` (what it downloads — Python 3.12 and the
+   pinned packages, ~1.3 GB, into MERFISHEYES's own folder; uv if the
+   computer has none — and that nothing is installed system-wide);
+   `meyes_open_local` tells the agent to ask the person and, only on a
+   yes, call `meyes_setup_converter`; the terminal asks "Set it up now?"
+   and `merfisheyes setup` does it directly. uv is downloaded from its
+   GitHub release (pinned `UV_VERSION`, checksum verified against the
+   published `.sha256`) into MERFISHEYES's folder; `python3` is no longer
+   tried silently. Gate: package tests (34: refusal before setup, setup
+   after a yes, no repeat, the asset per platform, a download with a
+   wrong checksum refused); the rebuilt bundle run as Desktop runs it,
+   from nothing: open → "setup needed, ask" → setup (real uv 0.13.9 from
+   GitHub) → open converted the 18 MB `.h5ad` in 5 s.
+   **Macs (2026-11-17, from the first Mac test).** The setup failed on an
+   Intel Mac: `scripts/requirements.txt` is locked on Linux for the server,
+   and llvmlite > 0.45.1 / numba > 0.62.1 have no Intel-Mac builds, pyproj
+   3.8.0 needs macOS 15 (Intel) / 14 (Apple Silicon). Checked per platform
+   with `uv pip compile --python-platform … --only-binary :all:` (flowio
+   and pims are pure-Python sources): Linux and Windows x64 install as
+   pinned; Windows on ARM does not (not supported); Macs need
+   `overrides/darwin-x64.txt` (llvmlite 0.45.1, numba 0.62.1, numpy 2.3.5,
+   pyproj 3.6.1) and `overrides/darwin-arm64.txt` (pyproj 3.6.1), applied
+   by the setup with `uv pip install --override` and hashed into the
+   environment's name; with them both Macs resolve from ready-made builds
+   from macOS 13; below 13 (google-crc32c and others) the setup says so
+   before downloading. The local Python on a Mac therefore differs from the
+   server's in those few packages.
+   Mac test (2026-11-17, Intel Mac, Claude Desktop): the extension installed; a
+   `.zarr` opened as it is; after the Mac overrides, the tiny MERSCOPE folder
+   was set up (with the person's yes), converted and shown.
+
+   *From the metadata work (METADATA.md steps 2–4, 2026-11-17, on
+   `feature/metadata`, not merged):* stores carry their metadata in root
+   attributes (`metadata_general`, `metadata_<tech>`, `meyes_metadata`,
+   `meyes_provenance`); `prepare.py --metadata FILE` writes them; bionty
+   runs on the Lamin side (M3 amended), so a local store may say
+   `meyes_provenance.validation.status = not_validated`. The viewer reads
+   them with `lib/spatialdata/metadata.ts` `readStoreMetadata` (the one
+   reader — the local package reuses it rather than parsing `zarr.json`
+   again) and shows an "About this dataset" panel; the standalone viewer
+   gets that panel when both branches are in `develop` and it is rebuilt.
+   A local conversion could pass `--metadata` later (D4/D5).
 2. **A standalone viewer.** A second build target of the same viewer
    components — static files, no server, no account — shipped as its own
    npm package and served by the local mode next to the data: offline,
