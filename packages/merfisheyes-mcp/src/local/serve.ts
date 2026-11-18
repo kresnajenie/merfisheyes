@@ -5,7 +5,12 @@ import {
   realpathSync,
   statSync,
 } from "node:fs";
-import { createServer, type Server } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import { basename, dirname, join, resolve, sep } from "node:path";
@@ -142,6 +147,15 @@ export class LocalServer {
   private readonly origin = new URL(SITE).origin;
   /** The standalone viewer served beside the data, or null (the site's). */
   readonly viewerDir: string | null;
+  /** The secret a page needs for the live session (pillar D3): only a page
+   * this server opened has it (it is in the link). */
+  readonly sessionToken = randomBytes(16).toString("base64url");
+  private readonly views: ServerResponse[] = [];
+  private readonly pending = new Map<
+    number,
+    { ok: (v: unknown) => void; fail: (e: Error) => void }
+  >();
+  private nextId = 1;
 
   constructor(opts: { viewerDir?: string | null } = {}) {
     this.viewerDir =
@@ -154,7 +168,7 @@ export class LocalServer {
     const url = encodeURIComponent(share.url);
 
     return this.viewerDir
-      ? `http://127.0.0.1:${this.port}/open/?url=${url}`
+      ? `http://127.0.0.1:${this.port}/open/?url=${url}&session=${this.sessionToken}`
       : `${SITE}/open?url=${url}`;
   }
 
@@ -195,6 +209,111 @@ export class LocalServer {
     return { share: await this.share(converted.folder), converted };
   }
 
+  /** Whether a page of this server is open and listening for commands. */
+  get viewOpen(): boolean {
+    return this.views.length > 0;
+  }
+
+  /**
+   * Send a command to the open view (the most recently opened tab) and wait
+   * for its answer: `state`, `set`, `snapshot` (lib/agent/view-commands.ts
+   * in the viewer). Throws when no view is open, the view answers with an
+   * error, or nothing comes back in time.
+   */
+  command<T>(command: string, args: unknown, timeoutMs = 30_000): Promise<T> {
+    const view = this.views.at(-1);
+
+    if (!view)
+      return Promise.reject(
+        new Error(
+          "No MERFISHEYES view is open: open the data with meyes_open_local, have the person open the link, and keep that tab open.",
+        ),
+      );
+    const id = this.nextId++;
+
+    return new Promise<T>((ok, fail) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        fail(
+          new Error(`The view did not answer within ${timeoutMs / 1000} s.`),
+        );
+      }, timeoutMs);
+
+      this.pending.set(id, {
+        ok: (v) => {
+          clearTimeout(timer);
+          ok(v as T);
+        },
+        fail: (e) => {
+          clearTimeout(timer);
+          fail(e);
+        },
+      });
+      view.write(`data: ${JSON.stringify({ id, command, args })}\n\n`);
+    });
+  }
+
+  /** `/session/events` (the page listens) and `/session/reply` (it
+   * answers): this server's own pages only — the session token, no CORS. */
+  private session(
+    path: string,
+    url: URL,
+    req: IncomingMessage,
+    res: ServerResponse,
+  ) {
+    res.removeHeader("Access-Control-Allow-Origin");
+    if (url.searchParams.get("token") !== this.sessionToken)
+      return res.writeHead(403).end();
+    if (path === "events" && req.method === "GET") {
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
+      res.write(": connected\n\n");
+      this.views.push(res);
+      const beat = setInterval(() => res.write(": .\n\n"), 15_000);
+
+      req.on("close", () => {
+        clearInterval(beat);
+        const i = this.views.indexOf(res);
+
+        if (i >= 0) this.views.splice(i, 1);
+      });
+
+      return;
+    }
+    if (path === "reply" && req.method === "POST") {
+      const chunks: Buffer[] = [];
+      let size = 0;
+
+      req.on("data", (c: Buffer) => {
+        size += c.length;
+        // a snapshot is the largest answer: a few MB of PNG
+        if (size > 64 * 1024 * 1024) req.destroy();
+        else chunks.push(c);
+      });
+      req.on("end", () => {
+        try {
+          const m = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          const waiting = this.pending.get(m.id);
+
+          if (waiting) {
+            this.pending.delete(m.id);
+            if (m.ok) waiting.ok(m.result);
+            else waiting.fail(new Error(m.error ?? "the view failed"));
+          }
+          res.writeHead(204).end();
+        } catch {
+          res.writeHead(400).end();
+        }
+      });
+
+      return;
+    }
+    res.writeHead(404).end();
+  }
+
   shared(): Share[] {
     return [...this.roots].map(([token, r]) => ({
       path: r.root,
@@ -204,6 +323,8 @@ export class LocalServer {
 
   async close(): Promise<void> {
     const s = this.server;
+
+    for (const v of this.views.splice(0)) v.end();
 
     this.server = null;
     if (s) await new Promise<void>((r) => s.close(() => r()));
@@ -259,6 +380,12 @@ export class LocalServer {
         res.setHeader("Access-Control-Allow-Private-Network", "true");
 
       return res.writeHead(204).end();
+    }
+    {
+      const url = new URL(req.url ?? "/", "http://x");
+      const m = /^\/session\/(events|reply)$/.exec(url.pathname);
+
+      if (m) return this.session(m[1], url, req, res);
     }
     if (req.method !== "GET" && req.method !== "HEAD") return send(405);
 

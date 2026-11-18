@@ -186,7 +186,9 @@ describe("the standalone viewer, served beside the data", () => {
     const link = app.link({ path: "", url: data });
     const origin = new URL(data).origin;
 
-    expect(link).toBe(`${origin}/open/?url=${encodeURIComponent(data)}`);
+    expect(link).toBe(
+      `${origin}/open/?url=${encodeURIComponent(data)}&session=${app.sessionToken}`,
+    );
   });
 
   it("serves the viewer's pages and scripts, and still the data", async () => {

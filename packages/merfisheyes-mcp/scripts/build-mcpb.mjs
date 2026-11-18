@@ -28,7 +28,20 @@ cpSync(join(pkgDir, "python"), join(stage, "server", "python"), { recursive: tru
 // production dependencies only
 writeFileSync(
   join(stage, "server", "package.json"),
-  JSON.stringify({ name: pkg.name, version: pkg.version, type: "module", dependencies: pkg.dependencies }, null, 2),
+  JSON.stringify(
+    {
+      name: pkg.name,
+      version: pkg.version,
+      type: "module",
+      // the viewer is server/viewer, built from this repository (newer than
+      // the published @merfisheyes/viewer when the two differ)
+      dependencies: Object.fromEntries(
+        Object.entries(pkg.dependencies).filter(([n]) => n !== "@merfisheyes/viewer"),
+      ),
+    },
+    null,
+    2,
+  ),
 );
 execFileSync(npm, ["install", "--omit=dev", "--no-audit", "--no-fund", "--silent"], {
   cwd: join(stage, "server"),

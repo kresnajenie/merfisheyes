@@ -115,6 +115,10 @@ Tokens are kept in `~/.config/merfisheyes-mcp/credentials.json`
 | `meyes_list_genes` | no¹ | A dataset's genes, filtered by a name fragment |
 | `meyes_open_view` | no¹ | A link to a dataset in the viewer already showing what you asked: genes coloured, a cell-type column, 2D or 3D, dot size, opacity, or two datasets side by side in split screen. Opens a tab only when you ask |
 | `meyes_open_local` | no | A folder on your computer in the viewer, served from your machine (never uploaded) |
+| `meyes_setup_converter` | no | The one-time converter setup, only after you agree |
+| `meyes_view_state` | no | What the open local view shows: colouring, hidden values, columns and their values |
+| `meyes_view_set` | no | Change the open local view: colour by a gene or column, show only / hide values (a bad FOV), dot size, 2D/3D |
+| `meyes_view_snapshot` | no | A PNG of the open local view with its legend, saved and shown to the agent |
 | `meyes_sign_in` / `meyes_sign_out` | — | Connect or disconnect your account |
 | `meyes_whoami` | — | Who is signed in, and what the agent may do |
 | `meyes_list_my_datasets` | yes | Your datasets and their processing status |

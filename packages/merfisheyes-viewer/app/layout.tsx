@@ -2,6 +2,7 @@ import "@/styles/globals.css";
 import clsx from "clsx";
 
 import { Providers } from "@/app/providers";
+import { AgentSession } from "@/components/agent-session";
 import { fontSans } from "@/config/fonts";
 
 /** The standalone viewer's frame: the site's styles and providers, no
@@ -27,6 +28,7 @@ export default function StandaloneLayout({
           themeProps={{ attribute: "class", defaultTheme: "dark" }}
         >
           <main className="h-screen w-screen">{children}</main>
+          <AgentSession />
         </Providers>
       </body>
     </html>

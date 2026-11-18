@@ -55,6 +55,18 @@
       "description": "The one-time converter setup (Python and pipeline packages), only after you agree"
     },
     {
+      "name": "meyes_view_state",
+      "description": "What the open view shows: colouring, hidden values, columns and their values"
+    },
+    {
+      "name": "meyes_view_set",
+      "description": "Change the open view: colour by a gene or column, show only / hide values (e.g. a bad FOV), dot size, 2D/3D"
+    },
+    {
+      "name": "meyes_view_snapshot",
+      "description": "A PNG of the open view with its legend, saved to a file and shown to Claude"
+    },
+    {
       "name": "meyes_open_view",
       "description": "A viewer link set up as asked: genes, cell types, 2D/3D, split screen"
     },

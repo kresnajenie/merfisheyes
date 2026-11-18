@@ -146,7 +146,17 @@ its root `zarr.json` on S3, passed bionty, and is registered in
 771ab60; no PR yet — the other 61 BIL stores are re-run once the
 structures settle). Filter technology by the `technology` string id, not
 Lamin's typed `Assay` (unset where SDDB's EFO ids are missing from the
-pinned EFO). Store metadata is deterministic (no timestamp). Open: where the index is published, how often it is
+pinned EFO). Store metadata is deterministic (no timestamp).
+
+*All BIL stores done (2026-11-18):* the 63 stores in
+`s3://merfisheyes-bil/bil-psc-zarr` carry metadata in their root
+`zarr.json` and are in `eyes-catalog` with typed features, all
+`validation pass` (55 mouse, 3 human, 2 macaque, 3 marmoset; 60 MERSCOPE,
+3 Xenium; every store has `meyes_matrix_hash`, `meyes_sections`,
+`meyes_sex`, `timepoint_days`; disease, donor and DOI unknown everywhere).
+Explore and Postgres are unchanged and the index file (METADATA.md step 6)
+does not exist yet: until it does, read a store's own `zarr.json`
+(`readStoreMetadata`) or Lamin. Open: where the index is published, how often it is
 rebuilt. B's tools wait for step 6; searches against today's catalog
 cannot pass B's gate until the reprocessed data and index are live.
 
@@ -361,6 +371,35 @@ viewer is the site's viewer code, never a fork.
    selected), `meyes_snapshot` (a PNG at a chosen size with its legend —
    for figures and decks). This is the bridge of step 5, built where it
    is easiest first.
+
+   **D3 built (2026-11-18; not committed, not released).** No WebSocket:
+   the package's server pushes commands to its own page with server-sent
+   events (`/session/events`) and the page posts answers back
+   (`/session/reply`) — this server's pages only: a session token in the
+   link (`&session=`), no CORS on those routes, the Host check as before.
+   Viewer side (site code, mounted only in the standalone viewer for now):
+   `lib/agent/view-targets.ts` (each cells panel registers from
+   `useCellVizUrlSync`, the one hook every cells viewer calls with its
+   dataset and store), `lib/agent/view-commands.ts` (`state`; `set` —
+   colour by gene or column through `applyCellVizState`, show only / hide /
+   show all values through the store's own visibility toggle, a numeric
+   column switched to categories first as the viewer's "treat as
+   categorical" does, dot size, 2D/3D, reset camera; `snapshot` — the
+   drawn canvas plus a legend panel: swatches of the visible values, or a
+   colour scale for a gene or numeric column), `components/agent-session.tsx`.
+   Package: `LocalServer.command`, tools `meyes_view_state`,
+   `meyes_view_set`, `meyes_view_snapshot` (the PNG returned as an image the
+   agent sees and saved to `save_to` or MERFISHEYES's snapshots folder).
+   Gate: package tests (40, incl. `test/session.test.ts`: commands to a
+   stand-in page and back, no view, wrong token refused, no CORS); on a
+   real 3,534-cell pseudotime `.h5ad` in the rebuilt standalone viewer,
+   headless: state (23 columns), colour by `celltype`, `fov` switched to
+   categories (8 values) and FOV 16 hidden, a snapshot with its legend,
+   colour by `dcx` (corrected to `Dcx`) with a colour-scale snapshot, an
+   unknown gene answered with near matches. Not yet: the molecule viewer;
+   framing a snapshot on the visible cells (they can be small in a wide
+   scene); a published viewer with the session (`@merfisheyes/viewer`
+   0.2.0) and package 0.3.0.
 4. **The agent's results in the view.** Columns the agent computed —
    pseudotime, clusters, labels — pushed by cell id (a CSV or parquet
    beside the data) and shown without rewriting the store; cell sets
