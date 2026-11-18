@@ -78,7 +78,7 @@
   "metadata": {
     "sddb": {
       "catalogSchemaVersion": 3,
-      "release": "catalog-2026-11-12",
+      "release": "catalog-2026-11-17",
       "technologyVocabularyVersion": "3.0.0",
       "generalMetadataVersion": "0.3.2",
       "technologyBlocks": {
@@ -138,6 +138,7 @@
       "tissue": {
         "brain": ["brain", "UBERON:0000955"],
         "brainstem": ["brainstem", "UBERON:0002298"],
+        "spinal cord": ["spinal cord", "UBERON:0002240"],
         "breast": ["breast", "UBERON:0000310"],
         "skin": ["skin of body", "UBERON:0002097"],
         "skin of body": ["skin of body", "UBERON:0002097"],

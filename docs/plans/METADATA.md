@@ -151,10 +151,13 @@ rebuild the worker image — CLAUDE.md §8). Related plans:
 | M6 | A dataset shown in one view keeps all its sections in one store and is **one catalog row**, its sections listed (`meyes_sections`); after reprocessing, a dataset's cells and molecules are in that same store. Sections shown separately are separate stores and rows | **taken, tentatively** 2026-11-14 — the user is not certain; revisit when the reprocessed BIL stores and SDDB's per-sample columns are compared. 2026-11-16: kept for step 1 with per-section facts nested in `meyes_sections`, knowing SDDB lists the Zhuang ABCA data per section; still revisited before step 6 |
 | M7 | Private datasets are never in the public index; an owner's queries read Postgres with the same columns | **taken** 2026-11-14 |
 | M8 | Our stores carry the ontology ids: `metadata_general` and the per-technology block exactly as SDDB writes them (labels), and a sibling root attribute `meyes_metadata` with every id and our columns under the index's column names, plus `meyes_provenance`. SDDB's blocks are never redefined | **taken** 2026-11-16 |
-| M9 | A row enters the public index only when its dataset is a store (`zarr_url` is required). Legacy chunked datasets keep the same columns in Postgres and stay on Explore until reprocessed | **taken** 2026-11-16 |
+| M9 | A row enters the public index only when its dataset is a store (`zarr_url` is required). Legacy chunked datasets keep the same columns in Postgres and stay on Explore until reprocessed | **taken** 2026-11-16. **Amended 2026-11-18**: every dataset live on the site is in the index; one without a checked store carries what Explore knows (`meyes_metadata_from` `explore`, `meyes_format` `merfisheyes-chunked` when it has no store, `validation_status` `not_validated`), mapped by the pipeline's own rules |
 | M10 | All our data is reprocessed for this schema (step 5). Until that is done the required set is relaxed to what search and the MCP need — organism and tissue with ids, counts, title, a store and our links (16 columns); `uid`, `technology`, `vendor`, `assay` are recommended and become required at step 5's gate | **taken** 2026-11-16 |
 | M11 | The tissue system / organ and disease class / group facets use our own anchor lists (`conventions.json` `metadata.groupings`), built from the terms SDDB's release uses; first anchor in list order among the term and its ancestors wins | **taken** 2026-11-16 |
 | M12 | Every store gets a count-matrix hash, `meyes_matrix_hash` (`mh1:`, `metadata.md` §7.7; reference `scripts/metadata/matrix_hash.py`), whole and per section, so re-releases are found: equal hashes group rows as SpatialData-DB's `same_section_group` / `rerelease`; near matches (the hash's cell sketch, per-gene totals from the gene index) are proposals a person confirms | **taken** 2026-11-16 |
+| M13 | The public index is an account of what is **live on MERFISHEYES**: a dataset is in it only when a public Explore row lists its store, so it can be opened and analysed on the site. SpatialData-DB's release is a reference: their rows enter only when Explore lists the same store. Published in the stores' own folder, `s3://merfisheyes-bil/bil-psc-zarr/.index/<date>/` and `.index/latest/` (a dot folder, as `.lamindb/`, so listings of the stores skip it) | **taken** 2026-11-18 |
+| M14 | Personal indexes for private datasets are **deferred** until our data is on Lamin's R2 storage, whose infrastructure is expected to give each person their own database; the index goes there (outline in step 6, "Later: personal indexes"). Until then M7 stands: private datasets are in no index file | **taken** 2026-11-18 |
+| M15 | The index is rebuilt and republished after each batch of datasets is published, and nightly to pick up SpatialData-DB's latest release (bumping the pin after re-reading their schema). Each build is kept as `.index/<date>/`; `.index/latest/` is the current one. The nightly job is not set up yet | **taken** 2026-11-18 |
 
 ## 4. Steps
 
@@ -380,6 +383,30 @@ grouped as re-releases (`same_section_group`, M12). Postgres's catalog columns a
 rebuilt from it (a migration adds the columns). The site's Explore and
 `/api/agent/v1/catalog/search` query the index, not pages.
 
+*Built and published 2026-11-18* (M13), at `.index/2026-11-18/` and `.index/latest/`. `scripts/metadata/build_index.py OUT`
+(meyes-lamin) writes `catalog.parquet` (Snappy, as SDDB's), `ontology_rollup.json`,
+`technology.json` and `release_info.json`. Rows: the SDDB rows of `catalog-2026-11-17`
+whose store Explore lists (12,575, unchanged, `meyes_source` `sddb`; their other
+966 are not on the site and are left out) plus ours — every eyes-catalog store whose
+metadata passed bionty and that a public Explore row lists (63: 60 `bil`, 3
+`curated`). 102 public Explore rows have no store yet (legacy, M9) and are
+in it too since M9 was amended: what Explore knows (from each row's detail, through `build_metadata.from_catalog`), `meyes_metadata_from` `explore`. Checked with SDDB's own validator (their `_catalog_schema.py` at
+the tag) and our rows against `$defs/indexRow`. The pin moved to
+`catalog-2026-11-17`, whose schema added 10 columns (still version 3); our
+profile now lists 103 SDDB columns. **12,740 rows — every live Explore row**
+(`every_live_row_indexed` in `release_info.json`); rebuilt per M15.
+
+**Later: personal indexes (M14 — not built; build once the data is on Lamin's R2).**
+The same `catalog.parquet` format, one per person: the datasets they own or that
+are shared with them through projects, from Postgres `Dataset` rows joined with
+each store's root `zarr.json`. Rebuilt on every change to that person's datasets
+(upload finished, metadata edited, deleted, shared). Stored in their own space —
+on Lamin's R2 per-person database when that exists (to be confirmed with Lamin),
+never in the public `.index/`. Read only through a signed-in route (e.g.
+`GET /api/agent/v1/me/index`: the session or the MCP's OAuth token, then a
+short-lived link), so the MCP runs one query over the public index and the
+person's own. Until then, private search reads Postgres (M7).
+
 **Gate:** an Explore filter (organism + tissue with descendants + age
 range + technology) answered from the index, timed against BUDGETS.md;
 the numbers equal Postgres's; the agent's search returns the same rows.
@@ -419,8 +446,8 @@ agrees.
 - M6 is taken tentatively: check it against the reprocessed BIL stores
   and SDDB's per-sample columns (`sample_id`, `timepoint`) before step 6.
 - Who reviews metadata, and where (Lamin's UI, a sheet, an admin page) — review is expected, not required (M3).
-- How often the index is rebuilt (on each change, or a nightly release
-  like SDDB's).
+- ~~How often the index is rebuilt~~ — M15 (the nightly job is still to set up).
+- ~~Where the index is published~~ — `bil-psc-zarr/.index/` (M13).
 - ~~Which bionty source versions SDDB pins~~ — answered 2026-11-16 (§2;
   `conventions.json` `metadata.ontologies`).
 - Whether SDDB's `metadata_general` keys are meant to become a scverse

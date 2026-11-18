@@ -271,6 +271,9 @@
         "n_obs": {
           "$ref": "#/$defs/indexRow/properties/n_obs"
         },
+        "n_obs_in_tissue": {
+          "$ref": "#/$defs/indexRow/properties/n_obs_in_tissue"
+        },
         "n_features": {
           "$ref": "#/$defs/indexRow/properties/n_features"
         },
@@ -670,7 +673,7 @@
       }
     },
     "indexRow": {
-      "description": "One row of the query index (catalog.parquet): SpatialData-DB catalog schema 3 (all 93 columns, their order) then the meyes_ columns. `required` is the interim set, while the fleet is reprocessed; x-meyes-required-after-reprocessing lists the columns that join it when that is done (METADATA.md M10), which makes SpatialData-DB's six required columns required again.",
+      "description": "One row of the query index (catalog.parquet): SpatialData-DB catalog schema 3 as of catalog-2026-11-17 (all 103 columns, their order) then the meyes_ columns. `required` is the interim set, while the fleet is reprocessed; x-meyes-required-after-reprocessing lists the columns that join it when that is done (METADATA.md M10), which makes SpatialData-DB's six required columns required again.",
       "type": "object",
       "required": [
         "canonical_key",
@@ -688,7 +691,9 @@
         "meyes_source",
         "meyes_kind",
         "meyes_page_url",
-        "meyes_viewer_url"
+        "meyes_viewer_url",
+        "meyes_format",
+        "meyes_metadata_from"
       ],
       "x-meyes-required-after-reprocessing": [
         "uid",
@@ -975,6 +980,15 @@
           "x-meyes-level": "required",
           "x-sddb-dtype": "Int64"
         },
+        "n_obs_in_tissue": {
+          "description": "Rows of the table with obs in_tissue true; null for us (no in_tissue column).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "Int64"
+        },
         "n_features": {
           "description": "Columns of the default table (genes, blanks and controls filtered).",
           "type": "integer",
@@ -993,7 +1007,7 @@
         "zarr_url": {
           "description": "`s3://bucket/key.zarr` of the store, as SDDB writes it.",
           "type": "string",
-          "pattern": "^s3://[^/]+/.+\\.zarr/?$",
+          "pattern": "^s3://[^/]+/[^\\s]+[^/]$",
           "x-meyes-level": "required",
           "x-sddb-dtype": "string"
         },
@@ -1078,6 +1092,93 @@
             "null"
           ],
           "x-meyes-level": "optional",
+          "x-sddb-dtype": "string"
+        },
+        "review_reasons": {
+          "description": "The open review's reasons, one per item; empty when none.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "derived",
+          "x-sddb-dtype": "list[string]"
+        },
+        "review_classes": {
+          "description": "Each review reason's class, same order.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "x-meyes-level": "optional",
+          "x-sddb-dtype": "list[string]"
+        },
+        "n_cells": {
+          "description": "10x run metric (Atera / Xenium deposit summaries).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "Int64"
+        },
+        "median_transcripts_per_cell": {
+          "description": "10x run metric.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "Float64"
+        },
+        "median_genes_per_cell": {
+          "description": "10x run metric.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "Float64"
+        },
+        "decoded_transcripts": {
+          "description": "10x run metric.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "Int64"
+        },
+        "imaged_area": {
+          "description": "10x run metric, µm².",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "Float64"
+        },
+        "onboard_version": {
+          "description": "10x onboard analysis version.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
+          "x-sddb-dtype": "string"
+        },
+        "panel": {
+          "description": "10x panel name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-meyes-level": "n/a",
           "x-sddb-dtype": "string"
         },
         "product": {
@@ -1521,12 +1622,13 @@
           "x-meyes-level": "required"
         },
         "meyes_source": {
-          "description": "Explore category: `curated`, `bil`, `community`.",
+          "description": "Explore category: `curated`, `bil`, `community`; `sddb` on SpatialData-DB's rows (their own, in the same index).",
           "type": "string",
           "enum": [
             "curated",
             "bil",
-            "community"
+            "community",
+            "sddb"
           ],
           "x-meyes-level": "required"
         },
@@ -1632,6 +1734,25 @@
             "null"
           ],
           "x-meyes-level": "recommended"
+        },
+        "meyes_format": {
+          "description": "`spatialdata` (a store: its metadata is in its root zarr.json) or `merfisheyes-chunked` (a legacy folder: no store yet, M9 amended).",
+          "type": "string",
+          "enum": [
+            "spatialdata",
+            "merfisheyes-chunked"
+          ],
+          "x-meyes-level": "required"
+        },
+        "meyes_metadata_from": {
+          "description": "`store` (the store's own metadata, checked with bionty), `explore` (only what the Explore row says, mapped by the same rules, not validated) or `sddb` (SpatialData-DB's catalog row, as they publish it).",
+          "type": "string",
+          "enum": [
+            "store",
+            "explore",
+            "sddb"
+          ],
+          "x-meyes-level": "required"
         },
         "meyes_matrix_hash": {
           "description": "`mh1:` + sha256 of the default table's counts, independent of storage, cell order and gene order (metadata.md §7.7). Equal hashes = the same matrix.",
