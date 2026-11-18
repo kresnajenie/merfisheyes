@@ -246,6 +246,25 @@ def test_build_metadata_writes_the_four_blocks(tmp_path):
     assert any("stale" in f for f in fails(validate_store.validate(store)))
 
 
+def test_technology_comes_from_the_input_then_platform_then_title():
+    """docs/specs/conventions.json metadata.technologyFrom: the instrument's own output names the
+    technology first, then a platform spelling, then a word in the depositor's title; "MERFISH"
+    alone names none."""
+    sys.path.insert(0, str(ROOT / "scripts" / "metadata"))
+    import build_metadata as bm
+
+    def tech(title, platform="MERFISH"):
+        cols, where = bm.from_catalog({"bilCode": "ace-xyz-abc", "title": title, "platform": platform,
+                                       "source": {"title": "bil-api", "platform": "bil-api"}})
+        return cols.get("technology"), where.get("technology")
+
+    assert tech("Developing mouse whole-brain atlas - MERSCOPE v1: 1296400272") == \
+        ("vizgen_merscope", "bil-api (title)")
+    assert tech("MERFISH Imaging of mesocorticolimbic regions") == (None, None)
+    assert tech("anything", platform="Xenium") == ("10x_xenium", "bil-api")
+    assert tech("not a merscopeish word") == (None, None)
+
+
 def test_modality_fixtures_pass():
     """The stores shaped like SpatialData-DB's CODEX, MALDI-MSI and CosMx ones
     (scripts/testdata/make-tiny-modalities.py): a dense X, a feature index

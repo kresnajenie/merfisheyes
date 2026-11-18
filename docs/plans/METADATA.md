@@ -327,6 +327,26 @@ For the sessions that reprocess the fleet (`bil/pipeline-dry-run`; the
 
 ### Step 5 — Reprocess everything, and backfill on the way
 
+*Started 2026-11-17 for the 63 stores already in S3*, which need metadata, not
+reprocessing: `scripts/bil-scripts/metadata_backfill.sh prepare|publish
+<folder>…` builds, checks with bionty and validates each store locally, then
+(`publish`) uploads each changed root `zarr.json` as a single key and
+registers the passing stores. The technology comes from the title for the 53
+"MERSCOPE v1" stores (`metadata.md` §7.3) and from
+`scripts/bil-scripts/metadata-overrides.json` for the three Xenium marmoset
+stores.
+
+*Done for the 63, 2026-11-17* (run logs in `~/data/bil-data/metadata-runs/`):
+all 63 build, pass bionty and `validate_store --require-metadata`; every root
+`zarr.json` in S3 equals its local store; all 63 registered in eyes-catalog
+(new artifact versions; 126/126 artifacts and sheet rows pass every check),
+validation `pass`. A query by organism and tissue id returns the 55 mouse
+brain stores; human 3, macaque 2, marmoset 3. Technology: 60
+`vizgen_merscope`, 3 `10x_xenium`. The typed `Assay` is set only on the 3
+Xenium stores (SDDB's MERSCOPE EFO id is not in their pinned EFO). Left
+for the backfill: disease (all `unknown`), development stage for macaque,
+marmoset and two human stores, donor, DOI.
+
 **Every dataset we serve is reprocessed** into a store carrying this
 metadata (M10): the BIL fleet (92 rows, plus the 47 `ace-owl-*` Xenium
 rows listed as curated), the other curated rows and community

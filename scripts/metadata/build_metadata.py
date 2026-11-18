@@ -137,6 +137,15 @@ def from_catalog(cat: dict) -> tuple[dict, dict]:
     put("tissue_id", tid, "tissue")
     tech = META["technologyFrom"]["platform"].get(str(cat.get("platform") or "").lower())
     put("technology", tech, "platform")
+    if not tech:
+        # The depositor's own title naming the instrument ("… – MERSCOPE v1: 1296400272");
+        # "MERFISH" alone is not in the table: it does not say which instrument
+        title = str(cat.get("title") or "").lower()
+        for word, t in META["technologyFrom"]["title"].items():
+            if re.search(rf"\b{re.escape(word)}\b", title):
+                put("technology", t, "title")
+                where["technology"] = f"{where['technology']} (title)"
+                break
     put("dataset_url", cat.get("externalLink"), "externalLink")
     put("doi", doi(cat.get("publicationLink")), "publicationLink")
     for k, v in timepoint(m.get("age")).items():
@@ -281,7 +290,7 @@ def build(out: Path, metadata: dict | None = None, log=print) -> tuple[Path, dic
     facts, hashinfo = from_store(store, stats, qc)
     for k, v in facts.items():
         if k == "technology" and k in cols:
-            continue   # what the platform said is replaced only by the input file
+            where[k] = "store"   # the instrument's own output outranks a platform or title
         cols[k] = v
         where.setdefault(k, "store")
     for k, v in (metadata or {}).items():

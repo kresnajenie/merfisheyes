@@ -419,14 +419,23 @@ organism" and "Whole embryo, heart" (two tissues; a row has one) go to a person.
 
 By the **instrument**, as SpatialData-DB does: it lists the Zhuang lab's
 whole-brain data as `merfish` (academic) and Yao et al. 2023's as
-`vizgen_merscope`. So:
+`vizgen_merscope`. In this order, the first that answers
+(`conventions.json` `metadata.technologyFrom`):
 
-- `stats.json` `input` `merscope` → `vizgen_merscope`; `xenium` → `10x_xenium`.
-- Platform spellings that name one technology: Xenium → `10x_xenium`,
-  MERSCOPE → `vizgen_merscope`, Stereo-seq → `stomics_stereo_seq`.
-- **"MERFISH" alone does not decide** (all 92 BIL rows; the community row) nor
-  does "MERFISH+": a person picks `merfish` or `vizgen_merscope` from the BIL
-  record, the title ("MERSCOPE v1: 609889") or the paper. Step 5.
+1. `stats.json` `input` — the instrument's own output: `merscope` →
+   `vizgen_merscope`, `xenium` → `10x_xenium`.
+2. A platform spelling that names one technology: Xenium → `10x_xenium`,
+   MERSCOPE → `vizgen_merscope`, Stereo-seq → `stomics_stereo_seq`.
+3. A word in the depositor's title, as a whole word: "MERSCOPE" →
+   `vizgen_merscope` ("… – MERSCOPE v1: 1296400272", 53 of the rebuilt BIL
+   stores), "Xenium" → `10x_xenium`. The value's source is recorded as
+   `bil-api (title)`.
+4. A person: `scripts/bil-scripts/metadata-overrides.json`, each entry with
+   its evidence (the three marmoset `ace-owl-*` stores are Xenium, per their
+   curated Explore rows; BIL says "other").
+
+**"MERFISH" alone does not decide** (all 92 BIL rows; the community row) nor
+does "MERFISH+": it is in none of the tables.
 
 `vendor`, `assay` and the EFO id follow from `technology.json`.
 

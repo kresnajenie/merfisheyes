@@ -228,13 +228,14 @@
           }
         },
         "technologyFrom": {
-          "description": "What names one technology: stats.json `input` (the instrument's own output), or a platform spelling (lower case). \"MERFISH\" is deliberately absent: it does not name the instrument.",
+          "description": "What names one technology, tried in this order: stats.json `input` (the instrument's own output), a platform spelling (lower case), a word in the depositor's title (lower case, matched as a whole word; the first that matches). \"MERFISH\" is deliberately absent: it does not name the instrument.",
           "type": "object",
-          "required": ["input", "platform"],
+          "required": ["input", "platform", "title"],
           "additionalProperties": false,
           "properties": {
             "input": { "$ref": "#/$defs/spellings" },
-            "platform": { "$ref": "#/$defs/spellings" }
+            "platform": { "$ref": "#/$defs/spellings" },
+            "title": { "$ref": "#/$defs/spellings" }
           }
         },
         "groupings": {

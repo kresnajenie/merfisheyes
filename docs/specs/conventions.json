@@ -166,7 +166,8 @@
     },
     "technologyFrom": {
       "input": { "merscope": "vizgen_merscope", "xenium": "10x_xenium", "visium": "10x_visium" },
-      "platform": { "xenium": "10x_xenium", "merscope": "vizgen_merscope", "stereo-seq": "stomics_stereo_seq", "visium": "10x_visium", "visium hd": "10x_visium_hd", "cosmx": "bruker_cosmx" }
+      "platform": { "xenium": "10x_xenium", "merscope": "vizgen_merscope", "stereo-seq": "stomics_stereo_seq", "visium": "10x_visium", "visium hd": "10x_visium_hd", "cosmx": "bruker_cosmx" },
+      "title": { "merscope": "vizgen_merscope", "xenium": "10x_xenium" }
     },
     "groupings": {
       "tissueSystems": [
