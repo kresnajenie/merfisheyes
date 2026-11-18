@@ -156,7 +156,33 @@ pinned EFO). Store metadata is deterministic (no timestamp).
 `meyes_sex`, `timepoint_days`; disease, donor and DOI unknown everywhere).
 Explore and Postgres are unchanged and the index file (METADATA.md step 6)
 does not exist yet: until it does, read a store's own `zarr.json`
-(`readStoreMetadata`) or Lamin. Open: where the index is published, how often it is
+(`readStoreMetadata`) or Lamin.
+
+*The index exists (2026-11-18, local, not yet published):*
+`/home/elvissmith/data/merfisheyes-index/2026-11-18/` — `catalog.parquet`
+(13,604 rows × 131 columns: SDDB schema 3 as of `catalog-2026-11-17`, 103
+columns, then the `meyes_*` ones), `ontology_rollup.json`,
+`technology.json`, `release_info.json`. Rows: SDDB's 13,541 unchanged
+(`meyes_source = "sddb"`; 12,575 also carry `meyes_id` / `meyes_page_url`
+because Explore lists the same store) and our 63 (60 `bil`, 3 `curated`),
+all `validation_status = pass`; every row has `meyes_viewer_url`. The 102
+public Explore rows with no store yet are not in it (`release_info.json` →
+`explore_rows_without_a_store`): B falls back to the agent search for
+those. Checked queries: `organism == mouse & tissue_organ == brain` →
+1,598; `technology == vizgen_merscope` → 840. Where it is published is
+still open — B's tools are designed against this file, built once it is
+public.
+
+*Published (2026-11-18, METADATA.md M13, M14):*
+`https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-zarr/.index/latest/catalog.parquet`
+(CORS for www.merfisheyes.com; `ontology_rollup.json`, `technology.json`,
+`release_info.json` beside it; dated copies under `.index/<YYYY-MM-DD>/`).
+Its scope is what is live on MERFISHEYES: an SDDB row only when Explore
+lists its store — 12,575 SDDB + our 63 = 12,638 rows (12.4 MB); every row
+has `meyes_id`, `meyes_page_url` and `meyes_viewer_url`. The 102 Explore
+rows without a store stay out (`explore_rows_without_a_store`). Personal
+indexes are deferred (M14) until the data moves to Lamin's R2; private
+search stays on Postgres / the agent API (M7). Open: where the index is published, how often it is
 rebuilt. B's tools wait for step 6; searches against today's catalog
 cannot pass B's gate until the reprocessed data and index are live.
 
@@ -396,7 +422,25 @@ viewer is the site's viewer code, never a fork.
    headless: state (23 columns), colour by `celltype`, `fov` switched to
    categories (8 values) and FOV 16 hidden, a snapshot with its legend,
    colour by `dcx` (corrected to `Dcx`) with a colour-scale snapshot, an
-   unknown gene answered with near matches. Not yet: the molecule viewer;
+   unknown gene answered with near matches.
+
+   **Fixed after the first Desktop test (2026-11-18, Safari, Intel Mac):**
+   hide / show only were reported but not drawn. `hiddenCelltypes` is the
+   per-badge eye *within* the picked-out values (three-scene draws picked
+   out minus hidden; with nothing picked out it has no effect), and every
+   `set` re-applied the colour column, which resets the selection. Now:
+   show only / hide pick out the values to keep (`setCelltypes`, the panel's
+   checkboxes) with `greyedOutAlpha` 0 and `selectedSizeMultiplier` 1 (the
+   rest not drawn; kept cells keep their size); show all clears the
+   selection and restores both; the column is applied only when it
+   changes; state reports `shown_values` and `visible_cells` counted from
+   the cells; the tab brought to the front reconnects, so commands go to
+   the tab the person is looking at (several were open); state names the
+   data the tab shows (`opened`). Checked by counting drawn pixels in the
+   snapshots (tiny MERSCOPE, 300 cells): hide Neuron 300 → 276 cells, 201 →
+   182 px, kept after a later dot-size change; show only Neuron 24 cells,
+   19 px; show all back to 300 / 201; dot size ×1 → ×10: 201 → 907 px.
+   Not yet: the molecule viewer;
    framing a snapshot on the visible cells (they can be small in a wide
    scene); a published viewer with the session (`@merfisheyes/viewer`
    0.2.0) and package 0.3.0.

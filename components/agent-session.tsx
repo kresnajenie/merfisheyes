@@ -18,9 +18,8 @@ export function AgentSession() {
 
     if (!token) return;
     const q = `token=${encodeURIComponent(token)}`;
-    const events = new EventSource(`/session/events?${q}`);
-
-    events.onmessage = async (event) => {
+    let events: EventSource;
+    const onMessage = async (event: MessageEvent) => {
       const { id, command, args } = JSON.parse(event.data);
       let reply: unknown;
 
@@ -36,7 +35,27 @@ export function AgentSession() {
       }).catch(() => {});
     };
 
-    return () => events.close();
+    // The package sends commands to the tab that connected last: a tab
+    // brought to the front reconnects, so the one the person is looking at
+    // is the one the agent drives.
+    const connect = () => {
+      events?.close();
+      events = new EventSource(`/session/events?${q}`);
+      events.onmessage = onMessage;
+    };
+    const front = () => {
+      if (document.visibilityState === "visible") connect();
+    };
+
+    connect();
+    window.addEventListener("focus", front);
+    document.addEventListener("visibilitychange", front);
+
+    return () => {
+      window.removeEventListener("focus", front);
+      document.removeEventListener("visibilitychange", front);
+      events.close();
+    };
   }, []);
 
   return null;
