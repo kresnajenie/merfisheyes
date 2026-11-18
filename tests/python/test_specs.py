@@ -139,7 +139,7 @@ def test_metadata_schema_profiles_sddb_schema_3():
     assert all(p["x-meyes-level"] in ("required", "recommended", "optional", "derived", "n/a")
                for p in cols.values())
     sddb = [c for c in cols if not c.startswith("meyes_")]
-    assert len(sddb) == 93 and all("x-sddb-dtype" in cols[c] for c in sddb)
+    assert len(sddb) == 103 and all("x-sddb-dtype" in cols[c] for c in sddb)   # schema 3 at catalog-2026-11-17
     # Their required columns are ours too: now, or once the fleet is reprocessed (METADATA.md M10)
     assert set(SDDB_REQUIRED) <= set(row["required"]) | set(row["x-meyes-required-after-reprocessing"])
     pins = validate_store.CONVENTIONS["metadata"]
