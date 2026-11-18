@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isLocalUrl, withoutLocalUrls } from "@/lib/utils/local-url";
+import {
+  isLocalUrl,
+  keepPrivate,
+  withoutLocalUrls,
+} from "@/lib/utils/local-url";
 
 describe("data on this computer", () => {
   it("knows a local address from a public one", () => {
@@ -38,3 +42,30 @@ describe("data on this computer", () => {
     expect(withoutLocalUrls(s3)).toBe(s3);
   });
 });
+
+describe("keeping a local address from the site", () => {
+  const local = "http://127.0.0.1:52341/k3y/sample.zarr";
+  const s3 = "https://b.s3.amazonaws.com/a";
+
+  it("keeps it when the page came from the internet", () => {
+    expect(keepPrivate(local, "https://www.merfisheyes.com/open?url=x")).toBe(true);
+    expect(keepPrivate(s3, "https://www.merfisheyes.com/viewer")).toBe(false);
+  });
+
+  it("treats it as any bucket when the page is on this computer too", () => {
+    expect(keepPrivate(local, "http://localhost:3000/viewer")).toBe(false);
+  });
+
+  it("always keeps it in the standalone viewer", () => {
+    const was = process.env.NEXT_PUBLIC_MERFISHEYES_STANDALONE;
+
+    process.env.NEXT_PUBLIC_MERFISHEYES_STANDALONE = "1";
+    try {
+      expect(keepPrivate(local, "http://127.0.0.1:8765/open/")).toBe(true);
+      expect(keepPrivate(s3, "http://127.0.0.1:8765/open/")).toBe(true);
+    } finally {
+      process.env.NEXT_PUBLIC_MERFISHEYES_STANDALONE = was;
+    }
+  });
+});
+

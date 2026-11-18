@@ -41,3 +41,22 @@ export function withoutLocalUrls(href: string): string {
 
   return u.toString();
 }
+
+/**
+ * Whether the viewer keeps a dataset's address to itself — no registration
+ * lookup, no claim banner. In the standalone viewer (no site, no account)
+ * always. Otherwise for data on this computer, when the page came from the
+ * internet: www.merfisheyes.com reading someone's own folder. A page served
+ * from this computer too (a dev server, the end-to-end tests' stand-in
+ * bucket) reads local data as it would a bucket's.
+ */
+export function keepPrivate(
+  url: string | null | undefined,
+  page: string | null = typeof window === "undefined"
+    ? null
+    : window.location.href,
+): boolean {
+  if (process.env.NEXT_PUBLIC_MERFISHEYES_STANDALONE === "1") return true;
+
+  return isLocalUrl(url) && !isLocalUrl(page);
+}

@@ -11,10 +11,9 @@ import { type FixtureServer } from "../../helpers/fixture-server";
 
 /**
  * `/open?url=` sends a URL to the viewer that reads what it holds
- * (lib/viewer/viewer-for-url.ts) and passes the other parameters on. The
- * stand-in bucket runs on 127.0.0.1, as `merfisheyes-mcp view` serves a
- * person's own folder: so these also check that a local address is never
- * sent to the site (no registration lookup, no claim banner).
+ * (lib/viewer/viewer-for-url.ts) and passes the other parameters on. (Whether
+ * a local address is kept from the site depends on where the page itself
+ * comes from — tests/unit/local-url.test.ts; here both are on this computer.)
  */
 
 let server: FixtureServer;
@@ -46,23 +45,17 @@ const cases = () => [
 ];
 
 for (const i of [0, 1, 2]) {
-  test(`@quick /open sends ${["a SpatialData store", "a cells folder", "a molecules folder"][i]} to its viewer, local address kept private`, async ({
+  test(`@quick /open sends ${["a SpatialData store", "a cells folder", "a molecules folder"][i]} to its viewer, and passes its settings on`, async ({
     page,
   }) => {
     const c = cases()[i];
-    const lookups: string[] = [];
 
-    page.on("request", (r) => {
-      if (r.url().includes("/api/datasets/by-url")) lookups.push(r.url());
-    });
     await page.goto(`/open?url=${encodeURIComponent(c.url)}&v=e30`);
     await page.waitForURL((u) => u.pathname === c.path, { timeout: 60_000 });
     expect(new URL(page.url()).searchParams.get("v")).not.toBeNull();
     await expect(page.locator(c.canvas).first()).toBeVisible({
       timeout: 120_000,
     });
-    await expect(page.getByText("isn't owned yet")).toHaveCount(0);
-    expect(lookups).toEqual([]);
   });
 }
 
