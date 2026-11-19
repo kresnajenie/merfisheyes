@@ -8,6 +8,35 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-13
+
+### Added
+
+- **Split-screen sync between cells and molecules.** Sync used to be offered
+  only when both panels had the same kind of data, so a cell dataset beside
+  a molecule dataset shared nothing. Now, when one side has cells and the
+  other only molecules, their genes follow each other by name: the gene
+  chosen for the cells is shown among the molecules (choosing another swaps
+  it), and a gene added to the molecules becomes the cells' gene. The
+  molecules' other genes stay as they are. A gene the other dataset hasn't
+  got is skipped with a warning.
+- **A molecule viewer link keeps the molecules' opacity**, as it already
+  kept their genes, colours and sizes. Older links open as before.
+
+### Changed
+
+- **The connected-agents list on the account page is shorter**: each agent
+  shows its permissions, projects and when it was last used.
+
+### Fixed
+
+- **A dataset processed on the server opens with its saved view (#206).**
+  "Save current view as default", and the upload's "open in 3D", were saved
+  but not applied when the dataset was opened again, because a server
+  upload opens as a SpatialData store and that viewer read the saved view
+  without using it. It now opens with its saved 2D/3D view, column, colours
+  and rotation, as other datasets do.
+
 ## [0.16.0] - 2026-11-08
 
 ### Added
@@ -1072,7 +1101,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0
