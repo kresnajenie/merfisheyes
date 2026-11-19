@@ -9,9 +9,40 @@ read your own projects and datasets.
 It runs on your computer (stdio). MERFISHEYES does the work; the agent asks
 and gets short answers back.
 
+## Claude Desktop (no terminal)
+
+The MERFISHEYES extension for Claude Desktop has everything inside it: the
+tools, the viewer and the conversion pipeline. You don't need Node.js, a
+terminal or a config file.
+
+1. **Get the extension file**, `merfisheyes-0.3.0.mcpb` (about 8 MB). It is
+   not published for download yet; ask the MERFISHEYES team for it.
+2. **Install it:** double-click the file and Claude Desktop shows an install
+   dialog. Or, in Claude Desktop, open **Settings → Extensions** and drag the
+   file in. Leave the optional *Python* setting empty.
+3. **Ask Claude.** Start a new chat and try:
+   - "How many mouse brain datasets measure Gad1 and Slc17a7?"
+   - "Show me `~/Downloads/my_sample.zarr` in MERFISHEYES."
+   - "Colour it by cell type and hide the cluster called Low quality, then take a snapshot."
+
+The viewer opens in your browser, served from your own computer. Your data is
+never uploaded.
+
+**The first time you open raw data,** such as an `.h5ad`, a Xenium export or
+a MERSCOPE region, Claude asks before setting up the converter. The setup
+downloads Python and its packages (about 1.3 GB) into MERFISHEYES's own
+folder; nothing is installed system-wide. Data that is already a `.zarr`
+store opens without it.
+
+- **Works on:** macOS 13 or newer (Intel and Apple Silicon), Windows (x64)
+  and Linux. Converting raw data is not supported on Windows on ARM.
+- **Updating:** the extension does not update itself. To update, install the
+  newer file the same way.
+
 ## Use it
 
-You need Node.js 20.3 or newer. Check with:
+For Claude Code, Cursor and other MCP clients, run the package with npm. You
+need Node.js 20.3 or newer. Check with:
 
 ```bash
 node -v
@@ -28,7 +59,7 @@ only in the folder you ran it from; `@latest` picks up new versions when
 they are published. Start a new Claude Code session and type `/mcp`:
 `merfisheyes` is listed with its tools.
 
-Claude Desktop, Cursor and other clients — add to the client's MCP settings:
+Cursor and other clients (or Claude Desktop without the extension): add this to the client's MCP settings:
 
 ```json
 {
