@@ -109,6 +109,8 @@ Tokens are kept in `~/.config/merfisheyes-mcp/credentials.json`
 
 | Tool | Needs sign-in | Does |
 |---|---|---|
+| `meyes_find_datasets` | no | Search every public dataset (~12,700, MERFISHEYES's and SpatialData-DB's) by organism, tissue or disease with everything below it, technology, age, sex, genotype, genes measured or expressed — answered as a count, a breakdown and the first rows |
+| `meyes_index_values` | no | The values a field takes (tissues, technologies, diseases…), with counts, optionally among filtered datasets |
 | `meyes_search_datasets` | no | Search the catalog: text, species, tissue, platform, genes measured |
 | `meyes_list_facets` | no | The species, tissue and platform spellings filters use |
 | `meyes_get_dataset` | no¹ | One dataset: viewer links, cells, genes, molecules, sections, cell-type levels, DE columns, QC |

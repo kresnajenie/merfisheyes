@@ -1,0 +1,1503 @@
+{
+ "MONDO:0000430": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005157",
+   "MONDO:0005169",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0015760",
+   "MONDO:0018908",
+   "MONDO:0024615",
+   "MONDO:0044881"
+  ],
+  "name": "mature T-cell and NK-cell non-Hodgkin lymphoma"
+ },
+ "MONDO:0000607": {
+  "ancestors_present": [
+   "MONDO:0000430",
+   "MONDO:0000653",
+   "MONDO:0002051",
+   "MONDO:0002334",
+   "MONDO:0002531",
+   "MONDO:0002898",
+   "MONDO:0004992",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005093",
+   "MONDO:0005157",
+   "MONDO:0005169",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0015760",
+   "MONDO:0017207",
+   "MONDO:0018898",
+   "MONDO:0018908",
+   "MONDO:0024615",
+   "MONDO:0044881"
+  ],
+  "name": "primary cutaneous T-cell non-Hodgkin lymphoma"
+ },
+ "MONDO:0000653": {
+  "ancestors_present": [
+   "MONDO:0002051",
+   "MONDO:0004992",
+   "MONDO:0005070"
+  ],
+  "name": "integumentary system cancer"
+ },
+ "MONDO:0000812": {
+  "ancestors_present": [
+   "MONDO:0002081",
+   "MONDO:0005172"
+  ],
+  "name": "vertebral column disorder"
+ },
+ "MONDO:0001416": {
+  "ancestors_present": [
+   "MONDO:0002149",
+   "MONDO:0002263",
+   "MONDO:0004992",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0006054",
+   "MONDO:0021148"
+  ],
+  "name": "female reproductive organ cancer"
+ },
+ "MONDO:0002051": {
+  "ancestors_present": [],
+  "name": "integumentary system disorder"
+ },
+ "MONDO:0002081": {
+  "ancestors_present": [],
+  "name": "musculoskeletal system disorder"
+ },
+ "MONDO:0002116": {
+  "ancestors_present": [
+   "MONDO:0002356",
+   "MONDO:0002516",
+   "MONDO:0004335",
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0009831",
+   "MONDO:0021040",
+   "MONDO:0021076",
+   "MONDO:0021223"
+  ],
+  "name": "malignant exocrine pancreas neoplasm"
+ },
+ "MONDO:0002118": {
+  "ancestors_present": [],
+  "name": "urinary system disorder"
+ },
+ "MONDO:0002149": {
+  "ancestors_present": [
+   "MONDO:0004992",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0006054"
+  ],
+  "name": "reproductive system cancer"
+ },
+ "MONDO:0002229": {
+  "ancestors_present": [
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0005626",
+   "MONDO:0006054",
+   "MONDO:0021068",
+   "MONDO:0021148"
+  ],
+  "name": "ovarian epithelial tumor"
+ },
+ "MONDO:0002259": {
+  "ancestors_present": [
+   "MONDO:0005039",
+   "MONDO:0005151"
+  ],
+  "name": "gonadal disorder"
+ },
+ "MONDO:0002263": {
+  "ancestors_present": [
+   "MONDO:0005039"
+  ],
+  "name": "female reproductive system disorder"
+ },
+ "MONDO:0002334": {
+  "ancestors_present": [
+   "MONDO:0005070",
+   "MONDO:0005570"
+  ],
+  "name": "hematopoietic and lymphoid system neoplasm"
+ },
+ "MONDO:0002356": {
+  "ancestors_present": [
+   "MONDO:0004335",
+   "MONDO:0005151"
+  ],
+  "name": "pancreas disorder"
+ },
+ "MONDO:0002367": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0005240",
+   "MONDO:0006295",
+   "MONDO:0021066",
+   "MONDO:0021163"
+  ],
+  "name": "kidney cancer"
+ },
+ "MONDO:0002516": {
+  "ancestors_present": [
+   "MONDO:0004335",
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0021223"
+  ],
+  "name": "digestive system cancer"
+ },
+ "MONDO:0002531": {
+  "ancestors_present": [
+   "MONDO:0002051",
+   "MONDO:0005070",
+   "MONDO:0005093"
+  ],
+  "name": "skin neoplasm"
+ },
+ "MONDO:0002545": {
+  "ancestors_present": [
+   "MONDO:0002602",
+   "MONDO:0005071"
+  ],
+  "name": "spinal cord disorder"
+ },
+ "MONDO:0002602": {
+  "ancestors_present": [
+   "MONDO:0005071"
+  ],
+  "name": "central nervous system disorder"
+ },
+ "MONDO:0002657": {
+  "ancestors_present": [],
+  "name": "breast disorder"
+ },
+ "MONDO:0002752": {
+  "ancestors_present": [
+   "MONDO:0001416",
+   "MONDO:0002149",
+   "MONDO:0002229",
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005140",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0005626",
+   "MONDO:0006054",
+   "MONDO:0008170",
+   "MONDO:0018364",
+   "MONDO:0021068",
+   "MONDO:0021148",
+   "MONDO:0024276"
+  ],
+  "name": "ovarian adenocarcinoma"
+ },
+ "MONDO:0002898": {
+  "ancestors_present": [
+   "MONDO:0000653",
+   "MONDO:0002051",
+   "MONDO:0002531",
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0005093"
+  ],
+  "name": "skin cancer"
+ },
+ "MONDO:0003182": {
+  "ancestors_present": [
+   "MONDO:0002545",
+   "MONDO:0002602",
+   "MONDO:0005071"
+  ],
+  "name": "anterior horn disorder"
+ },
+ "MONDO:0003274": {
+  "ancestors_present": [
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0021350"
+  ],
+  "name": "thoracic cancer"
+ },
+ "MONDO:0004335": {
+  "ancestors_present": [],
+  "name": "digestive system disorder"
+ },
+ "MONDO:0004970": {
+  "ancestors_present": [
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0024276"
+  ],
+  "name": "adenocarcinoma"
+ },
+ "MONDO:0004975": {
+  "ancestors_present": [
+   "MONDO:0002602",
+   "MONDO:0005071",
+   "MONDO:0005559",
+   "MONDO:0005574"
+  ],
+  "name": "Alzheimer disease"
+ },
+ "MONDO:0004976": {
+  "ancestors_present": [
+   "MONDO:0002545",
+   "MONDO:0002602",
+   "MONDO:0003182",
+   "MONDO:0005071",
+   "MONDO:0005559",
+   "MONDO:0019056",
+   "MONDO:0020128"
+  ],
+  "name": "amyotrophic lateral sclerosis"
+ },
+ "MONDO:0004989": {
+  "ancestors_present": [
+   "MONDO:0002657",
+   "MONDO:0003274",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0007254",
+   "MONDO:0021100",
+   "MONDO:0021350"
+  ],
+  "name": "breast carcinoma"
+ },
+ "MONDO:0004992": {
+  "ancestors_present": [
+   "MONDO:0005070"
+  ],
+  "name": "cancer"
+ },
+ "MONDO:0004993": {
+  "ancestors_present": [
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0005626"
+  ],
+  "name": "carcinoma"
+ },
+ "MONDO:0005004": {
+  "ancestors_present": [
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0024276"
+  ],
+  "name": "clear cell adenocarcinoma"
+ },
+ "MONDO:0005005": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0002367",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005004",
+   "MONDO:0005070",
+   "MONDO:0005086",
+   "MONDO:0005206",
+   "MONDO:0005240",
+   "MONDO:0005549",
+   "MONDO:0005626",
+   "MONDO:0006295",
+   "MONDO:0007763",
+   "MONDO:0021066",
+   "MONDO:0021163",
+   "MONDO:0024276"
+  ],
+  "name": "clear cell renal carcinoma"
+ },
+ "MONDO:0005039": {
+  "ancestors_present": [],
+  "name": "reproductive system disorder"
+ },
+ "MONDO:0005062": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005070",
+   "MONDO:0005157",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0044881"
+  ],
+  "name": "lymphoma"
+ },
+ "MONDO:0005070": {
+  "ancestors_present": [],
+  "name": "neoplasm"
+ },
+ "MONDO:0005071": {
+  "ancestors_present": [],
+  "name": "nervous system disorder"
+ },
+ "MONDO:0005086": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0002367",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005206",
+   "MONDO:0005240",
+   "MONDO:0005626",
+   "MONDO:0006295",
+   "MONDO:0021066",
+   "MONDO:0021163",
+   "MONDO:0024276"
+  ],
+  "name": "renal cell carcinoma"
+ },
+ "MONDO:0005089": {
+  "ancestors_present": [
+   "MONDO:0004992",
+   "MONDO:0005070"
+  ],
+  "name": "sarcoma"
+ },
+ "MONDO:0005093": {
+  "ancestors_present": [
+   "MONDO:0002051"
+  ],
+  "name": "skin disorder"
+ },
+ "MONDO:0005105": {
+  "ancestors_present": [
+   "MONDO:0005070",
+   "MONDO:0021143"
+  ],
+  "name": "melanoma"
+ },
+ "MONDO:0005140": {
+  "ancestors_present": [
+   "MONDO:0001416",
+   "MONDO:0002149",
+   "MONDO:0002229",
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0005626",
+   "MONDO:0006054",
+   "MONDO:0008170",
+   "MONDO:0018364",
+   "MONDO:0021068",
+   "MONDO:0021148"
+  ],
+  "name": "ovarian carcinoma"
+ },
+ "MONDO:0005151": {
+  "ancestors_present": [],
+  "name": "endocrine system disorder"
+ },
+ "MONDO:0005157": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005070",
+   "MONDO:0005570",
+   "MONDO:0044881"
+  ],
+  "name": "lymphoid neoplasm"
+ },
+ "MONDO:0005169": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005070",
+   "MONDO:0005157",
+   "MONDO:0005570",
+   "MONDO:0024615",
+   "MONDO:0044881"
+  ],
+  "name": "neoplasm of mature T-cells or NK-cells"
+ },
+ "MONDO:0005172": {
+  "ancestors_present": [
+   "MONDO:0002081"
+  ],
+  "name": "skeletal system disorder"
+ },
+ "MONDO:0005184": {
+  "ancestors_present": [
+   "MONDO:0002116",
+   "MONDO:0002356",
+   "MONDO:0002516",
+   "MONDO:0004335",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005192",
+   "MONDO:0005606",
+   "MONDO:0005626",
+   "MONDO:0006047",
+   "MONDO:0006181",
+   "MONDO:0009831",
+   "MONDO:0021040",
+   "MONDO:0021076",
+   "MONDO:0021223",
+   "MONDO:0024276"
+  ],
+  "name": "pancreatic ductal adenocarcinoma"
+ },
+ "MONDO:0005192": {
+  "ancestors_present": [
+   "MONDO:0002116",
+   "MONDO:0002356",
+   "MONDO:0002516",
+   "MONDO:0004335",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005626",
+   "MONDO:0006181",
+   "MONDO:0009831",
+   "MONDO:0021040",
+   "MONDO:0021076",
+   "MONDO:0021223"
+  ],
+  "name": "exocrine pancreatic carcinoma"
+ },
+ "MONDO:0005206": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0002367",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005240",
+   "MONDO:0005626",
+   "MONDO:0006295",
+   "MONDO:0021066",
+   "MONDO:0021163"
+  ],
+  "name": "renal carcinoma"
+ },
+ "MONDO:0005211": {
+  "ancestors_present": [
+   "MONDO:0001416",
+   "MONDO:0002149",
+   "MONDO:0002229",
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0002752",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005140",
+   "MONDO:0005151",
+   "MONDO:0005278",
+   "MONDO:0005558",
+   "MONDO:0005626",
+   "MONDO:0006054",
+   "MONDO:0008170",
+   "MONDO:0018364",
+   "MONDO:0021068",
+   "MONDO:0021148",
+   "MONDO:0024276",
+   "MONDO:0024885",
+   "MONDO:0037255",
+   "MONDO:0037256"
+  ],
+  "name": "ovarian serous adenocarcinoma"
+ },
+ "MONDO:0005240": {
+  "ancestors_present": [
+   "MONDO:0002118"
+  ],
+  "name": "kidney disorder"
+ },
+ "MONDO:0005278": {
+  "ancestors_present": [
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0024276"
+  ],
+  "name": "serous adenocarcinoma"
+ },
+ "MONDO:0005549": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0002367",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005086",
+   "MONDO:0005206",
+   "MONDO:0005240",
+   "MONDO:0005626",
+   "MONDO:0006295",
+   "MONDO:0021066",
+   "MONDO:0021163",
+   "MONDO:0024276"
+  ],
+  "name": "renal cell adenocarcinoma"
+ },
+ "MONDO:0005558": {
+  "ancestors_present": [
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0005039",
+   "MONDO:0005151"
+  ],
+  "name": "ovarian disorder"
+ },
+ "MONDO:0005559": {
+  "ancestors_present": [
+   "MONDO:0002602",
+   "MONDO:0005071"
+  ],
+  "name": "neurodegenerative disease"
+ },
+ "MONDO:0005570": {
+  "ancestors_present": [],
+  "name": "hematologic disorder"
+ },
+ "MONDO:0005574": {
+  "ancestors_present": [
+   "MONDO:0002602",
+   "MONDO:0005071",
+   "MONDO:0005559"
+  ],
+  "name": "tauopathy"
+ },
+ "MONDO:0005606": {
+  "ancestors_present": [
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0024276"
+  ],
+  "name": "tubular adenocarcinoma"
+ },
+ "MONDO:0005626": {
+  "ancestors_present": [
+   "MONDO:0005070"
+  ],
+  "name": "epithelial neoplasm"
+ },
+ "MONDO:0006043": {
+  "ancestors_present": [
+   "MONDO:0002657",
+   "MONDO:0003274",
+   "MONDO:0004989",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0006256",
+   "MONDO:0007254",
+   "MONDO:0021100",
+   "MONDO:0021350",
+   "MONDO:0040677"
+  ],
+  "name": "metaplastic breast carcinoma"
+ },
+ "MONDO:0006047": {
+  "ancestors_present": [
+   "MONDO:0002116",
+   "MONDO:0002356",
+   "MONDO:0002516",
+   "MONDO:0004335",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005192",
+   "MONDO:0005626",
+   "MONDO:0006181",
+   "MONDO:0009831",
+   "MONDO:0021040",
+   "MONDO:0021076",
+   "MONDO:0021223",
+   "MONDO:0024276"
+  ],
+  "name": "pancreatic adenocarcinoma"
+ },
+ "MONDO:0006054": {
+  "ancestors_present": [
+   "MONDO:0005039",
+   "MONDO:0005070"
+  ],
+  "name": "reproductive system neoplasm"
+ },
+ "MONDO:0006181": {
+  "ancestors_present": [
+   "MONDO:0002516",
+   "MONDO:0004335",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0021223"
+  ],
+  "name": "digestive system carcinoma"
+ },
+ "MONDO:0006256": {
+  "ancestors_present": [
+   "MONDO:0002657",
+   "MONDO:0003274",
+   "MONDO:0004989",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0007254",
+   "MONDO:0021100",
+   "MONDO:0021350",
+   "MONDO:0040677"
+  ],
+  "name": "invasive breast carcinoma"
+ },
+ "MONDO:0006295": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0021066"
+  ],
+  "name": "malignant urinary system neoplasm"
+ },
+ "MONDO:0007254": {
+  "ancestors_present": [
+   "MONDO:0002657",
+   "MONDO:0003274",
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0021100",
+   "MONDO:0021350"
+  ],
+  "name": "breast cancer"
+ },
+ "MONDO:0007763": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0002367",
+   "MONDO:0004970",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005086",
+   "MONDO:0005206",
+   "MONDO:0005240",
+   "MONDO:0005626",
+   "MONDO:0006295",
+   "MONDO:0021066",
+   "MONDO:0021163",
+   "MONDO:0024276"
+  ],
+  "name": "nonpapillary renal cell carcinoma"
+ },
+ "MONDO:0008170": {
+  "ancestors_present": [
+   "MONDO:0001416",
+   "MONDO:0002149",
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0004992",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0006054",
+   "MONDO:0021068",
+   "MONDO:0021148"
+  ],
+  "name": "ovarian cancer"
+ },
+ "MONDO:0009691": {
+  "ancestors_present": [
+   "MONDO:0000430",
+   "MONDO:0000607",
+   "MONDO:0000653",
+   "MONDO:0002051",
+   "MONDO:0002334",
+   "MONDO:0002531",
+   "MONDO:0002898",
+   "MONDO:0004992",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005093",
+   "MONDO:0005157",
+   "MONDO:0005169",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0015760",
+   "MONDO:0015816",
+   "MONDO:0015821",
+   "MONDO:0017207",
+   "MONDO:0018898",
+   "MONDO:0018908",
+   "MONDO:0024615",
+   "MONDO:0044881"
+  ],
+  "name": "mycosis fungoides"
+ },
+ "MONDO:0009807": {
+  "ancestors_present": [
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0005089"
+  ],
+  "name": "osteosarcoma"
+ },
+ "MONDO:0009831": {
+  "ancestors_present": [
+   "MONDO:0002356",
+   "MONDO:0002516",
+   "MONDO:0004335",
+   "MONDO:0004992",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0021040",
+   "MONDO:0021223"
+  ],
+  "name": "malignant pancreatic neoplasm"
+ },
+ "MONDO:0015757": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005070",
+   "MONDO:0005570"
+  ],
+  "name": "lymphoid hemopathy"
+ },
+ "MONDO:0015760": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005157",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0018908",
+   "MONDO:0044881"
+  ],
+  "name": "T-cell non-Hodgkin lymphoma"
+ },
+ "MONDO:0015816": {
+  "ancestors_present": [
+   "MONDO:0000430",
+   "MONDO:0000607",
+   "MONDO:0000653",
+   "MONDO:0002051",
+   "MONDO:0002334",
+   "MONDO:0002531",
+   "MONDO:0002898",
+   "MONDO:0004992",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005093",
+   "MONDO:0005157",
+   "MONDO:0005169",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0015760",
+   "MONDO:0017207",
+   "MONDO:0018898",
+   "MONDO:0018908",
+   "MONDO:0024615",
+   "MONDO:0044881"
+  ],
+  "name": "indolent primary cutaneous T-cell lymphoma"
+ },
+ "MONDO:0015821": {
+  "ancestors_present": [
+   "MONDO:0000430",
+   "MONDO:0000607",
+   "MONDO:0000653",
+   "MONDO:0002051",
+   "MONDO:0002334",
+   "MONDO:0002531",
+   "MONDO:0002898",
+   "MONDO:0004992",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005093",
+   "MONDO:0005157",
+   "MONDO:0005169",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0015760",
+   "MONDO:0015816",
+   "MONDO:0017207",
+   "MONDO:0018898",
+   "MONDO:0018908",
+   "MONDO:0024615",
+   "MONDO:0044881"
+  ],
+  "name": "mycosis fungoides and variants"
+ },
+ "MONDO:0017207": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005157",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0044881"
+  ],
+  "name": "primary organ-specific lymphoma"
+ },
+ "MONDO:0018364": {
+  "ancestors_present": [
+   "MONDO:0001416",
+   "MONDO:0002149",
+   "MONDO:0002229",
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0005626",
+   "MONDO:0006054",
+   "MONDO:0008170",
+   "MONDO:0021068",
+   "MONDO:0021148"
+  ],
+  "name": "malignant epithelial tumor of ovary"
+ },
+ "MONDO:0018898": {
+  "ancestors_present": [
+   "MONDO:0000653",
+   "MONDO:0002051",
+   "MONDO:0002334",
+   "MONDO:0002531",
+   "MONDO:0002898",
+   "MONDO:0004992",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005093",
+   "MONDO:0005157",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0017207",
+   "MONDO:0044881"
+  ],
+  "name": "primary cutaneous lymphoma"
+ },
+ "MONDO:0018908": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005062",
+   "MONDO:0005070",
+   "MONDO:0005157",
+   "MONDO:0005570",
+   "MONDO:0015757",
+   "MONDO:0044881"
+  ],
+  "name": "non-Hodgkin lymphoma"
+ },
+ "MONDO:0019056": {
+  "ancestors_present": [
+   "MONDO:0005071"
+  ],
+  "name": "neuromuscular disease"
+ },
+ "MONDO:0020128": {
+  "ancestors_present": [
+   "MONDO:0002602",
+   "MONDO:0005071",
+   "MONDO:0005559",
+   "MONDO:0019056"
+  ],
+  "name": "motor neuron disorder"
+ },
+ "MONDO:0021040": {
+  "ancestors_present": [
+   "MONDO:0002356",
+   "MONDO:0004335",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0021223"
+  ],
+  "name": "pancreatic neoplasm"
+ },
+ "MONDO:0021042": {
+  "ancestors_present": [
+   "MONDO:0005070",
+   "MONDO:0005071",
+   "MONDO:0021193",
+   "MONDO:0021248"
+  ],
+  "name": "glioma"
+ },
+ "MONDO:0021066": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0005070"
+  ],
+  "name": "urinary system neoplasm"
+ },
+ "MONDO:0021068": {
+  "ancestors_present": [
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0006054",
+   "MONDO:0021148"
+  ],
+  "name": "ovarian neoplasm"
+ },
+ "MONDO:0021076": {
+  "ancestors_present": [
+   "MONDO:0002356",
+   "MONDO:0004335",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0021040",
+   "MONDO:0021223"
+  ],
+  "name": "pancreatic exocrine neoplasm"
+ },
+ "MONDO:0021100": {
+  "ancestors_present": [
+   "MONDO:0002657",
+   "MONDO:0005070",
+   "MONDO:0021350"
+  ],
+  "name": "breast neoplasm"
+ },
+ "MONDO:0021143": {
+  "ancestors_present": [
+   "MONDO:0005070"
+  ],
+  "name": "melanocytic neoplasm"
+ },
+ "MONDO:0021148": {
+  "ancestors_present": [
+   "MONDO:0002263",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0006054"
+  ],
+  "name": "female reproductive system neoplasm"
+ },
+ "MONDO:0021163": {
+  "ancestors_present": [
+   "MONDO:0002118",
+   "MONDO:0005070",
+   "MONDO:0005240",
+   "MONDO:0021066"
+  ],
+  "name": "kidney neoplasm"
+ },
+ "MONDO:0021178": {
+  "ancestors_present": [],
+  "name": "injury"
+ },
+ "MONDO:0021193": {
+  "ancestors_present": [
+   "MONDO:0005070",
+   "MONDO:0005071",
+   "MONDO:0021248"
+  ],
+  "name": "neuroepithelial neoplasm"
+ },
+ "MONDO:0021223": {
+  "ancestors_present": [
+   "MONDO:0005070"
+  ],
+  "name": "digestive system neoplasm"
+ },
+ "MONDO:0021248": {
+  "ancestors_present": [
+   "MONDO:0005070",
+   "MONDO:0005071"
+  ],
+  "name": "nervous system neoplasm"
+ },
+ "MONDO:0021350": {
+  "ancestors_present": [
+   "MONDO:0005070"
+  ],
+  "name": "neoplasm of thorax"
+ },
+ "MONDO:0024276": {
+  "ancestors_present": [
+   "MONDO:0005070",
+   "MONDO:0005626"
+  ],
+  "name": "glandular cell neoplasm"
+ },
+ "MONDO:0024615": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005070",
+   "MONDO:0005157",
+   "MONDO:0005570",
+   "MONDO:0044881"
+  ],
+  "name": "T-cell and NK-cell neoplasm"
+ },
+ "MONDO:0024885": {
+  "ancestors_present": [
+   "MONDO:0001416",
+   "MONDO:0002149",
+   "MONDO:0002229",
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0005626",
+   "MONDO:0006054",
+   "MONDO:0008170",
+   "MONDO:0018364",
+   "MONDO:0021068",
+   "MONDO:0021148",
+   "MONDO:0024276",
+   "MONDO:0037255",
+   "MONDO:0037256"
+  ],
+  "name": "malignant ovarian serous tumor"
+ },
+ "MONDO:0037255": {
+  "ancestors_present": [
+   "MONDO:0002229",
+   "MONDO:0002259",
+   "MONDO:0002263",
+   "MONDO:0005039",
+   "MONDO:0005070",
+   "MONDO:0005151",
+   "MONDO:0005558",
+   "MONDO:0005626",
+   "MONDO:0006054",
+   "MONDO:0021068",
+   "MONDO:0021148",
+   "MONDO:0024276",
+   "MONDO:0037256"
+  ],
+  "name": "ovarian serous tumor"
+ },
+ "MONDO:0037256": {
+  "ancestors_present": [
+   "MONDO:0005070",
+   "MONDO:0005626",
+   "MONDO:0024276"
+  ],
+  "name": "serous neoplasm"
+ },
+ "MONDO:0040677": {
+  "ancestors_present": [
+   "MONDO:0004992",
+   "MONDO:0004993",
+   "MONDO:0005070",
+   "MONDO:0005626"
+  ],
+  "name": "invasive carcinoma"
+ },
+ "MONDO:0043797": {
+  "ancestors_present": [
+   "MONDO:0000812",
+   "MONDO:0002081",
+   "MONDO:0002545",
+   "MONDO:0002602",
+   "MONDO:0005071",
+   "MONDO:0005172",
+   "MONDO:0021178",
+   "MONDO:0044745"
+  ],
+  "name": "spinal cord injury"
+ },
+ "MONDO:0044745": {
+  "ancestors_present": [
+   "MONDO:0005071",
+   "MONDO:0021178"
+  ],
+  "name": "nervous system injury"
+ },
+ "MONDO:0044881": {
+  "ancestors_present": [
+   "MONDO:0002334",
+   "MONDO:0005070",
+   "MONDO:0005570"
+  ],
+  "name": "hematopoietic and lymphoid cell neoplasm"
+ },
+ "PATO:0000461": {
+  "ancestors_present": [],
+  "name": "PATO:0000461"
+ },
+ "UBERON:0000064": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468"
+  ],
+  "name": "organ part"
+ },
+ "UBERON:0000203": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017",
+   "UBERON:0001890",
+   "UBERON:0001893"
+  ],
+  "name": "pallium"
+ },
+ "UBERON:0000310": {
+  "ancestors_present": [
+   "UBERON:0000468",
+   "UBERON:0002100"
+  ],
+  "name": "breast"
+ },
+ "UBERON:0000467": {
+  "ancestors_present": [
+   "UBERON:0000468"
+  ],
+  "name": "anatomical system"
+ },
+ "UBERON:0000468": {
+  "ancestors_present": [],
+  "name": "multicellular organism"
+ },
+ "UBERON:0000474": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000990"
+  ],
+  "name": "female reproductive system"
+ },
+ "UBERON:0000481": {
+  "ancestors_present": [],
+  "name": "multi-tissue structure"
+ },
+ "UBERON:0000955": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0001016",
+   "UBERON:0001017"
+  ],
+  "name": "brain"
+ },
+ "UBERON:0000956": {
+  "ancestors_present": [
+   "UBERON:0000064",
+   "UBERON:0000203",
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017",
+   "UBERON:0001869",
+   "UBERON:0001890",
+   "UBERON:0001893",
+   "UBERON:0002020"
+  ],
+  "name": "cerebral cortex"
+ },
+ "UBERON:0000990": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468"
+  ],
+  "name": "reproductive system"
+ },
+ "UBERON:0000992": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000474",
+   "UBERON:0000990"
+  ],
+  "name": "ovary"
+ },
+ "UBERON:0001008": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468"
+  ],
+  "name": "renal system"
+ },
+ "UBERON:0001016": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468"
+  ],
+  "name": "nervous system"
+ },
+ "UBERON:0001017": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0001016"
+  ],
+  "name": "central nervous system"
+ },
+ "UBERON:0001264": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0002075",
+   "UBERON:0002100"
+  ],
+  "name": "pancreas"
+ },
+ "UBERON:0001434": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0002204"
+  ],
+  "name": "skeletal system"
+ },
+ "UBERON:0001474": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0001434",
+   "UBERON:0002204",
+   "UBERON:0004765"
+  ],
+  "name": "bone element"
+ },
+ "UBERON:0001869": {
+  "ancestors_present": [
+   "UBERON:0000064",
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017",
+   "UBERON:0001890",
+   "UBERON:0001893"
+  ],
+  "name": "cerebral hemisphere"
+ },
+ "UBERON:0001890": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017"
+  ],
+  "name": "forebrain"
+ },
+ "UBERON:0001893": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017",
+   "UBERON:0001890"
+  ],
+  "name": "telencephalon"
+ },
+ "UBERON:0001895": {
+  "ancestors_present": [
+   "UBERON:0000064",
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017",
+   "UBERON:0002028"
+  ],
+  "name": "metencephalon"
+ },
+ "UBERON:0002020": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0001016",
+   "UBERON:0001017"
+  ],
+  "name": "gray matter"
+ },
+ "UBERON:0002028": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017"
+  ],
+  "name": "hindbrain"
+ },
+ "UBERON:0002037": {
+  "ancestors_present": [
+   "UBERON:0000064",
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017",
+   "UBERON:0001895",
+   "UBERON:0002028"
+  ],
+  "name": "cerebellum"
+ },
+ "UBERON:0002075": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0002100"
+  ],
+  "name": "viscus"
+ },
+ "UBERON:0002097": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0002199",
+   "UBERON:0002416"
+  ],
+  "name": "skin of body"
+ },
+ "UBERON:0002100": {
+  "ancestors_present": [
+   "UBERON:0000468"
+  ],
+  "name": "trunk"
+ },
+ "UBERON:0002113": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0001008",
+   "UBERON:0002100"
+  ],
+  "name": "kidney"
+ },
+ "UBERON:0002199": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0002416"
+  ],
+  "name": "integument"
+ },
+ "UBERON:0002204": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468"
+  ],
+  "name": "musculoskeletal system"
+ },
+ "UBERON:0002240": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0001016",
+   "UBERON:0001017"
+  ],
+  "name": "spinal cord"
+ },
+ "UBERON:0002298": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0001016",
+   "UBERON:0001017"
+  ],
+  "name": "brainstem"
+ },
+ "UBERON:0002416": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468"
+  ],
+  "name": "integumental system"
+ },
+ "UBERON:0002421": {
+  "ancestors_present": [
+   "UBERON:0000064",
+   "UBERON:0000203",
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0000481",
+   "UBERON:0000955",
+   "UBERON:0000956",
+   "UBERON:0001016",
+   "UBERON:0001017",
+   "UBERON:0001869",
+   "UBERON:0001890",
+   "UBERON:0001893",
+   "UBERON:0002020"
+  ],
+  "name": "hippocampal formation"
+ },
+ "UBERON:0004765": {
+  "ancestors_present": [
+   "UBERON:0000467",
+   "UBERON:0000468",
+   "UBERON:0001434",
+   "UBERON:0002204"
+  ],
+  "name": "skeletal element"
+ }
+}

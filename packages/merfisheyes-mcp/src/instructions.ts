@@ -9,8 +9,9 @@ export function instructions(site: string, local: boolean): string {
     `MERFISHEYES (${site}) is a web viewer for spatial transcriptomics: cells, molecules, cell outlines and microscopy images, at up to billions of molecules. These tools find datasets and read the person's own projects; the site does the heavy work.`,
     "",
     local
-      ? "- Public catalog tools (meyes_search_datasets, meyes_list_facets, meyes_get_dataset, meyes_list_genes) need no sign-in. The person's own data needs meyes_sign_in once; ask only for the scopes the task needs."
+      ? "- Public catalog tools (meyes_find_datasets, meyes_index_values, meyes_search_datasets, meyes_list_facets, meyes_get_dataset, meyes_list_genes) need no sign-in. The person's own data needs meyes_sign_in once; ask only for the scopes the task needs."
       : "- The person signed in to MERFISHEYES when they added this connector; meyes_whoami says as whom and which projects this agent may reach.",
+    "- Questions about the library — how many datasets, which ones, of what organism, tissue, disease, technology, age, genotype, measuring or expressing which genes — go to meyes_find_datasets: one call answers the count, a breakdown and the first rows, over every public dataset (MERFISHEYES's own and SpatialData-DB's). Report its notes (rows left out for lacking a field, genes it could not check) with the answer. Use meyes_index_values to spell a value; use meyes_search_datasets only for Explore's cards.",
     "- Prefer what MERFISHEYES already records over computing it yourself: meyes_get_dataset returns the counts, cell-type levels, DE columns and QC each store's own files hold. Never fetch raw per-cell data to answer something a tool answers.",
     local
       ? "- To show the person something, call meyes_open_view: it returns a link to the viewer already set up (genes, column, cell types, 2D/3D, dot size, opacity). Give them the link. Pass open=true only when they ask to open it now, and never open more than one tab per request: for several views give links, and for two views to compare use one split screen (compare=…). Do not describe a scene you cannot see."

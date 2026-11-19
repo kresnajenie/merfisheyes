@@ -10,6 +10,15 @@ export const SITE = (
 /** The agent API, and the protected resource tokens are bound to. */
 export const API_BASE = `${SITE}/api/agent/v1`;
 
+/**
+ * The published query index (MCP.md pillar B): `catalog.parquet` and the
+ * files beside it. A folder path works too (tests, a local build).
+ */
+export const INDEX_URL = (
+  process.env.MERFISHEYES_INDEX_URL ||
+  "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-zarr/.index/latest"
+).replace(/\/+$/, "");
+
 export const NAME = "merfisheyes-mcp";
 export const VERSION = "0.2.0";
 

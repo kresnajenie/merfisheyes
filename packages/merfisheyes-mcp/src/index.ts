@@ -15,6 +15,8 @@
  * Nothing is ever written to stdout but the protocol.
  */
 /* eslint-disable no-console -- stderr is this server's only log: stdout carries the protocol */
+import type { Host } from "./host.ts";
+
 import { resolve } from "node:path";
 
 import { McpServer } from "@modelcontextprotocol/server";
@@ -26,10 +28,10 @@ import { NAME, SITE, VERSION } from "./config.ts";
 import { credentialsPath } from "./credentials.ts";
 import { SetupNeeded, setupPipeline, viewable } from "./local/convert.ts";
 import { local, openLink } from "./local/serve.ts";
-import type { Host } from "./host.ts";
 import { instructions } from "./instructions.ts";
 import { registerAccountTools } from "./tools/account.ts";
 import { registerCatalogTools } from "./tools/catalog.ts";
+import { registerLibraryTools } from "./tools/library.ts";
 import { registerLocalTools } from "./tools/local.ts";
 import {
   registerAddColumnTool,
@@ -53,6 +55,7 @@ function createServer(): McpServer {
   );
 
   registerCatalogTools(server, host);
+  registerLibraryTools(server);
   registerSignInTools(server);
   registerAccountTools(server, host);
   registerViewTools(server, host);

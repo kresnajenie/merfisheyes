@@ -70,9 +70,11 @@ describe("the site's MCP server", () => {
     const names = r.result.tools.map((t: { name: string }) => t.name).sort();
 
     expect(names).toEqual([
+      "meyes_find_datasets",
       "meyes_get_dataset",
       "meyes_get_processing_status",
       "meyes_get_project",
+      "meyes_index_values",
       "meyes_list_facets",
       "meyes_list_genes",
       "meyes_list_my_datasets",

@@ -250,6 +250,55 @@ Gate: the Alzheimer's-style question above answered in one `meyes_find`
 plus one compare call on the live site, with the numbers checked against
 the stores; no S3 read by the agent.
 
+**B3 built (2026-11-18; uncommitted until the user says).** One search
+module in the package, used by both servers (`lib/mcp/server.ts` registers
+it too): `src/library/data.ts` loads the published index —
+`catalog.parquet` (61 of its 131 columns: all 131 as objects are ~230 MB),
+the rollup, `technology.json`; `gene_index.parquet` on the first
+expression filter — once per release (`release_info.json` rechecked every
+10 min), from `INDEX_URL` (`MERFISHEYES_INDEX_URL`, a folder in tests).
+`src/library/search.ts` is pure. Tools `meyes_find_datasets` (organism
+with aliases, tissue / disease by name or id with descendants and
+groupings, technology by id or label, source, kind, metadata_from,
+modality, sex, age in days, genotype / condition / treatment contains,
+text, min_cells, genes_measured, genes_expressed with min_fraction;
+answers count, breakdown by six facets, notes, a page of rows with trust
+and viewer links) and `meyes_index_values`. Re-releases fold to the newest
+`same_section_release` (version order — `published_at` picks the wrong one
+for a Space Ranger 3.0.0 / 4.0.1 pair). Unknown values name the closest
+(substring, else edit distance per word).
+
+*Gene lookup (asked of the metadata session, built by it the same day):*
+`gene_search.parquet` decodes to ~1 GB in one row group (pyarrow's
+dictionary falls back to PLAIN past 1 MB): 4.4 s and 2.7 GB RSS in
+hyparquet — no use to a Vercel function or an MCP process.
+`gene_lookup.parquet` (one row per lower-case symbol × entity, sorted, row
+groups of 8,192, statistics on `symbol` only; 36.8 MB) is read by range:
+the footer once, then the one row group holding the gene (~300 KB, ~0.6 s
+from S3); genes of one query are read in parallel. Bitsets are used only
+after `gene_search_meta.json` `meyes_ids` equal the catalog's row order.
+"Measured" covers all 12,740 rows; "expressed" only rows with counts in
+`gene_index.parquet` (our 63 stores), and the note says how many it could
+not check.
+
+*Measured against the live index (2026-11-18):* cold load 1.2 s, ~300 MB
+RSS; warm queries ms. mouse brain 1,597 (1,606 before folding 9
+re-releases; pandas agrees), mouse spinal cord 392, MERSCOPE 850, mouse
+Gad1 measured 2,520 (pandas agrees; now the check value in
+`docs/specs/metadata.md` §7.8). The rule: OR every entity for the symbol,
+then filter catalog rows by organism, never entities by id prefix — the
+mouse-prefix entities' union (2,537) takes in 30 human and rat rows that
+carry the mouse id and misses 13 mouse rows that measure Gad1 only under
+the bare symbol), mouse brain Rab3b > 5 % 55 (as
+checked by the metadata session), human Alzheimer's 47. Tests: 12 on a
+63-row fixture cut by `scripts/make-index-fixture.py`, expected numbers
+counted with pandas; passing on hyparquet 1.33 (the package's) and 1.20
+(the site's).
+
+Next in B: B5 compare (per dataset gene fraction/counts, cells, age,
+genotype; per cell type where recorded), B4 collections; SDDB's own
+`gene_index` for expression on their rows.
+
 ### Pillar C — Metadata and statistics: [METADATA.md](METADATA.md)
 
 Its own plan since 2026-11-14: SDDB's schema (M1), metadata in the store,
