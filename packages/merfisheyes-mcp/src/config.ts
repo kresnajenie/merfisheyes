@@ -20,7 +20,7 @@ export const INDEX_URL = (
 ).replace(/\/+$/, "");
 
 export const NAME = "merfisheyes-mcp";
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 /** What sign-in asks for when nothing more is needed (MCP-PROTOCOL §6.3). */
 export const DEFAULT_SCOPES = ["catalog:read", "projects:read"];

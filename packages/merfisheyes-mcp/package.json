@@ -1,6 +1,6 @@
 {
   "name": "@merfisheyes/mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "MERFISHEYES for agents and for your own data: search the spatial transcriptomics catalog, and open your own data (.h5ad, Xenium, MERSCOPE, SpatialData) in the MERFISHEYES viewer on your computer",
   "license": "MIT",
   "type": "module",
