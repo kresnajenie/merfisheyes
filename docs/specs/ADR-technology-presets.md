@@ -86,7 +86,8 @@ pages can move to a client repo one area at a time.
 - The viewer makes one more request per open (`GET /api/presets`, cached five
   minutes by the CDN).
 - Only technologies the viewer can recognise from the data can have a preset
-  that applies: today Visium HD (square bins). The editor offers only those.
+  that applies: today Visium HD (square bins) and Visium (round spots of one
+  size). The editor offers only those.
   Others need the catalog's platform passed to the viewer.
 - A link made while one preset was published can look different after another
   is published, for the fields the link does not carry. That is the same

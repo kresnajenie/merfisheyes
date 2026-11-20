@@ -44,6 +44,7 @@ import { OverlayManager } from "@/components/overlay-manager";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import { LayerControls } from "@/components/layer-controls";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import { sizeLocked } from "@/lib/config/technology-presets";
 
 export function VisualizationControls() {
   const {
@@ -563,6 +564,7 @@ export function VisualizationControls() {
           {/* Dot Size Slider — switches between SC sizeScale and SM globalScale. */}
           <div className="flex flex-row items-center gap-1">
             <DotSizeSlider
+              realSize={sizeLocked(dataset)}
               scSizeScale={sizeScale}
               scSmMode={hasSmOverlay ? scSmMode : "sc"}
               setScSizeScale={setSizeScale}
@@ -896,10 +898,13 @@ export function VisualizationControls() {
 }
 
 function DotSizeSlider({
+  realSize,
   scSizeScale,
   setScSizeScale,
   scSmMode,
 }: {
+  /** Spots or bins whose preset keeps them at their measured size. */
+  realSize: boolean;
   scSizeScale: number;
   setScSizeScale: (n: number) => void;
   scSmMode: ScSmMode;
@@ -925,6 +930,7 @@ function DotSizeSlider({
   );
 
   const isSc = scSmMode === "sc";
+  const fixed = isSc && realSize;
   const value = isSc ? scSizeScale : smGlobalScale;
   const setValue = isSc ? setScSizeScale : setSmGlobalScale;
   const range = isSc ? sc : sm;
@@ -939,25 +945,28 @@ function DotSizeSlider({
   return (
     <Tooltip
       content={
-        isSc
-          ? "Change dotsize (right-click to edit range)"
-          : "Change SM molecule size (right-click to edit range)"
+        fixed
+          ? "Spots and bins are drawn at their real size"
+          : isSc
+            ? "Change dotsize (right-click to edit range)"
+            : "Change SM molecule size (right-click to edit range)"
       }
       placement="right"
     >
       <div
         className={`w-14 h-32 rounded-full border-2 p-2 flex flex-col items-center justify-center transition-colors transition-shadow ${borderColor} ${glassButton()}`}
-        onContextMenu={range.onContextMenu}
+        onContextMenu={fixed ? undefined : range.onContextMenu}
       >
         <Slider
           aria-label="Dot size"
           className="h-full"
+          isDisabled={fixed}
           maxValue={max}
           minValue={min}
           orientation="vertical"
           size="sm"
           step={step}
-          value={value}
+          value={fixed ? 1 : value}
           onChange={(v) => setValue(v as number)}
         />
         {range.popover}

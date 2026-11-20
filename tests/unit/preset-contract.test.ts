@@ -51,6 +51,8 @@ describe("the preset contract (docs/specs/schemas/preset.schema.json)", () => {
       readPreset({ colormap: "plasma", cellOpacity: 0.5, fromTheFuture: 1 }),
     ).toEqual({ colormap: "plasma", cellOpacity: 0.5 });
     expect(readPreset({ colormap: "rainbow", cellOpacity: 2 })).toEqual({});
+    expect(readPreset({ lockSize: true })).toEqual({ lockSize: true });
+    expect(readPreset({ lockSize: "yes" })).toEqual({});
     expect(readPreset(null)).toEqual({});
   });
 });
@@ -105,6 +107,9 @@ describe("which preset a dataset opens with", () => {
 
     expect(m.technologyPresetOf(bins)).toEqual({ colormap: "plasma" });
     expect(m.technologyPresetOf({ cellFootprint: null })).toEqual({});
+    // A published preset replaces the built-in one whole: without lockSize
+    // the size slider scales the bins again
+    expect(m.sizeLocked(bins)).toBe(false);
 
     vi.resetModules();
     m = await load({ presets: { "Visium HD": null } });

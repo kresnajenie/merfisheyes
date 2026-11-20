@@ -16,6 +16,7 @@ import {
   storeUrlFromZarrUrl,
 } from "@/lib/sddb/catalog-row";
 import { READ_COLUMNS, REQUIRED_COLUMNS } from "@/lib/sddb/catalog-schema";
+import { cardThumbnailUrl, sddbThumbnailUrl } from "@/lib/sddb/thumbnail";
 
 const FIXTURE = "tests/data/sddb/catalog-fixture.parquet";
 const OTHER = "tests/data/sddb/collections-fixture.parquet";
@@ -124,6 +125,22 @@ describe("mapCatalogRow", () => {
         mapCatalogRow({ ...base, technology } as never, { release: "r", generatedAt: null }).data.platform,
       ).toBe("PhenoCycler-Fusion");
     }
+  });
+
+  it("makes a card's thumbnail from the uid without its version", () => {
+    expect(sddbThumbnailUrl("HgHSRxH91i5EbUZO0000")).toBe(
+      "https://sdata-db.com/t/HgHSRxH91i5EbUZO.webp",
+    );
+    const row = { thumbnailUrl: null, sddbUid: "HgHSRxH91i5EbUZO0003" };
+
+    expect(cardThumbnailUrl({ ...row, source: "sddb" })).toBe(
+      "https://sdata-db.com/t/HgHSRxH91i5EbUZO.webp",
+    );
+    // A thumbnail set on the row wins; other sources have none of theirs
+    expect(
+      cardThumbnailUrl({ ...row, source: "sddb", thumbnailUrl: "/mine.png" }),
+    ).toBe("/mine.png");
+    expect(cardThumbnailUrl({ ...row, source: "curated" })).toBeNull();
   });
 
   it("refuses a row without a uid or a store", () => {

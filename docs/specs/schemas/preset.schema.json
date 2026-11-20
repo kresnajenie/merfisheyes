@@ -31,6 +31,10 @@
       "minimum": 0.05,
       "maximum": 1,
       "description": "The cells' opacity as a whole."
+    },
+    "lockSize": {
+      "type": "boolean",
+      "description": "Spots and bins stay at their measured size: the size slider does not scale them. Only means something for cells drawn at a real size."
     }
   },
   "additionalProperties": false

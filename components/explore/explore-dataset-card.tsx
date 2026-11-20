@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DatasetInfoModal } from "./dataset-info-modal";
 
 import { catalogPageHref, entryHref } from "@/lib/explore/links";
+import { cardThumbnailUrl } from "@/lib/sddb/thumbnail";
 
 /** Badge for an entry's type: cells, an image, or (anything else) molecules. */
 const isCells = (type: string) =>
@@ -125,6 +126,7 @@ export function ExploreDatasetCard({
   const entries = dataset.entries ?? [];
   const hasMultipleEntries = entries.length > 1;
   const uniqueTypes = [...new Set(entries.map((e) => e.datasetType))];
+  const thumbnail = cardThumbnailUrl(dataset);
   // The card is a fixed size everywhere (Explore + account): a header area is
   // always shown (a placeholder when there's no thumbnail) so grids stay
   // uniform regardless of how much metadata each item has.
@@ -281,11 +283,12 @@ export function ExploreDatasetCard({
             2-line description, chips, stats) keeps its stats visible. */}
         <div className="relative h-48 w-full shrink-0 bg-default-200/30">
           <div className="h-full w-full bg-gradient-to-br from-default-100 to-default-200/40" />
-          {dataset.thumbnailUrl && (
+          {thumbnail && (
             <img
               alt={dataset.title}
               className="absolute inset-0 w-full h-full object-cover"
-              src={dataset.thumbnailUrl}
+              loading="lazy"
+              src={thumbnail}
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}

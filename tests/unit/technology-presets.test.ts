@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   TECHNOLOGY_PRESETS,
   applyTechnologyPreset,
+  sizeLocked,
   technologyOf,
   technologyPresetOf,
 } from "@/lib/config/technology-presets";
@@ -18,11 +19,19 @@ const spots = { cellFootprint: { shape: "circle" as const, size: 55 } };
 
 
 describe("technology presets", () => {
-  it("names square bins Visium HD, and nothing else", () => {
+  it("names square bins Visium HD, round spots Visium, and nothing else", () => {
     expect(technologyOf(bins)).toBe("Visium HD");
-    expect(technologyOf(spots)).toBeNull();
+    expect(technologyOf(spots)).toBe("Visium");
     expect(technologyOf({ cellFootprint: null })).toBeNull();
-    expect(technologyPresetOf(spots)).toEqual({});
+    expect(technologyPresetOf({ cellFootprint: null })).toEqual({});
+  });
+
+  it("locks spots and bins to their real size, by their preset", () => {
+    expect(sizeLocked(spots)).toBe(true);
+    expect(sizeLocked(bins)).toBe(true);
+    // Dots have no real size to keep
+    expect(sizeLocked({ cellFootprint: null })).toBe(false);
+    expect(sizeLocked(null)).toBe(false);
   });
 
   it("only names colormaps the viewer has, and opacities in 0-1", () => {

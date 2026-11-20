@@ -21,6 +21,11 @@ export interface TechnologyPreset {
   hideZeroExpression?: boolean;
   /** The cells' opacity as a whole, 0-1. */
   cellOpacity?: number;
+  /**
+   * Spots and bins stay at their measured size: the size slider does not
+   * scale them. Only means something for cells drawn at a real size.
+   */
+  lockSize?: boolean;
 }
 
 export const TECHNOLOGY_PRESETS: Record<string, TechnologyPreset> = {
@@ -28,11 +33,13 @@ export const TECHNOLOGY_PRESETS: Record<string, TechnologyPreset> = {
     colormap: "viridis",
     hideZeroExpression: true,
     cellOpacity: 0.8,
+    lockSize: true,
   },
+  Visium: { lockSize: true },
 };
 
 /** The technologies the viewer can tell from the data (see technologyOf). */
-export const RECOGNISED_TECHNOLOGIES = ["Visium HD"];
+export const RECOGNISED_TECHNOLOGIES = ["Visium HD", "Visium"];
 
 const NONE: TechnologyPreset = {};
 
@@ -57,6 +64,7 @@ export function readPreset(raw: unknown): TechnologyPreset {
     r.cellOpacity <= 1
   )
     out.cellOpacity = r.cellOpacity;
+  if (typeof r.lockSize === "boolean") out.lockSize = r.lockSize;
 
   return out;
 }
@@ -97,12 +105,19 @@ export async function loadTechnologyPresets(): Promise<void> {
 
 /**
  * The technology the viewer can tell from the data itself: cells that are a
- * grid of square bins are Visium HD. Null for everything else, for now.
+ * grid of square bins are Visium HD, and round spots of one size are Visium.
+ * Null for everything else, for now.
  */
 export function technologyOf(dataset: {
   cellFootprint?: CellFootprint | null;
 }): string | null {
-  return dataset.cellFootprint?.shape === "square" ? "Visium HD" : null;
+  const shape = dataset.cellFootprint?.shape;
+
+  return shape === "square"
+    ? "Visium HD"
+    : shape === "circle"
+      ? "Visium"
+      : null;
 }
 
 /** The preset a dataset opens with; empty when its technology has none. */
@@ -131,4 +146,16 @@ export function applyTechnologyPreset(
   if (preset.hideZeroExpression !== undefined)
     store.setHideZeroExpression(preset.hideZeroExpression);
   if (preset.cellOpacity !== undefined) store.setAlphaScale(preset.cellOpacity);
+}
+
+/**
+ * Whether the size slider leaves a dataset's cells alone: they are drawn at
+ * a measured size and its technology's preset says to keep it.
+ */
+export function sizeLocked(
+  dataset: { cellFootprint?: CellFootprint | null } | null | undefined,
+): boolean {
+  return (
+    !!dataset?.cellFootprint && technologyPresetOf(dataset).lockSize === true
+  );
 }

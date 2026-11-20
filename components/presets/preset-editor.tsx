@@ -45,6 +45,8 @@ function describe(config: TechnologyPreset): string {
       (config.hideZeroExpression ? "zero counts hidden" : "zero counts shown"),
     config.cellOpacity !== undefined &&
       `opacity ${Math.round(config.cellOpacity * 100)}%`,
+    config.lockSize !== undefined &&
+      (config.lockSize ? "size locked" : "size slider on"),
   ].filter(Boolean);
 
   return parts.length ? parts.join(", ") : "nothing set";
@@ -75,6 +77,7 @@ export function PresetEditor() {
   const [colormap, setColormap] = useState("");
   const [hideZero, setHideZero] = useState("");
   const [opacity, setOpacity] = useState("");
+  const [lockSize, setLockSize] = useState("");
   const [note, setNote] = useState("");
   const [testedOn, setTestedOn] = useState("");
 
@@ -105,6 +108,7 @@ export function PresetEditor() {
     setOpacity(
       config.cellOpacity === undefined ? "" : String(config.cellOpacity),
     );
+    setLockSize(config.lockSize === undefined ? "" : String(config.lockSize));
   };
 
   const config = useMemo(() => {
@@ -113,9 +117,10 @@ export function PresetEditor() {
     if (colormap) c.colormap = colormap;
     if (hideZero) c.hideZeroExpression = hideZero === "true";
     if (opacity !== "") c.cellOpacity = Number(opacity);
+    if (lockSize) c.lockSize = lockSize === "true";
 
     return c;
-  }, [colormap, hideZero, opacity]);
+  }, [colormap, hideZero, opacity, lockSize]);
 
   const mine = versions.filter((v) => v.technology === technology);
   const log = publishes.filter((p) => p.technology === technology);
@@ -280,6 +285,19 @@ export function PresetEditor() {
               value={opacity}
               onChange={(e) => setOpacity(e.target.value)}
             />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            Spot and bin size
+            <select
+              className={field}
+              data-testid="preset-lock-size"
+              value={lockSize}
+              onChange={(e) => setLockSize(e.target.value)}
+            >
+              <option value="">Not set</option>
+              <option value="true">Locked to the real size</option>
+              <option value="false">Scaled by the size slider</option>
+            </select>
           </label>
         </div>
         <label className="flex flex-col gap-1 text-sm">
