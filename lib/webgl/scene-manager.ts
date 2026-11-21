@@ -91,6 +91,8 @@ export function initializeScene(
     antialias: true,
     preserveDrawingBuffer: true,
     powerPreference: "high-performance",
+    // For an image drawn over another (ImageLayer's overlay)
+    stencil: true,
   });
 
   renderer.setSize(container.clientWidth, container.clientHeight);

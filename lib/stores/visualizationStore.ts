@@ -87,6 +87,8 @@ interface VisualizationState {
   selectedSizeMultiplier: number;
   greyedOutSizeMultiplier: number;
   greyedOutAlpha: number;
+  hideZeroExpression: boolean;
+  setHideZeroExpression: (hide: boolean) => void;
   expressionAlphaMin: number;
   expressionAlphaMax: number;
   pointSizeMultiplierMin: number;
@@ -261,6 +263,7 @@ const initialState = {
   greyedOutSizeMultiplier:
     VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
   greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+  hideZeroExpression: false,
   expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
   expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
   pointSizeMultiplierMin:
@@ -270,7 +273,7 @@ const initialState = {
   targetPx: VISUALIZATION_CONFIG.TARGET_PX_DEFAULT as number,
   pinnedTooltipColumns: new Set<string>(),
   sliderRanges: {} as Record<string, { min: number; max: number }>,
-  colormap: "bwr",
+  colormap: "viridis",
   plotPanelOpen: false,
   secondaryColumn: null as string | null,
   selectedSecondaryValues: new Set<string>(),
@@ -645,6 +648,10 @@ export const useVisualizationStore = create<VisualizationState>((set, get) => ({
 
       return { sliderRanges: next };
     });
+  },
+
+  setHideZeroExpression: (hide) => {
+    set({ hideZeroExpression: hide });
   },
 
   setColormap: (name) => {

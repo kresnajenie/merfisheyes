@@ -61,8 +61,9 @@ export interface MappedCatalogRow {
   uid: string;
   /**
    * Upsert payload for `CatalogDataset` (minus the audit columns). No
-   * `thumbnailUrl`: the catalog carries none (upstream dropped the column in
-   * catalog-2026-11-08), so a sync never clears one set another way.
+   * `thumbnailUrl`: the catalog carries none, and a card's image is made
+   * from the uid when it is drawn (`lib/sddb/thumbnail.ts`), so a sync never
+   * clears one set another way.
    */
   data: {
     title: string;

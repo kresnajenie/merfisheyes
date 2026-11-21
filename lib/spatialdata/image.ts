@@ -47,6 +47,12 @@ export interface SpatialDataImage {
    * matrix on the layer, not a different rectangle per tile.
    */
   placement: Map2;
+  /**
+   * Every image of the store that can be drawn with the cells, this one
+   * included (an H&E photograph beside a fluorescence image): the viewer
+   * offers the choice when there is more than one.
+   */
+  siblings?: { name: string; open(): Promise<SpatialDataImage> }[];
 }
 
 /** The image's extent in the scene: the finest level's rectangle, placed. */
@@ -95,15 +101,26 @@ export async function openSpatialDataImage(
   if (chosen.name === null) {
     throw new Error(`No image can be placed with the cells: ${chosen.reason}`);
   }
-  const placed = cs.place(`images/${chosen.name}`);
-
-  if (!placed.ok) throw new Error(placed.reason);
   const root = zarr.root(sd.store as zarr.Readable);
-  const group = await zarr.open.v3(root.resolve(`images/${chosen.name}`), {
-    kind: "group",
-  });
+  const siblings: NonNullable<SpatialDataImage["siblings"]> = [];
+  const open = async (name: string) => {
+    const placed = cs.place(`images/${name}`);
 
-  return readMultiscale(chosen.name, group, placed.map);
+    if (!placed.ok) throw new Error(placed.reason);
+    const group = await zarr.open.v3(root.resolve(`images/${name}`), {
+      kind: "group",
+    });
+
+    return { ...(await readMultiscale(name, group, placed.map)), siblings };
+  };
+
+  for (const name of names) {
+    if (cs.place(`images/${name}`).ok) {
+      siblings.push({ name, open: () => open(name) });
+    }
+  }
+
+  return open(chosen.name);
 }
 
 /**

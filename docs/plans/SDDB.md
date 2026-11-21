@@ -473,7 +473,14 @@ one of 2026-10-18), the perf suite on the 1.46 M-cell CosMx store, and the
 UI's wording ("gene", "DEG") for proteins, peaks and ions — the user's
 decision: tables and images first, no DEGs for now.
 
-### Step 6: previews on the cards — open, waiting on the maintainer
+### Step 6: previews on the cards — done 2026-11-20
+
+Tim Treis gave a stable URL per dataset: `https://sdata-db.com/t/<uid16>.webp`
+(the uid without its four-character version, the same across versions, CORS
+open to any origin, about two thirds of the datasets so far, 404 for the
+rest). The cards link to it; nothing is copied or written to the database
+(`lib/sddb/thumbnail.ts`, spec in `docs/specs/sddb-catalog.md`). What follows
+is how it stood before.
 
 The cards have no image. The catalog never carried one (`thumbnail_url`
 empty, then removed in `catalog-2026-11-08`); their website draws previews

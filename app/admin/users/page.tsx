@@ -21,6 +21,7 @@ interface UserItem {
   email: string;
   image: string | null;
   role: "USER" | "ADMIN" | "SUPER_ADMIN";
+  permissions: string[];
   createdAt: string;
 }
 
@@ -68,6 +69,21 @@ export default function AdminUsersPage() {
     setTogglingId(null);
   };
 
+  const togglePresets = async (user: UserItem) => {
+    setTogglingId(user.id);
+    await fetch(`/api/admin/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        permissions: user.permissions.includes("presets:write")
+          ? []
+          : ["presets:write"],
+      }),
+    });
+    await fetchUsers();
+    setTogglingId(null);
+  };
+
   const roleColor = (role: string) => {
     if (role === "SUPER_ADMIN") return "danger" as const;
     if (role === "ADMIN") return "warning" as const;
@@ -80,7 +96,9 @@ export default function AdminUsersPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold">User Management</h1>
         <p className="text-default-500 text-sm mt-1">
-          Click a role chip to toggle between USER and ADMIN.
+          Click a role chip to toggle between USER and ADMIN. Click a Presets
+          chip to let a user edit technology presets at /presets and nothing
+          else; admins always can.
         </p>
       </div>
 
@@ -96,6 +114,7 @@ export default function AdminUsersPage() {
             <TableColumn>User</TableColumn>
             <TableColumn>Email</TableColumn>
             <TableColumn>Role</TableColumn>
+            <TableColumn>Presets</TableColumn>
             <TableColumn>Joined</TableColumn>
           </TableHeader>
           <TableBody>
@@ -109,9 +128,7 @@ export default function AdminUsersPage() {
                       size="sm"
                       src={user.image ?? undefined}
                     />
-                    <span className="font-medium">
-                      {user.name ?? "—"}
-                    </span>
+                    <span className="font-medium">{user.name ?? "—"}</span>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -134,6 +151,29 @@ export default function AdminUsersPage() {
                         ? "Admin"
                         : "User"}
                   </Chip>
+                </TableCell>
+                <TableCell>
+                  {user.role === "USER" ? (
+                    <Chip
+                      className="cursor-pointer"
+                      color={
+                        user.permissions.includes("presets:write")
+                          ? "success"
+                          : "default"
+                      }
+                      data-testid={`presets-permission-${user.email}`}
+                      isDisabled={togglingId === user.id}
+                      size="sm"
+                      variant="flat"
+                      onClick={() => togglePresets(user)}
+                    >
+                      {user.permissions.includes("presets:write")
+                        ? "Can edit"
+                        : "No"}
+                    </Chip>
+                  ) : (
+                    <span className="text-sm text-default-400">Always</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <span className="text-sm text-default-500">

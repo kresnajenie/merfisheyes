@@ -3,6 +3,7 @@ import type {
   CellViewMode,
 } from "@/lib/stores/createVisualizationStore";
 import type { ViewMode } from "@/lib/stores/createSingleMoleculeVisualizationStore";
+import type { TechnologyPreset } from "@/lib/config/technology-presets";
 
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 
@@ -24,6 +25,8 @@ export interface CellVizUrlState {
   fx?: boolean; // flipX
   fy?: boolean; // flipY
   cm?: string; // colormap
+  op?: number; // cell opacity (alphaScale), 0-1
+  hz?: boolean; // hideZeroExpression
   // Two-gene coexpression
   g2?: string; // selectedGene2
   gs2?: [number, number]; // [gene2ScaleMin, gene2ScaleMax]
@@ -93,37 +96,49 @@ const DEFAULT_SCALE_MIN = VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MIN;
 const DEFAULT_SCALE_MAX = VISUALIZATION_CONFIG.SCALE_BAR_DEFAULT_MAX;
 const DEFAULT_MODE: VisualizationMode[] = ["celltype"];
 
-export function encodeCellVizState(state: {
-  selectedGene: string | null;
-  selectedColumn: string | null;
-  selectedCelltypes: Set<string>;
-  mode: VisualizationMode[];
-  geneScaleMin: number;
-  geneScaleMax: number;
-  numericalScaleMin: number;
-  numericalScaleMax: number;
-  sizeScale: number;
-  selectedEmbedding: string | null;
-  columnTypeOverrides: Record<string, "categorical" | "numerical">;
-  viewMode: CellViewMode;
-  selectedSizeMultiplier: number;
-  greyedOutSizeMultiplier: number;
-  greyedOutAlpha: number;
-  expressionAlphaMin: number;
-  expressionAlphaMax: number;
-  pointSizeMultiplierMin: number;
-  pointSizeMultiplierMax: number;
-  targetPx: number;
-  sceneRotation: number;
-  flipX: boolean;
-  flipY: boolean;
-  colormap: string;
-  selectedGene2: string | null;
-  gene2ScaleMin: number;
-  gene2ScaleMax: number;
-  coexpressEnabled: boolean;
-  coexpressSwapped: boolean;
-}): string | null {
+/**
+ * `preset` is the dataset's technology preset: the colormap, cell opacity and
+ * hide-zero it opened with. A field is left out when it equals what the
+ * dataset opens with anyway (the preset's value, else the built-in default),
+ * and written when it differs — so setting a preset field back to the
+ * built-in default still survives a reload.
+ */
+export function encodeCellVizState(
+  state: {
+    selectedGene: string | null;
+    selectedColumn: string | null;
+    selectedCelltypes: Set<string>;
+    mode: VisualizationMode[];
+    geneScaleMin: number;
+    geneScaleMax: number;
+    numericalScaleMin: number;
+    numericalScaleMax: number;
+    sizeScale: number;
+    selectedEmbedding: string | null;
+    columnTypeOverrides: Record<string, "categorical" | "numerical">;
+    viewMode: CellViewMode;
+    selectedSizeMultiplier: number;
+    greyedOutSizeMultiplier: number;
+    greyedOutAlpha: number;
+    expressionAlphaMin: number;
+    expressionAlphaMax: number;
+    pointSizeMultiplierMin: number;
+    pointSizeMultiplierMax: number;
+    targetPx: number;
+    sceneRotation: number;
+    flipX: boolean;
+    flipY: boolean;
+    colormap: string;
+    selectedGene2: string | null;
+    gene2ScaleMin: number;
+    gene2ScaleMax: number;
+    coexpressEnabled: boolean;
+    coexpressSwapped: boolean;
+    alphaScale?: number;
+    hideZeroExpression?: boolean;
+  },
+  preset: TechnologyPreset = {},
+): string | null {
   const obj: CellVizUrlState = {};
 
   if (state.selectedGene) obj.g = state.selectedGene;
@@ -181,7 +196,19 @@ export function encodeCellVizState(state: {
   if (state.sceneRotation !== 0) obj.rot = state.sceneRotation;
   if (state.flipX) obj.fx = true;
   if (state.flipY) obj.fy = true;
-  if (state.colormap && state.colormap !== "bwr") obj.cm = state.colormap;
+  if (state.colormap && state.colormap !== (preset.colormap ?? "viridis"))
+    obj.cm = state.colormap;
+  if (
+    state.alphaScale !== undefined &&
+    state.alphaScale !==
+      (preset.cellOpacity ?? VISUALIZATION_CONFIG.POINT_BASE_ALPHA)
+  )
+    obj.op = state.alphaScale;
+  if (
+    state.hideZeroExpression !== undefined &&
+    state.hideZeroExpression !== (preset.hideZeroExpression ?? false)
+  )
+    obj.hz = state.hideZeroExpression;
 
   // Two-gene coexpression
   if (state.selectedGene2) obj.g2 = state.selectedGene2;
@@ -226,6 +253,8 @@ export function decodeCellVizState(encoded: string): CellVizUrlState | null {
     return null;
   if (obj.ce !== undefined && typeof obj.ce !== "boolean") return null;
   if (obj.cw !== undefined && typeof obj.cw !== "boolean") return null;
+  if (obj.op !== undefined && typeof obj.op !== "number") return null;
+  if (obj.hz !== undefined && typeof obj.hz !== "boolean") return null;
 
   return obj;
 }

@@ -78,6 +78,16 @@ export function setMoleculeOpacity(
 }
 
 /**
+ * The cell cloud's opacity as a whole, as its `uOpacity` uniform, over each
+ * cell's own alpha. The cell material always blends, so nothing recompiles.
+ */
+export function setCellOpacity(cloud: THREE.Points, opacity: number): void {
+  const uniform = (cloud.material as THREE.ShaderMaterial).uniforms.uOpacity;
+
+  if (uniform) uniform.value = opacity;
+}
+
+/**
  * Generates random point data for visualization
  */
 export function generateRandomPoints(config: PointCloudConfig): PointData[] {
@@ -159,6 +169,7 @@ export function createPointCloudFromBuffers(
       ...filterUniforms(),
       dotSize: { value: dotSize },
       uShape: { value: 0.0 }, // circle
+      uOpacity: { value: 1.0 },
       uWorldSized: { value: 0.0 },
       uHalfHeight: { value: 400.0 },
     },
@@ -404,6 +415,7 @@ export function createPointCloud(
       ...filterUniforms(),
       dotSize: { value: dotSize },
       uShape: { value: 0.0 }, // circle
+      uOpacity: { value: 1.0 },
       uWorldSized: { value: 0.0 },
       uHalfHeight: { value: 400.0 },
     },

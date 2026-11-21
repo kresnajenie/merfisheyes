@@ -131,7 +131,10 @@ ${vertexBody
 export const fragmentShader = `
     varying vec3 vColor;
     varying float vAlpha;
-${fragmentBody.replace("POINT_ALPHA", "vAlpha").replace("POINT_COLOR", "vColor")}
+    // The cells' opacity as a whole, over each cell's own alpha: a slider
+    // tick changes this and nothing is uploaded
+    uniform float uOpacity;
+${fragmentBody.replace("POINT_ALPHA", "vAlpha * uOpacity").replace("POINT_COLOR", "vColor")}
 `;
 
 /** A molecule cloud: one colour, size and alpha for the whole cloud. */

@@ -12,6 +12,8 @@ export interface AdvancedVizSettings {
   expressionAlphaMax: number;
   pointSizeMultiplierMin: number;
   pointSizeMultiplierMax: number;
+  /** Cells with no count of the shown gene are not drawn. */
+  hideZeroExpression?: boolean;
 }
 
 const defaultAdvanced: AdvancedVizSettings = {
@@ -287,7 +289,10 @@ export async function updateGeneVisualization(
       : adv.expressionAlphaMin +
         (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
 
-    alphas[i] = expressionAlpha * alphaScale;
+    alphas[i] =
+      adv.hideZeroExpression && !(expression[i] > 0)
+        ? 0
+        : expressionAlpha * alphaScale;
   }
 
   return { colors, sizes, alphas };
@@ -630,7 +635,10 @@ export async function updateCombinedVisualization(
         : adv.expressionAlphaMin +
           (adv.expressionAlphaMax - adv.expressionAlphaMin) * normalizedValue;
 
-      alphas[i] = expressionAlpha * alphaScale;
+      alphas[i] =
+        adv.hideZeroExpression && !(expression[i] > 0)
+          ? 0
+          : expressionAlpha * alphaScale;
     } else {
       // Non-selected celltypes: show grey with reduced alpha
       const [r, g, b] = hexToRgb(grey);

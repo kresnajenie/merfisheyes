@@ -16,6 +16,7 @@ export async function GET() {
       email: true,
       image: true,
       role: true,
+      permissions: true,
       createdAt: true,
     },
     orderBy: { createdAt: "desc" },

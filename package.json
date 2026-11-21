@@ -82,6 +82,7 @@
     "@react-aria/visually-hidden": "3.8.27",
     "@types/three": "^0.180.0",
     "@vercel/analytics": "^1.6.1",
+    "ajv": "^8.20.0",
     "anndata.js": "^0.0.2",
     "clsx": "2.1.1",
     "comlink": "^4.4.2",
