@@ -8,6 +8,9 @@
  *      (a panel/page reuses its store across dataset switches; without the
  *      reset, the old rotation/column/selection bleeds into the new dataset
  *      and the URL sync then writes that stale state into the share link).
+ *   1b. The technology's preset (lib/config/technology-presets.ts): the
+ *      colormap, cell opacity and hide-zero a Visium HD dataset opens with —
+ *      the published one, or the version the link names (?preset=<hash>).
  *   2. Owner-saved ViewerConfig — colors, rotation/flips, priority column,
  *      per-sample transforms (with the transform column lazy-loaded).
  *      Heuristic column selection when there is no config.
@@ -33,6 +36,11 @@ import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { tryReadSMVizFromUrl } from "@/lib/hooks/useUrlVizSync";
 import { lookupByUrl } from "@/lib/datasets/lookup-by-url";
+import {
+  applyTechnologyPreset,
+  loadTechnologyPresets,
+  technologyPresetOf,
+} from "@/lib/config/technology-presets";
 
 /**
  * Owner-saved viewer defaults for a dataset, wherever it lives: registered
@@ -84,7 +92,9 @@ export async function applyCellOpenState(opts: {
 }): Promise<void> {
   const { dataset, config, store } = opts;
 
+  await loadTechnologyPresets();
   store.reset();
+  applyTechnologyPreset(technologyPresetOf(dataset), store);
 
   if (config) {
     applyViewerConfig(config, store, dataset);

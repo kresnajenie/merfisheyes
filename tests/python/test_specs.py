@@ -66,6 +66,18 @@ def test_composed_tiny_store_passes(tmp_path):
     assert validate_store.main([str(store), "--sample", "1000"]) == 0
 
 
+def test_preset_schema_accepts_and_refuses_the_same_files_as_the_app():
+    """docs/specs/schemas/preset.schema.json, read by a second validator: the
+    files tests/unit/preset-contract.test.ts gives to Ajv."""
+    import jsonschema
+
+    schema = json.loads((ROOT / "docs" / "specs" / "schemas" / "preset.schema.json").read_text())
+    files = ROOT / "tests" / "data" / "presets"
+    jsonschema.Draft202012Validator(schema).validate(json.loads((files / "valid.json").read_text()))
+    errors = list(jsonschema.Draft202012Validator(schema).iter_errors(json.loads((files / "invalid.json").read_text())))
+    assert len(errors) == 3, errors
+
+
 def test_conventions_file_matches_its_schema():
     """docs/specs/conventions.json, shared by the viewer and this validator."""
     import jsonschema

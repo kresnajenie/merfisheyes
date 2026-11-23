@@ -7,6 +7,7 @@ import { Chip } from "@heroui/chip";
 import type { CatalogDatasetItem, CatalogDatasetEntry } from "./types";
 
 import { datasetKind, KIND_BADGE } from "@/lib/datasets/kind";
+import { cardThumbnailUrl } from "@/lib/sddb/thumbnail";
 
 interface CompactDatasetCardProps {
   dataset: CatalogDatasetItem;
@@ -18,6 +19,7 @@ export function CompactDatasetCard({ dataset, onSelect }: CompactDatasetCardProp
   const entries = dataset.entries ?? [];
   const hasMultiple = entries.length > 1;
   const uniqueTypes = [...new Set(entries.map((e) => e.datasetType))];
+  const thumbnail = cardThumbnailUrl(dataset);
 
   const formatCount = (n: number | null) => {
     if (n == null) return null;
@@ -46,12 +48,15 @@ export function CompactDatasetCard({ dataset, onSelect }: CompactDatasetCardProp
       >
         <CardBody className="p-3 flex flex-row gap-3 items-center">
           {/* Thumbnail — only when image exists */}
-          {dataset.thumbnailUrl && (
+          {thumbnail && (
             <div className="w-10 h-10 rounded-lg bg-default-200/50 flex items-center justify-center shrink-0 overflow-hidden">
               <img
                 alt=""
                 className="w-full h-full object-cover"
-                src={dataset.thumbnailUrl}
+                src={thumbnail}
+                onError={(e) => {
+                  e.currentTarget.parentElement!.style.display = "none";
+                }}
               />
             </div>
           )}

@@ -23,6 +23,7 @@ import {
 } from "@/lib/utils/url-state-writer";
 import { useSingleMoleculeVisualizationStore } from "@/lib/stores/singleMoleculeVisualizationStore";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
+import { technologyPresetOf } from "@/lib/config/technology-presets";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 
 // --- Panel helpers ---
@@ -128,7 +129,9 @@ export async function applyCellVizState(
     const cluster = dataset.clusters?.find((c) => c.column === validColumn);
 
     if (cluster) {
-      const validValues = new Set(cluster.uniqueValues ?? cluster.values.map(String));
+      const validValues = new Set(
+        cluster.uniqueValues ?? cluster.values.map(String),
+      );
 
       decoded.ct.forEach((ct) => {
         if (validValues.has(ct)) {
@@ -186,6 +189,12 @@ export async function applyCellVizState(
   }
   if (decoded.cm) {
     store.setColormap(decoded.cm);
+  }
+  if (decoded.op !== undefined) {
+    store.setAlphaScale(decoded.op);
+  }
+  if (decoded.hz !== undefined) {
+    store.setHideZeroExpression(decoded.hz);
   }
 
   // Two-gene coexpression
@@ -264,7 +273,10 @@ export function applySMVizState(
   // Only auto-select defaults if the URL had NO gene entries at all.
   // If the URL specified genes but none were valid for this dataset, don't add defaults
   // (the user intentionally shared a link with specific genes).
-  if (store.selectedGenes.size === 0 && (!decoded.genes || decoded.genes.length === 0)) {
+  if (
+    store.selectedGenes.size === 0 &&
+    (!decoded.genes || decoded.genes.length === 0)
+  ) {
     pickDefaultGenes(dataset.uniqueGenes).forEach((gene) =>
       store.addGene(gene),
     );
@@ -392,6 +404,8 @@ export function useCellVizUrlSync(
     flipX,
     flipY,
     colormap,
+    alphaScale,
+    hideZeroExpression,
     selectedGene2,
     gene2ScaleMin,
     gene2ScaleMax,
@@ -402,41 +416,47 @@ export function useCellVizUrlSync(
   useEffect(() => {
     if (!datasetReady) return;
 
-    const encoded = encodeCellVizState({
-      selectedGene,
-      selectedColumn,
-      selectedCelltypes,
-      mode,
-      geneScaleMin,
-      geneScaleMax,
-      numericalScaleMin,
-      numericalScaleMax,
-      sizeScale,
-      selectedEmbedding,
-      columnTypeOverrides,
-      viewMode,
-      selectedSizeMultiplier,
-      greyedOutSizeMultiplier,
-      greyedOutAlpha,
-      expressionAlphaMin,
-      expressionAlphaMax,
-      pointSizeMultiplierMin,
-      pointSizeMultiplierMax,
-      targetPx,
-      sceneRotation,
-      flipX,
-      flipY,
-      colormap,
-      selectedGene2,
-      gene2ScaleMin,
-      gene2ScaleMax,
-      coexpressEnabled,
-      coexpressSwapped,
-    });
+    const encoded = encodeCellVizState(
+      {
+        selectedGene,
+        selectedColumn,
+        selectedCelltypes,
+        mode,
+        geneScaleMin,
+        geneScaleMax,
+        numericalScaleMin,
+        numericalScaleMax,
+        sizeScale,
+        selectedEmbedding,
+        columnTypeOverrides,
+        viewMode,
+        selectedSizeMultiplier,
+        greyedOutSizeMultiplier,
+        greyedOutAlpha,
+        expressionAlphaMin,
+        expressionAlphaMax,
+        pointSizeMultiplierMin,
+        pointSizeMultiplierMax,
+        targetPx,
+        sceneRotation,
+        flipX,
+        flipY,
+        colormap,
+        alphaScale,
+        hideZeroExpression,
+        selectedGene2,
+        gene2ScaleMin,
+        gene2ScaleMax,
+        coexpressEnabled,
+        coexpressSwapped,
+      },
+      dataset ? technologyPresetOf(dataset) : {},
+    );
 
     scheduleUrlUpdate(panel, encoded);
   }, [
     datasetReady,
+    dataset,
     panel,
     selectedGene,
     selectedColumn,
@@ -462,6 +482,8 @@ export function useCellVizUrlSync(
     flipX,
     flipY,
     colormap,
+    alphaScale,
+    hideZeroExpression,
     selectedGene2,
     gene2ScaleMin,
     gene2ScaleMax,
@@ -655,7 +677,9 @@ export function useSMOverlayUrlSync(
 
       if (cancelled) return;
       const genes =
-        owner && owner.length > 0 ? owner : pickDefaultGenes(dataset.uniqueGenes);
+        owner && owner.length > 0
+          ? owner
+          : pickDefaultGenes(dataset.uniqueGenes);
 
       genes.forEach((gene) => store.addGene(gene));
       done = true;
@@ -668,7 +692,6 @@ export function useSMOverlayUrlSync(
       cancelled = true;
       if (!done) appliedRef.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetReady, dataset, store]);
 
   // Writing: encode state changes to URL (debounced) using the overlay slot.

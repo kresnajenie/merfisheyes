@@ -33,7 +33,7 @@ required set in `lib/sddb/catalog-schema.ts`, pinned to a release tag.
 | details | `card_url`, `tier`, `assay`, `product`, `chemistry_version`, `sample_id`, `study_id`, `canonical_key`, `development_stage`, `capture_area`, `default_table`, `n_transcripts`, `size_bytes`, `publication_year`, `license_url`, `collections` in `metadata` |
 | entry | `datasetType: "spatialdata"`, `s3BaseUrl` = `zarr_url` rewritten from `s3://bucket/key` to the bucket's HTTPS URL (region from a bucket table; unknown bucket → the sync fails) |
 | provenance | `sddbUid` (upsert key), `sourceRelease` (the tag), `sourceGeneratedAt` (`sddb_generated_at` from the file) |
-| thumbnail | **never written.** The catalog has no preview (`thumbnail_url` was empty in every release and was removed in `catalog-2026-11-08`), so the sync leaves `thumbnailUrl` alone and never clears one set by an admin or a preview job |
+| thumbnail | **never written, made when a card is drawn.** SpatialData-DB serves one image per dataset at `https://sdata-db.com/t/<uid16>.webp`, where `uid16` is the first 16 characters of `uid` (the last four are the version; the URL is the same across versions; CORS open to any origin; a dataset without an image is a 404, and the card shows its placeholder). A card with no `thumbnailUrl` of its own shows that image (`lib/sddb/thumbnail.ts`, from `sddbUid` in the card payload). The sync still leaves `thumbnailUrl` alone, so one set by an admin wins and is never cleared |
 
 Technologies and organisms are spelt through `docs/specs/conventions.json`
 (`catalog.platforms`, `catalog.species`); a value without an entry is shown

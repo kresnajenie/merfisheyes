@@ -1,6 +1,7 @@
 import type { CellVizUrlState } from "@/lib/utils/url-visualization-state";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 
+import { sizeLocked } from "@/lib/config/technology-presets";
 import {
   moleculesTarget,
   primaryTarget,
@@ -316,6 +317,8 @@ export function viewState() {
     other_values: drawn(data, s)?.others ?? null,
     visible_cells: visibleCells(data, s),
     dot_size: s.sizeScale,
+    // spots and bins drawn at their real size (the technology's preset)
+    ...(sizeLocked(data) ? { dot_size_locked: true } : {}),
     view: s.viewMode,
     columns: columnNames(data).map((name) => {
       const values = columnValues(data, s, name);
@@ -408,7 +411,12 @@ export async function viewSet(a: ViewSetArgs) {
   } else if (a.column) {
     s.setMode(["celltype"]);
   }
-  if (a.dot_size !== undefined) store().setSizeScale(a.dot_size);
+  // Spots and bins are drawn at their real size when the technology's
+  // preset locks it: the size slider changes nothing, so neither does this.
+  const sizeRefused = a.dot_size !== undefined && sizeLocked(data);
+
+  if (a.dot_size !== undefined && !sizeRefused)
+    store().setSizeScale(a.dot_size);
   if (a.view) store().setViewMode(a.view);
 
   const wantsValues = !!(a.show_only || a.hide || a.show_all);
@@ -485,7 +493,14 @@ export async function viewSet(a: ViewSetArgs) {
   }
   await frames(3);
 
-  return viewState();
+  const after = viewState();
+
+  return sizeRefused
+    ? {
+        ...after,
+        note: "dot_size not applied: this dataset's spots or bins are drawn at their real size (its technology's preset locks the size).",
+      }
+    : after;
 }
 
 /**

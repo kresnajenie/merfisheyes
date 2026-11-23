@@ -17,6 +17,7 @@ import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloudFromBuffers,
   setCellFootprint,
+  setCellOpacity,
   updateHalfHeight,
   updatePointCloudAttributes,
   updateDotSize,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/utils/test-hooks";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import { sizeLocked } from "@/lib/config/technology-presets";
 import {
   applyTransformsToPositions,
   computeSampleCentroids,
@@ -88,7 +90,8 @@ interface ThreeSceneProps {
 /**
  * The dot size, in world units, that draws each cell at its real size (a
  * Visium spot's diameter, a bin's side) when the dataset knows it; null
- * otherwise. The size slider still scales it.
+ * otherwise. The size slider scales it unless the technology's preset locks
+ * it (`sizeLocked`).
  */
 function cellFootprintDotSize(
   dataset: StandardizedDataset | null | undefined,
@@ -250,6 +253,7 @@ export function ThreeScene({
     greyedOutAlpha,
     expressionAlphaMin,
     expressionAlphaMax,
+    hideZeroExpression,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     sceneRotation,
@@ -301,6 +305,14 @@ export function ThreeScene({
       invalidateRef.current();
     }
   }, [scLayerVisible]);
+
+  // The cells' opacity: a uniform of the cloud, so the slider uploads nothing.
+  // pointCloudVersion re-applies it to a cloud built after the value was set.
+  useEffect(() => {
+    if (!pointCloudRef.current) return;
+    setCellOpacity(pointCloudRef.current, alphaScale);
+    invalidateRef.current();
+  }, [alphaScale, pointCloudVersion]);
 
   // Tour player — drives camera + SM gene selection from the loaded tour JSON.
   // No-op until the user uploads a tour file and presses Play.
@@ -1327,6 +1339,7 @@ export function ThreeScene({
         expressionAlphaMax,
         pointSizeMultiplierMin,
         pointSizeMultiplierMax,
+        hideZeroExpression,
       };
 
       // Determine which visualization to use based on mode array
@@ -1443,7 +1456,7 @@ export function ThreeScene({
             gene2Changed ? setGene2ScaleMin : undefined,
             gene2Changed ? setGene2ScaleMax : undefined,
             coexpressSwapped,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             selectedColumn,
             effectiveCelltypes,
@@ -1484,7 +1497,7 @@ export function ThreeScene({
             selectedGene,
             selectedColumn,
             effectiveCelltypes,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             geneScaleMin,
             geneScaleMax,
@@ -1520,7 +1533,7 @@ export function ThreeScene({
           result = await updateGeneVisualization(
             dataset,
             selectedGene,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             geneScaleMin,
             geneScaleMax,
@@ -1544,7 +1557,7 @@ export function ThreeScene({
           ? updateNumericalCelltypeVisualization(
               dataset,
               selectedColumn,
-              alphaScale,
+              1, // opacity is the cloud's uOpacity uniform
               sizeScale,
               numericalScaleMin,
               numericalScaleMax,
@@ -1558,7 +1571,7 @@ export function ThreeScene({
               selectedColumn,
               effectiveCelltypes,
               colorPalette,
-              alphaScale,
+              1, // opacity is the cloud's uOpacity uniform
               sizeScale,
               adv,
             );
@@ -1572,10 +1585,10 @@ export function ThreeScene({
           result.sizes,
           result.alphas,
         );
-        // Apply current sizeScale to dotSize uniform
+        // Apply current sizeScale to dotSize uniform (not to a real size)
         updateDotSize(
           pointCloudRef.current,
-          baseDotSizeRef.current * sizeScale,
+          baseDotSizeRef.current * (sizeLocked(dataset) ? 1 : sizeScale),
         );
         invalidateRef.current();
       }
@@ -1607,7 +1620,6 @@ export function ThreeScene({
     geneEverywhere,
     hiddenCelltypes,
     colorPalette,
-    alphaScale,
     geneScaleMin,
     geneScaleMax,
     geneScaleMode,
@@ -1622,6 +1634,7 @@ export function ThreeScene({
     greyedOutAlpha,
     expressionAlphaMin,
     expressionAlphaMax,
+    hideZeroExpression,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     pinnedTooltipColumns,
@@ -1643,7 +1656,10 @@ export function ThreeScene({
           (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
 
       baseDotSizeRef.current = newBaseDotSize;
-      updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
+      updateDotSize(
+        pointCloudRef.current,
+        newBaseDotSize * (sizeLocked(dataset) ? 1 : sizeScale),
+      );
       invalidateRef.current();
     }
   }, [sizeScale, targetPx]);

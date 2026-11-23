@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/kresnajenie/merfisheyes/blob/develop/docs/specs/schemas/preset.schema.json",
+  "title": "technology preset",
+  "description": "What a dataset of one technology opens with in the viewer, before its owner's saved settings and before the link (docs/specs/ADR-technology-presets.md). Every field is optional; a field left out keeps the viewer's built-in default. A viewer ignores fields it does not know.",
+  "type": "object",
+  "properties": {
+    "colormap": {
+      "enum": [
+        "bwr",
+        "coolwarm",
+        "viridis",
+        "plasma",
+        "inferno",
+        "magma",
+        "cividis",
+        "turbo",
+        "Reds",
+        "Blues",
+        "Greens",
+        "Greys"
+      ],
+      "description": "Colormap of gene expression and numerical columns."
+    },
+    "hideZeroExpression": {
+      "type": "boolean",
+      "description": "Cells with no count of the shown gene are not drawn."
+    },
+    "cellOpacity": {
+      "type": "number",
+      "minimum": 0.05,
+      "maximum": 1,
+      "description": "The cells' opacity as a whole."
+    },
+    "lockSize": {
+      "type": "boolean",
+      "description": "Spots and bins stay at their measured size: the size slider does not scale them. Only means something for cells drawn at a real size."
+    }
+  },
+  "additionalProperties": false
+}
