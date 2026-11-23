@@ -17,8 +17,13 @@
 #   sbatch metadata_store.sbatch <store_dir>
 #
 # Runs after points, qc and catalog (it reads what they wrote, and the hash must see the
-# final table), before validate and sync. Not validated here: the bionty check is on the
-# Lamin side (scripts/metadata/validate_metadata.py, before register_lamin.py).
+# final table), before validate and sync. Then the terms are checked with bionty in the
+# Lamin environment ($MEYES_LAMIN_PYTHON, M3: bionty is the Lamin side's, not the
+# pipeline image's) and the verdict written into meyes_provenance.validation — the same
+# two steps as metadata_backfill.sh, so a store from this pipeline needs no backfill. A
+# failed or impossible check is reported and does not stop the store: it syncs and
+# registers with validation fail / not_validated, and stays out of the index's store rows
+# until its terms are fixed.
 
 set -uo pipefail
 source "${MEYES_BIL_SCRIPTS:-$HOME/merfisheyes/scripts/bil-scripts}/env.sh"
@@ -34,4 +39,19 @@ if [ ! -d "$STORE_DIR" ]; then
 fi
 
 meyes_run metadata/build_metadata.py "$STORE_DIR"
-meyes_done $?
+rc=$?
+[ $rc -eq 0 ] || meyes_done $rc
+
+STORE="$(ls -d "${STORE_DIR%/}"/*.zarr 2>/dev/null | head -1)"
+VALIDATE="${MEYES_BIL_SCRIPTS:-$MEYES_REPO/scripts/bil-scripts}/../metadata/validate_metadata.py"
+if [ -z "$STORE" ]; then
+    echo "WARNING: no .zarr in $STORE_DIR — terms not checked"
+elif [ ! -x "$MEYES_LAMIN_PYTHON" ]; then
+    echo "WARNING: no Lamin python at $MEYES_LAMIN_PYTHON — terms not checked (validation not_validated)"
+else
+    "$MEYES_LAMIN_PYTHON" -I "$VALIDATE" "$STORE" --write
+    v=$?
+    # 0 pass · 3 incomplete (organism or tissue unknown) · 4 invalid — the verdict is in the store
+    [ $v -eq 0 ] || echo "WARNING: bionty check exit $v — the store syncs as validation fail/not_validated; fix its catalog.json or metadata-overrides.json and rerun this stage"
+fi
+meyes_done 0

@@ -552,9 +552,11 @@ SpatialData-DB's formats:
 
 | File | Rows | Columns |
 |---|---|---|
-| `gene_index.parquet` | one per (dataset of ours, gene) | their `GENE_INDEX_COLUMNS` — `symbol`, `feature_id`, `uid`, `total_counts`, `fraction_obs_detected` — plus `meyes_id`. The numbers come from the store's `X` (column sum; non-zero cells ÷ `n_obs`); for a dataset the index knows only from Explore the genes are the site's gene list and the numbers are null (measured, not quantified) |
+| `gene_index.parquet` | one per (dataset of ours, gene) | their `GENE_INDEX_COLUMNS` — `symbol`, `feature_id`, `uid`, `total_counts`, `fraction_obs_detected` — plus `meyes_id`. The numbers come from the store's `X` (column sum; non-zero cells ÷ `n_obs`); for a dataset the index knows only from Explore the genes are the site's gene list and the numbers are null (measured, not quantified). ≈ 0.5 MB, read whole |
+| `gene_expression.parquet` | one per (live dataset with numbers, gene), ours and SpatialData-DB's | `gene_index`'s columns plus `symbol_key` (lower-case symbol). Ours as in `gene_index`; theirs: their release's `gene_index.parquet` rows for their datasets live on the site, as released. Sorted by `symbol_key` then `uid`, 131,072-row groups, zstd, min/max statistics on `symbol_key` only: one gene is the footer (613 KB, cache it) plus one group (≈ 1.6 MB) |
 | `gene_search.parquet` | one per gene entity over **every** index row, ours and SpatialData-DB's live ones | `entity_id`, `feature_id`, `symbols` (lower case), `n_datasets`, `bitset`: bit *i*, little-endian, is `catalog.parquet`'s row *i* |
-| `gene_search_meta.json` | — | `meyes_ids` and `dataset_uids` in row order, `order_hash`, `n_entities`, `n_datasets` |
+| `gene_lookup.parquet` | one per (lower-case symbol, entity) — `gene_search`'s `symbols` exploded | `symbol`, `entity_id`, `feature_id`, `n_datasets`, `bitset` (as `gene_search`). Sorted by `symbol`, 8192-row groups, zstd, min/max statistics on `symbol` only. **The file to read one gene from**: fetch the footer, pick the group whose `symbol` range holds the gene, range-read that group (≈ 0.3 MB) |
+| `gene_search_meta.json` | — | `meyes_ids` and `dataset_uids` in row order, `order_hash`, `n_entities`, `n_datasets`, `lookup` (the lookup file's layout) |
 
 - **Their bitsets, re-ordered.** SpatialData-DB's release bitsets are
   little-endian over their `dataset_uids` (determined from data: a cow
@@ -568,9 +570,36 @@ SpatialData-DB's formats:
   could not resolve. No bionty lookup: their resolution is reused.
 - **Departures**: `meyes_id` added to `gene_index` (the join key every row
   has; `uid` is null where a dataset has no Lamin record); `order_hash`
-  hashes the `meyes_ids`, for the same reason; their own
-  `gene_index.parquet` (1 GB, per dataset × gene with counts) is not
-  copied — "expresses X above 5 %" for their datasets is read from theirs.
+  hashes the `meyes_ids`, for the same reason; `gene_expression` is
+  sorted by gene, not by dataset as their `gene_index` is (`symbol_key`
+  added), so a one-gene question reads one row group, not the whole file.
+- **Published names and shapes are a contract.** Agents' builds that cannot
+  update themselves (the MCP Desktop extension) read these files by name; a
+  new layout gets a new file name, and an old file is dropped only once
+  nothing reads it. That is why `gene_index` stays ours-only and the
+  combined rows are `gene_expression`.
+- **Their rows cover 7,089 of their 12,575 live datasets** (build
+  2026-11-18, release `catalog-2026-11-17`): their release has gene rows for
+  7,621 datasets in all; most of the rest are protein or imaging assays with
+  no genes (MIBI, Hyperion, MALDI, PhenoCycler) and some Xenium and Visium
+  they have not indexed. Such a dataset still answers "measures X" through
+  `gene_lookup` where their `gene_search` lists it.
+- **Check values** (build 2026-11-18): mouse brain, fraction detected
+  > 5 %: Rab3b 1,073 datasets (55 ours), Gad2 1,434, Slc17a7 1,297 — equal to
+  a brute-force count over both source files.
+- **Why the lookup file.** `gene_search.parquet` is one row group whose
+  `bitset` column decodes to ≈ 1 GB (2.7 GB resident in hyparquet, 4.4 s) —
+  unusable in a serverless function or the MCP process. `gene_lookup.parquet`
+  (37 MB, 129 groups, 54 KB footer) answers one gene with one range read;
+  `gene_search.parquet` stays for SpatialData-DB-format readers.
+- **"Organism O measures gene G" filters rows, not entities.** OR the
+  bitsets of *every* entity listing the symbol, then keep the rows whose
+  `catalog.parquet` `organism` is O. Choosing entities by Ensembl prefix
+  instead is wrong both ways: SpatialData-DB has human and rat datasets
+  carrying mouse ids, and mouse datasets reached only through an
+  unresolved-symbol entity. Check value (build 2026-11-18, mouse Gad1): 2,520
+  by rows; the mouse-prefix union gives 2,537 (30 non-mouse rows in, 13 mouse
+  rows missed).
 
 ## 8. What today's rows can fill
 

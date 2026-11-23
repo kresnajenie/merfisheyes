@@ -15,8 +15,9 @@ molecules at billion scale) — each departure recorded in §3.
 This file is the brief for every session working on it. **Status
 (2026-11-18): steps 1–4 done; step 5 done for the 63 BIL stores in S3, the
 rest waits on the reprocessing now running; steps 6 and 7 built and
-published to `bil-psc-zarr/.index/` (each with a gate half still open);
-steps 8–9 not started. `feature/metadata` is pushed, no PR yet; the worker
+published to `bil-psc-zarr/.index/` (step 7 done; step 6's gate — the
+site reading the index — open); the bionty check runs only by hand (step
+2); step 8 has the agents' filter but not the site's; step 9 not started. `feature/metadata` is pushed, no PR yet; the worker
 and cluster images are not rebuilt.** Spec: [`docs/specs/metadata.md`](../specs/metadata.md).
 Keep it current: a step that changes a fact or a decision edits this
 file in the same commit. Branch: `feature/metadata`, from `develop` (the
@@ -219,6 +220,24 @@ names and synonyms. Several Ensembl entries share one NCBITaxon id (mouse
 strains): the name that agrees with the id is kept. Not compared yet with
 SDDB's values for their own rows.
 
+*How it is triggered (2026-11-19).* Wherever metadata is built, the check
+follows it, so new processing needs no backfill:
+- `metadata_backfill.sh prepare` (build → check `--write` → `validate_store
+  --require-metadata`). The 2026-11-19 reprocessing on this machine (a
+  driver script calling the pipeline, then this) runs it per store: 65 of
+  68 stores `pass`, 3 still in flight when counted.
+- The cluster pipeline: `metadata_store.sbatch` now runs the check in
+  `$MEYES_LAMIN_PYTHON` right after the build, before validate and sync. A
+  failed or impossible check (no Lamin env, no ontology download on a
+  compute node) warns and does not stop the store; it registers `fail` or
+  `not_validated` and stays an Explore row in the index until fixed.
+  Untested on the cluster.
+- `register_lamin.py` records the status it finds; it does not check.
+- **Still not checked: server uploads** (`prepare.py` writes the metadata,
+  the worker image has no bionty). To do: a check when the dataset is
+  registered, or in the index rebuild (M15) for every store still
+  `not_validated`.
+
 ### Step 3 — Into the store
 
 `prepare.py` and the BIL pipeline write the metadata into the
@@ -374,6 +393,12 @@ of rows with age and disease recorded; the review list empty or each item
 explained. Then the interim requirement ends: `uid`, `technology`,
 `vendor`, `assay` become required (`metadata.md` §3).
 
+*Pinned 2026-11-23 (user):* the backfill of disease, donor, DOI and ages
+and the end of the interim requirement wait; **the metadata validation is
+finalised before `develop` is released to `main`** (including the check
+for server uploads, step 2). `feature/metadata` may merge into `develop`
+before then.
+
 ### Step 6 — The query index
 
 `scripts/metadata/build_index.py`: from Lamin (ours) and SDDB's latest
@@ -429,11 +454,28 @@ answered across SDDB and MERFISHEYES from the index files alone.
 `gene_index.parquet` 63,710 rows over 151 of our 165 datasets (29,500 with
 counts, from the 63 stores; 14 Explore-only datasets have no gene list),
 `gene_search.parquet` 764,753 entities over all 12,740 rows (4,522 of our
-genes joined SpatialData-DB's entities, 205 new), `gene_search_meta.json`.
+genes joined SpatialData-DB's entities, 205 new), `gene_search_meta.json`,
+and `gene_lookup.parquet` (asked for by the MCP session: the same bitsets, one
+row per lower-case symbol, sorted, 8192-row groups — one range read per gene;
+1,054,833 rows, 37 MB, bitsets equal to `gene_search`'s).
 Checks: their validator passes `gene_index`; their bitsets survive the
 re-ordering exactly (cow GAD1 → the same 4 datasets); "mouse brain stores
-expressing Rab3b in > 5 % of cells" → 55. The gate's cross-library half
-needs their `gene_index.parquet` (1 GB) read by row group, not done.
+expressing Rab3b in > 5 % of cells" → 55.
+
+*Gate settled 2026-11-19 (user):* the SpatialData-DB datasets that count
+are the ones live on MERFISHEYES, and they are already rows of our index —
+no separate SpatialData-DB index is built. Across both libraries the index
+answers "measures X" (`gene_lookup`); "expresses X above 5 %" is answered
+for every live dataset with numbers (`gene_expression.parquet`):
+`build_gene_index.py` takes their release's `gene_index.parquet` rows for
+their datasets live on the site and appends them to ours, sorted by gene
+and row-grouped — an addition to this build, not a new index
+(`gene_index.parquet` stays ours only: published names are a contract,
+`metadata.md` §7.8). Published 2026-11-19: 138,163,880 rows
+(63,710 ours), 1,055 groups, 1.37 GB; their rows cover 7,089 of their
+12,575 live datasets (the rest are mostly protein and imaging assays).
+**Gate met:** "mouse brain datasets that express Rab3b above 5 % of cells"
+→ 1,073 (55 ours) from one row group, equal to a brute-force count.
 
 ### Step 8 — A site built to filter
 
@@ -441,8 +483,16 @@ Explore gets the facets the index carries: organism, tissue as a tree
 (system → organ → term), disease class, technology and vendor, age range
 in days, sex, genotype, condition, genes measured or expressed, tier.
 Upload and edit forms choose terms from the ontologies (searched from a
-pinned term list), and the worker validates them with bionty before a
-dataset is public.
+pinned term list), and the terms are validated with bionty on the Lamin
+side (M3) before a dataset is public.
+
+*State 2026-11-19:* the filter exists for agents — the MCP's search reads
+`catalog.parquet` and `gene_lookup.parquet` by range (MCP.md) — but there
+is **no filter a person uses on the site**: Explore still filters Postgres
+by its own columns. To build: Explore's filter panel over the same index
+files (the same reader as the MCP's, hyparquet, by range), its facets the
+list above, its results the catalog rows; Postgres stays the source of
+what is live and of private datasets (M7, M14).
 
 **Gate:** a person finds "mouse hippocampus, 1–12 months, measures Gad1"
 in under the BUDGETS.md interaction budget; an upload with a free-text
