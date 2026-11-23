@@ -11,8 +11,10 @@ import type { GeneStat, LibraryIndex, Row } from "./data.ts";
  *   hippocampus) through `ontology_rollup.json` and the grouping columns.
  * - A filter on a field few rows record (age, sex, genotype, condition,
  *   treatment) leaves out the rows that do not record it, and says how many.
- * - Expression and measured genes come from the gene index, which covers our
- *   datasets only for now; the note says so.
+ * - "Measured" covers every row (`gene_lookup.parquet`); "expressed" covers
+ *   the datasets with per-gene counts (`gene_expression.parquet`: ours and
+ *   most of SpatialData-DB's RNA datasets); the note says how many it could
+ *   not check.
  * - Re-releases of the same data (`same_section_relation = rerelease`)
  *   collapse to the newest release, the others listed with it.
  */
@@ -493,17 +495,28 @@ export async function search(
   const geneStats = new Map<string, GeneStat[]>();
 
   if (f.genes?.length) {
-    // One range read per gene, all at once.
-    const [gi, ...found] = await Promise.all([
-      index.geneIndex(),
-      ...f.genes.map((g) => index.measured(g.gene)),
+    // Range reads, all at once: which datasets measure each gene (every
+    // row), and its counts where they are recorded.
+    const [found, expr] = await Promise.all([
+      Promise.all(f.genes.map((g) => index.measured(g.gene))),
+      Promise.all(f.genes.map((g) => index.expression(g.gene))),
     ]);
 
     for (const [i, g] of f.genes.entries()) {
       const m = found[i];
-      const stats = new Map(
-        (gi.bySymbol.get(lc(g.gene)) ?? []).map((s) => [s.meyes_id, s]),
-      );
+      // A dataset listing the gene under two features (two Ensembl
+      // versions): the one detected in the most cells.
+      const stats = new Map<string, GeneStat>();
+
+      for (const s of expr[i]) {
+        const had = stats.get(s.meyes_id);
+
+        if (
+          !had ||
+          (s.fraction_obs_detected ?? -1) > (had.fraction_obs_detected ?? -1)
+        )
+          stats.set(s.meyes_id, s);
+      }
 
       if (!m.entities.length)
         notes.push(
@@ -523,7 +536,7 @@ export async function search(
         notes.push(
           `"${g.gene}" expressed: detected in ≥ ${(g.min_fraction * 100).toFixed(1)} % of cells (fraction_obs_detected).` +
             (unknown
-              ? ` ${unknown.toLocaleString("en-US")} datasets that measure it have no per-dataset counts in the index yet (SpatialData-DB's, and ours with no store) and were left out.`
+              ? ` ${unknown.toLocaleString("en-US")} datasets that measure it have no per-dataset counts in the index (mostly protein and imaging assays, and ours with no store yet) and were left out.`
               : ""),
         );
       } else

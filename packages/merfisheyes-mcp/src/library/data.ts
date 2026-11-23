@@ -16,12 +16,14 @@ import { INDEX_URL } from "../config.ts";
  * The published query index (MCP.md pillar B; `docs/specs/metadata.md` §7 on
  * `feature/metadata`): `catalog.parquet` — one row per live dataset, SDDB's
  * schema-3 columns then the `meyes_*` ones — with `ontology_rollup.json`,
- * `technology.json` and `release_info.json` beside it, and the gene index.
+ * `technology.json` and `release_info.json` beside it, and the gene files
+ * (`gene_lookup.parquet`, `gene_expression.parquet`) read by byte range.
  *
  * One reader for both servers (D23): the package on a person's computer and
  * the site's `/mcp` load the same files the same way. Only the columns a
  * search reads are decoded (all 131 cost ~230 MB of objects); the files are
- * fetched again only when `release_info.json` names a new release.
+ * fetched again only when `release_info.json` names a new build (release
+ * and `built_at`: a release can be rebuilt the same day).
  */
 
 /** The catalog columns search reads, filters on or returns. */
@@ -127,8 +129,10 @@ export interface LibraryIndex {
   byMeyesId: Map<string, Row>;
   rollup: Record<string, RollupTerm>;
   technologies: Technology[];
-  /** Loaded on the first expression filter. */
-  geneIndex(): Promise<GeneIndex>;
+  /** A gene's counts and fraction of cells detecting it, per dataset that
+   * records them (ours and SpatialData-DB's): one range read of
+   * `gene_expression.parquet`. */
+  expression(symbol: string): Promise<GeneStat[]>;
   /** The datasets that measure a gene, over every live row: one range read
    * of `gene_lookup.parquet`. */
   measured(symbol: string): Promise<Measured>;
@@ -140,14 +144,6 @@ export interface Measured {
   entities: { entity_id: string; feature_id: string; n_datasets: number }[];
   /** Catalog row positions (`Row.row`). */
   rows: Set<number>;
-}
-
-export interface GeneIndex {
-  /** Lower-case symbol or feature id → the stats of every dataset of ours
-   * that measures it. */
-  bySymbol: Map<string, GeneStat[]>;
-  /** The meyes_ids the gene index covers (stores and Explore-only rows). */
-  covered: Set<string>;
 }
 
 /** A file of the index: over HTTP, or from a folder (tests, a local
@@ -221,14 +217,14 @@ async function loadIndex(
 
     return out;
   });
-  let genes: Promise<GeneIndex> | null = null;
-  let lookup: Promise<{ file: AsyncBuffer; metadata: FileMetaData }> | null =
-    null;
+  let lookup: Promise<Ranged> | null = null;
+  let expressionFile: Promise<Ranged> | null = null;
   const measuredCache = new Map<string, Promise<Measured>>();
+  const expressionCache = new Map<string, Promise<GeneStat[]>>();
 
   const openLookup = async () => {
-    // The bitsets are over catalog.parquet's row order: refuse them if the
-    // files on either side were rebuilt apart.
+    // The bitsets are over catalog.parquet's row order, which changes with
+    // every build: refuse them unless both files are from the same one.
     const meta = await fetchJson<{ meyes_ids: string[] }>(
       base,
       "gene_search_meta.json",
@@ -238,20 +234,12 @@ async function loadIndex(
       meta.meyes_ids.length !== rows.length ||
       meta.meyes_ids.some((id, i) => id !== rows[i].meyes_id)
     )
-      throw new Error(
-        "The gene index and the catalog are from different builds; try again in a few minutes.",
-      );
-    const file = /^https?:\/\//.test(base)
-      ? cachedAsyncBuffer(
-          await asyncBufferFromUrl({ url: `${base}/gene_lookup.parquet` }),
-        )
-      : // A folder (tests, a local build): read whole.
-        await fetchFile(base, "gene_lookup.parquet");
+      throw new IndexChanged();
 
-    return { file, metadata: await parquetMetadataAsync(file) };
+    return openRanged(base, "gene_lookup.parquet");
   };
 
-  return {
+  const index: LibraryIndex = {
     release: release.release,
     builtAt: release.built_at ?? null,
     source: base,
@@ -259,108 +247,164 @@ async function loadIndex(
     byMeyesId: new Map(rows.map((r) => [String(r.meyes_id), r])),
     rollup,
     technologies: tech.technologies ?? [],
-    geneIndex() {
-      genes ??= (async () => {
-        const buf = await fetchFile(base, "gene_index.parquet");
-        const recs = await readParquet(buf, [
-          "symbol",
-          "feature_id",
-          "total_counts",
-          "fraction_obs_detected",
-          "meyes_id",
-        ]);
-        const bySymbol = new Map<string, GeneStat[]>();
-        const covered = new Set<string>();
-
-        for (const r of recs) {
-          const s: GeneStat = {
-            symbol: String(r.symbol),
-            feature_id: String(r.feature_id),
-            total_counts: plain(r.total_counts) as number | null,
-            fraction_obs_detected: plain(r.fraction_obs_detected) as
-              | number
-              | null,
-            meyes_id: String(r.meyes_id),
-          };
-
-          covered.add(s.meyes_id);
-          for (const k of new Set([
-            s.symbol.toLowerCase(),
-            s.feature_id.toLowerCase(),
-          ])) {
-            const list = bySymbol.get(k);
-
-            if (list) list.push(s);
-            else bySymbol.set(k, [s]);
-          }
-        }
-
-        return { bySymbol, covered };
-      })();
-      genes.catch(() => (genes = null));
-
-      return genes;
-    },
     measured(symbol: string) {
-      const q = symbol.toLowerCase().trim();
-      let p = measuredCache.get(q);
-
-      if (p) return p;
-      p = (async () => {
+      return memo(measuredCache, symbol, async (q) => {
         lookup ??= openLookup();
         lookup.catch(() => (lookup = null));
-        const { file, metadata } = await lookup;
         const out: Measured = { entities: [], rows: new Set() };
-        let start = 0;
+        const recs = (await readGroupsFor(await lookup, "symbol", q)) as {
+          symbol: string;
+          entity_id: string;
+          feature_id: string;
+          n_datasets: number;
+          bitset: Uint8Array;
+        }[];
 
-        // Sorted by symbol: the groups whose min/max hold it (usually one).
-        for (const g of metadata.row_groups) {
-          const n = Number(g.num_rows);
-          const st = g.columns[0].meta_data?.statistics;
-          const lo = st?.min_value as string | undefined;
-          const hi = st?.max_value as string | undefined;
-
-          if (lo === undefined || hi === undefined || (lo <= q && q <= hi)) {
-            const recs = (await parquetReadObjects({
-              file,
-              metadata,
-              compressors,
-              utf8: false,
-              rowStart: start,
-              rowEnd: start + n,
-            })) as {
-              symbol: string;
-              entity_id: string;
-              feature_id: string;
-              n_datasets: number;
-              bitset: Uint8Array;
-            }[];
-
-            for (const r of recs) {
-              if (r.symbol !== q) continue;
-              out.entities.push({
-                entity_id: r.entity_id,
-                feature_id: r.feature_id,
-                n_datasets: Number(r.n_datasets),
-              });
-              r.bitset.forEach((byte, i) => {
-                for (let b = 0; byte && b < 8; b++, byte >>= 1)
-                  if (byte & 1) out.rows.add(i * 8 + b);
-              });
-            }
-          }
-          start += n;
+        for (const r of recs) {
+          out.entities.push({
+            entity_id: r.entity_id,
+            feature_id: r.feature_id,
+            n_datasets: Number(r.n_datasets),
+          });
+          r.bitset.forEach((byte, i) => {
+            for (let b = 0; byte && b < 8; b++, byte >>= 1)
+              if (byte & 1) out.rows.add(i * 8 + b);
+          });
         }
 
         return out;
-      })();
-      p.catch(() => measuredCache.delete(q));
-      if (measuredCache.size > 500) measuredCache.clear();
-      measuredCache.set(q, p);
+      }).catch((e) => fail(index, e));
+    },
+    expression(symbol: string) {
+      return memo(expressionCache, symbol, async (q) => {
+        expressionFile ??= openRanged(base, "gene_expression.parquet");
+        expressionFile.catch(() => (expressionFile = null));
+        const recs = await readGroupsFor(
+          await expressionFile,
+          "symbol_key",
+          q,
+          [
+            "symbol_key",
+            "symbol",
+            "feature_id",
+            "total_counts",
+            "fraction_obs_detected",
+            "meyes_id",
+          ],
+        );
 
-      return p;
+        return recs.map((r) => ({
+          symbol: String(r.symbol),
+          feature_id: String(r.feature_id),
+          total_counts: plain(r.total_counts) as number | null,
+          fraction_obs_detected: plain(r.fraction_obs_detected) as
+            | number
+            | null,
+          meyes_id: String(r.meyes_id),
+        }));
+      }).catch((e) => fail(index, e));
     },
   };
+
+  return index;
+}
+
+/** A parquet file read by byte range (over HTTP), or whole (a folder). */
+interface Ranged {
+  file: AsyncBuffer;
+  metadata: FileMetaData;
+}
+
+async function openRanged(base: string, name: string): Promise<Ranged> {
+  const file = /^https?:\/\//.test(base)
+    ? cachedAsyncBuffer(await asyncBufferFromUrl({ url: `${base}/${name}` }))
+    : await fetchFile(base, name);
+
+  return { file, metadata: await parquetMetadataAsync(file) };
+}
+
+/**
+ * The rows whose sorted string `column` equals `q`, from the row groups
+ * whose min/max hold it — usually one group, a few hundred KB to ~2 MB
+ * read. Strings stay strings and binary columns stay bytes
+ * (`utf8: false`).
+ */
+async function readGroupsFor(
+  { file, metadata }: Ranged,
+  column: string,
+  q: string,
+  columns?: string[],
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  let start = 0;
+
+  for (const g of metadata.row_groups) {
+    const n = Number(g.num_rows);
+    const st = g.columns.find(
+      (c) => c.meta_data?.path_in_schema?.[0] === column,
+    )?.meta_data?.statistics;
+    const lo = st?.min_value as string | undefined;
+    const hi = st?.max_value as string | undefined;
+
+    if (lo === undefined || hi === undefined || (lo <= q && q <= hi))
+      // A group is up to 131,072 rows: appended one by one, never spread
+      // as arguments (the call stack would overflow).
+      for (const r of (await parquetReadObjects({
+        file,
+        metadata,
+        compressors,
+        utf8: false,
+        columns,
+        rowStart: start,
+        rowEnd: start + n,
+      })) as Record<string, unknown>[])
+        if (r[column] === q) out.push(r);
+    start += n;
+  }
+
+  return out;
+}
+
+/** One promise per lower-case gene; a failure is not remembered. */
+function memo<T>(
+  cache: Map<string, Promise<T>>,
+  symbol: string,
+  run: (q: string) => Promise<T>,
+): Promise<T> {
+  const q = symbol.toLowerCase().trim();
+  let p = cache.get(q);
+
+  if (p) return p;
+  p = run(q);
+  p.catch(() => cache.delete(q));
+  if (cache.size > 500) cache.clear();
+  cache.set(q, p);
+
+  return p;
+}
+
+/** The files of the index changed under a reader (a rebuild is being
+ * published). */
+class IndexChanged extends Error {
+  constructor() {
+    super(
+      "The library index is being updated; its files are from different builds right now. Try again in a minute.",
+    );
+  }
+}
+
+/**
+ * A gene file failed to read: its build may differ from the catalog's (a
+ * rebuild was published since the catalog was loaded, and byte ranges then
+ * point into a different file). Forget this index, so the next call loads
+ * one build whole.
+ */
+function fail(index: LibraryIndex, e: unknown): never {
+  if (cached?.index === index) cached = null;
+  if (e instanceof IndexChanged) throw e;
+  throw new Error(
+    `The library index could not be read (${e instanceof Error ? e.message : String(e)}). It may be being updated: try again in a minute.`,
+  );
 }
 
 /** How often a long-running server asks whether a new release is out. */
@@ -371,8 +415,9 @@ let cached: { base: string; index: LibraryIndex; checkedAt: number } | null =
 let loading: Promise<LibraryIndex> | null = null;
 
 /**
- * The index, loaded once per release and shared by every tool call. A
- * failed recheck keeps the copy in hand; a failed first load throws.
+ * The index, loaded once per build and shared by every tool call. A failed
+ * recheck keeps the copy in hand; a failed first load throws; a gene file
+ * that no longer matches drops it (`fail`).
  */
 export function libraryIndex(
   base: string = INDEX_URL,
@@ -398,7 +443,11 @@ export function libraryIndex(
 
         return cached!.index;
       }
-      if (cached?.base === base && cached.index.release === info.release) {
+      if (
+        cached?.base === base &&
+        cached.index.release === info.release &&
+        cached.index.builtAt === (info.built_at ?? null)
+      ) {
         cached.checkedAt = now;
 
         return cached.index;

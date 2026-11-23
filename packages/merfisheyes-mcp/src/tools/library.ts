@@ -100,7 +100,7 @@ const filterShape = {
     )
     .optional()
     .describe(
-      "Genes detected in at least a fraction of the dataset's cells. Counts are recorded for MERFISHEYES's own datasets only for now; the answer says how many it could not check",
+      "Genes detected in at least a fraction of the dataset's cells. Counts are recorded for MERFISHEYES's datasets and most of SpatialData-DB's RNA datasets (~7,100); the answer says how many that measure the gene it could not check",
     ),
   collapse_rereleases: z
     .boolean()

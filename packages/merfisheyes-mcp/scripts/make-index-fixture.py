@@ -3,7 +3,8 @@
     python scripts/make-index-fixture.py INDEX_DIR
 
 INDEX_DIR holds the published index (.index/latest/ downloaded): catalog,
-rollup, technology, gene index and gene lookup. The fixture keeps ~100 rows
+rollup, technology, gene_search_meta and gene lookup; gene_expression is
+read from it when present, else by row group from the published one. The fixture keeps ~100 rows
 chosen to exercise each search rule — ontology descendants, a re-release
 pair, rows from Explore only, ages, sexes, a few genes — and remaps the gene
 bitsets to its own row order, as the index build would.
@@ -14,11 +15,13 @@ import json
 import sys
 from pathlib import Path
 
+import fsspec
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 SRC = Path(sys.argv[1])
+PUBLISHED = "https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-zarr/.index/latest"
 OUT = Path(__file__).resolve().parent.parent / "test" / "fixtures" / "index"
 GENES = {"gad1", "rab3b", "slc17a7"}
 COLUMNS = [  # src/library/data.ts CATALOG_COLUMNS
@@ -88,9 +91,24 @@ pq.write_table(
     pa.Table.from_pandas(lk, preserve_index=False), OUT / "gene_lookup.parquet",
     row_group_size=8, compression="zstd", write_statistics=["symbol"])
 
-gi = pq.read_table(SRC / "gene_index.parquet").to_pandas()
-gi = gi[gi.meyes_id.isin(ids) & gi.symbol.str.lower().isin(GENES)]
-pq.write_table(pa.Table.from_pandas(gi, preserve_index=False), OUT / "gene_index.parquet")
+# gene_expression.parquet is 1.4 GB: read only the row groups whose
+# symbol_key range holds a fixture gene (from SRC if it has the file, else
+# over HTTP from the published index).
+local = SRC / "gene_expression.parquet"
+src = local.open("rb") if local.exists() else fsspec.open(
+    f"{PUBLISHED}/gene_expression.parquet", block_size=2**20).open()
+gx_file = pq.ParquetFile(src)
+key = gx_file.schema_arrow.names.index("symbol_key")
+groups = [
+    i for i in range(gx_file.metadata.num_row_groups)
+    if any((st := gx_file.metadata.row_group(i).column(key).statistics).min <= g <= st.max
+           for g in GENES)
+]
+gx = gx_file.read_row_groups(groups).to_pandas()
+gx = gx[gx.symbol_key.isin(GENES) & gx.meyes_id.isin(ids)].sort_values(["symbol_key", "uid"])
+pq.write_table(
+    pa.Table.from_pandas(gx, preserve_index=False), OUT / "gene_expression.parquet",
+    row_group_size=16, compression="zstd", write_statistics=["symbol_key"])
 
 rollup = json.loads((SRC / "ontology_rollup.json").read_text())
 used = set(df.loc[rows, "tissue_id"].dropna()) | set(df.loc[rows, "disease_id"].dropna())
@@ -104,4 +122,4 @@ for t in used:
     "release": "fixture", "built_at": "2026-11-18T00:00:00+00:00",
     "cut_from": json.loads((SRC / "release_info.json").read_text())["release"],
     "rows": len(rows)}, indent=1))
-print(len(rows), "rows,", len(lk), "gene lookup rows,", len(gi), "gene index rows ->", OUT)
+print(len(rows), "rows,", len(lk), "gene lookup rows,", len(gx), "gene expression rows ->", OUT)

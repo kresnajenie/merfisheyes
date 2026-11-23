@@ -295,9 +295,30 @@ checked by the metadata session), human Alzheimer's 47. Tests: 12 on a
 counted with pandas; passing on hyparquet 1.33 (the package's) and 1.20
 (the site's).
 
+*Expression over SpatialData-DB's datasets too (2026-11-23).*
+"Expressed" reads `gene_expression.parquet` (published by the metadata
+session beside `gene_index.parquet`, which stays ours-only and unchanged
+because 0.3.0 reads it whole: published file names and shapes are a
+contract — a new layout gets a new name). 138,163,880 rows (ours + 7,089
+SDDB datasets), sorted by `symbol_key` then uid, row groups of 131,072,
+statistics on `symbol_key` only. Read like the lookup: the footer once,
+then the group holding the gene (~1.6 MB), only its rows kept. A dataset
+listing the gene under two features counts by the one detected in most
+cells. Live, mouse brain > 5 %: Rab3b 1,073 (55 ours), Gad2 1,434,
+Slc17a7 1,297 — the metadata session's brute-force values; 0.4–1 s per new
+gene, ~320 MB RSS. (`out.push(...group)` overflowed the stack on a real
+group; the fixture's groups are too small to show it.)
+
+*Rebuilds:* every index build reorders the catalog, so bitsets are valid
+only against the catalog of the same build. A build is now `release` +
+`built_at` (a release name can be rebuilt the same day). A gene file that
+does not match (order check) or does not read (bytes changed under a
+range read while a build is published) drops the loaded index, so the next
+call loads one build whole instead of failing until the 10-minute
+recheck.
+
 Next in B: B5 compare (per dataset gene fraction/counts, cells, age,
-genotype; per cell type where recorded), B4 collections; SDDB's own
-`gene_index` for expression on their rows.
+genotype; per cell type where recorded), B4 collections.
 
 ### Pillar C — Metadata and statistics: [METADATA.md](METADATA.md)
 

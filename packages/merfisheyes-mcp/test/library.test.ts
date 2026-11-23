@@ -2,7 +2,7 @@ import { cp, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 /**
  * The library search (MCP.md pillar B) over a 63-row index cut from the
@@ -110,11 +110,22 @@ it("finds datasets measuring genes over every row, from the lookup", async () =>
 it("filters on expression where counts exist, and says what it could not check", async () => {
   const r = await find({ genes: [{ gene: "Rab3b", min_fraction: 0.05 }] });
 
-  expect(r.total).toBe(15);
-  expect(r.notes.join(" ")).toMatch(/have no per-dataset counts/);
-  const h = hit(r.rows[0], r);
-
-  expect(h.gene_stats?.[0].fraction_detected).toBeGreaterThanOrEqual(0.05);
+  // Ours and SpatialData-DB's, from gene_expression.parquet's row group.
+  expect(r.total).toBe(36);
+  expect(r.breakdown.meyes_source).toEqual([
+    { value: "sddb", count: 21 },
+    { value: "bil", count: 15 },
+  ]);
+  expect(r.notes.join(" ")).toMatch(
+    /1 datasets that measure it have no per-dataset counts/,
+  );
+  for (const row of r.rows)
+    expect(
+      hit(row, r).gene_stats?.[0].fraction_detected,
+    ).toBeGreaterThanOrEqual(0.05);
+  expect(
+    (await find({ genes: [{ gene: "Gad1", min_fraction: 0.05 }] })).total,
+  ).toBe(25);
 });
 
 it("folds re-releases into the newest release", async () => {
@@ -163,6 +174,49 @@ it("refuses gene bitsets when the catalog and lookup are from different builds",
   await expect(
     search(index, { genes: [{ gene: "Gad1", min_fraction: 0 }] }),
   ).rejects.toThrow(/different builds/);
+  // …and drops the index, so the next call loads one build whole.
+  expect(await libraryIndex(dir)).not.toBe(index);
+});
+
+it("drops the index when a gene file no longer reads (a rebuild mid-publish)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "meyes-index-"));
+
+  await cp(FIXTURE, dir, { recursive: true });
+  const index = await libraryIndex(dir);
+
+  await writeFile(join(dir, "gene_expression.parquet"), "not parquet");
+  await expect(
+    search(index, { genes: [{ gene: "Rab3b", min_fraction: 0.05 }] }),
+  ).rejects.toThrow(/may be being updated/);
+  expect(await libraryIndex(dir)).not.toBe(index);
+});
+
+it("reloads a release rebuilt the same day, and only then", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "meyes-index-"));
+
+  await cp(FIXTURE, dir, { recursive: true });
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const first = await libraryIndex(dir);
+
+    vi.setSystemTime(Date.now() + 11 * 60 * 1000); // past the recheck
+    expect(await libraryIndex(dir)).toBe(first); // same build: kept
+    const info = JSON.parse(
+      await readFile(join(dir, "release_info.json"), "utf8"),
+    );
+
+    await writeFile(
+      join(dir, "release_info.json"),
+      JSON.stringify({ ...info, built_at: "2026-11-18T23:00:00+00:00" }),
+    );
+    vi.setSystemTime(Date.now() + 11 * 60 * 1000);
+    const second = await libraryIndex(dir);
+
+    expect(second).not.toBe(first); // same release name, new build: reloaded
+    expect(second.builtAt).toBe("2026-11-18T23:00:00+00:00");
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("answers through the MCP tools", async () => {
