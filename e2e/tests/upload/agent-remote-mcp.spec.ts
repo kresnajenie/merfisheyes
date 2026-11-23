@@ -154,7 +154,23 @@ test.describe("@upload the site as an MCP server", () => {
     expect(init.result.serverInfo.name).toBe("merfisheyes");
     const tools = await rpc(agent.request, token.access_token, "tools/list");
 
-    expect(tools.result.tools).toHaveLength(10);
+    // The package's tools minus those that need the person's computer.
+    expect(
+      tools.result.tools.map((t: { name: string }) => t.name).sort(),
+    ).toEqual([
+      "meyes_find_datasets",
+      "meyes_get_dataset",
+      "meyes_get_processing_status",
+      "meyes_get_project",
+      "meyes_index_values",
+      "meyes_list_facets",
+      "meyes_list_genes",
+      "meyes_list_my_datasets",
+      "meyes_list_projects",
+      "meyes_open_view",
+      "meyes_search_datasets",
+      "meyes_whoami",
+    ]);
     expect((await call("meyes_whoami")).content[0].text).toContain(
       "Signed in to",
     );
