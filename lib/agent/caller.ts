@@ -31,19 +31,41 @@ export function hasScope(caller: Caller, scope: Scope): boolean {
   return caller.scopes === null || caller.scopes.has(scope);
 }
 
+/**
+ * Callers already verified by the site's own MCP server, for the requests
+ * it builds to call the agent API in process (lib/agent/in-process.ts). A
+ * WeakMap keyed by the Request object: only code in this server can put a
+ * request in it, nothing that arrives over HTTP is ever in it.
+ */
+const verified = new WeakMap<Request, Caller>();
+
+export function trustCaller(req: Request, caller: Caller): Request {
+  verified.set(req, caller);
+
+  return req;
+}
+
 /** The caller, or the 401 to send back: a bearer token that is present but
- * not valid for this API is refused, never treated as anonymous. */
-export async function resolveCaller(req: Request): Promise<Caller | Response> {
+ * not valid for `resource` is refused, never treated as anonymous. */
+export async function resolveCaller(
+  req: Request,
+  resource: string = resources()[0],
+): Promise<Caller | Response> {
+  const known = verified.get(req);
+
+  if (known) return known;
   const header = req.headers.get("authorization");
 
   if (header) {
     const m = /^Bearer\s+(\S+)$/i.exec(header);
-    const token = m && (await verifyAccessToken(m[1], resources()[0]));
+    const token = m && (await verifyAccessToken(m[1], resource));
 
     if (!token)
       return unauthorized(
         "invalid_token",
         "the access token is invalid, expired, revoked, or for another resource",
+        undefined,
+        resource,
       );
 
     return {

@@ -65,7 +65,7 @@ const nextConfig = {
       },
       {
         source: "/.well-known/oauth-protected-resource/:path*",
-        destination: "/api/oauth/protected-resource?path=:path*",
+        destination: "/api/oauth/protected-resource/:path*",
       },
       {
         source: "/.well-known/oauth-protected-resource",

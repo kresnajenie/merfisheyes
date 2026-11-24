@@ -35,6 +35,7 @@ import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 import { selectBestClusterColumn } from "@/lib/utils/dataset-utils";
 import { pickDefaultGenes } from "@/lib/utils/auto-select-genes";
 import { tryReadSMVizFromUrl } from "@/lib/hooks/useUrlVizSync";
+import { lookupByUrl } from "@/lib/datasets/lookup-by-url";
 import {
   applyTechnologyPreset,
   loadTechnologyPresets,
@@ -53,12 +54,7 @@ export async function fetchViewerConfig(opts: {
 }): Promise<ViewerConfig | null> {
   try {
     if (opts.s3Url) {
-      const r = await fetch(
-        `/api/datasets/by-url?url=${encodeURIComponent(normalizeS3Url(opts.s3Url))}`,
-      );
-
-      if (!r.ok) return null;
-      const j = await r.json();
+      const j = await lookupByUrl(normalizeS3Url(opts.s3Url));
 
       return (j?.viewerConfig as ViewerConfig | null) ?? null;
     }

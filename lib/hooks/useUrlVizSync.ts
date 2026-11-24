@@ -7,6 +7,7 @@ import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingle
 
 import React, { useEffect, useRef, useState } from "react";
 
+import { registerViewTarget } from "@/lib/agent/view-targets";
 import { usePanelId } from "@/lib/hooks/usePanelStores";
 import {
   encodeCellVizState,
@@ -342,6 +343,24 @@ export function useCellVizUrlSync(
   const hasUrlStateRef = useRef(false);
   const appliedRef = useRef(false);
 
+  // An agent can drive this view (lib/agent/view-targets.ts): the latest
+  // store and dataset, read when a command runs.
+  const storeRef = useRef(store);
+  const datasetRef = useRef(dataset);
+
+  storeRef.current = store;
+  datasetRef.current = dataset;
+  useEffect(
+    () =>
+      registerViewTarget(`cells:${panel}`, {
+        kind: "cells",
+        panel,
+        store: () => storeRef.current,
+        dataset: () => datasetRef.current,
+      }),
+    [panel],
+  );
+
   // Reading: apply URL state once after dataset is ready
   useEffect(() => {
     if (!datasetReady || !dataset || appliedRef.current) return;
@@ -489,6 +508,24 @@ export function useSMVizUrlSync(
   const hasUrlStateRef = useRef(false);
   const appliedRef = useRef(false);
 
+  // An agent can drive these molecules (lib/agent/view-targets.ts).
+  const smStoreRef = useRef(store);
+  const smDatasetRef = useRef(dataset);
+
+  smStoreRef.current = store;
+  smDatasetRef.current = dataset;
+  useEffect(
+    () =>
+      registerViewTarget(`molecules:${panel}`, {
+        kind: "molecules",
+        panel,
+        overlay: false,
+        store: () => smStoreRef.current,
+        dataset: () => smDatasetRef.current,
+      }),
+    [panel],
+  );
+
   // Reading: apply URL state once after dataset is ready
   useEffect(() => {
     if (!datasetReady || !dataset || appliedRef.current) return;
@@ -591,6 +628,24 @@ export function useSMOverlayUrlSync(
   const [hasUrlState, setHasUrlState] = useState(false);
   const hasUrlStateRef = useRef(false);
   const appliedRef = useRef(false);
+
+  // An agent can drive these molecules (lib/agent/view-targets.ts).
+  const smStoreRef = useRef(store);
+  const smDatasetRef = useRef(dataset);
+
+  smStoreRef.current = store;
+  smDatasetRef.current = dataset;
+  useEffect(
+    () =>
+      registerViewTarget(`molecules-overlay:${panel}`, {
+        kind: "molecules",
+        panel,
+        overlay: true,
+        store: () => smStoreRef.current,
+        dataset: () => smDatasetRef.current,
+      }),
+    [panel],
+  );
 
   // Reading: apply URL state once after dataset is ready. If the panel has no
   // slot, fall back to owner default genes (else the pickDefaultGenes

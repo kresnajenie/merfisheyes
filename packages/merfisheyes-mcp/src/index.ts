@@ -2,46 +2,80 @@
 /**
  * merfisheyes-mcp — an MCP server (stdio) for MERFISHEYES.
  *
+ *   merfisheyes view DATA      open data on this computer in the viewer
+ *                              (also: merfisheyes-mcp …; the same program)
+ *   merfisheyes setup          the one-time converter setup (asks nothing)
  *   merfisheyes-mcp            serve MCP on stdio (what an agent runs)
  *   merfisheyes-mcp login      sign in from a terminal, then exit
  *   merfisheyes-mcp logout     sign out
  *   merfisheyes-mcp whoami     who is signed in
+ *   merfisheyes-mcp view DIR   open a folder on this computer in the viewer
  *
  * MERFISHEYES_URL points it at another deployment (default the live site).
  * Nothing is ever written to stdout but the protocol.
  */
 /* eslint-disable no-console -- stderr is this server's only log: stdout carries the protocol */
+import type { Host } from "./host.ts";
+
+import { resolve } from "node:path";
+
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 
-import { apiGet } from "./api.js";
-import { openBrowser, signOut, startSignIn } from "./auth.js";
-import { NAME, SITE, VERSION } from "./config.js";
-import { credentialsPath } from "./credentials.js";
-import { registerAccountTools } from "./tools/account.js";
-import { registerCatalogTools } from "./tools/catalog.js";
-import { registerViewTools } from "./tools/view.js";
+import { apiGet } from "./api.ts";
+import { openBrowser, signOut, startSignIn } from "./auth.ts";
+import { NAME, SITE, VERSION } from "./config.ts";
+import { credentialsPath } from "./credentials.ts";
+import { SetupNeeded, setupPipeline, viewable } from "./local/convert.ts";
+import { local, openLink } from "./local/serve.ts";
+import { instructions } from "./instructions.ts";
+import { registerAccountTools } from "./tools/account.ts";
+import { registerCatalogTools } from "./tools/catalog.ts";
+import { registerLibraryTools } from "./tools/library.ts";
+import { registerLocalTools } from "./tools/local.ts";
+import {
+  registerAddColumnTool,
+  registerSessionTools,
+} from "./tools/session.ts";
+import { registerSignInTools } from "./tools/signin.ts";
+import { registerViewTools } from "./tools/view.ts";
 
-const INSTRUCTIONS = `MERFISHEYES (${SITE}) is a web viewer for spatial transcriptomics: cells, molecules, cell outlines and microscopy images, at up to billions of molecules. These tools find datasets and read the person's own projects; the site does the heavy work.
-
-- Public catalog tools (meyes_search_datasets, meyes_list_facets, meyes_get_dataset, meyes_list_genes) need no sign-in. The person's own data needs meyes_sign_in once; ask only for the scopes the task needs.
-- Prefer what MERFISHEYES already records over computing it yourself: meyes_get_dataset returns the counts, cell-type levels, DE columns and QC each store's own files hold. Never fetch raw per-cell data to answer something a tool answers.
-- To show the person something, call meyes_open_view: it returns a link to the viewer already set up (genes, column, cell types, 2D/3D, dot size, opacity). Give them the link. Pass open=true only when they ask to open it now, and never open more than one tab per request: for several views give links, and for two views to compare use one split screen (compare=…). Do not describe a scene you cannot see.
-- When the person asks to sign in, or asks for their own projects or datasets while signed out, call meyes_sign_in: it opens the sign-in page and waits for them.
-- Lists are paged: use limit/offset and next_offset rather than repeating a call. Calls are rate-limited; a 429 says how long to wait.
-- Not every column with DE stats is a cell type (some stores carry QC columns too); group by annotation columns.`;
+/** How this package reaches the site and the person (src/host.ts). */
+const host: Host = {
+  site: SITE,
+  get: apiGet,
+  open: openBrowser,
+  signInHint: `No saved sign-in in ${credentialsPath()}. Public catalog tools work; call meyes_sign_in for the person's own data.`,
+};
 
 function createServer(): McpServer {
   const server = new McpServer(
     { name: NAME, version: VERSION },
-    { instructions: INSTRUCTIONS },
+    { instructions: instructions(SITE, true) },
   );
 
-  registerCatalogTools(server);
-  registerAccountTools(server);
-  registerViewTools(server);
+  registerCatalogTools(server, host);
+  registerLibraryTools(server);
+  registerSignInTools(server);
+  registerAccountTools(server, host);
+  registerViewTools(server, host);
+  registerLocalTools(server);
+  registerSessionTools(server);
+  registerAddColumnTool(server);
 
   return server;
+}
+
+/** A yes/no question in a terminal; "no" when there is no terminal. */
+async function confirm(question: string): Promise<boolean> {
+  if (!process.stdin.isTTY) return false;
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  const answer = (await rl.question(question)).trim().toLowerCase();
+
+  rl.close();
+
+  return answer === "" || answer === "y" || answer === "yes";
 }
 
 async function cli(command: string): Promise<number> {
@@ -75,9 +109,73 @@ async function cli(command: string): Promise<number> {
 
       return 0;
     }
+    case "view": {
+      const args = process.argv.slice(3);
+      const path = args.find((a) => !a.startsWith("--"));
+
+      if (!path) {
+        console.error(
+          "Usage: merfisheyes-mcp view <folder | .h5ad | Xenium/MERSCOPE folder | molecule table> [--no-open]",
+        );
+
+        return 2;
+      }
+      if (!viewable(resolve(path)))
+        console.error(
+          `Converting ${path} with MERFISHEYES's pipeline (once; reused until it changes)…`,
+        );
+      const opened = await local
+        .open(path, (line) => console.error(`  ${line}`))
+        .catch(async (e) => {
+          if (!(e instanceof SetupNeeded)) throw e;
+          console.error(`\n${e.message}\n`);
+          if (!(await confirm("Set it up now? [Y/n] ")))
+            throw new Error(
+              "Not set up. Run `merfisheyes setup` when you are ready, then `merfisheyes view` again.",
+            );
+          await setupPipeline((line) => console.error(`  ${line}`));
+
+          return local.open(path, (line) => console.error(`  ${line}`));
+        });
+      const { share, converted } = opened;
+      const link = openLink(share);
+
+      if (converted)
+        console.error(
+          converted.reused
+            ? `Reusing the earlier conversion in ${converted.folder}.`
+            : `Converted in ${Math.round(converted.seconds)} s into ${converted.folder}.`,
+        );
+
+      console.error(
+        [
+          `Serving ${share.path} from this computer — nothing is uploaded.`,
+          "",
+          `  ${link}`,
+          "",
+          local.viewerDir
+            ? "The viewer runs from this computer too: nothing goes to the internet."
+            : `In Chrome, the first time: allow ${new URL(SITE).host} to reach apps on this device when it asks.`,
+          "Press Ctrl+C to stop.",
+        ].join("\n"),
+      );
+      if (!args.includes("--no-open")) openBrowser(link);
+
+      // Serve until stopped.
+      return new Promise<number>((done) =>
+        process.once("SIGINT", () => local.close().then(() => done(0))),
+      );
+    }
+    case "setup": {
+      const python = await setupPipeline((line) => console.error(`  ${line}`));
+
+      console.error(`MERFISHEYES's converter is ready (Python at ${python}).`);
+
+      return 0;
+    }
     default:
       console.error(
-        `Unknown command "${command}". Commands: login, logout, whoami; none serves MCP on stdio.`,
+        `Unknown command "${command}". Commands: view, setup, login, logout, whoami; none serves MCP on stdio.`,
       );
 
       return 2;

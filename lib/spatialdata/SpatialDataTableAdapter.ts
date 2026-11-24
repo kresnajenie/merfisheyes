@@ -45,6 +45,46 @@ interface ClusterColumn {
   uniqueValues?: string[];
 }
 
+/**
+ * One column of per-cell values as the viewer holds it: categorical or
+ * numerical (the same detection the readers use), the sorted distinct
+ * values, an index per cell, and a palette for categories. The one builder
+ * for a column read from a store and one an agent adds to an open view
+ * (lib/agent/view-commands.ts, `add_column`).
+ */
+export function clusterColumnFrom(
+  columnName: string,
+  values: string[],
+  storedColours?: Parameters<typeof columnPalette>[1],
+): ClusterColumn {
+  const isCategorical = detectCategorical(values, columnName);
+  const seen = new Set<string>();
+  const uniqueValues: string[] = [];
+
+  for (const v of values)
+    if (!seen.has(v)) {
+      seen.add(v);
+      uniqueValues.push(v);
+    }
+  uniqueValues.sort(compareLabels);
+  const at = new Map(uniqueValues.map((v, i) => [v, i]));
+  const IndexArray = uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
+  const valueIndices = new IndexArray(values.length);
+
+  for (let i = 0; i < values.length; i++) valueIndices[i] = at.get(values[i])!;
+
+  return {
+    column: columnName,
+    type: isCategorical ? "categorical" : "numerical",
+    values: [],
+    valueIndices,
+    palette: isCategorical
+      ? columnPalette(uniqueValues, storedColours)
+      : null,
+    uniqueValues,
+  };
+}
+
 export class SpatialDataTableAdapter {
   // Routing signal used by umap-panel / visualization-panel / load-cluster-column /
   // sync hooks: "local" means "call this adapter on the main thread, don't ship
@@ -208,6 +248,8 @@ export class SpatialDataTableAdapter {
       .v3(this.root.resolve("obs"), { kind: "group" })
       .then((g) => g.attrs._index)
       .catch(() => null);
+
+    this.obsIndexName = typeof obsIndex === "string" ? obsIndex : null;
     const notColumns = [
       this.root.attrs.instance_key,
       this.root.attrs.region_key,
@@ -335,6 +377,17 @@ export class SpatialDataTableAdapter {
    * Read one or more obs columns and build ClusterColumn entries with
    * indexed values + palette.
    */
+  /** The obs frame's index column (cell ids), when it names one. */
+  private obsIndexName: string | null = null;
+
+  /** Each cell's id (the obs index), in cell order — for joining values
+   * computed elsewhere to the cells (an agent's results, pillar D4). */
+  async loadCellIds(): Promise<string[] | null> {
+    if (!this.root || !this.obsIndexName) return null;
+
+    return this.readColumn(`obs/${this.obsIndexName}`).catch(() => null);
+  }
+
   async loadClusters(columns: string[]): Promise<ClusterColumn[]> {
     if (!this.root) throw new Error("Adapter not initialized");
     const out: ClusterColumn[] = [];
@@ -348,51 +401,16 @@ export class SpatialDataTableAdapter {
           ? await this.readAnnotation(columnName, annotated.categories)
           : await this.readColumn(`obs/${columnName}`);
 
-        const isCategorical = detectCategorical(values, columnName);
-
-        const valueToIndex = new Map<string, number>();
-        const uniqueValuesList: string[] = [];
-
-        for (let i = 0; i < values.length; i++) {
-          const s = values[i];
-
-          if (!valueToIndex.has(s)) {
-            valueToIndex.set(s, uniqueValuesList.length);
-            uniqueValuesList.push(s);
-          }
-        }
-
-        const uniqueValues = uniqueValuesList.sort(compareLabels);
-        const sortedMap = new Map<string, number>();
-
-        for (let i = 0; i < uniqueValues.length; i++) {
-          sortedMap.set(uniqueValues[i], i);
-        }
-
-        const IndexArray =
-          uniqueValues.length <= 65535 ? Uint16Array : Uint32Array;
-        const valueIndices = new IndexArray(values.length);
-
-        for (let i = 0; i < values.length; i++) {
-          valueIndices[i] = sortedMap.get(values[i])!;
-        }
-
-        const type: "categorical" | "numerical" = isCategorical
-          ? "categorical"
-          : "numerical";
-
-        this.clusterColumnTypes[columnName] = type;
-
-        out.push({
-          column: columnName,
-          type,
-          values: [],
-          valueIndices,
-          palette: isCategorical
-            ? columnPalette(uniqueValues, await this.storedColours(columnName))
-            : null,
-          uniqueValues,
-        });
+        out.push(
+          clusterColumnFrom(
+            columnName,
+            values,
+            await this.storedColours(columnName),
+          ),
+        );
+        this.clusterColumnTypes[columnName] = out[out.length - 1].type as
+          | "categorical"
+          | "numerical";
       } catch (e) {
         console.warn(
           `[SpatialDataTableAdapter] Failed to load cluster column "${columnName}":`,

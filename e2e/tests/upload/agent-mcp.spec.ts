@@ -74,17 +74,25 @@ test.describe("@upload agent via MCP", () => {
       const { tools } = await mcp.request<{ tools: { name: string }[] }>("tools/list");
 
       expect(tools.map((t) => t.name).sort()).toEqual([
+        "meyes_find_datasets",
         "meyes_get_dataset",
         "meyes_get_processing_status",
         "meyes_get_project",
+        "meyes_index_values",
         "meyes_list_facets",
         "meyes_list_genes",
         "meyes_list_my_datasets",
         "meyes_list_projects",
+        "meyes_open_local",
         "meyes_open_view",
         "meyes_search_datasets",
+        "meyes_setup_converter",
         "meyes_sign_in",
         "meyes_sign_out",
+        "meyes_view_add_column",
+        "meyes_view_set",
+        "meyes_view_snapshot",
+        "meyes_view_state",
         "meyes_whoami",
       ]);
 

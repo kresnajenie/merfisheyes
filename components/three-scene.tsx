@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { toast } from "react-toastify";
 import gsap from "gsap";
 
+import { registerScene } from "@/lib/agent/view-targets";
 import { getClusterValue } from "@/lib/StandardizedDataset";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
@@ -1046,6 +1047,22 @@ export function ThreeScene({
       };
     }
   }, [dataset, viewMode]);
+
+  // An agent can frame this scene (lib/agent/view-targets.ts, pillar D3).
+  useEffect(
+    () =>
+      registerScene(`cells:${panelId === "right" ? "right" : "left"}`, {
+        camera: () => cameraRef.current as never,
+        controls: () => controlsRef.current,
+        positions: () =>
+          ((
+            pointCloudRef.current?.geometry.getAttribute("position") as
+              | THREE.BufferAttribute
+              | undefined
+          )?.array as Float32Array | undefined) ?? null,
+      }),
+    [panelId],
+  );
 
   // Camera reset: snap controls.target back to the initial lookAt captured at
   // scene init. Triggered by cameraResetSignal (Reset View button) or R key.
