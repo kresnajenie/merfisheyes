@@ -2,7 +2,12 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TrackballControls } from "three/examples/jsm/controls/TrackballControls.js";
 
-import { hooksEnabled, markFrame, markMemory } from "@/lib/utils/test-hooks";
+import {
+  hooksEnabled,
+  markCamera,
+  markFrame,
+  markMemory,
+} from "@/lib/utils/test-hooks";
 
 export interface SceneSetup {
   scene: THREE.Scene;
@@ -118,6 +123,13 @@ export function initializeScene(
     orbitControls.dampingFactor = 0.25;
     orbitControls.enableZoom = true;
     orbitControls.enablePan = true;
+    // Zoom about the cursor (or the middle of a pinch), as a map does
+    orbitControls.zoomToCursor = true;
+    // Rotation is off, so one finger would do nothing: it pans
+    orbitControls.touches = {
+      ONE: THREE.TOUCH.PAN,
+      TWO: THREE.TOUCH.DOLLY_PAN,
+    };
 
     if (lookAtPosition) {
       orbitControls.target.copy(lookAtPosition);
@@ -161,6 +173,9 @@ export function initializeScene(
   // interval between drawn frames and the CPU time inside render. A no-op
   // outside NEXT_PUBLIC_E2E=1 — the check is one boolean per frame.
   const instrumented = hooksEnabled();
+  if (instrumented) {
+    markCamera(() => [...camera.position.toArray(), camera.fov, camera.aspect]);
+  }
   let lastTickAt = 0;
   let lastMemoryAt = 0;
   // Every loop tick reports its interval (main-thread jank); a tick that

@@ -147,6 +147,8 @@ export interface MerfishTestHooks {
   deStatsColumn: string | null;
   /** Monotonic counter incremented every time DE stats resolve. */
   deStatsCount: number;
+  /** The newest scene's camera: position x, y, z, then fov and aspect. */
+  camera: (() => number[]) | null;
 }
 
 const E2E_ENABLED =
@@ -188,6 +190,7 @@ function getHooks(): MerfishTestHooks | null {
       deStatsReadyAt: null,
       deStatsColumn: null,
       deStatsCount: 0,
+      camera: null,
     };
   }
 
@@ -391,6 +394,13 @@ export function markMemory(info: {
     ...info,
     at: nowMs(),
   };
+}
+
+/** Let a test read where the scene's camera is. */
+export function markCamera(read: () => number[]): void {
+  const h = getHooks();
+
+  if (h) h.camera = read;
 }
 
 /** True when the hooks are live (NEXT_PUBLIC_E2E=1), for callers that pay to compute a stat. */
