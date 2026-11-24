@@ -699,9 +699,10 @@ the deck coming from `meyes_snapshot`, nothing leaving the machine.
    The viewer changed (embedding panel handle, NaN UMAP rows, `view=` on
    the session), so the publishing order is: `@merfisheyes/viewer` 0.3.0
    first, then the package's dependency moves to `^0.3.0` (with its lock),
-   then `@merfisheyes/mcp` 0.4.0 — until then the package still depends on
-   `^0.2.0`, which an npm install would serve without the new viewer
-   (the `.mcpb` carries the repository's viewer and is not affected). The
+   then `@merfisheyes/mcp` 0.4.0 (viewer 0.3.0 published 2026-11-24, the
+   dependency moved then; the `.mcpb` carries the repository's viewer and
+   is not affected). npm answers a publish with an expired login as "404
+   Not Found": `npm whoami` first. The
    extension's manifest lists all 27 tools (Desktop shows tools from the
    manifest; `test/mcpb-manifest.test.ts` keeps it equal to the server's).
    Checked: the unpacked bundle over stdio — 27 tools, the guide, open,
