@@ -16,6 +16,7 @@ import {
   useCellVizUrlSync,
   useSMOverlayUrlSync,
 } from "@/lib/hooks/useUrlVizSync";
+import { StoreMetadataContext } from "@/lib/contexts/StoreMetadataContext";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import { useOverlays } from "@/lib/hooks/useOverlays";
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
@@ -38,6 +39,10 @@ function ViewerFromLocalContent() {
   // by the scene; this picks their default genes, as the saved viewers do.
   const overlayMolecules = useLocalBundleStore((s) =>
     dataset && s.anchorId === dataset.id ? s.molecules : null,
+  );
+  // What the dropped store says about itself (the info button)
+  const metadata = useLocalBundleStore((s) =>
+    dataset && s.anchorId === dataset.id ? s.metadata : null,
   );
   const overlayLoaded = useSingleMoleculeStore(
     (s) => !!overlayMolecules && s.datasets.has(overlayMolecules.id),
@@ -105,9 +110,11 @@ function ViewerFromLocalContent() {
 
   return (
     <SplitScreenContainer>
-      <VisualizationControls />
-      <ThreeScene dataset={dataset} elements={overlays.elements} />
-      <UMAPPanel />
+      <StoreMetadataContext.Provider value={metadata}>
+        <VisualizationControls />
+        <ThreeScene dataset={dataset} elements={overlays.elements} />
+        <UMAPPanel />
+      </StoreMetadataContext.Provider>
     </SplitScreenContainer>
   );
 }

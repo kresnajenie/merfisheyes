@@ -33,6 +33,13 @@ Each artifact is checked after it is saved (and only checked with --check-only):
   public   the entry file answers on the public HTTPS URL, with CORS for the app
   lamin    the entry file reads back through Artifact.get(key=...).path
 
+A SpatialData store's own metadata (its root zarr.json, docs/specs/metadata.md §5) is
+annotated too: validation_status, canonical_key, the matrix hash and the plain columns always;
+SpatialData-DB's typed features (Organism, Tissue, Disease, Development Stage, Assay, and our
+meyes_sex) only when scripts/metadata/validate_metadata.py has passed the terms — their
+records are made from the ontology versions SpatialData-DB pins, added to the instance as
+non-current bionty Sources when missing.
+
 Each sample also gets one row in the record sheet "BIL datasets" (an
 ln.Record of that type, named by its BIL code): the catalog entry, the counts,
 the QC numbers, the four JSON files whole, and links to every artifact
@@ -54,8 +61,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import lamindb as ln
+import bionty as bt
 
 INSTANCE = "merfisheyes/eyes-catalog"
 BUCKET = "merfisheyes-bil"   # defaults; --bucket / --region override (env.sh passes them)
@@ -65,6 +74,9 @@ APP = "https://www.merfisheyes.com"
 CORS_ORIGIN = APP
 PROJECT = "BIL"
 SHEET = "BIL datasets"
+# The pinned SpatialData-DB release and ontology versions (docs/specs/metadata.md §1)
+CONVENTIONS = json.loads((Path(__file__).resolve().parents[2] / "docs" / "specs" / "conventions.json").read_text())
+PINS = CONVENTIONS["metadata"]["ontologies"]
 
 # name -> dtype. Kept flat and free-text for now; species/tissue can move to
 # bionty ontologies once the catalog settles.
@@ -114,6 +126,25 @@ FEATURES = {
     "qc_json": dict,
     "catalog_json": dict,
     "mapping_json": dict,
+    # the store's own metadata (docs/specs/metadata.md §5): SpatialData-DB's feature names,
+    # typed to bionty registries, set only once validate_metadata.py has passed the terms
+    "Organism": bt.Organism,
+    "Tissue": bt.Tissue,
+    "Disease": bt.Disease,
+    "Development Stage": bt.DevelopmentalStage,
+    "Assay": bt.ExperimentalFactor,
+    "meyes_sex": bt.Phenotype,
+    "Genotype": str,
+    "Condition": str,
+    "Timepoint": str,
+    "Timepoint Kind": str,
+    "Timepoint Days": float,
+    "Sample ID at Source": str,
+    "Study ID": str,
+    "canonical_key": str,
+    "technology": str,
+    "validation_status": str,       # pass | fail | not_validated | absent
+    "meyes_matrix_hash": str,
     "store": ln.Artifact,           # what the viewer opens
     "artifacts": list[ln.Artifact],  # everything registered for the dataset
 }
@@ -153,6 +184,7 @@ class Item:
     values: dict = field(default_factory=dict)   # on the artifact and the sheet row
     description: str = ""
     row: dict = field(default_factory=dict)      # on the sheet row only (the JSON files)
+    metadata: dict = field(default_factory=dict)  # the store's meyes_metadata and its validation status
 
 
 @dataclass
@@ -210,7 +242,11 @@ def plan_spatialdata(sample: str, prefix: str, meta: dict) -> list[Item]:
     desc = (f"{meta.get('title') or sample} — SpatialData store, {stats['cells']:,} cells, "
             f"{stats['genes']} genes, {stats.get('molecules') or 0:,} molecules")
     row = {SIDECARS[name]: got for name, got in files.items() if got}
-    return [Item(f"{sample}/{store}", "single_cell", "zarr.json", "spatialdata-viewer", values, desc, row)]
+    attrs = (read_json(https(prefix, f"{sample}/{store}/zarr.json")) or {}).get("attributes", {})
+    metadata = {"meyes": attrs.get("meyes_metadata") or {},
+                "status": ((attrs.get("meyes_provenance") or {}).get("validation") or {}).get("status")
+                          or ("not_validated" if "meyes_metadata" in attrs else "absent")}
+    return [Item(f"{sample}/{store}", "single_cell", "zarr.json", "spatialdata-viewer", values, desc, row, metadata)]
 
 
 def plan_legacy(sample: str, prefix: str, meta: dict) -> list[Item]:
@@ -253,6 +289,75 @@ def ensure_storage(root: str, dry: bool) -> None:
     print(f"  storage  {root} is not registered yet" + (" — would register" if dry else " — registering"))
     if not dry:
         ln.Storage(root=root, description=f"MERFISHEYES datasets in {root}, read by URL by the viewer").save()
+
+
+# feature → (meyes_metadata column holding the id, bionty registry, pin, bionty.base class, its organism)
+TYPED = {
+    "Organism": ("organism_id", bt.Organism, "organismNames", "Organism", "vertebrates"),
+    "Tissue": ("tissue_id", bt.Tissue, "tissue", "Tissue", "all"),
+    "Disease": ("disease_id", bt.Disease, "disease", "Disease", "all"),
+    "Development Stage": ("meyes_development_stage_id", bt.DevelopmentalStage, None, "DevelopmentalStage", None),
+    "Assay": ("_efo", bt.ExperimentalFactor, "assay", "ExperimentalFactor", "all"),
+    "meyes_sex": ("meyes_sex_id", bt.Phenotype, "phenotype", "Phenotype", "all"),
+}
+PLAIN = {"Genotype": "genotype", "Condition": "condition", "Timepoint": "timepoint",
+         "Timepoint Kind": "timepoint_kind", "Timepoint Days": "timepoint_days",
+         "Sample ID at Source": "sample_id", "Study ID": "study_id", "canonical_key": "canonical_key",
+         "technology": "technology", "meyes_matrix_hash": "meyes_matrix_hash"}
+
+
+def pinned_source(entity: str, pin: dict, organism: str):
+    """The bionty Source of a pinned version, added (not made current) when the instance lacks it,
+    so records come from the versions SpatialData-DB pins and the instance's defaults stay."""
+    import bionty.base as bb
+
+    src = bt.Source.filter(entity=f"bionty.{entity}", name=pin["source"], version=pin["version"],
+                           organism=organism).one_or_none()
+    if src is None:
+        kw = {"organism": organism} if entity in ("DevelopmentalStage",) else (
+            {"taxa": organism} if entity == "Organism" else {})
+        d = getattr(bb, entity)(source=pin["source"], version=pin["version"], **kw)._source_dict
+        src = bt.Source(entity=f"bionty.{entity}", organism=organism, name=pin["source"], version=pin["version"],
+                        url=d.get("url"), description=d.get("description"),
+                        source_website=d.get("source_website"), currently_used=False).save()
+    return src
+
+
+def ontology_record(registry, ontology_id: str, src):
+    rec = registry.filter(ontology_id=ontology_id).one_or_none()
+    if rec is None:
+        rec = registry.from_source(ontology_id=ontology_id, source=src)
+        if isinstance(rec, list):
+            rec = rec[0] if rec else None
+        if rec is None:
+            raise ValueError(f"{ontology_id} is not in {src.name} {src.version}")
+        rec.save()
+    return rec
+
+
+def metadata_values(item: Item) -> dict:
+    """The artifact's values from the store's own metadata: plain ones always, the typed
+    ontology records only when bionty passed the terms (scripts/metadata/validate_metadata.py)."""
+    m, status = item.metadata.get("meyes") or {}, item.metadata.get("status") or "absent"
+    values = {"validation_status": status, **{f: m.get(c) for f, c in PLAIN.items()}}
+    if status != "pass":
+        return values
+    tech = CONVENTIONS["metadata"]["technologies"].get(m.get("technology") or "") or {}
+    ids = {**m, "_efo": tech.get("efo")}
+    for feature, (col, registry, pin_key, entity, organism) in TYPED.items():
+        oid = ids.get(col)
+        if not oid or (feature == "Disease" and not str(oid).startswith("MONDO:")):
+            continue
+        if entity == "DevelopmentalStage":
+            organism = m.get("organism")
+            pin_key = "developmentStageHuman" if organism == "human" else "developmentStageMouse"
+        try:
+            values[feature] = ontology_record(registry, oid, pinned_source(entity, PINS[pin_key], organism))
+        except Exception as e:  # noqa: BLE001 — one missing term must not stop the registration
+            # e.g. SpatialData-DB's technology.json names EFO ids (MERSCOPE EFO:0022956) that the
+            # EFO version they pin (3.70.0) does not have: that feature is left unset, said here
+            print(f"    note: {feature} {oid} not set — {type(e).__name__}: {e}")
+    return values
 
 
 def ensure_features() -> None:
@@ -350,6 +455,8 @@ def register(item: Item, root: str, prefix: str, sample: str, meta: dict, projec
         # a legacy cell folder is opened by its URL with a trailing slash, as the catalog writes it
         url = https(prefix, item.rel) + ("/" if item.entry == "manifest.json" else "")
         values["viewer_url"] = viewer_url(item.viewer, url)
+    if item.metadata:
+        values.update(metadata_values(item))
     values = {k: v for k, v in values.items() if v not in (None, "")}
     af.features.set_values(values)   # replaces, so a re-run does not duplicate
     af.projects.add(project)
@@ -492,6 +599,11 @@ def main() -> int:
             res = Result(sample, item.rel)
             if args.dry_run:
                 print(f"    would register: {item.description}")
+                if item.metadata:
+                    m = item.metadata.get("meyes") or {}
+                    print(f"    metadata: validation {item.metadata.get('status')}; "
+                          + ", ".join(f"{f}={m.get(c)}" for f, (c, *_) in TYPED.items() if m.get(c))
+                          + ("" if item.metadata.get("status") == "pass" else " (typed features only once it passes)"))
                 continue
             if writing:
                 try:

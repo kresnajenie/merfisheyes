@@ -874,6 +874,7 @@ export function FileUpload({
       molecules: opened.cells ? (opened.molecules ?? null) : null,
       image: opened.image ?? null,
       shapes: opened.shapes ?? null,
+      metadata: opened.metadata ?? null,
       // Nothing checked against yet: that is the overlay dialog's
       check: null,
     });

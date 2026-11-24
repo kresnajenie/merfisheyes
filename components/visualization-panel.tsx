@@ -48,6 +48,9 @@ export function VisualizationPanel({
 }: VisualizationPanelProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  // Genes are listed in the dataset's own order (often a ranking: highly or
+  // spatially variable first) unless A→Z is on
+  const [genesAZ, setGenesAZ] = useState(false);
   const itemsPerPage = 1000; // Show 1000 items per page
   const panelRef = useRef<HTMLDivElement>(null);
   const [isSequenceModalOpen, setIsSequenceModalOpen] = useState(false);
@@ -282,13 +285,14 @@ export function VisualizationPanel({
       }
 
       case "gene": {
-        // Get all genes in deterministic, human-friendly order
-        const sortedGenes = [...dataset.genes].sort((a, b) =>
-          a.localeCompare(b, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          }),
-        );
+        const sortedGenes = genesAZ
+          ? [...dataset.genes].sort((a, b) =>
+              a.localeCompare(b, undefined, {
+                numeric: true,
+                sensitivity: "base",
+              }),
+            )
+          : dataset.genes;
 
         return sortedGenes.map((gene) => ({
           id: gene,
@@ -300,7 +304,7 @@ export function VisualizationPanel({
       default:
         return [];
     }
-  }, [dataset, mode, selectedColumn, clusterVersion]);
+  }, [dataset, mode, selectedColumn, clusterVersion, genesAZ]);
 
   const filteredItems = items.filter((item) =>
     item.label.toLowerCase().includes(currentSearchTerm.toLowerCase()),
@@ -798,6 +802,32 @@ export function VisualizationPanel({
               classNames={{
                 input: "text-sm",
               }}
+              endContent={
+                mode === "gene" && (
+                  <Tooltip
+                    content={
+                      genesAZ
+                        ? "Sorted A to Z. Click for the dataset's own order"
+                        : "In the dataset's own order. Click to sort A to Z"
+                    }
+                    delay={300}
+                    placement="top"
+                  >
+                    <button
+                      aria-label="Sort genes A to Z"
+                      aria-pressed={genesAZ}
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${genesAZ ? "bg-primary text-primary-foreground" : "text-default-500 hover:text-default-700"}`}
+                      type="button"
+                      onClick={() => {
+                        setGenesAZ(!genesAZ);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      A→Z
+                    </button>
+                  </Tooltip>
+                )
+              }
               placeholder={`Search ${getTitle()}`}
               value={currentSearchTerm}
               onValueChange={updateSearchTerm}

@@ -38,6 +38,7 @@ import { glassButton } from "@/components/primitives";
 import { MoleculeOpacitySlider } from "@/components/molecule-opacity-slider";
 import { CellOpacitySlider } from "@/components/cell-opacity-slider";
 import { FadeScroll } from "@/components/fade-scroll";
+import { DatasetInfoButton } from "@/components/dataset-info-panel";
 import { SharePanel, useShareLink } from "@/components/share-panel";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { OverlayManager } from "@/components/overlay-manager";
@@ -775,6 +776,9 @@ export function VisualizationControls() {
           </Button>
         </Tooltip>
 
+        {/* About this dataset — what the store says about itself */}
+        <DatasetInfoButton />
+
         {/* Share Button — copies the link to this view and shows it with a QR code */}
         <Tooltip content="Share this view (link + QR code)" placement="bottom">
           <Button
@@ -930,7 +934,6 @@ function DotSizeSlider({
   );
 
   const isSc = scSmMode === "sc";
-  const fixed = isSc && realSize;
   const value = isSc ? scSizeScale : smGlobalScale;
   const setValue = isSc ? setScSizeScale : setSmGlobalScale;
   const range = isSc ? sc : sm;
@@ -942,31 +945,31 @@ function DotSizeSlider({
     ? "border-blue-400 shadow-[0_0_12px_rgba(59,130,246,0.35)]"
     : "border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.35)]";
 
+  // Nothing to change: the cells keep their measured size
+  if (isSc && realSize) return null;
+
   return (
     <Tooltip
       content={
-        fixed
-          ? "Spots and bins are drawn at their real size"
-          : isSc
-            ? "Change dotsize (right-click to edit range)"
-            : "Change SM molecule size (right-click to edit range)"
+        isSc
+          ? "Change dotsize (right-click to edit range)"
+          : "Change SM molecule size (right-click to edit range)"
       }
       placement="right"
     >
       <div
         className={`w-14 h-32 rounded-full border-2 p-2 flex flex-col items-center justify-center transition-colors transition-shadow ${borderColor} ${glassButton()}`}
-        onContextMenu={fixed ? undefined : range.onContextMenu}
+        onContextMenu={range.onContextMenu}
       >
         <Slider
           aria-label="Dot size"
           className="h-full"
-          isDisabled={fixed}
           maxValue={max}
           minValue={min}
           orientation="vertical"
           size="sm"
           step={step}
-          value={fixed ? 1 : value}
+          value={value}
           onChange={(v) => setValue(v as number)}
         />
         {range.popover}
