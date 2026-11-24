@@ -23,9 +23,15 @@ import { McpStdio } from "../../helpers/mcp-stdio";
 const ENABLED = process.env.E2E_UPLOAD === "1" || process.env.E2E_AGENT === "1";
 
 test.describe("@upload agent via MCP", () => {
-  test.skip(!ENABLED, "Set E2E_UPLOAD=1 (docker infra) or E2E_AGENT=1 (any migrated database).");
+  test.skip(
+    !ENABLED,
+    "Set E2E_UPLOAD=1 (docker infra) or E2E_AGENT=1 (any migrated database).",
+  );
 
-  test("public search, sign in for one project, sign out", async ({ page, baseURL }) => {
+  test("public search, sign in for one project, sign out", async ({
+    page,
+    baseURL,
+  }) => {
     test.setTimeout(120_000);
     const origin = new URL(baseURL!).origin;
     const run = Date.now();
@@ -34,7 +40,12 @@ test.describe("@upload agent via MCP", () => {
 
     // The person, two projects, a dataset in the first; a public catalog row.
     await signInDev(page, email);
-    const project = async (title: string) => (await (await page.request.post("/api/projects", { data: { title } })).json()).id as string;
+    const project = async (title: string) =>
+      (
+        await (
+          await page.request.post("/api/projects", { data: { title } })
+        ).json()
+      ).id as string;
     const chosen = await project(`MCP chosen ${run}`);
     const other = await project(`MCP other ${run}`);
     const user = await prisma.user.findUniqueOrThrow({ where: { email } });
@@ -60,31 +71,49 @@ test.describe("@upload agent via MCP", () => {
         species: "Mouse",
         isPublished: true,
         genes: ["Gad1"],
-        entries: { create: { label: "Cells", datasetType: "spatialdata", s3BaseUrl: `https://example.org/mcp-${run}.zarr` } },
+        entries: {
+          create: {
+            label: "Cells",
+            datasetType: "spatialdata",
+            s3BaseUrl: `https://example.org/mcp-${run}.zarr`,
+          },
+        },
       },
     });
 
     const mcp = await McpStdio.start({
       MERFISHEYES_URL: origin,
       MERFISHEYES_NO_BROWSER: "1",
-      MERFISHEYES_CREDENTIALS: path.join(mkdtempSync(path.join(tmpdir(), "meyes-e2e-")), "credentials.json"),
+      MERFISHEYES_CREDENTIALS: path.join(
+        mkdtempSync(path.join(tmpdir(), "meyes-e2e-")),
+        "credentials.json",
+      ),
     });
 
     try {
-      const { tools } = await mcp.request<{ tools: { name: string }[] }>("tools/list");
+      const { tools } = await mcp.request<{ tools: { name: string }[] }>(
+        "tools/list",
+      );
 
       expect(tools.map((t) => t.name).sort()).toEqual([
         "meyes_find_datasets",
         "meyes_get_dataset",
         "meyes_get_processing_status",
         "meyes_get_project",
+        "meyes_guide",
         "meyes_index_values",
+        "meyes_job",
         "meyes_list_facets",
         "meyes_list_genes",
         "meyes_list_my_datasets",
         "meyes_list_projects",
+        "meyes_markers",
+        "meyes_niche",
         "meyes_open_local",
         "meyes_open_view",
+        "meyes_profile",
+        "meyes_recluster",
+        "meyes_save_analysis",
         "meyes_search_datasets",
         "meyes_setup_converter",
         "meyes_sign_in",
@@ -97,7 +126,9 @@ test.describe("@upload agent via MCP", () => {
       ]);
 
       // Public: no sign-in.
-      const found = await mcp.call("meyes_search_datasets", { query: `atlas ${run}` });
+      const found = await mcp.call("meyes_search_datasets", {
+        query: `atlas ${run}`,
+      });
 
       expect(found.isError).toBeFalsy();
       expect(found.content[0].text).toContain(`Public MCP atlas ${run}`);
@@ -110,10 +141,14 @@ test.describe("@upload agent via MCP", () => {
 
       // Sign in; the person opens the link and allows one project.
       const signIn = await mcp.call("meyes_sign_in");
-      const link = /(http\S+\/oauth\/authorize\S+)/.exec(signIn.content[0].text)![1];
+      const link = /(http\S+\/oauth\/authorize\S+)/.exec(
+        signIn.content[0].text,
+      )![1];
 
       await page.goto(link);
-      await expect(page.getByRole("heading", { name: /Allow MERFISHEYES MCP/ })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: /Allow MERFISHEYES MCP/ }),
+      ).toBeVisible();
       await page.getByLabel("Only these projects").check();
       await page.getByLabel(`MCP chosen ${run}`).check();
       await page.getByRole("button", { name: "Allow" }).click();
@@ -123,21 +158,34 @@ test.describe("@upload agent via MCP", () => {
 
       expect(me.content[0].text).toContain(email);
 
-      const projects = await mcp.call("meyes_list_projects", { response_format: "json" });
+      const projects = await mcp.call("meyes_list_projects", {
+        response_format: "json",
+      });
 
-      expect((projects.structuredContent!.items as { id: string }[]).map((p) => p.id)).toEqual([chosen]);
-      expect((await mcp.call("meyes_get_project", { id: other })).isError).toBe(true);
+      expect(
+        (projects.structuredContent!.items as { id: string }[]).map(
+          (p) => p.id,
+        ),
+      ).toEqual([chosen]);
+      expect((await mcp.call("meyes_get_project", { id: other })).isError).toBe(
+        true,
+      );
 
       const mine = await mcp.call("meyes_get_dataset", { id: datasetId });
 
       expect(mine.isError).toBeFalsy();
       expect(mine.content[0].text).toContain(`MCP dataset ${run}`);
-      const genes = await mcp.call("meyes_list_genes", { id: datasetId, query: "gad" });
+      const genes = await mcp.call("meyes_list_genes", {
+        id: datasetId,
+        query: "gad",
+      });
 
       expect(genes.content[0].text).toContain("Gad1, Gad2");
 
       // Sign out: the token is revoked.
-      expect((await mcp.call("meyes_sign_out")).content[0].text).toContain("Signed out");
+      expect((await mcp.call("meyes_sign_out")).content[0].text).toContain(
+        "Signed out",
+      );
       expect((await mcp.call("meyes_list_my_datasets")).isError).toBe(true);
     } finally {
       mcp.close();

@@ -27,7 +27,11 @@ beforeAll(async () => {
 afterAll(() => srv.close());
 
 /** A page that answers each command with `answer(command, args)`. */
-function page(token: string, answer: (c: string, a: unknown) => unknown) {
+function page(
+  token: string,
+  answer: (c: string, a: unknown) => unknown,
+  view?: string,
+) {
   const port = new URL(origin).port;
   const host = `127.0.0.1:${port}`;
 
@@ -36,7 +40,7 @@ function page(token: string, answer: (c: string, a: unknown) => unknown) {
       {
         host: "127.0.0.1",
         port,
-        path: `/session/events?token=${token}`,
+        path: `/session/events?token=${token}${view !== undefined ? `&view=${encodeURIComponent(view)}` : ""}`,
         headers: { host },
       },
       (res) => {
@@ -148,4 +152,51 @@ it("gives up when the page does not answer", async () => {
   await expect(srv.command("state", {}, 200)).rejects.toThrow(
     /No MERFISHEYES view is open|did not answer/,
   );
+});
+
+it("sends a command to the view just opened, not an older tab still open", async () => {
+  const other = join(viewer, "..", `other-${Date.now()}`);
+
+  mkdirSync(join(other, "b.zarr"), { recursive: true });
+  writeFileSync(join(other, "b.zarr", "zarr.json"), "{}");
+  const a = await srv.share(data);
+  const b = await srv.share(other);
+
+  srv.link(a);
+  const old = await page(srv.sessionToken, () => "old tab", a.url);
+
+  expect(await srv.command("state", {})).toBe("old tab");
+  srv.link(b); // a new link handed out: its tab is still loading
+  const sent = srv.command("state", {});
+
+  await new Promise((r) => setTimeout(r, 300));
+  const fresh = await page(srv.sessionToken, () => "new tab", b.url);
+
+  expect(await sent).toBe("new tab");
+  // afterwards the tab used last, as before
+  expect(await srv.command("state", {})).toBe("new tab");
+  old.close();
+  fresh.close();
+});
+
+it("says so when the view just opened never connects", async () => {
+  const a = await srv.share(data);
+
+  srv.viewWaitMs = 500;
+  const old = await page(srv.sessionToken, () => "old tab", "elsewhere");
+
+  srv.link(a);
+  await expect(srv.command("state", {})).rejects.toThrow(/is not open yet/);
+  old.close();
+  srv.viewWaitMs = 20_000;
+});
+
+it("takes a tab that does not say what it shows (an older viewer) as the new one", async () => {
+  const a = await srv.share(data);
+
+  srv.link(a);
+  const legacy = await page(srv.sessionToken, () => "legacy tab");
+
+  expect(await srv.command("state", {})).toBe("legacy tab");
+  legacy.close();
 });

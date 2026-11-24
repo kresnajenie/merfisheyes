@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
+import type { Host } from "../host.ts";
 
 import * as z from "zod/v4";
 
-import type { Host } from "../host.ts";
 import {
   type Page,
   join,
@@ -11,7 +11,6 @@ import {
   one,
   paging,
   responseFormat,
-  text,
 } from "../format.ts";
 
 /**

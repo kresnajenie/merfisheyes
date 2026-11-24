@@ -51,7 +51,12 @@ export function primaryTarget(): CellsTarget | null {
 /** The molecules a command acts on: the molecule viewer's, else those
  * drawn over the cells (left panel first). */
 export function moleculesTarget(): MoleculesTarget | null {
-  for (const key of ["molecules:left", "molecules-overlay:left", "molecules:right", "molecules-overlay:right"]) {
+  for (const key of [
+    "molecules:left",
+    "molecules-overlay:left",
+    "molecules:right",
+    "molecules-overlay:right",
+  ]) {
     const t = targets.get(key);
 
     if (t?.kind === "molecules") return t;
@@ -64,12 +69,25 @@ export function moleculesTarget(): MoleculesTarget | null {
  * controls and point positions (registered by components/three-scene.tsx). */
 export interface SceneHandle {
   camera: () => {
-    position: { x: number; y: number; z: number; copy: (v: any) => any; clone: () => any };
+    position: {
+      x: number;
+      y: number;
+      z: number;
+      copy: (v: any) => any;
+      clone: () => any;
+    };
     fov?: number;
     aspect?: number;
   } | null;
   controls: () => {
-    target: { x: number; y: number; z: number; copy: (v: any) => any; clone: () => any; set: (x: number, y: number, z: number) => any };
+    target: {
+      x: number;
+      y: number;
+      z: number;
+      copy: (v: any) => any;
+      clone: () => any;
+      set: (x: number, y: number, z: number) => any;
+    };
     update: () => void;
   } | null;
   /** x, y, z per cell, in the scene's coordinates, in cell order. */
@@ -88,4 +106,32 @@ export function registerScene(key: string, handle: SceneHandle) {
 
 export function sceneFor(panel: "left" | "right"): SceneHandle | null {
   return scenes.get(`cells:${panel}`) ?? null;
+}
+
+/** What an agent needs of the embedding (UMAP) panel: which embeddings the
+ * dataset has, which is shown, show or hide one, and a picture of it
+ * (registered by components/umap-panel.tsx). */
+export interface EmbeddingPanelHandle {
+  available: () => string[];
+  /** The embedding shown, or null when the panel is closed. */
+  shown: () => string | null;
+  /** Open the panel on this embedding; resolves once it is drawn. */
+  show: (name: string) => Promise<void>;
+  hide: () => void;
+  /** The panel's canvas, freshly drawn (null when closed). */
+  capture: () => HTMLCanvasElement | null;
+}
+
+let embeddingHandle: EmbeddingPanelHandle | null = null;
+
+export function registerEmbeddingPanel(handle: EmbeddingPanelHandle) {
+  embeddingHandle = handle;
+
+  return () => {
+    if (embeddingHandle === handle) embeddingHandle = null;
+  };
+}
+
+export function embeddingPanel(): EmbeddingPanelHandle | null {
+  return embeddingHandle;
 }

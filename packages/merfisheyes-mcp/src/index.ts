@@ -28,8 +28,10 @@ import { NAME, SITE, VERSION } from "./config.ts";
 import { credentialsPath } from "./credentials.ts";
 import { SetupNeeded, setupPipeline, viewable } from "./local/convert.ts";
 import { local, openLink } from "./local/serve.ts";
+import { registerGuide } from "./guide.ts";
 import { instructions } from "./instructions.ts";
 import { registerAccountTools } from "./tools/account.ts";
+import { registerAnalysisTools } from "./tools/analysis.ts";
 import { registerCatalogTools } from "./tools/catalog.ts";
 import { registerLibraryTools } from "./tools/library.ts";
 import { registerLocalTools } from "./tools/local.ts";
@@ -62,6 +64,8 @@ function createServer(): McpServer {
   registerLocalTools(server);
   registerSessionTools(server);
   registerAddColumnTool(server);
+  registerAnalysisTools(server);
+  registerGuide(server);
 
   return server;
 }

@@ -17,13 +17,22 @@ describe("pages", () => {
   it("say where the next page starts", () => {
     const r = many("json", page(["a", "b"], 5, 2), md);
 
-    expect(r.structuredContent).toMatchObject({ count: 2, has_more: true, next_offset: 4 });
+    expect(r.structuredContent).toMatchObject({
+      count: 2,
+      has_more: true,
+      next_offset: 4,
+    });
     expect(JSON.parse(r.content[0].text)).toEqual(r.structuredContent);
-    expect(many("markdown", page(["a"], 3, 2), md).content[0].text).not.toContain("offset=");
+    expect(
+      many("markdown", page(["a"], 3, 2), md).content[0].text,
+    ).not.toContain("offset=");
   });
 
   it("stay under the character limit by returning fewer items, never cut ones", () => {
-    const big = Array.from({ length: 40 }, (_, i) => `${i}:${"x".repeat(2_000)}`);
+    const big = Array.from(
+      { length: 40 },
+      (_, i) => `${i}:${"x".repeat(2_000)}`,
+    );
     const r = many("markdown", page(big, 100), md);
     const text = r.content[0].text;
 
@@ -31,7 +40,8 @@ describe("pages", () => {
     expect(text).toMatch(/More: call again with offset=(\d+)/);
     const shown = Number(/offset=(\d+)/.exec(text)![1]);
 
-    for (let i = 0; i < shown; i++) expect(text).toContain(`${i}:${"x".repeat(2_000)}`);
+    for (let i = 0; i < shown; i++)
+      expect(text).toContain(`${i}:${"x".repeat(2_000)}`);
   });
 
   it("say so when empty", () => {

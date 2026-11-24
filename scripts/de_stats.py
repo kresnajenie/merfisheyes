@@ -71,6 +71,7 @@ def write_de_stats(table, log=print, columns: list[str] | None = None) -> list[s
     import numpy as np
     import scipy.sparse as sp
 
+    explicit = columns is not None
     columns = categorical_columns(table) if columns is None else columns
     if not columns or "X" not in table:
         return []
@@ -107,6 +108,12 @@ def write_de_stats(table, log=print, columns: list[str] | None = None) -> list[s
         }
         log(f"  DE stats for obs/{column}: {len(categories)} categories × {means.shape[0]} genes")
     if DE_KEY in uns:
+        # Writing some columns keeps the others' records (their varm arrays
+        # stay, and the viewer finds them through this record); writing every
+        # column (columns=None) starts afresh.
+        if explicit:
+            kept = ad.io.read_elem(uns[DE_KEY])
+            record = {**{k: v for k, v in kept.items() if k not in record}, **record}
         del uns[DE_KEY]
     ad.io.write_elem(uns, DE_KEY, record)
     return columns

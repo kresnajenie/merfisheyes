@@ -6,6 +6,7 @@ import {
   moleculesTarget,
   primaryTarget,
   sceneFor,
+  embeddingPanel,
   type CellsTarget,
   type MoleculesTarget,
 } from "@/lib/agent/view-targets";
@@ -14,6 +15,7 @@ import { colormapRgb } from "@/lib/utils/colormaps";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { getClusterValue } from "@/lib/StandardizedDataset";
 import { clusterColumnFrom } from "@/lib/spatialdata/SpatialDataTableAdapter";
+import { loadClusterColumn } from "@/lib/utils/load-cluster-column";
 
 /**
  * What an agent can do to an open view (docs/plans/MCP.md pillar D3): read
@@ -89,6 +91,21 @@ function columnValues(
 }
 
 /**
+ * Whether the scene applies the picked-out values: colouring by the column,
+ * or by a gene on the picked-out cells (the combined mode). Coloured by a
+ * gene alone — or a gene "everywhere" — every cell is drawn, whatever is
+ * picked out (components/three-scene.tsx).
+ */
+function selectionApplies(s: VizState): boolean {
+  if (s.selectedCelltypes.size === 0) return false;
+  if (!s.mode.includes("celltype")) return false;
+  const everywhere = (s as unknown as { geneEverywhere?: boolean })
+    .geneEverywhere;
+
+  return !(s.mode.includes("gene") && everywhere);
+}
+
+/**
  * Which values of the colour column are drawn, as the scene decides
  * (components/three-scene.tsx): nothing picked out — all of them; values
  * picked out — those minus the ones whose eye is off, the rest drawn at
@@ -98,13 +115,42 @@ function drawn(d: StandardizedDataset, s: VizState) {
   const values = columnValues(d, s, s.selectedColumn);
 
   if (!values) return null;
-  if (s.selectedCelltypes.size === 0) return { values, others: null };
+  if (!selectionApplies(s)) return { values, others: null };
   const shown = values.filter(
     (v) => s.selectedCelltypes.has(v) && !s.hiddenCelltypes.has(v),
   );
   const alpha = (s as unknown as Record<string, number>).greyedOutAlpha ?? 1;
 
   return { values: shown, others: alpha === 0 ? "hidden" : "grey" };
+}
+
+/** Values that contain a word of what was asked ("Ependymal" → "323
+ * Ependymal NN", "321 Astroependymal NN"), at most 12. */
+function suggestValues(values: string[], asked: string[]): string[] {
+  const words = asked
+    .flatMap((a) => a.toLowerCase().split(/[^a-z0-9]+/))
+    .filter((w) => w.length >= 3);
+
+  return values
+    .filter((v) => words.some((w) => v.toLowerCase().includes(w)))
+    .slice(0, 12);
+}
+
+/** Cells per value of a loaded column, in one pass over the cells. */
+function valueCounts(d: StandardizedDataset, column: string) {
+  const c = d.clusters?.find((k) => k.column === column);
+  const counts = new Map<string, number>();
+
+  if (!c) return counts;
+  const n = cellCount(d);
+
+  for (let i = 0; i < n; i++) {
+    const v = String(getClusterValue(c as never, i));
+
+    counts.set(v, (counts.get(v) ?? 0) + 1);
+  }
+
+  return counts;
 }
 
 /** How many cells are drawn in colour (all of them unless values are
@@ -128,10 +174,16 @@ function visibleCells(d: StandardizedDataset, s: VizState): number {
 
 /**
  * Move the camera so the cells drawn in colour fill the view (all cells when
- * nothing is picked out), keeping the viewing direction. Returns how to put
- * the camera back.
+ * nothing is picked out; only `focus` values of the colour column when
+ * given), keeping the viewing direction. The box drops the outermost 0.5 %
+ * of cells on each side, so a few strays do not shrink a cluster to a dot.
+ * Returns how to put the camera back.
  */
-function fitToVisible(t: CellsTarget, data: StandardizedDataset): () => void {
+function fitToVisible(
+  t: CellsTarget,
+  data: StandardizedDataset,
+  focus?: string[],
+): () => void {
   const scene = sceneFor(t.panel);
   const camera = scene?.camera();
   const controls = scene?.controls();
@@ -144,22 +196,40 @@ function fitToVisible(t: CellsTarget, data: StandardizedDataset): () => void {
   const c = s.selectedColumn
     ? data.clusters?.find((k) => k.column === s.selectedColumn)
     : null;
-  const keep = pick?.others && c ? new Set(pick.values) : null;
+
+  if (focus?.length) {
+    const values = columnValues(data, s, s.selectedColumn) ?? [];
+    const unknown = focus.filter((v) => !values.includes(v));
+
+    if (!c || unknown.length)
+      throw new ViewCommandError(
+        `focus needs values of the colour column ("${s.selectedColumn}"); not found: ${unknown.join(", ")}.`,
+      );
+  }
+  const keep = focus?.length
+    ? new Set(focus)
+    : pick?.others && c
+      ? new Set(pick.values)
+      : null;
   const n = Math.min(cellCount(data), pos.length / 3);
-  const lo = [Infinity, Infinity, Infinity];
-  const hi = [-Infinity, -Infinity, -Infinity];
+  const axes: number[][] = [[], [], []];
 
   for (let i = 0; i < n; i++) {
     if (keep && !keep.has(String(getClusterValue(c as never, i)))) continue;
-    for (let k = 0; k < 3; k++) {
-      const v = pos[i * 3 + k];
-
-      if (v < lo[k]) lo[k] = v;
-      if (v > hi[k]) hi[k] = v;
-    }
+    for (let k = 0; k < 3; k++) axes[k].push(pos[i * 3 + k]);
   }
-  if (!Number.isFinite(lo[0]))
+  if (axes[0].length === 0)
     throw new ViewCommandError("No cells are drawn to frame.");
+  const lo: number[] = [];
+  const hi: number[] = [];
+
+  for (let k = 0; k < 3; k++) {
+    const v = Float32Array.from(axes[k]).sort();
+    const cut = v.length >= 200 ? Math.floor(v.length * 0.005) : 0;
+
+    lo.push(v[cut]);
+    hi.push(v[v.length - 1 - cut]);
+  }
   const center = lo.map((v, k) => (v + hi[k]) / 2);
   const before = {
     position: camera.position.clone(),
@@ -283,8 +353,63 @@ async function moleculesSet(t: MoleculesTarget, a: MoleculesArgs) {
   if (a.size !== undefined) t.store().setGlobalScale(a.size);
 }
 
-/** What is shown: dataset, colouring, hidden values, columns and values. */
-export function viewState() {
+export interface ViewStateArgs {
+  /** List this column's values with their cell counts (loaded if need be). */
+  column?: string;
+  /** Only values containing this text, case-insensitive. */
+  containing?: string;
+  /** How many values to list (default 100). */
+  limit?: number;
+  offset?: number;
+}
+
+/** Values of a loaded categorical column with cells per value, filtered
+ * and paged; in the column's own order. */
+function valuesWithCounts(
+  d: StandardizedDataset,
+  s: VizState,
+  column: string,
+  a: { containing?: string; limit?: number; offset?: number },
+) {
+  const values = columnValues(d, s, column);
+
+  if (!values) return null;
+  const counts = valueCounts(d, column);
+  const q = a.containing?.toLowerCase();
+  const hits = q ? values.filter((v) => v.toLowerCase().includes(q)) : values;
+  const offset = a.offset ?? 0;
+  const limit = a.limit ?? 100;
+  const page = hits.slice(offset, offset + limit);
+
+  return {
+    n_values: values.length,
+    ...(q ? { matching: hits.length } : {}),
+    values: page.map((v) => ({ value: v, cells: counts.get(v) ?? 0 })),
+    ...(hits.length > offset + page.length
+      ? { next_offset: offset + page.length }
+      : {}),
+  };
+}
+
+/** The molecules on show, briefly (for answers to changes). */
+function moleculesBrief(t: MoleculesTarget) {
+  const m = moleculesState(t) as Record<string, unknown>;
+
+  if (m.loading) return m;
+  const rest = { ...m };
+
+  delete rest.examples;
+
+  return rest;
+}
+
+/**
+ * What is shown: dataset, colouring, what is drawn (counted from the cells,
+ * not what was asked), dot size, view; every column with its type, and the
+ * colour column's values with cells per value. With `column`, that column's
+ * values (loaded if need be), filtered by `containing` and paged.
+ */
+export async function viewState(a: ViewStateArgs = {}) {
   const mol = moleculesTarget();
   const cells = primaryTarget();
 
@@ -299,7 +424,24 @@ export function viewState() {
     };
   }
   const { data, store } = target();
+
+  if (a.column) {
+    if (!columnNames(data).includes(a.column)) {
+      const near = suggestValues(columnNames(data), [a.column]);
+
+      throw new ViewCommandError(
+        `No column "${a.column}".${near.length ? ` Columns containing those words: ${near.join(", ")}.` : ""} Columns: ${columnNames(data).join(", ")}.`,
+      );
+    }
+    if (await loadClusterColumn(data, a.column)) {
+      store().incrementClusterVersion();
+      await frames(2);
+    }
+  }
   const s = store();
+  const pick = drawn(data, s);
+  const colour = s.mode.includes("gene") ? null : s.selectedColumn;
+  const embeddings = embeddingPanel();
 
   return {
     ...(mol ? { molecules: moleculesState(mol) } : {}),
@@ -310,28 +452,90 @@ export function viewState() {
     cells: cellCount(data),
     genes: data.genes.length,
     color_by: s.mode.includes("gene")
-      ? { gene: s.selectedGene }
+      ? {
+          gene: s.selectedGene,
+          ...(selectionApplies(s) ? { on_values_of: s.selectedColumn } : {}),
+        }
       : { column: s.selectedColumn },
     // what the scene draws, counted from the cells (not what was asked)
-    shown_values: drawn(data, s)?.others ? drawn(data, s)!.values : "all",
-    other_values: drawn(data, s)?.others ?? null,
+    shown_values: pick?.others ? pick.values : "all",
+    other_values: pick?.others ?? null,
     visible_cells: visibleCells(data, s),
     dot_size: s.sizeScale,
     // spots and bins drawn at their real size (the technology's preset)
     ...(sizeLocked(data) ? { dot_size_locked: true } : {}),
     view: s.viewMode,
+    ...(embeddings
+      ? {
+          embeddings: {
+            available: embeddings.available(),
+            shown: embeddings.shown(),
+          },
+        }
+      : {}),
     columns: columnNames(data).map((name) => {
-      const values = columnValues(data, s, name);
+      const loaded = !!data.clusters?.some((c) => c.column === name);
+      const values = loaded ? columnValues(data, s, name) : null;
 
       return {
         name,
-        type: columnType(data, s, name),
-        loaded: !!data.clusters?.some((c) => c.column === name),
-        ...(values
-          ? { n_values: values.length, values: values.slice(0, 60) }
-          : {}),
+        // a column's type is known once it is loaded (colour by it, or list
+        // it with column=…)
+        type: loaded ? columnType(data, s, name) : "unknown until loaded",
+        ...(values ? { n_values: values.length } : {}),
       };
     }),
+    ...(colour && colour !== a.column
+      ? {
+          colour_column_values: valuesWithCounts(data, s, colour, {
+            limit: 40,
+          }),
+        }
+      : {}),
+    ...(a.column
+      ? {
+          column_values: {
+            column: a.column,
+            ...(valuesWithCounts(data, s, a.column, a) ?? {
+              note: `"${a.column}" is numerical: colour by it to see its range.`,
+            }),
+          },
+        }
+      : {}),
+  };
+}
+
+/** The view after a change, briefly: what is coloured and drawn. */
+function brief() {
+  const mol = moleculesTarget();
+  const cells = primaryTarget();
+
+  if (!cells && mol)
+    return { viewer: "molecules", molecules: moleculesBrief(mol) };
+  const { data, store } = target();
+  const s = store();
+  const pick = drawn(data, s);
+  const shown = pick?.others ? pick.values : null;
+
+  return {
+    viewer: "cells",
+    dataset: data.name,
+    opened: new URLSearchParams(window.location.search).get("url"),
+    color_by: s.mode.includes("gene")
+      ? {
+          gene: s.selectedGene,
+          ...(selectionApplies(s) ? { on_values_of: s.selectedColumn } : {}),
+        }
+      : { column: s.selectedColumn },
+    shown_values: shown
+      ? shown.length > 40
+        ? [...shown.slice(0, 40), `… ${shown.length - 40} more`]
+        : shown
+      : "all",
+    visible_cells: visibleCells(data, s),
+    dot_size: s.sizeScale,
+    view: s.viewMode,
+    ...(mol ? { molecules: moleculesBrief(mol) } : {}),
   };
 }
 
@@ -350,6 +554,9 @@ export interface ViewSetArgs {
   fit?: boolean;
   /** The molecules on show (the molecule viewer, or molecules over cells). */
   molecules?: MoleculesArgs;
+  /** Show this embedding (e.g. "umap", "umap_DG") in the embedding panel;
+   * "" closes the panel. */
+  embedding?: string;
 }
 
 /** Change the view; answers with the state afterwards. Each change goes
@@ -369,7 +576,7 @@ export async function viewSet(a: ViewSetArgs) {
     if (a.dot_size !== undefined) mol?.store().setGlobalScale(a.dot_size);
     await frames(3);
 
-    return viewState();
+    return brief();
   }
   const { data, store } = target();
   const s = store();
@@ -407,7 +614,9 @@ export async function viewSet(a: ViewSetArgs) {
     await frames(3);
   } else if (gene) {
     s.setSelectedGene(gene);
-    s.setMode(["gene"]);
+    // Values picked out stay picked out: the gene is drawn on those cells
+    // (the combined mode), as the panel does with a gene over a selection.
+    s.setMode(s.selectedCelltypes.size > 0 ? ["celltype", "gene"] : ["gene"]);
   } else if (a.column) {
     s.setMode(["celltype"]);
   }
@@ -454,10 +663,17 @@ export async function viewSet(a: ViewSetArgs) {
     const asked = [...(a.show_only ?? []), ...(a.hide ?? [])];
     const unknown = asked.filter((v) => !values.includes(v));
 
-    if (unknown.length)
+    if (unknown.length) {
+      const near = suggestValues(values, unknown);
+
       throw new ViewCommandError(
-        `"${column}" has no value ${unknown.map((v) => `"${v}"`).join(", ")}. Its values: ${values.slice(0, 40).join(", ")}${values.length > 40 ? ", …" : ""}.`,
+        `"${column}" has no value ${unknown.map((v) => `"${v}"`).join(", ")}.` +
+          (near.length
+            ? ` Values containing those words: ${near.map((v) => `"${v}"`).join(", ")}.`
+            : "") +
+          ` It has ${values.length} values; meyes_view_state with column="${column}" and containing="…" lists them with their cell counts.`,
       );
+    }
     const set = (key: string, value: number) => now.setAdvancedViz(key, value);
 
     if (a.show_all) {
@@ -484,6 +700,33 @@ export async function viewSet(a: ViewSetArgs) {
       now.setCelltypes(keep);
       set("greyedOutAlpha", 0);
       set("selectedSizeMultiplier", 1);
+      // Coloured by a gene: draw it on the kept cells only.
+      if (now.mode.includes("gene") && !now.mode.includes("celltype"))
+        store().setMode(["celltype", "gene"]);
+    }
+  }
+  if (a.embedding !== undefined) {
+    const panel = embeddingPanel();
+
+    if (!panel)
+      throw new ViewCommandError("This viewer has no embedding panel.");
+    if (a.embedding === "") panel.hide();
+    else {
+      const names = panel.available();
+      const name =
+        names.find((x) => x === a.embedding) ??
+        names.find((x) => x.toLowerCase() === a.embedding!.toLowerCase()) ??
+        names.find(
+          (x) => `x_${x}`.toLowerCase() === a.embedding!.toLowerCase(),
+        );
+
+      if (!name)
+        throw new ViewCommandError(
+          names.length
+            ? `No embedding "${a.embedding}". This dataset has: ${names.join(", ")}.`
+            : "This dataset has no embeddings (obsm keys other than spatial).",
+        );
+      await panel.show(name);
     }
   }
   if (a.reset_camera) store().resetCamera();
@@ -493,7 +736,7 @@ export async function viewSet(a: ViewSetArgs) {
   }
   await frames(3);
 
-  const after = viewState();
+  const after = brief();
 
   return sizeRefused
     ? {
@@ -508,9 +751,16 @@ export async function viewSet(a: ViewSetArgs) {
  * (the visible categories and their colours, or the gene and its colour
  * scale). PNG, base64.
  */
-export async function viewSnapshot(
-  a: { width?: number; frame?: "visible" | "current" } = {},
-) {
+export interface SnapshotArgs {
+  width?: number;
+  frame?: "visible" | "current";
+  /** Frame on these values of the colour column (a niche, a cluster). */
+  focus?: string[];
+  /** "embedding": the embedding panel instead of the scene. */
+  target?: "scene" | "embedding";
+}
+
+export async function viewSnapshot(a: SnapshotArgs = {}) {
   const cellsT = primaryTarget();
   const mol = moleculesTarget();
 
@@ -518,29 +768,48 @@ export async function viewSnapshot(
     throw new ViewCommandError("No dataset is open in this tab yet.");
   const data = cellsT?.dataset() ?? null;
   const s = cellsT?.store() ?? null;
-  const canvas = document.querySelector(
-    cellsT
-      ? '[data-testid="sc-scene-canvas"] canvas'
-      : '[data-testid="sm-scene-canvas"] canvas',
-  ) as HTMLCanvasElement | null;
+  let scene: ImageBitmap;
+  let embeddingShown: string | null = null;
 
-  if (!canvas || (cellsT && !data))
-    throw new ViewCommandError("No scene is drawn in this tab yet.");
-  // Framed on the cells drawn (the default), then the person's camera back.
-  const restore =
-    cellsT && data && a.frame !== "current" ? fitToVisible(cellsT, data) : null;
+  if (a.target === "embedding") {
+    const panel = embeddingPanel();
 
-  await frames(4);
-  const scene = await createImageBitmap(
-    await new Promise<Blob>((done, fail) =>
-      canvas.toBlob(
-        (b) => (b ? done(b) : fail(new Error("empty canvas"))),
-        "image/png",
+    embeddingShown = panel?.shown() ?? null;
+    await frames(2);
+    const copy = panel?.capture();
+
+    if (!copy || !embeddingShown)
+      throw new ViewCommandError(
+        "No embedding is shown: open one first with meyes_view_set embedding=… .",
+      );
+    scene = await createImageBitmap(copy);
+  } else {
+    const canvas = document.querySelector(
+      cellsT
+        ? '[data-testid="sc-scene-canvas"] canvas'
+        : '[data-testid="sm-scene-canvas"] canvas',
+    ) as HTMLCanvasElement | null;
+
+    if (!canvas || (cellsT && !data))
+      throw new ViewCommandError("No scene is drawn in this tab yet.");
+    // Framed on the cells drawn (the default) or the focus values, then the
+    // person's camera back.
+    const restore =
+      cellsT && data && (a.frame !== "current" || a.focus?.length)
+        ? fitToVisible(cellsT, data, a.focus)
+        : null;
+
+    await frames(4);
+    scene = await createImageBitmap(
+      await new Promise<Blob>((done, fail) =>
+        canvas.toBlob(
+          (b) => (b ? done(b) : fail(new Error("empty canvas"))),
+          "image/png",
+        ),
       ),
-    ),
-  );
-
-  restore?.();
+    );
+    restore?.();
+  }
   const width = Math.min(Math.max(a.width ?? scene.width, 400), 3000);
   const k = width / scene.width;
   const sceneH = Math.round(scene.height * k);
@@ -585,6 +854,11 @@ export async function viewSnapshot(
   ctx.fillStyle = "#fff";
   ctx.font = `600 ${15 * u}px sans-serif`;
   ctx.fillText((data?.name ?? mol?.dataset()?.name ?? "").slice(0, 32), x, y);
+  if (embeddingShown) {
+    y += 20 * u;
+    ctx.fillStyle = "#bbb";
+    ctx.fillText(`embedding: ${embeddingShown}`, x, y);
+  }
   ctx.font = `${13 * u}px sans-serif`;
   const legend: { value: string; color: string }[] = [];
 
@@ -632,6 +906,7 @@ export async function viewSnapshot(
     png_base64: dataUrl.slice(dataUrl.indexOf(",") + 1),
     width: out.width,
     height: out.height,
+    ...(embeddingShown ? { embedding: embeddingShown } : {}),
     ...(gene ? { gene, colormap: s!.colormap } : s ? { column, legend } : {}),
     ...(molGenes.length
       ? { molecules: molGenes.map((g) => ({ gene: g.gene, color: g.color })) }
@@ -743,17 +1018,120 @@ export async function viewAddColumn(a: AddColumnArgs) {
   };
 }
 
+export interface AddEmbeddingArgs {
+  name: string;
+  /** Per-cell ids, matched to the dataset's own; absent: rows in cell order. */
+  ids?: string[];
+  /** One [x, y] per row; null for a cell the embedding does not cover. */
+  coords: ([number, number] | null)[];
+  replace?: boolean;
+  /** Show it in the embedding panel. */
+  show?: boolean;
+}
+
+/**
+ * Put an embedding computed elsewhere (a niche's UMAP) into the open view,
+ * without touching the store: rows joined by cell id or taken in cell
+ * order; a cell it does not cover is NaN and drawn off view.
+ */
+export async function viewAddEmbedding(a: AddEmbeddingArgs) {
+  const { data } = target();
+  const n = cellCount(data);
+  const names = data.allEmbeddingNames ?? [];
+
+  if (names.includes(a.name) && !a.replace)
+    throw new ViewCommandError(
+      `The view already has an embedding "${a.name}"; pass replace=true or use another name.`,
+    );
+  const out: number[][] = Array.from({ length: n }, () => [NaN, NaN]);
+  let matched = 0;
+
+  if (a.ids) {
+    const adapter = data.adapter as
+      | { loadCellIds?: () => Promise<string[] | null> }
+      | undefined;
+    const cellIds = await adapter?.loadCellIds?.();
+
+    if (!cellIds)
+      throw new ViewCommandError(
+        "This dataset's cells have no ids the viewer can read: give the rows in cell order instead.",
+      );
+    const at = new Map(cellIds.map((id, i) => [id, i]));
+
+    a.ids.forEach((id, r) => {
+      const i = at.get(id);
+      const c = a.coords[r];
+
+      if (i !== undefined && c) {
+        out[i] = [c[0], c[1]];
+        matched++;
+      }
+    });
+  } else {
+    if (a.coords.length !== n)
+      throw new ViewCommandError(
+        `${a.coords.length} rows for ${n} cells: give one row per cell in cell order, or ids.`,
+      );
+    a.coords.forEach((c, i) => {
+      if (c) {
+        out[i] = [c[0], c[1]];
+        matched++;
+      }
+    });
+  }
+  if (matched === 0)
+    throw new ViewCommandError("No row matched a cell of this dataset.");
+  data.addEmbedding(a.name, out);
+  if (!names.includes(a.name)) data.allEmbeddingNames = [...names, a.name];
+  target().store().incrementClusterVersion();
+  await frames(2);
+  if (a.show) {
+    const panel = embeddingPanel();
+
+    if (panel) await panel.show(a.name);
+  }
+
+  return { embedding: a.name, cells: n, covered: matched };
+}
+
+/** Open another address in this tab (the copy an analysis saved), served
+ * by the same package: same origin only. */
+export async function viewNavigate(a: { url: string }) {
+  const to = new URL(a.url, window.location.href);
+
+  if (to.origin !== window.location.origin)
+    throw new ViewCommandError(
+      "Only addresses this viewer serves can be opened.",
+    );
+  setTimeout(() => window.location.assign(to.href), 50);
+
+  return { navigating: to.pathname };
+}
+
+/** Wait for this tab's data: the tab connects as soon as the page starts,
+ * before the data has loaded (a minute at most; then the command says so). */
+async function dataReady(ms = 60_000) {
+  const ready = () =>
+    !!(primaryTarget()?.dataset() || moleculesTarget()?.dataset());
+
+  for (let t = 0; t < ms && !ready(); t += 250)
+    await new Promise((r) => setTimeout(r, 250));
+}
+
 /** Run one command the package sent. */
 export async function runViewCommand(command: string, args: unknown) {
+  if (command !== "navigate") await dataReady();
   switch (command) {
     case "state":
-      return viewState();
+      return viewState((args ?? {}) as ViewStateArgs);
     case "set":
       return viewSet((args ?? {}) as ViewSetArgs);
     case "snapshot":
-      return viewSnapshot(
-        (args ?? {}) as { width?: number; frame?: "visible" | "current" },
-      );
+      return viewSnapshot((args ?? {}) as SnapshotArgs);
+    case "add_embedding":
+      return viewAddEmbedding(args as AddEmbeddingArgs);
+    case "navigate":
+      return viewNavigate(args as { url: string });
     case "add_column":
       return viewAddColumn(args as AddColumnArgs);
     default:

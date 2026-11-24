@@ -8,10 +8,11 @@ import { fileURLToPath } from "node:url";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const out = join(dirname(fileURLToPath(import.meta.url)), "..", "python");
-// prepare.py and every script it imports or runs (checked by test/convert.test.ts)
+// prepare.py and every script it imports or runs (checked by test/convert.test.ts),
+// and meyes_analysis.py (the analysis tools, src/local/analysis.ts)
 export const SCRIPTS = [
   "combine_slices_v3.py", "de_stats.py", "image_to_ome_zarr.py", "legacy_to_points.py",
-  "map_my_cell.py", "meyes_common.py", "points_zarr.py", "prepare.py", "prepare_folder.py",
+  "map_my_cell.py", "meyes_analysis.py", "meyes_common.py", "points_zarr.py", "prepare.py", "prepare_folder.py",
   "prepare_merscope.py", "prepare_visium.py", "prepare_xenium.py", "process_single_molecule.py",
   "process_spatial_data.py", "slices_to_points.py", "spatialdata_cluster.py",
   "spatialdata_points_to_sm.py", "transcripts_to_points.py", "validate_store.py",

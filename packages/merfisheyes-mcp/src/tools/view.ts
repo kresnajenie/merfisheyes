@@ -1,9 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/server";
+import type { Host } from "../host.ts";
 
 import * as z from "zod/v4";
 
 import { type Page, text } from "../format.ts";
-import type { Host } from "../host.ts";
+
 import { isDatasetId } from "./catalog.ts";
 
 /**

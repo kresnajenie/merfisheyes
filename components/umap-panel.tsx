@@ -3,8 +3,6 @@
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { PointData } from "@/lib/webgl/types";
 
-import { getClusterValue } from "@/lib/StandardizedDataset";
-
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Tooltip, Select, SelectItem, Slider } from "@heroui/react";
@@ -13,6 +11,8 @@ import { TbChartDots3 } from "react-icons/tb";
 import { IoClose } from "react-icons/io5";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
+import { useSliderRange } from "./slider-range-popover";
 
 import {
   usePanelDatasetStore,
@@ -32,7 +32,8 @@ import {
 } from "@/lib/webgl/visualization-utils";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
 import { getEffectiveColumnType } from "@/lib/utils/column-type-utils";
-import { useSliderRange } from "./slider-range-popover";
+import { getClusterValue } from "@/lib/StandardizedDataset";
+import { registerEmbeddingPanel } from "@/lib/agent/view-targets";
 
 export default function UMAPPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,7 +41,9 @@ export default function UMAPPanel() {
   const [availableEmbeddings, setAvailableEmbeddings] = useState<string[]>([]);
   const [sceneReady, setSceneReady] = useState(false);
   const [pointCloudVersion, setPointCloudVersion] = useState(0);
-  const [umapDotSize, setUmapDotSize] = useState<number>(VISUALIZATION_CONFIG.UMAP_POINT_SIZE);
+  const [umapDotSize, setUmapDotSize] = useState<number>(
+    VISUALIZATION_CONFIG.UMAP_POINT_SIZE,
+  );
   const umapDotRange = useSliderRange(
     "umapDotSize",
     VISUALIZATION_CONFIG.UMAP_POINT_SIZE_MIN,
@@ -66,6 +69,66 @@ export default function UMAPPanel() {
     | StandardizedDataset
     | null
     | undefined;
+
+  // The embedding the point cloud was last built from (for the agent).
+  const builtForRef = useRef<string | null>(null);
+  const agentRef = useRef({ isOpen, selectedEmbedding, dataset });
+
+  agentRef.current = { isOpen, selectedEmbedding, dataset };
+
+  // An agent can show an embedding and take its picture
+  // (lib/agent/view-commands.ts, MCP.md D3).
+  useEffect(
+    () =>
+      registerEmbeddingPanel({
+        // live: an embedding the agent added after loading counts too
+        available: () => {
+          const d = agentRef.current.dataset;
+
+          return d?.allEmbeddingNames?.length
+            ? d.allEmbeddingNames
+            : Object.keys(d?.embeddings ?? {});
+        },
+        shown: () =>
+          agentRef.current.isOpen ? agentRef.current.selectedEmbedding : null,
+        show: async (name) => {
+          builtForRef.current = null;
+          setAvailableEmbeddings((have) =>
+            have.includes(name) ? have : [...have, name],
+          );
+          setSelectedEmbedding(name);
+          setIsOpen(true);
+          for (let i = 0; i < 600 && builtForRef.current !== name; i++)
+            await new Promise((r) => setTimeout(r, 100));
+          if (builtForRef.current !== name)
+            throw new Error(`The embedding "${name}" did not load.`);
+          // let the colours follow the main view
+          await new Promise((r) => setTimeout(r, 300));
+        },
+        hide: () => setIsOpen(false),
+        capture: () => {
+          const r = rendererRef.current;
+
+          if (
+            !agentRef.current.isOpen ||
+            !r ||
+            !sceneRef.current ||
+            !cameraRef.current
+          )
+            return null;
+          r.render(sceneRef.current, cameraRef.current);
+          // copied at once: the drawing buffer is not kept past this task
+          const copy = document.createElement("canvas");
+
+          copy.width = r.domElement.width;
+          copy.height = r.domElement.height;
+          copy.getContext("2d")!.drawImage(r.domElement, 0, 0);
+
+          return copy;
+        },
+      }),
+    [],
+  );
 
   // Get visualization settings from store
   const {
@@ -390,10 +453,13 @@ export default function UMAPPanel() {
       const scaleFactor = 8;
 
       // Create point data from embedding
+      // A cell the embedding does not cover (NaN: computed for one niche
+      // only) is kept — colours go by cell index — but drawn far off view.
+      const OFF = 1e6;
       const pointData: PointData[] = normalized.normalized.map(
         (coord: number[]) => ({
-          x: coord[0] * scaleFactor,
-          y: coord[1] * scaleFactor,
+          x: Number.isFinite(coord[0]) ? coord[0] * scaleFactor : OFF,
+          y: Number.isFinite(coord[1]) ? coord[1] * scaleFactor : OFF,
           z: 0, // 2D embedding
           r: 0.7, // Default gray color
           g: 0.7,
@@ -506,6 +572,7 @@ export default function UMAPPanel() {
 
       if (!cancelled && embeddingData && embeddingData.length > 0) {
         buildPointCloud(embeddingData, scene);
+        builtForRef.current = selectedEmbedding;
       }
     };
 
@@ -533,7 +600,11 @@ export default function UMAPPanel() {
       if (selectedCluster) {
         clusterRef.current = selectedCluster;
         isNumericalClusterRef.current = selectedColumn
-          ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+          ? getEffectiveColumnType(
+              selectedColumn,
+              dataset,
+              columnTypeOverrides,
+            ) === "numerical"
           : false;
         colorPaletteRef.current = selectedCluster.palette || colorPalette;
       }
@@ -544,7 +615,11 @@ export default function UMAPPanel() {
 
       // Check if the selected column is numerical (respects overrides)
       const isNumerical = selectedColumn
-        ? getEffectiveColumnType(selectedColumn, dataset, columnTypeOverrides) === "numerical"
+        ? getEffectiveColumnType(
+            selectedColumn,
+            dataset,
+            columnTypeOverrides,
+          ) === "numerical"
         : false;
 
       let result = null;
@@ -737,8 +812,8 @@ export default function UMAPPanel() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            animate={{ opacity: 1, y: 0 }}
             data-ui-overlay
+            animate={{ opacity: 1, y: 0 }}
             className="!absolute bottom-4 right-4 md:bottom-8 md:right-8
                        w-[50vh] h-[50vh]
                        bg-black
@@ -774,8 +849,14 @@ export default function UMAPPanel() {
                   <SelectItem key={key}>{key.toUpperCase()}</SelectItem>
                 ))}
               </Select>
-              <Tooltip content="Dot size (right-click to edit range)" placement="bottom">
-                <div className="w-24" onContextMenu={umapDotRange.onContextMenu}>
+              <Tooltip
+                content="Dot size (right-click to edit range)"
+                placement="bottom"
+              >
+                <div
+                  className="w-24"
+                  onContextMenu={umapDotRange.onContextMenu}
+                >
                   <Slider
                     aria-label="UMAP dot size"
                     className="w-full"
@@ -786,6 +867,7 @@ export default function UMAPPanel() {
                     value={umapDotSize}
                     onChange={(v) => {
                       const val = v as number;
+
                       setUmapDotSize(val);
                       if (pointCloudRef.current) {
                         updateDotSize(pointCloudRef.current, val);
@@ -821,8 +903,8 @@ export default function UMAPPanel() {
       <AnimatePresence>
         {!isOpen && (
           <motion.div
-            animate={{ opacity: 1, scale: 1 }}
             data-ui-overlay
+            animate={{ opacity: 1, scale: 1 }}
             className="!absolute bottom-4 right-4 md:bottom-8 md:right-8 z-[9999]"
             exit={{ opacity: 0, scale: 0.8 }}
             initial={{ opacity: 0, scale: 0.8 }}

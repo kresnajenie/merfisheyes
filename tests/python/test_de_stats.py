@@ -86,3 +86,22 @@ def test_unassigned_cells_are_left_out(tmp_path):
     de_stats.write_de_stats(group, lambda *_: None, columns=["celltype"])
     counts = ad.read_zarr(tmp_path / "t.zarr" / "table").uns["merfisheyes_de"]["celltype"]["cell_counts"]
     assert int(np.sum(counts)) == 58
+
+
+def test_writing_some_columns_keeps_the_others(tmp_path):
+    """Adding one column's stats (a new clustering, an agent's labels) keeps
+    every other column's record: the viewer finds the varm arrays through
+    it. Writing every column starts afresh."""
+    adata = make()
+    group = table(tmp_path, adata)
+    de_stats.write_de_stats(group, lambda *_: None)
+    adata.obs["new"] = pd.Categorical(["x", "y"] * 30)
+    ad.io.write_elem(group, "obs", adata.obs)
+    de_stats.write_de_stats(group, lambda *_: None, columns=["new"])
+    written = ad.read_zarr(tmp_path / "t.zarr" / "table")
+    assert sorted(written.uns["merfisheyes_de"]) == ["celltype", "id", "new"]
+    assert list(written.uns["merfisheyes_de"]["celltype"]["categories"]) == ["a", "b", "c"]
+
+    de_stats.write_de_stats(group, lambda *_: None)
+    again = ad.read_zarr(tmp_path / "t.zarr" / "table")
+    assert sorted(again.uns["merfisheyes_de"]) == ["celltype", "id", "new"]

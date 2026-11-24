@@ -34,14 +34,32 @@ export function registerSessionTools(server: McpServer) {
     "meyes_view_state",
     {
       title: "What the open view shows",
-      description: `What the MERFISHEYES view open in the person's browser shows right now: the dataset, cells and genes, what it is coloured by (a gene or a column), which values are hidden or picked out, dot size, 2D/3D, and every column with its type and (for categorical ones) its values.
-Use it before meyes_view_set to learn the exact column and value names. Needs a view opened with meyes_open_local and still open in a tab.`,
-      inputSchema: z.strictObject({}),
+      description: `What the MERFISHEYES view open in the person's browser shows right now: the dataset, cells and genes, what it is coloured by, what is drawn (counted from the cells: visible_cells), dot size, 2D/3D, the embeddings it has (UMAPs …) and which is shown, every column with its type, and the colour column's values with cells per value.
+With column, that column's values and their cell counts (it is loaded if need be) — filter with containing ("Epen" → every ependymal type), page with limit/offset. Use it to learn exact names before meyes_view_set, and to count before concluding (a cell type with 2 cells is not a niche).
+Needs a view opened with meyes_open_local and still open in a tab.`,
+      inputSchema: z.strictObject({
+        column: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("List this column's values with their cell counts"),
+        containing: z
+          .string()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Only values containing this text, case-insensitive"),
+        limit: z.number().int().min(1).max(500).default(100),
+        offset: z.number().int().min(0).default(0),
+      }),
       annotations: { ...ACT, readOnlyHint: true },
     },
-    async () => {
+    async (a) => {
       try {
-        return text(JSON.stringify(await local.command("state", {}), null, 2));
+        return text(
+          JSON.stringify(await local.command("state", a, 120_000), null, 2),
+        );
       } catch (e) {
         return fail(e);
       }
@@ -52,9 +70,10 @@ Use it before meyes_view_set to learn the exact column and value names. Needs a 
     "meyes_view_set",
     {
       title: "Change the open view",
-      description: `Change the MERFISHEYES view open in the person's browser — cells: colour by a gene or by a column (cell type, cluster, pseudotime, fov, …), show only some values of the current categorical column or hide some (e.g. a bad FOV), show all again, dot size, 2D or 3D, reset the camera. Answers with the view's state afterwards.
+      description: `Change the MERFISHEYES view open in the person's browser — cells: colour by a gene or by a column (cell type, cluster, pseudotime, fov, …), show only some values of the current categorical column or hide some (e.g. a bad FOV), show all again, dot size, 2D or 3D, reset the camera, zoom to what is kept (fit); show an embedding (a UMAP) in the embedding panel. Answers briefly with what is coloured and drawn afterwards (meyes_view_state for the rest).
+A gene while values are picked out is drawn on those cells only; show_all colours it everywhere.
 Molecules (the molecule viewer, or molecules drawn over cells): molecules={show:["Gad1","Slc17a7"], colors:{...}, opacity, size}.
-Names must be the dataset's own (meyes_view_state lists them); gene names are matched without regard to case.
+Names must be the dataset's own (meyes_view_state lists them, with column=… and containing=… for long lists); gene names are matched without regard to case.
 Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide fov 5" -> column="fov", hide=["5"] then column="celltype"; "only radial glia and immature neurons" -> column="celltype", show_only=["radial glia","immature"].`,
       inputSchema: z.strictObject({
         gene: z
@@ -132,6 +151,13 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
           .describe(
             "Zoom the view to the cells drawn in colour (after show_only / hide, the ones kept)",
           ),
+        embedding: z
+          .string()
+          .max(200)
+          .optional()
+          .describe(
+            'Show this embedding in the embedding panel, e.g. "umap" or "umap_DG" (meyes_view_state lists them); "" closes the panel',
+          ),
       }),
       annotations: ACT,
     },
@@ -139,7 +165,11 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
       try {
         return text(
           JSON.stringify(
-            await local.command("set", a, a.molecules ? 90_000 : 30_000),
+            await local.command(
+              "set",
+              a,
+              120_000, // the tab may still be loading its data
+            ),
             null,
             2,
           ),
@@ -154,7 +184,7 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
     "meyes_view_snapshot",
     {
       title: "Picture of the open view",
-      description: `A PNG of the MERFISHEYES view open in the person's browser, framed on the cells drawn (or exactly as the person sees it, frame=current), with a legend beside it (the visible categories and their colours, or the gene and its colour scale). Returned as an image you can look at, and saved to a file — save_to (a .png path, e.g. in the folder of a slide deck being made) or MERFISHEYES's snapshots folder. Use it to check a view before showing it, and for figures.`,
+      description: `A PNG of the MERFISHEYES view open in the person's browser, framed on the cells drawn (or on focus values of the colour column — one niche or cluster —, or exactly as the person sees it, frame=current), with a legend beside it (the visible categories and their colours, or the gene and its colour scale). target="embedding" pictures the embedding panel (show one first with meyes_view_set embedding=…). Returned as an image you can look at, and saved to a file — save_to (a .png path, e.g. in the folder of a slide deck being made) or MERFISHEYES's snapshots folder. Look at it before describing the view; use it for figures.`,
       inputSchema: z.strictObject({
         save_to: z
           .string()
@@ -178,10 +208,23 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
           .describe(
             "visible: framed on the cells drawn in colour (the person's camera is put back after); current: exactly the person's view",
           ),
+        focus: z
+          .array(z.string().max(200))
+          .max(200)
+          .optional()
+          .describe(
+            "Frame on these values of the colour column (a niche, a cluster), ignoring stray cells",
+          ),
+        target: z
+          .enum(["scene", "embedding"])
+          .default("scene")
+          .describe(
+            "scene: the cells in space; embedding: the embedding panel",
+          ),
       }),
       annotations: ACT,
     },
-    async ({ save_to, width, frame }) => {
+    async ({ save_to, width, frame, focus, target }) => {
       try {
         const shot = await local.command<{
           png_base64: string;
@@ -191,7 +234,8 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
           gene?: string;
           column?: string;
           molecules?: { gene: string; color: string }[];
-        }>("snapshot", { width, frame }, 60_000);
+          embedding?: string;
+        }>("snapshot", { width, frame, focus, target }, 120_000);
         const file = save_to
           ? resolve(save_to)
           : join(
@@ -214,6 +258,7 @@ Examples: "colour by Slc17a7" -> gene="Slc17a7"; "colour by cell type and hide f
               type: "text" as const,
               text: [
                 `Saved ${shot.width}×${shot.height} PNG to ${file}.`,
+                shot.embedding ? `Embedding ${shot.embedding}.` : "",
                 shot.gene
                   ? `Coloured by gene ${shot.gene}.`
                   : shot.column
@@ -240,7 +285,8 @@ export function registerAddColumnTool(server: McpServer) {
       title: "Add your results to the open view",
       description: `Add columns you computed (pseudotime, new clusters, labels such as "radial glia" / "immature", scores) to the MERFISHEYES view open in the person's browser, without changing their data: they then behave like the dataset's own columns — colour by them, show only or hide values, snapshot.
 Write the results to a CSV or TSV first: one row per cell, a header, an id column that matches the dataset's cell ids (pandas' df.to_csv() writes the index as the first column, which is used) and one column per result. Without an id column, give exactly one row per cell in the dataset's cell order. Cells missing from the file get an empty value.
-Example: df[["pseudotime","fate"]].to_csv("/tmp/results.csv") then file="/tmp/results.csv", color_by=true.`,
+Example: df[["pseudotime","fate"]].to_csv("/tmp/results.csv") then file="/tmp/results.csv", color_by=true.
+An embedding you computed (a UMAP of one niche): two numeric columns, given as embedding={name:"umap_DG", x:"umap1", y:"umap2"}; cells without a row (outside the niche) are left out of it. It then shows in the embedding panel (meyes_view_set embedding=…).`,
       inputSchema: z.strictObject({
         file: z.string().min(1).max(4096).describe("The CSV or TSV"),
         id_column: z
@@ -263,14 +309,69 @@ Example: df[["pseudotime","fate"]].to_csv("/tmp/results.csv") then file="/tmp/re
           .boolean()
           .default(false)
           .describe("Replace a column of the same name already in the view"),
+        embedding: z
+          .strictObject({
+            name: z.string().min(1).max(100),
+            x: z.string().min(1).max(200),
+            y: z.string().min(1).max(200),
+          })
+          .optional()
+          .describe(
+            "Add the x and y columns as an embedding (shown in the embedding panel) instead of as columns",
+          ),
       }),
       annotations: ACT,
     },
-    async ({ file, id_column, columns, color_by, replace }) => {
+    async ({ file, id_column, columns, color_by, replace, embedding }) => {
       try {
         const path = resolve(file);
         const { header, rows } = parseTable(readFileSync(path, "utf8"));
         const id = idColumn(header, id_column);
+
+        if (embedding) {
+          const at = (name: string) => {
+            const i = header.indexOf(name);
+
+            if (i < 0)
+              throw new Error(
+                `No column "${name}" in ${path}; its columns: ${header.join(", ")}.`,
+              );
+
+            return i;
+          };
+          const xi = at(embedding.x);
+          const yi = at(embedding.y);
+          const coords = rows.map((r) => {
+            const x = Number(r[xi]);
+            const y = Number(r[yi]);
+
+            return r[xi] === "" ||
+              r[yi] === "" ||
+              !Number.isFinite(x) ||
+              !Number.isFinite(y)
+              ? null
+              : ([x, y] as [number, number]);
+          });
+          const res = await local.command<{
+            embedding: string;
+            cells: number;
+            covered: number;
+          }>(
+            "add_embedding",
+            {
+              name: embedding.name,
+              ids: id === null ? undefined : rows.map((r) => r[id] ?? ""),
+              coords,
+              replace,
+              show: true,
+            },
+            120_000,
+          );
+
+          return text(
+            `Added embedding ${res.embedding} to the open view: ${res.covered} of ${res.cells} cells have coordinates; it is shown in the embedding panel (meyes_view_snapshot target="embedding" pictures it).`,
+          );
+        }
         const wanted = (columns ?? header.filter((_, i) => i !== id)).map(
           (name) => {
             const i = header.indexOf(name);

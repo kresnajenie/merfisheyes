@@ -15,7 +15,7 @@ The MERFISHEYES extension for Claude Desktop has everything inside it: the
 tools, the viewer and the conversion pipeline. You don't need Node.js, a
 terminal or a config file.
 
-1. **Get the extension file**, `merfisheyes-0.3.0.mcpb` (about 8 MB). It is
+1. **Get the extension file**, `merfisheyes-0.4.0.mcpb` (about 8 MB). It is
    not published for download yet; ask the MERFISHEYES team for it.
 2. **Install it:** double-click the file and Claude Desktop shows an install
    dialog. Or, in Claude Desktop, open **Settings → Extensions** and drag the
@@ -117,7 +117,9 @@ checksum verified) when the computer has none. Nothing is installed
 system-wide, and it never happens without asking: `merfisheyes view`
 asks "Set it up now?", an agent asks you before calling its setup tool,
 and `merfisheyes setup` does it directly. Viewing data that is already a
-store needs none of it. To use a Python you already have instead, set
+store needs none of it. The analysis tools (`meyes_profile` … `meyes_save_analysis`)
+run in the same Python, as background jobs: nothing to install for them
+either. To use a Python you already have instead, set
 `MERFISHEYES_PYTHON`.
 
 The viewer itself comes with it (`@merfisheyes/viewer`) and is served from
@@ -149,10 +151,17 @@ Tokens are kept in `~/.config/merfisheyes-mcp/credentials.json`
 | `meyes_open_view` | no¹ | A link to a dataset in the viewer already showing what you asked: genes coloured, a cell-type column, 2D or 3D, dot size, opacity, or two datasets side by side in split screen. Opens a tab only when you ask |
 | `meyes_open_local` | no | A folder on your computer in the viewer, served from your machine (never uploaded) |
 | `meyes_setup_converter` | no | The one-time converter setup, only after you agree |
-| `meyes_view_state` | no | What the open local view shows: colouring, hidden values, columns and their values |
-| `meyes_view_set` | no | Change the open local view: colour by a gene or column, show only / hide values (a bad FOV), dot size, 2D/3D |
-| `meyes_view_snapshot` | no | A PNG of the open local view with its legend, saved and shown to the agent |
-| `meyes_view_add_column` | no | Add the agent's own results (pseudotime, labels, scores) to the open view from a CSV keyed by cell id, without changing your data |
+| `meyes_guide` | no | How to work with MERFISHEYES: the order of the tools, what to ask before acting, known traps. Agents read it first |
+| `meyes_view_state` | no | What the open local view shows: colouring, what is drawn, embeddings, columns; any column's values with cell counts, searchable |
+| `meyes_view_set` | no | Change the open local view: colour by a gene or column, show only / hide values (a bad FOV), dot size, 2D/3D, show an embedding (UMAP) |
+| `meyes_view_snapshot` | no | A PNG of the open local view with its legend, saved and shown to the agent; framed on chosen values, or of the embedding panel |
+| `meyes_view_add_column` | no | Add the agent's own results (pseudotime, labels, scores) to the open view from a CSV keyed by cell id, or an embedding, without changing your data |
+| `meyes_profile` | no | What the open dataset holds: columns and values with counts (per section), which marker genes the panel measures, coordinate units |
+| `meyes_niche` | no | The cells within a radius of chosen cell types (a niche), per section, as a new label |
+| `meyes_recluster` | no | Re-cluster a subset with its own UMAP and Leiden labels; each cluster's top genes and main existing labels |
+| `meyes_markers` | no | Top genes per label (stored DE stats or computed), and a heatmap of chosen genes |
+| `meyes_save_analysis` | no | Write the new labels and UMAPs into a copy of your data, as .zarr (best for MERFISHEYES) or .h5ad. Your original is never changed |
+| `meyes_job` | no | Wait for an analysis step that runs longer than one tool call |
 | `meyes_sign_in` / `meyes_sign_out` | — | Connect or disconnect your account |
 | `meyes_whoami` | — | Who is signed in, and what the agent may do |
 | `meyes_list_my_datasets` | yes | Your datasets and their processing status |

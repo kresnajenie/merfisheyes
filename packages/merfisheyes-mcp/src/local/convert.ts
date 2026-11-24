@@ -95,7 +95,7 @@ function fingerprint(path: string): string {
 
 /** Run a program; every line it prints goes to `onLine`. Resolves with its
  * exit code and output; rejects only when it cannot be started. */
-function run(
+export function run(
   cmd: string,
   args: string[],
   onLine?: (line: string) => void,
@@ -283,7 +283,7 @@ function managedEnv(requirements: string) {
 
 /** What the one-time setup downloads, in words for the person. */
 export function setupDescription(requirements: string): string {
-  return `MERFISHEYES needs a one-time setup to convert raw data (.h5ad, Xenium, MERSCOPE, molecule tables): it downloads Python 3.12 and its pipeline's packages (about 1.3 GB) into ${managedEnv(requirements).env}, plus uv (about 15 MB, the tool that installs them) if this computer has none. Nothing is installed system-wide; opening data that is already a .zarr store needs none of it.`;
+  return `MERFISHEYES needs a one-time setup of its own Python, to convert raw data (.h5ad, Xenium, MERSCOPE, molecule tables) and to run its analysis tools (meyes_profile … meyes_save_analysis): it downloads Python 3.12 and its pipeline's packages (about 1.3 GB) into ${managedEnv(requirements).env}, plus uv (about 15 MB, the tool that installs them) if this computer has none. Nothing is installed system-wide; viewing data that is already a .zarr store needs none of it. Ask the person, then call meyes_setup_converter.`;
 }
 
 /**

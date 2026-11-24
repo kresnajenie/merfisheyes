@@ -4,7 +4,7 @@
   "display_name": "MERFISHEYES",
   "version": "0.0.0",
   "description": "Open your own spatial transcriptomics data in the MERFISHEYES viewer \u2014 nothing uploaded \u2014 and search the MERFISHEYES catalog.",
-  "long_description": "Ask Claude to show your data: a SpatialData store, an .h5ad, a Xenium export, a MERSCOPE region or a molecule table on this computer opens in the MERFISHEYES viewer in your browser, served from this computer only. Data that is not a store yet is converted by MERFISHEYES's own pipeline; the first time, Claude asks you before MERFISHEYES downloads its converter (Python and the pipeline's packages, about 1.3 GB, into its own folder \u2014 nothing installed system-wide). Claude can also search the public MERFISHEYES catalog, hand you viewer links set up as you ask, and \u2014 once you sign in \u2014 read your MERFISHEYES projects.",
+  "long_description": "Ask Claude to show your data: a SpatialData store, an .h5ad, a Xenium export, a MERSCOPE region or a molecule table on this computer opens in the MERFISHEYES viewer in your browser, served from this computer only. Data that is not a store yet is converted by MERFISHEYES's own pipeline; the first time, Claude asks you before MERFISHEYES downloads its converter (Python and the pipeline's packages, about 1.3 GB, into its own folder \u2014 nothing installed system-wide). Claude can also run analysis steps on the open data in the same Python \u2014 a dataset profile, a niche around chosen cell types, a re-clustering with its own UMAP, marker genes and heatmaps \u2014 show them in the viewer, and save them into a copy of your data (.zarr or .h5ad; the original is never changed). Claude can also search the public MERFISHEYES catalog, hand you viewer links set up as you ask, and \u2014 once you sign in \u2014 read your MERFISHEYES projects.",
   "author": {
     "name": "MERFISHEYES",
     "url": "https://www.merfisheyes.com"
@@ -55,12 +55,16 @@
       "description": "The one-time converter setup (Python and pipeline packages), only after you agree"
     },
     {
+      "name": "meyes_guide",
+      "description": "How to work with MERFISHEYES: the order of the tools, what to ask before acting, known traps. Claude reads it first"
+    },
+    {
       "name": "meyes_view_state",
-      "description": "What the open view shows: colouring, hidden values, columns and their values"
+      "description": "What the open view shows: colouring, hidden values, embeddings, columns and their values with cell counts"
     },
     {
       "name": "meyes_view_set",
-      "description": "Change the open view: colour cells by a gene or column, show only / hide values (e.g. a bad FOV), molecules shown and their colours, dot size, 2D/3D, zoom to what is shown"
+      "description": "Change the open view: colour cells by a gene or column, show only / hide values (e.g. a bad FOV), molecules shown and their colours, dot size, 2D/3D, show an embedding (UMAP)"
     },
     {
       "name": "meyes_view_snapshot",
@@ -68,11 +72,43 @@
     },
     {
       "name": "meyes_view_add_column",
-      "description": "Add results Claude computed (pseudotime, labels, scores) to the open view from a CSV keyed by cell id"
+      "description": "Add results Claude computed (pseudotime, labels, scores, an embedding) to the open view from a CSV keyed by cell id"
+    },
+    {
+      "name": "meyes_profile",
+      "description": "What the open dataset holds: columns and values with counts per section, which marker genes the panel measures, coordinate units"
+    },
+    {
+      "name": "meyes_niche",
+      "description": "The cells within a radius of chosen cell types (a niche), per section, as a new label"
+    },
+    {
+      "name": "meyes_recluster",
+      "description": "Re-cluster a subset with its own UMAP and Leiden labels, shown in the open view"
+    },
+    {
+      "name": "meyes_markers",
+      "description": "Top genes per label, and a heatmap of chosen genes"
+    },
+    {
+      "name": "meyes_save_analysis",
+      "description": "Write the new labels and UMAPs into a copy of your data (.zarr or .h5ad); the original is never changed"
+    },
+    {
+      "name": "meyes_job",
+      "description": "Wait for an analysis step that runs longer than one call"
     },
     {
       "name": "meyes_open_view",
       "description": "A viewer link set up as asked: genes, cell types, 2D/3D, split screen"
+    },
+    {
+      "name": "meyes_find_datasets",
+      "description": "Search every public dataset by organism, tissue, disease, technology, age and genes measured or expressed"
+    },
+    {
+      "name": "meyes_index_values",
+      "description": "The values a catalog field takes, with counts"
     },
     {
       "name": "meyes_search_datasets",

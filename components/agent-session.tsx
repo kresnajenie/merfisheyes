@@ -40,7 +40,13 @@ export function AgentSession() {
     // is the one the agent drives.
     const connect = () => {
       events?.close();
-      events = new EventSource(`/session/events?${q}`);
+      // which data this tab shows, so a command meant for a newly opened
+      // view is not sent to an older tab still loading the new one
+      const view = new URLSearchParams(window.location.search).get("url") ?? "";
+
+      events = new EventSource(
+        `/session/events?${q}&view=${encodeURIComponent(view)}`,
+      );
       events.onmessage = onMessage;
     };
     const front = () => {

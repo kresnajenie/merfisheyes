@@ -15,16 +15,22 @@ export function normalizeCoordinates(coordinates: number[][]): {
 
   const n = coordinates[0].length;
 
-  // Calculate the mean (center) of each dimension
+  // Calculate the mean (center) of each dimension. A row with a missing
+  // value (NaN: an embedding computed for some cells only, e.g. one niche)
+  // takes no part, and stays NaN.
   const center = new Array(n).fill(0);
+  let counted = 0;
 
   for (const coord of coordinates) {
+    if (!coord.slice(0, n).every(Number.isFinite)) continue;
+    counted++;
     for (let i = 0; i < n; i++) {
       center[i] += coord[i];
     }
   }
+  if (counted === 0) return null;
   for (let i = 0; i < n; i++) {
-    center[i] /= coordinates.length;
+    center[i] /= counted;
   }
 
   // Center the coordinates by subtracting the mean
@@ -32,9 +38,14 @@ export function normalizeCoordinates(coordinates: number[][]): {
     coord.slice(0, n).map((c, i) => c - center[i]),
   );
 
-  // Find the maximum absolute value after centering
+  // Find the maximum absolute value after centering (finite values only)
   const maxAbs = centeredCoords.reduce((max, coord) => {
-    return Math.max(max, ...coord.map((c) => Math.abs(c)));
+    let m = max;
+
+    for (const c of coord)
+      if (Number.isFinite(c) && Math.abs(c) > m) m = Math.abs(c);
+
+    return m;
   }, 0);
 
   if (maxAbs === 0) {

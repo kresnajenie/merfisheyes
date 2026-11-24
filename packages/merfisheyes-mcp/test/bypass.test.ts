@@ -20,16 +20,27 @@ beforeAll(async () => {
   site = createServer((req, res) => {
     const url = new URL(req.url ?? "/", base);
 
-    headersSeen.push({ path: url.pathname, bypass: req.headers["x-vercel-protection-bypass"] as string | undefined });
+    headersSeen.push({
+      path: url.pathname,
+      bypass: req.headers["x-vercel-protection-bypass"] as string | undefined,
+    });
     if (protect && !req.headers["x-vercel-protection-bypass"]) {
-      res.writeHead(302, { location: "https://vercel.com/sso-api?url=x" }).end();
+      res
+        .writeHead(302, { location: "https://vercel.com/sso-api?url=x" })
+        .end();
 
       return;
     }
-    const json = (b: unknown) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(b));
+    const json = (b: unknown) =>
+      res
+        .writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify(b));
 
     if (url.pathname === "/.well-known/oauth-protected-resource/api/agent/v1") {
-      return json({ resource: `${base}/api/agent/v1`, authorization_servers: [base] });
+      return json({
+        resource: `${base}/api/agent/v1`,
+        authorization_servers: [base],
+      });
     }
     if (url.pathname === "/.well-known/oauth-authorization-server") {
       return json({
@@ -40,14 +51,18 @@ beforeAll(async () => {
         code_challenge_methods_supported: ["S256"],
       });
     }
-    if (url.pathname === "/api/oauth/register") return json({ client_id: "mcl_bypass" });
+    if (url.pathname === "/api/oauth/register")
+      return json({ client_id: "mcl_bypass" });
 
     return json({ species: [], tissues: [], platforms: [] });
   });
   await new Promise<void>((r) => site.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${(site.address() as { port: number }).port}`;
   process.env.MERFISHEYES_URL = base;
-  process.env.MERFISHEYES_CREDENTIALS = join(mkdtempSync(join(tmpdir(), "meyes-bp-")), "credentials.json");
+  process.env.MERFISHEYES_CREDENTIALS = join(
+    mkdtempSync(join(tmpdir(), "meyes-bp-")),
+    "credentials.json",
+  );
   process.env.MERFISHEYES_NO_BROWSER = "1";
   process.env.MERFISHEYES_VERCEL_BYPASS = "s3cret";
 });

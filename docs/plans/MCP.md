@@ -599,6 +599,120 @@ viewer is the site's viewer code, never a fork.
 Gate: that workflow end to end on a real dataset, the spatial figures in
 the deck coming from `meyes_snapshot`, nothing leaving the machine.
 
+6. **Analysis in the client the researcher has (Desktop first).**
+   *The niche dry run (2026-11-24).* The collaborator's question — a P28
+   mouse brain; the neurogenic niches near the dentate gyrus and the SVZ;
+   the genes behind them; each niche re-clustered with its own UMAP and
+   labels, saved as obs columns and `X_umap_DG` / `X_umap_SVZ` — run two
+   ways. (a) This session as a Desktop agent on `ace-low-zip` (BIL P28
+   MERSCOPE, 53,311 cells, 500 genes), only the extension's tools: it
+   found the neurogenic classes and drew them, then stalled — the section
+   has **no dentate gyrus** (1 DG granule cell, 2 DG immature) and the
+   agent had no way to count; 147 subclass values cut at 60 (the
+   ependymal ones not listed); colouring by a gene drew every cell while
+   the state said 716 ("said, not drawn" again); a command went to the
+   old tab while the new one loaded; no UMAP panel control; a niche-only
+   UMAP drew nothing (NaN broke the panel's centring); no Python. The
+   store's own DE stats named the SVZ neuroblasts' markers (Igfbpl1, Sp8,
+   Sp9, Ccnd2, Sox2); the classic ones (Dcx, Sox11, Ascl1, Mki67) are not
+   on the panel. (b) The user's own run on their 4-week file (275 genes,
+   three sections side by side): the agent asked the right questions,
+   built its own Python environment, was cut by 180 s shell calls,
+   re-clustered DG (8,404 cells) and SVZ (46,534) and saved an `.h5ad`
+   copy — but could not show the UMAPs, and took long.
+
+   *What a client can do (researched 2026-11-24, official docs):* the
+   Desktop app's Code tab is Claude Code on the Mac (shell, 2-min
+   foreground commands moved to the background, no limit on background
+   commands); plain Desktop chat runs code only in Anthropic's sandbox, not
+   on the Mac; Cowork's docs disagree on where it runs (the user's 180 s
+   cut and lost background processes came from a folder-connected Desktop
+   mode). The Code tab loads servers from `claude_desktop_config.json`;
+   whether it sees `.mcpb` extensions is not documented — check with
+   `/mcp`. A Claude Code plugin can bundle a skill and an `.mcpb` server;
+   a plugin's local server is ignored by Desktop chat. Claude Code shows
+   only the first 4,096 characters of server instructions; Desktop
+   reportedly cuts MCP tool calls at ~240 s (user reports). Hence:
+   analysis runs **inside the extension, as jobs**; the primer is a tool.
+
+   *Decisions (user, 2026-11-24):* compute in the extension's own Python
+   (the converter's, set up once with the person's yes) as background
+   jobs; results into a **copy**, the agent asking the person which format
+   and saying `.zarr` is MERFISHEYES's best (`.h5ad` for scanpy); first
+   steps: profile + niche, re-cluster + UMAP, markers (pseudotime and
+   batch correction later — Harmony is not in the environment). The agent
+   uses web search for markers and taxonomy names and checks them against
+   the data. Tier 3 (a library dataset in a live local view: S3 allows only
+   www.merfisheyes.com) belongs to the live MCP; the dry-run item "the
+   site's `meyes_get_dataset` is stale while the index is current"
+   (ace-low-zip) is METADATA.md step 6 item 7.
+
+   **Tier 1 built (2026-11-24) — the view tells the truth
+   and the agent can find names.** `meyes_view_state` takes `column`,
+   `containing`, `limit`/`offset` (values with cells per value, the column
+   loaded if need be), lists embeddings, says "unknown until loaded" for
+   columns not loaded (the adapter calls every column categorical until
+   then); `meyes_view_set` answers briefly (~460 characters, from ~6,000)
+   and takes `embedding`; a gene over picked-out values uses the combined
+   mode and the state counts what is drawn (`selectionApplies`); an
+   unknown value names the values containing its words; snapshots take
+   `focus` (frame on values, outer 0.5 % trimmed) and `target:"embedding"`
+   (the UMAP panel, via `registerEmbeddingPanel`); `add_column` takes an
+   embedding (`add_embedding`); a command waits for the tab of the link
+   just handed out (tabs report the data they show; an older viewer that
+   does not is taken as the new tab) and for that tab's data to load;
+   `normalizeCoordinates` ignores NaN rows and the UMAP panel draws them
+   off view. Checked by pixels on the dry-run store: Sp8 over 4 picked
+   types 86 lit px, everywhere 9,928; the niche UMAP 6,161 px (was empty).
+
+   **Tier 2 built (2026-11-24) — the analysis in the
+   extension.** `scripts/meyes_analysis.py` (bundled; one step per
+   process): `profile` (columns with counts, per-section breakdown,
+   markers the panel lacks, coordinate spacing), `niche` (cells within a
+   radius of anchor labels, per section, exclusions), `recluster` (log1p
+   normalize_total → PCA → neighbours → UMAP → Leiden at several
+   resolutions; each cluster's top genes, main labels, sections),
+   `markers` (the store's DE stats when it has them, else the same
+   numbers computed; a heatmap of chosen genes), `save` (a `.zarr` copy
+   with the labels' DE stats, or an `.h5ad` joined to the original by cell
+   id). Results go to a workspace per store (`analysis/<store>-<id>/`,
+   cell order) and into the open view at once; the store is never
+   changed. Package: `src/local/analysis.ts` (jobs: a tool waits 45 s,
+   then hands back an id for `meyes_job`), `src/tools/analysis.ts`
+   (`meyes_profile`, `meyes_niche`, `meyes_recluster`, `meyes_markers`,
+   `meyes_save_analysis` — `open` switches the tab to the copy —,
+   `meyes_job`), `meyes_guide` + resource `merfisheyes://guide`
+   (`src/guide.ts`: the order of work, what to ask, where to look things
+   up, the traps); instructions say to read it first (3,315 of 4,096
+   characters). Fixed on the way: `de_stats.write_de_stats(columns=…)`
+   dropped every other column's DE record (also hit
+   `spatialdata_cluster.py` adding `leiden`): it now keeps them. On the
+   dry-run store through the stdio server: profile 1.5 s, niche 1.5 s
+   (1,578 cells), re-cluster 14 s (13/15 clusters, UMAP in the view),
+   markers 1.8 s with heatmap, save 4 s (copy validated; opens with its
+   labels and `umap_SVZ`). Tests: 5 Python (tests/python, scanpy added to
+   CI's requirements), 3 package, 3 session-routing; site 746, package 62.
+
+   **Released as package 0.4.0 + viewer 0.3.0 (2026-11-24)** for a
+   collaborator's stress test in Claude Desktop (`build/merfisheyes-0.4.0.mcpb`,
+   8.4 MB; 0.3.0 had gone out by hand, so the new file has a new number).
+   The viewer changed (embedding panel handle, NaN UMAP rows, `view=` on
+   the session), so the publishing order is: `@merfisheyes/viewer` 0.3.0
+   first, then the package's dependency moves to `^0.3.0` (with its lock),
+   then `@merfisheyes/mcp` 0.4.0 — until then the package still depends on
+   `^0.2.0`, which an npm install would serve without the new viewer
+   (the `.mcpb` carries the repository's viewer and is not affected). The
+   extension's manifest lists all 27 tools (Desktop shows tools from the
+   manifest; `test/mcpb-manifest.test.ts` keeps it equal to the server's).
+   Checked: the unpacked bundle over stdio — 27 tools, the guide, open,
+   profile 1.2 s, niche 1.4 s, re-cluster 11 s, save 2.3 s, the copy
+   validated; without the Python set up, the analysis tools answer the
+   setup question (which now names them) instead of failing.
+
+Gate for 6: the user's niche question answered in Claude Desktop on their
+own file — niches, re-clustering, UMAPs shown, markers, a saved copy —
+with no Python of the agent's own and no step cut off.
+
 ### Pillar E — The site is the MCP server (a connector, no install)
 
 1. **`www.merfisheyes.com/mcp`** — a remote MCP server (Streamable HTTP,

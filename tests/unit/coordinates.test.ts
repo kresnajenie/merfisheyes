@@ -113,3 +113,32 @@ describe("normalizeCoordinates (number[][])", () => {
 //     expect(result!.scalingFactor).toBe(1);
 //   });
 // });
+
+describe("normalizeCoordinates with cells an embedding does not cover", () => {
+  it("centres and scales on the covered cells; uncovered ones stay NaN", () => {
+    const r = normalizeCoordinates([
+      [0, 0],
+      [NaN, NaN],
+      [2, 4],
+    ])!;
+
+    expect(r.center).toEqual([1, 2]);
+    expect(r.normalized[0]).toEqual([-0.5, -1]);
+    expect(r.normalized[2]).toEqual([0.5, 1]);
+    expect(r.normalized[1].every(Number.isNaN)).toBe(true);
+  });
+
+  it("is null when no cell is covered", () => {
+    expect(normalizeCoordinates([[NaN, NaN]])).toBeNull();
+  });
+
+  it("gives the same answer as before when every cell is covered", () => {
+    const r = normalizeCoordinates([
+      [1, 1],
+      [3, 5],
+    ])!;
+
+    expect(r.center).toEqual([2, 3]);
+    expect(r.scalingFactor).toBe(2);
+  });
+});

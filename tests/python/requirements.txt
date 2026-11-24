@@ -11,3 +11,8 @@ pytest
 # locally, installed in CI)
 spatialdata
 tifffile
+# The agents' analysis steps (scripts/meyes_analysis.py: tests/python/test_meyes_analysis.py)
+scanpy
+igraph
+leidenalg
+matplotlib

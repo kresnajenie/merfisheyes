@@ -17,6 +17,7 @@ import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SITE } from "../config.ts";
+
 import { type Converted, convert, viewable } from "./convert.ts";
 
 /**
@@ -140,6 +141,15 @@ export function parseRange(
   return { start, end };
 }
 
+/** A dataset opened with meyes_open_local: what the person gave (an .h5ad,
+ * a folder, a store) and the store the view shows (the same, or its
+ * conversion in the cache). */
+export interface OpenedDataset {
+  input: string;
+  store: string;
+  share: Share;
+}
+
 export class LocalServer {
   private server: Server | null = null;
   private port = 0;
@@ -150,7 +160,14 @@ export class LocalServer {
   /** The secret a page needs for the live session (pillar D3): only a page
    * this server opened has it (it is in the link). */
   readonly sessionToken = randomBytes(16).toString("base64url");
-  private readonly views: ServerResponse[] = [];
+  /** The tabs listening, oldest first, with the data each shows. */
+  private readonly views: { res: ServerResponse; view: string; at: number }[] =
+    [];
+  /** The data of the latest link handed out, until a tab showing it
+   * connects: commands wait for that tab rather than go to an older one. */
+  private expected: { view: string; at: number } | null = null;
+  /** How long a command waits for a newly opened view's tab. */
+  viewWaitMs = 20_000;
   private readonly pending = new Map<
     number,
     { ok: (v: unknown) => void; fail: (e: Error) => void }
@@ -166,6 +183,8 @@ export class LocalServer {
    * same address when there is one, else the site's `/open`. */
   link(share: Share): string {
     const url = encodeURIComponent(share.url);
+
+    if (this.viewerDir) this.expected = { view: share.url, at: Date.now() };
 
     return this.viewerDir
       ? `http://127.0.0.1:${this.port}/open/?url=${url}&session=${this.sessionToken}`
@@ -203,10 +222,66 @@ export class LocalServer {
   ): Promise<{ share: Share; converted: Converted | null }> {
     const abs = resolve(path);
 
-    if (viewable(abs)) return { share: await this.share(abs), converted: null };
-    const converted = await convert(abs, { onLine });
+    if (viewable(abs)) {
+      const share = await this.share(abs);
 
-    return { share: await this.share(converted.folder), converted };
+      this.remember({ input: abs, store: share.path, share });
+
+      return { share, converted: null };
+    }
+    const converted = await convert(abs, { onLine });
+    const share = await this.share(converted.folder);
+
+    this.remember({ input: abs, store: share.path, share });
+
+    return { share, converted };
+  }
+
+  /** The datasets opened, latest last: what analysis tools work on. */
+  private readonly opened: OpenedDataset[] = [];
+
+  private remember(d: OpenedDataset) {
+    const i = this.opened.findIndex((o) => o.store === d.store);
+
+    if (i >= 0) this.opened.splice(i, 1);
+    this.opened.push(d);
+  }
+
+  /** The dataset an analysis is about: the one opened from `path` (its
+   * input or its store), else the one opened last. */
+  dataset(path?: string): OpenedDataset {
+    if (path) {
+      const abs = resolve(path);
+      const hit = this.opened.find((o) => o.input === abs || o.store === abs);
+
+      if (!hit)
+        throw new Error(
+          `${abs} has not been opened in this session: open it with meyes_open_local first.`,
+        );
+
+      return hit;
+    }
+    const last = this.opened.at(-1);
+
+    if (!last)
+      throw new Error(
+        "No dataset is open: open one with meyes_open_local first.",
+      );
+
+    return last;
+  }
+
+  /** Point the open tab at another shared folder (an analysis's saved
+   * copy): it navigates itself, and commands wait for it to come back. */
+  async navigate(share: Share): Promise<string> {
+    const link = this.link(share);
+    const want = this.expected;
+
+    this.expected = null; // the command goes to the tab open now
+    await this.command("navigate", { url: link });
+    this.expected = want;
+
+    return link;
   }
 
   /** Whether a page of this server is open and listening for commands. */
@@ -220,14 +295,35 @@ export class LocalServer {
    * in the viewer). Throws when no view is open, the view answers with an
    * error, or nothing comes back in time.
    */
-  command<T>(command: string, args: unknown, timeoutMs = 30_000): Promise<T> {
-    const view = this.views.at(-1);
+  async command<T>(
+    command: string,
+    args: unknown,
+    timeoutMs = 30_000,
+  ): Promise<T> {
+    // A link was just handed out: wait a while for its tab rather than send
+    // this to an older one (the person may still be opening it).
+    if (this.expected) {
+      const want = this.expected;
+      // its tab, or a tab that does not say what it shows (a viewer older
+      // than this rule) opened since the link was handed out
+      const arrived = () =>
+        this.views.some(
+          (v) => v.view === want.view || (v.view === "" && v.at >= want.at),
+        );
+
+      for (let t = 0; t < this.viewWaitMs && !arrived(); t += 250)
+        await new Promise((r) => setTimeout(r, 250));
+      if (!arrived())
+        throw new Error(
+          `The view of ${want.view.split("/").pop()} is not open yet: give the person the link from meyes_open_local and ask them to open it (it loads in a few seconds), then try again.`,
+        );
+      this.expected = null;
+    }
+    const view = this.views.at(-1)?.res;
 
     if (!view)
-      return Promise.reject(
-        new Error(
-          "No MERFISHEYES view is open: open the data with meyes_open_local, have the person open the link, and keep that tab open.",
-        ),
+      throw new Error(
+        "No MERFISHEYES view is open: open the data with meyes_open_local, have the person open the link, and keep that tab open.",
       );
     const id = this.nextId++;
 
@@ -271,12 +367,18 @@ export class LocalServer {
         connection: "keep-alive",
       });
       res.write(": connected\n\n");
-      this.views.push(res);
+      const entry = {
+        res,
+        view: url.searchParams.get("view") ?? "",
+        at: Date.now(),
+      };
+
+      this.views.push(entry);
       const beat = setInterval(() => res.write(": .\n\n"), 15_000);
 
       req.on("close", () => {
         clearInterval(beat);
-        const i = this.views.indexOf(res);
+        const i = this.views.indexOf(entry);
 
         if (i >= 0) this.views.splice(i, 1);
       });
@@ -324,7 +426,7 @@ export class LocalServer {
   async close(): Promise<void> {
     const s = this.server;
 
-    for (const v of this.views.splice(0)) v.end();
+    for (const v of this.views.splice(0)) v.res.end();
 
     this.server = null;
     if (s) await new Promise<void>((r) => s.close(() => r()));

@@ -14,20 +14,30 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 let site: Server;
 let base = "";
-const seen: { authorize?: URL; tokenForms: URLSearchParams[]; revoked: string[] } = { tokenForms: [], revoked: [] };
+const seen: {
+  authorize?: URL;
+  tokenForms: URLSearchParams[];
+  revoked: string[];
+} = { tokenForms: [], revoked: [] };
 let issuerOverride: string | null = null;
 
 beforeAll(async () => {
   site = createServer((req, res) => {
     const url = new URL(req.url ?? "/", base);
-    const json = (status: number, body: unknown) => res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
+    const json = (status: number, body: unknown) =>
+      res
+        .writeHead(status, { "content-type": "application/json" })
+        .end(JSON.stringify(body));
     let body = "";
 
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       switch (url.pathname) {
         case "/.well-known/oauth-protected-resource/api/agent/v1":
-          return json(200, { resource: `${base}/api/agent/v1`, authorization_servers: [base] });
+          return json(200, {
+            resource: `${base}/api/agent/v1`,
+            authorization_servers: [base],
+          });
         case "/.well-known/oauth-authorization-server":
           return json(200, {
             issuer: issuerOverride ?? base,
@@ -46,7 +56,12 @@ beforeAll(async () => {
           seen.tokenForms.push(form);
           const n = seen.tokenForms.length;
 
-          return json(200, { access_token: `mea_${n}`, refresh_token: `mer_${n}`, expires_in: 3600, scope: "catalog:read projects:read" });
+          return json(200, {
+            access_token: `mea_${n}`,
+            refresh_token: `mer_${n}`,
+            expires_in: 3600,
+            scope: "catalog:read projects:read",
+          });
         }
         case "/api/oauth/revoke":
           seen.revoked.push(new URLSearchParams(body).get("token") ?? "");
@@ -60,7 +75,11 @@ beforeAll(async () => {
   await new Promise<void>((r) => site.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${(site.address() as { port: number }).port}`;
   process.env.MERFISHEYES_URL = base;
-  process.env.MERFISHEYES_CREDENTIALS = join(mkdtempSync(join(tmpdir(), "meyes-")), "sub", "credentials.json");
+  process.env.MERFISHEYES_CREDENTIALS = join(
+    mkdtempSync(join(tmpdir(), "meyes-")),
+    "sub",
+    "credentials.json",
+  );
   process.env.MERFISHEYES_NO_BROWSER = "1";
 });
 
@@ -84,11 +103,15 @@ describe("signing in", () => {
     expect(redirect).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/callback$/);
 
     // A forged answer (wrong state) is refused and the sign-in keeps waiting.
-    const forged = await fetch(`${redirect}?code=x&state=nope&iss=${encodeURIComponent(base)}`);
+    const forged = await fetch(
+      `${redirect}?code=x&state=nope&iss=${encodeURIComponent(base)}`,
+    );
 
     expect(forged.status).toBe(400);
 
-    const ok = await fetch(`${redirect}?code=the-code&state=${url.searchParams.get("state")}&iss=${encodeURIComponent(base)}`);
+    const ok = await fetch(
+      `${redirect}?code=the-code&state=${url.searchParams.get("state")}&iss=${encodeURIComponent(base)}`,
+    );
 
     expect(ok.status).toBe(200);
     await s.done;
@@ -102,7 +125,11 @@ describe("signing in", () => {
     const path = process.env.MERFISHEYES_CREDENTIALS!;
 
     expect(statSync(path).mode & 0o777).toBe(0o600);
-    expect(JSON.parse(readFileSync(path, "utf8"))[base]).toMatchObject({ clientId: "mcl_test", accessToken: "mea_1", refreshToken: "mer_1" });
+    expect(JSON.parse(readFileSync(path, "utf8"))[base]).toMatchObject({
+      clientId: "mcl_test",
+      accessToken: "mea_1",
+      refreshToken: "mer_1",
+    });
   });
 
   it("refreshes with rotation, then signs out by revoking", async () => {
@@ -111,7 +138,11 @@ describe("signing in", () => {
     expect(await accessToken()).toBe("mea_1");
     expect(await accessToken(true)).toBe("mea_2");
     expect(seen.tokenForms.at(-1)!.get("refresh_token")).toBe("mer_1");
-    expect(JSON.parse(readFileSync(process.env.MERFISHEYES_CREDENTIALS!, "utf8"))[base].refreshToken).toBe("mer_2");
+    expect(
+      JSON.parse(readFileSync(process.env.MERFISHEYES_CREDENTIALS!, "utf8"))[
+        base
+      ].refreshToken,
+    ).toBe("mer_2");
     expect(await signOut()).toBe(true);
     expect(seen.revoked).toEqual(["mer_2"]);
     expect(await accessToken()).toBeNull();
@@ -119,9 +150,15 @@ describe("signing in", () => {
 
   it("refuses an answer that names another issuer", async () => {
     const { startSignIn } = await auth();
-    const s = await startSignIn(["catalog:read", "projects:read", "projects:write"]);
+    const s = await startSignIn([
+      "catalog:read",
+      "projects:read",
+      "projects:write",
+    ]);
     const url = new URL(s.url);
-    const res = await fetch(`${url.searchParams.get("redirect_uri")}?code=c&state=${url.searchParams.get("state")}&iss=https%3A%2F%2Fevil.example`);
+    const res = await fetch(
+      `${url.searchParams.get("redirect_uri")}?code=c&state=${url.searchParams.get("state")}&iss=https%3A%2F%2Fevil.example`,
+    );
 
     expect(res.status).toBe(400);
     await expect(s.done).rejects.toThrow(/another issuer/);
