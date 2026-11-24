@@ -10,6 +10,7 @@ import { SingleMoleculeGenePicker } from "./single-molecule-gene-picker";
 import { useSliderRangeLocal } from "./slider-range-popover";
 import { MoleculeOpacitySlider } from "./molecule-opacity-slider";
 import { FadeScroll } from "./fade-scroll";
+import { DatasetInfoButton } from "@/components/dataset-info-panel";
 import { SharePanel, useShareLink } from "@/components/share-panel";
 
 import {
@@ -227,6 +228,9 @@ export function SingleMoleculeControls() {
             </svg>
           </Button>
         </Tooltip>
+
+        {/* About this dataset — what the store says about itself */}
+        <DatasetInfoButton />
 
         {/* Share Button — copies the link to this view and shows it with a QR code */}
         <Tooltip content="Share this view (link + QR code)" placement="bottom">

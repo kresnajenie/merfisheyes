@@ -34,7 +34,10 @@ OUT is written and nothing in INPUT is changed. OUT holds exactly:
                   shapes/cell_boundaries (when the input has polygons),
                   images/... (when the input has an image; --no-images skips it);
                   the DEG panel's stats for every categorical column in the
-                  table's varm / uns (scripts/de_stats.py)
+                  table's varm / uns (scripts/de_stats.py); the dataset's
+                  metadata in its root attributes (docs/specs/metadata.md §4,
+                  scripts/metadata/build_metadata.py; --metadata adds what only
+                  a person knows), not yet validated
   mapping.json    {"cells": "NAME.zarr"}
   stats.json      what was written: cells, genes, molecules, the input kind, and
                   the pipeline's version and packages
@@ -207,6 +210,7 @@ def prepare(
     molecule_columns: str | None = None,
     workers: int = 4,
     keep_z: bool = False,
+    metadata: dict | None = None,
     log=print,
 ) -> int:
     source = Path(source).resolve()
@@ -297,7 +301,25 @@ def prepare(
     }
     (out / "stats.json").write_text(json.dumps(stats, indent=2) + "\n")
     log(f"stats.json: {json.dumps({k: v for k, v in stats.items() if k != 'packages'})}")
+    write_metadata(out, metadata, log)
     return 4 if report.failed else 0
+
+
+def write_metadata(out: Path, metadata: dict | None, log) -> None:
+    """The store's metadata into its root attributes (docs/specs/metadata.md §4), from
+    stats.json, any catalog.json beside it and METADATA. Not validated here (that is the
+    Lamin side's bionty check); a failure is logged and does not change the exit code."""
+    sys.path.insert(0, str(HERE / "metadata"))
+    try:
+        import build_metadata
+
+        store, blocks = build_metadata.build(out, metadata)
+        build_metadata.write(store, blocks)
+        m = blocks["meyes_metadata"]
+        log(f"metadata: {m.get('organism') or 'organism unknown'} / {m.get('tissue')} / "
+            f"{m.get('technology') or 'technology unknown'}, {m.get('meyes_matrix_hash', '')[:20]}…")
+    except Exception as e:  # noqa: BLE001
+        log(f"warning: metadata not written: {type(e).__name__}: {e}")
 
 
 def main(argv=None) -> int:
@@ -316,7 +338,17 @@ def main(argv=None) -> int:
                          "repeat for several, merged in the order given")
     ap.add_argument("--molecule-columns", help="a molecule table's columns as GENE,X,Y[,Z] when they are not recognised, or gene=G,x=X,y=Y[,z=Z][,cell=C] to also split assigned and unassigned molecules by C")
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--metadata", type=Path,
+                    help="JSON of what only a person knows (organism, tissue, title, …) as index column "
+                         "names (docs/specs/metadata.md §3); written into the store's attributes")
     args = ap.parse_args(argv)
+    metadata = None
+    if args.metadata:
+        try:
+            metadata = json.loads(args.metadata.read_text())
+        except (OSError, ValueError) as e:
+            print(f"error: --metadata {args.metadata}: {e}")
+            return 2
     return prepare(
         args.input,
         args.out,
@@ -327,6 +359,7 @@ def main(argv=None) -> int:
         molecule_columns=args.molecule_columns,
         workers=args.workers,
         keep_z=args.keep_z,
+        metadata=metadata,
     )
 
 

@@ -16,6 +16,7 @@ import { ThreeScene } from "@/components/three-scene";
 import UMAPPanel from "@/components/umap-panel";
 import { VisualizationControls } from "@/components/visualization-controls";
 import { SplitScreenPage } from "@/components/split-screen-container";
+import { StoreMetadataContext } from "@/lib/contexts/StoreMetadataContext";
 import { useDatasetLoader } from "@/lib/hooks/useDatasetLoader";
 import {
   usePanelSingleMoleculeStore,
@@ -91,10 +92,18 @@ export function SpatialDataViewer({
       />
     );
   }
-  const { cells, molecules, elements, storeUrl } = loaded;
-  // The page wraps its scene for the split; a panel is already inside one
-  const frame = (scene: ReactNode) =>
-    panel ? (
+  const { cells, molecules, elements, storeUrl, metadata } = loaded;
+  // The page wraps its scene for the split; a panel is already inside one.
+  // Either way the scene's controls, and only they (not the other split
+  // panel), see the store's metadata: the info button.
+  const frame = (content: ReactNode) => {
+    const scene = (
+      <StoreMetadataContext.Provider value={metadata ?? null}>
+        {content}
+      </StoreMetadataContext.Provider>
+    );
+
+    return panel ? (
       scene
     ) : (
       <SplitScreenPage>
@@ -102,6 +111,7 @@ export function SpatialDataViewer({
         {scene}
       </SplitScreenPage>
     );
+  };
 
   if (cells) {
     return frame(

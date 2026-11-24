@@ -1,0 +1,6 @@
+{
+  "_about": "Per-dataset metadata a person confirmed that no BIL record or store states (docs/specs/metadata.md §7.3). Keys are BIL codes; values are index columns passed to scripts/metadata/build_metadata.py --metadata. Keys starting with _ are notes, not columns.",
+  "ace-owl-cup": { "technology": "10x_xenium", "_source": "Explore row /explore/bil/ace-owl-cup (curated): platform Xenium; BIL reports platform \"other\"" },
+  "ace-owl-eat": { "technology": "10x_xenium", "_source": "Explore row /explore/bil/ace-owl-eat (curated): platform Xenium; BIL reports platform \"other\"" },
+  "ace-owl-few": { "technology": "10x_xenium", "_source": "Explore row /explore/bil/ace-owl-few (curated): platform Xenium; BIL reports platform \"other\"" }
+}

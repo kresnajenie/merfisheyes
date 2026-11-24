@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { SingleMoleculeThreeScene } from "@/components/single-molecule-three-scene";
+import { StoreMetadataContext } from "@/lib/contexts/StoreMetadataContext";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 import { SingleMoleculeControls } from "@/components/single-molecule-controls";
 import { SingleMoleculeLegends } from "@/components/single-molecule-legends";
@@ -55,15 +56,22 @@ function ViewerFromLocalContent() {
     dataset && s.anchorId === dataset.id ? s.image : null,
   );
 
+  // What the dropped store says about itself (the info button)
+  const metadata = useLocalBundleStore((s) =>
+    dataset && s.anchorId === dataset.id ? s.metadata : null,
+  );
+
   if (!dataset) {
     return null;
   }
 
   return (
     <SplitScreenContainer>
-      <SingleMoleculeControls />
-      <SingleMoleculeLegends />
-      <SingleMoleculeThreeScene elements={{ image: image ?? undefined }} />
+      <StoreMetadataContext.Provider value={metadata}>
+        <SingleMoleculeControls />
+        <SingleMoleculeLegends />
+        <SingleMoleculeThreeScene elements={{ image: image ?? undefined }} />
+      </StoreMetadataContext.Provider>
     </SplitScreenContainer>
   );
 }

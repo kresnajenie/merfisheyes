@@ -38,6 +38,7 @@ import { glassButton } from "@/components/primitives";
 import { MoleculeOpacitySlider } from "@/components/molecule-opacity-slider";
 import { CellOpacitySlider } from "@/components/cell-opacity-slider";
 import { FadeScroll } from "@/components/fade-scroll";
+import { DatasetInfoButton } from "@/components/dataset-info-panel";
 import { SharePanel, useShareLink } from "@/components/share-panel";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { OverlayManager } from "@/components/overlay-manager";
@@ -774,6 +775,9 @@ export function VisualizationControls() {
             </svg>
           </Button>
         </Tooltip>
+
+        {/* About this dataset — what the store says about itself */}
+        <DatasetInfoButton />
 
         {/* Share Button — copies the link to this view and shows it with a QR code */}
         <Tooltip content="Share this view (link + QR code)" placement="bottom">

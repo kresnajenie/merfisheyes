@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ImageScene } from "@/components/image-viewer";
 import { ImageViewerControls } from "@/components/image-viewer-controls";
 import { SplitScreenContainer } from "@/components/split-screen-container";
+import { StoreMetadataContext } from "@/lib/contexts/StoreMetadataContext";
 import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 
 /**
@@ -15,6 +16,8 @@ import { useLocalBundleStore } from "@/lib/stores/localBundleStore";
 export default function ImageViewerFromLocalPage() {
   const router = useRouter();
   const image = useLocalBundleStore((s) => s.image);
+  // A store holding only an image: what it says about itself
+  const metadata = useLocalBundleStore((s) => s.metadata);
 
   // Nothing survives a reload: the files were only ever in this tab
   useEffect(() => {
@@ -26,8 +29,10 @@ export default function ImageViewerFromLocalPage() {
   return (
     image && (
       <SplitScreenContainer>
-        <ImageViewerControls share={false} />
-        <ImageScene image={image} />
+        <StoreMetadataContext.Provider value={metadata}>
+          <ImageViewerControls share={false} />
+          <ImageScene image={image} />
+        </StoreMetadataContext.Provider>
       </SplitScreenContainer>
     )
   );

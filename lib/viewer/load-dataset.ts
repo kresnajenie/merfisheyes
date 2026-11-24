@@ -12,12 +12,14 @@ import type { VisualizationState } from "@/lib/stores/createVisualizationStore";
 import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import type { OpenedElements } from "@/lib/scene/registry";
 import type { DatasetLinkConfig } from "@/lib/config/dataset-links";
+import type { StoreMetadata } from "@/lib/spatialdata/metadata";
 
 import { applyCellOpenState, applySMOpenState } from "./open-dataset";
 
 import { tryReadCellVizFromUrl } from "@/lib/hooks/useUrlVizSync";
 import { openElements } from "@/lib/scene/registry";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
+import { readStoreMetadata } from "@/lib/spatialdata/metadata";
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 import {
   elementNames,
@@ -59,6 +61,8 @@ export interface LoadedDataset {
   registration: DatasetRegistration;
   /** A SpatialData store's own URL, once a folder URL has been resolved. */
   storeUrl: string | null;
+  /** A SpatialData store's dataset metadata, from its root attributes. */
+  metadata?: StoreMetadata | null;
 }
 
 export interface LoadDatasetOptions {
@@ -349,5 +353,13 @@ async function loadStore(
     );
   }
 
-  return { cells, molecules, elements, registration, storeUrl };
+  return {
+    cells,
+    molecules,
+    elements,
+    registration,
+    storeUrl,
+    // The root zarr.json the store was opened with: nothing read again
+    metadata: readStoreMetadata(store.root?.attributes),
+  };
 }
