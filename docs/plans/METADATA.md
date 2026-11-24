@@ -423,6 +423,18 @@ the tag) and our rows against `$defs/indexRow`. The pin moved to
 profile now lists 103 SDDB columns. **12,740 rows — every live Explore row**
 (`every_live_row_indexed` in `release_info.json`); rebuilt per M15.
 
+*Rebuilt 2026-11-23* after the BIL reprocessing (`.index/2026-11-23/` and
+`latest/`; same files, schemas and layouts — checked against 11-18): ours
+are 144 store rows (83 `bil`, 61 `curated`; was 63) and 21 Explore-only
+(was 102); all 144 have gene counts. The gene build reads each store's
+table locally: the 82 stores with no copy on this machine had their
+`tables/` and root `zarr.json` fetched to
+`~/data/merfisheyes-index/store-tables/` (22 GB), kept for the daily
+rebuild — where that copy lives for good is part of M15's protocol. Gaps
+seen: the 43 curated `ace-owl-*` marmoset Xenium stores have no technology
+(step 5, pinned); three giant BIL stores (`ace-dud-war`, `ace-den-fix`,
+`ace-dug-fin`) stopped in the points stage on 2026-11-19 and are not on S3.
+
 **Later: personal indexes (M14 — not built; build once the data is on Lamin's R2).**
 The same `catalog.parquet` format, one per person: the datasets they own or that
 are shared with them through projects, from Postgres `Dataset` rows joined with
