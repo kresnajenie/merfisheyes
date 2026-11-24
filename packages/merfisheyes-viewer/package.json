@@ -1,6 +1,6 @@
 {
   "name": "@merfisheyes/viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The MERFISHEYES viewer as static files, for viewing data on your own computer (served by @merfisheyes/mcp)",
   "license": "MIT",
   "scripts": {
