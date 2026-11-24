@@ -129,7 +129,9 @@ dapi.zarr/
 - **A public URL** — paste it into **Load from S3** on the homepage, or open `/image-viewer/from-s3?url=<the .zarr folder's URL>`. The bucket must allow the site in CORS.
 - **Beside your cells**, in a [combined upload](#combined-single-cell--single-molecule--image-raw-data) or an [already-processed folder](#already-processed-data-opens-as-it-is).
 
-**What you set on an image is kept in the link.** Which channels are on, their colours and their lower and upper bounds are written into the page's URL as you change them, so a copied link opens looking the same.
+**A store with several images lets you choose.** The Image panel lists every image of the store that lines up with the cells (for example an H&E photograph beside the fluorescence stain), and a photograph can be drawn in **Greyscale** so it does not compete with the colours on top. **On top** draws a second image over the first, seen through at an opacity you set, so both can be looked at together.
+
+**What you set on an image is kept in the link.** Which image is drawn, the one on top of it and its opacity, greyscale, which channels are on, their colours and their lower and upper bounds are written into the page's URL as you change them, so a copied link opens looking the same.
 
 An image is only drawn under cells that kept their **original coordinates**. Folders written by older versions of the Python scripts normalized them to [-1, 1]; those load fine, but an image cannot be placed under them.
 

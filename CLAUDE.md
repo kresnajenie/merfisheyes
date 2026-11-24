@@ -79,6 +79,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [sddb-profile.md](docs/specs/sddb-profile.md) | The 1,884-store SpatialData-DB census against our profiles |
 | [sddb-catalog.md](docs/specs/sddb-catalog.md) | How SpatialData-DB rows become Explore cards |
 | [metadata.md](docs/specs/metadata.md) + [schemas/metadata.schema.json](docs/specs/schemas/metadata.schema.json) | **Draft.** Every dataset's metadata as SpatialData-DB catalog schema 3 plus `meyes_*` columns: levels per column, the store's root attributes (`metadata_general` labels + `meyes_metadata` ids), the pinned ontology versions, the map from today's fields. Per-row fill counts: [metadata-inventory.md](docs/specs/metadata-inventory.md) |
+| [ADR-technology-presets.md](docs/specs/ADR-technology-presets.md) + `schemas/preset.schema.json` | **Technology presets**: what a dataset of one technology opens with (colormap, cell opacity, hide zero counts), before the owner's `ViewerConfig` and the link. Edited at `/presets` by admins and holders of `presets:write` (`users.permissions`, `lib/presets/permission.ts`); stored append-only (`technology_preset_versions`, `technology_preset_publishes`; routes in `app/api/presets/`); read by the viewer in `applyCellOpenState` (`lib/config/technology-presets.ts`, built-in table as fallback); `?preset=<hash>` previews a saved version. A new field goes in the schema, `TechnologyPreset`, `readPreset`, `applyTechnologyPreset`, the link encoder and the editor form. Tests: `tests/unit/preset-contract.test.ts`, `e2e/tests/upload/presets.spec.ts` |
 | [AUDIT-2026-10-17.md](docs/specs/AUDIT-2026-10-17.md) | The findings LOADING/RENDERING answer |
 | [SECOND-IMPLEMENTER-2026-10-17.md](docs/specs/SECOND-IMPLEMENTER-2026-10-17.md) | What a fresh agent found missing when adding a kind from the contract alone — the contract's backlog |
 | [MCP-PROTOCOL.md](docs/specs/MCP-PROTOCOL.md) | **Agents (draft 0.1)**: what an agent may see (`lib/agent/visibility.ts` — datasets have no visibility flag on the site), the tool catalogue, the `/api/agent/v1` API, the OAuth 2.1 server (`lib/oauth/`), the bridge to a tab. `stats.json`/`qc.json`/`catalog.json` schemas beside it, checked by `scripts/validate_sidecars.py` |
@@ -102,11 +103,11 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/plans/ONE-PIPELINE.md](docs/plans/ONE-PIPELINE.md) | **Live plan: one pipeline, run by you or by the server** — the `prepare.py` contract (steps 1–3 done) |
 | [docs/spatialdata/spatialdata-pipeline-doc.md](docs/spatialdata/spatialdata-pipeline-doc.md) | **How to run the BIL pipeline**: its components, inputs, the seven stages, what it writes, how to verify a store, the artifact mask, the known gaps |
 | [docs/plans/BIL-CLUSTER.md](docs/plans/BIL-CLUSTER.md) | **Live plan: the same pipeline on the PSC cluster** — many sections in one store, the 87-dataset fleet, billion-scale molecules |
-| [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–4 done) |
+| [docs/plans/SDDB.md](docs/plans/SDDB.md) | Live plan: MERFISHEYES on SpatialData-DB (steps 1–5 done, all 12,159 datasets on Explore; step 6, previews, open) |
 | [docs/plans/METADATA.md](docs/plans/METADATA.md) | **Live plan: one metadata schema — SpatialData-DB's — for every dataset**: ontology terms validated with bionty, written into the store's root attributes, verified in Lamin, published as the query index Explore and the agents read (planned 2026-11-14) |
 | [docs/plans/LAMIN.md](docs/plans/LAMIN.md) | Live plan: our datasets recorded in the Lamin instance `merfisheyes/eyes-catalog`, in place on S3 — `register_lamin.py` |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
-| [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: an agent (any MCP client) that drives a MERFISHEYES tab — local MCP + bridge, OAuth, Agent panel (steps 1–4 done; the package is `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
+| [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: MERFISHEYES for agents, by pillars (§0) — research the library, MERFISHEYES on your own data (`merfisheyes-mcp view`), the site as the MCP server at `/mcp` (steps 1–4 done; `@merfisheyes/mcp` 0.1.0 on npm, `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
 | [docs/labelled-single-molecule.md](docs/labelled-single-molecule.md) | `/lm-viewer` — molecules with N categorical labels, no expression matrix |
 | [docs/sc-sm-one-space.md](docs/sc-sm-one-space.md) | SC+SM overlay; `__all__` ships, per-sample mode is future work |
 | [docs/SM-STREAMING-PLAN.md](docs/SM-STREAMING-PLAN.md) | Streaming the legacy per-gene `bin.gz` files |
@@ -315,6 +316,14 @@ applies the same coordinate-system rule the viewer does.
   (`datasetKind`, `viewerBase`, `viewerHref`) — never compare the string
   yourself. Kinds are `single_cell | single_molecule | image`; `"spatialdata"`
   is single cell that opens in its own viewer; old rows hold raw format names.
+- **Production database**: credentials live in `.env.prod` beside the main
+  checkout (git-ignored, never committed). Scripts take it with
+  `--env=<path>` and `--direct` (its `DIRECT_URL`, the IPv4 pooler; the
+  direct host is IPv6-only). **Never `source` it in a shell**: the password
+  holds characters the shell rewrites, and Prisma then fails with
+  "Authentication failed". Writes to production are run by the user, after a
+  snapshot of the rows they touch; agents prepare the command and the dry
+  run.
 - **Auth**: NextAuth v5, Google sign-in, Prisma adapter. Admin surfaces under
   `/admin` and `/api/admin`.
 - **Storage**: S3 (`merfisheyes-staging`), `raw/{id}/` (7-day lifecycle) and

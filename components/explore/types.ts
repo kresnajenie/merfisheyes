@@ -43,6 +43,8 @@ export interface CatalogDatasetItem {
   sourceProjectId?: string | null;
   /** "curated" | "bil" | "community" | "sddb" (a SpatialData-DB catalog row). */
   source?: string;
+  /** The catalog uid of a SpatialData-DB row; its thumbnail is made from it. */
+  sddbUid?: string | null;
   /** Licence id of a SpatialData-DB row (e.g. "CC-BY-NC-SA-4.0", "unknown"). */
   license?: string | null;
   licenseNoncommercial?: boolean | null;

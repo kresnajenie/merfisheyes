@@ -20,11 +20,11 @@ export type ShapesStatus = "idle" | "loading" | "ready" | "error";
 
 // Polygons are drawn once a view is this narrow (µm), when cells can be told
 // apart; wider, they would be a blur of outlines.
-export const SHAPES_SHOW_WIDTH = 1000;
+export const SHAPES_SHOW_WIDTH = 2000;
 // Bucket size of the spatial index over polygons (µm).
 const GRID = 100;
 // Polygons drawn at once, at most.
-const MAX_SHAPES = 60_000;
+const MAX_SHAPES = 80_000;
 const REBUILD_MS = 100;
 
 const ids = new WeakMap<object, number>();

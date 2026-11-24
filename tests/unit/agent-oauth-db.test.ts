@@ -67,6 +67,8 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
     "oauth/authorize": () => import("@/app/api/oauth/authorize/route"),
     "oauth/metadata": () => import("@/app/api/oauth/metadata/route"),
     "oauth/protected-resource": () => import("@/app/api/oauth/protected-resource/route"),
+    "oauth/protected-resource/[...path]": () =>
+      import("@/app/api/oauth/protected-resource/[...path]/route"),
     "oauth/merfisheyes-mcp.json": () => import("@/app/oauth/merfisheyes-mcp.json/route"),
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -604,12 +606,17 @@ describe.skipIf(!DB)("agent API and OAuth on a database", async () => {
         authorization_response_iss_parameter_supported: true,
         token_endpoint_auth_methods_supported: ["none"],
       });
-      const prm = (await route("oauth/protected-resource")).GET;
-      const at = async (q: string) => (await prm(new Request(`${ISSUER}/api/oauth/protected-resource${q}`))).json();
+      // /.well-known/oauth-protected-resource[/<path>] (rewritten to the
+      // root route, or to [...path] with the path as segments)
+      const root = (await route("oauth/protected-resource")).GET;
+      const byPath = (await route("oauth/protected-resource/[...path]")).GET;
+      const at = async (path: string) =>
+        byPath(new Request(`${ISSUER}/x`), { params: Promise.resolve({ path: path.split("/") }) });
 
-      expect(await at("?path=api/agent/v1")).toMatchObject({ resource: RESOURCE, authorization_servers: [ISSUER] });
-      expect((await at("")).resource).toBe(RESOURCE);
-      expect((await prm(new Request(`${ISSUER}/x?path=nope`))).status).toBe(404);
+      expect(await (await at("api/agent/v1")).json()).toMatchObject({ resource: RESOURCE, authorization_servers: [ISSUER] });
+      expect((await (await at("mcp")).json()).resource).toBe(`${ISSUER}/mcp`);
+      expect((await (await root()).json()).resource).toBe(RESOURCE);
+      expect((await at("nope")).status).toBe(404);
     });
   });
 });

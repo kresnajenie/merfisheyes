@@ -72,27 +72,40 @@ export function hasImage(s: { layers: { image?: unknown } }): boolean {
   return s.layers.image != null;
 }
 
+/** What the two panels sync: each kind both have, and genes across kinds. */
+export interface SyncKinds extends PanelContent {
+  /**
+   * Cells on one side, molecules without cells on the other: the cells' gene
+   * and the molecules' genes follow each other, by name.
+   */
+  genes: boolean;
+}
+
 /**
- * What the two panels can sync: each kind both have open. Each sync hook runs
- * on its own kind and the button shows when any does, so the button never
- * shows with nothing to sync, and never hides when something could. Of an
- * image, which channels are on.
+ * What the two panels can sync: each kind both have open, and a gene between
+ * cells and molecules. Each sync hook runs on its own kind and the button
+ * shows when any does, so the button never shows with nothing to sync, and
+ * never hides when something could. Of an image, which channels are on.
  */
 export function syncCapabilities(
   left: PanelContent,
   right: PanelContent,
-): PanelContent {
+): SyncKinds {
   return {
     cells: left.cells && right.cells,
     molecules: left.molecules && right.molecules,
     labelled: left.labelled && right.labelled,
     image: left.image && right.image,
+    // Two panels with cells share the gene through the cells already
+    genes:
+      (left.cells && !right.cells && right.molecules) ||
+      (right.cells && !left.cells && left.molecules),
   };
 }
 
 /** Whether the split offers sync at all. */
-export function canSync(c: PanelContent): boolean {
-  return c.cells || c.molecules || c.labelled || c.image;
+export function canSync(c: SyncKinds): boolean {
+  return c.cells || c.molecules || c.labelled || c.image || c.genes;
 }
 
 interface SplitScreenState {

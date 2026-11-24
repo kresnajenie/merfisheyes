@@ -209,12 +209,100 @@ test("@quick Visium store: the full image under the spots, not the downscaled on
   ).toBe(false);
 });
 
+test("@quick a store's other images can be chosen, drawn in grey, and kept in the link", async ({
+  page,
+}) => {
+  // An Atera store holds an H&E photograph beside its fluorescence image;
+  // here, the Visium store's three images stand in for them
+  await page.goto(
+    `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumUrl(server))}`,
+  );
+  await expect(page.locator(SCENES.cells).first()).toBeVisible({
+    timeout: 120_000,
+  });
+  await page.locator(SELECTORS.imageButton).click();
+  const chooser = page.getByLabel("Image", { exact: true });
+  const grey = page.getByLabel("Greyscale", { exact: true });
+
+  await expect(chooser).toHaveValue("tiny_full_image");
+  await expect(chooser.locator("option")).toHaveText([
+    "tiny_full_image",
+    "tiny_hires_image",
+    "tiny_lowres_image",
+  ]);
+
+  await chooser.selectOption("tiny_hires_image");
+  await expect(chooser).toHaveValue("tiny_hires_image");
+  await expect
+    .poll(() => served(/\/images\/tiny_hires_image\/s\d\/c\//), {
+      message: "the chosen image should be read",
+    })
+    .toBe(true);
+
+  const img = () => new URL(page.url()).searchParams.get("img");
+
+  await expect.poll(img).not.toBeNull();
+  const afterChoice = img();
+
+  await grey.check();
+  await expect.poll(img).not.toBe(afterChoice);
+
+  await page.reload();
+  await page.locator(SELECTORS.imageButton).click();
+  await expect(page.getByLabel("Image", { exact: true })).toHaveValue(
+    "tiny_hires_image",
+    { timeout: 120_000 },
+  );
+  await expect(page.getByLabel("Greyscale", { exact: true })).toBeChecked();
+
+  // A second image over the first, seen through, and kept in the link too
+  const onTop = page.getByLabel("Image on top", { exact: true });
+
+  await expect(onTop.locator("option")).toHaveText([
+    "Nothing",
+    "tiny_full_image",
+    "tiny_lowres_image",
+  ]);
+  await onTop.selectOption("tiny_lowres_image");
+  await expect
+    .poll(() => served(/\/images\/tiny_lowres_image\/s\d\/c\//), {
+      message: "the image on top should be read",
+    })
+    .toBe(true);
+  const opacity = page.getByLabel("Opacity of the image on top");
+
+  await expect(opacity).toHaveValue("0.5");
+  const beforeOpacity = img();
+
+  await opacity.fill("0.3");
+  await page.getByLabel("On top: Greyscale").check();
+  await expect.poll(img).not.toBe(beforeOpacity);
+  // The link is written a moment after the last change
+  await page.waitForTimeout(1000);
+
+  await page.reload();
+  await page.locator(SELECTORS.imageButton).click();
+  await expect(page.getByLabel("Image on top", { exact: true })).toHaveValue(
+    "tiny_lowres_image",
+    { timeout: 120_000 },
+  );
+  await expect(page.getByLabel("Opacity of the image on top")).toHaveValue(
+    "0.3",
+  );
+  await expect(page.getByLabel("On top: Greyscale")).toBeChecked();
+  await expect(page.getByLabel("Greyscale", { exact: true })).toBeChecked();
+});
+
 test("@quick Visium HD store: the bins drawn as squares of their real size", async ({
   page,
 }) => {
   // Square bins of side 16 on a 16 grid: at their real size they tile the
   // section (1 in 7 of the fixture's bins is missing: about 86% of it lit
-  // with the image hidden); as dots, almost nothing is lit
+  // with the image hidden); as dots, almost nothing is lit.
+  // The built-in preset is what is tested here, whatever the database the
+  // dev server points at has published (e2e/tests/upload/presets.spec.ts
+  // covers published ones)
+  await page.route("**/api/presets", (route) => route.fulfill({ status: 503 }));
   await page.goto(
     `/spatialdata-viewer/from-s3?url=${encodeURIComponent(visiumHdUrl(server))}`,
   );
@@ -243,6 +331,9 @@ test("@quick Visium HD store: the bins drawn as squares of their real size", asy
     })
     .toBeGreaterThan(0.7);
 
+  // A bin's side is a measurement: the size slider does not scale it
+  await expect(page.getByRole("slider", { name: "Dot size" })).toBeDisabled();
+
   await test.step("coloured by a gene, every bin keeps its size", async () => {
     // Low expression shrank a dot; a bin stays a bin (colour carries it)
     await selectGeneAndMeasure(
@@ -250,12 +341,52 @@ test("@quick Visium HD store: the bins drawn as squares of their real size", asy
       { dataType: "single_cell" } as DatasetEntry,
       "gene0",
     );
+    // The Visium HD preset hides the bins with no count of the gene; the
+    // rest are still whole bins (as dots, almost nothing would be lit)
     await expect
       .poll(binsLit, {
-        message: "the bins should still tile the section",
+        message: "the bins with a count should still be whole bins",
         timeout: 30_000,
       })
-      .toBeGreaterThan(0.7);
+      .toBeGreaterThan(0.4);
+    expect(await binsLit(), "zero-count bins should be hidden").toBeLessThan(
+      0.7,
+    );
+  });
+
+  await test.step("opens with the Visium HD preset; the opacity slider goes in the link", async () => {
+    const linkState = async () => {
+      const v = new URL(page.url()).searchParams.get("v");
+
+      return v ? JSON.parse(Buffer.from(v, "base64url").toString()) : {};
+    };
+    const slider = page
+      .getByTestId("cell-opacity")
+      .getByRole("slider", { name: "Cell opacity" });
+
+    // The preset's own values (viridis, hide zero counts, 80%) are what the
+    // store opens with, so the link carries none of them
+    await expect(slider).toHaveValue("0.8");
+    expect(await linkState()).not.toHaveProperty("op");
+    expect(await linkState()).not.toHaveProperty("cm");
+    expect(await linkState()).not.toHaveProperty("hz");
+
+    await slider.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(slider).toHaveValue("0.75");
+    await expect.poll(async () => (await linkState()).op).toBe(0.75);
+
+    await page.reload();
+    await expect(
+      page
+        .getByTestId("cell-opacity")
+        .getByRole("slider", { name: "Cell opacity" }),
+    ).toHaveValue("0.75", { timeout: 120_000 });
+    await page.waitForFunction(
+      () => (window as any).__merfish?.renderComplete != null,
+      undefined,
+      { timeout: 120_000 },
+    );
   });
 
   await test.step("the SC button hides them (an image is under them)", async () => {
@@ -373,7 +504,7 @@ test("@quick CosMx store: cells placed from their shapes when the table has no o
   expect((await readHooks(page))!.stats!.pointCount, "cells").toBe(25);
   // The cells' positions come from the Point element, read whole. The
   // polygons are the Shapes layer's (a recognised outline element,
-  // docs/specs/conventions.json): it reads them once the view is under 1 mm
+  // docs/specs/conventions.json): it reads them once the view is under 2 mm
   // across, which this tiny store always is; a real store's first view is
   // wider and reads none
   expect(

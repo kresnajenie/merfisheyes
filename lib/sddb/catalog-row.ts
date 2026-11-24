@@ -59,7 +59,12 @@ export function formatBytes(n: number): string {
 
 export interface MappedCatalogRow {
   uid: string;
-  /** Upsert payload for `CatalogDataset` (minus the audit columns). */
+  /**
+   * Upsert payload for `CatalogDataset` (minus the audit columns). No
+   * `thumbnailUrl`: the catalog carries none, and a card's image is made
+   * from the uid when it is drawn (`lib/sddb/thumbnail.ts`), so a sync never
+   * clears one set another way.
+   */
   data: {
     title: string;
     description: string;
@@ -68,7 +73,6 @@ export interface MappedCatalogRow {
     tissue: string | null;
     platform: string;
     tags: string[];
-    thumbnailUrl: string | null;
     metadata: Record<string, unknown>;
     externalLink: string | null;
     publicationLink: string | null;
@@ -187,7 +191,6 @@ export function mapCatalogRow(
       ]
         .filter((t): t is string => Boolean(t))
         .filter((t, i, a) => a.indexOf(t) === i),
-      thumbnailUrl: str(row.thumbnail_url),
       metadata,
       externalLink: str(row.dataset_url) ?? str(row.card_url),
       publicationLink: doi ? `https://doi.org/${doi}` : null,

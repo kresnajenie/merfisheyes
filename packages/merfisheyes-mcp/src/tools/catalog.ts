@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 
 import * as z from "zod/v4";
 
-import { apiGet } from "../api.js";
+import type { Host } from "../host.ts";
 import {
   type Page,
   join,
@@ -11,7 +11,7 @@ import {
   one,
   paging,
   responseFormat,
-} from "../format.js";
+} from "../format.ts";
 
 /**
  * The public catalog: Explore's search, its facets, one dataset in detail,
@@ -226,7 +226,7 @@ const READ = {
   openWorldHint: true,
 };
 
-export function registerCatalogTools(server: McpServer) {
+export function registerCatalogTools(server: McpServer, host: Host) {
   server.registerTool(
     "meyes_search_datasets",
     {
@@ -282,7 +282,7 @@ Use meyes_get_dataset for one dataset in detail.`,
       annotations: READ,
     },
     async (a, ctx) => {
-      const page = await apiGet<Page<Card>>(
+      const page = await host.get<Page<Card>>(
         "/catalog/search",
         {
           q: a.query,
@@ -321,7 +321,7 @@ Use meyes_get_dataset for one dataset in detail.`,
       annotations: READ,
     },
     async ({ response_format }, ctx) => {
-      const f = await apiGet<{
+      const f = await host.get<{
         species: string[];
         tissues: string[];
         platforms: string[];
@@ -359,7 +359,7 @@ Examples: id="ace-dip-vat", id="cm1x…", id="ds_a1B2c3D4e5".`,
       const path = isDatasetId(id)
         ? `/datasets/${encodeURIComponent(id)}`
         : `/catalog/${encodeURIComponent(id)}`;
-      const d = await apiGet<Detail>(path, {}, ctx.mcpReq.signal);
+      const d = await host.get<Detail>(path, {}, ctx.mcpReq.signal);
 
       return one(response_format, d, () => detailMd(d));
     },
@@ -403,7 +403,7 @@ Examples: id="ace-dip-vat", query="Gad" -> Gad1, Gad2.`,
       const path = isDatasetId(id)
         ? `/datasets/${encodeURIComponent(id)}/genes`
         : `/catalog/${encodeURIComponent(id)}/genes`;
-      const page = await apiGet<Page<string>>(
+      const page = await host.get<Page<string>>(
         path,
         { q: query, limit, offset },
         ctx.mcpReq.signal,

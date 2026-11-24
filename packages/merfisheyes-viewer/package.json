@@ -1,0 +1,22 @@
+{
+  "name": "@merfisheyes/viewer",
+  "version": "0.1.0",
+  "description": "The MERFISHEYES viewer as static files, for viewing data on your own computer (served by @merfisheyes/mcp)",
+  "license": "MIT",
+  "scripts": {
+    "build": "next build",
+    "prepublishOnly": "next build"
+  },
+  "files": [
+    "out"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kresnajenie/merfisheyes.git",
+    "directory": "packages/merfisheyes-viewer"
+  },
+  "homepage": "https://www.merfisheyes.com",
+  "publishConfig": {
+    "access": "public"
+  }
+}

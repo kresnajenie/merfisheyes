@@ -35,9 +35,11 @@ export function unauthorized(
   error: string | null,
   description: string,
   scopes: Scope[] = DEFAULT_SCOPES,
+  /** The protected resource refused (default: the agent API). */
+  resource?: string,
 ) {
   const params: Record<string, string> = {
-    resource_metadata: resourceMetadataUrl(),
+    resource_metadata: resourceMetadataUrl(resource),
   };
 
   if (error) params.error = error;

@@ -2,11 +2,9 @@ import type { McpServer } from "@modelcontextprotocol/server";
 
 import * as z from "zod/v4";
 
-import { apiGet } from "../api.js";
-import { openBrowser } from "../auth.js";
-import { SITE } from "../config.js";
-import { type Page, text } from "../format.js";
-import { isDatasetId } from "./catalog.js";
+import { type Page, text } from "../format.ts";
+import type { Host } from "../host.ts";
+import { isDatasetId } from "./catalog.ts";
 
 /**
  * meyes_open_view: a link to a dataset in the viewer, already set up — genes
@@ -187,6 +185,7 @@ class ViewError extends Error {}
 /** The dataset's own spelling of a gene, or a ViewError listing near
  * matches. */
 async function resolveGene(
+  host: Host,
   id: string,
   gene: string,
   signal: AbortSignal,
@@ -194,7 +193,11 @@ async function resolveGene(
   const path = isDatasetId(id)
     ? `/datasets/${encodeURIComponent(id)}/genes`
     : `/catalog/${encodeURIComponent(id)}/genes`;
-  const page = await apiGet<Page<string>>(path, { q: gene, limit: 20 }, signal);
+  const page = await host.get<Page<string>>(
+    path,
+    { q: gene, limit: 20 },
+    signal,
+  );
   const exact = page.items.find((g) => g.toLowerCase() === gene.toLowerCase());
 
   if (exact) return exact;
@@ -292,11 +295,12 @@ type Side = {
 
 /** One side of the view: its dataset, viewer link and state. */
 async function buildSide(
+  host: Host,
   s: Side,
   shared: Omit<ViewSettings, "genes" | "column" | "celltypes">,
   signal: AbortSignal,
 ) {
-  const d = await apiGet<Detail>(
+  const d = await host.get<Detail>(
     isDatasetId(s.id)
       ? `/datasets/${encodeURIComponent(s.id)}`
       : `/catalog/${encodeURIComponent(s.id)}`,
@@ -307,8 +311,8 @@ async function buildSide(
   const url = new URL(entry.viewerUrl);
 
   // Only ever link to the site this server talks to.
-  if (url.origin !== new URL(SITE).origin)
-    throw new ViewError(`The viewer link is not on ${SITE}.`);
+  if (url.origin !== new URL(host.site).origin)
+    throw new ViewError(`The viewer link is not on ${host.site}.`);
   const kind = viewerKind(url);
 
   if (kind === "none" && (s.genes.length || s.column || s.celltypes))
@@ -325,7 +329,7 @@ async function buildSide(
     );
   const genes: string[] = [];
 
-  for (const g of s.genes) genes.push(await resolveGene(d.id, g, signal));
+  for (const g of s.genes) genes.push(await resolveGene(host, d.id, g, signal));
 
   return {
     title: d.title ?? s.id,
@@ -357,13 +361,13 @@ const describe = (
     .filter(Boolean)
     .join(", ");
 
-export function registerViewTools(server: McpServer) {
+export function registerViewTools(server: McpServer, host: Host) {
   server.registerTool(
     "meyes_open_view",
     {
       title: "Link to a dataset in the viewer",
       description: `A link to a dataset in the MERFISHEYES viewer, already showing what was asked: genes coloured, a cell-type column with some of its types picked out, 2D or 3D, dot size, opacity — and, with \`compare\`, a second dataset beside it in split screen (two slices, two ages, two conditions; camera synced with sync=true).
-Returns the link; the link reopens the same view and can be shared. Set open=true only when the person asked to open it now — it opens one browser tab. Never call this several times to open several tabs: give links, or use split screen for two.
+Returns the link; the link reopens the same view and can be shared.${host.open ? " Set open=true only when the person asked to open it now — it opens one browser tab. Never call this several times to open several tabs: give links, or use split screen for two." : " Give the person the link; for two views to compare, use one split screen rather than two links."}
 Gene names are corrected to the dataset's own spelling; a gene it does not measure is an error listing near matches. Column and cell-type names are passed as given (the viewer falls back to its default column when the name is not one of the dataset's) — use names meyes_get_dataset reports.
 Split screen works for cell and molecule viewers (not SpatialData stores or images). Settings that are not per side (view, dot_size, opacity) apply to both.
 Examples:
@@ -405,12 +409,17 @@ Examples:
           .describe(
             "Opacity of cells outside the picked-out cell types, 0–1 (cells viewer)",
           ),
-        open: z
-          .boolean()
-          .default(false)
-          .describe(
-            "Open it in a browser tab now; only when the person asked to open it",
-          ),
+        // Only where a browser on this machine can be opened (the package).
+        ...(host.open
+          ? {
+              open: z
+                .boolean()
+                .default(false)
+                .describe(
+                  "Open it in a browser tab now; only when the person asked to open it",
+                ),
+            }
+          : {}),
       }),
       annotations: {
         readOnlyHint: true,
@@ -429,9 +438,9 @@ Examples:
       };
 
       try {
-        const left = await buildSide(a, shared, signal);
+        const left = await buildSide(host, a, shared, signal);
         const right = a.compare
-          ? await buildSide(a.compare, shared, signal)
+          ? await buildSide(host, a.compare, shared, signal)
           : null;
         const url = left.url;
 
@@ -454,7 +463,7 @@ Examples:
         }
         const link = url.toString();
 
-        if (a.open) openBrowser(link);
+        const opened = !!(a as { open?: boolean }).open && !!host.open?.(link);
 
         const ignoredOn = (side: typeof left | null) =>
           new Set(side?.ignored ?? []);
@@ -503,7 +512,7 @@ Examples:
                   "",
                 ]
               : []),
-            a.open
+            opened
               ? "Opened in a browser tab. If none opened (no browser on this computer), give the person the link."
               : "Give the person this link; it was not opened.",
             ...(a.column || a.celltypes?.length || a.compare?.column

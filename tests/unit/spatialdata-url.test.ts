@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyImageState,
+  encodeImageChoice,
   encodeImageState,
+  imageNameInState,
+  overlayNameInState,
 } from "@/lib/spatialdata/imageUrlState";
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 
@@ -84,7 +87,7 @@ describe("resolveZarrUrl", () => {
 
 describe("image settings in a link", () => {
   /** The part of an ImageLayer the link reads and writes. */
-  function layer(windowed: boolean[]) {
+  function layer(windowed: boolean[], name = "image", siblings: string[] = []) {
     const channels = windowed.map((_, i) => ({
       label: `ch${i}`,
       color: "#3d7dff",
@@ -97,6 +100,9 @@ describe("image settings in a link", () => {
       channels,
       maxValue: 255,
       visible: true,
+      name,
+      siblings: siblings.map((s) => ({ name: s })),
+      grayscale: false,
       hasWindow: (i: number) => windowed[i],
       setChannel(i: number, patch: object) {
         if ("min" in patch) windowed[i] = true;
@@ -145,6 +151,61 @@ describe("image settings in a link", () => {
 
     expect(applyImageState(to, encodeImageState(from))).toBe(false);
     expect(to.channels[0].range).toBeUndefined();
+  });
+
+  it("round-trips greyscale, and leaves it out of a link when off", () => {
+    const from = layer([true]);
+
+    from.setChannel(0, { color: "#ff8800" });
+    const off = encodeImageState(from);
+
+    from.grayscale = true;
+    const to = layer([false]);
+
+    expect(applyImageState(to, encodeImageState(from))).toBe(true);
+    expect(to.grayscale).toBe(true);
+    expect(applyImageState(to, off)).toBe(true);
+    expect(to.grayscale).toBe(false);
+  });
+
+  it("names the image only where the store has more than one", () => {
+    expect(imageNameInState(encodeImageState(layer([true])))).toBeUndefined();
+    expect(
+      imageNameInState(
+        encodeImageState(layer([true], "he_image", ["he_image", "morphology"])),
+      ),
+    ).toBe("he_image");
+    // Right after a switch the link names the image and nothing else
+    expect(imageNameInState(encodeImageChoice("he_image"))).toBe("he_image");
+    expect(applyImageState(layer([true]), encodeImageChoice("he_image"))).toBe(
+      false,
+    );
+    expect(imageNameInState("not-a-state")).toBeUndefined();
+  });
+
+  it("round-trips the image drawn over it, with its opacity and settings", () => {
+    const names = ["morphology", "he_image"];
+    const from = layer([true], "morphology", names);
+
+    from.overlay = { ...layer([true, true, true], "he_image", names), opacity: 0.3 };
+    from.overlay.grayscale = true;
+    const link = encodeImageState(from);
+
+    expect(overlayNameInState(link)).toBe("he_image");
+    expect(overlayNameInState(encodeImageState(layer([true])))).toBeUndefined();
+
+    // The viewer opens the image the link names, then the settings go on
+    const to = layer([false], "morphology", names);
+
+    to.overlay = { ...layer([false, false, false], "he_image", names), opacity: 0.5 };
+    expect(applyImageState(to, link)).toBe(true);
+    expect(to.overlay.opacity).toBe(0.3);
+    expect(to.overlay.grayscale).toBe(true);
+
+    // Written for another image on top: this one keeps what it has
+    to.overlay = { ...layer([false], "other", names), opacity: 0.5 };
+    expect(applyImageState(to, link)).toBe(true);
+    expect(to.overlay.opacity).toBe(0.5);
   });
 
   it("ignores settings written for another image", () => {

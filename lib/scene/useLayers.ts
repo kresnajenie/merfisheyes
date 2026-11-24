@@ -32,6 +32,8 @@ export function useLayers(
 } {
   const api = usePanelLayersApi();
   const layers = useStore(api, (s) => s.layers);
+  const replaced = useStore(api, (s) => s.replaced);
+  const handed = useRef<OpenedElements>({});
   const ctxRef = useRef(ctx);
 
   ctxRef.current = ctx;
@@ -66,7 +68,13 @@ export function useLayers(
   // One layer per element, for as long as that element is the one given
   useEffect(() => {
     for (const def of ELEMENTS) {
-      const opened = elements[def.kind];
+      // A replacement stands in for the element it was chosen over, and
+      // goes when the viewer hands over another
+      if (handed.current[def.kind] !== elements[def.kind]) {
+        handed.current[def.kind] = elements[def.kind] as never;
+        api.getState().replaceElement(def.kind, null);
+      }
+      const opened = api.getState().replaced[def.kind] ?? elements[def.kind];
       const current = instances.current.get(def.kind);
 
       if (current?.opened === opened) continue;
@@ -78,11 +86,18 @@ export function useLayers(
       attach(def.kind, layer);
       api.getState().setLayer(def.kind, layer);
     }
-  }, [elements.image, elements.shapes, elements.points, elements.molecules]);
+  }, [
+    elements.image,
+    elements.shapes,
+    elements.points,
+    elements.molecules,
+    replaced,
+  ]);
 
   useEffect(
     () => () => {
       for (const kind of [...instances.current.keys()]) drop(kind);
+      for (const def of ELEMENTS) api.getState().replaceElement(def.kind, null);
     },
     [],
   );
