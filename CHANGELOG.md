@@ -25,11 +25,14 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- **Genes are listed in the dataset's own order**, which is often a ranking
+  (highly or spatially variable genes first), not alphabetically. **A→Z** in
+  the gene search box sorts them, and a second click goes back.
 - **Genes and numerical columns are coloured with viridis by default**
   (it was blue–white–red). A link or saved view that names a colormap keeps
   it; one made with the old default and never changed now opens in viridis.
 - **Visium spots and Visium HD bins stay at their real size.** The size
-  slider no longer scales them (it is greyed out for these datasets): a
+  slider no longer scales them (it is not shown for these datasets): a
   spot's diameter and a bin's side are measurements. It is a setting of the
   technology's preset (*Spot and bin size* at `/presets`), on by default,
   and Visium is now a technology with a preset of its own.

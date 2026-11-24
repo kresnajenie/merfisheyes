@@ -331,8 +331,8 @@ test("@quick Visium HD store: the bins drawn as squares of their real size", asy
     })
     .toBeGreaterThan(0.7);
 
-  // A bin's side is a measurement: the size slider does not scale it
-  await expect(page.getByRole("slider", { name: "Dot size" })).toBeDisabled();
+  // A bin's side is a measurement: there is no size slider to scale it
+  await expect(page.getByRole("slider", { name: "Dot size" })).toHaveCount(0);
 
   await test.step("coloured by a gene, every bin keeps its size", async () => {
     // Low expression shrank a dot; a bin stays a bin (colour carries it)
