@@ -714,6 +714,14 @@ Gate for 6: the user's niche question answered in Claude Desktop on their
 own file — niches, re-clustering, UMAPs shown, markers, a saved copy —
 with no Python of the agent's own and no step cut off.
 
+7. **Raw MERFISH runs, checked and converted locally.** A researcher's raw
+   run (the lab pipeline's per-field `.npz`: `XF` + `genes`, `cellinfo`)
+   sanity-checked in seconds (`meyes_raw_check`: spots by gene, an FOV
+   map, blank fraction), then converted by the extension into one finalized
+   SpatialData store and viewed — no hand conversion, no upload. Its own
+   plan: [RAW-MERFISH.md](RAW-MERFISH.md). **Blocked (2026-11-25)** on the
+   questions in its §4: nothing starts until the user answers them.
+
 ### Pillar E — The site is the MCP server (a connector, no install)
 
 1. **`www.merfisheyes.com/mcp`** — a remote MCP server (Streamable HTTP,
