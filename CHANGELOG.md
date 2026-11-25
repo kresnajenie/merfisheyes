@@ -36,6 +36,12 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   spot's diameter and a bin's side are measurements. It is a setting of the
   technology's preset (*Spot and bin size* at `/presets`), on by default,
   and Visium is now a technology with a preset of its own.
+- **Zooming a 2D view centres on the cursor** (or on the middle of a pinch)
+  instead of the middle of the screen, as a map does; the UMAP panel too.
+  3D views are unchanged
+  ([#213](https://github.com/kresnajenie/merfisheyes/issues/213)).
+- **One finger moves a 2D view on a phone or tablet.** It took two fingers
+  before, the same two that zoom.
 - **Cell outlines show from further out.** They are drawn once the view is
   under 2 mm across (it was 1 mm), with up to 80,000 at once.
 
