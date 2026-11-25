@@ -17,6 +17,8 @@
 
 import pako from "pako";
 
+import { trackedFetch } from "@/lib/net/load-meter";
+
 const UNASSIGNED_SUFFIX = "_uuuuuuuuuu";
 
 export interface MoleculeCounts {
@@ -158,7 +160,9 @@ export class ProcessedSingleMoleculeAdapter {
    * Fetch and parse a plain (non-gzipped) JSON file
    */
   private async fetchPlainJSON(fileKey: string): Promise<any> {
-    console.log(`[ProcessedSingleMoleculeAdapter] Fetching plain JSON ${fileKey}...`);
+    console.log(
+      `[ProcessedSingleMoleculeAdapter] Fetching plain JSON ${fileKey}...`,
+    );
 
     if (this.mode === "local") {
       const file = this.localFiles?.get(fileKey);
@@ -179,7 +183,7 @@ export class ProcessedSingleMoleculeAdapter {
       throw new Error(`No download URL for file: ${fileKey}`);
     }
 
-    const response = await fetch(url);
+    const response = await trackedFetch(url);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch ${fileKey}: ${response.statusText}`);
@@ -213,7 +217,7 @@ export class ProcessedSingleMoleculeAdapter {
         throw new Error(`No download URL for file: ${fileKey}`);
       }
 
-      const response = await fetch(url);
+      const response = await trackedFetch(url);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch ${fileKey}: ${response.statusText}`);
@@ -267,7 +271,7 @@ export class ProcessedSingleMoleculeAdapter {
       const presignedUrl = data.url;
 
       // Now fetch the actual gene file from S3
-      const geneResponse = await fetch(presignedUrl);
+      const geneResponse = await trackedFetch(presignedUrl);
 
       if (!geneResponse.ok) {
         throw new Error(
@@ -345,7 +349,9 @@ export class ProcessedSingleMoleculeAdapter {
    * Get coordinates for unassigned molecules of a specific gene (lazy loaded)
    * Returns flat Float32Array: [x1,y1,z1, x2,y2,z2, ...] or empty Float32Array if no unassigned data
    */
-  async getUnassignedCoordinatesByGene(geneName: string): Promise<Float32Array> {
+  async getUnassignedCoordinatesByGene(
+    geneName: string,
+  ): Promise<Float32Array> {
     const empty = new Float32Array(0);
 
     if (!this.manifest || !this.manifest.has_unassigned) {

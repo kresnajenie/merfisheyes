@@ -3,6 +3,8 @@ import type { StandardizedDatasetWorkerApi } from "./standardized-dataset.worker
 
 import * as Comlink from "comlink";
 
+import { attachLoadMeter } from "@/lib/net/load-meter";
+
 let worker: Worker | null = null;
 let workerProxy: Comlink.Remote<StandardizedDatasetWorkerApi> | null = null;
 
@@ -23,6 +25,7 @@ export async function getStandardizedDatasetWorker(): Promise<
       new URL("./standardized-dataset.worker.ts", import.meta.url),
       { type: "module" },
     );
+    attachLoadMeter(worker);
 
     // Add error handling for worker creation/loading
     worker.onerror = (event) => {

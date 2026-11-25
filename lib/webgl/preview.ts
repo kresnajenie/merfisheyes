@@ -11,6 +11,7 @@
  * real dataset. Colour is a palette index rather than RGB: a third of the
  * bytes, and it keeps a preview consistent with the viewer's own colours.
  */
+import { trackedFetch } from "@/lib/net/load-meter";
 
 export interface DatasetPreview {
   /** Centred on the origin and scaled to fit a unit-ish box, ready to draw. */
@@ -43,8 +44,8 @@ export async function loadPreview(
 
   try {
     const [idxRes, binRes] = await Promise.all([
-      fetch(`${base}/preview/index.json`, { signal }),
-      fetch(`${base}/preview/points.bin.gz`, { signal }),
+      trackedFetch(`${base}/preview/index.json`, { signal }),
+      trackedFetch(`${base}/preview/points.bin.gz`, { signal }),
     ]);
 
     if (!idxRes.ok || !binRes.ok) return null;

@@ -10,6 +10,13 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **A download bar that says how much.** While a dataset opens, and
+  whenever the viewer reads more (a gene, image tiles, molecules, cell
+  outlines), it shows megabytes received of megabytes announced and files
+  finished of files asked for: on the loading screen while opening, at the
+  bottom of the viewer afterwards. The viewer only ever reads the part of a
+  dataset a view needs, so the total is that part, not the size of the whole
+  dataset. Reads shorter than 0.4 s don't show.
 - **Choose which image of a store is drawn, and draw a photograph in grey.**
   A store with more than one image (an Atera store's H&E photograph beside
   its fluorescence stain) lists them in the Image panel, and an H&E image has

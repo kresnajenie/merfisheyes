@@ -18,6 +18,7 @@
  *                  Float32 vertices[nVerts * 3]
  *                  Uint32  indices[nIndices]   (local to each cell)
  */
+import { trackedFetch } from "@/lib/net/load-meter";
 
 export interface CellMesh {
   /** Matches a value in the `cell` obs column, so it can follow a selection. */
@@ -64,8 +65,8 @@ export async function loadSurfaceMeshes(
 
   try {
     const [indexRes, binRes] = await Promise.all([
-      fetch(`${base}/${files.index}`),
-      fetch(`${base}/${files.bin}`),
+      trackedFetch(`${base}/${files.index}`),
+      trackedFetch(`${base}/${files.bin}`),
     ]);
 
     if (!indexRes.ok || !binRes.ok) return null;

@@ -15,6 +15,7 @@ import { CONVENTIONS } from "./conventions";
 import { elementNames } from "./store";
 
 import { hinted } from "@/lib/storage/ElementStore";
+import { attachLoadMeter } from "@/lib/net/load-meter";
 
 export interface CellPolygons {
   /** x, y of every vertex, polygon after polygon. */
@@ -51,6 +52,8 @@ export async function loadCellPolygons(
     new URL("../workers/shapes.worker.ts", import.meta.url),
     { type: "module" },
   );
+
+  attachLoadMeter(worker);
 
   try {
     const api = Comlink.wrap<ShapesWorkerApi>(worker);

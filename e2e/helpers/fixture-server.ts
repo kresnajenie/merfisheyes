@@ -160,6 +160,8 @@ export async function startFixtureServer(
     const whole = body;
     let offset = 0;
 
+    // As a bucket does: without it the body goes out chunked, with no size
+    res.setHeader("Content-Length", whole.length);
     res.writeHead(status);
     const next = () => {
       if (res.destroyed) return;

@@ -3,6 +3,7 @@
 import { Button, Progress, Spinner } from "@heroui/react";
 import { useRouter } from "next/navigation";
 
+import { LoadMeterText } from "@/components/load-meter-bar";
 import LightRays from "@/components/react-bits/LightRays";
 import { subtitle, title } from "@/components/primitives";
 
@@ -41,6 +42,7 @@ export function DatasetLoadingScreen({
             value={progress}
           />
           <p className="text-xs text-white/50">{message}</p>
+          <LoadMeterText className="text-xs tabular-nums text-white/40" />
         </div>
       </div>
     );
@@ -84,6 +86,7 @@ export function DatasetLoadingScreen({
             value={progress}
           />
           <p className="text-sm text-default-500 text-center">{message}</p>
+          <LoadMeterText className="text-xs tabular-nums text-default-400 text-center" />
         </div>
       </div>
     </>
