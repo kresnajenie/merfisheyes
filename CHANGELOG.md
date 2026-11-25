@@ -84,6 +84,9 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Fixed
 
+- **"Loading expression" no longer stays after switching genes quickly.**
+  Picking another gene while one was still downloading left the first
+  gene's loading message on screen for good.
 - **A dataset processed on the server opens with its saved view
   ([#206](https://github.com/kresnajenie/merfisheyes/issues/206)).**
   "Save current view as default", and the upload's "open in 3D", were saved
