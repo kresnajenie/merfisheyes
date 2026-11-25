@@ -129,7 +129,6 @@ export function ThreeScene({
   // when applying per-sample transforms so edits compose from identity.
   const basePositionsRef = useRef<Float32Array | null>(null);
   const sceneScaleRef = useRef<number>(1);
-  const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
@@ -1412,6 +1411,9 @@ export function ThreeScene({
 
       const coexpressActive =
         coexpressEnabled && !!selectedGene && !!selectedGene2;
+      // This run's own loading toast. A gene picked while another is still
+      // downloading starts a second run, and each must close only its own.
+      let geneToastId: string | number | null = null;
 
       // Check if column or its effective type has changed (for auto-scaling numerical columns)
       const columnChanged = previousColumnRef.current !== selectedColumn;
@@ -1430,7 +1432,7 @@ export function ThreeScene({
         // Two-gene coexpression: green + magenta additive blend.
         try {
           if (geneChanged || gene2Changed) {
-            geneToastIdRef.current = toast.loading(
+            geneToastId = toast.loading(
               `Loading "${selectedGene}" + "${selectedGene2}"…`,
             );
           }
@@ -1464,10 +1466,7 @@ export function ThreeScene({
             adv,
           );
         } finally {
-          if (geneToastIdRef.current != null) {
-            toast.dismiss(geneToastIdRef.current);
-            geneToastIdRef.current = null;
-          }
+          if (geneToastId != null) toast.dismiss(geneToastId);
         }
       } else if (
         hasGeneMode &&
@@ -1479,7 +1478,7 @@ export function ThreeScene({
         // Combined mode: gene expression on selected celltypes
         try {
           if (geneChanged) {
-            geneToastIdRef.current = toast.loading(
+            geneToastId = toast.loading(
               `Loading expression for "${selectedGene}"...`,
             );
           }
@@ -1508,16 +1507,13 @@ export function ThreeScene({
             display,
           );
         } finally {
-          if (geneToastIdRef.current != null) {
-            toast.dismiss(geneToastIdRef.current);
-            geneToastIdRef.current = null;
-          }
+          if (geneToastId != null) toast.dismiss(geneToastId);
         }
       } else if (hasGeneMode && selectedGene) {
         // Gene mode only
         try {
           if (geneChanged) {
-            geneToastIdRef.current = toast.loading(
+            geneToastId = toast.loading(
               `Loading expression for "${selectedGene}"...`,
             );
           }
@@ -1544,10 +1540,7 @@ export function ThreeScene({
             display,
           );
         } finally {
-          if (geneToastIdRef.current != null) {
-            toast.dismiss(geneToastIdRef.current);
-            geneToastIdRef.current = null;
-          }
+          if (geneToastId != null) toast.dismiss(geneToastId);
         }
       } else if (hasCelltypeMode) {
         // Celltype mode only
