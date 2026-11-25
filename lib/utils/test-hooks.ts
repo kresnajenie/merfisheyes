@@ -147,7 +147,7 @@ export interface MerfishTestHooks {
   deStatsColumn: string | null;
   /** Monotonic counter incremented every time DE stats resolve. */
   deStatsCount: number;
-  /** The newest scene's camera: position x, y, z, then fov and aspect. */
+  /** The newest scene's camera: position x, y, z, fov, aspect, then target x, y, z. */
   camera: (() => number[]) | null;
 }
 

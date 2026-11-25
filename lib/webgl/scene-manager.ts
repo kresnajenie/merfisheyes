@@ -136,6 +136,26 @@ export function initializeScene(
       orbitControls.update();
     }
 
+    // A zoom about the cursor moves the camera along the cursor's ray but
+    // shortens the distance to the target by the full step, so off-centre the
+    // target would lift off the data and creep up to the camera: the zoom
+    // stalls while that distance (the scale bar) keeps shrinking. Put the
+    // target back on the plane it was on when the gesture began.
+    const forward = new THREE.Vector3();
+    let planeZ = orbitControls.target.z;
+
+    orbitControls.addEventListener("start", () => {
+      planeZ = orbitControls.target.z;
+    });
+    orbitControls.addEventListener("change", () => {
+      if (orbitControls.target.z === planeZ) return;
+      camera.getWorldDirection(forward);
+      if (forward.z === 0) return;
+      orbitControls.target
+        .copy(camera.position)
+        .addScaledVector(forward, (planeZ - camera.position.z) / forward.z);
+    });
+
     controls = orbitControls;
   } else {
     // 3D: Use TrackballControls
@@ -174,7 +194,12 @@ export function initializeScene(
   // outside NEXT_PUBLIC_E2E=1 — the check is one boolean per frame.
   const instrumented = hooksEnabled();
   if (instrumented) {
-    markCamera(() => [...camera.position.toArray(), camera.fov, camera.aspect]);
+    markCamera(() => [
+      ...camera.position.toArray(),
+      camera.fov,
+      camera.aspect,
+      ...controls.target.toArray(),
+    ]);
   }
   let lastTickAt = 0;
   let lastMemoryAt = 0;

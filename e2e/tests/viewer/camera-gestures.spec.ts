@@ -38,7 +38,7 @@ const openStore = async (page: Page) => {
   );
 };
 
-/** Camera position x, y, z, then fov (degrees) and aspect. */
+/** Camera position x, y, z, fov (degrees), aspect, then target x, y, z. */
 const camera = (page: Page) =>
   page.evaluate(() => (window as any).__merfish.camera() as number[]);
 
@@ -93,6 +93,16 @@ test.describe("@quick moving the 2D view", () => {
     expect(Math.abs(ay - by)).toBeLessThan(tolerance);
     // ... so the middle of the view has
     expect(Math.abs(after[0] - before[0])).toBeGreaterThan(tolerance);
+
+    // Much further in, off-centre: the zoom keeps going, and the camera's
+    // target (what the scale bar measures to) stays on the data
+    for (let i = 0; i < 30; i++) await page.mouse.wheel(0, -120);
+
+    const deep = await settledCamera(page);
+
+    expect(deep[2]).toBeLessThan(after[2] * 0.3);
+    expect(Math.abs(deep[7] - before[7])).toBeLessThan(deep[2] * 0.01);
+    expect(Math.abs(worldAt(deep, fx, fy)[0] - bx)).toBeLessThan(tolerance);
   });
 
   test("one finger pans", async ({ page }) => {
