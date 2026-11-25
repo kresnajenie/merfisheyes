@@ -8,6 +8,8 @@ import {
 import { selectBestClusterColumnByName } from "./utils/dataset-utils";
 import { markDeStatsReady } from "./utils/test-hooks";
 
+import { attachLoadMeter, trackedFetch } from "@/lib/net/load-meter";
+
 interface SpatialData {
   coordinates: Float32Array | number[][];
   dimensions: number;
@@ -981,6 +983,8 @@ export class StandardizedDataset {
         { type: "module" },
       );
 
+      attachLoadMeter(worker);
+
       try {
         const api =
           Comlink.wrap<
@@ -1111,7 +1115,7 @@ export class StandardizedDataset {
 
       if (manifestRes.ok) {
         const { url } = (await manifestRes.json()) as { url: string };
-        const manifestFetch = await fetch(url);
+        const manifestFetch = await trackedFetch(url);
 
         if (manifestFetch.ok) {
           manifestJson = await manifestFetch.json();

@@ -6,6 +6,7 @@
  * flat Float32Array. Nothing about the format has to change to consume it
  * progressively — a molecule is complete as soon as its 12th byte arrives.
  */
+import { trackedFetch } from "@/lib/net/load-meter";
 
 /** 12 bytes: three float32 coordinates. */
 const BYTES_PER_MOLECULE = 12;
@@ -105,7 +106,8 @@ export async function streamFloat32Triples(
         chunk = value;
       }
 
-      const usable = Math.floor(chunk.length / BYTES_PER_MOLECULE) * BYTES_PER_MOLECULE;
+      const usable =
+        Math.floor(chunk.length / BYTES_PER_MOLECULE) * BYTES_PER_MOLECULE;
 
       if (usable > 0) {
         pending.push(chunk.subarray(0, usable));
@@ -165,7 +167,7 @@ export async function streamGzippedFloat32(
   onBatch: (batch: StreamFloat32Batch) => void | Promise<void>,
   options: StreamFloat32Options = {},
 ): Promise<Float32Array> {
-  const response = await fetch(url, { signal: options.signal });
+  const response = await trackedFetch(url, { signal: options.signal });
 
   if (!response.ok) {
     throw new Error(`Failed to download ${url}: ${response.status}`);
@@ -217,7 +219,10 @@ export async function probeGzipMoleculeCount(
 
     const uncompressedBytes = new DataView(buffer).getUint32(0, true);
 
-    if (uncompressedBytes === 0 || uncompressedBytes % BYTES_PER_MOLECULE !== 0) {
+    if (
+      uncompressedBytes === 0 ||
+      uncompressedBytes % BYTES_PER_MOLECULE !== 0
+    ) {
       return null;
     }
 

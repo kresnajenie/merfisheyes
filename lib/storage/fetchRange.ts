@@ -1,5 +1,7 @@
 import type { RangeQuery } from "@zarrita/storage";
 
+import { trackedFetch } from "@/lib/net/load-meter";
+
 /**
  * GET part of an object over HTTP, for zarr stores whose arrays are sharded
  * (many chunks in one object, read by byte range).
@@ -13,7 +15,7 @@ export async function fetchRange(
   range: RangeQuery,
   signal?: AbortSignal,
 ): Promise<Uint8Array | undefined> {
-  const res = await fetch(url, {
+  const res = await trackedFetch(url, {
     signal,
     headers: {
       Range:

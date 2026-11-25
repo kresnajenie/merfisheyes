@@ -2,6 +2,8 @@ import type { AbsolutePath, AsyncReadable, RangeQuery } from "@zarrita/storage";
 
 import { fetchRange } from "./fetchRange";
 
+import { trackedFetch } from "@/lib/net/load-meter";
+
 /**
  * Zarrita store backed by a private S3 bucket through our API.
  *
@@ -50,7 +52,7 @@ export class PresignedFetchStore implements AsyncReadable {
 
     if (!presigned) return undefined;
 
-    const res = await fetch(presigned);
+    const res = await trackedFetch(presigned);
 
     if (res.status === 404 || res.status === 403) return undefined;
     if (!res.ok) {

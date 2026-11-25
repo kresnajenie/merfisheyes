@@ -23,6 +23,7 @@ import { geometryTypes } from "./footprint";
 import { elementNames } from "./store";
 
 import { hinted } from "@/lib/storage/ElementStore";
+import { attachLoadMeter } from "@/lib/net/load-meter";
 
 /** The shapes element to take the cells' positions from, if any. */
 export function centroidSource(sd: SpatialDataStore, region: string | null) {
@@ -83,6 +84,8 @@ export async function readCellCentroids(
     new URL("../workers/shapes.worker.ts", import.meta.url),
     { type: "module" },
   );
+
+  attachLoadMeter(worker);
 
   try {
     const api = Comlink.wrap<ShapesWorkerApi>(worker);

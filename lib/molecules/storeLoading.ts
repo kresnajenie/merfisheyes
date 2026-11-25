@@ -19,6 +19,7 @@ import {
   streamFloat32Triples,
   supportsStreamingDecompression,
 } from "@/lib/utils/stream-float32";
+import { trackedFetch } from "@/lib/net/load-meter";
 
 /** 12 bytes: three float32 coordinates. */
 const BYTES_PER_MOLECULE = 12;
@@ -72,7 +73,7 @@ export function appMoleculeBackend(
     const url = await urlOf(key);
 
     if (!url) return undefined;
-    const res = await fetch(url, { ...init, signal });
+    const res = await trackedFetch(url, { ...init, signal });
 
     if (res.status === 404 || res.status === 403) return undefined;
     if (!res.ok) throw new Error(`GET ${res.status} for ${key}`);
