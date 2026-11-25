@@ -115,6 +115,15 @@ export const VISUALIZATION_CONFIG = {
   GREYED_OUT_SIZE_MULTIPLIER: 1.0,
 
   /**
+   * Non-selected cells fade as the view zooms out, so the selected cell
+   * types stand out against the tissue instead of being buried in grey.
+   * Zoom is counted from the view that shows the whole dataset (1): there
+   * and further out a non-selected cell has FAR_ALPHA of its alpha, and it
+   * has all of it again once zoomed in FULL_ZOOM times.
+   */
+  UNSELECTED_FADE: { FAR_ALPHA: 0.15, FULL_ZOOM: 4.0 },
+
+  /**
    * Scale Bar Settings
    * Default min/max values for gene and numerical cluster scales
    */

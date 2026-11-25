@@ -14,6 +14,12 @@
  * pixels: uPixelRatio scales them to the device's.
  */
 
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+
+const FADE = VISUALIZATION_CONFIG.UNSELECTED_FADE;
+/** A number as a GLSL float literal. */
+const glsl = (n: number) => n.toFixed(4);
+
 const vertexBody = `
     uniform float dotSize;
     uniform float uPixelRatio;
@@ -48,6 +54,7 @@ const vertexBody = `
         // its colour and opacity, not by shrinking it
         float px = (uWorldSized > 0.5 ? uHalfHeight : POINT_SCALE) * dotSize
             * projectionMatrix[1][1] / -mvPosition.z;
+        POINT_FADE
 
         // Cull sub-pixel points — without this they jam at the GPU's 1px floor
         // and pile up as overdraw when zoomed far out. Threshold sets the
@@ -118,12 +125,24 @@ export const vertexShader = `
     attribute float size;
     attribute vec3 color;
     attribute float alpha;
+    uniform float uHomeDistance;
     varying vec3 vColor;
     varying float vAlpha;
 ${vertexBody
   .replace(
     "void main() {",
-    "void main() {\n        vColor = color;\n        vAlpha = alpha;",
+    // A negative alpha marks a cell outside the selected cell types
+    // (visualization-utils.ts): the same alpha, faded as the view zooms out
+    "void main() {\n        vColor = color;\n        vAlpha = abs(alpha);",
+  )
+  .replace(
+    "POINT_FADE",
+    // uHomeDistance: the camera's distance when the whole dataset is in
+    // view; 0 where a cloud is not zoomed against one, which fades nothing
+    `if (alpha < 0.0 && uHomeDistance > 0.0) {
+            float zoom = uHomeDistance / -mvPosition.z;
+            vAlpha *= mix(${glsl(FADE.FAR_ALPHA)}, 1.0, smoothstep(1.0, ${glsl(FADE.FULL_ZOOM)}, zoom));
+        }`,
   )
   .replace("POINT_SCALE", "size")}
 `;
@@ -138,7 +157,9 @@ ${fragmentBody.replace("POINT_ALPHA", "vAlpha * uOpacity").replace("POINT_COLOR"
 `;
 
 /** A molecule cloud: one colour, size and alpha for the whole cloud. */
-export const moleculeVertexShader = vertexBody.replace("POINT_SCALE", "1.0");
+export const moleculeVertexShader = vertexBody
+  .replace("POINT_FADE", "")
+  .replace("POINT_SCALE", "1.0");
 
 export const moleculeFragmentShader = `
     uniform vec3 uColor;

@@ -945,6 +945,12 @@ export function ThreeScene({
         baseDotSize,
       );
 
+      // Cells outside the selected cell types fade as the view zooms out
+      // from this distance (UNSELECTED_FADE)
+      (
+        pointCloud.material as THREE.ShaderMaterial
+      ).uniforms.uHomeDistance.value = distance;
+
       // Visium spots and bins: each cell at its real size and shape
       setCellFootprint(pointCloud, dataset.cellFootprint?.shape ?? null);
 

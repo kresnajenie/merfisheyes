@@ -170,6 +170,7 @@ export function createPointCloudFromBuffers(
       dotSize: { value: dotSize },
       uShape: { value: 0.0 }, // circle
       uOpacity: { value: 1.0 },
+      uHomeDistance: { value: 0.0 },
       uWorldSized: { value: 0.0 },
       uHalfHeight: { value: 400.0 },
     },
@@ -416,6 +417,7 @@ export function createPointCloud(
       dotSize: { value: dotSize },
       uShape: { value: 0.0 }, // circle
       uOpacity: { value: 1.0 },
+      uHomeDistance: { value: 0.0 },
       uWorldSized: { value: 0.0 },
       uHalfHeight: { value: 400.0 },
     },

@@ -502,9 +502,11 @@ export function updateCelltypeVisualization(
     sizes[i] = baseSize * sizeMultiplier;
 
     // Alphas
+    // Negative: outside the selection, which the shader fades as the view
+    // zooms out (UNSELECTED_FADE)
     alphas[i] = isSelected
       ? baseAlpha * alphaScale
-      : adv.greyedOutAlpha * alphaScale;
+      : -(adv.greyedOutAlpha * alphaScale);
   }
 
   return { colors, sizes, alphas };
@@ -649,7 +651,7 @@ export async function updateCombinedVisualization(
 
       sizes[i] = baseSize * adv.greyedOutSizeMultiplier;
 
-      alphas[i] = adv.greyedOutAlpha * alphaScale;
+      alphas[i] = -(adv.greyedOutAlpha * alphaScale);
     }
   }
 
@@ -754,7 +756,7 @@ export async function updateCoexpressionVisualization(
         colors[i * 3 + 1] = gg;
         colors[i * 3 + 2] = gb;
         sizes[i] = baseSize * adv.greyedOutSizeMultiplier;
-        alphas[i] = adv.greyedOutAlpha * alphaScale;
+        alphas[i] = -(adv.greyedOutAlpha * alphaScale);
         continue;
       }
     }

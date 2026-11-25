@@ -60,6 +60,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- **Cells outside the selected cell types fade as you zoom out.** With the
+  whole dataset in view they are a faint grey, so the selected types show
+  where they sit in the tissue; zooming in brings them back, fully by about
+  four times closer.
 - **The connected-agents list on the account page is shorter**: each agent
   shows its permissions, projects and when it was last used.
 - **Genes are listed in the dataset's own order**, which is often a ranking
