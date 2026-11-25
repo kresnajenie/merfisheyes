@@ -8,8 +8,36 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-25
+
 ### Added
 
+- **Technology presets.** A dataset opens with the settings of its
+  technology (colormap, cell opacity, hiding zero counts, spot and bin
+  size); Visium HD and Visium are the first. Presets are edited at
+  `/presets` by people a super admin has given the permission to, and
+  `?preset=<hash>` previews a draft before it is published.
+- **Cell opacity slider**, kept in the link.
+- **About this dataset.** The info button beside Share, in the cell,
+  molecule and image viewers, shows the metadata a store carries: organism,
+  tissue, technology, sections, where it came from.
+- **MERFISHEYES for AI agents.** The site is an MCP server at `/mcp`, and
+  `@merfisheyes/mcp` is the same for local use and Claude Desktop: an agent
+  can search both libraries (by organism, tissue, disease, technology, genes
+  measured or expressed), read your own projects once you sign in, and hand
+  back a link to the viewer already set up.
+- **Split-screen sync between cells and molecules.** Sync used to be offered
+  only when both panels had the same kind of data, so a cell dataset beside
+  a molecule dataset shared nothing. Now, when one side has cells and the
+  other only molecules, their genes follow each other by name: the gene
+  chosen for the cells is shown among the molecules (choosing another swaps
+  it), and a gene added to the molecules becomes the cells' gene. The
+  molecules' other genes stay as they are. A gene the other dataset hasn't
+  got is skipped with a warning.
+- **A molecule viewer link keeps the molecules' opacity**, as it already
+  kept their genes, colours and sizes. Older links open as before.
+- **SpatialData-DB up to its 8 November release**: 12,159 stores on
+  Explore (it was 3,222).
 - **A download bar that says how much.** While a dataset opens, and
   whenever the viewer reads more (a gene, image tiles, molecules, cell
   outlines), it shows megabytes received of megabytes announced and files
@@ -32,6 +60,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- **The connected-agents list on the account page is shorter**: each agent
+  shows its permissions, projects and when it was last used.
 - **Genes are listed in the dataset's own order**, which is often a ranking
   (highly or spatially variable genes first), not alphabetically. **A→Z** in
   the gene search box sorts them, and a second click goes back.
@@ -51,6 +81,16 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
   before, the same two that zoom.
 - **Cell outlines show from further out.** They are drawn once the view is
   under 2 mm across (it was 1 mm), with up to 80,000 at once.
+
+### Fixed
+
+- **A dataset processed on the server opens with its saved view
+  ([#206](https://github.com/kresnajenie/merfisheyes/issues/206)).**
+  "Save current view as default", and the upload's "open in 3D", were saved
+  but not applied when the dataset was opened again, because a server
+  upload opens as a SpatialData store and that viewer read the saved view
+  without using it. It now opens with its saved 2D/3D view, column, colours
+  and rotation, as other datasets do.
 
 ## [0.16.0] - 2026-11-08
 
@@ -1116,7 +1156,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0
