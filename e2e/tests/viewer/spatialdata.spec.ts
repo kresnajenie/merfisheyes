@@ -8,6 +8,7 @@ import {
   storeFolderUrl,
   imageUrl,
   image04Url,
+  imageFloatUrl,
   visiumUrl,
   visiumHdUrl,
   libraryStoreUrl,
@@ -563,6 +564,36 @@ test("@quick an image with 0.4 metadata in a v3 group draws, and its channel is 
   // find both: the channel keeps its name
   await page.locator(SELECTORS.imageButton).click();
   await expect(page.getByLabel("Show DAPI", { exact: true })).toBeVisible();
+});
+
+test("@quick a float32 image draws, windowed from its own values", async ({
+  page,
+}) => {
+  // MIBI and IMC images are float32 counts: fractions with no fixed top
+  // (https://github.com/kresnajenie/merfisheyes/issues/218)
+  await page.goto(
+    `/image-viewer/from-s3?url=${encodeURIComponent(imageFloatUrl(server, 50))}`,
+  );
+
+  await expect(page.locator(SELECTORS.imageCanvas)).toBeVisible({
+    timeout: 120_000,
+  });
+  await expect
+    .poll(() => litFraction(page, SELECTORS.imageCanvas), {
+      message: "the float image should be drawn",
+      timeout: 60_000,
+    })
+    .toBeGreaterThan(0.2);
+
+  // The window is the data's own: 0 to its 99.9th percentile (5.97), on
+  // sliders that end at its largest value, and a fraction can be typed
+  await page.locator(SELECTORS.imageButton).click();
+  const max = page.getByLabel("DAPI maximum value", { exact: true });
+
+  await expect(max).toHaveValue("5.97");
+  await max.fill("2.5");
+  await max.blur();
+  await expect(max).toHaveValue("2.5");
 });
 
 test("@quick image viewer draws an image on its own", async ({ page }) => {

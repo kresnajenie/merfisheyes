@@ -26,18 +26,20 @@ const clamp = (v: number, lo: number, hi: number) =>
   Math.min(Math.max(v, lo), hi);
 
 /**
- * A whole number typed in, applied on Enter or on leaving the box; Escape
- * puts back the value it had.
+ * A number typed in, applied on Enter or on leaving the box; Escape puts back
+ * the value it had. A whole number, unless the image's pixels are floats.
  */
 function NumberBox({
   label,
   value,
   disabled,
+  float = false,
   onCommit,
 }: {
   label: string;
   value: number;
   disabled?: boolean;
+  float?: boolean;
   onCommit: (value: number) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -46,7 +48,7 @@ function NumberBox({
 
     setDraft(null);
     if (draft !== null && draft.trim() !== "" && Number.isFinite(n)) {
-      onCommit(Math.round(n));
+      onCommit(float ? n : Math.round(n));
     }
   };
 
@@ -55,9 +57,9 @@ function NumberBox({
       aria-label={label}
       className="w-14 shrink-0 rounded bg-default-100 px-1 py-0.5 text-right text-xs tabular-nums text-foreground disabled:opacity-50"
       disabled={disabled}
-      inputMode="numeric"
+      inputMode={float ? "decimal" : "numeric"}
       type="text"
-      value={draft ?? String(value)}
+      value={draft ?? String(float ? Number(value.toPrecision(4)) : value)}
       onBlur={commit}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={(e) => {
@@ -85,6 +87,10 @@ function ImageSettings({
   // The sliders' span: the channel's own range, else the whole data type
   const span = (ch: ImageChannel): [number, number] =>
     ch.range ?? [0, layer.maxValue];
+  // The least the two bounds stay apart, and the sliders' step: one for whole
+  // numbers, a thousandth of the sliders' range for floats
+  const gap = (ch: ImageChannel) =>
+    layer.float ? (span(ch)[1] - span(ch)[0]) / 1000 : 1;
 
   // A bound dragged or typed. The bounds can't cross: the one being set
   // stops one short of the other. A typed value outside the range widens it.
@@ -94,8 +100,8 @@ function ImageSettings({
     const [lo, hi] = span(ch);
     const patch: Partial<ImageChannel> =
       bound === "min"
-        ? { min: Math.min(v, ch.max - 1) }
-        : { max: Math.max(v, ch.min + 1) };
+        ? { min: Math.min(v, ch.max - gap(ch)) }
+        : { max: Math.max(v, ch.min + gap(ch)) };
 
     if (ch.range && (v < lo || v > hi)) {
       patch.range = [Math.min(lo, v), Math.max(hi, v)];
@@ -111,10 +117,12 @@ function ImageSettings({
     const v = clamp(value, 0, layer.maxValue);
     let [lo, hi] = span(ch);
 
-    if (end === 0) lo = Math.min(v, hi - 1);
-    else hi = Math.max(v, lo + 1);
-    const min = clamp(ch.min, lo, hi - 1);
-    const max = clamp(ch.max, min + 1, hi);
+    const least = gap(ch);
+
+    if (end === 0) lo = Math.min(v, hi - least);
+    else hi = Math.max(v, lo + least);
+    const min = clamp(ch.min, lo, hi - least);
+    const max = clamp(ch.max, min + least, hi);
     const patch: Partial<ImageChannel> = {
       range: lo === 0 && hi === layer.maxValue ? undefined : [lo, hi],
     };
@@ -179,11 +187,13 @@ function ImageSettings({
                 disabled={!channel.visible}
                 max={span(channel)[1]}
                 min={span(channel)[0]}
+                step={gap(channel)}
                 type="range"
                 value={channel[bound]}
                 onChange={(e) => setBound(i, bound, Number(e.target.value))}
               />
               <NumberBox
+                float={layer.float}
                 disabled={!channel.visible}
                 label={`${tag}${channel.label} ${bound === "min" ? "minimum" : "maximum"} value`}
                 value={channel[bound]}
@@ -196,6 +206,7 @@ function ImageSettings({
             <span className="w-9 shrink-0">range</span>
             <span className="flex-1" />
             <NumberBox
+              float={layer.float}
               disabled={!channel.visible}
               label={`${tag}${channel.label} range start`}
               value={span(channel)[0]}
@@ -203,6 +214,7 @@ function ImageSettings({
             />
             <span>–</span>
             <NumberBox
+              float={layer.float}
               disabled={!channel.visible}
               label={`${tag}${channel.label} range end`}
               value={span(channel)[1]}

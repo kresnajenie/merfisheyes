@@ -331,8 +331,8 @@ def check_image(store, name: str, r: Report):
         if not a:
             r.fail(where, f"level {ds.get('path')} missing")
             continue
-        if a.get("data_type") not in ("uint8", "uint16"):
-            r.fail(where, f"level {ds['path']} is {a.get('data_type')}, not uint8 or uint16")
+        if a.get("data_type") not in ("uint8", "uint16", "float32"):
+            r.fail(where, f"level {ds['path']} is {a.get('data_type')}, not uint8, uint16 or float32")
         cs = chunk_shape(a)
         if max(cs[-2:]) > 1024:
             r.warn(where, f"level {ds['path']} chunks {cs}: over 1024² means {cs[-1] * cs[-2] * (2 if a.get('data_type') == 'uint16' else 1) / 1e6:.0f} MB a tile")

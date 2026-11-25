@@ -58,7 +58,7 @@ export default function FormatsPage() {
             [
               "Image",
               "An OME-Zarr image folder",
-              "Zarr v3, axes c, y, x; uint8 or uint16",
+              "Zarr v3, axes c, y, x; uint8, uint16 or float32",
               "Several resolution levels",
             ],
             [

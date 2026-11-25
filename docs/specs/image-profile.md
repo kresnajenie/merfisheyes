@@ -9,7 +9,7 @@ OME-Zarr group at a URL, an image dataset in the app's bucket).
 | OME-NGFF 0.5 metadata under `attributes.ome`: `multiscales[0]` with `axes` and `datasets` | MUST for anything written here |
 | Read also: 0.4-style metadata (`multiscales` and `omero` at the top of `attributes`) inside a Zarr v3 container, as ome-zarr-py wrote before it guarded against the pair and still reads, warning `version mismatch: detected: FormatV04`. Transitional, never written. Every reader goes through `omeAttrs` (`lib/spatialdata/ome.ts`); `tests/unit/ome-layout.test.ts` holds them to it, so a store cannot load halfway | MAY |
 | Axes exactly `c, y, x`, in that order (a `z` or `t` axis is not read) | MUST |
-| Data type `uint8` or `uint16` | MUST |
+| Data type `uint8`, `uint16` or `float32`. A float image (MIBI and IMC counts) has no fixed range: each channel's display window is 0 to the 99.9th percentile of its coarsest level's non-zero pixels, as for `uint16` | MUST |
 | Zarr v3 arrays; chunks at most 1024 × 1024 pixels per channel, so one tile is at most 2 MB | SHOULD (larger chunks are read whole: the skin store's 4096² chunks are 20 MB each) |
 | Every level's `coordinateTransformations`: a `scale` and a `translation` (pixel → shared coordinates), or a `sequence` of them as the `spatialdata` library writes | MUST |
 | Levels from finest (`datasets[0]`) to coarsest, each about half the previous | SHOULD; the coarsest is read whole for the first view, so it should be a few tiles |

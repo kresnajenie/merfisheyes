@@ -257,7 +257,7 @@ cells expressing it, with the groups named as the column's values.
   URL: a plain URL can't be listed, so this is how the viewer finds the
   store's elements and columns. Stores opened by dataset id are listed
   through S3 instead.
-- **An image** (optional) with axes `c, y, x` and `uint8` or `uint16`
+- **An image** (optional) with axes `c, y, x` and `uint8`, `uint16` or `float32`
   pixels. Its transforms and those of the shapes/points element may be
   `identity`, `scale`, `translation` and a `sequence` of those (how the
   `spatialdata` library writes scale-then-translation); others are ignored with a console
@@ -354,7 +354,7 @@ and attached. (An image someone else already owns is attached by its URL
 without being added.)
 
 The image must be an OME-Zarr multiscale image group (the group itself, not a
-SpatialData store): Zarr v3, axes `c, y, x`, `uint8` or `uint16`. Its own
+SpatialData store): Zarr v3, axes `c, y, x`, `uint8`, `uint16` or `float32`. Its own
 `scale` / `translation` must place it in the cells' coordinates, e.g.
 `scale: [1, 0.10833, 0.10833]` for an image at 0.10833 µm per pixel whose
 pixel (0, 0) is at the cells' origin. It is drawn only for datasets with raw

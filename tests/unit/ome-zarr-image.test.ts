@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compose } from "@/lib/spatialdata/coordinates";
-import { openOmeZarrImage } from "@/lib/spatialdata/image";
+import { FLOAT_MAX, openOmeZarrImage } from "@/lib/spatialdata/image";
 
 const BASE = "https://bucket.example/folder/dapi.zarr";
 
@@ -55,6 +55,37 @@ function serve(files: Record<string, unknown>) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("openOmeZarrImage", () => {
+  it("reads float32 pixels, which have no fixed range (#218)", async () => {
+    const float = (h: number, w: number) => ({
+      ...level(h, w),
+      data_type: "float32",
+    });
+
+    serve({
+      "/zarr.json": group(["c", "y", "x"]),
+      "/0/zarr.json": float(8, 12),
+      "/1/zarr.json": float(4, 6),
+    });
+
+    const image = await openOmeZarrImage(`${BASE}/`);
+
+    expect(image.float).toBe(true);
+    expect(image.maxValue).toBe(FLOAT_MAX);
+    expect(image.levels).toHaveLength(2);
+  });
+
+  it("still refuses a data type it cannot draw", async () => {
+    serve({
+      "/zarr.json": group(["c", "y", "x"]),
+      "/0/zarr.json": { ...level(8, 12), data_type: "float64" },
+      "/1/zarr.json": { ...level(4, 6), data_type: "float64" },
+    });
+
+    await expect(openOmeZarrImage(`${BASE}/`)).rejects.toThrow(
+      "Unsupported image data type: float64",
+    );
+  });
+
   it("reads a standalone multiscale image and places it by its own transforms", async () => {
     serve({
       "/zarr.json": group(["c", "y", "x"]),
@@ -119,7 +150,10 @@ describe("openOmeZarrImage", () => {
     expect(placement.offset).toEqual([-12, -11]);
     // Placed: pixel (0, 0) of the full image at (-12, -11), each 0.1 wide
     const placed = compose(
-      { scale: [levels[1].pixelWidth, levels[1].pixelHeight], offset: [levels[1].originX, levels[1].originY] },
+      {
+        scale: [levels[1].pixelWidth, levels[1].pixelHeight],
+        offset: [levels[1].originX, levels[1].originY],
+      },
       placement,
     );
 

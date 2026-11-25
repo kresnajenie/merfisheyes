@@ -115,6 +115,8 @@ export class ImageLayer extends BaseLayer {
   readonly kind = "image" as const;
   readonly channels: ImageChannel[];
   readonly maxValue: number;
+  /** Float pixels: channels have no fixed range and move in fractions. */
+  readonly float: boolean;
   /** The image's name in its store, and the store's images to choose from. */
   readonly name: string;
   readonly siblings: NonNullable<SpatialDataImage["siblings"]>;
@@ -165,6 +167,7 @@ export class ImageLayer extends BaseLayer {
     super();
     this.levels = image.levels;
     this.maxValue = image.maxValue;
+    this.float = image.float;
     this.placement = image.placement;
     this.toImage = invert(image.placement);
     this.unitScale = linearScale(image.placement);
@@ -182,7 +185,9 @@ export class ImageLayer extends BaseLayer {
           : CHANNEL_COLORS[i % CHANNEL_COLORS.length],
       visible: rgb ? i < 3 : i === 0,
       min: 0,
-      max: image.maxValue,
+      // A float channel's range comes with its first pixels (loadChannel)
+      max: image.float ? 1 : image.maxValue,
+      ...(image.float && { range: [0, 1] as [number, number] }),
     }));
     // A photograph keeps its full range; fluorescence is windowed by the data
     this.windowed = this.channels.map((_, i) => rgb && i < 3);
@@ -202,10 +207,12 @@ export class ImageLayer extends BaseLayer {
     // the per-slot code is written out.
     const slots = Array.from({ length: MAX_VISIBLE_CHANNELS }, (_, i) => i);
 
+    const sampler = image.float ? "sampler2D" : "usampler2D";
+
     this.fragmentShader = `
       precision highp float;
-      precision highp usampler2D;
-      ${slots.map((i) => `uniform usampler2D uTex${i};`).join("\n")}
+      precision highp ${sampler};
+      ${slots.map((i) => `uniform ${sampler} uTex${i};`).join("\n")}
       uniform vec3 uColor[${MAX_VISIBLE_CHANNELS}];
       uniform vec2 uWindow[${MAX_VISIBLE_CHANNELS}];
       uniform bool uOn[${MAX_VISIBLE_CHANNELS}];
@@ -219,7 +226,7 @@ export class ImageLayer extends BaseLayer {
           .map(
             (i) => `if (uOn[${i}]) {
           float v = float(texture(uTex${i}, vUv).r);
-          rgb += uColor[${i}] * clamp((v - uWindow[${i}].x) / max(uWindow[${i}].y - uWindow[${i}].x, 1.0), 0.0, 1.0);
+          rgb += uColor[${i}] * clamp((v - uWindow[${i}].x) / max(uWindow[${i}].y - uWindow[${i}].x, ${image.float ? "1e-12" : "1.0"}), 0.0, 1.0);
         }`,
           )
           .join("\n")}
@@ -229,7 +236,11 @@ export class ImageLayer extends BaseLayer {
       }`;
 
     this.blank = this.makeTexture(
-      image.maxValue === 255 ? new Uint8Array(1) : new Uint16Array(1),
+      image.float
+        ? new Float32Array(1)
+        : image.maxValue === 255
+          ? new Uint8Array(1)
+          : new Uint16Array(1),
       1,
       1,
     );
@@ -752,7 +763,7 @@ export class ImageLayer extends BaseLayer {
 
     if (this.disposed || !this.tiles.has(this.keyOf(tile))) return;
 
-    const data = chunk.data as Uint8Array | Uint16Array;
+    const data = chunk.data as Pixels;
     const plane = lv.chunkWidth * lv.chunkHeight;
 
     // The chunk is (channels, y, x): one plane per channel it holds
@@ -765,7 +776,12 @@ export class ImageLayer extends BaseLayer {
 
       if (tile.level === this.levels.length - 1 && !this.windowed[k]) {
         this.windowed[k] = true;
-        this.setChannel(k, { min: 0, max: percentile(pixels, 0.999) });
+        this.setChannel(
+          k,
+          pixels instanceof Float32Array
+            ? floatWindow(pixels, 0.999)
+            : { min: 0, max: percentile(pixels, 0.999) },
+        );
         this.onChange?.();
       }
 
@@ -779,22 +795,23 @@ export class ImageLayer extends BaseLayer {
     this.changed();
   }
 
-  private makeTexture(
-    data: Uint8Array | Uint16Array,
-    width: number,
-    height: number,
-  ) {
+  private makeTexture(data: Pixels, width: number, height: number) {
+    const float = data instanceof Float32Array;
     const is8 = data instanceof Uint8Array;
     const texture = new THREE.DataTexture(
       data,
       width,
       height,
-      THREE.RedIntegerFormat,
-      is8 ? THREE.UnsignedByteType : THREE.UnsignedShortType,
+      float ? THREE.RedFormat : THREE.RedIntegerFormat,
+      float
+        ? THREE.FloatType
+        : is8
+          ? THREE.UnsignedByteType
+          : THREE.UnsignedShortType,
     );
 
-    texture.internalFormat = is8 ? "R8UI" : "R16UI";
-    // Integer textures can't be filtered
+    texture.internalFormat = float ? "R32F" : is8 ? "R8UI" : "R16UI";
+    // Integer textures can't be filtered, and floats are drawn the same way
     texture.minFilter = THREE.NearestFilter;
     texture.magFilter = THREE.NearestFilter;
     texture.unpackAlignment = 1;
@@ -840,6 +857,33 @@ function bytesOf(tile: Tile): number {
     (sum, t) => sum + (t ? (t.image.data as Uint16Array).byteLength : 0),
     0,
   );
+}
+
+type Pixels = Uint8Array | Uint16Array | Float32Array;
+
+const round4 = (v: number) => Number(v.toPrecision(4));
+
+/**
+ * A float channel's window and sliders' range, from its coarsest level: 0 to
+ * the value below which the given fraction of the non-zero pixels fall, on
+ * sliders that reach the largest. Kept to four digits, as they go in links.
+ */
+export function floatWindow(
+  data: Float32Array,
+  fraction: number,
+): { min: number; max: number; range: [number, number] } {
+  const values = data.filter((v) => v > 0 && Number.isFinite(v)).sort();
+
+  if (values.length === 0) return { min: 0, max: 1, range: [0, 1] };
+  const max = round4(
+    values[Math.min(values.length - 1, Math.floor(values.length * fraction))],
+  );
+
+  return {
+    min: 0,
+    max,
+    range: [0, Math.max(max, round4(values[values.length - 1]))],
+  };
 }
 
 /** Value below which the given fraction of the non-zero pixels fall. */

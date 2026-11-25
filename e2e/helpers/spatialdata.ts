@@ -149,6 +149,8 @@ function shapesNode(): unknown {
  *                                        with a mapping.json linking it to
  *                                        /molecules-large/<tag>
  *   /image/<extent>.zarr                 the image on its own, `<extent>` wide
+ *   /imagef32/<extent>.zarr              the same image with float32 pixels
+ *                                        (fractions from 0.05 to about 6)
  *   /visium/store.zarr                   the Visium-shaped store spatialdata
  *                                        wrote (make-tiny-visium.py): three
  *                                        images in three systems, spots as
@@ -303,6 +305,47 @@ export function startSpatialDataServer(
       group.attributes.multiscales[0].version = "0.4";
 
       return { body: JSON.stringify(group) };
+    }
+    // The same image again with float32 pixels, as MIBI and IMC images are
+    // stored: fractional values, nowhere near the 0-65535 of a uint16
+    if (kind === "imagef32") {
+      const [, ...inside] = rest;
+      const key = inside.join("/");
+
+      if (key === "zarr.json") return resolve(`/image/${rest.join("/")}`);
+      const [level, ...chunk] = inside;
+      const meta = JSON.parse(
+        fs.readFileSync(
+          path.join(
+            ZARR,
+            "spatialdata_v3.zarr",
+            "images",
+            "dapi",
+            level,
+            "zarr.json",
+          ),
+          "utf8",
+        ),
+      );
+
+      if (chunk.join("/") === "zarr.json") {
+        return {
+          body: JSON.stringify({
+            ...meta,
+            data_type: "float32",
+            fill_value: 0,
+            codecs: [{ name: "bytes", configuration: { endian: "little" } }],
+          }),
+        };
+      }
+      const [, height, width] = meta.chunk_grid.configuration.chunk_shape;
+      const pixels = new Float32Array(height * width);
+
+      for (let i = 0; i < pixels.length; i++) {
+        pixels[i] = 0.05 + (((i % width) + Math.floor(i / width)) % 17) * 0.37;
+      }
+
+      return { bytes: Buffer.from(pixels.buffer) };
     }
     if (kind !== "store") return undefined;
 
@@ -466,6 +509,11 @@ export function libraryStoreUrl(
  */
 export function imageUrl(server: FixtureServer, extent: number): string {
   return `${server.url}/image/${extent}.zarr`;
+}
+
+/** The same image with float32 pixels (fractions, as MIBI counts are). */
+export function imageFloatUrl(server: FixtureServer, extent: number): string {
+  return `${server.url}/imagef32/${extent}.zarr`;
 }
 
 /**

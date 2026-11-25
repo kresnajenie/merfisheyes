@@ -12,6 +12,11 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **Float images are drawn** (MIBI and imaging mass cytometry, about 4,400
+  SpatialData-DB datasets). They were refused as "Unsupported image data
+  type: float32" and only the cells showed. Each channel's brightness is set
+  from its own values, and its sliders and boxes take fractions
+  ([#218](https://github.com/kresnajenie/merfisheyes/issues/218)).
 - **An image on its own has the camera panel**: Reset View (R), rotation and
   flip, about the image's centre.
 - **Technology presets.** A dataset opens with the settings of its

@@ -108,7 +108,7 @@ An image is drawn under the cells or the molecules, or opened on its own. It mus
 |---|---|
 | **Format** | OME-Zarr 0.5 on **Zarr v3** (a folder with a `zarr.json` at its root). Zarr v2 and TIFF are not read. |
 | **Axes** | Exactly `c, y, x` — one or more channels, no z and no time. |
-| **Pixels** | `uint8` or `uint16`. |
+| **Pixels** | `uint8`, `uint16` or `float32`. |
 | **Pyramid** | Several resolution levels, each half the one before. The coarsest should fit in a chunk or two: it is loaded whole as the backdrop. |
 | **Placement** | Each level's `scale` and `translation` must put the image in the **same coordinates as the cells** (usually microns). Rotations and flips are not applied, so they must already be in the pixels. |
 | **Channel names** | Optional, from `omero.channels[].label`. |

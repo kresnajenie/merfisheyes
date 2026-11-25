@@ -18,7 +18,10 @@ import {
   toSystem,
 } from "./coordinates";
 
-type PixelArray = zarr.Array<"uint8" | "uint16", zarr.Readable>;
+type PixelArray = zarr.Array<"uint8" | "uint16" | "float32", zarr.Readable>;
+
+/** The "largest value" of a float image: it has no fixed top. */
+export const FLOAT_MAX = 3.4028234663852886e38;
 
 export interface ImageLevel {
   array: PixelArray;
@@ -37,8 +40,13 @@ export interface ImageLevel {
 export interface SpatialDataImage {
   name: string;
   channelLabels: string[];
-  /** Largest value a pixel can hold (255 or 65535). */
+  /** Largest value a pixel can hold (255 or 65535; FLOAT_MAX for floats). */
   maxValue: number;
+  /**
+   * Pixels are floats (MIBI and IMC counts), not whole numbers: no fixed
+   * range, so each channel's is read off the data.
+   */
+  float: boolean;
   /** Finest first. */
   levels: ImageLevel[];
   /**
@@ -233,7 +241,7 @@ async function readMultiscale(
       kind: "array",
     });
 
-    if (!array.is("uint8") && !array.is("uint16")) {
+    if (!array.is("uint8") && !array.is("uint16") && !array.is("float32")) {
       throw new Error(`Unsupported image data type: ${array.dtype}`);
     }
     // Level pixel index → image units (a level's own transforms are a
@@ -260,7 +268,12 @@ async function readMultiscale(
       (c: { label?: string | number }, i: number) =>
         c.label != null ? String(c.label) : `Channel ${i}`,
     ),
-    maxValue: levels[0].array.is("uint8") ? 255 : 65535,
+    maxValue: levels[0].array.is("uint8")
+      ? 255
+      : levels[0].array.is("uint16")
+        ? 65535
+        : FLOAT_MAX,
+    float: levels[0].array.is("float32"),
     levels,
     placement,
   };
