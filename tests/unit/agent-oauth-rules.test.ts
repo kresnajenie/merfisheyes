@@ -85,7 +85,10 @@ describe("the signed consent request", () => {
 
 describe("resources and scopes", () => {
   it("names the agent API as the resource, canonically", () => {
-    expect(resources()).toEqual(["https://meyes.example/api/agent/v1"]);
+    expect(resources()).toEqual([
+      "https://meyes.example/api/agent/v1",
+      "https://meyes.example/mcp",
+    ]);
     expect(normaliseResource(null)).toBe("https://meyes.example/api/agent/v1");
     expect(normaliseResource("HTTPS://MEYES.EXAMPLE/api/agent/v1/")).toBe("https://meyes.example/api/agent/v1");
     expect(normaliseResource("https://meyes.example/api/agent/v1#x")).toBeNull();

@@ -16,10 +16,15 @@ export function issuer(): string {
   return raw.replace(/\/+$/, "");
 }
 
-/** The protected resources this server issues tokens for (RFC 8707). The
- * agent API now; the remote MCP endpoint later (plan step 9). */
+/** The protected resources this server issues tokens for (RFC 8707): the
+ * agent API, and the site's own MCP server at `/mcp` (MCP.md pillar E). */
 export function resources(): string[] {
-  return [`${issuer()}/api/agent/v1`];
+  return [`${issuer()}/api/agent/v1`, mcpResource()];
+}
+
+/** The remote MCP endpoint: what a connector's token is for. */
+export function mcpResource(): string {
+  return `${issuer()}/mcp`;
 }
 
 export function resourceMetadataUrl(resource = resources()[0]): string {

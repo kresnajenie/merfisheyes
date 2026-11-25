@@ -9,6 +9,8 @@ import type { RangeQuery } from "@zarrita/storage";
 
 import { fetchRange } from "./fetchRange";
 
+import { trackedFetch } from "@/lib/net/load-meter";
+
 const missing = (status: number) => status === 404 || status === 403;
 
 /** Objects under a public URL; keys are paths from `root`. */
@@ -17,7 +19,7 @@ export function urlBackend(root: string): Backend {
 
   return {
     async get(key, signal) {
-      const res = await fetch(base + key, { signal });
+      const res = await trackedFetch(base + key, { signal });
 
       if (missing(res.status)) return undefined;
       if (!res.ok) throw new Error(`GET ${res.status} for ${key}`);
@@ -26,7 +28,7 @@ export function urlBackend(root: string): Backend {
     },
     getRange: (key, range, signal) => fetchRange(base + key, range, signal),
     async open(key, signal) {
-      const res = await fetch(base + key, { signal });
+      const res = await trackedFetch(base + key, { signal });
 
       if (missing(res.status)) return undefined;
       if (!res.ok) throw new Error(`GET ${res.status} for ${key}`);
@@ -92,7 +94,7 @@ export function datasetBackend(datasetId: string, prefix = ""): Backend {
       const url = await presignedUrl(datasetId, full(key));
 
       if (!url) return undefined;
-      const res = await fetch(url, { signal });
+      const res = await trackedFetch(url, { signal });
 
       if (missing(res.status)) return undefined;
       if (!res.ok) throw new Error(`S3 GET ${res.status} for ${full(key)}`);
@@ -108,7 +110,7 @@ export function datasetBackend(datasetId: string, prefix = ""): Backend {
       const url = await presignedUrl(datasetId, full(key));
 
       if (!url) return undefined;
-      const res = await fetch(url, { signal });
+      const res = await trackedFetch(url, { signal });
 
       if (missing(res.status)) return undefined;
       if (!res.ok) throw new Error(`S3 GET ${res.status} for ${full(key)}`);

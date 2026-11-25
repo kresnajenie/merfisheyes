@@ -1,0 +1,795 @@
+{
+  "schema_version": "3.0.0",
+  "release": "catalog-2026-11-17",
+  "readouts": [
+    "sequencing",
+    "imaging",
+    "mass spectrometry"
+  ],
+  "vendors": [
+    {
+      "id": "10x_genomics",
+      "label": "10x Genomics",
+      "sort": 10
+    },
+    {
+      "id": "vizgen",
+      "label": "Vizgen",
+      "sort": 20
+    },
+    {
+      "id": "bruker",
+      "label": "Bruker",
+      "sort": 30
+    },
+    {
+      "id": "quanterix",
+      "label": "Quanterix",
+      "sort": 40
+    },
+    {
+      "id": "standard_biotools",
+      "label": "Standard BioTools",
+      "sort": 50
+    },
+    {
+      "id": "ionpath",
+      "label": "Ionpath",
+      "sort": 60
+    },
+    {
+      "id": "bgi_group",
+      "label": "BGI Group",
+      "sort": 70
+    },
+    {
+      "id": "resolve_biosciences",
+      "label": "Resolve Biosciences",
+      "sort": 80
+    },
+    {
+      "id": "bio_techne",
+      "label": "Bio-Techne",
+      "sort": 90
+    },
+    {
+      "id": "msi",
+      "label": "Mass spectrometry imaging",
+      "sort": 100
+    },
+    {
+      "id": "curio_bioscience",
+      "label": "Curio Bioscience",
+      "sort": 120
+    },
+    {
+      "id": "miltenyi_biotec",
+      "label": "Miltenyi Biotec",
+      "sort": 130
+    },
+    {
+      "id": "academic",
+      "label": "Academic",
+      "sort": 110
+    }
+  ],
+  "technologies": [
+    {
+      "id": "10x_visium",
+      "label": "Visium",
+      "sort": 10,
+      "vendor_id": "10x_genomics",
+      "method": "sequencing-based capture array",
+      "efo_id": "EFO:0010961",
+      "readout": "sequencing",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "v1_3prime",
+          "label": "Visium v1 3' (poly-A)",
+          "efo_id": "EFO:0022857"
+        },
+        {
+          "id": "v1_ffpe_probe",
+          "label": "Visium v1 FFPE (probe-based)",
+          "efo_id": "EFO:0022857"
+        },
+        {
+          "id": "cytassist_v2",
+          "label": "Visium CytAssist v2",
+          "efo_id": "EFO:0022858"
+        }
+      ],
+      "legacy_assay": [
+        "Visium Spatial Gene Expression"
+      ]
+    },
+    {
+      "id": "10x_visium_hd",
+      "label": "Visium HD",
+      "sort": 20,
+      "vendor_id": "10x_genomics",
+      "method": "sequencing-based capture array",
+      "efo_id": "EFO:0920058",
+      "readout": "sequencing",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "probe_v1",
+          "label": "Visium HD probe-based v1"
+        },
+        {
+          "id": "three_prime",
+          "label": "Visium HD 3'"
+        }
+      ],
+      "legacy_assay": [
+        "Visium HD"
+      ]
+    },
+    {
+      "id": "10x_xenium",
+      "label": "Xenium",
+      "sort": 30,
+      "vendor_id": "10x_genomics",
+      "method": "imaging-based in situ",
+      "efo_id": "EFO:0022615",
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "v1",
+          "label": "Xenium v1"
+        },
+        {
+          "id": "prime_5k",
+          "label": "Xenium Prime 5K"
+        },
+        {
+          "id": "protein",
+          "label": "Xenium with protein",
+          "modality": [
+            "rna",
+            "protein"
+          ]
+        }
+      ],
+      "legacy_assay": [
+        "10x Xenium"
+      ]
+    },
+    {
+      "id": "10x_atera",
+      "label": "Atera",
+      "sort": 40,
+      "vendor_id": "10x_genomics",
+      "method": "imaging-based in situ",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "10x Atera"
+      ]
+    },
+    {
+      "id": "10x_spatial_transcriptomics",
+      "label": "Spatial Transcriptomics (ST)",
+      "sort": 50,
+      "vendor_id": "10x_genomics",
+      "method": "sequencing-based capture array",
+      "efo_id": "EFO:0008994",
+      "readout": "sequencing",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "st_1k",
+          "label": "ST 1k array"
+        },
+        {
+          "id": "st_2k",
+          "label": "ST 2k array"
+        }
+      ],
+      "legacy_assay": [
+        "spatial transcriptomics"
+      ]
+    },
+    {
+      "id": "vizgen_merscope",
+      "label": "MERSCOPE",
+      "sort": 10,
+      "vendor_id": "vizgen",
+      "method": "MERFISH",
+      "efo_id": "EFO:0022956",
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "Vizgen MERSCOPE"
+      ]
+    },
+    {
+      "id": "bruker_cosmx",
+      "label": "CosMx SMI",
+      "sort": 10,
+      "vendor_id": "bruker",
+      "method": "imaging-based in situ",
+      "efo_id": "EFO:0022994",
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "multiomics",
+          "label": "CosMx Multiomics",
+          "modality": [
+            "rna",
+            "protein"
+          ]
+        },
+        {
+          "id": "protein",
+          "label": "CosMx Protein",
+          "modality": [
+            "protein"
+          ]
+        }
+      ],
+      "legacy_assay": [
+        "CosMx"
+      ]
+    },
+    {
+      "id": "bruker_geomx",
+      "label": "GeoMx DSP",
+      "sort": 20,
+      "vendor_id": "bruker",
+      "method": "region-of-interest profiling",
+      "efo_id": "EFO:0920109",
+      "readout": "sequencing",
+      "modality": [
+        "rna",
+        "protein"
+      ],
+      "variants": [
+        {
+          "id": "ngs",
+          "label": "GeoMx with NGS readout",
+          "readout": "sequencing"
+        },
+        {
+          "id": "ncounter",
+          "label": "GeoMx with nCounter readout",
+          "readout": "imaging"
+        }
+      ],
+      "legacy_assay": []
+    },
+    {
+      "id": "akoya_phenocycler",
+      "label": "PhenoCycler (CODEX)",
+      "sort": 10,
+      "vendor_id": "quanterix",
+      "method": "cyclic immunofluorescence (DNA-barcoded antibodies)",
+      "efo_id": "EFO:0700002",
+      "readout": "imaging",
+      "modality": [
+        "protein"
+      ],
+      "variants": [
+        {
+          "id": "codex",
+          "label": "CODEX (PhenoCycler classic)",
+          "efo_id": "EFO:0700002"
+        },
+        {
+          "id": "fusion_1",
+          "label": "PhenoCycler-Fusion 1",
+          "efo_id": "EFO:0700001"
+        },
+        {
+          "id": "fusion_2",
+          "label": "PhenoCycler-Fusion 2",
+          "efo_id": "EFO:0700001"
+        }
+      ],
+      "legacy_assay": [
+        "PhenoCycler",
+        "PhenoCycler-Fusion"
+      ]
+    },
+    {
+      "id": "sbt_hyperion",
+      "label": "Hyperion (IMC)",
+      "sort": 10,
+      "vendor_id": "standard_biotools",
+      "method": "imaging mass cytometry",
+      "efo_id": "EFO:0022997",
+      "readout": "mass spectrometry",
+      "modality": [
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "Imaging Mass Cytometry"
+      ]
+    },
+    {
+      "id": "ionpath_mibiscope",
+      "label": "MIBIscope (MIBI-TOF)",
+      "sort": 10,
+      "vendor_id": "ionpath",
+      "method": "multiplexed ion beam imaging",
+      "efo_id": "EFO:0023000",
+      "readout": "mass spectrometry",
+      "modality": [
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "MIBI-TOF"
+      ]
+    },
+    {
+      "id": "stomics_stereo_seq",
+      "label": "Stereo-seq",
+      "sort": 10,
+      "vendor_id": "bgi_group",
+      "method": "sequencing-based capture array",
+      "efo_id": "EFO:0920125",
+      "readout": "sequencing",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "Stereo-seq"
+      ]
+    },
+    {
+      "id": "resolve_molecular_cartography",
+      "label": "Molecular Cartography",
+      "sort": 10,
+      "vendor_id": "resolve_biosciences",
+      "method": "imaging-based in situ",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "lunaphore_comet",
+      "label": "COMET",
+      "sort": 10,
+      "vendor_id": "bio_techne",
+      "method": "cyclic immunofluorescence (sequential IF)",
+      "efo_id": "EFO:0022993",
+      "readout": "imaging",
+      "modality": [
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "curio_slide_seq",
+      "label": "Slide-seq / Curio",
+      "sort": 10,
+      "vendor_id": "curio_bioscience",
+      "method": "sequencing-based bead array",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "miltenyi_macsima",
+      "label": "MACSima",
+      "sort": 10,
+      "vendor_id": "miltenyi_biotec",
+      "method": "cyclic immunofluorescence",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "maldi_msi",
+      "label": "MALDI-MSI",
+      "sort": 10,
+      "vendor_id": "msi",
+      "method": "MALDI",
+      "efo_id": "EFO:0920112",
+      "readout": "mass spectrometry",
+      "modality": [
+        "metabolite"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "MALDI mass spectrometry imaging"
+      ]
+    },
+    {
+      "id": "desi_msi",
+      "label": "DESI-MSI",
+      "sort": 20,
+      "vendor_id": "msi",
+      "method": "DESI",
+      "efo_id": "EFO:0920107",
+      "readout": "mass spectrometry",
+      "modality": [
+        "metabolite"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "DESI mass spectrometry imaging"
+      ]
+    },
+    {
+      "id": "sims_msi",
+      "label": "SIMS",
+      "sort": 30,
+      "vendor_id": "msi",
+      "method": "secondary ion mass spectrometry",
+      "efo_id": "EFO:0920123",
+      "readout": "mass spectrometry",
+      "modality": [
+        "metabolite"
+      ],
+      "variants": [
+        {
+          "id": "tof_sims",
+          "label": "ToF-SIMS"
+        },
+        {
+          "id": "gcib_sims",
+          "label": "GCIB-SIMS"
+        },
+        {
+          "id": "orbisims",
+          "label": "3D OrbiSIMS"
+        }
+      ],
+      "legacy_assay": []
+    },
+    {
+      "id": "ldi_msi",
+      "label": "LDI-MSI",
+      "sort": 40,
+      "vendor_id": "msi",
+      "method": "laser desorption/ionization",
+      "efo_id": null,
+      "readout": "mass spectrometry",
+      "modality": [
+        "metabolite"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "merfish",
+      "label": "MERFISH",
+      "sort": 10,
+      "vendor_id": "academic",
+      "method": "MERFISH",
+      "efo_id": "EFO:0008992",
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "MERFISH"
+      ]
+    },
+    {
+      "id": "epigenomic_merfish",
+      "label": "epigenomic MERFISH",
+      "sort": 20,
+      "vendor_id": "academic",
+      "method": "MERFISH",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "chromatin"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "epigenomic MERFISH"
+      ]
+    },
+    {
+      "id": "codex_lab_built",
+      "label": "CODEX (lab-built)",
+      "sort": 30,
+      "vendor_id": "academic",
+      "method": "cyclic immunofluorescence (DNA-barcoded antibodies)",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "CODEX"
+      ]
+    },
+    {
+      "id": "dbit_seq",
+      "label": "DBiT-seq",
+      "sort": 40,
+      "vendor_id": "academic",
+      "method": "microfluidic deterministic barcoding",
+      "efo_id": "EFO:0920106",
+      "readout": "sequencing",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "DBiT-seq"
+      ]
+    },
+    {
+      "id": "spatial_atac_seq",
+      "label": "spatial-ATAC-seq",
+      "sort": 50,
+      "vendor_id": "academic",
+      "method": "microfluidic deterministic barcoding",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "chromatin"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "spatial ATAC-seq"
+      ]
+    },
+    {
+      "id": "spatial_cut_and_tag",
+      "label": "spatial-CUT&Tag",
+      "sort": 60,
+      "vendor_id": "academic",
+      "method": "microfluidic deterministic barcoding",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "chromatin"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "spatial CUT&Tag"
+      ]
+    },
+    {
+      "id": "spatial_atac_rna_seq",
+      "label": "spatial-ATAC-RNA-seq",
+      "sort": 70,
+      "vendor_id": "academic",
+      "method": "microfluidic deterministic barcoding",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "rna",
+        "chromatin"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "spatial ATAC-RNA-seq"
+      ]
+    },
+    {
+      "id": "spatial_cut_and_tag_rna_seq",
+      "label": "spatial-CUT&Tag-RNA-seq",
+      "sort": 80,
+      "vendor_id": "academic",
+      "method": "microfluidic deterministic barcoding",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "rna",
+        "chromatin"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "spatial CUT&Tag-RNA-seq"
+      ]
+    },
+    {
+      "id": "spatial_cite_seq",
+      "label": "spatial-CITE-seq",
+      "sort": 90,
+      "vendor_id": "academic",
+      "method": "microfluidic deterministic barcoding",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "rna",
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "spatial-CITE-seq"
+      ]
+    },
+    {
+      "id": "spatial_mux_seq",
+      "label": "Spatial-Mux-seq",
+      "sort": 100,
+      "vendor_id": "academic",
+      "method": "microfluidic deterministic barcoding",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "rna",
+        "chromatin",
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": [
+        "Spatial-Mux-seq"
+      ]
+    },
+    {
+      "id": "barseq",
+      "label": "BARseq",
+      "sort": 110,
+      "vendor_id": "academic",
+      "method": "in situ sequencing",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "barseq2",
+          "label": "BARseq2"
+        }
+      ],
+      "legacy_assay": []
+    },
+    {
+      "id": "iss",
+      "label": "In situ sequencing (ISS)",
+      "sort": 120,
+      "vendor_id": "academic",
+      "method": "in situ sequencing",
+      "efo_id": "EFO:0008989",
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "easi_fish",
+      "label": "EASI-FISH",
+      "sort": 130,
+      "vendor_id": "academic",
+      "method": "multiplexed smFISH",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "eel_fish",
+      "label": "EEL FISH",
+      "sort": 140,
+      "vendor_id": "academic",
+      "method": "multiplexed smFISH",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "dart_fish",
+      "label": "DART-FISH",
+      "sort": 150,
+      "vendor_id": "academic",
+      "method": "in situ sequencing",
+      "efo_id": null,
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "seqfish",
+      "label": "seqFISH",
+      "sort": 160,
+      "vendor_id": "academic",
+      "method": "multiplexed smFISH",
+      "efo_id": "EFO:0008991",
+      "readout": "imaging",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "seqfish_plus",
+          "label": "seqFISH+"
+        },
+        {
+          "id": "dna_seqfish_plus",
+          "label": "DNA seqFISH+",
+          "modality": [
+            "chromatin"
+          ]
+        }
+      ],
+      "legacy_assay": []
+    },
+    {
+      "id": "cycif",
+      "label": "CyCIF",
+      "sort": 170,
+      "vendor_id": "academic",
+      "method": "cyclic immunofluorescence",
+      "efo_id": "EFO:0023019",
+      "readout": "imaging",
+      "modality": [
+        "protein"
+      ],
+      "variants": [],
+      "legacy_assay": []
+    },
+    {
+      "id": "slide_seq",
+      "label": "Slide-seq",
+      "sort": 180,
+      "vendor_id": "academic",
+      "method": "sequencing-based bead array",
+      "efo_id": null,
+      "readout": "sequencing",
+      "modality": [
+        "rna"
+      ],
+      "variants": [
+        {
+          "id": "v2",
+          "label": "Slide-seqV2",
+          "efo_id": "EFO:0030062"
+        }
+      ],
+      "legacy_assay": [
+        "Slide-seq"
+      ]
+    }
+  ]
+}

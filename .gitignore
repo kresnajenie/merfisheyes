@@ -56,6 +56,9 @@ lerna-debug.log*
 .env.development.local
 .env.test.local
 .env.production.local
+# production credentials kept beside the checkout (read by scripts via --env=)
+.env.prod
+.env.prod.*
 
 # vercel
 .vercel

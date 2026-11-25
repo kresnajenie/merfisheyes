@@ -2,9 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/server";
 
 import * as z from "zod/v4";
 
-import { apiGet } from "../api.js";
-import { openBrowser, signOut, startSignIn } from "../auth.js";
-import { DEFAULT_SCOPES, SITE } from "../config.js";
+import type { Host } from "../host.ts";
 import {
   type Page,
   join,
@@ -14,7 +12,7 @@ import {
   paging,
   responseFormat,
   text,
-} from "../format.js";
+} from "../format.ts";
 
 /**
  * Signing in, and the person's own datasets and projects
@@ -54,15 +52,6 @@ const datasetMd = (d: DatasetCard) =>
     ...(d.viewerUrl ? [`- Open: ${d.viewerUrl}`] : []),
   ].join("\n");
 
-const SCOPES = [
-  "catalog:read",
-  "projects:read",
-  "projects:write",
-  "datasets:write",
-  "viewer:control",
-  "export",
-] as const;
-
 const READ = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -70,61 +59,7 @@ const READ = {
   openWorldHint: true,
 };
 
-export function registerAccountTools(server: McpServer) {
-  server.registerTool(
-    "meyes_sign_in",
-    {
-      title: "Sign in to MERFISHEYES",
-      description: `Start signing the person in to MERFISHEYES, so tools can reach their own projects and datasets. Returns a link: show it to the person and ask them to open it (a browser tab is also opened when possible), sign in, and choose what to allow — all their projects or chosen ones. Then call meyes_whoami to confirm.
-Call it when a tool says sign-in is needed, or with more scopes when a tool says its permission is missing. Public catalog tools work without it.`,
-      inputSchema: z.strictObject({
-        scopes: z
-          .array(z.enum(SCOPES))
-          .optional()
-          .describe(
-            `What to ask for; default ${DEFAULT_SCOPES.join(", ")}. Ask only for what the task needs.`,
-          ),
-      }),
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-    },
-    async ({ scopes }) => {
-      const signIn = await startSignIn([
-        ...new Set([...DEFAULT_SCOPES, ...(scopes ?? [])]),
-      ]);
-
-      openBrowser(signIn.url);
-
-      return text(
-        `Ask the person to open this link, sign in to MERFISHEYES and choose what to allow:\n\n${signIn.url}\n\nThe link works for 10 minutes and only on this computer. When they are done, call meyes_whoami.`,
-      );
-    },
-  );
-
-  server.registerTool(
-    "meyes_sign_out",
-    {
-      title: "Sign out of MERFISHEYES",
-      description:
-        "Disconnect this agent from the person's MERFISHEYES account: its tokens are revoked and forgotten. Public catalog tools keep working.",
-      inputSchema: z.strictObject({}),
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-    },
-    async () =>
-      text(
-        (await signOut()) ? "Signed out of MERFISHEYES." : "Was not signed in.",
-      ),
-  );
-
+export function registerAccountTools(server: McpServer, host: Host) {
   server.registerTool(
     "meyes_whoami",
     {
@@ -135,7 +70,7 @@ Call it when a tool says sign-in is needed, or with more scopes when a tool says
       annotations: READ,
     },
     async ({ response_format }, ctx) => {
-      const me = await apiGet<{
+      const me = await host.get<{
         signedIn: boolean;
         name?: string | null;
         email?: string | null;
@@ -146,11 +81,11 @@ Call it when a tool says sign-in is needed, or with more scopes when a tool says
       return one(response_format, me, () =>
         me.signedIn
           ? [
-              `Signed in to ${SITE} as ${me.name ?? me.email} (${me.email}).`,
+              `Signed in to ${host.site} as ${me.name ?? me.email} (${me.email}).`,
               `May: ${me.scopes.join(", ")}.`,
               `Projects: ${me.projects === "all" ? "all of theirs" : `${me.projects.length} chosen (${me.projects.join(", ")})`}.`,
             ].join("\n")
-          : `Not signed in to ${SITE}. Public catalog tools work; call meyes_sign_in for the person's own data.`,
+          : `Not signed in to ${host.site}.${host.signInHint ? ` ${host.signInHint}` : ""}`,
       );
     },
   );
@@ -173,7 +108,7 @@ Examples: "my datasets" -> {}; "which of my uploads failed" -> status="FAILED"; 
       annotations: READ,
     },
     async ({ query, status, limit, offset, response_format }, ctx) => {
-      const page = await apiGet<Page<DatasetCard>>(
+      const page = await host.get<Page<DatasetCard>>(
         "/me/datasets",
         { q: query, status, limit, offset },
         ctx.mcpReq.signal,
@@ -205,7 +140,7 @@ Examples: "my datasets" -> {}; "which of my uploads failed" -> status="FAILED"; 
       annotations: { ...READ, idempotentHint: false },
     },
     async ({ id, response_format }, ctx) => {
-      const s = await apiGet<
+      const s = await host.get<
         DatasetCard & {
           progress: unknown;
           errorMessage: string | null;
@@ -242,7 +177,7 @@ Examples: "my datasets" -> {}; "which of my uploads failed" -> status="FAILED"; 
       annotations: READ,
     },
     async ({ query, limit, offset, response_format }, ctx) => {
-      const page = await apiGet<Page<ProjectRow>>(
+      const page = await host.get<Page<ProjectRow>>(
         "/projects",
         { q: query, limit, offset },
         ctx.mcpReq.signal,
@@ -275,7 +210,7 @@ Examples: "my datasets" -> {}; "which of my uploads failed" -> status="FAILED"; 
       annotations: READ,
     },
     async ({ id, response_format }, ctx) => {
-      const p = await apiGet<
+      const p = await host.get<
         ProjectRow & { description: string | null; datasets: DatasetCard[] }
       >(`/projects/${encodeURIComponent(id)}`, {}, ctx.mcpReq.signal);
 

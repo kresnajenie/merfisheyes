@@ -3,6 +3,8 @@ import type { SingleMoleculeWorkerApi } from "./single-molecule.worker";
 
 import * as Comlink from "comlink";
 
+import { attachLoadMeter } from "@/lib/net/load-meter";
+
 let worker: Worker | null = null;
 let workerProxy: Comlink.Remote<SingleMoleculeWorkerApi> | null = null;
 
@@ -21,6 +23,7 @@ export async function getSingleMoleculeWorker(): Promise<
       new URL("./single-molecule.worker.ts", import.meta.url),
       { type: "module" },
     );
+    attachLoadMeter(worker);
 
     // Add error handling for worker creation/loading
     worker.onerror = (event) => {

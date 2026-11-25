@@ -23,6 +23,9 @@ model User {
   emailVerified DateTime? @map("email_verified")
   image         String?
   role          UserRole  @default(USER)
+  // Capabilities narrower than a role, granted by a super admin. So far only
+  // "presets:write" (lib/presets/permission.ts); admins have every one.
+  permissions   String[]  @default([])
   computeTier   String    @default("standard") @map("compute_tier")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
@@ -33,6 +36,8 @@ model User {
   datasets        Dataset[]
   projects        Project[]
   oauthGrants     OAuthGrant[]
+  presetVersions  TechnologyPresetVersion[]
+  presetPublishes TechnologyPresetPublish[]
 
   @@map("users")
 }
@@ -534,4 +539,44 @@ enum FileStatus {
   UPLOADING
   COMPLETE
   FAILED
+}
+
+// ─── Technology presets (docs/specs/ADR-technology-presets.md) ──
+
+// One saved config for a technology. Never changed: an edit is a new row.
+// The hash is of the technology and the config, so the same config saved
+// twice is one row, and ?preset=<hash> names it in a viewer link.
+model TechnologyPresetVersion {
+  hash        String   @id @db.VarChar(16)
+  technology  String   @db.VarChar(200)
+  config      Json
+  note        String?  @db.VarChar(1000)
+  // The store it was tried on and the app version it was saved from.
+  testedOn    String?  @map("tested_on") @db.VarChar(1000)
+  appVersion  String   @map("app_version") @db.VarChar(50)
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  createdBy User?                     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  publishes TechnologyPresetPublish[]
+
+  @@index([technology, createdAt])
+  @@map("technology_preset_versions")
+}
+
+// The log of which version a technology uses. The latest row per technology
+// is in force; a null version turns the preset off (no preset, not
+// even the built-in one).
+model TechnologyPresetPublish {
+  id            String   @id @default(cuid())
+  technology    String   @db.VarChar(200)
+  versionHash   String?  @map("version_hash") @db.VarChar(16)
+  publishedById String?  @map("published_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  version     TechnologyPresetVersion? @relation(fields: [versionHash], references: [hash], onDelete: Restrict)
+  publishedBy User?                    @relation(fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@index([technology, createdAt])
+  @@map("technology_preset_publishes")
 }

@@ -12,12 +12,14 @@ import type { VisualizationState } from "@/lib/stores/createVisualizationStore";
 import type { SingleMoleculeVisualizationState } from "@/lib/stores/createSingleMoleculeVisualizationStore";
 import type { OpenedElements } from "@/lib/scene/registry";
 import type { DatasetLinkConfig } from "@/lib/config/dataset-links";
+import type { StoreMetadata } from "@/lib/spatialdata/metadata";
 
 import { applyCellOpenState, applySMOpenState } from "./open-dataset";
 
 import { tryReadCellVizFromUrl } from "@/lib/hooks/useUrlVizSync";
 import { openElements } from "@/lib/scene/registry";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
+import { readStoreMetadata } from "@/lib/spatialdata/metadata";
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
 import {
   elementNames,
@@ -25,6 +27,7 @@ import {
   openSpatialDataStoreFromUrl,
 } from "@/lib/spatialdata/store";
 import { normalizeS3Url, type ViewerConfig } from "@/lib/utils/viewer-config";
+import { lookupByUrl } from "@/lib/datasets/lookup-by-url";
 
 export type DatasetKind = "cell" | "sm" | "spatialdata";
 
@@ -58,6 +61,8 @@ export interface LoadedDataset {
   registration: DatasetRegistration;
   /** A SpatialData store's own URL, once a folder URL has been resolved. */
   storeUrl: string | null;
+  /** A SpatialData store's dataset metadata, from its root attributes. */
+  metadata?: StoreMetadata | null;
 }
 
 export interface LoadDatasetOptions {
@@ -87,13 +92,9 @@ async function registrationByUrl(url: string): Promise<DatasetRegistration> {
   const s3Url = normalizeS3Url(url);
 
   try {
-    const r = await fetch(
-      `/api/datasets/by-url?url=${encodeURIComponent(s3Url)}`,
-    );
+    const j = await lookupByUrl(s3Url);
 
-    if (r.ok) {
-      const j = await r.json();
-
+    if (j) {
       if (j.registered) {
         return {
           dbId: j.id,
@@ -323,7 +324,13 @@ async function loadStore(
   if (elementNames(store.keys, "tables").length > 0) {
     cells = await loadSpatialDataCells(store, id, name, onProgress, folder);
     if (isCancelled()) return null;
-    await applyCellOpenState({ dataset: cells, config: null, store: viz });
+    // The owner's saved defaults (3D, colours, column), as for any cells: a
+    // server upload is a store, and its defaults were read but dropped (#206)
+    await applyCellOpenState({
+      dataset: cells,
+      config: registration.viewerConfig,
+      store: viz,
+    });
   }
   const elements = await openElements(store, {
     id,
@@ -346,5 +353,13 @@ async function loadStore(
     );
   }
 
-  return { cells, molecules, elements, registration, storeUrl };
+  return {
+    cells,
+    molecules,
+    elements,
+    registration,
+    storeUrl,
+    // The root zarr.json the store was opened with: nothing read again
+    metadata: readStoreMetadata(store.root?.attributes),
+  };
 }

@@ -4,6 +4,7 @@
  * checks one over a local preview). Plain `fetch`, so it runs in both.
  */
 import { resolveZarrUrl } from "@/lib/spatialdata/resolveUrl";
+import { trackedFetch } from "@/lib/net/load-meter";
 
 /** How the viewer opens the molecules (DatasetLinkConfig.linkFormat). */
 export type MoleculeLinkFormat = "store" | "molecules";
@@ -65,7 +66,7 @@ export async function moleculeUrlFormat(
       : null;
   }
   try {
-    const res = await fetch(`${base}/manifest.json.gz`);
+    const res = await trackedFetch(`${base}/manifest.json.gz`);
 
     return res.ok ? "molecules" : null;
   } catch {

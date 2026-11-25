@@ -8,6 +8,93 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-25
+
+### Added
+
+- **Technology presets.** A dataset opens with the settings of its
+  technology (colormap, cell opacity, hiding zero counts, spot and bin
+  size); Visium HD and Visium are the first. Presets are edited at
+  `/presets` by people a super admin has given the permission to, and
+  `?preset=<hash>` previews a draft before it is published.
+- **Cell opacity slider**, kept in the link.
+- **About this dataset.** The info button beside Share, in the cell,
+  molecule and image viewers, shows the metadata a store carries: organism,
+  tissue, technology, sections, where it came from.
+- **MERFISHEYES for AI agents.** The site is an MCP server at `/mcp`, and
+  `@merfisheyes/mcp` is the same for local use and Claude Desktop: an agent
+  can search both libraries (by organism, tissue, disease, technology, genes
+  measured or expressed), read your own projects once you sign in, and hand
+  back a link to the viewer already set up.
+- **Split-screen sync between cells and molecules.** Sync used to be offered
+  only when both panels had the same kind of data, so a cell dataset beside
+  a molecule dataset shared nothing. Now, when one side has cells and the
+  other only molecules, their genes follow each other by name: the gene
+  chosen for the cells is shown among the molecules (choosing another swaps
+  it), and a gene added to the molecules becomes the cells' gene. The
+  molecules' other genes stay as they are. A gene the other dataset hasn't
+  got is skipped with a warning.
+- **A molecule viewer link keeps the molecules' opacity**, as it already
+  kept their genes, colours and sizes. Older links open as before.
+- **SpatialData-DB up to its 8 November release**: 12,159 stores on
+  Explore (it was 3,222).
+- **A download bar that says how much.** While a dataset opens, and
+  whenever the viewer reads more (a gene, image tiles, molecules, cell
+  outlines), it shows megabytes received of megabytes announced and files
+  finished of files asked for: on the loading screen while opening, at the
+  bottom of the viewer afterwards. The viewer only ever reads the part of a
+  dataset a view needs, so the total is that part, not the size of the whole
+  dataset. Reads shorter than 0.4 s don't show.
+- **Choose which image of a store is drawn, and draw a photograph in grey.**
+  A store with more than one image (an Atera store's H&E photograph beside
+  its fluorescence stain) lists them in the Image panel, and an H&E image has
+  a **Greyscale** box so its colours do not compete with the gene's. Both are
+  kept in the link.
+- **SpatialData-DB cards have a preview image**, the one SpatialData-DB
+  serves for each dataset. A dataset it has no image for keeps the plain
+  card.
+- **Two images of a store together.** *On top* in the Image panel draws a
+  second image over the first (H&E over the fluorescence stain, or the other
+  way round), seen through at an opacity you set, with its own channels and
+  greyscale. Kept in the link.
+
+### Changed
+
+- **The connected-agents list on the account page is shorter**: each agent
+  shows its permissions, projects and when it was last used.
+- **Genes are listed in the dataset's own order**, which is often a ranking
+  (highly or spatially variable genes first), not alphabetically. **A→Z** in
+  the gene search box sorts them, and a second click goes back.
+- **Genes and numerical columns are coloured with viridis by default**
+  (it was blue–white–red). A link or saved view that names a colormap keeps
+  it; one made with the old default and never changed now opens in viridis.
+- **Visium spots and Visium HD bins stay at their real size.** The size
+  slider no longer scales them (it is not shown for these datasets): a
+  spot's diameter and a bin's side are measurements. It is a setting of the
+  technology's preset (*Spot and bin size* at `/presets`), on by default,
+  and Visium is now a technology with a preset of its own.
+- **Zooming a 2D view centres on the cursor** (or on the middle of a pinch)
+  instead of the middle of the screen, as a map does; the UMAP panel too.
+  3D views are unchanged
+  ([#213](https://github.com/kresnajenie/merfisheyes/issues/213)).
+- **One finger moves a 2D view on a phone or tablet.** It took two fingers
+  before, the same two that zoom.
+- **Cell outlines show from further out.** They are drawn once the view is
+  under 2 mm across (it was 1 mm), with up to 80,000 at once.
+
+### Fixed
+
+- **"Loading expression" no longer stays after switching genes quickly.**
+  Picking another gene while one was still downloading left the first
+  gene's loading message on screen for good.
+- **A dataset processed on the server opens with its saved view
+  ([#206](https://github.com/kresnajenie/merfisheyes/issues/206)).**
+  "Save current view as default", and the upload's "open in 3D", were saved
+  but not applied when the dataset was opened again, because a server
+  upload opens as a SpatialData store and that viewer read the saved view
+  without using it. It now opens with its saved 2D/3D view, column, colours
+  and rotation, as other datasets do.
+
 ## [0.16.0] - 2026-11-08
 
 ### Added
@@ -1072,7 +1159,8 @@ history is in the git log; changes from here on are recorded per release.
 - **Python preprocessing** (`process_spatial_data.py`, `process_single_molecule.py`)
   and BIL HPC / SLURM pipelines for very large datasets.
 
-[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/kresnajenie/merfisheyes/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/kresnajenie/merfisheyes/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/kresnajenie/merfisheyes/compare/v0.14.0...v0.15.0

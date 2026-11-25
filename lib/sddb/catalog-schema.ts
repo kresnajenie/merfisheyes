@@ -11,7 +11,7 @@
 
 export const CATALOG_REPO = "theislab/spatialdata-db-client";
 export const CATALOG_ASSET = "catalog.parquet";
-export const PINNED_RELEASE = "catalog-2026-10-20";
+export const PINNED_RELEASE = "catalog-2026-11-08";
 
 /** `REQUIRED_COLUMNS` upstream: a release without one of these is unusable. */
 export const REQUIRED_COLUMNS = [
@@ -50,7 +50,7 @@ export const READ_COLUMNS = [
   "sample_id",
   "default_table",
   "dataset_url",
-  "thumbnail_url",
+  // `thumbnail_url` was dropped upstream in catalog-2026-11-08 (it was never filled)
   "collections",
 ] as const;
 

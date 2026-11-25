@@ -1,0 +1,10 @@
+# Intel Macs (MCP.md D1b): the pipeline's pins (scripts/requirements.txt,
+# locked on Linux for the server) name versions with no ready-made build for
+# Intel macOS. These are the newest that have one, applied with
+# `uv pip install --override` by MERFISHEYES's own setup only.
+llvmlite==0.45.1
+numba==0.62.1
+# numba 0.62.1 needs numpy < 2.4
+numpy==2.3.5
+# pyproj 3.8.0 needs macOS 15 on Intel; 3.6.1 runs from macOS 10.x
+pyproj==3.6.1

@@ -1,6 +1,7 @@
 import type { ViewerConfig } from "@/lib/utils/viewer-config";
 
 import { useSingleMoleculeStore } from "@/lib/stores/singleMoleculeStore";
+import { lookupByUrl } from "@/lib/datasets/lookup-by-url";
 
 /**
  * Which genes a cell viewer's molecule overlay shows first: the cell
@@ -20,12 +21,9 @@ export function overlayDefaultGenes(config: ViewerConfig | null) {
 
     if (url) {
       try {
-        const res = await fetch(
-          `/api/datasets/by-url?url=${encodeURIComponent(url)}`,
-        );
+        const j = await lookupByUrl(url);
 
-        if (res.ok) {
-          const j = await res.json();
+        if (j) {
           const sm = (
             (j?.viewerConfig?.defaultGenes as string[] | undefined) ?? []
           ).filter((g) => smDs.uniqueGenes.includes(g));

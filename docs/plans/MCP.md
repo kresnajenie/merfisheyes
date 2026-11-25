@@ -8,11 +8,681 @@ and the person's own projects are both in reach, and the agent may do
 anything the person could do on the site, within computational reason.
 
 This file is the brief for every session working on it: the facts, the
-decisions taken, the steps with their gates. **Status (2026-11-09): steps
-1–4 done.** Keep it
-current: a step that changes a fact or a decision edits this file in the
+decisions taken, the steps with their gates. **Status (2026-11-14): steps
+1–4 done and released; 0.1.0 on npm; D1a built, not committed. After the
+meeting with Tim Treis: metadata has its own plan
+([METADATA.md](METADATA.md)), and the site itself becomes the MCP server
+(pillar E).** Keep it current: a step that changes a fact or a decision edits this file in the
 same commit. Branch: `feature/mcp` (from `bil/pipeline-dry-run`). The
 contract the steps build is [docs/specs/MCP-PROTOCOL.md](../specs/MCP-PROTOCOL.md).
+
+## 0. The pillars
+
+**Where 0.1 stands.** `@merfisheyes/mcp` 0.1.0 is on npm (2026-11-13):
+an agent can search the catalog, read a person's projects, and hand them
+viewer links set up as asked (genes, columns, 2D/3D, split screen). That
+is the site used the way a person uses it, faster. It is not yet what a
+researcher would install it for.
+
+**The two goals (2026-11-13, after a demo with a collaborator).**
+
+1. **Research the library.** One question across everything MERFISHEYES
+   holds — *"Alzheimer's is associated with gene X: compare every mouse
+   brain sample aged 1 month to 1 year that has X"* — answered by a query
+   over standardised metadata and per-dataset statistics on the server,
+   returning a collection the person can compare, view and keep. Never by
+   an agent walking S3 paths and computing on files.
+2. **MERFISHEYES on your own data.** A researcher analysing data on their
+   own machine — in Python, R, a notebook, with an agent — opens it in the
+   MERFISHEYES viewer on `localhost`: nothing uploaded, the same viewer,
+   driven by the agent as part of the analysis (show the spatial
+   projection of cells and molecules without the bad FOV, colour by the
+   pseudotime it just computed, capture the figures for the deck). Not a
+   Python package: an npm package and a browser.
+
+**What the ecosystem already has.** SpatialData-DB (Tim Treis, Theis lab;
+`theislab/spatialdata-db-client`) publishes, per release: a catalog in a
+versioned schema (`_catalog_schema.py`, schema 3) with ontology ids and
+hierarchies (`organism_id`, `tissue_id` + `tissue_system`/`tissue_organ`,
+`disease_id` + `disease_class`/`disease_group`), `development_stage`,
+`timepoint_days`, `genotype`, `treatment`, `condition`, a technology
+vocabulary, `tier`, `review_status`; a **gene index** (`gene_index.parquet`:
+one row per dataset × gene, `total_counts`, `fraction_obs_detected`); a
+feature index; cohort "primers" (shared embeddings, UMAPs, QC per cohort,
+e.g. `mouse-brain-imaging`); and **its own MCP server** (Python: query by
+facets and ranges, datasets expressing genes, describe, cite, download a
+cohort). Goal 1 is that, for MERFISHEYES's library, plus what only
+MERFISHEYES does: show it. So the metadata model is theirs unless the
+conversation with Tim says otherwise (D20), and the two MCP servers are
+meant to sit side by side in one agent: theirs to fetch and analyse a
+cohort in Python, ours to find across both libraries and to look.
+
+**After the meeting with Tim Treis (2026-11-14).** SpatialData-DB is the
+gold standard for what the site and the MCP should be; what MERFISHEYES
+adds is the viewer. Three things follow:
+
+- **Metadata** — SDDB's schema and ontologies, validated with bionty,
+  written into every store, recorded in Lamin with verification, and
+  published as a query index of all public datasets that filters and
+  agents start from. That is a plan of its own:
+  [METADATA.md](METADATA.md). Pillar B queries what it builds.
+- **The MCP lives on the site.** Tim's model: no install — an agent adds
+  the site's `/mcp` address as a connector, the server's own
+  instructions teach it the site, and long work runs asynchronously with
+  the agent checking back. (Their published client still ships a stdio
+  server; the hosted form is what Tim described.) So the site serves the
+  same tools at `www.merfisheyes.com/mcp` (pillar E), and the npm package
+  becomes the **local companion**: what needs the person's own machine —
+  files on disk, the local viewer (pillar D).
+- **Nothing changes for local use** except that a store carries its own
+  metadata, so a store opened from disk shows it.
+
+### Pillar A — Publish 0.1 — done
+
+`@merfisheyes/mcp@0.1.0` on npm 2026-11-13; install is one line
+(`claude mcp add --scope user merfisheyes -- npx -y
+@merfisheyes/mcp@latest`). Left: PR #210 (README); 0.1.1 says "needs Node
+20.3" instead of failing silently on older Node; the release
+`develop` → `main` (molecule opacity in links, account page wording);
+publishing from GitHub Actions later.
+
+### Pillar B — Research the library (goal 1)
+
+Everything here runs on the server over the **query index** that
+[METADATA.md](METADATA.md) builds (steps 6–7: SDDB's catalog format for
+every public dataset, plus a gene index); a tool call is one query, its
+answer a table, a count and a breakdown — no file reads. Items 1–2 below
+are METADATA.md's to build; 3–6 are this plan's.
+
+**The contract to design against** (from the metadata session,
+2026-11-16; METADATA.md step 1 draft, `docs/specs/metadata.md` and
+`docs/specs/schemas/metadata.schema.json` on `feature/metadata`,
+committed f6bb3bd 2026-11-16; a count-matrix hash column is coming, for
+spotting the same data twice, not for search): the index is `catalog.parquet` in SDDB's format — all 93 SDDB
+schema-3 columns in their order and types, then 25 `meyes_*` columns;
+20 required (`uid`, `canonical_key`, `organism`/`organism_id`,
+`tissue`/`tissue_id`, `technology`, `vendor`, `assay`,
+`validation_status`, `n_obs`, `n_features`, `zarr_url`, `published_at`,
+`title`, `meyes_id`, `meyes_source` (curated | bil | community),
+`meyes_kind`, `meyes_page_url`, `meyes_viewer_url`). SDDB's rows sit in
+the same index unchanged. Hierarchy: `tissue_system`/`tissue_organ` and
+`disease_class`/`disease_group` for facets; for any term, an
+`ontology_rollup.json` (term id → ancestors present) — "brain finds
+hippocampus" is `tissue_id == X or X ∈ rollup[tissue_id].ancestors_present`.
+M6: one row per store, sections in `meyes_sections` (list of
+{id, sample_id, donor_id, timepoint, timepoint_days, meyes_sex, n_obs,
+n_transcripts}). M9: only stores enter the index. Postgres mirrors the
+same snake_case names (public on `CatalogDataset`, private on `Dataset`).
+Gene index: SDDB's `gene_index.parquet` columns plus `gene_search.parquet`
+— not designed yet.
+
+*Changed later the same day (METADATA.md M10, M11):* the interim required
+set is 16 columns — `uid`, `technology`, `vendor` and `assay` are only
+recommended on our rows until everything is reprocessed, so B's tools must
+not depend on them (or on a Lamin uid) for our rows: identify them by
+`canonical_key` (`bil:<code>` / `meyes:<id>`) or `meyes_id`. `tier` is
+null on our rows. All our data is reprocessed by the BIL pipeline, which
+writes the store metadata and registers it in Lamin afresh — today's
+`eyes-catalog` is not the target. The grouping facets are our own
+convention (`conventions.json` `metadata.groupings`: ordered anchor lists,
+12 tissue systems, 40 organs, 8 disease classes, 39 disease groups, taken
+from the terms SDDB's release uses): a "brain" filter is
+`tissue_organ == brain`; descendant queries on any other term use the
+`ontology_rollup.json` the index build writes (`docs/specs/metadata.md` §7.6).
+
+*Re-releases (METADATA.md M12, 2026-11-16):* `meyes_matrix_hash`
+(`mh1:` + SHA-256 of the default table's counts, independent of format,
+dtype, cell and gene order; also per section in `meyes_sections[]`)
+identifies the same data published twice; such rows share SDDB's
+`same_section_group` with `same_section_relation = rerelease` (exact
+hashes grouped automatically, near matches proposed for a person to
+confirm). For B's search: collapse a group to its newest member with "also
+published as …" from the others. Not a search key — lookups stay on
+`canonical_key` / `meyes_id`.
+
+*First store end to end (2026-11-17):* ace-dip-van carries its metadata in
+its root `zarr.json` on S3, passed bionty, and is registered in
+`eyes-catalog` with typed features (`feature/metadata`, pushed, head
+771ab60; no PR yet — the other 61 BIL stores are re-run once the
+structures settle). Filter technology by the `technology` string id, not
+Lamin's typed `Assay` (unset where SDDB's EFO ids are missing from the
+pinned EFO). Store metadata is deterministic (no timestamp).
+
+*All BIL stores done (2026-11-18):* the 63 stores in
+`s3://merfisheyes-bil/bil-psc-zarr` carry metadata in their root
+`zarr.json` and are in `eyes-catalog` with typed features, all
+`validation pass` (55 mouse, 3 human, 2 macaque, 3 marmoset; 60 MERSCOPE,
+3 Xenium; every store has `meyes_matrix_hash`, `meyes_sections`,
+`meyes_sex`, `timepoint_days`; disease, donor and DOI unknown everywhere).
+Explore and Postgres are unchanged and the index file (METADATA.md step 6)
+does not exist yet: until it does, read a store's own `zarr.json`
+(`readStoreMetadata`) or Lamin.
+
+*The index exists (2026-11-18, local, not yet published):*
+`/home/elvissmith/data/merfisheyes-index/2026-11-18/` — `catalog.parquet`
+(13,604 rows × 131 columns: SDDB schema 3 as of `catalog-2026-11-17`, 103
+columns, then the `meyes_*` ones), `ontology_rollup.json`,
+`technology.json`, `release_info.json`. Rows: SDDB's 13,541 unchanged
+(`meyes_source = "sddb"`; 12,575 also carry `meyes_id` / `meyes_page_url`
+because Explore lists the same store) and our 63 (60 `bil`, 3 `curated`),
+all `validation_status = pass`; every row has `meyes_viewer_url`. The 102
+public Explore rows with no store yet are not in it (`release_info.json` →
+`explore_rows_without_a_store`): B falls back to the agent search for
+those. Checked queries: `organism == mouse & tissue_organ == brain` →
+1,598; `technology == vizgen_merscope` → 840. Where it is published is
+still open — B's tools are designed against this file, built once it is
+public.
+
+*Published (2026-11-18, METADATA.md M13, M14):*
+`https://merfisheyes-bil.s3.us-west-2.amazonaws.com/bil-psc-zarr/.index/latest/catalog.parquet`
+(CORS for www.merfisheyes.com; `ontology_rollup.json`, `technology.json`,
+`release_info.json` beside it; dated copies under `.index/<YYYY-MM-DD>/`).
+Its scope is what is live on MERFISHEYES: an SDDB row only when Explore
+lists its store — 12,575 SDDB + our 63 = 12,638 rows (12.4 MB); every row
+has `meyes_id`, `meyes_page_url` and `meyes_viewer_url`. The 102 Explore
+rows without a store stay out (`explore_rows_without_a_store`). Personal
+indexes are deferred (M14) until the data moves to Lamin's R2; private
+search stays on Postgres / the agent API (M7).
+
+*Every live row (2026-11-18, M9 amended, M15):* the index now covers all
+12,740 live Explore rows — the 102 without a checked store included, with
+what their Explore row knows. Two required columns say how far to trust a
+row: `meyes_format` (`spatialdata` | `merfisheyes-chunked`) and
+`meyes_metadata_from` (`store`: bionty-checked, `validation_status pass` |
+`explore`: the site's free text, `not_validated` | `sddb`). B's tools say
+which kind each hit is. By source: sddb 12,575, bil 92, curated 72,
+community 1. Groupings are filled for every row (`organism == mouse &
+tissue_organ == spinal cord` → 392). `same_section_group` is filled from
+equal `meyes_matrix_hash` (no groups yet). Rebuilt after each publish
+batch and nightly; dated copies under `.index/<date>/`. B no longer needs
+a fallback search for rows missing from the index.
+
+*The gene index is published (2026-11-18, `docs/specs/metadata.md` §7.8 on
+`feature/metadata`), beside the catalog:* `gene_index.parquet` (63,710
+rows: `symbol`, `feature_id` (Ensembl id, else the symbol), `uid`,
+`total_counts`, `fraction_obs_detected`, `meyes_id`) for our datasets only
+(151 of 165; counts for the 63 stores, null for Explore-only rows —
+measured, not quantified), joined to the catalog on `meyes_id`;
+`gene_search.parquet` (764,753 entities: `entity_id`, `feature_id`,
+`symbols` lower case, `n_datasets`, `bitset` — little-endian over
+`catalog.parquet`'s row order, 1,593 bytes) over all 12,740 live rows;
+`gene_search_meta.json` (`meyes_ids` in row order, `order_hash` =
+sha256 of them joined by commas — check it before trusting a bitset).
+"Measures X": the entities whose symbols contain x (Ensembl prefix by
+organism: ENSMUSG mouse, ENSG0 human) → bitset → catalog rows. "Expresses
+X in > p of cells": `gene_index` for ours; SDDB's own 1 GB `gene_index`
+(by row group) for theirs. Checked by the metadata session: mouse Gad1 →
+2,537 datasets; mouse brain stores expressing Rab3b > 5 % → 55. Open: where the index is published, how often it is
+rebuilt. B's tools wait for step 6; searches against today's catalog
+cannot pass B's gate until the reprocessed data and index are live.
+
+1. **One metadata model for every dataset** — SDDB's catalog schema as
+   columns (not a JSON blob) on the catalog: BIL, community and personal
+   datasets carry the same fields as SDDB rows. The SDDB sync imports all
+   of them (today it maps a subset and keeps the rest in `metadata`).
+   Region queries follow the UBERON hierarchy ("brain" finds hippocampus);
+   age queries use `timepoint_days`.
+2. **One gene index** — dataset × gene, total counts and fraction of cells
+   detected, from SDDB's `gene_index.parquet` for theirs and from our
+   pipeline's statistics for ours (pillar C). "Has gene X" means measured;
+   "expresses X" means a fraction above a threshold, and the tool says
+   which it used.
+3. **`meyes_find`** — structured filters (organism, region with
+   descendants, age range in days, sex, disease and its class, genotype,
+   treatment, technology, genes measured / expressed with a minimum
+   fraction, tier) plus text; answers the count, a breakdown by the
+   facets that matter, and the first rows. Replaces paging through search
+   to count.
+4. **Collections** — a found set saved with its query (so it can be
+   re-run as the library grows), opened on the site, shared, and
+   compared. Stored as a project for now; a collection page later.
+5. **Compare a collection** — one table: for each dataset, gene X's
+   fraction and counts, cells, age, genotype, region; per cell type when
+   the dataset records it. Views: a split screen for two, a grid of links
+   for more.
+6. **Per-dataset statistics served** (the analysis half of step 6, now
+   inside this pillar): structure (one slice or combined, slices, obs
+   columns and values), gene stats, composition, gene by cell type,
+   markers — read from the files the pipeline writes; "not recorded for
+   this dataset" when they are missing, never a guess.
+
+Gate: the Alzheimer's-style question above answered in one `meyes_find`
+plus one compare call on the live site, with the numbers checked against
+the stores; no S3 read by the agent.
+
+**B3 built (2026-11-18; uncommitted until the user says).** One search
+module in the package, used by both servers (`lib/mcp/server.ts` registers
+it too): `src/library/data.ts` loads the published index —
+`catalog.parquet` (61 of its 131 columns: all 131 as objects are ~230 MB),
+the rollup, `technology.json`; `gene_index.parquet` on the first
+expression filter — once per release (`release_info.json` rechecked every
+10 min), from `INDEX_URL` (`MERFISHEYES_INDEX_URL`, a folder in tests).
+`src/library/search.ts` is pure. Tools `meyes_find_datasets` (organism
+with aliases, tissue / disease by name or id with descendants and
+groupings, technology by id or label, source, kind, metadata_from,
+modality, sex, age in days, genotype / condition / treatment contains,
+text, min_cells, genes_measured, genes_expressed with min_fraction;
+answers count, breakdown by six facets, notes, a page of rows with trust
+and viewer links) and `meyes_index_values`. Re-releases fold to the newest
+`same_section_release` (version order — `published_at` picks the wrong one
+for a Space Ranger 3.0.0 / 4.0.1 pair). Unknown values name the closest
+(substring, else edit distance per word).
+
+*Gene lookup (asked of the metadata session, built by it the same day):*
+`gene_search.parquet` decodes to ~1 GB in one row group (pyarrow's
+dictionary falls back to PLAIN past 1 MB): 4.4 s and 2.7 GB RSS in
+hyparquet — no use to a Vercel function or an MCP process.
+`gene_lookup.parquet` (one row per lower-case symbol × entity, sorted, row
+groups of 8,192, statistics on `symbol` only; 36.8 MB) is read by range:
+the footer once, then the one row group holding the gene (~300 KB, ~0.6 s
+from S3); genes of one query are read in parallel. Bitsets are used only
+after `gene_search_meta.json` `meyes_ids` equal the catalog's row order.
+"Measured" covers all 12,740 rows; "expressed" only rows with counts in
+`gene_index.parquet` (our 63 stores), and the note says how many it could
+not check.
+
+*Measured against the live index (2026-11-18):* cold load 1.2 s, ~300 MB
+RSS; warm queries ms. mouse brain 1,597 (1,606 before folding 9
+re-releases; pandas agrees), mouse spinal cord 392, MERSCOPE 850, mouse
+Gad1 measured 2,520 (pandas agrees; now the check value in
+`docs/specs/metadata.md` §7.8). The rule: OR every entity for the symbol,
+then filter catalog rows by organism, never entities by id prefix — the
+mouse-prefix entities' union (2,537) takes in 30 human and rat rows that
+carry the mouse id and misses 13 mouse rows that measure Gad1 only under
+the bare symbol), mouse brain Rab3b > 5 % 55 (as
+checked by the metadata session), human Alzheimer's 47. Tests: 12 on a
+63-row fixture cut by `scripts/make-index-fixture.py`, expected numbers
+counted with pandas; passing on hyparquet 1.33 (the package's) and 1.20
+(the site's).
+
+*Expression over SpatialData-DB's datasets too (2026-11-23).*
+"Expressed" reads `gene_expression.parquet` (published by the metadata
+session beside `gene_index.parquet`, which stays ours-only and unchanged
+because 0.3.0 reads it whole: published file names and shapes are a
+contract — a new layout gets a new name). 138,163,880 rows (ours + 7,089
+SDDB datasets), sorted by `symbol_key` then uid, row groups of 131,072,
+statistics on `symbol_key` only. Read like the lookup: the footer once,
+then the group holding the gene (~1.6 MB), only its rows kept. A dataset
+listing the gene under two features counts by the one detected in most
+cells. Live, mouse brain > 5 %: Rab3b 1,073 (55 ours), Gad2 1,434,
+Slc17a7 1,297 — the metadata session's brute-force values; 0.4–1 s per new
+gene, ~320 MB RSS. (`out.push(...group)` overflowed the stack on a real
+group; the fixture's groups are too small to show it.)
+
+*Rebuilds:* every index build reorders the catalog, so bitsets are valid
+only against the catalog of the same build. A build is now `release` +
+`built_at` (a release name can be rebuilt the same day). A gene file that
+does not match (order check) or does not read (bytes changed under a
+range read while a build is published) drops the loaded index, so the next
+call loads one build whole instead of failing until the 10-minute
+recheck.
+
+Next in B: B5 compare (per dataset gene fraction/counts, cells, age,
+genotype; per cell type where recorded), B4 collections.
+
+### Pillar C — Metadata and statistics: [METADATA.md](METADATA.md)
+
+Its own plan since 2026-11-14: SDDB's schema (M1), metadata in the store,
+in Lamin and in the index (M2), bionty validation and verification (M3),
+the query index (M4), the gene index (M5), the backfill of what exists,
+and a site built to filter. This plan keeps one part: **the sweep** — a
+scripted run of the read tools over the whole catalog that fills §10 and
+checks every row against the schema, instead of waiting for an agent to
+trip over each error.
+
+### Pillar D — MERFISHEYES on your own data (goal 2)
+
+The package grows a local mode. Rule 1 holds: **one viewer** — the local
+viewer is the site's viewer code, never a fork.
+
+1. **Serve and open (prototype, days).** `merfisheyes-mcp view <path>`
+   and a tool `meyes_local_open(path)`: the package serves the folder on
+   `127.0.0.1` with CORS and byte ranges (as `e2e/helpers/fixture-server.ts`
+   does for the tests) and opens the site's viewer on that URL. The
+   browser reads the files from the person's machine; nothing is
+   uploaded. Opens what the viewer opens by URL: SpatialData Zarr v3
+   stores, MERFISHEYES folders, OME-Zarr images. Known limits, to measure:
+   needs the internet for the page; Chrome asks once to let the site
+   reach `localhost` (local network access); Safari to be tried; an
+   `.h5ad` needs a conversion first (find the shortest one from an
+   analysis: `adata.write_zarr`, or `prepare.py`).
+
+   **D1a done (2026-11-13; not yet released).** Site: `/open?url=` picks
+   the viewer for any URL with the logic the "Load from URL" dialog had
+   (`lib/viewer/viewer-for-url.ts`, now its one implementation); a URL on
+   this computer (`lib/utils/local-url.ts`) is never sent to the site —
+   the five `by-url` lookups go through `lib/datasets/lookup-by-url.ts`,
+   which skips it, the claim banner hides, and analytics drops it
+   (`components/site-analytics.tsx`). Package: `src/local/serve.ts`
+   (127.0.0.1 only, a random token per folder, inside the folder only —
+   symlinks included —, GET/HEAD with byte ranges, CORS for `SITE` only,
+   the Host header checked, Chrome's private-network preflight answered),
+   `merfisheyes-mcp view <folder>`, the tool `meyes_open_local`. Gate:
+   package unit tests (serving and every refusal); `e2e/tests/viewer/open-url.spec.ts`
+   (`/open` routes a store, a cells folder and a molecules folder served
+   on 127.0.0.1, passes `v=` on, makes no `by-url` request, shows no claim
+   banner); the package's server and `/open` together on a local site, all
+   three in the right viewer. Measured on the live site before `/open`
+   existed: the viewer reads a store from 127.0.0.1 once Chrome's
+   local-network-access permission is granted; without it Chrome blocks
+   the request ("Permission was denied … loopback address space").
+   Left for D1b: `.h5ad` and raw instrument output; Safari and Firefox
+   tried on a Mac.
+
+   **D1b decided (2026-11-16): both, in order** — first the agent converts
+   `.h5ad` and raw MERSCOPE/Xenium output with `scripts/prepare.py` and
+   opens the store it writes, so the collaborator can work now; later the
+   viewer reads them directly (h5ad with sparse `X`, raw folders over a
+   URL), with no conversion.
+
+   **D1b, first part, built (2026-11-16; not committed).** `src/local/convert.ts`:
+   `LocalServer.open(path)` shares a viewable folder as it is; anything
+   else is converted once by `prepare.py` (the same pipeline as the
+   server) into `<cache>/<name>-<id>` (`~/.cache/merfisheyes/converted`,
+   `MERFISHEYES_CACHE`; decided 2026-11-16: a cache, never beside the
+   input), reused while the input's size and times are unchanged. Python:
+   `MERFISHEYES_PYTHON`, else `python3`; missing Python or packages, an
+   unrecognised input (exit 2) or an invalid store (exit 4) each say what
+   to do. The npm package carries the pipeline (`scripts/bundle-python.mjs`
+   copies `prepare.py`, the 18 scripts it runs, `requirements.txt`,
+   `conventions.json` and the schemas into `python/` on publish); from a
+   checkout it uses the repository's `scripts/`. Gate: package tests (30;
+   `test/convert.test.ts` with a stand-in Python: reuse, re-conversion after
+   a change, the error messages, every script `prepare.py` imports
+   bundled); on real data, `merfisheyes-mcp view` of an 18 MB pseudotime
+   `.h5ad` (3,534 cells × 275 genes, 11 categorical columns incl. `fov`)
+   converted with the bundled pipeline in 3.4 s, opened in the standalone
+   viewer with no request leaving 127.0.0.1, and reused in 0.2 s the
+   second time; an existing 1.4 GB store with ~10 sections opened locally
+   as it is.
+
+   **Easy install and Claude Desktop (2026-11-17; not committed).** Asked
+   for: one install, one command, and a chat (no Claude Code) that can
+   process and show raw data. (1) The pipeline's Python sets itself up:
+   `pipelinePython` uses `MERFISHEYES_PYTHON`, else a private environment
+   uv builds once beside the cache (Python 3.12 + the pinned
+   `requirements.txt`; rebuilt only when the pins change; ~1.3 GB), else
+   `python3`; `findUv` also looks where uv's installers put it, since an
+   app started from the Dock does not have a terminal's PATH. Measured with
+   real uv from nothing: environment + first conversion 14 s, the next
+   3.2 s. The package installs a `merfisheyes` command (`merfisheyes view
+   data.h5ad`; `merfisheyes-mcp` stays) and is 0.2.0. Publishing order:
+   `@merfisheyes/viewer`, then the MCP with it as a dependency. (2) A
+   Claude Desktop extension (`.mcpb`, `npm run mcpb` →
+   `build/merfisheyes-0.2.0.mcpb`, 8.2 MB, 27.6 MB unpacked): the package,
+   its production dependencies, the standalone viewer (`server/viewer`,
+   `MERFISHEYES_VIEWER_DIR`) and the pipeline (`server/python`); one
+   optional setting (a Python); manifest validated by `mcpb`. A claude.ai
+   web chat cannot reach a person's files without a helper on their
+   computer that the site relays to (pillar E5), so Desktop is the
+   no-Claude-Code route for local data. Gate so far: the unpacked bundle
+   run as Desktop runs it (13 tools; the Python setting unset) converted a
+   57 MB `.h5ad` in 4 s and served it with no request leaving 127.0.0.1.
+   **The setup asks, then does itself (2026-11-17).** The person should
+   not set up the agent's infrastructure: converting before the setup is
+   done answers `SetupNeeded` (what it downloads — Python 3.12 and the
+   pinned packages, ~1.3 GB, into MERFISHEYES's own folder; uv if the
+   computer has none — and that nothing is installed system-wide);
+   `meyes_open_local` tells the agent to ask the person and, only on a
+   yes, call `meyes_setup_converter`; the terminal asks "Set it up now?"
+   and `merfisheyes setup` does it directly. uv is downloaded from its
+   GitHub release (pinned `UV_VERSION`, checksum verified against the
+   published `.sha256`) into MERFISHEYES's folder; `python3` is no longer
+   tried silently. Gate: package tests (34: refusal before setup, setup
+   after a yes, no repeat, the asset per platform, a download with a
+   wrong checksum refused); the rebuilt bundle run as Desktop runs it,
+   from nothing: open → "setup needed, ask" → setup (real uv 0.13.9 from
+   GitHub) → open converted the 18 MB `.h5ad` in 5 s.
+   **Macs (2026-11-17, from the first Mac test).** The setup failed on an
+   Intel Mac: `scripts/requirements.txt` is locked on Linux for the server,
+   and llvmlite > 0.45.1 / numba > 0.62.1 have no Intel-Mac builds, pyproj
+   3.8.0 needs macOS 15 (Intel) / 14 (Apple Silicon). Checked per platform
+   with `uv pip compile --python-platform … --only-binary :all:` (flowio
+   and pims are pure-Python sources): Linux and Windows x64 install as
+   pinned; Windows on ARM does not (not supported); Macs need
+   `overrides/darwin-x64.txt` (llvmlite 0.45.1, numba 0.62.1, numpy 2.3.5,
+   pyproj 3.6.1) and `overrides/darwin-arm64.txt` (pyproj 3.6.1), applied
+   by the setup with `uv pip install --override` and hashed into the
+   environment's name; with them both Macs resolve from ready-made builds
+   from macOS 13; below 13 (google-crc32c and others) the setup says so
+   before downloading. The local Python on a Mac therefore differs from the
+   server's in those few packages.
+   Mac test (2026-11-17, Intel Mac, Claude Desktop): the extension installed; a
+   `.zarr` opened as it is; after the Mac overrides, the tiny MERSCOPE folder
+   was set up (with the person's yes), converted and shown.
+
+   *From the metadata work (METADATA.md steps 2–4, 2026-11-17, on
+   `feature/metadata`, not merged):* stores carry their metadata in root
+   attributes (`metadata_general`, `metadata_<tech>`, `meyes_metadata`,
+   `meyes_provenance`); `prepare.py --metadata FILE` writes them; bionty
+   runs on the Lamin side (M3 amended), so a local store may say
+   `meyes_provenance.validation.status = not_validated`. The viewer reads
+   them with `lib/spatialdata/metadata.ts` `readStoreMetadata` (the one
+   reader — the local package reuses it rather than parsing `zarr.json`
+   again) and shows an "About this dataset" panel; the standalone viewer
+   gets that panel when both branches are in `develop` and it is rebuilt.
+   A local conversion could pass `--metadata` later (D4/D5).
+2. **A standalone viewer.** A second build target of the same viewer
+   components — static files, no server, no account — shipped as its own
+   npm package and served by the local mode next to the data: offline,
+   no permission prompt, same origin.
+
+   **D2 built (2026-11-16; not committed).** `packages/merfisheyes-viewer`:
+   a second Next.js project (`output: "export"`, Turbopack rooted at the
+   repository) whose pages re-export the site's own (`/viewer/from-s3`,
+   `/sm-viewer/from-s3`, `/spatialdata-viewer/from-s3`,
+   `/image-viewer/from-s3`, `/open`) inside a bare layout — the site's
+   styles and `Providers` with `noAccount` (no session fetched), no
+   navbar, footer or analytics. `next build` → `out/`: 19 MB, 128 files.
+   The package's local server serves it from the same 127.0.0.1 port as
+   the data (a path that is not a share token is a viewer file), and
+   `LocalServer.link` opens `/open/` there; the viewer is found through
+   `MERFISHEYES_VIEWER_DIR`, an installed `@merfisheyes/viewer`, or the
+   repository's build, else links fall back to the site's `/open`
+   (`MERFISHEYES_VIEWER=site` forces that). Gate: package tests (26,
+   including the viewer served beside the data and refusals outside its
+   folder); headless, with no permission granted and no site: a SpatialData
+   store, a cells folder and a molecules folder each opened in its viewer,
+   **no request left 127.0.0.1**, the only 404s the viewer's own probes for
+   optional files (`manifest.json`, `mapping.json`). Distribution (decided
+   2026-11-16): `@merfisheyes/viewer` is its own npm package (`files:
+   ["out"]`, built on publish) and a dependency of `@merfisheyes/mcp` —
+   added to the MCP's `package.json` in the release that first publishes
+   the viewer (until it is on npm, the dependency would break every
+   install). Open: a CI job that builds it.
+3. **A live session.** Because the package serves the page, page and
+   agent share an origin: a WebSocket without pairing codes. Tools:
+   `meyes_view_set` (colour by gene or column, hide categories — the bad
+   FOV —, filter, camera, split), `meyes_view_state` (what is shown and
+   selected), `meyes_snapshot` (a PNG at a chosen size with its legend —
+   for figures and decks). This is the bridge of step 5, built where it
+   is easiest first.
+
+   **D3 built (2026-11-18; not committed, not released).** No WebSocket:
+   the package's server pushes commands to its own page with server-sent
+   events (`/session/events`) and the page posts answers back
+   (`/session/reply`) — this server's pages only: a session token in the
+   link (`&session=`), no CORS on those routes, the Host check as before.
+   Viewer side (site code, mounted only in the standalone viewer for now):
+   `lib/agent/view-targets.ts` (each cells panel registers from
+   `useCellVizUrlSync`, the one hook every cells viewer calls with its
+   dataset and store), `lib/agent/view-commands.ts` (`state`; `set` —
+   colour by gene or column through `applyCellVizState`, show only / hide /
+   show all values through the store's own visibility toggle, a numeric
+   column switched to categories first as the viewer's "treat as
+   categorical" does, dot size, 2D/3D, reset camera; `snapshot` — the
+   drawn canvas plus a legend panel: swatches of the visible values, or a
+   colour scale for a gene or numeric column), `components/agent-session.tsx`.
+   Package: `LocalServer.command`, tools `meyes_view_state`,
+   `meyes_view_set`, `meyes_view_snapshot` (the PNG returned as an image the
+   agent sees and saved to `save_to` or MERFISHEYES's snapshots folder).
+   Gate: package tests (40, incl. `test/session.test.ts`: commands to a
+   stand-in page and back, no view, wrong token refused, no CORS); on a
+   real 3,534-cell pseudotime `.h5ad` in the rebuilt standalone viewer,
+   headless: state (23 columns), colour by `celltype`, `fov` switched to
+   categories (8 values) and FOV 16 hidden, a snapshot with its legend,
+   colour by `dcx` (corrected to `Dcx`) with a colour-scale snapshot, an
+   unknown gene answered with near matches.
+
+   **Fixed after the first Desktop test (2026-11-18, Safari, Intel Mac):**
+   hide / show only were reported but not drawn. `hiddenCelltypes` is the
+   per-badge eye *within* the picked-out values (three-scene draws picked
+   out minus hidden; with nothing picked out it has no effect), and every
+   `set` re-applied the colour column, which resets the selection. Now:
+   show only / hide pick out the values to keep (`setCelltypes`, the panel's
+   checkboxes) with `greyedOutAlpha` 0 and `selectedSizeMultiplier` 1 (the
+   rest not drawn; kept cells keep their size); show all clears the
+   selection and restores both; the column is applied only when it
+   changes; state reports `shown_values` and `visible_cells` counted from
+   the cells; the tab brought to the front reconnects, so commands go to
+   the tab the person is looking at (several were open); state names the
+   data the tab shows (`opened`). Checked by counting drawn pixels in the
+   snapshots (tiny MERSCOPE, 300 cells): hide Neuron 300 → 276 cells, 201 →
+   182 px, kept after a later dot-size change; show only Neuron 24 cells,
+   19 px; show all back to 300 / 201; dot size ×1 → ×10: 201 → 907 px.
+   Not yet: the molecule viewer;
+   framing a snapshot on the visible cells (they can be small in a wide
+   scene); a published viewer with the session (`@merfisheyes/viewer`
+   0.2.0) and package 0.3.0.
+4. **The agent's results in the view.** Columns the agent computed —
+   pseudotime, clusters, labels — pushed by cell id (a CSV or parquet
+   beside the data) and shown without rewriting the store; cell sets
+   highlighted or hidden.
+
+   **D4 built (2026-11-18; not committed).** `meyes_view_add_column`: the
+   agent writes its results to a CSV or TSV (pandas' `to_csv()` as is: an
+   unnamed first column of cell ids; or `cell_id` / `obs_names` /
+   `barcode` / `index`; or no ids and one row per cell in order) and the
+   package (`src/local/table.ts`) sends them to the open view, which joins
+   them to its cells by the obs index (`SpatialDataTableAdapter.loadCellIds`,
+   new) and adds them as columns built by `clusterColumnFrom` — extracted
+   from the reader's `loadClusters`, so a column from a store and one from
+   an agent are built alike (type detection, palette). Cells missing from
+   the file get "" (a missing label); a column of the same name is refused
+   unless `replace`. Nothing in the store changes. Gate: package tests
+   (42, incl. `test/table.test.ts`); site unit tests (717) after the
+   extraction; through the MCP tools on the 3,534-cell pseudotime store:
+   an agent-style pandas CSV for 3,181 cells (a 3-way label from
+   pseudotime, a score) matched 3,181 of 3,181 by id, 353 cells without a
+   value, coloured by the label, show only "radial glia-like" → 1,052
+   visible cells (the file's count), a snapshot with that legend; adding
+   it again refused.
+
+   **Framing and molecules (2026-11-18; not committed).** Snapshots are
+   framed on the cells drawn in colour by default (`frame: "visible"`; the
+   camera moved to their bounding box, keeping the viewing direction, then
+   put back) or exactly as the person sees it (`"current"`); `set` takes
+   `fit` to zoom the live view. The scene registers a handle (camera,
+   controls, point positions) in `lib/agent/view-targets.ts`. Molecules:
+   the molecule viewer's panel and molecules drawn over cells register
+   too (from `useSMVizUrlSync` / `useSMOverlayUrlSync`); `state` reports the
+   genes shown with their colours; `set` takes `molecules: {show, add,
+   remove, colors, opacity, size}` through the molecule store's own
+   actions (overlay molecules still loading are waited for, up to a
+   minute); snapshots work in the molecule viewer and list molecule genes
+   in the legend. Checked: framing on immature neurons spread over three
+   sections 178 → 323 drawn pixels (the frame must span the sections); the
+   tiny molecule folder — show exactly two genes with a colour and size,
+   legend, unknown gene refused; molecules over cells on the e2e fixture
+   store — show two genes, recolour, opacity 0.6, snapshot legend. Seen on
+   the way, not the agent's: the points of `neurogenesis2026/igfbpl1_gate.zarr`
+   (tiled points, 1.4 GB) never load in the viewer at all — for the
+   viewer / reprocessing work.
+5. **Fit an analysis.** The reference workflow (a collaborator's, 2026-11-13):
+   define radial glia vs immature neurons from pseudotime, UMAP and a
+   molecule gradient; output UMAP, spatial projection of cells and
+   molecules, dot plots and pseudotime, the bad FOV removed, gradient
+   genes plotted, all in a `.pptx`. The agent does the statistics in
+   Python; MERFISHEYES draws the spatial views and hands back snapshots
+   for the deck.
+
+Gate: that workflow end to end on a real dataset, the spatial figures in
+the deck coming from `meyes_snapshot`, nothing leaving the machine.
+
+### Pillar E — The site is the MCP server (a connector, no install)
+
+1. **`www.merfisheyes.com/mcp`** — a remote MCP server (Streamable HTTP,
+   stateless, so it runs on Vercel's functions) serving the same tools as
+   the package. Signing in is the OAuth server we already run (steps
+   2–3): the connector discovers it from the site, registers through our
+   client metadata document or registration, and the person approves on
+   the consent page they know; the token's resource becomes the `/mcp`
+   address. Works in claude.ai, Claude Desktop and Claude Code connectors
+   and any client that takes a URL — nothing installed.
+2. **One implementation of every tool.** The package and `/mcp` must not
+   grow two copies of the tool descriptions and formatting: the tool
+   definitions move to one module that both import, each with its own
+   way of reaching the data (the package over the agent API; `/mcp` in
+   process).
+3. **Taught by the site.** The server instructions are the manual: when
+   to use which tool, what the index holds, what the viewer can show.
+   Versioned with the site, so every connector learns a change at once.
+4. **Asynchronous work.** A sweep, a collection compared across hundreds
+   of datasets, a processing job: started by one call that returns at
+   once, with the agent checking back (MCP's tasks, or a job id and a
+   status tool), and progress the person can see on the site.
+5. **A tab on the site, driven from the connector.** The live session of
+   pillar D3, relayed through the site to a tab the person has open (the
+   old step 5 bridge, without localhost or pairing codes), and the Agent
+   panel showing B's numbers in MERFISHEYES.
+
+6. **An agent on the site.** What Tim described (confirmed by the user,
+   2026-11-14): the person's agent, through the connector, talks to an
+   agent that lives on the site and knows it — asks it a research
+   question, and the site's agent works through the index, the stores and
+   the viewer and answers, asynchronously. The person installs nothing.
+   Its shape (one MCP tool that hands a request to the site's agent, or
+   agent-to-agent messages), the model it runs, and who pays for it are
+   open; E1–E4 are its plumbing either way.
+
+Order inside the pillar: 1–3 first (they carry the 0.1 tools as they
+are), 4 with B's long queries, 5 after D3, 6 once 1–4 work.
+
+**E1–E3 built (2026-11-16; not committed, not released).** `/mcp`
+(`app/mcp/route.ts`, `lib/mcp/server.ts`): Streamable HTTP, stateless,
+sign-in required (decided 2026-11-16: the connector signs in when added;
+public-only use stays open through the package and the site). A second
+OAuth resource `<issuer>/mcp` (`lib/oauth/config.ts`); the tools reach the
+agent API in process as the verified caller (`lib/agent/in-process.ts`,
+`trustCaller` in `lib/agent/caller.ts`). One implementation (D23): the
+package's tools take a `Host` (`src/host.ts`: site, `get`, optional
+`open`, a sign-in hint); sign-in/out moved to `src/tools/signin.ts`
+(package only); instructions (`src/instructions.ts`) and failure messages
+(`src/errors.ts`) shared. The site imports the package's TypeScript
+source: its relative imports are written `.ts` and the package compiles
+with `rewriteRelativeImportExtensions` (its published build is unchanged);
+the site's tsconfig allows `.ts` imports. Fixed on the way: the
+protected-resource metadata ignored its path (`?path=` rewrite) and
+answered every path with the agent API's; now a `[...path]` route, 404
+for an unknown path. Gate so far: package tests (23); `tests/unit/mcp-server.test.ts`
+(the server over HTTP with a stand-in API: instructions, the 10 tools,
+no `open`, API failures as tool errors); a local site answers 401 with the
+`/mcp` metadata and serves that metadata; `e2e/tests/upload/agent-remote-mcp.spec.ts`
+for CI (consent for `/mcp` limited to one project, tools as that person,
+a `/mcp` token refused by the agent API, disconnect refuses it). Left for
+the gate: that suite in CI, then connecting from claude.ai once released.
+
+### Pillar F — Compute and writes
+
+What no file records — DE between arbitrary selections, neighbourhoods,
+spatial statistics — on the server (Batch, with a confirm and a cost) or
+in the local session; write tools for projects, collections and dataset
+metadata. Step 7, then steps 8–9 as written.
+
+### Order
+
+A is done; D1a is built. Next, in parallel:
+- **METADATA.md steps 1–4** (schema on paper, bionty validation, metadata
+  in the store, Lamin verification) — the foundation for B.
+- **E1–E3** — the site as the MCP server, carrying the 0.1 tools, so a
+  person adds a URL instead of installing anything.
+- **D1b** — `.h5ad` and raw instrument output for the local viewer.
+
+Then **B** on METADATA.md's index (steps 6–7), **D2–D5**, **E4–E5**, **F**.
+
+**Rule for every pillar:** a new tool is added beside the 0.1 tools,
+never by changing what they return; each ships with its tests and a live
+check, and the package's minor version goes up with it.
 
 ## 1. The principle: the browser does the work, the agent directs it
 
@@ -193,6 +863,12 @@ function; a server relay to a tab (remote MCP) needs an external pub/sub
 | D15 | Personal datasets stay "anyone with the link" (any id opens on the site); the agent API keeps its stricter rule (MCP-PROTOCOL §2) | **taken** 2026-11-08 |
 | D16 | The package is `@merfisheyes/mcp` on npm, under the `merfisheyes` npm organisation (created 2026-11-10, two-factor on) so it outlives any one maintainer; run with `npx -y @merfisheyes/mcp` (the command it installs is `merfisheyes-mcp`). First published by hand once the live site has the agent API (after `develop` → `main` and `OAUTH_ISSUER` in Production); later releases from GitHub Actions (npm trusted publishing). Until then it runs from the repository (`node packages/merfisheyes-mcp/dist/index.js`) | **taken** 2026-11-10 (publishing open) |
 | D17 | Tokens are kept in a file only the person can read (`~/.config/merfisheyes-mcp/credentials.json`, 0600, written atomically), keyed by issuer — not the OS keychain, which needs native modules `npx` cannot rely on | **taken** 2026-11-09 |
+| D18 | The work after step 4 is organised by five pillars (§0): A publish 0.1, B analyses from what a store records, C data, D bridge and Agent panel, E compute and writes. B — the analysis half of step 6, served by the agent API from files the pipeline writes — comes **before** the bridge (step 5): it works in every client with no tab open, and the third manual test showed it is what agents lacked. New tools are added beside the 0.1 tools, never by changing what those return | **taken** 2026-11-12 |
+| D19 | The MCP serves two goals: research across the whole library (queries over standardised metadata and per-dataset statistics, on the server, returning collections) and MERFISHEYES on a researcher's own data (the viewer on `localhost`, driven by their agent inside an analysis). The pillars of §0 are rewritten around them; D18's order is replaced by §0's | **taken** 2026-11-13 |
+| D20 | MERFISHEYES's metadata model is SpatialData-DB's catalog schema (ontology ids and hierarchies, `timepoint_days`, genotype, treatment, condition, technology vocabulary) and its gene index, for every dataset, not a schema of our own | **taken** 2026-11-14, after the meeting with Tim Treis; carried out by [METADATA.md](METADATA.md) (M1–M7) |
+| D21 | Local use is an npm package and a browser, not a Python package; it serves the site's viewer code (one viewer, never a fork): first the hosted viewer reading `127.0.0.1`, then a standalone build of the same components shipped with the package | **taken** 2026-11-13 (the standalone build's shape open) |
+| D22 | The site serves the MCP at `www.merfisheyes.com/mcp` (remote, Streamable HTTP, our OAuth server) as the main way agents reach MERFISHEYES; the npm package is the local companion (files on disk, the local viewer) and a fallback for clients without remote MCP | **taken** 2026-11-14 |
+| D23 | One implementation of each tool's definition (name, description, schema, formatting) shared by the package and `/mcp` | **taken** 2026-11-14 (the module's shape open, pillar E2) |
 
 ## 8. Steps
 
@@ -327,10 +1003,106 @@ and the upload E2E job builds it. Gate:
   the character limit); a database test that the authorization server
   accepts the site's own client document.
 
-Not yet: the live site answers only once `develop` is released; until
-then the package is pointed at staging with
-`MERFISHEYES_URL=https://dev.merfisheyes.com` (which needs `OAUTH_ISSUER`
-set there).
+Released to the live site on 2026-11-10 (PR #202): the package works
+against www.merfisheyes.com from a checkout; npm publishing (D16) is
+still to do.
+
+**First manual test, on staging (2026-11-10 → 11).** A person on a Mac,
+the package from branch `feature/mcp` (commit `93dcf87` added
+`MERFISHEYES_VERCEL_BYPASS`, since staging sits behind Vercel's Deployment
+Protection), driven from Claude Code in VS Code.
+
+Worked:
+- The package built on the Mac (Node ≥ 20.3) and Claude Code listed the
+  `meyes_*` tools.
+- Catalog search through Claude worked on staging's real catalog
+  ("mouse brain": 1,332 with `species`/`tissue` filters, 1,349 free text),
+  with paging.
+
+Failed — fix before the next test:
+- **F1 · Terminal sign-in stopped at the consent page** with "the
+  redirect_uri is not one this client registered". The code on both sides
+  agrees (registration lists `http://127.0.0.1/callback`, the site accepts
+  any loopback port, the E2E passes), so the cause is not found yet. The
+  leading suspect is the link losing `redirect_uri` on its way through the
+  Vercel and Google logins. `validateAuthorize` gives the same message for
+  a missing `redirect_uri` as for a wrong one, so the page should tell
+  them apart.
+- **F2 · Claude Code's package was not signed in, and registered a new
+  client.** The package registers only when its credentials file holds
+  nothing for the issuer, so that process found no saved sign-in. This is
+  consistent with F1, but the terminal and Claude Code reading different
+  files (or different issuers) is not ruled out. `whoami` should print the
+  credentials path and the issuer it looked under.
+- **F3 · The scopes surprise.** `meyes_sign_in` with
+  `scopes=["projects:read"]` asked for `catalog:read projects:read`. Adding
+  `catalog:read` is deliberate (DEFAULT_SCOPES), but the tool's answer
+  should say so.
+- **F4 · Setup friction.** Commands with a `# comment` broke in zsh
+  (interactive comments are off; the apostrophe opened a quote). The
+  README's commands must have no inline comments, and should give
+  `node -v` (≥ 20.3) as the first step.
+
+Problems in the site's data that the agent ran into are logged in §10.
+
+Decided after it: manual testing moves off staging, whose Vercel login,
+bypass secret and separate database add failure points that are not the
+package's. Since `develop` was released on 2026-11-10 (PR #202, which
+carries #205), the live site has the agent API, and testing moved there.
+
+**Second manual test, on the live site (2026-11-11).** Same Mac, package
+from `feature/mcp`, no settings (the default, www.merfisheyes.com; the
+site's Client ID Metadata Document, no registration). Passed: sign-in,
+then in Claude Code the person's two projects (and their datasets),
+catalog search ("mouse brain": 1,335) and one dataset's detail — F1 and
+F2 did not recur, so both were staging's.
+
+Found:
+- **F5 · A search page of 5, not 20.** `many()` halves a page until it is
+  under `CHARACTER_LIMIT`; an item that lists every molecule section
+  (58 for ace-den-fog) makes the page too long. The search item should
+  say how many sections and leave their links to `meyes_get_dataset`.
+- Data problems: logged in §10.
+- The account page's agent list was reworded to be short: name,
+  permissions, which projects, last used.
+
+**Polish for the demo (2026-11-11).** F3–F5 fixed in the package: search
+cards keep one viewer link per kind with the counts (`compactCard`), so a
+page holds 20; `meyes_sign_in` says what it asks for and that
+`catalog:read projects:read` are always included; `whoami` names the
+credentials file it read; the README has no inline comments and starts
+with `node -v`; on Windows the browser opens through `rundll32` (`cmd
+/c start` cut links at the first `&`). New tool **`meyes_open_view`**
+(MCP-PROTOCOL §3.1): opens a dataset in the person's browser with genes,
+column, cell types and 2D/3D set through the viewer's `v=` link state —
+the part of step 5 that needs no bridge. Gate: unit tests
+(`test/view.test.ts`); against the live site, ace-den-fog's cells link
+came back from the viewer with `Slc17a7` applied and its expression range
+filled in, and section 609889HK01 drew Gad1 and Slc17a7 in 3D.
+
+**Third manual test, the live site (2026-11-12), and what followed.** The
+tools answered search, details, "show me gene X" and "are you signed in"
+in seconds. Three of five questions had no tool, and Claude Code left the
+tools for the shell: it read molecule manifests and DE files from S3 and
+decoded them by hand ("most abundant genes", twice) and read slice lists
+("the combined atlas") — 1–1½ minutes each against seconds, against §1's
+principle, and impossible in a client without a shell. What it lacked —
+gene abundance, dataset structure (one slice or combined, slice count,
+obs columns and their values), counts per facet, and the plot panel's
+numbers (cell-type counts, a gene's expression by cell type) — is step
+6's analysis tools, served by the agent API from the files the site
+already writes. Data problems it met are in §10 (E10–E14).
+
+Changed after it (package only): `meyes_open_view` returns a link and
+opens a tab only with `open=true`, which the instructions reserve for an
+explicit ask, one tab per request (three genes had opened three tabs);
+it takes `compare` for split screen (`split`/`splitS3Url`, `splitType`,
+`sync`, `rv=`), `dot_size` and `opacity` / `unselected_opacity`;
+`meyes_sign_in` waits up to two minutes for the person and answers who
+is signed in. Opening the plot panel from a link was dropped: the
+person wants the agent to use what the panel computes, which is step 6.
+Gate: unit tests; on the live site a split screen of two ace-den-fog
+sections came up with two panels, both genes on each, cameras synced.
 
 ### Step 5 — The bridge and tier-1 view control
 
@@ -375,6 +1147,8 @@ with the result shown in the panel.
 
 ### Step 9 — Other clients and remote MCP
 
+*Now pillar E (2026-11-14): the remote server comes first, not last.*
+
 Claude Desktop and another MCP client against the stdio server. Then
 `/api/mcp` (stateless Streamable HTTP), the MCP-spec OAuth discovery and
 client registration, and a relay to the tab over an external pub/sub —
@@ -393,6 +1167,11 @@ from claude.ai.
   MCP-PROTOCOL §3.4–3.5 are the v1 set (D12); grow them from what agents
   actually ask for (every recurring tier-3 request is a tier-2 candidate,
   §4).
+
+### After step 4
+
+The work from here is organised by the pillars at the top of this file
+(§0): steps 5–9 below are their detail.
 
 ## 9. Risks
 
@@ -421,3 +1200,31 @@ from claude.ai.
   resolved addresses, then `fetch` resolves again — a narrowed, not closed,
   window. Acceptable for public metadata; revisit if anything secret is
   ever fetched this way.
+
+## 10. Site errors the agent finds (running log)
+
+Until the agent API, these errors could only be found by reading the
+database or S3 directly. An agent sees the site as a visitor does, one
+dataset at a time, so it notices typos, wrong names, duplicates and
+inconsistencies in passing. **Add each one here when it is met**: date,
+where, what, and what fixing it touches. Mark it fixed with the commit
+instead of deleting it. A deliberate sweep (an agent walking the whole
+catalog) is a later step; this log is what such a sweep would add to.
+
+| # | Found | Where | What | Fix touches | Status |
+|---|---|---|---|---|---|
+| E1 | 2026-11-10 | Catalog cards | No cell and/or gene count on some cards: two SpatialData-DB stores have neither; the BIL MERSCOPE atlas entries (ace-low-bar, ace-low-zip, ace-den-fog) have no cell count, though ace-low-bar has a cells viewer | the stores' `stats.json`, or how the card reads it | open |
+| E2 | 2026-11-10 | Search ranking | For "mouse brain" the BIL MERFISH atlases come 4th and 5th, behind CUT&Tag and ATAC entries with no counts | `lib/explore/search.ts` ordering | open |
+| E3 | 2026-11-10 | Platform facet | `xenium` and `Xenium` both listed, splitting the filter | catalog rows; canonical spellings in `docs/specs/conventions.md` | open |
+| E4 | 2026-11-10 | Species facet | `Drosophila` / `Drosophila melanogaster`; `Macaque` / `Rhesus Macaque` | as E3 | open |
+| E5 | 2026-11-10 | Tissue facet | `otak` (Malay/Indonesian for "brain"); `Whole embryo, heart` (two values in one) | as E3 | open |
+| E6 | 2026-11-11 | Species facet | `Mouse` and `Mice` both listed; `Mice` + `Brain` finds nothing | as E3 | open |
+| E7 | 2026-11-11 | Catalog entry "Re-activation of neurogenic niches" | A "Xenium Human Breast Cancer (molecules)" entry is attached that does not belong to it | that catalog row's entries | open |
+| E8 | 2026-11-11 | ace-den-fog | 702 genes in the store; the description says 500 were profiled | check which is right; the description or the store | to check |
+| E9 | 2026-11-11 | Catalog entry "Mouse Brain Saggital 10 Slices" | Typo in the title: "Saggital" for "Sagittal" | that catalog row's title | open |
+| E10 | 2026-11-12 | Developing mouse atlas (P28) | No combined dataset: its sections are ~57 single-slice entries (ace-low-\*, ace-lot-\*), e.g. ace-low-bag holds one slice, 140,542 cells; the combined developing datasets that exist (ace-let-law/lax/lay, ace-met-war) are P0/P4 | combine the P28 slices (`combine_slices_v3.py`) and register it | open |
+| E11 | 2026-11-12 | ace-let-law, ace-let-lax, ace-let-lay, ace-met-war | Combined datasets with no cell count recorded and no molecule views | their `stats.json`; molecules per slice | open |
+| E12 | 2026-11-12 | ace-met-war | Titled "741564", unlike its siblings' naming | its catalog title | open |
+| E13 | 2026-11-12 | BIL legacy datasets | No sidecar files (`stats.json`, `catalog.json`, `qc.json`), so no counts, slice numbers or cell-type levels reach the agent or the cards | reprocessing with the BIL pipeline writes them | open |
+| E14 | 2026-11-12 | Tissue facet | Brain regions are separate tissues (Hippocampal formation, Cerebral cortex, Striatum, …), so tissue="Brain" misses them | a tissue hierarchy, or "Brain" on region datasets too | open |
+

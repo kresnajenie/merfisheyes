@@ -77,8 +77,10 @@ destructive (needs `confirm: true`), `I` idempotent.
 | `meyes_get_processing_status` | `projects:read` | api | R I | Status and progress of a dataset being processed. |
 | `meyes_list_projects` | `projects:read` | api | R I | The caller's projects in scope, with member datasets. |
 | `meyes_get_project` | `projects:read` | api | R I | One project with its datasets. |
-| `meyes_sign_in` | — | local | W I | Starts the browser sign-in (§6.4): returns the link, opens a tab where it can; the answer comes back to the package's loopback listener. `scopes` asks for more (step-up). |
+| `meyes_sign_in` | — | local | W I | Starts the browser sign-in (§6.4): opens the page in a tab where it can and waits up to two minutes (`MERFISHEYES_SIGN_IN_WAIT_MS`) for the answer on the package's loopback listener, then says who is signed in; with no browser, or past the wait, it returns the link. `scopes` asks for more (step-up). |
 | `meyes_sign_out` | — | local | W I | Revokes the grant's tokens and forgets them. |
+| `meyes_open_view` | `catalog:read` (`projects:read` for the person's own) | local | R I | A link to one of a dataset's viewer links with genes, a cell-type column and chosen types, 2D/3D, dot size and opacity already set, through the link's `v=` state (`lib/utils/url-visualization-state.ts`) — no bridge. `compare` puts a second dataset (or part) in the right panel of a split screen (`split`/`splitS3Url`, `splitType`, `sync`, `rv=`; `lib/hooks/useSplitUrlParams.ts`), cells and molecule viewers only. Gene names are corrected to the dataset's spelling first (the viewer applies only an exact match); one gene or two (co-expression) in a cells viewer, up to ten coloured genes in a molecule viewer. Returns the link; opens one browser tab only with `open=true`, which the agent passes only when the person asks. Only links on the site the package talks to. |
+| `meyes_open_local` | — | local | R I | A folder on the person's computer in the viewer (pillar D1): the package serves it on `127.0.0.1` — under a random token, inside the folder only, GET/HEAD and byte ranges, CORS for the package's site only, the Host checked — and returns `/open?url=` on the site, which picks the viewer (`lib/viewer/viewer-for-url.ts`). A local address is never sent to the site (`lib/utils/local-url.ts`: no `by-url` lookup, no claim banner, stripped from analytics). Also `merfisheyes-mcp view <folder>`. |
 
 ### 3.2 Account writes (step 7)
 
@@ -202,7 +204,7 @@ authorization server adds consent, grants and tokens.
 |---|---|
 | Issuer | the site origin (`NEXT_PUBLIC_APP_URL`), no path |
 | AS metadata (RFC 8414) | `/.well-known/oauth-authorization-server` |
-| Protected resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/agent/v1` |
+| Protected resource metadata (RFC 9728) | `/.well-known/oauth-protected-resource` (the agent API), `/.well-known/oauth-protected-resource/api/agent/v1`, `/.well-known/oauth-protected-resource/mcp`; any other path is 404 (`lib/oauth/protected-resource.ts`) |
 | Authorization | `/oauth/authorize` (a page: sign-in, then consent) |
 | Token | `/api/oauth/token` |
 | Revocation (RFC 7009) | `/api/oauth/revoke` |
@@ -289,6 +291,31 @@ per address; with one 300 a minute per grant and 10,000 a day per person;
 authorization server: registration 10 an hour per address, the token
 endpoint 30 a minute per client and address, consent decisions 20 an hour
 per person.
+
+## 6.6 The remote MCP server (`/mcp`, plan pillar E)
+
+`POST|GET|DELETE /mcp`: MCP over Streamable HTTP, stateless (a fresh
+server per request, `createMcpHandler`; `lib/mcp/server.ts`). Two
+protected resources now: the agent API (`<issuer>/api/agent/v1`) and the
+connector (`<issuer>/mcp`); a token is for exactly one (RFC 8707), so a
+`/mcp` token is refused by the agent API and the other way round.
+
+- **Sign-in is required.** A request without `Authorization` is answered
+  401 with `WWW-Authenticate: Bearer resource_metadata="<issuer>/.well-known/oauth-protected-resource/mcp", scope="catalog:read projects:read"`
+  — how a connector discovers the authorization server and signs the
+  person in (the same consent page). The site's session cookie is never
+  accepted at `/mcp`.
+- **Tools:** the package's own definitions (one implementation, D23):
+  catalog, account reads and `meyes_open_view` (no `open` option); not
+  `meyes_sign_in` / `meyes_sign_out` / `meyes_open_local`, which need the
+  person's computer. Instructions: the package's text for a connector
+  (`packages/merfisheyes-mcp/src/instructions.ts`).
+- **Data:** the tools call the agent API's route handlers in process
+  (`lib/agent/in-process.ts`) as the caller `/mcp` verified, handed over
+  through a `WeakMap` keyed by the request object (`trustCaller`) that only
+  server code can fill — the same visibility, scopes, rate limits and
+  answers as over HTTP; failures become tool errors with the connector's
+  advice (reconnect, not `meyes_sign_in`).
 
 ## 7. The bridge (step 5)
 

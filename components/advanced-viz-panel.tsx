@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@heroui/button";
-import { Slider } from "@heroui/react";
+import { Slider, Switch } from "@heroui/react";
 import { useRef, useEffect, useState } from "react";
 
 import { useSliderRange } from "./slider-range-popover";
@@ -42,6 +42,8 @@ export function AdvancedVizPanel({
     orbitYBob,
     viewMode,
     setAdvancedViz,
+    hideZeroExpression,
+    setHideZeroExpression,
   } = usePanelVisualizationStore();
 
   // Handle click outside to close panel
@@ -241,6 +243,15 @@ export function AdvancedVizPanel({
             R.expressionAlphaMax.max,
             R.expressionAlphaMax.step,
           )}
+          <Switch
+            className="mt-2"
+            data-testid="hide-zero-expression"
+            isSelected={hideZeroExpression}
+            size="sm"
+            onValueChange={setHideZeroExpression}
+          >
+            <span className="text-xs">Hide zero counts</span>
+          </Switch>
         </div>
 
         {/* 3D Orbit (O key) — only relevant in 3D view */}

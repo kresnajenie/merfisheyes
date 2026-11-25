@@ -4,7 +4,7 @@
 image-profile.md, points-zarr-spec.md, mapping.md).
 
   python scripts/validate_store.py <store.zarr> [--mapping mapping.json]
-                                   [--sample N] [--json]
+                                   [--sample N] [--json] [--require-metadata]
   python scripts/validate_store.py --root-json <zarr.json> [--json]
 
 With --root-json the store is its root `zarr.json` alone (a store read
@@ -572,6 +572,40 @@ def check_coordinates(store, r: Report):
         r.fail("coordinates", "no image can be placed with the cells")
 
 
+def check_metadata(store, root: dict, r: Report, require: bool = False):
+    """The dataset's metadata in the root attributes (docs/specs/metadata.md §4): checked
+    against schemas/metadata.schema.json and against the table it describes. Missing or
+    incomplete metadata is a WARN (an upload need not carry it yet), a FAIL with require
+    (the publishing path); metadata that contradicts the table always FAILs."""
+    attrs = root.get("attributes", {})
+    bad = r.fail if require else r.warn
+    if "meyes_metadata" not in attrs:
+        if "sddb_provenance" in attrs and "metadata_general" in attrs:
+            r.ok("metadata", "SpatialData-DB's metadata_general (labels; their store)")
+        else:
+            bad("metadata", "no meyes_metadata: write it with scripts/metadata/build_metadata.py")
+        return
+    blocks = {k: v for k, v in attrs.items() if k.startswith(("metadata_", "meyes_"))}
+    errors = schema_errors(blocks, "metadata.schema.json")
+    for e in errors[:10]:
+        bad("metadata", e)
+    m = attrs["meyes_metadata"]
+    tables = children(store, "tables")
+    name = default_table(attrs, tables)
+    if name:
+        x = node(store, f"tables/{name}/X") or {}
+        shape = (x.get("attributes") or {}).get("shape") or x.get("shape")
+        if shape and m.get("n_obs") is not None and list(shape[:2]) != [m.get("n_obs"), m.get("n_features")]:
+            r.fail("metadata", f"n_obs × n_features {m.get('n_obs')} × {m.get('n_features')} but tables/{name}/X is "
+                               f"{shape[0]} × {shape[1]}: the metadata is stale, rebuild it")
+    status = (attrs.get("meyes_provenance") or {}).get("validation", {}).get("status")
+    if not errors:
+        r.ok("metadata", f"{m.get('organism')} / {m.get('tissue')} / {m.get('technology') or 'technology unknown'}; "
+                         f"validation {status}")
+    if status != "pass":
+        bad("metadata", f"terms not validated with bionty yet ({status}): scripts/metadata/validate_metadata.py")
+
+
 def check_mapping(path: Path, r: Report):
     try:
         mapping = read_json(path)
@@ -590,22 +624,23 @@ def check_mapping(path: Path, r: Report):
         r.ok("mapping.json", ", ".join(what) or "names the store only")
 
 
-def validate(store, mapping: Path | None = None, sample: int = 50_000) -> Report:
+def validate(store, mapping: Path | None = None, sample: int = 50_000, require_metadata: bool = False) -> Report:
     r = Report()
     if isinstance(store, RootStore):
-        return _validate(store, r, None, sample)
+        return _validate(store, r, None, sample, require_metadata)
     store = Path(store)
     if not store.is_dir():
         r.fail("store", f"{store} is not a directory")
         return r
     mapping = mapping or (store.parent / "mapping.json" if (store.parent / "mapping.json").is_file() else None)
-    return _validate(store, r, mapping, sample)
+    return _validate(store, r, mapping, sample, require_metadata)
 
 
-def _validate(store, r: Report, mapping: Path | None, sample: int) -> Report:
+def _validate(store, r: Report, mapping: Path | None, sample: int, require_metadata: bool = False) -> Report:
     root = check_root(store, r)
     if root is None:
         return r
+    check_metadata(store, root, r, require_metadata)
     for name in children(store, "tables"):
         check_table(store, name, r)
     for name in children(store, "points"):
@@ -629,11 +664,13 @@ def main(argv=None) -> int:
     ap.add_argument("--mapping", type=Path)
     ap.add_argument("--sample", type=int, default=50_000, help="rows checked per level of a points element")
     ap.add_argument("--json", action="store_true", help="the report as JSON")
+    ap.add_argument("--require-metadata", action="store_true",
+                    help="missing, incomplete or unvalidated metadata fails (the publishing path)")
     args = ap.parse_args(argv)
     if args.root_json:
-        r = validate(RootStore(read_json(args.root_json)))
+        r = validate(RootStore(read_json(args.root_json)), require_metadata=args.require_metadata)
     elif args.store:
-        r = validate(Path(args.store), args.mapping, args.sample)
+        r = validate(Path(args.store), args.mapping, args.sample, args.require_metadata)
     else:
         ap.error("give a store or --root-json")
     if args.json:

@@ -22,6 +22,7 @@ import {
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { normalizeS3Url } from "@/lib/utils/viewer-config";
 import { initializeScene } from "@/lib/webgl/scene-manager";
+import { lookupByUrl } from "@/lib/datasets/lookup-by-url";
 
 /**
  * Viewer for an image on its own, with no cells or molecules: an OME-Zarr
@@ -84,10 +85,7 @@ export function ImageViewer({
     if (!url || panel) return;
     const s3Url = normalizeS3Url(url);
 
-    fetch(`/api/datasets/by-url?url=${encodeURIComponent(s3Url)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
-      .then((reg) => {
+    lookupByUrl(s3Url).then((reg) => {
         if (cancelled) return;
         setRegisteredId(reg?.registered ? reg.id : null);
         setRegistration({

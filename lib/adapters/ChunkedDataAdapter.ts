@@ -1,4 +1,5 @@
 import { decodeObsColumn } from "@/lib/utils/obs-binary";
+import { trackedFetch } from "@/lib/net/load-meter";
 
 /**
  * Chunked Data Adapter
@@ -191,7 +192,7 @@ export class ChunkedDataAdapter {
 
       console.log(`Fetching JSON from custom S3: ${url}`);
 
-      const response = await fetch(url, init);
+      const response = await trackedFetch(url, init);
 
       if (!response.ok) {
         throw new Error(
@@ -208,7 +209,7 @@ export class ChunkedDataAdapter {
         throw new Error(`No download URL found for ${fileKey}`);
       }
 
-      const response = await fetch(url, init);
+      const response = await trackedFetch(url, init);
 
       if (!response.ok) {
         throw new Error(
@@ -244,7 +245,7 @@ export class ChunkedDataAdapter {
 
       console.log(`Fetching from custom S3: ${url}`);
 
-      const response = await fetch(url);
+      const response = await trackedFetch(url);
 
       if (!response.ok) {
         throw new Error(
@@ -284,7 +285,7 @@ export class ChunkedDataAdapter {
         throw new Error(`No download URL found for ${fileKey}`);
       }
 
-      const response = await fetch(url);
+      const response = await trackedFetch(url);
 
       if (!response.ok) {
         throw new Error(

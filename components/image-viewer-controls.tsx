@@ -5,6 +5,7 @@ import { Tooltip } from "@heroui/tooltip";
 import { useRef } from "react";
 
 import { glassButton } from "@/components/primitives";
+import { DatasetInfoButton } from "@/components/dataset-info-panel";
 import { SharePanel, useShareLink } from "@/components/share-panel";
 import { usePanelId } from "@/lib/hooks/usePanelStores";
 import { useSplitScreenStore } from "@/lib/stores/splitScreenStore";
@@ -90,6 +91,9 @@ export function ImageViewerControls({ share = true }: { share?: boolean }) {
             </svg>
           </Button>
         </Tooltip>
+
+        {/* About this dataset — what the store says about itself */}
+        <DatasetInfoButton />
 
         {share && (
           <Tooltip

@@ -3,6 +3,7 @@ import type { SingleMoleculeDataset } from "@/lib/SingleMoleculeDataset";
 import type { StandardizedDataset } from "@/lib/StandardizedDataset";
 import type { SpatialDataImage } from "@/lib/spatialdata/image";
 import type { CellPolygons } from "@/lib/spatialdata/shapes";
+import type { StoreMetadata } from "@/lib/spatialdata/metadata";
 
 import { joinedStoreFileMap, partFileMap, partFiles } from "./classify-bundle";
 
@@ -10,6 +11,7 @@ import { openElements } from "@/lib/scene/registry";
 import { openOmeZarrImageFromFiles } from "@/lib/spatialdata/image";
 import { loadSpatialDataCells } from "@/lib/spatialdata/loadSpatialDataCells";
 import { openSpatialDataStoreFromFiles } from "@/lib/spatialdata/localStore";
+import { readStoreMetadata } from "@/lib/spatialdata/metadata";
 import { elementNames } from "@/lib/spatialdata/store";
 
 export interface OpenedBundle {
@@ -18,6 +20,8 @@ export interface OpenedBundle {
   image?: SpatialDataImage;
   /** The cells' polygons, read when first drawn. */
   shapes?: () => Promise<CellPolygons>;
+  /** The store's dataset metadata, from its root attributes. */
+  metadata?: StoreMetadata | null;
 }
 
 /**
@@ -47,6 +51,10 @@ export async function openLocalBundle(
       bundle.cells.root ? bundle.files : undefined,
     );
     const name = (bundle.cells.root || bundle.name).replace(/\.zarr$/, "");
+
+    // From the root zarr.json the store was opened with, so a store copied
+    // to disk shows what it says about itself
+    opened.metadata = readStoreMetadata(store.root?.attributes);
 
     // A store may hold only an image; its table is what makes it cells
     if (elementNames(store.keys, "tables").length > 0) {

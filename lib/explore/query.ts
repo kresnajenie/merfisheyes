@@ -52,6 +52,7 @@ export const CARD_SELECT = {
   // Where the row came from and, for SpatialData-DB rows, the licence shown
   // on the card.
   source: true,
+  sddbUid: true,
   license: true,
   licenseNoncommercial: true,
   sortOrder: true,

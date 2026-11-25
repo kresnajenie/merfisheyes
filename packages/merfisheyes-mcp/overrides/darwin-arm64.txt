@@ -1,0 +1,4 @@
+# Apple Silicon Macs (MCP.md D1b): pyproj 3.8.0 (the pipeline's pin) needs
+# macOS 14; 3.6.1 runs from macOS 11. Applied with `uv pip install
+# --override` by MERFISHEYES's own setup only.
+pyproj==3.6.1

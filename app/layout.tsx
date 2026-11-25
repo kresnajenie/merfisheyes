@@ -1,14 +1,15 @@
 import "@/styles/globals.css";
 import { Metadata, Viewport } from "next";
 import clsx from "clsx";
-import { Analytics } from "@vercel/analytics/next";
 
 import { Providers } from "./providers";
 
 import { siteConfig } from "@/config/site";
 import { fontSans } from "@/config/fonts";
 import { NavbarWrapper } from "@/components/navbar-wrapper";
+import { SiteAnalytics } from "@/components/site-analytics";
 import { Footer } from "@/components/footer";
+import { LoadMeterBar } from "@/components/load-meter-bar";
 import { UploadBar } from "@/components/upload-bar";
 
 export const metadata: Metadata = {
@@ -47,6 +48,7 @@ export default function RootLayout({
         <Providers themeProps={{ attribute: "class", defaultTheme: "dark" }}>
           <div className="relative flex flex-col h-screen">
             <UploadBar />
+            <LoadMeterBar />
             <NavbarWrapper />
             <main className="container mx-auto max-w-9xl pt-16 px-6 flex-grow">
               {children}
@@ -54,7 +56,7 @@ export default function RootLayout({
             <Footer />
           </div>
         </Providers>
-        <Analytics />
+        <SiteAnalytics />
       </body>
     </html>
   );

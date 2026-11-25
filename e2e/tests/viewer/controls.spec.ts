@@ -52,9 +52,7 @@ test.describe("@quick keyboard shortcuts", () => {
     const insideImage = { x0: 0.42, y0: 0.35, x1: 0.6, y1: 0.7 };
     const lit = () => litFraction(page, scene, insideImage);
 
-    await expect
-      .poll(lit, { timeout: 60_000 })
-      .toBeGreaterThan(0.5);
+    await expect.poll(lit, { timeout: 60_000 }).toBeGreaterThan(0.5);
     const withImage = await lit();
 
     await page.keyboard.press("i");
@@ -83,6 +81,39 @@ test.describe("@quick keyboard shortcuts", () => {
 
     await page.keyboard.press("Escape");
     await expect(list).toBeHidden();
+  });
+
+  test("genes are listed in the store's order until A to Z is on", async ({
+    page,
+  }) => {
+    await openStore(page);
+
+    await page.click(SELECTORS.geneModeButton);
+    // The gene rows only: the page has other radios (the Explore tabs)
+    const names = async () =>
+      (
+        await page
+          .getByRole("radio")
+          .evaluateAll((els) =>
+            els.map((e) => e.closest("label")?.textContent?.trim() ?? ""),
+          )
+      ).filter((n) => n && !n.startsWith("Single "));
+    const sort = page.getByRole("button", { name: "Sort genes A to Z" });
+
+    await expect(sort).toHaveAttribute("aria-pressed", "false");
+    await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
+    const asWritten = await names();
+
+    await sort.click();
+    await expect(sort).toHaveAttribute("aria-pressed", "true");
+    expect(await names()).toEqual(
+      [...asWritten].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+      ),
+    );
+
+    await sort.click();
+    expect(await names()).toEqual(asWritten);
   });
 
   test("a key typed into a search box is text, not a shortcut", async ({

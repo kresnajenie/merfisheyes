@@ -26,6 +26,30 @@ export interface Conventions {
     species: Record<string, string>;
     platforms: Record<string, string>;
   };
+  /** What docs/specs/metadata.md pins (the parts the viewer reads). */
+  metadata: {
+    sddb: {
+      generalMetadataVersion: string;
+      technologyBlocks: Record<
+        string,
+        { attribute: string; versionKey: string; version: string }
+      >;
+      /** Root attribute saying SpatialData-DB converted the store. */
+      provenanceAttribute: string;
+      /** Index column → the metadata_general key stating it. */
+      generalKeys: Record<string, string>;
+    };
+    licenses: Record<
+      string,
+      {
+        label: string;
+        url: string;
+        noncommercial: boolean;
+        redistributable: boolean;
+        meyes?: boolean;
+      }
+    >;
+  };
 }
 
 export const CONVENTIONS = data as Conventions;

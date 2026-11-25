@@ -11,11 +11,13 @@ import * as THREE from "three";
 import { toast } from "react-toastify";
 import gsap from "gsap";
 
+import { registerScene } from "@/lib/agent/view-targets";
 import { getClusterValue } from "@/lib/StandardizedDataset";
 import { initializeScene } from "@/lib/webgl/scene-manager";
 import {
   createPointCloudFromBuffers,
   setCellFootprint,
+  setCellOpacity,
   updateHalfHeight,
   updatePointCloudAttributes,
   updateDotSize,
@@ -56,6 +58,7 @@ import {
 } from "@/lib/utils/test-hooks";
 import { SpatialScaleBar } from "@/components/spatial-scale-bar";
 import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+import { sizeLocked } from "@/lib/config/technology-presets";
 import {
   applyTransformsToPositions,
   computeSampleCentroids,
@@ -87,7 +90,8 @@ interface ThreeSceneProps {
 /**
  * The dot size, in world units, that draws each cell at its real size (a
  * Visium spot's diameter, a bin's side) when the dataset knows it; null
- * otherwise. The size slider still scales it.
+ * otherwise. The size slider scales it unless the technology's preset locks
+ * it (`sizeLocked`).
  */
 function cellFootprintDotSize(
   dataset: StandardizedDataset | null | undefined,
@@ -125,7 +129,6 @@ export function ThreeScene({
   // when applying per-sample transforms so edits compose from identity.
   const basePositionsRef = useRef<Float32Array | null>(null);
   const sceneScaleRef = useRef<number>(1);
-  const geneToastIdRef = useRef<string | number | null>(null);
 
   // Raycaster and interaction state
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
@@ -249,6 +252,7 @@ export function ThreeScene({
     greyedOutAlpha,
     expressionAlphaMin,
     expressionAlphaMax,
+    hideZeroExpression,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     sceneRotation,
@@ -300,6 +304,14 @@ export function ThreeScene({
       invalidateRef.current();
     }
   }, [scLayerVisible]);
+
+  // The cells' opacity: a uniform of the cloud, so the slider uploads nothing.
+  // pointCloudVersion re-applies it to a cloud built after the value was set.
+  useEffect(() => {
+    if (!pointCloudRef.current) return;
+    setCellOpacity(pointCloudRef.current, alphaScale);
+    invalidateRef.current();
+  }, [alphaScale, pointCloudVersion]);
 
   // Tour player — drives camera + SM gene selection from the loaded tour JSON.
   // No-op until the user uploads a tour file and presses Play.
@@ -1035,6 +1047,22 @@ export function ThreeScene({
     }
   }, [dataset, viewMode]);
 
+  // An agent can frame this scene (lib/agent/view-targets.ts, pillar D3).
+  useEffect(
+    () =>
+      registerScene(`cells:${panelId === "right" ? "right" : "left"}`, {
+        camera: () => cameraRef.current as never,
+        controls: () => controlsRef.current,
+        positions: () =>
+          ((
+            pointCloudRef.current?.geometry.getAttribute("position") as
+              | THREE.BufferAttribute
+              | undefined
+          )?.array as Float32Array | undefined) ?? null,
+      }),
+    [panelId],
+  );
+
   // Camera reset: snap controls.target back to the initial lookAt captured at
   // scene init. Triggered by cameraResetSignal (Reset View button) or R key.
   useEffect(() => {
@@ -1310,6 +1338,7 @@ export function ThreeScene({
         expressionAlphaMax,
         pointSizeMultiplierMin,
         pointSizeMultiplierMax,
+        hideZeroExpression,
       };
 
       // Determine which visualization to use based on mode array
@@ -1382,6 +1411,9 @@ export function ThreeScene({
 
       const coexpressActive =
         coexpressEnabled && !!selectedGene && !!selectedGene2;
+      // This run's own loading toast. A gene picked while another is still
+      // downloading starts a second run, and each must close only its own.
+      let geneToastId: string | number | null = null;
 
       // Check if column or its effective type has changed (for auto-scaling numerical columns)
       const columnChanged = previousColumnRef.current !== selectedColumn;
@@ -1400,7 +1432,7 @@ export function ThreeScene({
         // Two-gene coexpression: green + magenta additive blend.
         try {
           if (geneChanged || gene2Changed) {
-            geneToastIdRef.current = toast.loading(
+            geneToastId = toast.loading(
               `Loading "${selectedGene}" + "${selectedGene2}"…`,
             );
           }
@@ -1426,7 +1458,7 @@ export function ThreeScene({
             gene2Changed ? setGene2ScaleMin : undefined,
             gene2Changed ? setGene2ScaleMax : undefined,
             coexpressSwapped,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             selectedColumn,
             effectiveCelltypes,
@@ -1434,10 +1466,7 @@ export function ThreeScene({
             adv,
           );
         } finally {
-          if (geneToastIdRef.current != null) {
-            toast.dismiss(geneToastIdRef.current);
-            geneToastIdRef.current = null;
-          }
+          if (geneToastId != null) toast.dismiss(geneToastId);
         }
       } else if (
         hasGeneMode &&
@@ -1449,7 +1478,7 @@ export function ThreeScene({
         // Combined mode: gene expression on selected celltypes
         try {
           if (geneChanged) {
-            geneToastIdRef.current = toast.loading(
+            geneToastId = toast.loading(
               `Loading expression for "${selectedGene}"...`,
             );
           }
@@ -1467,7 +1496,7 @@ export function ThreeScene({
             selectedGene,
             selectedColumn,
             effectiveCelltypes,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             geneScaleMin,
             geneScaleMax,
@@ -1478,16 +1507,13 @@ export function ThreeScene({
             display,
           );
         } finally {
-          if (geneToastIdRef.current != null) {
-            toast.dismiss(geneToastIdRef.current);
-            geneToastIdRef.current = null;
-          }
+          if (geneToastId != null) toast.dismiss(geneToastId);
         }
       } else if (hasGeneMode && selectedGene) {
         // Gene mode only
         try {
           if (geneChanged) {
-            geneToastIdRef.current = toast.loading(
+            geneToastId = toast.loading(
               `Loading expression for "${selectedGene}"...`,
             );
           }
@@ -1503,7 +1529,7 @@ export function ThreeScene({
           result = await updateGeneVisualization(
             dataset,
             selectedGene,
-            alphaScale,
+            1, // opacity is the cloud's uOpacity uniform
             sizeScale,
             geneScaleMin,
             geneScaleMax,
@@ -1514,10 +1540,7 @@ export function ThreeScene({
             display,
           );
         } finally {
-          if (geneToastIdRef.current != null) {
-            toast.dismiss(geneToastIdRef.current);
-            geneToastIdRef.current = null;
-          }
+          if (geneToastId != null) toast.dismiss(geneToastId);
         }
       } else if (hasCelltypeMode) {
         // Celltype mode only
@@ -1527,7 +1550,7 @@ export function ThreeScene({
           ? updateNumericalCelltypeVisualization(
               dataset,
               selectedColumn,
-              alphaScale,
+              1, // opacity is the cloud's uOpacity uniform
               sizeScale,
               numericalScaleMin,
               numericalScaleMax,
@@ -1541,7 +1564,7 @@ export function ThreeScene({
               selectedColumn,
               effectiveCelltypes,
               colorPalette,
-              alphaScale,
+              1, // opacity is the cloud's uOpacity uniform
               sizeScale,
               adv,
             );
@@ -1555,10 +1578,10 @@ export function ThreeScene({
           result.sizes,
           result.alphas,
         );
-        // Apply current sizeScale to dotSize uniform
+        // Apply current sizeScale to dotSize uniform (not to a real size)
         updateDotSize(
           pointCloudRef.current,
-          baseDotSizeRef.current * sizeScale,
+          baseDotSizeRef.current * (sizeLocked(dataset) ? 1 : sizeScale),
         );
         invalidateRef.current();
       }
@@ -1590,7 +1613,6 @@ export function ThreeScene({
     geneEverywhere,
     hiddenCelltypes,
     colorPalette,
-    alphaScale,
     geneScaleMin,
     geneScaleMax,
     geneScaleMode,
@@ -1605,6 +1627,7 @@ export function ThreeScene({
     greyedOutAlpha,
     expressionAlphaMin,
     expressionAlphaMax,
+    hideZeroExpression,
     pointSizeMultiplierMin,
     pointSizeMultiplierMax,
     pinnedTooltipColumns,
@@ -1626,7 +1649,10 @@ export function ThreeScene({
           (VISUALIZATION_CONFIG.POINT_BASE_SIZE * proj11);
 
       baseDotSizeRef.current = newBaseDotSize;
-      updateDotSize(pointCloudRef.current, newBaseDotSize * sizeScale);
+      updateDotSize(
+        pointCloudRef.current,
+        newBaseDotSize * (sizeLocked(dataset) ? 1 : sizeScale),
+      );
       invalidateRef.current();
     }
   }, [sizeScale, targetPx]);
