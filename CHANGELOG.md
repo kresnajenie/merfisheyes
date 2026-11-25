@@ -12,6 +12,8 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Added
 
+- **An image on its own has the camera panel**: Reset View (R), rotation and
+  flip, about the image's centre.
 - **Technology presets.** A dataset opens with the settings of its
   technology (colormap, cell opacity, hiding zero counts, spot and bin
   size); Visium HD and Visium are the first. Presets are edited at
@@ -60,6 +62,10 @@ See [docs/RELEASING.md](docs/RELEASING.md) for how a release is cut.
 
 ### Changed
 
+- **Every viewer has the same buttons at the top right**, in the same order:
+  Camera, Hide UI, About this dataset, Share. An image opened from disk keeps
+  its Share button, switched off, and says why (a file on your disk has no
+  link).
 - **The connected-agents list on the account page is shorter**: each agent
   shows its permissions, projects and when it was last used.
 - **Genes are listed in the dataset's own order**, which is often a ranking

@@ -45,6 +45,14 @@ test("@quick local preview: an OME-Zarr image folder on its own", async ({
   await drop(page, makeImageFolder());
   await page.waitForURL(/\/image-viewer\/from-local/, { timeout: 120_000 });
   await expect(page.locator(SELECTORS.imageButton)).toBeVisible();
+  // The same bar as every viewer; Share is there but off, with no link to give
+  await expect(
+    page.getByRole("button", { name: "Camera controls" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Hide UI" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Share", exact: true }),
+  ).toBeDisabled();
   await expect
     .poll(() => litFraction(page, SELECTORS.imageCanvas), {
       message: "the image should be drawn from the dropped files",

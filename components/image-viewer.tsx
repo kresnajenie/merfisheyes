@@ -19,6 +19,7 @@ import {
   openOmeZarrImageDataset,
   type SpatialDataImage,
 } from "@/lib/spatialdata/image";
+import { usePanelVisualizationStore } from "@/lib/hooks/usePanelStores";
 import { useViewerRegistrationStore } from "@/lib/stores/viewerRegistrationStore";
 import { normalizeS3Url } from "@/lib/utils/viewer-config";
 import { initializeScene } from "@/lib/webgl/scene-manager";
@@ -86,18 +87,18 @@ export function ImageViewer({
     const s3Url = normalizeS3Url(url);
 
     lookupByUrl(s3Url).then((reg) => {
-        if (cancelled) return;
-        setRegisteredId(reg?.registered ? reg.id : null);
-        setRegistration({
-          dbId: reg?.registered ? reg.id : null,
-          ownerId: reg?.ownerId ?? null,
-          adminOwned: !!reg?.adminOwned,
-          registered: !!reg?.registered,
-          viewerConfig: null,
-          s3Url,
-          kind: "image",
-        });
+      if (cancelled) return;
+      setRegisteredId(reg?.registered ? reg.id : null);
+      setRegistration({
+        dbId: reg?.registered ? reg.id : null,
+        ownerId: reg?.ownerId ?? null,
+        adminOwned: !!reg?.adminOwned,
+        registered: !!reg?.registered,
+        viewerConfig: null,
+        s3Url,
+        kind: "image",
       });
+    });
 
     return () => {
       cancelled = true;
@@ -165,6 +166,12 @@ export function ImageScene({ image }: { image: SpatialDataImage }) {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<any>(null);
   const [webglFailed, setWebglFailed] = useState(false);
+  // What the camera panel sets (components/image-viewer-controls.tsx)
+  const { sceneRotation, flipX, flipY, cameraResetSignal } =
+    usePanelVisualizationStore();
+  const pivotRef = useRef<THREE.Group | null>(null);
+  const resetViewRef = useRef<(() => void) | null>(null);
+  const invalidateRef = useRef<(() => void) | null>(null);
   // The image as the one layer of the contract, through the registry
   const { onSceneReady, layers } = useLayers(
     useMemo(() => ({ image }), [image]),
@@ -210,9 +217,22 @@ export function ImageScene({ image }: { image: SpatialDataImage }) {
     // Past the far plane the image would vanish
     init.controls.maxDistance = distance * 5;
 
+    // Rotated and flipped about the image's centre, not the scene's origin
+    const pivot = new THREE.Group();
     const group = new THREE.Group();
 
-    init.scene.add(group);
+    pivot.position.copy(centre);
+    group.position.copy(centre).negate();
+    pivot.add(group);
+    init.scene.add(pivot);
+    pivotRef.current = pivot;
+    invalidateRef.current = init.invalidate;
+    resetViewRef.current = () => {
+      init.camera.position.set(centre.x, centre.y, distance);
+      init.controls.target.copy(centre);
+      init.controls.update();
+      init.invalidate();
+    };
     host = new LayerHost(group, init.camera, init.renderer, init.invalidate);
     const removeLayers = onSceneReady(host.handle);
 
@@ -228,8 +248,41 @@ export function ImageScene({ image }: { image: SpatialDataImage }) {
       cameraRef.current = null;
       rendererRef.current = null;
       controlsRef.current = null;
+      pivotRef.current = null;
+      invalidateRef.current = null;
+      resetViewRef.current = null;
     };
   }, [image]);
+
+  useEffect(() => {
+    const pivot = pivotRef.current;
+
+    if (!pivot) return;
+    pivot.rotation.z = (sceneRotation * Math.PI) / 180;
+    pivot.scale.x = flipX ? -1 : 1;
+    pivot.scale.y = flipY ? -1 : 1;
+    invalidateRef.current?.();
+  }, [image, sceneRotation, flipX, flipY]);
+
+  // Reset View in the camera panel, and the R key as in the other viewers
+  useEffect(() => {
+    if (cameraResetSignal > 0) resetViewRef.current?.();
+  }, [cameraResetSignal]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "r" || e.metaKey || e.ctrlKey || e.altKey)
+        return;
+      const el = document.activeElement as HTMLElement | null;
+
+      if (el && (/^(INPUT|TEXTAREA)$/.test(el.tagName) || el.isContentEditable))
+        return;
+      resetViewRef.current?.();
+    };
+
+    window.addEventListener("keydown", onKey);
+
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     // Fills its side of the split it is always placed in

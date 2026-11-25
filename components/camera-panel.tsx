@@ -48,8 +48,9 @@ interface CameraPanelProps {
   placement?: "rail" | "top-right";
   // Which viewer this panel serves. "sc" (default) uses the single-cell stores
   // for per-sample align + owner defaults; "sm" uses the single-molecule store
-  // for a camera-only owner preset and hides the SC-only align section.
-  viewerKind?: "sc" | "sm";
+  // for a camera-only owner preset and hides the SC-only align section;
+  // "image" (an image on its own) has neither.
+  viewerKind?: "sc" | "sm" | "image";
   sceneRotation: number;
   setSceneRotation: (degrees: number) => void;
   flipX: boolean;
@@ -166,9 +167,11 @@ export function CameraPanel({
             >
               Reset View (R)
             </Button>
-            <p className="text-[10px] text-default-400 mt-1">
-              Cmd/Ctrl+click a cell to center on it
-            </p>
+            {viewerKind === "sc" && (
+              <p className="text-[10px] text-default-400 mt-1">
+                Cmd/Ctrl+click a cell to center on it
+              </p>
+            )}
           </div>
         )}
 
@@ -376,11 +379,8 @@ export function CameraPanel({
           </>
         )}
 
-        {viewerKind === "sm" ? (
-          <SMOwnerDefaultsSection />
-        ) : (
-          <OwnerDefaultsSection />
-        )}
+        {viewerKind === "sm" && <SMOwnerDefaultsSection />}
+        {viewerKind === "sc" && <OwnerDefaultsSection />}
       </div>
     </div>
   );

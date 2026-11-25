@@ -302,7 +302,7 @@ for (const shown of [
     url: () => storeUrl(server, { image: true }),
   },
 ]) {
-  test(`@quick ${shown.name} has Hide UI, Share and Split screen`, async ({
+  test(`@quick ${shown.name} has Camera, Hide UI, Share and Split screen`, async ({
     page,
     context,
   }) => {
@@ -330,6 +330,29 @@ for (const shown of [
     await expect(share).toBeHidden();
     await page.keyboard.press("h");
     await expect(share).toBeVisible();
+
+    // Camera: what applies to a flat image, and Reset View undoes a zoom
+    const camera = () =>
+      page.evaluate(() => (window as any).__merfish.camera() as number[]);
+    const start = await camera();
+    const box = (await page
+      .locator(SELECTORS.imageCanvas)
+      .first()
+      .boundingBox())!;
+
+    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.3);
+    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -120);
+    await expect
+      .poll(async () => (await camera())[2])
+      .toBeLessThan(start[2] * 0.9);
+    await page.getByRole("button", { name: "Camera controls" }).click();
+    await expect(page.getByText("Flip", { exact: true })).toBeVisible();
+    await expect(page.getByText("View Mode")).toHaveCount(0);
+    await page.getByRole("button", { name: /Reset View/ }).click();
+    await expect
+      .poll(async () => (await camera()).slice(0, 3).map((v) => Math.round(v)))
+      .toEqual(start.slice(0, 3).map((v) => Math.round(v)));
+    await page.getByRole("button", { name: "Camera controls" }).click();
 
     // Split screen: the same image again on the right
     await page.getByRole("button", { name: "Split screen" }).click();
