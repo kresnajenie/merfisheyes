@@ -60,7 +60,11 @@ describe("cells outside the selected cell types", () => {
 describe("the cell shader", () => {
   it("fades a marked cell by zoom, and draws every cell with a positive alpha", () => {
     expect(vertexShader).toContain("vAlpha = abs(alpha);");
-    expect(vertexShader).toContain("if (alpha < 0.0 && uHomeDistance > 0.0)");
+    // Not at all at the least "Unselected fade" (1), or with no home view
+    expect(vertexShader).toContain(
+      "if (alpha < 0.0 && uHomeDistance > 0.0 && uFadeZoom > 1.0)",
+    );
+    expect(vertexShader).toContain("smoothstep(1.0, uFadeZoom, zoom)");
     expect(vertexShader).toContain("uHomeDistance / -mvPosition.z");
     expect(fragmentShader).toContain("vAlpha * uOpacity");
   });

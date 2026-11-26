@@ -9,6 +9,8 @@ import {
   vertexShader,
 } from "./shaders";
 
+import { VISUALIZATION_CONFIG } from "@/lib/config/visualization.config";
+
 /** The renderer's pixel ratio, as scene-manager caps it. */
 export function pixelRatio(): number {
   return typeof window === "undefined"
@@ -171,6 +173,7 @@ export function createPointCloudFromBuffers(
       uShape: { value: 0.0 }, // circle
       uOpacity: { value: 1.0 },
       uHomeDistance: { value: 0.0 },
+      uFadeZoom: { value: VISUALIZATION_CONFIG.UNSELECTED_FADE.FULL_ZOOM },
       uWorldSized: { value: 0.0 },
       uHalfHeight: { value: 400.0 },
     },
@@ -418,6 +421,7 @@ export function createPointCloud(
       uShape: { value: 0.0 }, // circle
       uOpacity: { value: 1.0 },
       uHomeDistance: { value: 0.0 },
+      uFadeZoom: { value: VISUALIZATION_CONFIG.UNSELECTED_FADE.FULL_ZOOM },
       uWorldSized: { value: 0.0 },
       uHalfHeight: { value: 400.0 },
     },

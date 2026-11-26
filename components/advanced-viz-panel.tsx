@@ -33,6 +33,7 @@ export function AdvancedVizPanel({
     selectedSizeMultiplier,
     greyedOutSizeMultiplier,
     greyedOutAlpha,
+    unselectedFadeZoom,
     expressionAlphaMin,
     expressionAlphaMax,
     pointSizeMultiplierMin,
@@ -67,6 +68,7 @@ export function AdvancedVizPanel({
     selectedSizeMultiplier,
     greyedOutSizeMultiplier,
     greyedOutAlpha,
+    unselectedFadeZoom,
     expressionAlphaMin,
     expressionAlphaMax,
     pointSizeMultiplierMin,
@@ -82,6 +84,7 @@ export function AdvancedVizPanel({
       selectedSizeMultiplier,
       greyedOutSizeMultiplier,
       greyedOutAlpha,
+      unselectedFadeZoom,
       expressionAlphaMin,
       expressionAlphaMax,
       pointSizeMultiplierMin,
@@ -94,6 +97,7 @@ export function AdvancedVizPanel({
     selectedSizeMultiplier,
     greyedOutSizeMultiplier,
     greyedOutAlpha,
+    unselectedFadeZoom,
     expressionAlphaMin,
     expressionAlphaMax,
     pointSizeMultiplierMin,
@@ -208,6 +212,16 @@ export function AdvancedVizPanel({
             R.greyedOutAlpha.max,
             R.greyedOutAlpha.step,
           )}
+          {/* How far in the cells outside the selection are opaque again;
+              the least, 1, never fades them */}
+          {sliderRow(
+            "Unselected fade (zoom ×, 1 = off)",
+            "unselectedFadeZoom",
+            local.unselectedFadeZoom,
+            R.unselectedFadeZoom.min,
+            R.unselectedFadeZoom.max,
+            R.unselectedFadeZoom.step,
+          )}
         </div>
 
         {/* Gene Expression Mode */}
@@ -293,6 +307,10 @@ export function AdvancedVizPanel({
             setAdvancedViz(
               "greyedOutAlpha",
               VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+            );
+            setAdvancedViz(
+              "unselectedFadeZoom",
+              VISUALIZATION_CONFIG.UNSELECTED_FADE.FULL_ZOOM as number,
             );
             setAdvancedViz(
               "expressionAlphaMin",

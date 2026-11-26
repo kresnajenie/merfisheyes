@@ -120,6 +120,7 @@ export function encodeCellVizState(
     selectedSizeMultiplier: number;
     greyedOutSizeMultiplier: number;
     greyedOutAlpha: number;
+    unselectedFadeZoom: number;
     expressionAlphaMin: number;
     expressionAlphaMax: number;
     pointSizeMultiplierMin: number;
@@ -177,6 +178,7 @@ export function encodeCellVizState(
     greyedOutSizeMultiplier:
       VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
     greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+    unselectedFadeZoom: VISUALIZATION_CONFIG.UNSELECTED_FADE.FULL_ZOOM as number,
     expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
     expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,
     pointSizeMultiplierMin:

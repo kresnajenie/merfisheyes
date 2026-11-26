@@ -126,6 +126,7 @@ export const vertexShader = `
     attribute vec3 color;
     attribute float alpha;
     uniform float uHomeDistance;
+    uniform float uFadeZoom;
     varying vec3 vColor;
     varying float vAlpha;
 ${vertexBody
@@ -138,10 +139,11 @@ ${vertexBody
   .replace(
     "POINT_FADE",
     // uHomeDistance: the camera's distance when the whole dataset is in
-    // view; 0 where a cloud is not zoomed against one, which fades nothing
-    `if (alpha < 0.0 && uHomeDistance > 0.0) {
+    // view; 0 where a cloud is not zoomed against one, which fades nothing.
+    // uFadeZoom: how many times closer than that the fade is over (1: none)
+    `if (alpha < 0.0 && uHomeDistance > 0.0 && uFadeZoom > 1.0) {
             float zoom = uHomeDistance / -mvPosition.z;
-            vAlpha *= mix(${glsl(FADE.FAR_ALPHA)}, 1.0, smoothstep(1.0, ${glsl(FADE.FULL_ZOOM)}, zoom));
+            vAlpha *= mix(${glsl(FADE.FAR_ALPHA)}, 1.0, smoothstep(1.0, uFadeZoom, zoom));
         }`,
   )
   .replace("POINT_SCALE", "size")}

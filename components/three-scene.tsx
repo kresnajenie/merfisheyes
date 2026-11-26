@@ -250,6 +250,7 @@ export function ThreeScene({
     selectedSizeMultiplier,
     greyedOutSizeMultiplier,
     greyedOutAlpha,
+    unselectedFadeZoom,
     expressionAlphaMin,
     expressionAlphaMax,
     hideZeroExpression,
@@ -1662,6 +1663,17 @@ export function ThreeScene({
       invalidateRef.current();
     }
   }, [sizeScale, targetPx]);
+
+  // How far in the cells outside the selection are opaque again: a uniform,
+  // so the slider uploads nothing
+  useEffect(() => {
+    const cloud = pointCloudRef.current;
+
+    if (!cloud) return;
+    (cloud.material as THREE.ShaderMaterial).uniforms.uFadeZoom.value =
+      unselectedFadeZoom;
+    invalidateRef.current();
+  }, [unselectedFadeZoom, pointCloudVersion]);
 
   // Effect 4: Apply scene transforms (rotation, flip) — instant via group matrix
   useEffect(() => {

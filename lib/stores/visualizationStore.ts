@@ -87,6 +87,8 @@ interface VisualizationState {
   selectedSizeMultiplier: number;
   greyedOutSizeMultiplier: number;
   greyedOutAlpha: number;
+  /** Zoom at which unselected cells are opaque again (1: they never fade). */
+  unselectedFadeZoom: number;
   hideZeroExpression: boolean;
   setHideZeroExpression: (hide: boolean) => void;
   expressionAlphaMin: number;
@@ -263,6 +265,7 @@ const initialState = {
   greyedOutSizeMultiplier:
     VISUALIZATION_CONFIG.GREYED_OUT_SIZE_MULTIPLIER as number,
   greyedOutAlpha: VISUALIZATION_CONFIG.GREYED_OUT_ALPHA as number,
+  unselectedFadeZoom: VISUALIZATION_CONFIG.UNSELECTED_FADE.FULL_ZOOM as number,
   hideZeroExpression: false,
   expressionAlphaMin: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MIN as number,
   expressionAlphaMax: VISUALIZATION_CONFIG.EXPRESSION_ALPHA_MAX as number,

@@ -119,7 +119,8 @@ export const VISUALIZATION_CONFIG = {
    * types stand out against the tissue instead of being buried in grey.
    * Zoom is counted from the view that shows the whole dataset (1): there
    * and further out a non-selected cell has FAR_ALPHA of its alpha, and it
-   * has all of it again once zoomed in FULL_ZOOM times.
+   * has all of it again once zoomed in FULL_ZOOM times. FULL_ZOOM is the
+   * default of "Unselected fade" in Advanced settings; 1 there is no fade.
    */
   UNSELECTED_FADE: { FAR_ALPHA: 0.15, FULL_ZOOM: 4.0 },
 
@@ -141,6 +142,7 @@ export const VISUALIZATION_CONFIG = {
     selectedSizeMultiplier: { min: 0.1, max: 10.0, step: 0.1 },
     greyedOutSizeMultiplier: { min: 0.01, max: 10.0, step: 0.01 },
     greyedOutAlpha: { min: 0.0, max: 1.0, step: 0.05 },
+    unselectedFadeZoom: { min: 1.0, max: 16.0, step: 0.5 },
     pointSizeMultiplierMin: { min: 0.1, max: 10.0, step: 0.1 },
     pointSizeMultiplierMax: { min: 0.1, max: 10.0, step: 0.1 },
     expressionAlphaMin: { min: 0.0, max: 1.0, step: 0.05 },
