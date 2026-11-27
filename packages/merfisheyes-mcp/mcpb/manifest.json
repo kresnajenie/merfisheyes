@@ -4,7 +4,7 @@
   "display_name": "MERFISHEYES",
   "version": "0.0.0",
   "description": "Open your own spatial transcriptomics data in the MERFISHEYES viewer \u2014 nothing uploaded \u2014 and search the MERFISHEYES catalog.",
-  "long_description": "Ask Claude to show your data: a SpatialData store, an .h5ad, a Xenium export, a MERSCOPE region or a molecule table on this computer opens in the MERFISHEYES viewer in your browser, served from this computer only. Data that is not a store yet is converted by MERFISHEYES's own pipeline; the first time, Claude asks you before MERFISHEYES downloads its converter (Python and the pipeline's packages, about 1.3 GB, into its own folder \u2014 nothing installed system-wide). Claude can also run analysis steps on the open data in the same Python \u2014 a dataset profile, a niche around chosen cell types, a re-clustering with its own UMAP, marker genes and heatmaps \u2014 show them in the viewer, and save them into a copy of your data (.zarr or .h5ad; the original is never changed). Claude can also search the public MERFISHEYES catalog, hand you viewer links set up as you ask, and \u2014 once you sign in \u2014 read your MERFISHEYES projects.",
+  "long_description": "Ask Claude to show your data: a SpatialData store, an .h5ad, a Xenium export, a MERSCOPE region or a molecule table on this computer opens in the MERFISHEYES viewer in your browser, served from this computer only. Data that is not a store yet is converted by MERFISHEYES's own pipeline; the first time, Claude asks you before MERFISHEYES downloads its converter (Python and the pipeline's packages, about 1.3 GB, into its own folder \u2014 nothing installed system-wide). Claude can also run analysis steps on the open data in the same Python \u2014 a dataset profile, a niche around chosen cell types, a re-clustering with its own UMAP, marker genes and heatmaps \u2014 show them in the viewer, and save them into a copy of your data (.zarr or .h5ad; the original is never changed). A raw MERFISH run (the lab pipeline's .npz output) can be sanity-checked before it is converted: plots of its cells, fields and molecules, and what stands out. Claude can also search the public MERFISHEYES catalog, hand you viewer links set up as you ask, and \u2014 once you sign in \u2014 read your MERFISHEYES projects.",
   "author": {
     "name": "MERFISHEYES",
     "url": "https://www.merfisheyes.com"
@@ -93,6 +93,10 @@
     {
       "name": "meyes_save_analysis",
       "description": "Write the new labels and UMAPs into a copy of your data (.zarr or .h5ad); the original is never changed"
+    },
+    {
+      "name": "meyes_raw_check",
+      "description": "Sanity-check a raw MERFISH run (final_spots + final_mats .npz) before converting it: summary, flags and plots \u2014 cells per set, the field grid, codewords against the blanks, and every molecule of chosen genes in a set."
     },
     {
       "name": "meyes_job",

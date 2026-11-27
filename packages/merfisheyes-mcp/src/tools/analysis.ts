@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 
 import * as z from "zod/v4";
@@ -10,6 +11,7 @@ import {
   type Job,
   type Step,
   jobById,
+  startRawCheck,
   startStep,
   waitFor,
   workspaceFor,
@@ -74,18 +76,24 @@ function report(job: Job, extra: string[] = []) {
   const result: Record<string, unknown> = { ...job.result };
 
   delete result.ok;
-  const image =
-    job.step === "markers" &&
-    typeof result.heatmap === "string" &&
-    existsSync(result.heatmap)
-      ? [
-          {
-            type: "image" as const,
-            data: readFileSync(result.heatmap).toString("base64"),
-            mimeType: "image/png",
-          },
-        ]
-      : [];
+  // pictures: the markers' heatmap; the raw check's plots (those asked for)
+  const files: string[] = [];
+
+  if (job.step === "markers" && typeof result.heatmap === "string")
+    files.push(result.heatmap);
+  if (job.step === "raw_check" && result.plots && typeof result.plots === "object") {
+    const want = (job.want ?? null) as string[] | null;
+
+    for (const [k, f] of Object.entries(result.plots as Record<string, string>))
+      if (!want || want.includes(k)) files.push(f);
+  }
+  const image = files
+    .filter((f) => existsSync(f))
+    .map((f) => ({
+      type: "image" as const,
+      data: readFileSync(f).toString("base64"),
+      mimeType: "image/png",
+    }));
 
   return {
     content: [
@@ -353,11 +361,77 @@ Default place: beside the original, <name>_merfisheyes.zarr / .h5ad. open=true (
   );
 
   server.registerTool(
+    "meyes_raw_check",
+    {
+      title: "Sanity-check a raw MERFISH run before converting it",
+      description: `Check a raw MERFISH run folder on this computer before it is converted: the lab pipeline's output with final_spots/ (one .npz per set: XF + genes, already stitched, de-duplicated and score-filtered) and final_mats/ or final_matsWithGFP/ (one cell × gene .npz per field). Reads only; nothing is written beside the run.
+Returns a summary (sets, fields, molecules, cells before / after the field-overlap rule, blank fraction, score range, molecules per cell), flags (missing fields, fields or sets that stand out, genes no commoner than the blanks, blanks decoded too often, spots that look not de-duplicated, fields imaged twice), notes (what is normal for the lab's runs) and plots as images: overview (every set's cells, coloured by the first gene's molecules per cell), fields (each set's field grid, outliers outlined), genes (molecules per codeword against the blanks) and, when genes are given, molecules (the XF + genes plot: every molecule of each gene in one set).
+Takes about 15 s plus about 1 s per million molecules of the set drawn (runs in MERFISHEYES's own Python; the first use needs the one-time setup — ask, then meyes_setup_converter). Long runs hand back a job for meyes_job.
+Show the person the plots, read the flags out with what they mean, and ask before converting. A folder in another layout is refused with what it lacks.
+Examples: "check my run" -> path="/data/run"; "is Slc17a7 where it should be in set 9" -> genes=["Slc17a7"], set="9".`,
+      inputSchema: z.strictObject({
+        path: z
+          .string()
+          .min(1)
+          .max(4096)
+          .describe("The run folder (holding final_spots/)"),
+        genes: z
+          .array(z.string().min(1).max(100))
+          .max(6)
+          .default([])
+          .describe(
+            "Genes to draw: every molecule of each in one set (one panel per gene); the overview colours cells by the first",
+          ),
+        set: z
+          .string()
+          .max(100)
+          .optional()
+          .describe("The set the molecule plot draws (default: the first)"),
+        field_metric: z
+          .enum(["molecules_per_cell", "blank_fraction", "cells"])
+          .default("molecules_per_cell")
+          .describe("What colours the field grid"),
+        plots: z
+          .array(z.enum(["overview", "fields", "genes", "molecules"]))
+          .optional()
+          .describe("The plots to return as images (default: all made)"),
+      }),
+      annotations: { ...ACT, readOnlyHint: true, idempotentHint: true },
+    },
+    async ({ path: p, genes, set, field_metric, plots }) => {
+      try {
+        const folder = p.startsWith("~")
+          ? join(homedir(), p.slice(1))
+          : resolve(p);
+        const job = await startRawCheck(folder, { genes, set, field_metric });
+
+        job.want = plots ?? null;
+
+        return report(await waitFor(job));
+      } catch (e) {
+        if (e instanceof SetupNeeded)
+          return text(
+            [
+              `Not run: ${e.message}`,
+              "",
+              "Ask the person whether that download is OK. Only if they agree, call meyes_setup_converter, then try again.",
+            ].join("\n"),
+          );
+
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: (e as Error).message }],
+        };
+      }
+    },
+  );
+
+  server.registerTool(
     "meyes_job",
     {
       title: "Wait for an analysis job",
       description:
-        "The result of an analysis step that was still running (meyes_profile, meyes_niche, meyes_recluster, meyes_markers, meyes_save_analysis hand back a job id when they take longer than a tool call): waits up to wait_seconds more, then answers with the result or that it is still running.",
+        "The result of a step that was still running (meyes_profile, meyes_niche, meyes_recluster, meyes_markers, meyes_save_analysis and meyes_raw_check hand back a job id when they take longer than a tool call): waits up to wait_seconds more, then answers with the result or that it is still running.",
       inputSchema: z.strictObject({
         id: z.string().min(1).max(100),
         wait_seconds: z.number().int().min(0).max(50).default(45),

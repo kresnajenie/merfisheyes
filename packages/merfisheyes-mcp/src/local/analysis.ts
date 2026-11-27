@@ -18,12 +18,19 @@ import { local, type OpenedDataset } from "./serve.ts";
  * save writes them into a copy. The person's data is never changed.
  */
 
-export type Step = "profile" | "niche" | "recluster" | "markers" | "save";
+export type Step =
+  | "profile"
+  | "niche"
+  | "recluster"
+  | "markers"
+  | "save"
+  | "raw_check";
 
 export interface Job {
   id: string;
   step: Step;
-  dataset: OpenedDataset;
+  /** The open dataset the step works on; none for a raw run's check. */
+  dataset?: OpenedDataset;
   status: "running" | "done" | "failed";
   started: number;
   lines: string[];
@@ -31,6 +38,8 @@ export interface Job {
   error?: string;
   /** What was shown in the open view afterwards (or why not). */
   shown?: string[];
+  /** The plots to hand back as images (raw check); null: all. */
+  want?: string[] | null;
   done: Promise<void>;
 }
 
@@ -51,30 +60,85 @@ export function workspaceFor(d: OpenedDataset): string {
   );
 }
 
-function script(): string {
+/** A script of MERFISHEYES's pipeline, beside prepare.py. */
+function script(name = "meyes_analysis.py"): string {
   const prepare = findPrepare();
-  const s = prepare ? join(dirname(prepare), "meyes_analysis.py") : null;
+  const s = prepare ? join(dirname(prepare), name) : null;
 
   if (!s || !existsSync(s))
     throw new Error(
-      "MERFISHEYES's analysis script is not available here (meyes_analysis.py beside prepare.py).",
+      `MERFISHEYES's ${name} is not available here (it belongs beside prepare.py).`,
     );
 
   return s;
 }
 
-/** Start a step; the job is returned at once, its `done` settles later. */
+/** Start a step on the open dataset; the job is returned at once, its
+ * `done` settles later. */
 export async function startStep(
   step: Step,
   args: Record<string, unknown>,
   dataset: OpenedDataset,
 ): Promise<Job> {
   const py = script();
+  const work = workspaceFor(dataset);
+
+  return startJob(step, args, work, dataset, (a, o) => [
+    py,
+    step,
+    "--store",
+    dataset.store,
+    "--work",
+    work,
+    "--args",
+    a,
+    "--out",
+    o,
+  ]);
+}
+
+/**
+ * Check a raw MERFISH run folder (RAW-MERFISH.md step 1): summary, flags and
+ * plots from scripts/raw_merfish.py, written to a workspace of its own. The
+ * run is only read.
+ */
+export async function startRawCheck(
+  folder: string,
+  args: Record<string, unknown>,
+): Promise<Job> {
+  const py = script("raw_merfish.py");
+  const id = createHash("sha256").update(folder).digest("hex").slice(0, 10);
+  const work = join(
+    dirname(cacheRoot()),
+    "raw-check",
+    `${basename(folder.replace(/[\\/]+$/, "")) || "run"}-${id}`,
+  );
+
+  return startJob("raw_check", args, work, undefined, (a, o) => [
+    py,
+    "check",
+    "--run",
+    folder,
+    "--work",
+    work,
+    "--args",
+    a,
+    "--out",
+    o,
+  ]);
+}
+
+async function startJob(
+  step: Step,
+  args: Record<string, unknown>,
+  work: string,
+  dataset: OpenedDataset | undefined,
+  argv: (argsFile: string, outFile: string) => string[],
+): Promise<Job> {
   // throws SetupNeeded before anything starts when Python is not set up
   const { python } = await pipelinePython(
-    join(dirname(py), "requirements.txt"),
+    join(dirname(script()), "requirements.txt"),
   );
-  const work = workspaceFor(dataset);
   const id = `${step}-${randomBytes(4).toString("hex")}`;
 
   mkdirSync(join(work, "jobs"), { recursive: true });
@@ -91,33 +155,20 @@ export async function startStep(
     lines: [],
   } as unknown as Job;
 
-  job.done = run(
-    python,
-    [
-      py,
-      step,
-      "--store",
-      dataset.store,
-      "--work",
-      work,
-      "--args",
-      argsFile,
-      "--out",
-      outFile,
-    ],
-    (l) => {
-      if (/warning|warn\(/i.test(l)) return;
-      job.lines.push(l);
-      if (job.lines.length > 200) job.lines.splice(0, 100);
-    },
-  ).then(
+  job.done = run(python, argv(argsFile, outFile), (l) => {
+    if (/warning|warn\(/i.test(l)) return;
+    job.lines.push(l);
+    if (job.lines.length > 200) job.lines.splice(0, 100);
+  }).then(
     async ({ code }) => {
       if (code === 0 && existsSync(outFile)) {
         job.result = JSON.parse(readFileSync(outFile, "utf8"));
         job.status = "done";
-        job.shown = await showInView(job).catch((e) => [
-          `Not shown in the open view: ${(e as Error).message}`,
-        ]);
+        job.shown = job.dataset
+          ? await showInView(job).catch((e) => [
+              `Not shown in the open view: ${(e as Error).message}`,
+            ])
+          : [];
       } else {
         job.status = "failed";
         job.error =
@@ -202,6 +253,8 @@ async function readObs(file: string, name: string): Promise<string[]> {
  */
 async function showInView(job: Job): Promise<string[]> {
   const r = job.result ?? {};
+
+  if (!job.dataset) return [];
   const work = workspaceFor(job.dataset);
   const obs: string[] = [];
   const obsm: string[] = [];

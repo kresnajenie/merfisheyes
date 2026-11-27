@@ -30,6 +30,9 @@ Say what you chose when you choose something yourself (a root cell, a cluster na
 5. Analysis: meyes_niche (cells within radius of anchor labels, per section) → meyes_recluster (that subset: UMAP + Leiden at a few resolutions; each cluster's top genes and main existing labels) → meyes_markers (per cluster; genes=[literature markers], heatmap=true) → name clusters from evidence, "?" when unsure → meyes_save_analysis (the format they chose).
 6. Show and check: meyes_view_set (colour by the new labels, hide "" to show the niche alone, embedding="umap_<name>") and meyes_view_snapshot (focus=[values] frames one niche; target="embedding" pictures the UMAP). Look at every snapshot before describing it.
 
+## A raw MERFISH run (the lab pipeline's .npz output: final_spots/ + final_mats/)
+Check it before anything else: meyes_raw_check(path) → show the person the plots and read out the flags with what they mean (a field with a high blank fraction decoded poorly; a gene no commoner than the blanks is not measured; a set far from the others' depth may be another library). genes=[…] draws every molecule of each in one set (set=…). Ask before converting; converting a run is not built yet — say so.
+
 Long steps run as jobs: a tool answers within about a minute; if it hands back a job id, tell the person it is running and call meyes_job(id).
 
 ## Knowledge you need but do not have

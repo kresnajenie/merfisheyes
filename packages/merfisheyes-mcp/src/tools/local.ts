@@ -92,7 +92,7 @@ Examples: "show my sample in MERFISHEYES" -> path="/data/run1/sample.zarr"; "ope
     "meyes_setup_converter",
     {
       title: "Set up MERFISHEYES's converter (one-time download)",
-      description: `The one-time setup that lets meyes_open_local convert raw data (.h5ad, Xenium, MERSCOPE, molecule tables) and runs the analysis tools (meyes_profile, meyes_niche, meyes_recluster, meyes_markers, meyes_save_analysis): downloads Python 3.12 and MERFISHEYES's pipeline packages (about 1.3 GB) into MERFISHEYES's own folder, plus uv (about 15 MB, from its official release, checksum verified) if the computer has none. Nothing is installed system-wide. Takes a minute or two.
+      description: `The one-time setup that lets meyes_open_local convert raw data (.h5ad, Xenium, MERSCOPE, molecule tables) and runs the analysis tools (meyes_profile, meyes_niche, meyes_recluster, meyes_markers, meyes_save_analysis) and meyes_raw_check: downloads Python 3.12 and MERFISHEYES's pipeline packages (about 1.3 GB) into MERFISHEYES's own folder, plus uv (about 15 MB, from its official release, checksum verified) if the computer has none. Nothing is installed system-wide. Takes a minute or two.
 Call it ONLY after the person has agreed to the download (meyes_open_local says when it is needed and what it downloads). Does nothing if the setup is already done.`,
       inputSchema: z.strictObject({}),
       annotations: {
