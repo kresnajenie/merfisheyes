@@ -24,7 +24,8 @@ export type Step =
   | "recluster"
   | "markers"
   | "save"
-  | "raw_check";
+  | "raw_check"
+  | "convert";
 
 export interface Job {
   id: string;
@@ -40,6 +41,8 @@ export interface Job {
   shown?: string[];
   /** The plots to hand back as images (raw check); null: all. */
   want?: string[] | null;
+  /** What the job is for (an input and its options): one at a time. */
+  key?: string;
   done: Promise<void>;
 }
 
@@ -185,6 +188,50 @@ async function startJob(
     },
   );
   jobs.set(id, job);
+
+  return job;
+}
+
+/**
+ * Any long piece of work as a job (a conversion): its lines are kept for
+ * progress, its result is what `work` resolves to. A job under the same
+ * `key` that is still running is returned instead of starting another.
+ */
+export function trackJob(
+  step: Step,
+  key: string,
+  work: (onLine: (l: string) => void) => Promise<Record<string, unknown>>,
+): Job {
+  const running = [...jobs.values()].find(
+    (j) => j.key === key && j.status === "running",
+  );
+
+  if (running) return running;
+  const job = {
+    id: `${step}-${randomBytes(4).toString("hex")}`,
+    step,
+    key,
+    status: "running",
+    started: Date.now(),
+    lines: [],
+  } as unknown as Job;
+  const onLine = (l: string) => {
+    if (/warning|warn\(/i.test(l)) return;
+    job.lines.push(l);
+    if (job.lines.length > 200) job.lines.splice(0, 100);
+  };
+
+  job.done = work(onLine).then(
+    (result) => {
+      job.result = result;
+      job.status = "done";
+    },
+    (e) => {
+      job.status = "failed";
+      job.error = (e as Error).message;
+    },
+  );
+  jobs.set(job.id, job);
 
   return job;
 }

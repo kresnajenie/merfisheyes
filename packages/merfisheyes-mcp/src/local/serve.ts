@@ -18,7 +18,12 @@ import { fileURLToPath } from "node:url";
 
 import { SITE } from "../config.ts";
 
-import { type Converted, convert, viewable } from "./convert.ts";
+import {
+  type ConvertOptions,
+  type Converted,
+  convert,
+  viewable,
+} from "./convert.ts";
 
 /**
  * MERFISHEYES on your own data (MCP.md §0, pillar D1): a folder on this
@@ -219,6 +224,7 @@ export class LocalServer {
   async open(
     path: string,
     onLine?: (line: string) => void,
+    options: Omit<ConvertOptions, "onLine"> = {},
   ): Promise<{ share: Share; converted: Converted | null }> {
     const abs = resolve(path);
 
@@ -229,7 +235,7 @@ export class LocalServer {
 
       return { share, converted: null };
     }
-    const converted = await convert(abs, { onLine });
+    const converted = await convert(abs, { ...options, onLine });
     const share = await this.share(converted.folder);
 
     this.remember({ input: abs, store: share.path, share });

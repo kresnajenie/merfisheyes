@@ -18,6 +18,7 @@ import {
 } from "../local/analysis.ts";
 import { SetupNeeded } from "../local/convert.ts";
 import { local } from "../local/serve.ts";
+import { openedResult } from "./local.ts";
 
 /**
  * Analysis on the dataset open in the view (MCP.md pillar D, tier 2): the
@@ -73,6 +74,7 @@ function report(job: Job, extra: string[] = []) {
         { type: "text" as const, text: job.error ?? "The step failed." },
       ],
     };
+  if (job.step === "convert") return openedResult(job.result ?? {});
   const result: Record<string, unknown> = { ...job.result };
 
   delete result.ok;
@@ -431,7 +433,7 @@ Examples: "check my run" -> path="/data/run"; "is Slc17a7 where it should be in 
     {
       title: "Wait for an analysis job",
       description:
-        "The result of a step that was still running (meyes_profile, meyes_niche, meyes_recluster, meyes_markers, meyes_save_analysis and meyes_raw_check hand back a job id when they take longer than a tool call): waits up to wait_seconds more, then answers with the result or that it is still running.",
+        "The result of a step that was still running (meyes_open_local's conversions, meyes_profile, meyes_niche, meyes_recluster, meyes_markers, meyes_save_analysis and meyes_raw_check hand back a job id when they take longer than a tool call): waits up to wait_seconds more, then answers with the result or that it is still running.",
       inputSchema: z.strictObject({
         id: z.string().min(1).max(100),
         wait_seconds: z.number().int().min(0).max(50).default(45),

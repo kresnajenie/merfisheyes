@@ -24,6 +24,7 @@ The names below (folders, members, columns) are defined once, at the top of
 | `final_matsWithGFP/` or `final_mats/` holding `<field>--mat.npz` for every field of every set, matched by name to `fovs` | MUST for cells |
 | Each mat's `Mcells` (cell names, unique across the run), `Mgenes` (the panel, blanks included, the same in every mat), `Mcounts` (cells × genes, molecules per cell), `Xum` (cells × 3: z, x, y in µm, the set's frame) | MUST for cells |
 | A mat's `ctsGFP` (GFP spots per cell) | MAY — read as `gfp_count` |
+| `POS/pos_<K>.txt`: the stage positions imaged, one line a field, a field's number its line's | MAY — the check flags fields imaged but never decoded (a decode stopped early leaves holes) |
 | `GFP_xfit/XGFPF_set<K>.npz`, `Segmentation2d/`, mosaics, an h5ad of the run | MAY — later steps; ignored by the check |
 | Pickles (`*.pkl`) | never opened: loading one runs code |
 
@@ -55,8 +56,13 @@ The names below (folders, members, columns) are defined once, at the top of
 - Each set is its own frame, its origin at the set's lowest field corner.
   Sets do not share coordinates; in a store each set is a `section`,
   shifted onto a grid.
-- Coordinates are kept as written: no rotation or flip (orientation is a
-  view choice, made downstream).
+- A set's frame has y going down (stitched image pixels); the viewer draws
+  +y upwards. A store flips y so each section reads as in the lab's own
+  plots, and lays the sections on a grid read left to right, top to
+  bottom: x = x_set + dx, y = dy − y_set, each set's dx, dy in the table's
+  `uns['merfisheyes_sections']` (back: x − dx, dy − y). No rotation: the
+  fields' own orientation is right as written (cells imaged twice in an
+  overlap sit within a micron of their twin only as written).
 
 ## Identity and blanks
 

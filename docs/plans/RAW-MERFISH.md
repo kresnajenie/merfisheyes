@@ -13,9 +13,10 @@ This is a pillar of the local extension ([MCP.md](MCP.md) pillar D item 7).
 Keep this file current: a step that changes a fact or a decision edits it
 in the same commit.
 
-> **Status (2026-11-27): steps 0 and 1 built, not committed.** §4 is
+> **Status (2026-11-28): steps 0–2 done** (the check, the conversion; the
+> converted store viewed and confirmed by the user). Next: step 3. §4 is
 > answered: Jess's processed runs are the baseline — the shape a run must
-> have before conversion. Next: step 2, the conversion.
+> have before conversion.
 
 ## 1. Facts
 
@@ -43,6 +44,10 @@ member stored uncompressed (so read in place, in pieces):
   Step4). Checked in the data: density in overlaps 12.2 vs 13.8 per bin
   elsewhere; 97 % of overlap molecules sit in their nearest field.
 - **Score-filtered already**: `scoreA > -0.5`. Blanks are still there.
+- A set is one tissue section: the 18 sets of `20260326_WT_BRBB_Mer` are
+  serial sections imaged at separate places on one slide, ~2 mm apart, none
+  overlapping (`POS/pos_K.txt`; confirmed with Jess, 2026-11-28). Nothing is
+  stitched between sets.
 - One stitched frame per set, origin at the set's lowest field
   (`Pmin`); µm = `XF[:, :3] × pix_size`.
 - Rows are ordered by field; within a field they are not spatially ordered,
@@ -188,24 +193,86 @@ What it taught (kept here, the reasons for the code):
   library?), 5 fields with no mat, 29 with no GFP mat.
 
 **2. Full conversion → one SpatialData store — `prepare_merfish_run.py`, a job.**
+*Built 2026-11-27* (`scripts/prepare_merfish_run.py`, `prepare.py`'s
+`merfish_run` kind with `--sets`, `--labels-from`, `--resume`;
+`meyes_open_local(path, sets, labels_from, output)` converts as a job
+(`trackJob`) that resumes from `<output>.partial`;
+`tests/python/test_prepare_merfish_run.py`). Decisions taken with the user
+(2026-11-27): the output goes where the person says (default the cache);
+a few sets can be converted first; molecules get no cell id until the
+outlines exist (step 3). Blanks follow the shared gene filter
+(`should_filter_gene`): out of the drawn molecules and of `X`, counted per
+cell as `n_blank`. `score` is not written on the molecules (4 bytes × every
+molecule for a column the viewer does not use; the run is already
+filtered) — a change from §4.2's first wording.
 `prepare.py` recognises the run by content, so `meyes_open_local(<run>)`
 works. Per set (resumable — a laptop that sleeps continues at the next set):
-- molecules: the points element — gene, µm x / y / z, `section`, field,
-  `score`; blanks out of the drawn element, kept for QC;
+- molecules: the points element — gene, µm x / y (z with `--keep-z`),
+  `section` (copied to the feature-major order), `field`; blanks out;
 - cells: the table from `final_matsWithGFP` when present, else
   `final_mats`, with Step6's overlap rule applied to `Xum`; counts × the 500
   genes; blank counts per cell (`n_blank`), `gfp_count` from `ctsGFP`;
   DE stats as for every store. An h5ad of the same run, when the person
   names one, adds its labels and embeddings by cell name;
-- sections: one per set, shifted onto a grid in one frame (as
-  `combine_slices_v3.py` does), the shifts recorded in the store; per-set µm
-  kept as columns. Coordinates as written — no rotation (§4.6);
+- sections: one per set, on a grid read left to right, top to bottom (as
+  `combine_slices_v3.py` does: rows along −y; 250 µm apart), y flipped so
+  each section reads as in the lab's plots (§4.6): x = x_set + dx,
+  y = dy − y_set, the shifts in the table's `uns['merfisheyes_sections']`.
+  One spatial frame only (`obsm['spatial']`); from an h5ad, only
+  embeddings (`X_umap`, …) are taken, not its layouts (`X_shifted`);
 - then `stats.json` and `validate_store.py`.
 
 Gates: `20260326_WT_BRBB_Mer` converted here, time and peak memory in
 [BUDGETS.md](../specs/BUDGETS.md); molecule counts equal the files',
 cell counts equal her h5ad's (313,076); molecules land on their cells;
 the same conversion on a 16 GB laptop.
+
+Measured (2026-11-27, lab share → local NVMe, 4 workers): sets 1 + 9 of
+`20260326_WT_BRBB_Mer` — 21,022 cells (all matched to her h5ad's labels),
+111.8 M molecules (1.03 M blanks left out) — in 252 s: 44 s reading, 167 s
+building the first level (single-threaded, `points_zarr.finish`), 18 s DE
+stats; 1.7 GB store; 5.2 GB peak; `validate_store.py` passes. Molecules
+land on their cells: per gene, a cell's count correlates with the molecules
+within 5 µm of its centre at r = 0.70–0.78 (0.05–0.26 with the cells
+moved 40 µm).
+
+The whole run (2026-11-27, same setup): 313,075 cells (313,075 matched to
+her h5ad's labels; her 313,076th is the tie in the profile), 1,695,800,334
+molecules (13.5 M blanks left out) — equal to the spot files' count less
+the blanks — in 47 min (9 min reading, 30 min the first level); a 22 GB
+store (13 bytes a molecule); validates. **Peak 26 GB**: pass B of the
+points writer sorts one 800 µm band at a time, and 18 sections side by side
+make a band 21 mm wide — 120 M molecules at ~140 bytes each. Fixed by sizing
+the bands to the data (`points_zarr.band_for`: ~25 M points a band, a whole
+number of tiles): sets 1 + 9 then peak at 3.7 GB (was 5.2). The whole run
+again: **6.0 GB peak, 23 min** (7 min reading, 9 min the first level —
+thinner bands sort faster too; the share was partly cached the second
+time), the same counts and store, validates. Under the 16 GB a laptop has.
+The store, for checking by hand: `/data/merfisheyes_claude_extension/raw
+conversion tests/brbb_full` (22 GB).
+
+Checked by hand (2026-11-28, the user's Claude session, an audit of that
+store against the raw files): cells' positions and counts equal the mats'
+exactly; molecules on their cells (log-correlation of gene fractions
+0.997); the fields' orientation right as written. Found and fixed: her
+h5ad's `X_shifted` (another layout of the sets) was carried as an
+embedding — now only embeddings are taken; the grid's rows went up and each
+section showed upside down (the viewer draws +y upwards) — rows now go
+down and y is flipped (§4.6); 80 fields imaged but never decoded in 7 sets
+(`POS/pos_K.txt` lists more than the spot files hold: a decode stopped at
+field 90) — upstream, now flagged by the check and logged by the
+conversion. Left as is: the repeated fields at each set's end (her
+de-duplication split those tiles' molecules between the two copies, so
+dropping one leaves holes); the viewer's default molecule genes (Igfbpl1,
+Drd1, Th, hard-coded for every dataset in `lib/utils/auto-select-genes.ts`)
+— the viewer's, not this plan's. Reconverted with the fixes (2026-11-27):
+32 min, 6.0 GB peak, same counts, validates; per section the molecules'
+extent equals the cells' within 2 µm; set 1 top-left, sets 16–18 the
+bottom row; the copy in `raw conversion tests/brbb_full` replaced.
+
+Still open: the 16 GB laptop itself; the first-level build is
+single-threaded (`points_zarr.finish`, shared by every molecule
+converter) and is most of the time.
 
 **3. GFP spots, images and outlines.** GFP spots (`GFP_xfit`) as their
 own entry in the points once the columns are known; mosaics → OME-Zarr image
@@ -250,7 +317,7 @@ needs to look like before conversion."
    to cells, as her Step6 does. The check flags spots that look
    un-de-duplicated.
 2. **"Final" spots** — `final_spots/`, already `scoreA > -0.5`. No threshold
-   offered; `score` is kept on each molecule.
+   offered. (`score` is left off the converted molecules: step 2.)
 3. **Sets** — one section each; each set is its own stitched frame
    (pixels × `pix_size`); sections go side by side in one store.
 4. **The 3×3 run and the other §1b layouts** — not targeted first: they are
@@ -258,8 +325,10 @@ needs to look like before conversion."
 5. **Who produces it** — the lab, processed in different ways; the baseline
    is what a run must look like. Detection is by members and columns, and a
    refusal says what is missing.
-6. **Orientation** — not decided here; fixed downstream. Coordinates are
-   kept as written.
+6. **Orientation** — first "fixed downstream, kept as written"; changed by
+   the user on 2026-11-28 after viewing the converted store (the sections
+   showed upside down, the grid bottom to top): y is flipped in the store
+   and the grid's rows go down, so sections read as in the lab's plots.
 7. **Cell table** (Claude's suggestion, taken 2026-11-27) — built from the
    mats, not from a finished h5ad: the check and conversion come before
    analysis, and not every run has one. An h5ad of the same run (`obs_names`

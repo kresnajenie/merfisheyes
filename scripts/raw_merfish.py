@@ -38,9 +38,16 @@ MAT_SUFFIX = "--mat.npz"
 SPOT_MEMBERS = ("XF", "genes", "pix_size", "fov_size", "pos_fovs_pix", "fovs")
 MAT_MEMBERS = ("Mcells", "Mgenes", "Mcounts", "Xum")
 GFP_MEMBER = "ctsGFP"
+POS_FILE = "POS/pos_{}.txt"  # the stage positions the run imaged, one line a field (optional)
 XF_Z, XF_X, XF_Y, XF_SCORE, XF_FIELD = range(5)
 BLANK_PREFIX = "blank"
 SET_NAME = re.compile(r"set[_-]?(\d+)", re.I)
+
+# What a conversion costs (prepare_merfish_run.py, measured on
+# 20260326_WT_BRBB_Mer; docs/plans/RAW-MERFISH.md step 2): store bytes and
+# seconds per molecule. The check reports the estimate before converting.
+STORE_BYTES_PER_MOLECULE = 13.5  # 22 GB for 1.70 B molecules
+SECONDS_PER_MOLECULE = 1.5e-6  # 23–47 min for 1.71 B, 4 workers (a laptop: slower)
 
 # Light-mode chart colours (the dataviz reference palette).
 INK, INK2, GRID, CONTEXT = "#191919", "#666666", "#e6e6e6", "#c9c9c9"
@@ -227,6 +234,44 @@ def detect(folder: str | os.PathLike) -> Run:
     if not all(s.stored for s in sets):
         run.notes.append("Some spot files are compressed: they are read whole (slower, more memory).")
     return run
+
+
+def field_index(name: str) -> int | None:
+    """A field's number, from the digits that end its name (Conv_zscan10_090 → 90)."""
+    m = re.search(r"(\d+)$", name)
+    return int(m.group(1)) if m else None
+
+
+def undecoded_fields(run: Run, sets: list[SpotSet] | None = None) -> list[str]:
+    """Fields the microscope imaged (a line in POS/pos_<set>.txt) that the
+    spot file has none of — a decode stopped early leaves holes — as
+    sentences, one a set. Empty when the run has no POS files."""
+    out = []
+    for s in sets if sets is not None else run.sets:
+        pos = run.root / POS_FILE.format(s.id)
+        if not pos.is_file():
+            continue
+        n = sum(1 for line in pos.read_text().splitlines() if line.strip())
+        have = {field_index(f) for f in s.fovs}
+        missing = [i for i in range(n) if i not in have]
+        if missing:
+            spans, start = [], missing[0]
+            for a, b in zip(missing, missing[1:] + [None]):
+                if b != a + 1:
+                    spans.append(f"{start}" if start == a else f"{start}–{a}")
+                    if b is not None:
+                        start = b
+            out.append(f"Set {s.id}: {n} positions imaged ({pos.relative_to(run.root)}), {len(s.fovs)}"
+                       f" fields decoded — {len(missing)} never decoded ({', '.join(spans)}): holes in the section")
+    return out
+
+
+def panel_of(run: Run) -> list[str]:
+    """The run's gene panel, blanks included: the first mat's Mgenes."""
+    if not run.mats:
+        return []
+    with np.load(next(iter(run.mats.values())), allow_pickle=False) as z:
+        return [str(g) for g in z["Mgenes"]]
 
 
 # ------------------------------------------------------------ gene names
@@ -429,6 +474,7 @@ def check(run: Run, work: Path, genes: list[str], detail_set: str | None,
         notes.append(f"{len(reimaged)} fields were imaged again at the end of their set (the first"
                      " fields, repeated last): each cell goes to the nearer copy's centre, an exact"
                      " tie to the first.")
+    flags.extend(undecoded_fields(run))
     orphans = sorted(set(run.mats) - known)
     if orphans:
         flags.append(f"{len(orphans)} cell mats belong to no set's fields"
@@ -605,6 +651,11 @@ def check(run: Run, work: Path, genes: list[str], detail_set: str | None,
         "blank_fraction": round(float(np.average([p["blank_fraction"] for p in per_set],
                                                  weights=[p["molecules"] for p in per_set])), 4),
         "gfp": f"{run.gfp_fields} of {len(run.mats)} fields" if run.gfp_fields else None,
+        "conversion_estimate": {
+            "store_gb": round(tot_mol * STORE_BYTES_PER_MOLECULE / 1e9, 1),
+            "minutes": max(1, round(tot_mol * SECONDS_PER_MOLECULE / 60)),
+            "note": "for the whole run, on a fast disk; a few sets take their share",
+        },
         "per_set": per_set,
         "flags": flags,
         "notes": notes,

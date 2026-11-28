@@ -176,6 +176,18 @@ def test_a_field_imaged_twice(tmp_path, again, flagged):
     assert any("imaged again at the end" in x for x in out["notes"]) is not flagged
 
 
+def test_fields_imaged_but_never_decoded_are_flagged(tmp_path):
+    make_run(tmp_path / "run", sets=("1",), grid=3)
+    (tmp_path / "run" / "POS").mkdir()
+    (tmp_path / "run" / "POS" / "pos_1.txt").write_text("".join(f"{i}.0,0.0\n" for i in range(13)))
+    run = rm.detect(tmp_path / "run")
+    assert rm.undecoded_fields(run) == [
+        "Set 1: 13 positions imaged (POS/pos_1.txt), 9 fields decoded — 4 never decoded (9–12): holes in the section"]
+    out = rm.check(run, tmp_path / "w", [], None, "cells", progress=lambda m: None)
+    assert any("never decoded (9–12)" in f for f in out["flags"])
+    assert rm.field_index("Conv_zscan10_090") == 90
+
+
 def test_missing_mats_are_flagged(tmp_path):
     make_run(tmp_path / "run", sets=("1",))
     (tmp_path / "run" / "final_mats" / "Conv_zscan1_02--mat.npz").unlink()

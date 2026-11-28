@@ -585,13 +585,32 @@ def write_store_from_table(source: Path, kind: str, store: Path, log) -> None:
         adata = ad.read_h5ad(source) if kind == "h5ad" else ad.read_zarr(source)
     if adata is not None:
         write_table(tables, filter_genes(adata, log), log)
-    # What the spatialdata library writes on a table, so it reads this one back
+    mark_table(store)
+
+
+def mark_table(store: Path) -> None:
+    """What the spatialdata library writes on a table, so it reads this one back."""
+    import zarr
+
     drop_consolidated(store / "tables" / "table" / "zarr.json")
     table = zarr.open_group(store / "tables" / "table", mode="r+", use_consolidated=False)
     table.attrs.update(
         {"spatialdata-encoding-type": "ngff:regions_table", "region": None, "region_key": None,
          "instance_key": None, "version": SPATIALDATA_ATTRS["version"]}
     )
+
+
+def write_store_from_adata(adata, store: Path, log) -> None:
+    """An AnnData built in memory becomes `store/tables/table` (control
+    probes left out), as `write_store_from_table` writes a file's."""
+    import zarr
+
+    if store.exists():
+        raise SystemExit(f"{store} exists already; remove it or pass --name")
+    root = zarr.open_group(store, mode="w", zarr_format=3)
+    root.attrs["spatialdata_attrs"] = SPATIALDATA_ATTRS
+    write_table(root.create_group("tables"), filter_genes(adata, log), log)
+    mark_table(store)
 
 
 def merge_labels(table, csv: Path, log) -> None:

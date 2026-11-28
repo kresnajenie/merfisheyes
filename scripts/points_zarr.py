@@ -142,6 +142,20 @@ def _checked_transformations(transformations: list[dict] | None, dims: int) -> l
     return out
 
 
+BAND_POINTS = 25_000_000  # points a band should hold: pass B sorts one band in memory (~140 B a point)
+
+
+def band_for(n_points: int, extent_y: float, tile_size: float = 100.0, target: int = BAND_POINTS,
+             widest: float = 800.0) -> float:
+    """A band height (a whole number of level-0 tiles, at most `widest`) that
+    keeps a band near `target` points when `n_points` spread evenly over
+    `extent_y`: a wide, dense element (sections side by side) otherwise puts
+    a hundred million points in one band, and pass B needs ~140 bytes each."""
+    per_um = n_points / max(extent_y, tile_size)
+    rows = max(1, int(target / max(per_um, 1e-9) // tile_size))
+    return float(min(widest, rows * tile_size))
+
+
 class PointsWriter:
     """Writes one points element. Picklable, so workers can ``spill``.
 
@@ -167,6 +181,7 @@ class PointsWriter:
         units: str = "micrometer",
         coordinate_system: str = "global",
         transformations: list[dict] | None = None,
+        keep_tmp: bool = False,
     ):
         self.out, self.tmp = Path(out), Path(tmp)
         self.features = list(features)
@@ -192,8 +207,10 @@ class PointsWriter:
         # which places it wrongly beside cells that declare a scale.
         self.transformations = _checked_transformations(transformations, dims)
         self.fdtype = np.dtype("u2" if len(self.features) < 2**16 else "u4")
-        # leftovers of an earlier, interrupted run would be appended to
-        shutil.rmtree(self.tmp, ignore_errors=True)
+        # leftovers of an earlier, interrupted run would be appended to —
+        # unless the caller resumes it and has removed what it will redo
+        if not keep_tmp:
+            shutil.rmtree(self.tmp, ignore_errors=True)
 
     # ---- layout helpers -------------------------------------------------
     @property

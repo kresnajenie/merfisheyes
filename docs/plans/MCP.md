@@ -720,7 +720,7 @@ with no Python of the agent's own and no step cut off.
    map, blank fraction), then converted by the extension into one finalized
    SpatialData store and viewed — no hand conversion, no upload. Its own
    plan: [RAW-MERFISH.md](RAW-MERFISH.md). Unblocked 2026-11-27 (§4
-   answered); steps 0–1 under way.
+   answered); steps 0–2 built (the check, the conversion as a job).
 
 ### Pillar E — The site is the MCP server (a connector, no install)
 

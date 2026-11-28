@@ -107,7 +107,7 @@ per-script flag reference, and trust `docs/` on anything they contradict.
 | [docs/plans/METADATA.md](docs/plans/METADATA.md) | **Live plan: one metadata schema — SpatialData-DB's — for every dataset**: ontology terms validated with bionty, written into the store's root attributes, verified in Lamin, published as the query index Explore and the agents read (planned 2026-11-14) |
 | [docs/plans/LAMIN.md](docs/plans/LAMIN.md) | Live plan: our datasets recorded in the Lamin instance `merfisheyes/eyes-catalog`, in place on S3 — `register_lamin.py` |
 | [docs/plans/UPLOAD-TUTORIAL.md](docs/plans/UPLOAD-TUTORIAL.md) | Live plan: one way to prepare and upload data (`prepare_*.py`) |
-| [docs/plans/RAW-MERFISH.md](docs/plans/RAW-MERFISH.md) | Live plan: raw MERFISH runs (`final_spots` + `final_mats` `.npz`, Jess's runs the baseline) sanity-checked and converted to one store by the local extension. §4 answered 2026-11-27 |
+| [docs/plans/RAW-MERFISH.md](docs/plans/RAW-MERFISH.md) | Live plan: raw MERFISH runs (`final_spots` + `final_mats` `.npz`, Jess's runs the baseline) sanity-checked (`meyes_raw_check`) and converted to one store (`prepare_merfish_run.py`) by the local extension. Steps 0–2 built |
 | [docs/plans/MCP.md](docs/plans/MCP.md) | Live plan: MERFISHEYES for agents, by pillars (§0) — research the library, MERFISHEYES on your own data (`merfisheyes-mcp view`), the site as the MCP server at `/mcp` (steps 1–4 done; `@merfisheyes/mcp` 0.1.0 on npm, `packages/merfisheyes-mcp`). One catalog visibility rule now: `lib/explore/visibility.ts` |
 | [docs/labelled-single-molecule.md](docs/labelled-single-molecule.md) | `/lm-viewer` — molecules with N categorical labels, no expression matrix |
 | [docs/sc-sm-one-space.md](docs/sc-sm-one-space.md) | SC+SM overlay; `__all__` ships, per-sample mode is future work |
@@ -184,8 +184,9 @@ ElementStore (lib/storage/)         one byte cache, cancellation, merged ranges,
 
 **The entry point for preparing data is [`scripts/prepare.py`](scripts/prepare.py)**
 `INPUT OUT`: it recognises an `.h5ad` / AnnData Zarr, a Xenium export, a
-MERSCOPE region, a Visium output, a molecule table or a folder of parts **by
-content**, runs the matching `prepare_*` script, and writes exactly
+MERSCOPE region, a Visium output, a raw MERFISH run
+([raw-merfish-profile.md](docs/specs/raw-merfish-profile.md)), a molecule
+table or a folder of parts **by content**, runs the matching `prepare_*` script, and writes exactly
 `OUT/<name>.zarr` (one SpatialData store), `mapping.json` and `stats.json`,
 never touching INPUT. Exit codes: **0** written and validated, **2**
 unrecognised, **3** incomplete, **4** invalid. Packages are pinned in

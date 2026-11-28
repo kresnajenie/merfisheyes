@@ -388,39 +388,82 @@ export interface Converted {
 }
 
 const EXIT: Record<number, string> = {
-  2: "MERFISHEYES does not recognise this as spatial data: it opens a SpatialData store, an .h5ad (with obsm['spatial']), a Xenium export, a MERSCOPE region, a Visium output or a molecule table (gene, x, y columns)",
-  3: "the input is incomplete (a file it needs is missing)",
+  2: "MERFISHEYES does not recognise this as spatial data: it opens a SpatialData store, an .h5ad (with obsm['spatial']), a Xenium export, a MERSCOPE region, a Visium output, a raw MERFISH run (final_spots/ + final_mats/) or a molecule table (gene, x, y columns)",
+  3: "the input is incomplete or unusable",
   4: "the converted store did not pass validation",
 };
 
+export interface ConvertOptions {
+  onLine?: (line: string) => void;
+  /** Where the converted folder goes (default: the cache). Must be new or
+   * empty, or hold an earlier conversion of the same input. */
+  out?: string;
+  /** A raw MERFISH run: only these sets. */
+  sets?: string[];
+  /** A raw MERFISH run: an .h5ad whose labels join by cell name. */
+  labelsFrom?: string;
+}
+
+/** A raw MERFISH run (docs/specs/raw-merfish-profile.md): its conversion
+ * can resume where an interrupted one stopped. */
+function isRawRun(path: string): boolean {
+  return existsSync(join(path, "final_spots"));
+}
+
 /**
- * Convert `input` into a store in the cache (or reuse the last conversion of
- * the same, unchanged input). Throws an Error saying what to do when Python
- * or its packages are missing, or the input is not spatial data.
+ * Convert `input` into a store (in the cache unless `out` says where), or
+ * reuse the last conversion of the same, unchanged input with the same
+ * options. A raw MERFISH run that was interrupted (the server stopped)
+ * resumes from its `.partial` folder. Throws an Error saying what to do when
+ * Python or its packages are missing, or the input is not spatial data.
  */
 export async function convert(
   input: string,
-  opts: { onLine?: (line: string) => void } = {},
+  opts: ConvertOptions = {},
 ): Promise<Converted> {
   const abs = resolve(input);
 
   if (!existsSync(abs)) throw new Error(`${abs} does not exist.`);
-  const id = createHash("sha256").update(abs).digest("hex").slice(0, 10);
+  const options = {
+    sets: opts.sets?.length ? opts.sets.map(String) : undefined,
+    labelsFrom: opts.labelsFrom ? resolve(opts.labelsFrom) : undefined,
+  };
+  const keyed = options.sets || options.labelsFrom;
+  const id = createHash("sha256")
+    .update(keyed ? `${abs}|${JSON.stringify(options)}` : abs)
+    .digest("hex")
+    .slice(0, 10);
   const name = basename(abs).replace(/\.(h5ad|parquet|csv|tsv|zarr)$/i, "");
-  const folder = join(cacheRoot(), `${name}-${id}`);
+  const folder = opts.out
+    ? resolve(opts.out)
+    : join(cacheRoot(), `${name}-${id}`);
   const stamp = join(folder, ".merfisheyes-source.json");
   const print = fingerprint(abs);
-
-  if (existsSync(stamp)) {
+  const same = (file: string) => {
     try {
-      const was = JSON.parse(readFileSync(stamp, "utf8"));
+      const was = JSON.parse(readFileSync(file, "utf8"));
 
-      if (was.input === abs && was.fingerprint === print)
-        return { folder, reused: true, seconds: 0 };
+      return (
+        was.input === abs &&
+        was.fingerprint === print &&
+        JSON.stringify(was.options ?? {}) === JSON.stringify(options)
+      );
     } catch {
-      // convert again
+      return false;
     }
-  }
+  };
+
+  if (existsSync(stamp) && same(stamp))
+    return { folder, reused: true, seconds: 0 };
+  if (
+    opts.out &&
+    existsSync(folder) &&
+    readdirSync(folder).length &&
+    !existsSync(stamp)
+  )
+    throw new Error(
+      `${folder} is not empty and holds no earlier conversion of ${abs}: give a new or empty folder.`,
+    );
 
   const prepare = findPrepare();
 
@@ -430,25 +473,41 @@ export async function convert(
     );
   const requirements = join(prepare, "..", "requirements.txt");
   const { python, managed } = await pipelinePython(requirements);
-  const work = `${folder}.tmp-${process.pid}`;
+  // One work folder per output, kept when the server stops mid-way: a raw
+  // run resumes there; anything else starts again
+  const work = `${folder}.partial`;
+  const marker = `${work}.json`; // beside it: prepare.py wants the folder empty
+  const resume = isRawRun(abs) && existsSync(marker) && same(marker);
 
-  rmSync(work, { recursive: true, force: true });
-  mkdirSync(cacheRoot(), { recursive: true });
+  if (!resume) rmSync(work, { recursive: true, force: true });
+  mkdirSync(dirname(work), { recursive: true });
+  writeFileSync(
+    marker,
+    JSON.stringify({ input: abs, fingerprint: print, options }, null, 2),
+  );
+  if (resume) opts.onLine?.(`Resuming the conversion in ${work}`);
   const started = Date.now();
-  const { code, output } = await run(
-    python,
-    [prepare, abs, work],
-    opts.onLine,
-  ).catch((e: NodeJS.ErrnoException) => {
-    throw e.code === "ENOENT"
-      ? new Error(
-          `No Python found at "${python}" (MERFISHEYES_PYTHON). Unset it to let MERFISHEYES set up its own, or point it at a Python 3.12 with the pipeline's packages (pip install -r ${requirements}).`,
-        )
-      : e;
-  });
+  const args = [
+    prepare,
+    abs,
+    work,
+    ...(options.sets ? ["--sets", options.sets.join(",")] : []),
+    ...(options.labelsFrom ? ["--labels-from", options.labelsFrom] : []),
+    ...(resume ? ["--resume"] : []),
+  ];
+  const { code, output } = await run(python, args, opts.onLine).catch(
+    (e: NodeJS.ErrnoException) => {
+      throw e.code === "ENOENT"
+        ? new Error(
+            `No Python found at "${python}" (MERFISHEYES_PYTHON). Unset it to let MERFISHEYES set up its own, or point it at a Python 3.12 with the pipeline's packages (pip install -r ${requirements}).`,
+          )
+        : e;
+    },
+  );
 
   if (code !== 0) {
     rmSync(work, { recursive: true, force: true });
+    rmSync(marker, { force: true });
     const missing = output
       .map((l) => /No module named '([^']+)'/.exec(l)?.[1])
       .find(Boolean);
@@ -459,16 +518,23 @@ export async function convert(
           ? `MERFISHEYES's own Python lacks "${missing}" — delete ${dirname(python)}/.. and try again to rebuild it.`
           : `The Python at "${python}" (MERFISHEYES_PYTHON) lacks the pipeline's packages (no module "${missing}"). Unset MERFISHEYES_PYTHON to let MERFISHEYES set up its own, or install them there: pip install -r ${requirements}.`,
       );
+    const reason = output
+      .filter((l) => /^error: /.test(l))
+      .map((l) => l.slice(7))
+      .join(" ");
+
     throw new Error(
-      `Could not convert ${abs}: ${EXIT[code] ?? `prepare.py stopped (exit ${code})`}.\n${output.slice(-8).join("\n")}`,
+      `Could not convert ${abs}: ${reason || EXIT[code] || `prepare.py stopped (exit ${code})`}.\n${output.slice(-8).join("\n")}`,
     );
   }
+  rmSync(marker, { force: true });
   writeFileSync(
     join(work, ".merfisheyes-source.json"),
     JSON.stringify(
       {
         input: abs,
         fingerprint: print,
+        options,
         converted_at: new Date().toISOString(),
       },
       null,

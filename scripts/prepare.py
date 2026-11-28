@@ -4,6 +4,7 @@
   python scripts/prepare.py INPUT OUT [--name NAME] [--no-images] [--keep-z]
                             [--cluster] [--labels CSV]...
                             [--molecule-columns GENE,X,Y[,Z] | gene=G,x=X,y=Y[,z=Z][,cell=C]] [--workers N]
+                            [--sets 1,2,9] [--labels-from H5AD] [--resume]
 
 Run it on your own machine to prepare data before you drop or upload it. The
 server's worker is moving to this same script (docs/plans/ONE-PIPELINE.md,
@@ -19,6 +20,9 @@ INPUT is recognised by what is in it, never by its name:
   a Xenium export      the folder holding experiment.xenium
   a MERSCOPE region    the folder holding cell_by_gene.csv and cell_metadata.csv
   a Visium output      Space Ranger's outs/ (spatial/ and a feature matrix)
+  a raw MERFISH run    the lab pipeline's final_spots/ + final_mats/ .npz
+                       (docs/specs/raw-merfish-profile.md); --sets picks
+                       sets, --labels-from adds an .h5ad's labels by cell name
   molecules only       a .parquet / .csv with a gene column and x, y (, z)
                        columns: Xenium's and MERSCOPE's names, or your own
                        (Gene, X, Y, Z... in any case; else --molecule-columns)
@@ -74,7 +78,7 @@ class Unrecognised(Exception):
 
 def recognise(path: Path, molecule_columns: str | None = None) -> str:
     """`h5ad`, `table` (AnnData Zarr), `xenium`, `merscope`, `visium`,
-    `transcripts` or `folder`."""
+    `merfish_run`, `transcripts` or `folder`."""
     if path.is_file():
         kind = prepare_folder.kind_of(path, molecule_columns)
         if kind == "h5ad":
@@ -91,6 +95,15 @@ def recognise(path: Path, molecule_columns: str | None = None) -> str:
         return "xenium"
     if (path / "cell_by_gene.csv").exists() and (path / "cell_metadata.csv").exists():
         return "merscope"
+    if (path / "final_spots").is_dir():
+        # before the folder of parts: a run folder often holds .h5ad files too
+        import raw_merfish
+
+        try:
+            raw_merfish.detect(path)
+        except raw_merfish.NotARun as e:
+            raise Unrecognised(str(e))
+        return "merfish_run"
     if (path / "spatial").is_dir() and (
         any(path.glob("*feature_bc_matrix*")) or (path / "binned_outputs").is_dir()
     ):
@@ -211,6 +224,9 @@ def prepare(
     workers: int = 4,
     keep_z: bool = False,
     metadata: dict | None = None,
+    sets: list[str] | None = None,
+    labels_from: Path | None = None,
+    resume: bool = False,
     log=print,
 ) -> int:
     source = Path(source).resolve()
@@ -220,7 +236,7 @@ def prepare(
     except Unrecognised as e:
         log(f"error: {e}")
         return 2
-    if out.exists() and any(out.iterdir()):
+    if out.exists() and any(out.iterdir()) and not (resume and kind == "merfish_run"):
         log(f"error: {out} is not empty; give a new folder")
         return 2
     out.mkdir(parents=True, exist_ok=True)
@@ -248,6 +264,13 @@ def prepare(
 
             report = prepare_visium.prepare_visium(
                 source, out, name=name, cluster=cluster, images=images, label_csv=label_csv, log=log,
+            )
+        elif kind == "merfish_run":
+            import prepare_merfish_run
+
+            report = prepare_merfish_run.prepare_merfish_run(
+                source, out, name=name, sets=sets, labels_from=labels_from, keep_z=keep_z,
+                workers=workers, cluster=cluster, label_csv=label_csv, resume=resume, log=log,
             )
         elif kind == "transcripts":
             write_transcripts(source, out, name, molecule_columns, log, keep_z=keep_z)
@@ -338,6 +361,11 @@ def main(argv=None) -> int:
                          "repeat for several, merged in the order given")
     ap.add_argument("--molecule-columns", help="a molecule table's columns as GENE,X,Y[,Z] when they are not recognised, or gene=G,x=X,y=Y[,z=Z][,cell=C] to also split assigned and unassigned molecules by C")
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--sets", help="a raw MERFISH run: only these sets, e.g. 1,2,9")
+    ap.add_argument("--labels-from", type=Path,
+                    help="a raw MERFISH run: an .h5ad of the same run whose labels and embeddings join by cell name")
+    ap.add_argument("--resume", action="store_true",
+                    help="a raw MERFISH run: keep what an interrupted conversion into OUT already wrote")
     ap.add_argument("--metadata", type=Path,
                     help="JSON of what only a person knows (organism, tissue, title, …) as index column "
                          "names (docs/specs/metadata.md §3); written into the store's attributes")
@@ -360,6 +388,9 @@ def main(argv=None) -> int:
         workers=args.workers,
         keep_z=args.keep_z,
         metadata=metadata,
+        sets=args.sets.split(",") if args.sets else None,
+        labels_from=args.labels_from.resolve() if args.labels_from else None,
+        resume=args.resume,
     )
 
 

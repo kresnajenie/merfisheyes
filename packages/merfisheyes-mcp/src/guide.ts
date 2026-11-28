@@ -31,7 +31,10 @@ Say what you chose when you choose something yourself (a root cell, a cluster na
 6. Show and check: meyes_view_set (colour by the new labels, hide "" to show the niche alone, embedding="umap_<name>") and meyes_view_snapshot (focus=[values] frames one niche; target="embedding" pictures the UMAP). Look at every snapshot before describing it.
 
 ## A raw MERFISH run (the lab pipeline's .npz output: final_spots/ + final_mats/)
-Check it before anything else: meyes_raw_check(path) → show the person the plots and read out the flags with what they mean (a field with a high blank fraction decoded poorly; a gene no commoner than the blanks is not measured; a set far from the others' depth may be another library). genes=[…] draws every molecule of each in one set (set=…). Ask before converting; converting a run is not built yet — say so.
+1. Check it before anything else: meyes_raw_check(path) → show the person the plots and read out the flags with what they mean (a field with a high blank fraction decoded poorly; a gene no commoner than the blanks is not measured; a set far from the others' depth may be another library). genes=[…] draws every molecule of each in one set (set=…).
+2. Ask before converting: the whole run or a few sets first (sets=[…], minutes); an .h5ad of the same run whose labels to add (labels_from; look for one in the run folder); where the output goes (output) — it takes about 13 GB per billion molecules and 1–3 minutes per 100 million (meyes_raw_check gives conversion_estimate).
+3. meyes_open_local(path, sets, labels_from, output) converts it as a job: tell the person, then meyes_job(id) until it gives the link. Sets are sections side by side (colour by "section"); "field" names each cell's field (hide a bad one); n_blank and gfp_count are per cell.
+4. Then as any dataset: meyes_view_state, meyes_view_snapshot, the analysis tools.
 
 Long steps run as jobs: a tool answers within about a minute; if it hands back a job id, tell the person it is running and call meyes_job(id).
 
